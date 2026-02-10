@@ -402,12 +402,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 			// Wait for the process to exit gracefully, then force-kill if needed
 			const pid = updateProcess.pid;
-			if (pid && updateProcess.exitCode === null) {
-				const exited = await Promise.race([exitPromise, timeout(30 * 1000).then(() => false)]);
-				if (!exited) {
-					this.logService.trace('update#cancelPendingUpdate: process did not exit gracefully, killing process tree');
-					await killTree(pid, true);
-				}
+			const exited = await Promise.race([exitPromise, timeout(30 * 1000).then(() => false)]);
+			if (pid && !exited) {
+				this.logService.trace('update#cancelPendingUpdate: process did not exit gracefully, killing process tree');
+				await killTree(pid, true);
 			}
 		}
 
