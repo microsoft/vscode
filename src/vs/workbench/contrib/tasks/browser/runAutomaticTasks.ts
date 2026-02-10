@@ -180,12 +180,12 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 	private _showPrompt(notificationService: INotificationService, storageService: IStorageService, openerService: IOpenerService, configurationService: IConfigurationService, taskNames: string[], locations: Map<string, URI>): Promise<boolean> {
 		return new Promise<boolean>(resolve => {
 			notificationService.prompt(Severity.Info, nls.localize('tasks.run.allowAutomatic',
-				"This workspace has tasks ({0}) defined ({1}) that run automatically when you open this workspace. Do you allow automatic tasks to run when you open this workspace?",
+				"This workspace has tasks ({0}) defined ({1}) that run automatically when you open this workspace. Do you want to allow automatic tasks to run in all trusted workspaces?",
 				taskNames.join(', '),
 				Array.from(locations.keys()).join(', ')
 			),
 				[{
-					label: nls.localize('allow', "Allow and Run"),
+					label: nls.localize('allow', "Allow"),
 					run: () => {
 						resolve(true);
 						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, 'on', ConfigurationTarget.USER);

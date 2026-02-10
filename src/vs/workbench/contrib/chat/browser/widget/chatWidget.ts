@@ -71,6 +71,7 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { handleModeSwitch } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
+import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
@@ -365,7 +366,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 	) {
 		super();
 
@@ -2210,6 +2212,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 		}
+		// Expand directory attachments: extract images as binary entries
+		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
+
 		if (this.viewModel.sessionResource && !options.queue) {
 			// todo@connor4312: move chatAccessibilityService.acceptRequest to a refcount model to handle queue messages
 			this.chatAccessibilityService.acceptRequest(this._viewModel!.sessionResource);
@@ -2221,6 +2226,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			locationData: this._location.resolveData?.(),
 			parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind },
 			attachedContext: requestInputs.attachedContext.asArray(),
+			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
 			...this.getModeRequestOptions(),
 			modeInfo: this.input.currentModeInfo,
@@ -2266,6 +2272,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 
 		return sent.data.responseCreatedPromise;
+	}
+
+	// Resolve images from directory attachments to send as additional variables.
+	private async _resolveDirectoryImageAttachments(attachments: IChatRequestVariableEntry[]): Promise<IChatRequestVariableEntry[]> {
+		const imagePromises: Promise<IChatRequestVariableEntry[]>[] = [];
+
+		for (const attachment of attachments) {
+			if (attachment.kind === 'directory' && URI.isUri(attachment.value)) {
+				imagePromises.push(
+					this.chatAttachmentResolveService.resolveDirectoryImages(attachment.value)
+				);
+			}
+		}
+
+		if (imagePromises.length === 0) {
+			return [];
+		}
+
+		const resolved = await Promise.all(imagePromises);
+		return resolved.flat();
 	}
 
 	private async confirmPendingRequestsBeforeSend(model: IChatModel, options: IChatAcceptInputOptions): Promise<boolean> {

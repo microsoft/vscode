@@ -469,11 +469,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, sessions: AuthenticationSession[], donotUseLastFetchedData: boolean): Promise<IDefaultAccountData | null> {
 		try {
 			const accountId = sessions[0].account.id;
-			const accountPolicyData = !donotUseLastFetchedData && this._policyData?.accountId === accountId ? this._policyData : undefined;
+			const accountPolicyData = this._policyData?.accountId === accountId ? this._policyData : undefined;
 
 			const [entitlementsData, tokenEntitlementsData] = await Promise.all([
 				this.getEntitlements(sessions),
-				this.getTokenEntitlements(sessions, accountPolicyData),
+				this.getTokenEntitlements(sessions, donotUseLastFetchedData ? undefined : accountPolicyData),
 			]);
 
 			let isTokenEntitlementsDataFetched = false;
@@ -486,7 +486,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.chat_preview_features_enabled;
 				policyData.mcp = tokenEntitlementsData.mcp;
 				if (policyData.mcp) {
-					const mcpRegistryProvider = await this.getMcpRegistryProvider(sessions, accountPolicyData);
+					const mcpRegistryProvider = await this.getMcpRegistryProvider(sessions, donotUseLastFetchedData ? undefined : accountPolicyData);
 					if (!isUndefined(mcpRegistryProvider)) {
 						isMcpRegistryDataFetched = true;
 						policyData.mcpRegistryUrl = mcpRegistryProvider?.url;
