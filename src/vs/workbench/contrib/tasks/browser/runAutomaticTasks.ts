@@ -185,14 +185,14 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 				Array.from(locations.keys()).join(', ')
 			),
 				[{
-					label: nls.localize('allow', "Allow for All Trusted Workspaces"),
+					label: nls.localize('allow', "Allow"),
 					run: () => {
 						resolve(true);
 						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, 'on', ConfigurationTarget.USER);
 					}
 				},
 				{
-					label: nls.localize('disallow', "Disallow for All Trusted Workspaces"),
+					label: nls.localize('disallow', "Disallow"),
 					run: () => {
 						resolve(false);
 						configurationService.updateValue(ALLOW_AUTOMATIC_TASKS, 'off', ConfigurationTarget.USER);
