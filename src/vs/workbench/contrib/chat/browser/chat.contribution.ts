@@ -52,7 +52,6 @@ import { ILanguageModelsService, LanguageModelsService } from '../common/languag
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
-import { HooksExecutionService, IHooksExecutionService } from '../common/hooks/hooksExecutionService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME, CLAUDE_AGENTS_SOURCE_FOLDER, DEFAULT_HOOK_FILE_PATHS } from '../common/promptSyntax/config/promptFileLocations.js';
@@ -1180,37 +1179,6 @@ class ChatResolverContribution extends Disposable {
 	}
 }
 
-class ChatHooksProgressContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.chatHooksProgress';
-
-	constructor(
-		@IChatService private readonly chatService: IChatService,
-		@IHooksExecutionService hooksExecutionService: IHooksExecutionService,
-	) {
-		super();
-
-		this._register(hooksExecutionService.onDidHookProgress(event => {
-			const model = this.chatService.getSession(event.sessionResource);
-			if (!model) {
-				return;
-			}
-
-			const request = model.getRequests().at(-1);
-			if (!request) {
-				return;
-			}
-
-			this.chatService.appendProgress(request, {
-				kind: 'hook',
-				hookType: event.hookType,
-				stopReason: event.stopReason,
-				systemMessage: event.systemMessage,
-			});
-		}));
-	}
-}
-
 class ChatAgentSettingContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatAgentSetting';
@@ -1517,7 +1485,6 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(ChatHooksProgressContribution.ID, ChatHooksProgressContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashStaticSlashCommandsContribution.ID, ChatSlashStaticSlashCommandsContribution, WorkbenchPhase.Eventually);
 
@@ -1598,7 +1565,6 @@ registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delay
 registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
-registerSingleton(IHooksExecutionService, HooksExecutionService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);

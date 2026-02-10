@@ -45,7 +45,6 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { IHooksExecutionService } from '../../../common/hooks/hooksExecutionService.js';
 import { NullLanguageModelsService } from '../../common/languageModels.js';
 import { MockChatVariablesService } from '../../common/mockChatVariables.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
@@ -88,9 +87,6 @@ suite('ChatEditingService', function () {
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
-		collection.set(IHooksExecutionService, new class extends mock<IHooksExecutionService>() {
-			override registerHooks() { return Disposable.None; }
-		});
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
 				return Disposable.None;

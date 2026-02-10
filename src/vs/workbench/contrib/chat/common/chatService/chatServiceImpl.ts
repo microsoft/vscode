@@ -51,7 +51,6 @@ import { ILanguageModelToolsService } from '../tools/languageModelToolsService.j
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
 import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
-import { IHooksExecutionService } from '../hooks/hooksExecutionService.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -156,7 +155,6 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IHooksExecutionService private readonly hooksExecutionService: IHooksExecutionService,
 	) {
 		super();
 
@@ -909,10 +907,6 @@ export class ChatService extends Disposable implements IChatService {
 				collectedHooks = await this.promptsService.getHooks(token);
 			} catch (error) {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);
-			}
-
-			if (collectedHooks) {
-				store.add(this.hooksExecutionService.registerHooks(model.sessionResource, collectedHooks));
 			}
 
 			const stopWatch = new StopWatch(false);
