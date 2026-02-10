@@ -754,7 +754,7 @@ suite('Configuration Resolver Service', () => {
 	});
 
 	test('canceled input', async () => {
-		stub(quickInputService, 'input').resolves(undefined as any);
+		stub(quickInputService, 'input').resolves(undefined);
 
 		const configuration = {
 			'name': 'Attach to Process',
