@@ -447,7 +447,7 @@ export async function showToolsPicker(
 			const toolSetChecked = toolsEntries.get(toolSet.id) === true;
 			if (toolSet.source.type === 'mcp') {
 				// bucket represents the toolset
-			bucket.toolset = toolSet as ToolSet;
+				bucket.toolset = toolSet as ToolSet;
 				if (toolSetChecked) {
 					bucket.checked = toolSetChecked;
 				}
