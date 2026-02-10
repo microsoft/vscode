@@ -295,8 +295,8 @@ suite('HooksExecutionService', () => {
 			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
 
 			assert.strictEqual(results.length, 1);
-			// Exit code 2 now produces success with stopReason (not error)
-			assert.strictEqual(results[0].resultKind, 'success');
+			// Exit code 2 produces error with stopReason
+			assert.strictEqual(results[0].resultKind, 'error');
 			assert.strictEqual(results[0].stopReason, 'command failed with error');
 			assert.strictEqual(results[0].output, undefined);
 		});
