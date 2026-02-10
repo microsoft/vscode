@@ -34,7 +34,7 @@ import { ILanguageModelToolsConfirmationService } from '../../../common/tools/la
 import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mockLanguageModelToolsConfirmationService.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
-import { IHookResult, IPostToolUseCallerInput, IPostToolUseHookResult, IPreToolUseCallerInput, IPreToolUseHookResult } from '../../../common/hooks/hooksTypes.js';
+import { IHookResult } from '../../../common/hooks/hooksTypes.js';
 import { IHooksExecutionService, IHooksExecutionOptions, IHooksExecutionProxy } from '../../../common/hooks/hooksExecutionService.js';
 import { HookTypeValue, IChatRequestHooks } from '../../../common/promptSyntax/hookSchema.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -69,24 +69,12 @@ class MockHooksExecutionService implements IHooksExecutionService {
 	readonly _serviceBrand: undefined;
 	readonly onDidExecuteHook = Event.None;
 	readonly onDidHookProgress = Event.None;
-	public preToolUseHookResult: IPreToolUseHookResult | undefined = undefined;
-	public postToolUseHookResult: IPostToolUseHookResult | undefined = undefined;
-	public lastPreToolUseInput: IPreToolUseCallerInput | undefined = undefined;
-	public lastPostToolUseInput: IPostToolUseCallerInput | undefined = undefined;
 
 	setProxy(_proxy: IHooksExecutionProxy): void { }
 	registerHooks(_sessionResource: URI, _hooks: IChatRequestHooks): IDisposable { return { dispose: () => { } }; }
 	getHooksForSession(_sessionResource: URI): IChatRequestHooks | undefined { return undefined; }
 	executeHook(_hookType: HookTypeValue, _sessionResource: URI, _options?: IHooksExecutionOptions): Promise<IHookResult[]> {
 		return Promise.resolve([]);
-	}
-	async executePreToolUseHook(_sessionResource: URI, input: IPreToolUseCallerInput, _token?: CancellationToken): Promise<IPreToolUseHookResult | undefined> {
-		this.lastPreToolUseInput = input;
-		return this.preToolUseHookResult;
-	}
-	async executePostToolUseHook(_sessionResource: URI, input: IPostToolUseCallerInput, _token?: CancellationToken): Promise<IPostToolUseHookResult | undefined> {
-		this.lastPostToolUseInput = input;
-		return this.postToolUseHookResult;
 	}
 }
 
@@ -3825,13 +3813,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook denies, tool returns error and creates cancelled invocation', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'deny',
-				permissionDecisionReason: 'Destructive operations require approval',
-			};
-
 			const tool = registerToolForTest(hookService, store, 'hookDenyTool', {
 				invoke: async () => ({ content: [{ kind: 'text', value: 'should not run' }] })
 			});
@@ -3839,8 +3820,14 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: ChatToolInvocation } = {};
 			stubGetSession(hookChatService, 'hook-test', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test' });
+			dto.preToolUseResult = {
+				permissionDecision: 'deny',
+				permissionDecisionReason: 'Destructive operations require approval',
+			};
+
 			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -3863,12 +3850,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook allows, tool executes normally', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-			};
-
 			const tool = registerToolForTest(hookService, store, 'hookAllowTool', {
 				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] })
 			});
@@ -3876,8 +3857,13 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: ChatToolInvocation } = {};
 			stubGetSession(hookChatService, 'hook-test-allow', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test-allow' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+			};
+
 			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-allow' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -3888,8 +3874,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook returns undefined, tool executes normally', async () => {
-			mockHooksService.preToolUseHookResult = undefined;
-
 			const tool = registerToolForTest(hookService, store, 'hookUndefinedTool', {
 				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] })
 			});
@@ -3906,38 +3890,7 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'success');
 		});
 
-		test('hook receives correct input parameters', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-			};
-
-			const tool = registerToolForTest(hookService, store, 'hookInputTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] })
-			});
-
-			stubGetSession(hookChatService, 'hook-test-input', { requestId: 'req1' });
-
-			await hookService.invokeTool(
-				tool.makeDto({ param1: 'value1', param2: 42 }, { sessionId: 'hook-test-input' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			assert.ok(mockHooksService.lastPreToolUseInput);
-			assert.strictEqual(mockHooksService.lastPreToolUseInput.toolName, 'hookInputTool');
-			assert.deepStrictEqual(mockHooksService.lastPreToolUseInput.toolInput, { param1: 'value1', param2: 42 });
-		});
-
 		test('when hook denies, tool invoke is never called', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'deny',
-				permissionDecisionReason: 'Operation not allowed',
-			};
-
 			let invokeCalled = false;
 			const tool = registerToolForTest(hookService, store, 'hookNeverInvokeTool', {
 				invoke: async () => {
@@ -3949,8 +3902,14 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: unknown } = {};
 			stubGetSession(hookChatService, 'hook-test-no-invoke', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test-no-invoke' });
+			dto.preToolUseResult = {
+				permissionDecision: 'deny',
+				permissionDecisionReason: 'Operation not allowed',
+			};
+
 			await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-no-invoke' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -3959,13 +3918,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook returns ask, tool is not auto-approved', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'ask',
-				permissionDecisionReason: 'Requires user confirmation',
-			};
-
 			let invokeCompleted = false;
 			const tool = registerToolForTest(hookService, store, 'hookAskTool', {
 				invoke: async () => {
@@ -3984,9 +3936,15 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: ChatToolInvocation } = {};
 			stubGetSession(hookChatService, 'hook-test-ask', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test-ask' });
+			dto.preToolUseResult = {
+				permissionDecision: 'ask',
+				permissionDecisionReason: 'Requires user confirmation',
+			};
+
 			// Start invocation - it should wait for confirmation
 			const invokePromise = hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-ask' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -4007,12 +3965,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook returns allow, tool is auto-approved', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-			};
-
 			let invokeCompleted = false;
 			const tool = registerToolForTest(hookService, store, 'hookAutoApproveTool', {
 				invoke: async () => {
@@ -4031,9 +3983,14 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: ChatToolInvocation } = {};
 			stubGetSession(hookChatService, 'hook-test-auto-approve', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test-auto-approve' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+			};
+
 			// Invoke the tool - it should auto-approve due to hook
 			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-auto-approve' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -4046,12 +4003,6 @@ suite('LanguageModelToolsService', () => {
 
 		test('when hook returns updatedInput, tool is invoked with replaced parameters', async () => {
 			let receivedParameters: Record<string, any> | undefined;
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-				updatedInput: { safeCommand: 'echo hello' },
-			};
 
 			const tool = registerToolForTest(hookService, store, 'hookUpdatedInputTool', {
 				invoke: async (dto) => {
@@ -4069,8 +4020,14 @@ suite('LanguageModelToolsService', () => {
 
 			stubGetSession(hookChatService, 'hook-test-updated-input', { requestId: 'req1' });
 
+			const dto = tool.makeDto({ originalCommand: 'rm -rf /' }, { sessionId: 'hook-test-updated-input' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+				updatedInput: { safeCommand: 'echo hello' },
+			};
+
 			await hookService.invokeTool(
-				tool.makeDto({ originalCommand: 'rm -rf /' }, { sessionId: 'hook-test-updated-input' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -4095,12 +4052,6 @@ suite('LanguageModelToolsService', () => {
 			});
 
 			let receivedParameters: Record<string, any> | undefined;
-			mockHooks.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-				updatedInput: { invalidField: 'wrong' },
-			};
 
 			const tool = registerToolForTest(setup.service, store, 'hookValidationFailTool', {
 				invoke: async (dto) => {
@@ -4124,8 +4075,14 @@ suite('LanguageModelToolsService', () => {
 
 			stubGetSession(setup.chatService, 'hook-test-validation-fail', { requestId: 'req1' });
 
+			const dto = tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-fail' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+				updatedInput: { invalidField: 'wrong' },
+			};
+
 			await setup.service.invokeTool(
-				tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-fail' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -4151,12 +4108,6 @@ suite('LanguageModelToolsService', () => {
 			});
 
 			let receivedParameters: Record<string, any> | undefined;
-			mockHooks.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-				updatedInput: { command: 'safe-command' },
-			};
 
 			const tool = registerToolForTest(setup.service, store, 'hookValidationPassTool', {
 				invoke: async (dto) => {
@@ -4180,164 +4131,20 @@ suite('LanguageModelToolsService', () => {
 
 			stubGetSession(setup.chatService, 'hook-test-validation-pass', { requestId: 'req1' });
 
+			const dto = tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-pass' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+				updatedInput: { command: 'safe-command' },
+			};
+
 			await setup.service.invokeTool(
-				tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-pass' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
 
 			// Updated parameters should be applied since validation passed
 			assert.deepStrictEqual(receivedParameters, { command: 'safe-command' });
-		});
-	});
-
-	suite('postToolUse hooks', () => {
-		let mockHooksService: MockHooksExecutionService;
-		let hookService: LanguageModelToolsService;
-		let hookChatService: MockChatService;
-
-		setup(() => {
-			mockHooksService = new MockHooksExecutionService();
-			const setup = createTestToolsService(store, {
-				hooksExecutionService: mockHooksService
-			});
-			hookService = setup.service;
-			hookChatService = setup.chatService;
-		});
-
-		test('when hook blocks, block context is appended to tool result', async () => {
-			mockHooksService.postToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				decision: 'block',
-				reason: 'Lint errors detected',
-			};
-
-			const tool = registerToolForTest(hookService, store, 'postHookBlockTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'original output' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-block', { requestId: 'req1' });
-
-			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'post-hook-block' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			// Original content should still be present
-			assert.strictEqual(result.content[0].kind, 'text');
-			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'original output');
-
-			// Block context should be appended wrapped in XML tags
-			assert.ok(result.content.length >= 2, 'Block context should be appended');
-			const blockPart = result.content[1] as IToolResultTextPart;
-			assert.strictEqual(blockPart.kind, 'text');
-			assert.ok(blockPart.value.includes('<PostToolUse-context>'), 'Block text should have opening tag');
-			assert.ok(blockPart.value.includes('</PostToolUse-context>'), 'Block text should have closing tag');
-			assert.ok(blockPart.value.includes('Lint errors detected'), 'Block text should include the reason');
-
-			// Should NOT set toolResultError
-			assert.strictEqual(result.toolResultError, undefined);
-		});
-
-		test('when hook returns additionalContext, it is appended to tool result', async () => {
-			mockHooksService.postToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				additionalContext: ['Consider running tests after this change'],
-			};
-
-			const tool = registerToolForTest(hookService, store, 'postHookContextTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'original output' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-context', { requestId: 'req1' });
-
-			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'post-hook-context' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			assert.strictEqual(result.content[0].kind, 'text');
-			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'original output');
-
-			assert.ok(result.content.length >= 2, 'Additional context should be appended');
-			const contextPart = result.content[1] as IToolResultTextPart;
-			assert.strictEqual(contextPart.kind, 'text');
-			assert.ok(contextPart.value.includes('<PostToolUse-context>'), 'Context text should have opening tag');
-			assert.ok(contextPart.value.includes('</PostToolUse-context>'), 'Context text should have closing tag');
-			assert.ok(contextPart.value.includes('Consider running tests after this change'));
-		});
-
-		test('when hook returns undefined, tool result is unchanged', async () => {
-			mockHooksService.postToolUseHookResult = undefined;
-
-			const tool = registerToolForTest(hookService, store, 'postHookNoopTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'original output' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-noop', { requestId: 'req1' });
-
-			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'post-hook-noop' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			assert.strictEqual(result.content.length, 1);
-			assert.strictEqual(result.content[0].kind, 'text');
-			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'original output');
-		});
-
-		test('hook receives correct input including tool response text', async () => {
-			mockHooksService.postToolUseHookResult = undefined;
-
-			const tool = registerToolForTest(hookService, store, 'postHookInputTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'file contents here' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-input', { requestId: 'req1' });
-
-			await hookService.invokeTool(
-				tool.makeDto({ param1: 'value1' }, { sessionId: 'post-hook-input' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			assert.ok(mockHooksService.lastPostToolUseInput);
-			assert.strictEqual(mockHooksService.lastPostToolUseInput.toolName, 'postHookInputTool');
-			assert.deepStrictEqual(mockHooksService.lastPostToolUseInput.toolInput, { param1: 'value1' });
-			assert.strictEqual(typeof mockHooksService.lastPostToolUseInput.getToolResponseText, 'function');
-		});
-
-		test('when hook blocks with both decision and additionalContext, both are appended', async () => {
-			mockHooksService.postToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				decision: 'block',
-				reason: 'Security issue found',
-				additionalContext: ['Please review the file permissions'],
-			};
-
-			const tool = registerToolForTest(hookService, store, 'postHookBlockContextTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'original' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-block-ctx', { requestId: 'req1' });
-
-			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'post-hook-block-ctx' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			// Original + block message + additional context = 3 parts
-			assert.ok(result.content.length >= 3, 'Should have original, block message, and additional context');
-			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'original');
-			assert.ok((result.content[1] as IToolResultTextPart).value.includes('Security issue found'));
-			assert.ok((result.content[2] as IToolResultTextPart).value.includes('Please review the file permissions'));
 		});
 	});
 });

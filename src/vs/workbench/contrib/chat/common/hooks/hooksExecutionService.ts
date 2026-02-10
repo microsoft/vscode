@@ -13,24 +13,15 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions, IOutputChannelRegistry, IOutputService } from '../../../../services/output/common/output.js';
-import { HookType, HookTypeValue, IChatRequestHooks, IHookCommand } from '../promptSyntax/hookSchema.js';
+import { HookTypeValue, IChatRequestHooks, IHookCommand } from '../promptSyntax/hookSchema.js';
 import {
 	HookCommandResultKind,
 	IHookCommandInput,
 	IHookCommandResult,
-	IPostToolUseCommandInput,
-	IPreToolUseCommandInput
 } from './hooksCommandTypes.js';
 import {
 	commonHookOutputValidator,
 	IHookResult,
-	IPostToolUseCallerInput,
-	IPostToolUseHookResult,
-	IPreToolUseCallerInput,
-	IPreToolUseHookResult,
-	postToolUseOutputValidator,
-	PreToolUsePermissionDecision,
-	preToolUseOutputValidator
 } from './hooksTypes.js';
 
 export const hooksOutputChannelId = 'hooksExecution';
@@ -101,21 +92,6 @@ export interface IHooksExecutionService {
 	 * Execute hooks of the given type for the given session
 	 */
 	executeHook(hookType: HookTypeValue, sessionResource: URI, options?: IHooksExecutionOptions): Promise<IHookResult[]>;
-
-	/**
-	 * Execute preToolUse hooks with typed input and validated output.
-	 * The execution service builds the full hook input from the caller input plus session context.
-	 * Returns a combined result with common fields and permission decision.
-	 */
-	executePreToolUseHook(sessionResource: URI, input: IPreToolUseCallerInput, token?: CancellationToken): Promise<IPreToolUseHookResult | undefined>;
-
-	/**
-	 * Execute postToolUse hooks with typed input and validated output.
-	 * Called after a tool completes successfully. The execution service builds the full hook input
-	 * from the caller input plus session context.
-	 * Returns a combined result with decision and additional context.
-	 */
-	executePostToolUseHook(sessionResource: URI, input: IPostToolUseCallerInput, token?: CancellationToken): Promise<IPostToolUseHookResult | undefined>;
 }
 
 /**
@@ -439,6 +415,15 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 				}
 			}
 
+			// Emit aggregated warnings for any hook results that had warning messages
+			this._emitAggregatedWarnings(hookType, sessionResource, results);
+
+			// If any hook set stopReason, emit progress so it's visible to the user
+			const stoppedResult = results.find(r => r.stopReason !== undefined);
+			if (stoppedResult?.stopReason) {
+				this._emitHookProgress(hookType, sessionResource, formatHookErrorMessage(stoppedResult.stopReason));
+			}
+
 			return results;
 		} finally {
 			this._onDidExecuteHook.fire({
@@ -451,170 +436,6 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		}
 	}
 
-	async executePreToolUseHook(sessionResource: URI, input: IPreToolUseCallerInput, token?: CancellationToken): Promise<IPreToolUseHookResult | undefined> {
-		const toolSpecificInput: IPreToolUseCommandInput = {
-			tool_name: input.toolName,
-			tool_input: input.toolInput,
-			tool_use_id: input.toolCallId,
-		};
-
-		const results = await this.executeHook(HookType.PreToolUse, sessionResource, {
-			input: toolSpecificInput,
-			token: token ?? CancellationToken.None,
-		});
-
-		// Run all hooks and collapse results. Most restrictive decision wins: deny > ask > allow.
-		// Collect all additionalContext strings from every hook.
-		const allAdditionalContext: string[] = [];
-		let mostRestrictiveDecision: PreToolUsePermissionDecision | undefined;
-		let winningResult: IHookResult | undefined;
-		let winningReason: string | undefined;
-		let lastUpdatedInput: object | undefined;
-
-		for (const result of results) {
-			if (result.resultKind === 'success' && typeof result.output === 'object' && result.output !== null) {
-				const validationResult = preToolUseOutputValidator.validate(result.output);
-				if (!validationResult.error) {
-					const hookSpecificOutput = validationResult.content.hookSpecificOutput;
-					if (hookSpecificOutput) {
-						// Validate hookEventName if present - must match the hook type
-						if (hookSpecificOutput.hookEventName !== undefined && hookSpecificOutput.hookEventName !== HookType.PreToolUse) {
-							this._logService.warn(`[HooksExecutionService] preToolUse hook returned invalid hookEventName '${hookSpecificOutput.hookEventName}', expected '${HookType.PreToolUse}'`);
-							continue;
-						}
-
-						// Collect additionalContext from every hook
-						if (hookSpecificOutput.additionalContext) {
-							allAdditionalContext.push(hookSpecificOutput.additionalContext);
-						}
-
-						// Track the last updatedInput (later hooks override earlier ones)
-						if (hookSpecificOutput.updatedInput) {
-							lastUpdatedInput = hookSpecificOutput.updatedInput;
-						}
-
-						// Track the most restrictive decision: deny > ask > allow
-						const decision = hookSpecificOutput.permissionDecision;
-						if (decision && this._isMoreRestrictive(decision, mostRestrictiveDecision)) {
-							mostRestrictiveDecision = decision;
-							winningResult = result;
-							winningReason = hookSpecificOutput.permissionDecisionReason;
-						}
-					}
-				} else {
-					this._logService.warn(`[HooksExecutionService] preToolUse hook output validation failed: ${validationResult.error.message}`);
-				}
-			}
-		}
-
-		const baseResult = winningResult ?? results[0];
-
-		// Emit hook progress for warning messages after all hooks have completed
-		this._emitAggregatedWarnings(HookType.PreToolUse, sessionResource, results);
-
-		// If any hook set stopReason, throw HookAbortError after processing
-		const stoppedResult = results.find(r => r.stopReason !== undefined);
-		if (stoppedResult?.stopReason !== undefined) {
-			this._emitHookProgress(HookType.PreToolUse, sessionResource, formatHookErrorMessage(stoppedResult.stopReason));
-			throw new HookAbortError(HookType.PreToolUse, stoppedResult.stopReason ?? 'Unknown error');
-		}
-
-		return {
-			...baseResult,
-			permissionDecision: mostRestrictiveDecision,
-			permissionDecisionReason: winningReason,
-			updatedInput: lastUpdatedInput,
-			additionalContext: allAdditionalContext.length > 0 ? allAdditionalContext : undefined,
-		};
-	}
-
-	/**
-	 * Returns true if `candidate` is more restrictive than `current`.
-	 * Restriction order: deny > ask > allow.
-	 */
-	private _isMoreRestrictive(candidate: PreToolUsePermissionDecision, current: PreToolUsePermissionDecision | undefined): boolean {
-		const order: Record<PreToolUsePermissionDecision, number> = { 'deny': 2, 'ask': 1, 'allow': 0 };
-		return current === undefined || order[candidate] > order[current];
-	}
-
-	async executePostToolUseHook(sessionResource: URI, input: IPostToolUseCallerInput, token?: CancellationToken): Promise<IPostToolUseHookResult | undefined> {
-		// Check if there are PostToolUse hooks registered before doing any work stringifying tool results
-		const hooks = this.getHooksForSession(sessionResource);
-		const hookCommands = hooks?.[HookType.PostToolUse];
-		if (!hookCommands || hookCommands.length === 0) {
-			return undefined;
-		}
-
-		// Lazily render tool response text only when hooks are registered
-		const toolResponseText = input.getToolResponseText();
-
-		const toolSpecificInput: IPostToolUseCommandInput = {
-			tool_name: input.toolName,
-			tool_input: input.toolInput,
-			tool_response: toolResponseText,
-			tool_use_id: input.toolCallId,
-		};
-
-		const results = await this.executeHook(HookType.PostToolUse, sessionResource, {
-			input: toolSpecificInput,
-			token: token ?? CancellationToken.None,
-		});
-
-		// Run all hooks and collapse results. Block is the most restrictive decision.
-		// Collect all additionalContext strings from every hook.
-		const allAdditionalContext: string[] = [];
-		let hasBlock = false;
-		let blockReason: string | undefined;
-		let blockResult: IHookResult | undefined;
-
-		for (const result of results) {
-			if (result.resultKind === 'success' && typeof result.output === 'object' && result.output !== null) {
-				const validationResult = postToolUseOutputValidator.validate(result.output);
-				if (!validationResult.error) {
-					const validated = validationResult.content;
-
-					// Validate hookEventName if present
-					if (validated.hookSpecificOutput?.hookEventName !== undefined && validated.hookSpecificOutput.hookEventName !== HookType.PostToolUse) {
-						this._logService.warn(`[HooksExecutionService] postToolUse hook returned invalid hookEventName '${validated.hookSpecificOutput.hookEventName}', expected '${HookType.PostToolUse}'`);
-						continue;
-					}
-
-					// Collect additionalContext from every hook
-					if (validated.hookSpecificOutput?.additionalContext) {
-						allAdditionalContext.push(validated.hookSpecificOutput.additionalContext);
-					}
-
-					// Track the first block decision (most restrictive)
-					if (validated.decision === 'block' && !hasBlock) {
-						hasBlock = true;
-						blockReason = validated.reason;
-						blockResult = result;
-					}
-				} else {
-					this._logService.warn(`[HooksExecutionService] postToolUse hook output validation failed: ${validationResult.error.message}`);
-				}
-			}
-		}
-
-		const baseResult = blockResult ?? results[0];
-
-		// Emit hook progress for warning messages after all hooks have completed
-		this._emitAggregatedWarnings(HookType.PostToolUse, sessionResource, results);
-
-		// If any hook set stopReason, throw HookAbortError after processing
-		const stoppedResult = results.find(r => r.stopReason !== undefined);
-		if (stoppedResult?.stopReason !== undefined) {
-			this._emitHookProgress(HookType.PostToolUse, sessionResource, formatHookErrorMessage(stoppedResult.stopReason));
-			throw new HookAbortError(HookType.PostToolUse, stoppedResult.stopReason ?? 'Unknown error');
-		}
-
-		return {
-			...baseResult,
-			decision: hasBlock ? 'block' : undefined,
-			reason: blockReason,
-			additionalContext: allAdditionalContext.length > 0 ? allAdditionalContext : undefined,
-		};
-	}
 }
 
 /**
