@@ -57,6 +57,8 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	private readonly onInputEvent: (pythonEventStr: string, value: string) => void;
 	private moveThrottleTimer: any = null;
 	private readonly moveThrottleDelay = 16;
+	private lastRenderedHtml: string | null = null;
+	private focusRestoreVersion = 0;
 	private hoistedDropdown: HTMLElement | null = null;
 	private hoistedDropdownListeners: IDisposable[] = [];
 
@@ -103,10 +105,11 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (ev: KeyboardEvent) => {
 			// For input/textarea elements, only dispatch Enter/Escape (to close dropdowns etc.)
-			// Other keys are left alone so normal typing works.
+			// Other keys should still type normally, but must not bubble to VS Code.
 			const target = ev.target as HTMLElement;
 			if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
 				if (ev.key !== 'Enter' && ev.key !== 'Escape') {
+					ev.stopPropagation();
 					return;
 				}
 			}
@@ -236,6 +239,14 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	private static readonly FOCUSABLE_SELECTOR = '[tabindex], input, textarea, select';
 
 	updateContent(html: string): void {
+		// Avoid tearing down/rebuilding DOM when content did not change.
+		if (this.lastRenderedHtml === html) {
+			return;
+		}
+
+		// Any pending focus restoration from an older render should be ignored.
+		const currentFocusRestoreVersion = ++this.focusRestoreVersion;
+
 		// Save focus state BEFORE cleaning up the hoisted dropdown (removing it
 		// from the DOM would cause the browser to lose focus on any input inside it).
 		const activeElement = document.activeElement;
@@ -269,6 +280,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 
 		const trustedHtml = ttPolicy?.createHTML(html) ?? html;
 		this.domNode.innerHTML = trustedHtml as string;
+		this.lastRenderedHtml = html;
 
 		// Hoist any dropdown panel outside the overflow container
 		this.hoistDropdownPanel();
@@ -276,20 +288,27 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		// Restore focus to the same nth focusable element
 		// Look in both the widget and any hoisted dropdown
 		if (focusedIndex >= 0) {
-			const widgetFocusable = Array.from(this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR));
-			const hoistedFocusable = this.hoistedDropdown
-				? Array.from(this.hoistedDropdown.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR))
-				: [];
-			const allFocusable = [...widgetFocusable, ...hoistedFocusable];
-			if (focusedIndex < allFocusable.length) {
-				const el = allFocusable[focusedIndex] as HTMLElement;
-				el.focus();
-				// Restore cursor position for input/textarea elements
-				if (savedSelectionStart !== null && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
-					el.selectionStart = savedSelectionStart;
-					el.selectionEnd = savedSelectionEnd;
+			// Defer to next frame so layout/DOM updates settle, and ensure only the
+			// latest update in a burst is allowed to restore focus.
+			dom.getWindow(this.domNode).requestAnimationFrame(() => {
+				if (currentFocusRestoreVersion !== this.focusRestoreVersion) {
+					return;
 				}
-			}
+				const widgetFocusable = Array.from(this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR));
+				const hoistedFocusable = this.hoistedDropdown
+					? Array.from(this.hoistedDropdown.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR))
+					: [];
+				const allFocusable = [...widgetFocusable, ...hoistedFocusable];
+				if (focusedIndex < allFocusable.length) {
+					const el = allFocusable[focusedIndex] as HTMLElement;
+					el.focus({ preventScroll: true });
+					// Restore cursor position for input/textarea elements
+					if (savedSelectionStart !== null && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
+						el.selectionStart = savedSelectionStart;
+						el.selectionEnd = savedSelectionEnd;
+					}
+				}
+			});
 		}
 	}
 
@@ -348,6 +367,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				const target = ev.target as HTMLElement;
 				if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
 					if (ev.key !== 'Enter' && ev.key !== 'Escape') {
+						ev.stopPropagation();
 						return;
 					}
 				}
