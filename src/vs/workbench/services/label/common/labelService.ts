@@ -308,6 +308,10 @@ export class LabelService extends Disposable implements ILabelService {
 
 	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: Verbosity }): string {
 		if (isWorkspace(workspace)) {
+			if (workspace.isAgentSessionsWorkspace) {
+				return localize('agentSessionsWorkspace', "Agent Sessions");
+			}
+
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (isSingleFolderWorkspaceIdentifier(identifier) || isWorkspaceIdentifier(identifier)) {
 				return this.getWorkspaceLabel(identifier, options);

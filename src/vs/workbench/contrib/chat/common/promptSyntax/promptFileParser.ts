@@ -9,6 +9,7 @@ import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.
 import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { Target } from './service/promptsService.js';
 
 export class PromptFileParser {
 	constructor() {
@@ -32,7 +33,7 @@ export class PromptFileParser {
 			}
 			// range starts on the line after the ---, and ends at the beginning of the line that has the closing ---
 			const range = new Range(2, 1, headerEndLine + 1, 1);
-			header = new PromptHeader(range, linesWithEOL);
+			header = new PromptHeader(range, uri, linesWithEOL);
 		}
 		if (bodyStartLine < linesWithEOL.length) {
 			// range starts  on the line after the ---, and ends at the beginning of line after the last line
@@ -68,6 +69,7 @@ export namespace PromptHeaderAttributes {
 	export const mode = 'mode';
 	export const model = 'model';
 	export const applyTo = 'applyTo';
+	export const paths = 'paths';
 	export const tools = 'tools';
 	export const handOffs = 'handoffs';
 	export const advancedOptions = 'advancedOptions';
@@ -78,21 +80,27 @@ export namespace PromptHeaderAttributes {
 	export const license = 'license';
 	export const compatibility = 'compatibility';
 	export const metadata = 'metadata';
+	export const agents = 'agents';
+	export const userInvokable = 'user-invokable';
+	export const disableModelInvocation = 'disable-model-invocation';
 }
 
 export namespace GithubPromptHeaderAttributes {
 	export const mcpServers = 'mcp-servers';
 }
 
-export enum Target {
-	VSCode = 'vscode',
-	GitHubCopilot = 'github-copilot'
+export namespace ClaudeHeaderAttributes {
+	export const disallowedTools = 'disallowedTools';
+}
+
+export function isTarget(value: unknown): value is Target {
+	return value === Target.VSCode || value === Target.GitHubCopilot || value === Target.Claude || value === Target.Undefined;
 }
 
 export class PromptHeader {
 	private _parsed: ParsedHeader | undefined;
 
-	constructor(public readonly range: Range, private readonly linesWithEOL: string[]) {
+	constructor(public readonly range: Range, public readonly uri: URI, private readonly linesWithEOL: string[]) {
 	}
 
 	private get _parsedHeader(): ParsedHeader {
@@ -163,14 +171,6 @@ export class PromptHeader {
 		return undefined;
 	}
 
-	private getBooleanAttribute(key: string): boolean | undefined {
-		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
-		if (attribute?.value.type === 'boolean') {
-			return attribute.value.value;
-		}
-		return undefined;
-	}
-
 	public get name(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.name);
 	}
@@ -183,12 +183,21 @@ export class PromptHeader {
 		return this.getStringAttribute(PromptHeaderAttributes.agent) ?? this.getStringAttribute(PromptHeaderAttributes.mode);
 	}
 
-	public get model(): string | undefined {
-		return this.getStringAttribute(PromptHeaderAttributes.model);
+	public get model(): readonly string[] | undefined {
+		return this.getStringOrStringArrayAttribute(PromptHeaderAttributes.model);
 	}
 
 	public get applyTo(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.applyTo);
+	}
+
+	/**
+	 * Gets the 'paths' attribute from the header.
+	 * The `paths` field supports a list of glob patterns that scope the instruction
+	 * to specific files (used by Claude rules). Returns a string array or undefined.
+	 */
+	public get paths(): readonly string[] | undefined {
+		return this.getStringOrStringArrayAttribute(PromptHeaderAttributes.paths);
 	}
 
 	public get argumentHint(): string | undefined {
@@ -200,7 +209,11 @@ export class PromptHeader {
 	}
 
 	public get infer(): boolean | undefined {
-		return this.getBooleanAttribute(PromptHeaderAttributes.infer);
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.infer);
+		if (attribute?.value.type === 'boolean') {
+			return attribute.value.value;
+		}
+		return undefined;
 	}
 
 	public get tools(): string[] | undefined {
@@ -208,24 +221,17 @@ export class PromptHeader {
 		if (!toolsAttribute) {
 			return undefined;
 		}
-		if (toolsAttribute.value.type === 'array') {
+		let value = toolsAttribute.value;
+		if (value.type === 'string') {
+			value = parseCommaSeparatedList(value);
+		}
+		if (value.type === 'array') {
 			const tools: string[] = [];
-			for (const item of toolsAttribute.value.items) {
+			for (const item of value.items) {
 				if (item.type === 'string' && item.value) {
 					tools.push(item.value);
 				}
 			}
-			return tools;
-		} else if (toolsAttribute.value.type === 'object') {
-			const tools: string[] = [];
-			const collectLeafs = ({ key, value }: { key: IStringValue; value: IValue }) => {
-				if (value.type === 'boolean') {
-					tools.push(key.value);
-				} else if (value.type === 'object') {
-					value.properties.forEach(collectLeafs);
-				}
-			};
-			toolsAttribute.value.properties.forEach(collectLeafs);
 			return tools;
 		}
 		return undefined;
@@ -237,7 +243,7 @@ export class PromptHeader {
 			return undefined;
 		}
 		if (handoffsAttribute.value.type === 'array') {
-			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn? }
+			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn?, model? }
 			const handoffs: IHandOff[] = [];
 			for (const item of handoffsAttribute.value.items) {
 				if (item.type === 'object') {
@@ -246,6 +252,7 @@ export class PromptHeader {
 					let prompt: string | undefined;
 					let send: boolean | undefined;
 					let showContinueOn: boolean | undefined;
+					let model: string | undefined;
 					for (const prop of item.properties) {
 						if (prop.key.value === 'agent' && prop.value.type === 'string') {
 							agent = prop.value.value;
@@ -257,6 +264,8 @@ export class PromptHeader {
 							send = prop.value.value;
 						} else if (prop.key.value === 'showContinueOn' && prop.value.type === 'boolean') {
 							showContinueOn = prop.value.value;
+						} else if (prop.key.value === 'model' && prop.value.type === 'string') {
+							model = prop.value.value;
 						}
 					}
 					if (agent && label && prompt !== undefined) {
@@ -265,13 +274,71 @@ export class PromptHeader {
 							label,
 							prompt,
 							...(send !== undefined ? { send } : {}),
-							...(showContinueOn !== undefined ? { showContinueOn } : {})
+							...(showContinueOn !== undefined ? { showContinueOn } : {}),
+							...(model !== undefined ? { model } : {})
 						};
 						handoffs.push(handoff);
 					}
 				}
 			}
 			return handoffs;
+		}
+		return undefined;
+	}
+
+	private getStringArrayAttribute(key: string): string[] | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (!attribute) {
+			return undefined;
+		}
+		if (attribute.value.type === 'array') {
+			const result: string[] = [];
+			for (const item of attribute.value.items) {
+				if (item.type === 'string' && item.value) {
+					result.push(item.value);
+				}
+			}
+			return result;
+		}
+		return undefined;
+	}
+
+	private getStringOrStringArrayAttribute(key: string): readonly string[] | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (!attribute) {
+			return undefined;
+		}
+		if (attribute.value.type === 'string') {
+			return [attribute.value.value];
+		}
+		if (attribute.value.type === 'array') {
+			const result: string[] = [];
+			for (const item of attribute.value.items) {
+				if (item.type === 'string') {
+					result.push(item.value);
+				}
+			}
+			return result;
+		}
+		return undefined;
+	}
+
+	public get agents(): string[] | undefined {
+		return this.getStringArrayAttribute(PromptHeaderAttributes.agents);
+	}
+
+	public get userInvokable(): boolean | undefined {
+		return this.getBooleanAttribute(PromptHeaderAttributes.userInvokable);
+	}
+
+	public get disableModelInvocation(): boolean | undefined {
+		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
+	}
+
+	private getBooleanAttribute(key: string): boolean | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (attribute?.value.type === 'boolean') {
+			return attribute.value.value;
 		}
 		return undefined;
 	}
@@ -283,6 +350,7 @@ export interface IHandOff {
 	readonly prompt: string;
 	readonly send?: boolean;
 	readonly showContinueOn?: boolean; // treated exactly like send (optional boolean)
+	readonly model?: string; // qualified model name to switch to (e.g., "GPT-5 (copilot)")
 }
 
 export interface IHeaderAttribute {
@@ -346,6 +414,9 @@ export class PromptBody {
 				// Match markdown links: [text](link)
 				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
+					if (match.index > 0 && line[match.index - 1] === '!') {
+						continue; // skip image links
+					}
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
 					const linkStartOffset = match.index + match[0].length - match[2].length - 1;
 					const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);
@@ -413,3 +484,76 @@ export interface IBodyVariableReference {
 	readonly range: Range;
 	readonly offset: number;
 }
+
+/**
+ * Parses a comma-separated list of values into an array of strings.
+ * Values can be unquoted or quoted (single or double quotes).
+ *
+ * @param input A string containing comma-separated values
+ * @returns An IArrayValue containing the parsed values and their ranges
+ */
+export function parseCommaSeparatedList(stringValue: IStringValue): IArrayValue {
+	const result: IStringValue[] = [];
+	const input = stringValue.value;
+	const positionOffset = stringValue.range.getStartPosition();
+	let pos = 0;
+	const isWhitespace = (char: string): boolean => char === ' ' || char === '\t';
+
+	while (pos < input.length) {
+		// Skip leading whitespace
+		while (pos < input.length && isWhitespace(input[pos])) {
+			pos++;
+		}
+
+		if (pos >= input.length) {
+			break;
+		}
+
+		const startPos = pos;
+		let value = '';
+		let endPos: number;
+
+		const char = input[pos];
+		if (char === '"' || char === `'`) {
+			// Quoted string
+			const quote = char;
+			pos++; // Skip opening quote
+
+			while (pos < input.length && input[pos] !== quote) {
+				value += input[pos];
+				pos++;
+			}
+			endPos = pos + 1; // Include closing quote in the range
+
+			if (pos < input.length) {
+				pos++;
+			}
+
+		} else {
+			// Unquoted string - read until comma or end
+			const startPos = pos;
+			while (pos < input.length && input[pos] !== ',') {
+				value += input[pos];
+				pos++;
+			}
+			value = value.trimEnd();
+			endPos = startPos + value.length;
+		}
+
+		result.push({ type: 'string', value: value, range: new Range(positionOffset.lineNumber, positionOffset.column + startPos, positionOffset.lineNumber, positionOffset.column + endPos) });
+
+		// Skip whitespace after value
+		while (pos < input.length && isWhitespace(input[pos])) {
+			pos++;
+		}
+
+		// Skip comma if present
+		if (pos < input.length && input[pos] === ',') {
+			pos++;
+		}
+	}
+
+	return { type: 'array', items: result, range: stringValue.range };
+}
+
+

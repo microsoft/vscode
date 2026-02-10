@@ -14,6 +14,18 @@
 	}
 }
 
+.interactive-session.chat-view-getting-started-disabled {
+
+	/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
+	.chat-welcome-view .chat-welcome-view-icon,
+	.chat-welcome-view .chat-welcome-view-title,
+	.chat-welcome-view .chat-welcome-view-message,
+	.chat-welcome-view .chat-welcome-view-disclaimer,
+	.chat-welcome-view .chat-welcome-view-tips {
+		visibility: hidden;
+	}
+}
+
 /* Chat welcome container */
 .interactive-session .chat-welcome-view-container {
 	display: flex;

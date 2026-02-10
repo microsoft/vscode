@@ -28,6 +28,7 @@ import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 import { GitBlameController } from './blame';
 import { CloneManager } from './cloneManager';
+import { getAskpassPaths } from './askpassManager';
 
 const deactivateTasks: { (): Promise<void> }[] = [];
 
@@ -71,7 +72,8 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		logger.error(`[main] Failed to create git IPC: ${err}`);
 	}
 
-	const askpass = new Askpass(ipcServer, logger);
+	const askpassPaths = await getAskpassPaths(__dirname, context.globalStorageUri.fsPath, logger);
+	const askpass = new Askpass(ipcServer, logger, askpassPaths);
 	disposables.push(askpass);
 
 	const gitEditor = new GitEditor(ipcServer);

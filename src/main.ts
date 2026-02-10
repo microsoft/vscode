@@ -227,10 +227,7 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		// bypass any specified proxy for the given semi-colon-separated list of hosts
 		'proxy-bypass-list',
 
-		'remote-debugging-port',
-
-		// Enable recovery from invalid Graphite recordings
-		'enable-graphite-invalid-recording-recovery'
+		'remote-debugging-port'
 	];
 
 	if (process.platform === 'linux') {
@@ -359,6 +356,10 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 	// use up to 2
 	app.commandLine.appendSwitch('max-active-webgl-contexts', '32');
 
+	// Disable Skia Graphite backend.
+	// Refs https://github.com/microsoft/vscode/issues/284162
+	app.commandLine.appendSwitch('disable-skia-graphite');
+
 	return argvConfig;
 }
 
@@ -377,7 +378,6 @@ interface IArgvConfig {
 	readonly 'use-inmemory-secretstorage'?: boolean;
 	readonly 'enable-rdp-display-tracking'?: boolean;
 	readonly 'remote-debugging-port'?: string;
-	readonly 'enable-graphite-invalid-recording-recovery'?: boolean;
 }
 
 function readArgvConfigSync(): IArgvConfig {

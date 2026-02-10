@@ -11,11 +11,13 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 export const enum TerminalStickyScrollSettingId {
 	Enabled = 'terminal.integrated.stickyScroll.enabled',
 	MaxLineCount = 'terminal.integrated.stickyScroll.maxLineCount',
+	IgnoredCommands = 'terminal.integrated.stickyScroll.ignoredCommands',
 }
 
 export interface ITerminalStickyScrollConfiguration {
 	enabled: boolean;
 	maxLineCount: number;
+	ignoredCommands: string[];
 }
 
 export const terminalStickyScrollConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -30,5 +32,21 @@ export const terminalStickyScrollConfiguration: IStringDictionary<IConfiguration
 		default: 5,
 		minimum: 1,
 		maximum: 10
+	},
+	[TerminalStickyScrollSettingId.IgnoredCommands]: {
+		markdownDescription: localize('stickyScroll.ignoredCommands', "A list of commands that should not trigger sticky scroll. When a command from this list is detected, the sticky scroll overlay will be hidden."),
+		type: 'array',
+		items: {
+			type: 'string'
+		},
+		default: [
+			'clear',
+			'cls',
+			'clear-host',
+			'copilot',
+			'claude',
+			'codex',
+			'gemini'
+		]
 	},
 };

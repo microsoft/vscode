@@ -229,13 +229,17 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IExtensionService extensionService: IExtensionService,
 		@IHostService hostService: IHostService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
 		this.extensionHostRestarter = this._register(new RunOnceScheduler(async () => {
 			if (!!environmentService.extensionTestsLocationURI) {
 				return; // no restart when in tests: see https://github.com/microsoft/vscode/issues/66936
+			}
+
+			if (contextService.getWorkspace().isAgentSessionsWorkspace) {
+				return; // no restart for agent sessions workspace
 			}
 
 			if (environmentService.remoteAuthority) {

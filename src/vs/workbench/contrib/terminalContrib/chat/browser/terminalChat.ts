@@ -25,6 +25,7 @@ export const enum TerminalChatCommandId {
 	FocusMostRecentChatTerminal = 'workbench.action.terminal.chat.focusMostRecentChatTerminal',
 	ToggleChatTerminalOutput = 'workbench.action.terminal.chat.toggleChatTerminalOutput',
 	FocusChatInstanceAction = 'workbench.action.terminal.chat.focusChatInstance',
+	ContinueInBackground = 'workbench.action.terminal.chat.continueInBackground',
 }
 
 export const MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR = MenuId.for('terminalChatWidget');

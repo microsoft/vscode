@@ -99,6 +99,7 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
+const SCROLL_BEHAVIOR_KEY = 'workbench.settings.scrollBehavior';
 
 const SHOW_AI_RESULTS_ENABLED_LABEL = localize('showAiResultsEnabled', "Show AI-recommended results");
 const SHOW_AI_RESULTS_DISABLED_LABEL = localize('showAiResultsDisabled', "No AI results available at this time...");
@@ -270,14 +271,14 @@ export class SettingsEditor2 extends EditorPane {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
-		this.searchDelayer = new Delayer(200);
+		this.searchDelayer = this._register(new Delayer(200));
 		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
-		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
-		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
+		this.settingFastUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE));
+		this.settingSlowUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE));
 
-		this.searchInputDelayer = new Delayer<void>(SettingsEditor2.SEARCH_DEBOUNCE);
-		this.updatedConfigSchemaDelayer = new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER);
+		this.searchInputDelayer = this._register(new Delayer<void>(SettingsEditor2.SEARCH_DEBOUNCE));
+		this.updatedConfigSchemaDelayer = this._register(new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER));
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
@@ -786,8 +787,15 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
+		const headerRightControlsContainer = DOM.append(headerControlsContainer, $('.settings-right-controls'));
+
+		const openSettingsJsonContainer = DOM.append(headerRightControlsContainer, $('.open-settings-json'));
+		const openSettingsJsonButton = this._register(new Button(openSettingsJsonContainer, { secondary: true, title: true, ...defaultButtonStyles }));
+		openSettingsJsonButton.label = localize('openSettingsJson', "Edit as JSON");
+		this._register(openSettingsJsonButton.onDidClick(() => this.openSettingsFile()));
+
 		if (this.userDataSyncWorkbenchService.enabled && this.userDataSyncEnablementService.canToggleEnablement()) {
-			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerControlsContainer));
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerRightControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
 				this.lastSyncedLabel = lastSyncedLabel;
 				this.updateInputAriaLabel();
@@ -878,7 +886,7 @@ export class SettingsEditor2 extends EditorPane {
 			// If the target display category is different than the source's, unfocus the category
 			// so that we can render all found settings again.
 			// Then, the reveal call will correctly find the target setting.
-			if (this.viewState.filterToCategory && evt.source.displayCategory !== targetElement.displayCategory) {
+			if (this.viewState.categoryFilter && evt.source.displayCategory !== targetElement.displayCategory) {
 				this.tocTree.setFocus([]);
 			}
 			try {
@@ -1050,17 +1058,64 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.tocFocusedElement = element;
 			this.tocTree.setSelection(element ? [element] : []);
-			if (this.searchResultModel) {
-				if (this.viewState.filterToCategory !== element) {
-					this.viewState.filterToCategory = element ?? undefined;
+			const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
+			if (this.searchResultModel || scrollBehavior === 'paginated') {
+				// In search mode or paginated mode, filter to show only the selected category
+				if (this.viewState.categoryFilter !== element) {
+					this.viewState.categoryFilter = element ?? undefined;
 					// Force render in this case, because
 					// onDidClickSetting relies on the updated view.
 					this.renderTree(undefined, true);
 					this.settingsTree.scrollTop = 0;
 				}
-			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				this.settingsTree.reveal(element, 0);
-				this.settingsTree.setFocus([element]);
+			} else {
+				// In continuous mode, clear any category filter that may have been set in paginated mode
+				if (this.viewState.categoryFilter) {
+					this.viewState.categoryFilter = undefined;
+					this.renderTree(undefined, true);
+				}
+				if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
+					let targetElement = element;
+					// Searches equivalent old Object currently living in the Tree nodes.
+					if (!this.settingsTree.hasElement(targetElement)) {
+						if (element instanceof SettingsTreeGroupElement) {
+							const targetId = element.id;
+
+							const findInViewNodes = (nodes: any[]): SettingsTreeGroupElement | undefined => {
+								for (const node of nodes) {
+									if (node.element instanceof SettingsTreeGroupElement && node.element.id === targetId) {
+										return node.element;
+									}
+									if (node.children && node.children.length > 0) {
+										const found = findInViewNodes(node.children);
+										if (found) {
+											return found;
+										}
+									}
+								}
+								return undefined;
+							};
+
+							try {
+								const rootNode = this.settingsTree.getNode(null);
+								if (rootNode && rootNode.children) {
+									const foundOldElement = findInViewNodes(rootNode.children);
+									if (foundOldElement) {
+										// Now we don't reveal the New Object, reveal the Old Object"
+										targetElement = foundOldElement;
+									}
+								}
+							} catch (err) {
+								// Tree might be in an invalid state, ignore
+							}
+						}
+					}
+
+					if (this.settingsTree.hasElement(targetElement)) {
+						this.settingsTree.reveal(targetElement, 0);
+						this.settingsTree.setFocus([targetElement]);
+					}
+				}
 			}
 		}));
 
@@ -1208,6 +1263,12 @@ export class SettingsEditor2 extends EditorPane {
 	private updateTreeScrollSync(): void {
 		this.settingRenderers.cancelSuggesters();
 		if (this.searchResultModel) {
+			return;
+		}
+
+		// In paginated mode, we don't sync scroll position since categories are filtered
+		const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
+		if (scrollBehavior === 'paginated') {
 			return;
 		}
 
@@ -1559,7 +1620,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettingsGroups, filter));
 
-		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups, toggleData?.commonlyUsed));
+		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups));
 
 		if (toggleData && setAdditionalGroups) {
 			// Add the additional groups to the model to help with searching.
@@ -1579,6 +1640,15 @@ export class SettingsEditor2 extends EditorPane {
 
 		this.searchResultModel?.updateChildren();
 
+		const firstVisibleElement = this.settingsTree.firstVisibleElement;
+		let anchorId: string | undefined;
+
+		if (firstVisibleElement instanceof SettingsTreeSettingElement) {
+			anchorId = firstVisibleElement.setting.key;
+		} else if (firstVisibleElement instanceof SettingsTreeGroupElement) {
+			anchorId = firstVisibleElement.id;
+		}
+
 		if (this.settingsTreeModel.value) {
 			this.refreshModels(resolvedSettingsRoot);
 
@@ -1589,6 +1659,45 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.refreshTOCTree();
 			this.renderTree(undefined, forceRefresh);
+
+			if (anchorId) {
+				const newModel = this.settingsTreeModel.value;
+				let newElement: SettingsTreeElement | undefined;
+
+				// eslint-disable-next-line no-restricted-syntax
+				const settings = newModel.getElementsByName(anchorId);
+				if (settings && settings.length > 0) {
+					newElement = settings[0];
+				} else {
+					const findGroup = (roots: SettingsTreeGroupElement[]): SettingsTreeGroupElement | undefined => {
+						for (const g of roots) {
+							if (g.id === anchorId) {
+								return g;
+							}
+							if (g.children) {
+								for (const child of g.children) {
+									if (child instanceof SettingsTreeGroupElement) {
+										const found = findGroup([child]);
+										if (found) {
+											return found;
+										}
+									}
+								}
+							}
+						}
+						return undefined;
+					};
+					newElement = findGroup([newModel.root]);
+				}
+
+				if (newElement) {
+					try {
+						this.settingsTree.reveal(newElement, 0);
+					} catch (e) {
+						// Ignore the error
+					}
+				}
+			}
 		} else {
 			this.settingsTreeModel.value = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
 			this.refreshModels(resolvedSettingsRoot);
@@ -1599,6 +1708,21 @@ export class SettingsEditor2 extends EditorPane {
 				await this.onSearchInputChanged(true);
 			} else {
 				this.refreshTOCTree();
+
+				// In paginated mode, set initial category to the first one (Commonly Used)
+				const scrollBehavior = this.configurationService.getValue<'paginated' | 'continuous'>(SCROLL_BEHAVIOR_KEY);
+				if (scrollBehavior === 'paginated') {
+					const rootChildren = this.settingsTreeModel.value.root.children;
+					if (Array.isArray(rootChildren) && rootChildren.length > 0) {
+						const firstCategory = rootChildren[0];
+						if (firstCategory instanceof SettingsTreeGroupElement) {
+							this.viewState.categoryFilter = firstCategory;
+							this.tocTree.setFocus([firstCategory]);
+							this.tocTree.setSelection([firstCategory]);
+						}
+					}
+				}
+
 				this.refreshTree();
 				this.tocTree.collapseAll();
 			}
@@ -1801,7 +1925,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (expandResults) {
 				this.tocTree.setFocus([]);
-				this.viewState.filterToCategory = undefined;
+				this.viewState.categoryFilter = undefined;
 			}
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 
@@ -1923,7 +2047,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
 		if (expandResults) {
 			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
+			this.viewState.categoryFilter = undefined;
 			this.tocTree.expandAll();
 			this.settingsTree.scrollTop = 0;
 		}
@@ -2163,10 +2287,9 @@ class SyncControls extends Disposable {
 	) {
 		super();
 
-		const headerRightControlsContainer = DOM.append(container, $('.settings-right-controls'));
-		const turnOnSyncButtonContainer = DOM.append(headerRightControlsContainer, $('.turn-on-sync'));
+		const turnOnSyncButtonContainer = DOM.append(container, $('.turn-on-sync'));
 		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true, ...defaultButtonStyles }));
-		this.lastSyncedLabel = DOM.append(headerRightControlsContainer, $('.last-synced-label'));
+		this.lastSyncedLabel = DOM.append(container, $('.last-synced-label'));
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;

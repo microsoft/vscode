@@ -1406,6 +1406,7 @@ class InlineCompletionAdapter {
 			requestUuid: context.requestUuid,
 			requestIssuedDateTime: context.requestIssuedDateTime,
 			earliestShownDateTime: context.earliestShownDateTime,
+			changeHint: context.changeHint,
 		}, token);
 
 		if (!result) {

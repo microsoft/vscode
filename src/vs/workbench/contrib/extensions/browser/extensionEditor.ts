@@ -335,6 +335,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ClearLanguageAction),
 
 			this.instantiationService.createInstance(EnableDropDownAction),
+			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
 			this.instantiationService.createInstance(DisableDropDownAction),
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
@@ -348,7 +349,6 @@ export class ExtensionEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallAnotherVersionAction, null, true),
 				]
 			]),
-			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
 			this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
@@ -419,7 +419,7 @@ export class ExtensionEditor extends EditorPane {
 		this._register(onError(this.onError, this));
 
 		const body = append(root, $('.body'));
-		const navbar = new NavBar(body);
+		const navbar = this._register(new NavBar(body));
 
 		const content = append(body, $('.content'));
 		content.id = generateUuid(); // An id is needed for the webview parent flow to

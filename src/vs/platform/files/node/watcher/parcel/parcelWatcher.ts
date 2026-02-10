@@ -109,10 +109,6 @@ export class ParcelWatcherInstance extends Disposable {
 	}
 
 	notifyWatchFailed(): void {
-		if (this.didFail) {
-			return;
-		}
-
 		this.didFail = true;
 
 		this._onDidFail.fire();
@@ -622,7 +618,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	protected restartWatching(watcher: ParcelWatcherInstance, delay = 800): void {
 
-		// Restart watcher delayed to accomodate for
+		// Restart watcher delayed to accommodate for
 		// changes on disk that have triggered the
 		// need for a restart in the first place.
 		const scheduler = new RunOnceScheduler(async () => {

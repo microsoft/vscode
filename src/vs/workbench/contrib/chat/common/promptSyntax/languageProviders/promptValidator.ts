@@ -11,20 +11,23 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
-import { IChatMode, IChatModeService } from '../../chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService, SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PromptHeaderAttributes, Target } from '../promptFileParser.js';
+import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, parseCommaSeparatedList, ParsedPromptFile, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { IPromptsService } from '../service/promptsService.js';
+import { IPromptsService, Target } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { dirname } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -40,8 +43,9 @@ export class PromptValidator {
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		promptAST.header?.errors.forEach(error => report(toMarker(error.message, error.range, MarkerSeverity.Error)));
-		this.validateHeader(promptAST, promptType, report);
-		await this.validateBody(promptAST, promptType, report);
+		const target = getTarget(promptType, promptAST.header ?? promptAST.uri);
+		await this.validateHeader(promptAST, promptType, target, report);
+		await this.validateBody(promptAST, target, report);
 		await this.validateFileName(promptAST, promptType, report);
 		await this.validateSkillFolderName(promptAST, promptType, report);
 	}
@@ -87,7 +91,7 @@ export class PromptValidator {
 		}
 	}
 
-	private async validateBody(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
+	private async validateBody(promptAST: ParsedPromptFile, target: Target, report: (markers: IMarkerData) => void): Promise<void> {
 		const body = promptAST.body;
 		if (!body) {
 			return;
@@ -117,13 +121,10 @@ export class PromptValidator {
 			}
 		}
 
-		const isGitHubTarget = isGithubTarget(promptType, promptAST.header?.target);
-
 		// Validate variable references (tool or toolset names)
-		if (body.variableReferences.length && !isGitHubTarget) {
+		if (body.variableReferences.length && isVSCodeOrDefaultTarget(target)) {
 			const headerTools = promptAST.header?.tools;
-			const headerTarget = promptAST.header?.target;
-			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools, headerTarget) : undefined;
+			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools, undefined) : undefined;
 
 			const available = new Set<string>(this.languageModelToolsService.getFullReferenceNames());
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedFullReferenceNames();
@@ -155,61 +156,71 @@ export class PromptValidator {
 		await Promise.all(fileReferenceChecks);
 	}
 
-	private validateHeader(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): void {
+	private async validateHeader(promptAST: ParsedPromptFile, promptType: PromptsType, target: Target, report: (markers: IMarkerData) => void): Promise<void> {
 		const header = promptAST.header;
 		if (!header) {
 			return;
 		}
 		const attributes = header.attributes;
-		const isGitHubTarget = isGithubTarget(promptType, header.target);
-		this.checkForInvalidArguments(attributes, promptType, isGitHubTarget, report);
+		this.checkForInvalidArguments(attributes, promptType, target, report);
 
-		this.validateName(attributes, isGitHubTarget, report);
+		this.validateName(attributes, report);
 		this.validateDescription(attributes, report);
 		this.validateArgumentHint(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
 				const agent = this.validateAgent(attributes, report);
-				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, header.target, report);
+				this.validateTools(attributes, agent?.kind ?? ChatModeKind.Agent, target, report);
 				this.validateModel(attributes, agent?.kind ?? ChatModeKind.Agent, report);
 				break;
 			}
 			case PromptsType.instructions:
-				this.validateApplyTo(attributes, report);
+				if (target === Target.Claude) {
+					this.validatePaths(attributes, report);
+				} else {
+					this.validateApplyTo(attributes, report);
+				}
 				this.validateExcludeAgent(attributes, report);
 				break;
 
 			case PromptsType.agent: {
 				this.validateTarget(attributes, report);
 				this.validateInfer(attributes, report);
-				this.validateTools(attributes, ChatModeKind.Agent, header.target, report);
-				if (!isGitHubTarget) {
+				this.validateUserInvokable(attributes, report);
+				this.validateDisableModelInvocation(attributes, report);
+				this.validateTools(attributes, ChatModeKind.Agent, target, report);
+				if (isVSCodeOrDefaultTarget(target)) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
 					this.validateHandoffs(attributes, report);
+					await this.validateAgentsAttribute(attributes, header, report);
+				} else if (target === Target.Claude) {
+					this.validateClaudeAttributes(attributes, report);
 				}
 				break;
 			}
 
 			case PromptsType.skill:
-				// Skill-specific validations (currently none beyond name/description)
+				this.validateUserInvokable(attributes, report);
+				this.validateDisableModelInvocation(attributes, report);
 				break;
-
 		}
 	}
 
-	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, isGitHubTarget: boolean, report: (markers: IMarkerData) => void): void {
-		const validAttributeNames = getValidAttributeNames(promptType, true, isGitHubTarget);
-		const validGithubCopilotAttributeNames = new Lazy(() => new Set(getValidAttributeNames(promptType, false, true)));
+	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, target: Target, report: (markers: IMarkerData) => void): void {
+		const validAttributeNames = getValidAttributeNames(promptType, true, target);
+		const validGithubCopilotAttributeNames = new Lazy(() => new Set(getValidAttributeNames(promptType, false, Target.GitHubCopilot)));
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
-				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, isGitHubTarget).sort().join(', '));
+				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, target).sort().join(', '));
 				switch (promptType) {
 					case PromptsType.prompt:
 						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.agent:
-						if (isGitHubTarget) {
+						if (target === Target.GitHubCopilot) {
 							report(toMarker(localize('promptValidator.unknownAttribute.github-agent', "Attribute '{0}' is not supported in custom GitHub Copilot agent files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						} else if (target === Target.Claude) {
+							// ignore for now as we don't have a full list of supported attributes for claude target
 						} else {
 							if (validGithubCopilotAttributeNames.value.has(attribute.key)) {
 								report(toMarker(localize('promptValidator.ignoredAttribute.vscode-agent', "Attribute '{0}' is ignored when running locally in VS Code.", attribute.key), attribute.range, MarkerSeverity.Info));
@@ -219,7 +230,11 @@ export class PromptValidator {
 						}
 						break;
 					case PromptsType.instructions:
-						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						if (target === Target.Claude) {
+							report(toMarker(localize('promptValidator.unknownAttribute.rules', "Attribute '{0}' is not supported in rules files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						} else {
+							report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						}
 						break;
 					case PromptsType.skill:
 						report(toMarker(localize('promptValidator.unknownAttribute.skill', "Attribute '{0}' is not supported in skill files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
@@ -231,7 +246,7 @@ export class PromptValidator {
 
 
 
-	private validateName(attributes: IHeaderAttribute[], isGitHubTarget: boolean, report: (markers: IMarkerData) => void): void {
+	private validateName(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
 		const nameAttribute = attributes.find(attr => attr.key === PromptHeaderAttributes.name);
 		if (!nameAttribute) {
 			return;
@@ -281,36 +296,82 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		if (attribute.value.type !== 'string') {
-			report(toMarker(localize('promptValidator.modelMustBeString', "The 'model' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
-			return;
-		}
-		const modelName = attribute.value.value.trim();
-		if (modelName.length === 0) {
-			report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+		if (attribute.value.type !== 'string' && attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.modelMustBeStringOrArray', "The 'model' attribute must be a string or an array of strings."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 
-		const languageModes = this.languageModelsService.getLanguageModelIds();
-		if (languageModes.length === 0) {
+		const modelNames: [string, Range][] = [];
+		if (attribute.value.type === 'string') {
+			const modelName = attribute.value.value.trim();
+			if (modelName.length === 0) {
+				report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+				return;
+			}
+			modelNames.push([modelName, attribute.value.range]);
+		} else if (attribute.value.type === 'array') {
+			if (attribute.value.items.length === 0) {
+				report(toMarker(localize('promptValidator.modelArrayMustNotBeEmpty', "The 'model' array must not be empty."), attribute.value.range, MarkerSeverity.Error));
+				return;
+			}
+			for (const item of attribute.value.items) {
+				if (item.type !== 'string') {
+					report(toMarker(localize('promptValidator.modelArrayMustContainStrings', "The 'model' array must contain only strings."), item.range, MarkerSeverity.Error));
+					return;
+				}
+				const modelName = item.value.trim();
+				if (modelName.length === 0) {
+					report(toMarker(localize('promptValidator.modelArrayItemMustBeNonEmpty', "Model names in the array must be non-empty strings."), item.range, MarkerSeverity.Error));
+					return;
+				}
+				modelNames.push([modelName, item.range]);
+			}
+		}
+
+		const languageModels = this.languageModelsService.getLanguageModelIds();
+		if (languageModels.length === 0) {
 			// likely the service is not initialized yet
 			return;
 		}
-		const modelMetadata = this.findModelByName(languageModes, modelName);
-		if (!modelMetadata) {
-			report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
 
-		} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
-			report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), attribute.value.range, MarkerSeverity.Warning));
+		for (const [modelName, range] of modelNames) {
+			const modelMetadata = this.findModelByName(modelName);
+			if (!modelMetadata) {
+				report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), range, MarkerSeverity.Warning));
+			} else if (agentKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
+				report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), range, MarkerSeverity.Warning));
+			}
 		}
 	}
 
-	private findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
-		for (const model of languageModes) {
-			const metadata = this.languageModelsService.lookupLanguageModel(model);
-			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.matchesQualifiedName(modelName, metadata)) {
-				return metadata;
+	private validateClaudeAttributes(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
+		// vaidate all claude-specific attributes that have enum values
+		for (const claudeAttributeName in claudeAgentAttributes) {
+			const claudeAttribute = claudeAgentAttributes[claudeAttributeName];
+			const enumValues = claudeAttribute.enums;
+			if (enumValues) {
+				const attribute = attributes.find(attr => attr.key === claudeAttributeName);
+				if (!attribute) {
+					continue;
+				}
+				if (attribute.value.type !== 'string') {
+					report(toMarker(localize('promptValidator.claude.attributeMustBeString', "The '{0}' attribute must be a string.", claudeAttributeName), attribute.value.range, MarkerSeverity.Error));
+					continue;
+				} else {
+					const modelName = attribute.value.value.trim();
+					if (enumValues.every(model => model.name !== modelName)) {
+						const validValues = enumValues.map(model => model.name).join(', ');
+						report(toMarker(localize('promptValidator.claude.attributeNotFound', "Unknown value '{0}', valid: {1}.", modelName, validValues), attribute.value.range, MarkerSeverity.Warning));
+					}
+				}
 			}
+		}
+	}
+
+	private findModelByName(modelName: string): ILanguageModelChatMetadata | undefined {
+		const metadataAndId = this.languageModelsService.lookupLanguageModelByQualifiedName(modelName);
+		if (metadataAndId && metadataAndId.metadata.isUserSelectable !== false) {
+			return metadataAndId.metadata;
 		}
 		return undefined;
 	}
@@ -359,7 +420,7 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, target: string | undefined, report: (markers: IMarkerData) => void): undefined {
+	private validateTools(attributes: IHeaderAttribute[], agentKind: ChatModeKind, target: Target, report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.tools);
 		if (!attribute) {
 			return;
@@ -367,21 +428,22 @@ export class PromptValidator {
 		if (agentKind !== ChatModeKind.Agent) {
 			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported when using agents. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
 		}
-
-		switch (attribute.value.type) {
-			case 'array':
-				if (target === Target.GitHubCopilot) {
-					// no validation for github-copilot target
-				} else {
-					this.validateVSCodeTools(attribute.value, target, report);
-				}
-				break;
-			default:
-				report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+		let value = attribute.value;
+		if (value.type === 'string') {
+			value = parseCommaSeparatedList(value);
+		}
+		if (value.type !== 'array') {
+			report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array or a comma separated string."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		if (target === Target.GitHubCopilot || target === Target.Claude) {
+			// no validation for github-copilot target and claude
+		} else {
+			this.validateVSCodeTools(value, report);
 		}
 	}
 
-	private validateVSCodeTools(valueItem: IArrayValue, target: string | undefined, report: (markers: IMarkerData) => void) {
+	private validateVSCodeTools(valueItem: IArrayValue, report: (markers: IMarkerData) => void) {
 		if (valueItem.items.length > 0) {
 			const available = new Set<string>(this.languageModelToolsService.getFullReferenceNames());
 			const deprecatedNames = this.languageModelToolsService.getDeprecatedFullReferenceNames();
@@ -436,13 +498,43 @@ export class PromptValidator {
 		}
 	}
 
+	private validatePaths(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.paths);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.pathsMustBeArray', "The 'paths' attribute must be an array of glob patterns."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const item of attribute.value.items) {
+			if (item.type !== 'string') {
+				report(toMarker(localize('promptValidator.eachPathMustBeString', "Each entry in the 'paths' attribute must be a string."), item.range, MarkerSeverity.Error));
+				continue;
+			}
+			const pattern = item.value.trim();
+			if (pattern.length === 0) {
+				report(toMarker(localize('promptValidator.pathMustBeNonEmpty', "Path entries must be non-empty glob patterns."), item.range, MarkerSeverity.Error));
+				continue;
+			}
+			try {
+				const globPattern = parse(pattern);
+				if (isEmptyPattern(globPattern)) {
+					report(toMarker(localize('promptValidator.pathMustBeValidGlob', "'{0}' is not a valid glob pattern.", pattern), item.range, MarkerSeverity.Error));
+				}
+			} catch (_error) {
+				report(toMarker(localize('promptValidator.pathMustBeValidGlob', "'{0}' is not a valid glob pattern.", pattern), item.range, MarkerSeverity.Error));
+			}
+		}
+	}
+
 	private validateExcludeAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.excludeAgent);
 		if (!attribute) {
 			return;
 		}
-		if (attribute.value.type !== 'array') {
-			report(toMarker(localize('promptValidator.excludeAgentMustBeArray', "The 'excludeAgent' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+		if (attribute.value.type !== 'array' && attribute.value.type !== 'string') {
+			report(toMarker(localize('promptValidator.excludeAgentMustBeArray', "The 'excludeAgent' attribute must be an string or array."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 	}
@@ -491,8 +583,13 @@ export class PromptValidator {
 							report(toMarker(localize('promptValidator.handoffShowContinueOnMustBeBoolean', "The 'showContinueOn' property in a handoff must be a boolean."), prop.value.range, MarkerSeverity.Error));
 						}
 						break;
+					case 'model':
+						if (prop.value.type !== 'string') {
+							report(toMarker(localize('promptValidator.handoffModelMustBeString', "The 'model' property in a handoff must be a string."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
 					default:
-						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send', 'showContinueOn'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send', 'showContinueOn', 'model'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
 				}
 				required.delete(prop.key.value);
 			}
@@ -507,10 +604,7 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		if (attribute.value.type !== 'boolean') {
-			report(toMarker(localize('promptValidator.inferMustBeBoolean', "The 'infer' attribute must be a boolean."), attribute.value.range, MarkerSeverity.Error));
-			return;
-		}
+		report(toMarker(localize('promptValidator.inferDeprecated', "The 'infer' attribute is deprecated in favour of 'user-invokable' and 'disable-model-invocation'."), attribute.value.range, MarkerSeverity.Error));
 	}
 
 	private validateTarget(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
@@ -532,40 +626,348 @@ export class PromptValidator {
 			report(toMarker(localize('promptValidator.targetInvalidValue', "The 'target' attribute must be one of: {0}.", validTargets.join(', ')), attribute.value.range, MarkerSeverity.Error));
 		}
 	}
+
+	private validateUserInvokable(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.userInvokable);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'boolean') {
+			report(toMarker(localize('promptValidator.userInvokableMustBeBoolean', "The 'user-invokable' attribute must be a boolean."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+	}
+
+	private validateDisableModelInvocation(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.disableModelInvocation);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'boolean') {
+			report(toMarker(localize('promptValidator.disableModelInvocationMustBeBoolean', "The 'disable-model-invocation' attribute must be a boolean."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+	}
+
+	private async validateAgentsAttribute(attributes: IHeaderAttribute[], header: PromptHeader, report: (markers: IMarkerData) => void): Promise<undefined> {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.agents);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.agentsMustBeArray', "The 'agents' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+
+		// Collect available agent names
+		const agents = await this.promptsService.getCustomAgents(CancellationToken.None);
+		const availableAgentNames = new Set<string>(agents.map(agent => agent.name));
+		availableAgentNames.add(ChatMode.Agent.name.get()); // include default agent
+
+		// Check each item is a string and agent exists
+		const agentNames: string[] = [];
+		for (const item of attribute.value.items) {
+			if (item.type !== 'string') {
+				report(toMarker(localize('promptValidator.eachAgentMustBeString', "Each agent name in the 'agents' attribute must be a string."), item.range, MarkerSeverity.Error));
+			} else if (item.value) {
+				agentNames.push(item.value);
+				if (item.value !== '*' && !availableAgentNames.has(item.value)) {
+					report(toMarker(localize('promptValidator.agentInAgentsNotFound', "Unknown agent '{0}'. Available agents: {1}.", item.value, Array.from(availableAgentNames).join(', ')), item.range, MarkerSeverity.Warning));
+				}
+			}
+		}
+
+		// If not wildcard and not empty, check that 'agent' tool is available
+		if (agentNames.length > 0) {
+			const tools = header.tools;
+			if (tools && !tools.includes(SpecedToolAliases.agent)) {
+				report(toMarker(localize('promptValidator.agentsRequiresAgentTool', "When 'agents' and 'tools' are specified, the 'agent' tool must be included in the 'tools' attribute."), attribute.value.range, MarkerSeverity.Warning));
+			}
+		}
+	}
 }
 
-const allAttributeNames = {
+const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer],
-	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata],
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
+	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
+	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
 const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, PromptHeaderAttributes.infer];
-const recommendedAttributeNames = {
+const recommendedAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: allAttributeNames[PromptsType.prompt].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.instructions]: allAttributeNames[PromptsType.instructions].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.agent]: allAttributeNames[PromptsType.agent].filter(name => !isNonRecommendedAttribute(name)),
 	[PromptsType.skill]: allAttributeNames[PromptsType.skill].filter(name => !isNonRecommendedAttribute(name)),
+	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
 
-export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean, isGitHubTarget: boolean): string[] {
-	if (isGitHubTarget && promptType === PromptsType.agent) {
-		return githubCopilotAgentAttributeNames;
+export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean, target: Target): string[] {
+	if (target === Target.Claude) {
+		if (promptType === PromptsType.instructions) {
+			return Object.keys(claudeRulesAttributes);
+		}
+		return Object.keys(claudeAgentAttributes);
+	} else if (target === Target.GitHubCopilot) {
+		if (promptType === PromptsType.agent) {
+			return githubCopilotAgentAttributeNames;
+		}
 	}
 	return includeNonRecommended ? allAttributeNames[promptType] : recommendedAttributeNames[promptType];
 }
 
 export function isNonRecommendedAttribute(attributeName: string): boolean {
-	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode;
+	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode || attributeName === PromptHeaderAttributes.infer;
+}
+
+export function getAttributeDescription(attributeName: string, promptType: PromptsType, target: Target): string | undefined {
+	if (target === Target.Claude) {
+		if (promptType === PromptsType.agent) {
+			return claudeAgentAttributes[attributeName]?.description;
+		}
+		if (promptType === PromptsType.instructions) {
+			return claudeRulesAttributes[attributeName]?.description;
+		}
+	}
+	switch (promptType) {
+		case PromptsType.instructions:
+			switch (attributeName) {
+				case PromptHeaderAttributes.name:
+					return localize('promptHeader.instructions.name', 'The name of the instruction file as shown in the UI. If not set, the name is derived from the file name.');
+				case PromptHeaderAttributes.description:
+					return localize('promptHeader.instructions.description', 'The description of the instruction file. It can be used to provide additional context or information about the instructions and is passed to the language model as part of the prompt.');
+				case PromptHeaderAttributes.applyTo:
+					return localize('promptHeader.instructions.applyToRange', 'One or more glob pattern (separated by comma) that describe for which files the instructions apply to. Based on these patterns, the file is automatically included in the prompt, when the context contains a file that matches one or more of these patterns. Use `**` when you want this file to always be added.\nExample: `**/*.ts`, `**/*.js`, `client/**`');
+			}
+			break;
+		case PromptsType.skill:
+			switch (attributeName) {
+				case PromptHeaderAttributes.name:
+					return localize('promptHeader.skill.name', 'The name of the skill.');
+				case PromptHeaderAttributes.description:
+					return localize('promptHeader.skill.description', 'The description of the skill. The description is added to every request and will be used by the agent to decide when to load the skill.');
+				case PromptHeaderAttributes.argumentHint:
+					return localize('promptHeader.skill.argumentHint', 'Hint shown during autocomplete to indicate expected arguments. Example: [issue-number] or [filename] [format]');
+				case PromptHeaderAttributes.userInvokable:
+					return localize('promptHeader.skill.userInvokable', 'Set to false to hide from the / menu. Use for background knowledge users should not invoke directly. Default: true.');
+				case PromptHeaderAttributes.disableModelInvocation:
+					return localize('promptHeader.skill.disableModelInvocation', 'Set to true to prevent the agent from automatically loading this skill. Use for workflows you want to trigger manually with /name. Default: false.');
+			}
+			break;
+		case PromptsType.agent:
+			switch (attributeName) {
+				case PromptHeaderAttributes.name:
+					return localize('promptHeader.agent.name', 'The name of the agent as shown in the UI.');
+				case PromptHeaderAttributes.description:
+					return localize('promptHeader.agent.description', 'The description of the custom agent, what it does and when to use it.');
+				case PromptHeaderAttributes.argumentHint:
+					return localize('promptHeader.agent.argumentHint', 'The argument-hint describes what inputs the custom agent expects or supports.');
+				case PromptHeaderAttributes.model:
+					return localize('promptHeader.agent.model', 'Specify the model that runs this custom agent. Can also be a list of models. The first available model will be used.');
+				case PromptHeaderAttributes.tools:
+					return localize('promptHeader.agent.tools', 'The set of tools that the custom agent has access to.');
+				case PromptHeaderAttributes.handOffs:
+					return localize('promptHeader.agent.handoffs', 'Possible handoff actions when the agent has completed its task.');
+				case PromptHeaderAttributes.target:
+					return localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.');
+				case PromptHeaderAttributes.infer:
+					return localize('promptHeader.agent.infer', 'Controls visibility of the agent.');
+				case PromptHeaderAttributes.agents:
+					return localize('promptHeader.agent.agents', 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
+				case PromptHeaderAttributes.userInvokable:
+					return localize('promptHeader.agent.userInvokable', 'Whether the agent can be selected and invoked by users in the UI.');
+				case PromptHeaderAttributes.disableModelInvocation:
+					return localize('promptHeader.agent.disableModelInvocation', 'If true, prevents the agent from being invoked as a subagent.');
+			}
+			break;
+		case PromptsType.prompt:
+			switch (attributeName) {
+				case PromptHeaderAttributes.name:
+					return localize('promptHeader.prompt.name', 'The name of the prompt. This is also the name of the slash command that will run this prompt.');
+				case PromptHeaderAttributes.description:
+					return localize('promptHeader.prompt.description', 'The description of the reusable prompt, what it does and when to use it.');
+				case PromptHeaderAttributes.argumentHint:
+					return localize('promptHeader.prompt.argumentHint', 'The argument-hint describes what inputs the prompt expects or supports.');
+				case PromptHeaderAttributes.model:
+					return localize('promptHeader.prompt.model', 'The model to use in this prompt. Can also be a list of models. The first available model will be used.');
+				case PromptHeaderAttributes.tools:
+					return localize('promptHeader.prompt.tools', 'The tools to use in this prompt.');
+				case PromptHeaderAttributes.agent:
+				case PromptHeaderAttributes.mode:
+					return localize('promptHeader.prompt.agent.description', 'The agent to use when running this prompt.');
+			}
+			break;
+	}
+	return undefined;
 }
 
 // The list of tools known to be used by GitHub Copilot custom agents
 export const knownGithubCopilotTools = [
-	SpecedToolAliases.execute, SpecedToolAliases.read, SpecedToolAliases.edit, SpecedToolAliases.search, SpecedToolAliases.agent,
+	{ name: SpecedToolAliases.execute, description: localize('githubCopilot.execute', 'Execute commands') },
+	{ name: SpecedToolAliases.read, description: localize('githubCopilot.read', 'Read files') },
+	{ name: SpecedToolAliases.edit, description: localize('githubCopilot.edit', 'Edit files') },
+	{ name: SpecedToolAliases.search, description: localize('githubCopilot.search', 'Search files') },
+	{ name: SpecedToolAliases.agent, description: localize('githubCopilot.agent', 'Use subagents') },
 ];
 
-export function isGithubTarget(promptType: PromptsType, target: string | undefined): boolean {
-	return promptType === PromptsType.agent && target === Target.GitHubCopilot;
+export interface IValueEntry {
+	readonly name: string;
+	readonly description?: string;
+}
+
+export const knownClaudeTools = [
+	{ name: 'Bash', description: localize('claude.bash', 'Execute shell commands'), toolEquivalent: [SpecedToolAliases.execute] },
+	{ name: 'Edit', description: localize('claude.edit', 'Make targeted file edits'), toolEquivalent: ['edit/editNotebook', 'edit/editFiles'] },
+	{ name: 'Glob', description: localize('claude.glob', 'Find files by pattern'), toolEquivalent: ['search/fileSearch'] },
+	{ name: 'Grep', description: localize('claude.grep', 'Search file contents with regex'), toolEquivalent: ['search/textSearch'] },
+	{ name: 'Read', description: localize('claude.read', 'Read file contents'), toolEquivalent: ['read/readFile', 'read/getNotebookSummary'] },
+	{ name: 'Write', description: localize('claude.write', 'Create/overwrite files'), toolEquivalent: ['edit/createDirectory', 'edit/createFile', 'edit/createJupyterNotebook'] },
+	{ name: 'WebFetch', description: localize('claude.webFetch', 'Fetch URL content'), toolEquivalent: [SpecedToolAliases.web] },
+	{ name: 'WebSearch', description: localize('claude.webSearch', 'Perform web searches'), toolEquivalent: [SpecedToolAliases.web] },
+	{ name: 'Task', description: localize('claude.task', 'Run subagents for complex tasks'), toolEquivalent: [SpecedToolAliases.agent] },
+	{ name: 'Skill', description: localize('claude.skill', 'Execute skills'), toolEquivalent: [] },
+	{ name: 'LSP', description: localize('claude.lsp', 'Code intelligence (requires plugin)'), toolEquivalent: [] },
+	{ name: 'NotebookEdit', description: localize('claude.notebookEdit', 'Modify Jupyter notebooks'), toolEquivalent: ['edit/editNotebook'] },
+	{ name: 'AskUserQuestion', description: localize('claude.askUserQuestion', 'Ask multiple-choice questions'), toolEquivalent: ['vscode/askQuestions'] },
+	{ name: 'MCPSearch', description: localize('claude.mcpSearch', 'Searches for MCP tools when tool search is enabled'), toolEquivalent: [] }
+];
+
+export const knownClaudeModels = [
+	{ name: 'sonnet', description: localize('claude.sonnet', 'Latest Claude Sonnet'), modelEquivalent: 'Claude Sonnet 4.5 (copilot)' },
+	{ name: 'opus', description: localize('claude.opus', 'Latest Claude Opus'), modelEquivalent: 'Claude Opus 4.6 (copilot)' },
+	{ name: 'haiku', description: localize('claude.haiku', 'Latest Claude Haiku, fast for simple tasks'), modelEquivalent: 'Claude Haiku 4.5 (copilot)' },
+	{ name: 'inherit', description: localize('claude.inherit', 'Inherit model from parent agent or prompt'), modelEquivalent: undefined },
+];
+
+export function mapClaudeModels(claudeModelNames: readonly string[]): readonly string[] {
+	const result = [];
+	for (const name of claudeModelNames) {
+		const claudeModel = knownClaudeModels.find(model => model.name === name);
+		if (claudeModel && claudeModel.modelEquivalent) {
+			result.push(claudeModel.modelEquivalent);
+		}
+	}
+	return result;
+}
+
+/**
+ * Maps Claude tool names to their VS Code tool equivalents.
+ */
+export function mapClaudeTools(claudeToolNames: readonly string[]): string[] {
+	const result: string[] = [];
+	for (const name of claudeToolNames) {
+		const claudeTool = knownClaudeTools.find(tool => tool.name === name);
+		if (claudeTool) {
+			result.push(...claudeTool.toolEquivalent);
+		}
+	}
+	return result;
+}
+
+export const claudeAgentAttributes: Record<string, { type: string; description: string; defaults?: string[]; items?: IValueEntry[]; enums?: IValueEntry[] }> = {
+	'name': {
+		type: 'string',
+		description: localize('attribute.name', "Unique identifier using lowercase letters and hyphens (required)"),
+	},
+	'description': {
+		type: 'string',
+		description: localize('attribute.description', "When to delegate to this subagent (required)"),
+	},
+	'tools': {
+		type: 'array',
+		description: localize('attribute.tools', "Array of tools the subagent can use. Inherits all tools if omitted"),
+		defaults: ['Read, Edit, Bash'],
+		items: knownClaudeTools
+	},
+	'disallowedTools': {
+		type: 'array',
+		description: localize('attribute.disallowedTools', "Tools to deny, removed from inherited or specified list"),
+		defaults: ['Write, Edit, Bash'],
+		items: knownClaudeTools
+	},
+	'model': {
+		type: 'string',
+		description: localize('attribute.model', "Model to use: sonnet, opus, haiku, or inherit. Defaults to inherit."),
+		defaults: ['sonnet', 'opus', 'haiku', 'inherit'],
+		enums: knownClaudeModels
+	},
+	'permissionMode': {
+		type: 'string',
+		description: localize('attribute.permissionMode', "Permission mode: default, acceptEdits, dontAsk, bypassPermissions, or plan."),
+		defaults: ['default', 'acceptEdits', 'dontAsk', 'bypassPermissions', 'plan'],
+		enums: [
+			{ name: 'default', description: localize('claude.permissionMode.default', 'Standard behavior: prompts for permission on first use of each tool.') },
+			{ name: 'acceptEdits', description: localize('claude.permissionMode.acceptEdits', 'Automatically accepts file edit permissions for the session.') },
+			{ name: 'plan', description: localize('claude.permissionMode.plan', 'Plan Mode: Claude can analyze but not modify files or execute commands.') },
+			{ name: 'delegate', description: localize('claude.permissionMode.delegate', 'Coordination-only mode for agent team leads. Only available when an agent team is active.') },
+			{ name: 'dontAsk', description: localize('claude.permissionMode.dontAsk', 'Auto-denies tools unless pre-approved via /permissions or permissions.allow rules.') },
+			{ name: 'bypassPermissions', description: localize('claude.permissionMode.bypassPermissions', 'Skips all permission prompts (requires safe environment like containers).') }
+		]
+	},
+	'skills': {
+		type: 'array',
+		description: localize('attribute.skills', "Skills to load into the subagent's context at startup."),
+	},
+	'mcpServers': {
+		type: 'array',
+		description: localize('attribute.mcpServers', "MCP servers available to this subagent."),
+	},
+	'hooks': {
+		type: 'object',
+		description: localize('attribute.hooks', "Lifecycle hooks scoped to this subagent."),
+	},
+	'memory': {
+		type: 'string',
+		description: localize('attribute.memory', "Persistent memory scope: user, project, or local. Enables cross-session learning."),
+		defaults: ['user', 'project', 'local'],
+		enums: [
+			{ name: 'user', description: localize('claude.memory.user', "Remember learnings across all projects.") },
+			{ name: 'project', description: localize('claude.memory.project', "The subagent's knowledge is project-specific and shareable via version control.") },
+			{ name: 'local', description: localize('claude.memory.local', "The subagent's knowledge is project-specific but should not be checked into version control.") }
+		]
+	}
+};
+
+/**
+ * Attributes supported in Claude rules files (`.claude/rules/*.md`).
+ * Claude rules use `paths` instead of `applyTo` for glob patterns.
+ */
+export const claudeRulesAttributes: Record<string, { type: string; description: string; defaults?: string[]; items?: IValueEntry[]; enums?: IValueEntry[] }> = {
+	'description': {
+		type: 'string',
+		description: localize('attribute.rules.description', "A description of what this rule covers, used to provide context about when it applies."),
+	},
+	'paths': {
+		type: 'array',
+		description: localize('attribute.rules.paths', "Array of glob patterns that describe for which files the rule applies. Based on these patterns, the file is automatically included in the prompt when the context contains a file that matches.\nExample: `['src/**/*.ts', 'test/**']`"),
+	},
+};
+
+export function isVSCodeOrDefaultTarget(target: Target): boolean {
+	return target === Target.VSCode || target === Target.Undefined;
+}
+
+export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
+	const uri = header instanceof URI ? header : header.uri;
+	if (promptType === PromptsType.agent) {
+		const parentDir = dirname(uri);
+		if (parentDir.path.endsWith(`/${CLAUDE_AGENTS_SOURCE_FOLDER}`)) {
+			return Target.Claude;
+		}
+		if (!(header instanceof URI)) {
+			const target = header.target;
+			if (target === Target.GitHubCopilot || target === Target.VSCode) {
+				return target;
+			}
+		}
+		return Target.Undefined;
+	} else if (promptType === PromptsType.instructions) {
+		if (isInClaudeRulesFolder(uri)) {
+			return Target.Claude;
+		}
+	}
+	return Target.Undefined;
 }
 
 function toMarker(message: string, range: Range, severity = MarkerSeverity.Error): IMarkerData {

@@ -36,6 +36,7 @@ export interface LaunchOptions {
 	readonly browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	readonly quality: Quality;
 	version: { major: number; minor: number; patch: number };
+	readonly extensionDevelopmentPath?: string;
 }
 
 interface ICodeInstance {

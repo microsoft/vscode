@@ -6,14 +6,15 @@
 import './media/agentsessionsviewer.css';
 import { h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IIdentityProvider, IListVirtualDelegate, NotSelectableGroupId, NotSelectableGroupIdType } from '../../../../../base/browser/ui/list/list.js';
+import { AriaRole } from '../../../../../base/browser/ui/aria/aria.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
 import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isLocalAgentSessionItem, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -27,7 +28,7 @@ import { ListViewTargetSector } from '../../../../../base/browser/ui/list/listVi
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
-import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
@@ -39,6 +40,9 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
+import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
+import { AgentSessionsGrouping } from './agentSessionsFilter.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -52,20 +56,19 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 1
 	readonly title: IconLabel;
+	readonly statusContainer: HTMLElement;
+	readonly statusProviderIcon: HTMLElement;
+	readonly statusTime: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
 	// Column 2 Row 2
 	readonly diffContainer: HTMLElement;
-	readonly diffFilesSpan: HTMLSpanElement;
 	readonly diffAddedSpan: HTMLSpanElement;
 	readonly diffRemovedSpan: HTMLSpanElement;
 
 	readonly badge: HTMLElement;
+	readonly separator: HTMLElement;
 	readonly description: HTMLElement;
-
-	readonly statusContainer: HTMLElement;
-	readonly statusProviderIcon: HTMLElement;
-	readonly statusTime: HTMLElement;
 
 	readonly contextKeyService: IContextKeyService;
 	readonly elementDisposable: DisposableStore;
@@ -76,11 +79,13 @@ export interface IAgentSessionRendererOptions {
 	getHoverPosition(): HoverPosition;
 }
 
-export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
+export class AgentSessionRenderer extends Disposable implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionItemTemplate> {
 
 	static readonly TEMPLATE_ID = 'agent-session';
 
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
+
+	private readonly sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
 
 	constructor(
 		private readonly options: IAgentSessionRendererOptions,
@@ -89,7 +94,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-	) { }
+	) {
+		super();
+	}
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
 		const disposables = new DisposableStore();
@@ -104,21 +111,21 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
+						h('div.agent-session-status@statusContainer', [
+							h('span.agent-session-status-provider-icon@statusProviderIcon'),
+							h('span.agent-session-status-time@statusTime')
+						]),
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
 						h('div.agent-session-diff-container@diffContainer',
 							[
-								h('span.agent-session-diff-files@filesSpan'),
 								h('span.agent-session-diff-added@addedSpan'),
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
 						h('div.agent-session-badge@badge'),
+						h('span.agent-session-separator@separator'),
 						h('div.agent-session-description@description'),
-						h('div.agent-session-status@statusContainer', [
-							h('span.agent-session-status-provider-icon@statusProviderIcon'),
-							h('span.agent-session-status-time@statusTime')
-						])
 					])
 				])
 			]
@@ -138,10 +145,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			titleToolbar,
 			diffContainer: elements.diffContainer,
-			diffFilesSpan: elements.filesSpan,
 			diffAddedSpan: elements.addedSpan,
 			diffRemovedSpan: elements.removedSpan,
 			badge: elements.badge,
+			separator: elements.separator,
 			description: elements.description,
 			statusContainer: elements.statusContainer,
 			statusProviderIcon: elements.statusProviderIcon,
@@ -156,7 +163,6 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Clear old state
 		template.elementDisposable.clear();
-		template.diffFilesSpan.textContent = '';
 		template.diffAddedSpan.textContent = '';
 		template.diffRemovedSpan.textContent = '';
 		template.badge.textContent = '';
@@ -188,17 +194,32 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		}
 		template.diffContainer.classList.toggle('has-diff', hasDiff);
 
-		// Badge
-		let hasBadge = false;
-		if (!isSessionInProgressStatus(session.element.status)) {
-			hasBadge = this.renderBadge(session, template);
+		let hasAgentSessionChanges = false;
+		if (
+			session.element.providerType === AgentSessionProviders.Background ||
+			session.element.providerType === AgentSessionProviders.Cloud
+		) {
+			// Background and Cloud agents provide the list of changes directly,
+			// so we have to use the list of changes to determine whether to show
+			// the "View All Changes" action
+			hasAgentSessionChanges = Array.isArray(diff) && diff.length > 0;
+		} else {
+			hasAgentSessionChanges = hasDiff;
 		}
+
+		ChatContextKeys.hasAgentSessionChanges.bindTo(template.contextKeyService).set(hasAgentSessionChanges);
+
+		// Badge
+		const hasBadge = this.renderBadge(session, template);
 		template.badge.classList.toggle('has-badge', hasBadge);
 
 		// Description (unless diff is shown)
 		if (!hasDiff) {
 			this.renderDescription(session, template, hasBadge);
 		}
+
+		// Separator (dot between badge and description)
+		template.separator.classList.toggle('has-separator', hasBadge && !hasDiff);
 
 		// Status
 		this.renderStatus(session, template);
@@ -236,10 +257,6 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		const diff = getAgentChangesSummary(session.element.changes);
 		if (!diff) {
 			return false;
-		}
-
-		if (diff.files > 0) {
-			template.diffFilesSpan.textContent = diff.files === 1 ? localize('diffFile', "1 file") : localize('diffFiles', "{0} files", diff.files);
 		}
 
 		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
@@ -288,15 +305,15 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			} else if (hasBadge && session.element.status === AgentSessionStatus.Completed) {
 				template.description.textContent = ''; // no description if completed and has badge
 			} else if (
-				session.element.timing.finishedOrFailedTime &&
-				session.element.timing.inProgressTime &&
-				session.element.timing.finishedOrFailedTime > session.element.timing.inProgressTime
+				session.element.timing.lastRequestEnded &&
+				session.element.timing.lastRequestStarted &&
+				session.element.timing.lastRequestEnded > session.element.timing.lastRequestStarted
 			) {
-				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime, false);
+				const duration = this.toDuration(session.element.timing.lastRequestStarted, session.element.timing.lastRequestEnded, false, true);
 
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-					localize('chat.session.status.failedAfter', "Failed after {0}.", duration ?? '1s') :
-					localize('chat.session.status.completedAfter', "Completed in {0}.", duration ?? '1s');
+					localize('chat.session.status.failedAfter', "Failed after {0}", duration) :
+					localize('chat.session.status.completedAfter', "Completed in {0}", duration);
 			} else {
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 					localize('chat.session.status.failed', "Failed") :
@@ -305,10 +322,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		}
 	}
 
-	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean): string | undefined {
-		const elapsed = Math.round((endTime - startTime) / 1000) * 1000;
-		if (elapsed < 1000) {
-			return undefined;
+	private toDuration(startTime: number, endTime: number, useFullTimeWords: boolean, disallowNow: boolean): string {
+		const elapsed = Math.max(Math.round((endTime - startTime) / 1000) * 1000, 1000 /* clamp to 1s */);
+		if (!disallowNow && elapsed < 60000) {
+			return localize('secondsDuration', "now");
 		}
 
 		return getDurationString(elapsed, useFullTimeWords);
@@ -318,23 +335,26 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		const getTimeLabel = (session: IAgentSession) => {
 			let timeLabel: string | undefined;
-			if (session.status === AgentSessionStatus.InProgress && session.timing.inProgressTime) {
-				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now(), false);
+			if (session.status === AgentSessionStatus.InProgress && session.timing.lastRequestStarted) {
+				timeLabel = this.toDuration(session.timing.lastRequestStarted, Date.now(), false, false);
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created);
+				const date = getAgentSessionTime(session.timing);
+				const seconds = Math.round((new Date().getTime() - date) / 1000);
+				if (seconds < 60) {
+					timeLabel = localize('secondsDuration', "now");
+				} else {
+					timeLabel = sessionDateFromNow(date);
+				}
 			}
 
 			return timeLabel;
 		};
 
-		// Provider icon (hide for local sessions)
-		if (!isLocalAgentSessionItem(session.element)) {
-			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
-		} else {
-			template.statusProviderIcon.className = 'agent-session-status-provider-icon hidden';
-		}
+		// Provider icon (only shown for non-local sessions)
+		const isLocal = session.element.providerType === AgentSessionProviders.Local;
+		template.statusProviderIcon.className = isLocal ? '' : `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
 
 		// Time label
 		template.statusTime.textContent = getTimeLabel(session.element);
@@ -343,88 +363,33 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		if (!isSessionInProgressStatus(session.element.status) && session.element.isRead()) {
+			return; // the hover is complex and large, for now limit it to in-progress sessions only
+		}
+
+		const reducedDelay = session.element.status === AgentSessionStatus.NeedsInput;
 		template.elementDisposable.add(
-			this.hoverService.setupDelayedHover(template.element, () => ({
-				content: this.buildTooltip(session.element),
-				style: HoverStyle.Pointer,
-				position: {
-					hoverPosition: this.options.getHoverPosition()
-				}
-			}), { groupId: 'agent.sessions' })
+			this.hoverService.setupDelayedHover(template.element, () => this.buildHoverContent(session.element), { groupId: 'agent.sessions', reducedDelay })
 		);
 	}
 
-	private buildTooltip(session: IAgentSession): IMarkdownString {
-		const lines: string[] = [];
-
-		// Title
-		lines.push(`**${session.label}**`);
-
-		// Tooltip (from provider)
-		if (session.tooltip) {
-			const tooltip = typeof session.tooltip === 'string' ? session.tooltip : session.tooltip.value;
-			lines.push(tooltip);
-		} else {
-
-			// Description
-			if (session.description) {
-				const description = typeof session.description === 'string' ? session.description : session.description.value;
-				lines.push(description);
-			}
-
-			// Badge
-			if (session.badge) {
-				const badge = typeof session.badge === 'string' ? session.badge : session.badge.value;
-				lines.push(badge);
-			}
+	private buildHoverContent(session: IAgentSession): IDelayedHoverOptions {
+		if (this.sessionHover.value?.session.resource.toString() !== session.resource.toString()) {
+			// note: hover service use mouseover which triggers again if the mouse moves
+			// within the element. Only recreate the hover widget if the session changed.
+			this.sessionHover.value = this.instantiationService.createInstance(AgentSessionHoverWidget, session);
 		}
 
-		// Details line: Status • Provider • Duration/Time
-		const details: string[] = [];
-
-		// Status
-		details.push(toStatusLabel(session.status));
-
-		// Provider
-		details.push(session.providerLabel);
-
-		// Duration or start time
-		if (session.timing.finishedOrFailedTime && session.timing.inProgressTime) {
-			const duration = this.toDuration(session.timing.inProgressTime, session.timing.finishedOrFailedTime, true);
-			if (duration) {
-				details.push(duration);
+		const widget = this.sessionHover.value;
+		return {
+			id: `agent.session.hover.${session.resource.toString()}`,
+			content: widget.domNode,
+			style: HoverStyle.Pointer,
+			onDidShow: () => widget.onRendered(),
+			position: {
+				hoverPosition: this.options.getHoverPosition()
 			}
-		} else {
-			const startTime = session.timing.lastRequestStarted ?? session.timing.created;
-			details.push(fromNow(startTime, true, true));
-		}
-
-		lines.push(details.join(' • '));
-
-		// Diff information
-		const diff = getAgentChangesSummary(session.changes);
-		if (diff && hasValidDiff(session.changes)) {
-			const diffParts: string[] = [];
-			if (diff.files > 0) {
-				diffParts.push(diff.files === 1 ? localize('tooltip.file', "1 file") : localize('tooltip.files', "{0} files", diff.files));
-			}
-			if (diff.insertions > 0) {
-				diffParts.push(`+${diff.insertions}`);
-			}
-			if (diff.deletions > 0) {
-				diffParts.push(`-${diff.deletions}`);
-			}
-			if (diffParts.length > 0) {
-				lines.push(`$(diff) ${diffParts.join(', ')}`);
-			}
-		}
-
-		// Archived status
-		if (session.isArchived()) {
-			lines.push(`$(archive) ${localize('tooltip.archived', "Archived")}`);
-		}
-
-		return new MarkdownString(lines.join('\n\n'), { supportThemeIcons: true });
+		};
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSession>, FuzzyScore>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
@@ -440,7 +405,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 }
 
-function toStatusLabel(status: AgentSessionStatus): string {
+export function toStatusLabel(status: AgentSessionStatus): string {
 	let statusLabel: string;
 	switch (status) {
 		case AgentSessionStatus.NeedsInput:
@@ -537,7 +502,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
-	static readonly ITEM_HEIGHT = 52;
+	static readonly ITEM_HEIGHT = 44;
 	static readonly SECTION_HEIGHT = 26;
 
 	getHeight(element: AgentSessionListItem): number {
@@ -558,6 +523,14 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 }
 
 export class AgentSessionsAccessibilityProvider implements IListAccessibilityProvider<AgentSessionListItem> {
+
+	getWidgetRole(): AriaRole {
+		return 'list';
+	}
+
+	getRole(element: AgentSessionListItem): AriaRole | undefined {
+		return 'listitem';
+	}
 
 	getWidgetAriaLabel(): string {
 		return localize('agentSessions', "Agent Sessions");
@@ -595,9 +568,9 @@ export interface IAgentSessionsFilter {
 
 	/**
 	 * Whether to show section headers to group sessions.
-	 * When false, sessions are shown as a flat list.
+	 * When undefined, sessions are shown as a flat list.
 	 */
-	readonly groupResults?: () => boolean | undefined;
+	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 
 	/**
 	 * A callback to notify the filter about the number of
@@ -617,6 +590,8 @@ export interface IAgentSessionsFilter {
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
+
+	private static readonly CAPPED_SESSIONS_LIMIT = 3;
 
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
@@ -684,10 +659,46 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
+		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
+
+		if (this.filter?.groupResults?.() === AgentSessionsGrouping.Capped) {
+			if (this.filter?.getExcludes().read) {
+				return sortedSessions; // When filtering to show only unread sessions, show a flat list
+			}
+
+			return this.groupSessionsCapped(sortedSessions);
+		} else {
+			return this.groupSessionsByDate(sortedSessions);
+		}
+	}
+
+	private groupSessionsCapped(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
 		const result: AgentSessionListItem[] = [];
 
-		const sortedSessions = sessions.sort(this.sorter.compare.bind(this.sorter));
-		const groupedSessions = groupAgentSessions(sortedSessions);
+		const firstArchivedIndex = sortedSessions.findIndex(session => session.isArchived());
+		const nonArchivedCount = firstArchivedIndex === -1 ? sortedSessions.length : firstArchivedIndex;
+
+		const topSessions = sortedSessions.slice(0, Math.min(AgentSessionsDataSource.CAPPED_SESSIONS_LIMIT, nonArchivedCount));
+		const othersSessions = sortedSessions.slice(topSessions.length);
+
+		// Add top sessions directly (no section header)
+		result.push(...topSessions);
+
+		// Add "More" section for the rest
+		if (othersSessions.length > 0) {
+			result.push({
+				section: AgentSessionSection.More,
+				label: localize('agentSessions.moreSectionWithCount', "More ({0})", othersSessions.length),
+				sessions: othersSessions
+			});
+		}
+
+		return result;
+	}
+
+	private groupSessionsByDate(sortedSessions: IAgentSession[]): AgentSessionListItem[] {
+		const result: AgentSessionListItem[] = [];
+		const groupedSessions = groupAgentSessionsByDate(sortedSessions);
 
 		for (const { sessions, section, label } of groupedSessions.values()) {
 			if (sessions.length === 0) {
@@ -701,19 +712,20 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 	}
 }
 
+export const AgentSessionSectionLabels = {
+	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In progress"),
+	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
+	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
+	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last 7 days"),
+	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
+	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
+	[AgentSessionSection.More]: localize('agentSessions.moreSection', "More"),
+};
+
 const DAY_THRESHOLD = 24 * 60 * 60 * 1000;
 const WEEK_THRESHOLD = 7 * DAY_THRESHOLD;
 
-export const AgentSessionSectionLabels = {
-	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In Progress"),
-	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
-	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
-	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last Week"),
-	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
-	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
-};
-
-export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
+export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSessionSection, IAgentSessionSection> {
 	const now = Date.now();
 	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
@@ -727,12 +739,12 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 	const archivedSessions: IAgentSession[] = [];
 
 	for (const session of sessions) {
-		if (isSessionInProgressStatus(session.status)) {
-			inProgressSessions.push(session);
-		} else if (session.isArchived()) {
+		if (session.isArchived()) {
 			archivedSessions.push(session);
+		} else if (isSessionInProgressStatus(session.status)) {
+			inProgressSessions.push(session);
 		} else {
-			const sessionTime = session.timing.lastRequestEnded ?? session.timing.lastRequestStarted ?? session.timing.created;
+			const sessionTime = getAgentSessionTime(session.timing);
 			if (sessionTime >= startOfToday) {
 				todaySessions.push(session);
 			} else if (sessionTime >= startOfYesterday) {
@@ -755,6 +767,29 @@ export function groupAgentSessions(sessions: IAgentSession[]): Map<AgentSessionS
 	]);
 }
 
+export function sessionDateFromNow(sessionTime: number): string {
+	const now = Date.now();
+	const startOfToday = new Date(now).setHours(0, 0, 0, 0);
+	const startOfYesterday = startOfToday - DAY_THRESHOLD;
+	const startOfTwoDaysAgo = startOfYesterday - DAY_THRESHOLD;
+
+	// our grouping by date uses absolute start times for "Today"
+	// and "Yesterday" while `fromNow` only works with full 24h
+	// and 48h ranges for these. To prevent a label like "1 day ago"
+	// to show under the "Last 7 Days" section, we do a bit of
+	// normalization logic.
+
+	if (sessionTime < startOfToday && sessionTime >= startOfYesterday) {
+		return localize('date.fromNow.days.singular', '1 day');
+	}
+
+	if (sessionTime < startOfYesterday && sessionTime >= startOfTwoDaysAgo) {
+		return localize('date.fromNow.days.multiple', '2 days');
+	}
+
+	return fromNow(sessionTime, false);
+}
+
 export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSessionsModel | AgentSessionListItem> {
 
 	getId(element: IAgentSessionsModel | AgentSessionListItem): string {
@@ -767,6 +802,13 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 		}
 
 		return 'agent-sessions-id';
+	}
+
+	getGroupId(element: IAgentSessionsModel | AgentSessionListItem): number | NotSelectableGroupIdType {
+		if (isAgentSessionSection(element) || isAgentSessionsModel(element)) {
+			return NotSelectableGroupId;
+		}
+		return 1;
 	}
 }
 
@@ -827,8 +869,8 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 
 		//Sort by end or start time (most recent first)
-		const timeA = sessionA.timing.lastRequestEnded ?? sessionA.timing.lastRequestStarted ?? sessionA.timing.created;
-		const timeB = sessionB.timing.lastRequestEnded ?? sessionB.timing.lastRequestStarted ?? sessionB.timing.created;
+		const timeA = getAgentSessionTime(sessionA.timing);
+		const timeB = getAgentSessionTime(sessionB.timing);
 		return timeB - timeA;
 	}
 }
