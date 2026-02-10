@@ -768,6 +768,8 @@ export interface ITreeItem {
 	accessibilityInformation?: IAccessibilityInformation;
 
 	checkbox?: ITreeItemCheckboxState;
+
+	leftActions?: boolean;
 }
 
 export class ResolvableTreeItem implements ITreeItem {

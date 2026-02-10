@@ -330,6 +330,12 @@
           "description": "%config.npm.scriptHover%",
           "default": true,
           "scope": "window"
+        },
+        "npm.scriptExplorerLeftActions": {
+          "type": "boolean",
+          "description": "%config.npm.scriptExplorerLeftActions%",
+          "default": false,
+          "scope": "window"
         }
       }
     },

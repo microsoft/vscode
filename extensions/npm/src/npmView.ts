@@ -119,6 +119,9 @@ class NpmScript extends TreeItem {
 			this.tooltip = this.task.detail;
 			this.description = this.task.detail;
 		}
+
+		const enableLeftActions = workspace.getConfiguration('npm').get<boolean>('scriptExplorerLeftActions', false);
+		this.leftActions = enableLeftActions;
 	}
 
 	getFolder(): WorkspaceFolder {

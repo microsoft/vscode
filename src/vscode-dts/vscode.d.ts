@@ -12385,6 +12385,12 @@ declare module 'vscode' {
 		};
 
 		/**
+		 * When set to `true`, action buttons for this tree item will remain visible during horizontal scrolling.
+		 * This is useful for keeping important actions accessible even when the tree item label is scrolled out of view.
+		 */
+		leftActions?: boolean;
+
+		/**
 		 * @param label A human-readable string describing this item
 		 * @param collapsibleState {@link TreeItemCollapsibleState} of the tree item. Default is {@link TreeItemCollapsibleState.None}
 		 */

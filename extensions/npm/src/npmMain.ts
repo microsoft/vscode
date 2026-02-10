@@ -44,7 +44,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				treeDataProvider.refresh();
 			}
 		}
-		if (e.affectsConfiguration('npm.scriptExplorerAction')) {
+		if (e.affectsConfiguration('npm.scriptExplorerAction') || e.affectsConfiguration('npm.scriptExplorerLeftActions')) {
 			if (treeDataProvider) {
 				treeDataProvider.refresh();
 			}

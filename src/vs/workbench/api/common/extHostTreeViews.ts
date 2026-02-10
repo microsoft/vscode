@@ -942,6 +942,7 @@ class ExtHostTreeView<T> extends Disposable {
 			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? extHostTypes.TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
 			accessibilityInformation: extensionTreeItem.accessibilityInformation,
 			checkbox: this._getCheckbox(extensionTreeItem),
+			leftActions: extensionTreeItem.leftActions,
 		};
 
 		return {

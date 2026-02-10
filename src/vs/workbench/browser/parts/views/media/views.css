@@ -251,6 +251,35 @@
 	display: block;
 }
 
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item.left-actions .actions {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	display: none;
+	align-items: center;
+	padding-left: 8px;
+	padding-right: 8px;
+	z-index: 1;
+	/* Gradient background to fade out the label text */
+	background: linear-gradient(to right, transparent 0%, var(--vscode-sideBar-background) 4px, var(--vscode-sideBar-background) 100%);
+}
+
+.customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item.left-actions .actions {
+	background: linear-gradient(to right, transparent 0%, var(--vscode-list-focusBackground) 4px, var(--vscode-list-focusBackground) 100%);
+}
+
+.customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item.left-actions .actions {
+	background: linear-gradient(to right, transparent 0%, var(--vscode-list-hoverBackground) 4px, var(--vscode-list-hoverBackground) 100%);
+}
+
+.customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item.left-actions .actions,
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item.left-actions .actions,
+.customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item.left-actions .actions {
+	display: flex;
+}
+
 /* filter view pane */
 
 .monaco-workbench .auxiliarybar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item.viewpane-filter-container {
