@@ -68,6 +68,7 @@ class TestTelemetryService implements Partial<ITelemetryService> {
 class MockHooksExecutionService implements IHooksExecutionService {
 	readonly _serviceBrand: undefined;
 	readonly onDidExecuteHook = Event.None;
+	readonly onDidHookProgress = Event.None;
 	public preToolUseHookResult: IPreToolUseHookResult | undefined = undefined;
 	public postToolUseHookResult: IPostToolUseHookResult | undefined = undefined;
 	public lastPreToolUseInput: IPreToolUseCallerInput | undefined = undefined;
