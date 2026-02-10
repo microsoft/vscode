@@ -451,6 +451,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 	private currentRunId: string | null = null;
 	private eventsBeingHandledCurrentRun: { line: number; visIndex: number; events: UiEvent[] }[] = [];
 	private visualizationItems: IVisualizationItem[] = [];
+	private syntaxErrorActive = false;
 	private streamSubscription: { dispose(): void } | null = null;
 	private streamUpdateTimer: any = null;
 	private cursorUpdateTimer: any = null;
@@ -694,6 +695,8 @@ export class SNCController extends Disposable implements IEditorContribution {
 	}
 
 	private clearVisualizationWidgets(): void {
+		this.syntaxErrorActive = false;
+
 		// Remove all existing widgets
 		for (const widgets of this.visualizationWidgets.values()) {
 			for (const widget of widgets) {
@@ -709,6 +712,22 @@ export class SNCController extends Disposable implements IEditorContribution {
 			}
 		});
 		this.viewZones.clear();
+	}
+
+	private setSyntaxErrorState(active: boolean): void {
+		if (this.syntaxErrorActive === active) {
+			return;
+		}
+		this.syntaxErrorActive = active;
+		this.applySyntaxErrorClassToWidgets();
+	}
+
+	private applySyntaxErrorClassToWidgets(): void {
+		for (const widgets of this.visualizationWidgets.values()) {
+			for (const widget of widgets) {
+				widget.getDomNode().classList.toggle('snc-syntax-error', this.syntaxErrorActive);
+			}
+		}
 	}
 
 	private updateOverlayWidgetPositions(): void {
@@ -850,6 +869,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 				}
 			}
 		});
+		this.applySyntaxErrorClassToWidgets();
 	}
 
 	/**
@@ -1160,13 +1180,19 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 					clearTimeout(this.streamUpdateTimer);
 
-					// Only keep items from the current run. Prior-run items are stale
-					// and would show visualizers on lines whose content has changed.
-					this.visualizationItems = this.visualizationItems.filter(visItem =>
-						visItem.runId === this.currentRunId
-					);
-
-					this.updateVisualizationWidgets(this.visualizationItems);
+					const hasSyntaxError = !!msg.result.syntaxError;
+					if (hasSyntaxError) {
+						// Keep existing widgets/zones stable while user is typing invalid syntax.
+						this.setSyntaxErrorState(true);
+					} else {
+						// Only keep items from the current run. Prior-run items are stale
+						// and would show visualizers on lines whose content has changed.
+						this.visualizationItems = this.visualizationItems.filter(visItem =>
+							visItem.runId === this.currentRunId
+						);
+						this.setSyntaxErrorState(false);
+						this.updateVisualizationWidgets(this.visualizationItems);
+					}
 
 					if (msg.result.stdout) {
 						console.log('Program output:', msg.result.stdout);

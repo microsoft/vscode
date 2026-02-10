@@ -1311,7 +1311,8 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
 		return {
 			"stdout": "",
 			"stderr": "",
-			"exitCode": 0
+			"exitCode": 0,
+			"syntaxError": False
 		}
 
 	global execution_step, line_emit_counter, _source_code
@@ -1321,7 +1322,16 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
 	_source_code = code      # Store source code for visualizers to access
 
 	# Transform and compile
-	transformed_ast = transform_code_to_ast(code)
+	try:
+		transformed_ast = transform_code_to_ast(code)
+		code_object = compile(transformed_ast, filename='<string>', mode='exec')
+	except SyntaxError as e:
+		return {
+			"stdout": "",
+			"stderr": str(e),
+			"exitCode": 1,
+			"syntaxError": True
+		}
 
 	# Optional: write transformed code for debugging (enable by setting SNC_WRITE_TRANSFORMED=1)
 	if os.environ.get('SNC_WRITE_TRANSFORMED'):
@@ -1331,8 +1341,6 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
 				print(transformed_code, file=f)
 			except Exception as unparse_error:
 				print(f"Warning: Could not unparse transformed AST: {unparse_error}", file=f)
-
-	code_object = compile(transformed_ast, filename='<string>', mode='exec')
 
 	# Prepare globals for execution - include our logging functions
 	globals_dict = {
@@ -1372,7 +1380,8 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
 	return {
 		"stdout": out_buf.getvalue(),
 		"stderr": err_buf.getvalue(),
-		"exitCode": exit_code
+		"exitCode": exit_code,
+		"syntaxError": False
 	}
 
 
@@ -1404,7 +1413,8 @@ def execute_code(code_object: Any, globals_dict: Dict[str, Any]) -> Dict[str, An
 	return {
 		"stdout": out_buf.getvalue(),
 		"stderr": err_buf.getvalue(),
-		"exitCode": exit_code
+		"exitCode": exit_code,
+		"syntaxError": False
 	}
 
 
@@ -1516,7 +1526,11 @@ def run_preload_mode(working_directory: str) -> None:
 			# Reload any visualizers whose files changed on disk
 			_reload_stale_visualizers()
 
-			use_checkpoint2 = (code == cached_code and cached_body_code is not None)
+			use_checkpoint2 = (
+				code == cached_code
+				and cached_body_code is not None
+				and cached_import_globals is not None
+			)
 
 			if use_checkpoint2:
 				emit_meta(f'checkpoint2-hit-{run_id}')
@@ -1561,10 +1575,15 @@ def run_preload_mode(working_directory: str) -> None:
 
 			if use_checkpoint2:
 				emit_meta('checkpoint2-child-started')
+				if cached_import_globals is None:
+					result = {"stdout": "", "stderr": "", "exitCode": 0, "syntaxError": False}
+					_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
+					_stream_out.flush()
+					os._exit(0)
 				# Imports are already loaded in the parent's memory (inherited
 				# via fork).  Build a globals dict from the cached import state
 				# and execute only the body.
-				globals_dict = dict(cached_import_globals)  # shallow copy
+				globals_dict: Dict[str, Any] = dict(cached_import_globals)  # shallow copy
 				globals_dict['_log_value'] = log_value
 				globals_dict['_log_and_return'] = log_and_return
 				_execute_run(cached_body_code, models_and_events_json, run_id, globals_dict=globals_dict)
@@ -1572,7 +1591,7 @@ def run_preload_mode(working_directory: str) -> None:
 				emit_meta('checkpoint1-child-started')
 
 				if not code.strip():
-					result = {"stdout": "", "stderr": "", "exitCode": 0}
+					result = {"stdout": "", "stderr": "", "exitCode": 0, "syntaxError": False}
 					_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
 					_stream_out.flush()
 					os._exit(0)
@@ -1581,9 +1600,7 @@ def run_preload_mode(working_directory: str) -> None:
 				try:
 					transformed_ast = transform_code_to_ast(code)
 				except SyntaxError as e:
-					error_line = e.lineno or 1
-					log_value(error_line, f"SyntaxError: {e.msg}")
-					result = {"stdout": "", "stderr": str(e), "exitCode": 1}
+					result = {"stdout": "", "stderr": str(e), "exitCode": 1, "syntaxError": True}
 					_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
 					_stream_out.flush()
 					os._exit(0)

@@ -31,6 +31,12 @@
 	user-select: text;
 }
 
+.monaco-editor .snc-visualization-widget.snc-syntax-error {
+	filter: grayscale(1.0);
+	opacity: 0.8;
+	pointer-events: none;
+}
+
 /* Dropdown option hover effect (matches both in-widget and hoisted dropdown panels) */
 .monaco-editor .snc-dropdown-option:hover {
 	background-color: #094771;

@@ -23,6 +23,7 @@ export interface IProcessResult {
 	stdout: string;
 	stderr: string;
 	exitCode: number;
+	syntaxError?: boolean;
 }
 
 export interface IProcessOptions {
