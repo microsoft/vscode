@@ -66,7 +66,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
-import { IHandOff, PromptHeader, Target } from '../../common/promptSyntax/promptFileParser.js';
+import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
@@ -196,13 +196,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _onDidChangeParsedInput = this._register(new Emitter<void>());
 	readonly onDidChangeParsedInput = this._onDidChangeParsedInput.event;
 
-	private readonly _onWillMaybeChangeHeight = new Emitter<void>();
+	private readonly _onWillMaybeChangeHeight = this._register(new Emitter<void>());
 	readonly onWillMaybeChangeHeight: Event<void> = this._onWillMaybeChangeHeight.event;
 
 	private _onDidChangeHeight = this._register(new Emitter<number>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	private readonly _onDidChangeContentHeight = new Emitter<void>();
+	private readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
 	private _onDidChangeEmptyState = this._register(new Emitter<void>());
@@ -2228,7 +2228,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			queue: options?.queue,
 		});
 
-		if (this.viewModel.sessionResource && !options.queue) {
+		if (this.viewModel.sessionResource && !options.queue && ChatSendResult.isRejected(result)) {
 			this.chatAccessibilityService.disposeRequest(this.viewModel.sessionResource);
 		}
 
@@ -2243,6 +2243,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const sent = ChatSendResult.isQueued(result) ? await result.deferred : result;
 		if (!ChatSendResult.isSent(sent)) {
 			return;
+		}
+
+		// If this was a queued request that just got dequeued, start the progress sound now
+		if (options.queue && this.viewModel?.sessionResource) {
+			this.chatAccessibilityService.acceptRequest(this.viewModel.sessionResource);
 		}
 
 		this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
@@ -2509,7 +2514,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// if not tools to enable are present, we are done
 		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
-			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode, this.input.selectedLanguageModel.get()?.metadata);
+			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, this.input.selectedLanguageModel.get()?.metadata);
 			this.input.selectedToolsModel.set(enablementMap, true);
 		}
 

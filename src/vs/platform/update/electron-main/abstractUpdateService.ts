@@ -253,7 +253,15 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		if (isLatest === false && this._state.type === StateType.Ready) {
 			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
-			await this.cancelPendingUpdate();
+
+			try {
+				await this.cancelPendingUpdate();
+			} catch (error) {
+				this.logService.error('update#checkForOverwriteUpdates(): failed to cancel pending update, aborting overwrite');
+				this.logService.error(error);
+				return false;
+			}
+
 			this._overwrite = true;
 			this.setState(State.Overwriting(this._state.update, explicit));
 			this.doCheckForUpdates(explicit, pendingUpdateCommit);

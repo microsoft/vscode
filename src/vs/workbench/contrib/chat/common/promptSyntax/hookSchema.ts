@@ -12,7 +12,7 @@ import { untildify } from '../../../../../base/common/labels.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 
 /**
- * Enum of available hook types that can be configured in hooks.json
+ * Enum of available hook types that can be configured in hooks .json
  */
 export enum HookType {
 	SessionStart = 'SessionStart',
@@ -37,7 +37,7 @@ export const HOOK_TYPES = [
 	{
 		id: HookType.SessionStart,
 		label: nls.localize('hookType.sessionStart.label', "Session Start"),
-		description: nls.localize('hookType.sessionStart.description', "Executed when a new agent session begins or when resuming an existing session.")
+		description: nls.localize('hookType.sessionStart.description', "Executed when a new agent session begins.")
 	},
 	{
 		id: HookType.UserPromptSubmit,
@@ -191,7 +191,7 @@ export const hookFileSchema: IJSONSchema = {
 			properties: {
 				SessionStart: {
 					...hookArraySchema,
-					description: nls.localize('hookFile.sessionStart', 'Executed when a new agent session begins or when resuming an existing session. Use to initialize environments, log session starts, validate project state, or set up temporary resources.')
+					description: nls.localize('hookFile.sessionStart', 'Executed when a new agent session begins. Use to initialize environments, log session starts, validate project state, or set up temporary resources.')
 				},
 				UserPromptSubmit: {
 					...hookArraySchema,
@@ -257,7 +257,7 @@ export const HOOK_SCHEMA_URI = 'vscode://schemas/hooks';
 /**
  * Glob pattern for hook files.
  */
-export const HOOK_FILE_GLOB = 'hooks/hooks.json';
+export const HOOK_FILE_GLOB = '.github/hooks/*.json';
 
 /**
  * Normalizes a raw hook type identifier to the canonical HookType enum value.

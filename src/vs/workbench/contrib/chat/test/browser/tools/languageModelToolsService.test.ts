@@ -34,7 +34,7 @@ import { ILanguageModelToolsConfirmationService } from '../../../common/tools/la
 import { MockLanguageModelToolsConfirmationService } from '../../common/tools/mockLanguageModelToolsConfirmationService.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
-import { IHookResult, IPostToolUseCallerInput, IPostToolUseHookResult, IPreToolUseCallerInput, IPreToolUseHookResult } from '../../../common/hooks/hooksTypes.js';
+import { IHookResult } from '../../../common/hooks/hooksTypes.js';
 import { IHooksExecutionService, IHooksExecutionOptions, IHooksExecutionProxy } from '../../../common/hooks/hooksExecutionService.js';
 import { HookTypeValue, IChatRequestHooks } from '../../../common/promptSyntax/hookSchema.js';
 import { IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -68,24 +68,13 @@ class TestTelemetryService implements Partial<ITelemetryService> {
 class MockHooksExecutionService implements IHooksExecutionService {
 	readonly _serviceBrand: undefined;
 	readonly onDidExecuteHook = Event.None;
-	public preToolUseHookResult: IPreToolUseHookResult | undefined = undefined;
-	public postToolUseHookResult: IPostToolUseHookResult | undefined = undefined;
-	public lastPreToolUseInput: IPreToolUseCallerInput | undefined = undefined;
-	public lastPostToolUseInput: IPostToolUseCallerInput | undefined = undefined;
+	readonly onDidHookProgress = Event.None;
 
 	setProxy(_proxy: IHooksExecutionProxy): void { }
 	registerHooks(_sessionResource: URI, _hooks: IChatRequestHooks): IDisposable { return { dispose: () => { } }; }
 	getHooksForSession(_sessionResource: URI): IChatRequestHooks | undefined { return undefined; }
 	executeHook(_hookType: HookTypeValue, _sessionResource: URI, _options?: IHooksExecutionOptions): Promise<IHookResult[]> {
 		return Promise.resolve([]);
-	}
-	async executePreToolUseHook(_sessionResource: URI, input: IPreToolUseCallerInput, _token?: CancellationToken): Promise<IPreToolUseHookResult | undefined> {
-		this.lastPreToolUseInput = input;
-		return this.preToolUseHookResult;
-	}
-	async executePostToolUseHook(_sessionResource: URI, input: IPostToolUseCallerInput, _token?: CancellationToken): Promise<IPostToolUseHookResult | undefined> {
-		this.lastPostToolUseInput = input;
-		return this.postToolUseHookResult;
 	}
 }
 
@@ -744,7 +733,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with enabled tool
 		{
 			const fullReferenceNames = ['tool1RefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined, undefined);
+			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 1, 'Expected 1 tool to be enabled');
 			assert.strictEqual(result1.get(tool1), true, 'tool1 should be enabled');
@@ -756,7 +745,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with multiple enabled tools
 		{
 			const fullReferenceNames = ['my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName/internalToolSetTool1RefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined, undefined);
+			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
 			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
@@ -769,7 +758,7 @@ suite('LanguageModelToolsService', () => {
 		}
 		// Test with all enabled tools, redundant names
 		{
-			const result1 = service.toToolAndToolSetEnablementMap(allFullReferenceNames, undefined, undefined);
+			const result1 = service.toToolAndToolSetEnablementMap(allFullReferenceNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 12, 'Expected 12 tools to be enabled'); // +4 including the vscode, execute, read, agent toolsets
 
@@ -780,7 +769,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with no enabled tools
 		{
 			const fullReferenceNames: string[] = [];
-			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined, undefined);
+			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
 
@@ -790,7 +779,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with unknown tool
 		{
 			const fullReferenceNames: string[] = ['unknownToolRefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined, undefined);
+			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 0, 'Expected 0 tools to be enabled');
 
@@ -800,7 +789,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with legacy tool names
 		{
 			const fullReferenceNames: string[] = ['extTool1RefName', 'mcpToolSetRefName', 'internalToolSetTool1RefName'];
-			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined, undefined);
+			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 4, 'Expected 4 tools to be enabled');
 			assert.strictEqual(result1.get(extTool1), true, 'extTool1 should be enabled');
@@ -815,7 +804,7 @@ suite('LanguageModelToolsService', () => {
 		// Test with tool in user tool set
 		{
 			const fullReferenceNames = ['Tool2 Display Name'];
-			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined, undefined);
+			const result1 = service.toToolAndToolSetEnablementMap(fullReferenceNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 2, 'Expected 1 tool and user tool set to be enabled');
 			assert.strictEqual(result1.get(tool2), true, 'tool2 should be enabled');
@@ -842,7 +831,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test enabling the tool set
 		const enabledNames = [toolData1].map(t => service.getFullReferenceName(t));
-		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined, undefined);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 		assert.strictEqual(result.get(toolData1), true, 'individual tool should be enabled');
 
@@ -902,7 +891,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test enabling the tool set
 		const enabledNames = [toolSet, toolData1].map(t => service.getFullReferenceName(t));
-		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined, undefined);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 		assert.strictEqual(result.get(toolData1), true, 'individual tool should be enabled');
 		assert.strictEqual(result.get(toolData2), false);
@@ -937,7 +926,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test with non-existent tool names
 		const enabledNames = [toolData, unregisteredToolData].map(t => service.getFullReferenceName(t));
-		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined, undefined);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 		assert.strictEqual(result.get(toolData), true, 'existing tool should be enabled');
 		// Non-existent tools should not appear in the result map
@@ -986,7 +975,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test 1: Using legacy tool reference name should enable the tool
 		{
-			const result = service.toToolAndToolSetEnablementMap(['oldToolName'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['oldToolName'], undefined);
 			assert.strictEqual(result.get(toolWithLegacy), true, 'tool should be enabled via legacy name');
 
 			const fullReferenceNames = service.toFullReferenceNames(result);
@@ -995,7 +984,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test 2: Using another legacy tool reference name should also work
 		{
-			const result = service.toToolAndToolSetEnablementMap(['deprecatedToolName'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['deprecatedToolName'], undefined);
 			assert.strictEqual(result.get(toolWithLegacy), true, 'tool should be enabled via another legacy name');
 
 			const fullReferenceNames = service.toFullReferenceNames(result);
@@ -1004,7 +993,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test 3: Using legacy toolset name should enable the entire toolset
 		{
-			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined);
 			assert.strictEqual(result.get(toolSetWithLegacy), true, 'toolset should be enabled via legacy name');
 			assert.strictEqual(result.get(toolInSet), true, 'tool in set should be enabled when set is enabled via legacy name');
 
@@ -1014,7 +1003,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test 4: Using deprecated toolset name should also work
 		{
-			const result = service.toToolAndToolSetEnablementMap(['deprecatedToolSet'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['deprecatedToolSet'], undefined);
 			assert.strictEqual(result.get(toolSetWithLegacy), true, 'toolset should be enabled via another legacy name');
 			assert.strictEqual(result.get(toolInSet), true, 'tool in set should be enabled when set is enabled via legacy name');
 
@@ -1024,7 +1013,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test 5: Mix of current and legacy names
 		{
-			const result = service.toToolAndToolSetEnablementMap(['newToolRef', 'oldToolSet'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['newToolRef', 'oldToolSet'], undefined);
 			assert.strictEqual(result.get(toolWithLegacy), true, 'tool should be enabled via current name');
 			assert.strictEqual(result.get(toolSetWithLegacy), true, 'toolset should be enabled via legacy name');
 			assert.strictEqual(result.get(toolInSet), true, 'tool in set should be enabled');
@@ -1035,7 +1024,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test 6: Using legacy names and current names together (redundant but should work)
 		{
-			const result = service.toToolAndToolSetEnablementMap(['newToolRef', 'oldToolName', 'deprecatedToolName'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['newToolRef', 'oldToolName', 'deprecatedToolName'], undefined);
 			assert.strictEqual(result.get(toolWithLegacy), true, 'tool should be enabled (redundant legacy names should not cause issues)');
 
 			const fullReferenceNames = service.toFullReferenceNames(result);
@@ -1061,7 +1050,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test 1: Using the full legacy name should enable the tool
 		{
-			const result = service.toToolAndToolSetEnablementMap(['oldToolSet/oldToolName'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['oldToolSet/oldToolName'], undefined);
 			assert.strictEqual(result.get(toolWithOrphanedToolSet), true, 'tool should be enabled via full legacy name');
 
 			const fullReferenceNames = service.toFullReferenceNames(result);
@@ -1070,7 +1059,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test 2: Using just the orphaned toolset name should also enable the tool
 		{
-			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined);
 			assert.strictEqual(result.get(toolWithOrphanedToolSet), true, 'tool should be enabled via orphaned toolset name');
 
 			const fullReferenceNames = service.toFullReferenceNames(result);
@@ -1090,7 +1079,7 @@ suite('LanguageModelToolsService', () => {
 		store.add(service.registerToolData(anotherToolFromOrphanedSet));
 
 		{
-			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined);
 			assert.strictEqual(result.get(toolWithOrphanedToolSet), true, 'first tool should be enabled via orphaned toolset name');
 			assert.strictEqual(result.get(anotherToolFromOrphanedSet), true, 'second tool should also be enabled via orphaned toolset name');
 
@@ -1111,7 +1100,7 @@ suite('LanguageModelToolsService', () => {
 		store.add(service.registerToolData(unrelatedTool));
 
 		{
-			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined);
 			assert.strictEqual(result.get(toolWithOrphanedToolSet), true, 'tool from oldToolSet should be enabled');
 			assert.strictEqual(result.get(anotherToolFromOrphanedSet), true, 'another tool from oldToolSet should be enabled');
 			assert.strictEqual(result.get(unrelatedTool), false, 'tool from different toolset should NOT be enabled');
@@ -1139,7 +1128,7 @@ suite('LanguageModelToolsService', () => {
 		store.add(newToolSetWithSameName.addTool(toolInRecreatedSet));
 
 		{
-			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(['oldToolSet'], undefined);
 			// Now 'oldToolSet' should enable BOTH the recreated toolset AND the tools with legacy names pointing to oldToolSet
 			assert.strictEqual(result.get(newToolSetWithSameName), true, 'recreated toolset should be enabled');
 			assert.strictEqual(result.get(toolInRecreatedSet), true, 'tool in recreated set should be enabled');
@@ -1229,7 +1218,7 @@ suite('LanguageModelToolsService', () => {
 
 		{
 			const toolNames = ['custom-agent', 'shell'];
-			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(service.executeToolSet), true, 'execute should be enabled');
 			assert.strictEqual(result.get(service.agentToolSet), true, 'agent should be enabled');
@@ -1244,7 +1233,7 @@ suite('LanguageModelToolsService', () => {
 		}
 		{
 			const toolNames = ['github/*', 'playwright/*'];
-			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
 			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
@@ -1260,7 +1249,7 @@ suite('LanguageModelToolsService', () => {
 		{
 			// the speced names should work and not be altered
 			const toolNames = ['github/create_branch', 'playwright/browser_click'];
-			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
 			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
@@ -1276,7 +1265,7 @@ suite('LanguageModelToolsService', () => {
 		{
 			// using the old MCP full names should also work
 			const toolNames = ['github/github-mcp-server/*', 'microsoft/playwright-mcp/*'];
-			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
 			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
@@ -1291,7 +1280,7 @@ suite('LanguageModelToolsService', () => {
 		{
 			// using the old MCP full names should also work
 			const toolNames = ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'];
-			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
 			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
@@ -1307,7 +1296,7 @@ suite('LanguageModelToolsService', () => {
 		{
 			// using the latest MCP full names should also work
 			const toolNames = ['io.github.github/github-mcp-server/*', 'com.microsoft/playwright-mcp/*'];
-			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
 			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
@@ -1323,7 +1312,7 @@ suite('LanguageModelToolsService', () => {
 		{
 			// using the latest MCP full names should also work
 			const toolNames = ['io.github.github/github-mcp-server/create_branch', 'com.microsoft/playwright-mcp/browser_click'];
-			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
 			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
@@ -1339,7 +1328,7 @@ suite('LanguageModelToolsService', () => {
 		{
 			// using the old MCP full names should also work
 			const toolNames = ['github-mcp-server/create_branch'];
-			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
 			const fullReferenceNames = service.toFullReferenceNames(result).sort();
@@ -2155,7 +2144,7 @@ suite('LanguageModelToolsService', () => {
 		// Enable the MCP toolset
 		{
 			const enabledNames = [mcpToolSet].map(t => service.getFullReferenceName(t));
-			const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 			assert.strictEqual(result.get(mcpToolSet), true, 'MCP toolset should be enabled'); // Ensure the toolset is in the map
 			assert.strictEqual(result.get(mcpTool), true, 'MCP tool should be enabled when its toolset is enabled'); // Ensure the tool is in the map
@@ -2166,7 +2155,7 @@ suite('LanguageModelToolsService', () => {
 		// Enable a tool from the MCP toolset
 		{
 			const enabledNames = [mcpTool].map(t => service.getFullReferenceName(t, mcpToolSet));
-			const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined, undefined);
+			const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined);
 
 			assert.strictEqual(result.get(mcpToolSet), false, 'MCP toolset should be disabled'); // Ensure the toolset is in the map
 			assert.strictEqual(result.get(mcpTool), true, 'MCP tool should be enabled'); // Ensure the tool is in the map
@@ -2869,7 +2858,7 @@ suite('LanguageModelToolsService', () => {
 		// Provide model metadata for gpt-4 family
 		const modelMetadata = { id: 'gpt-4-turbo', vendor: 'openai', family: 'gpt-4', version: '1.0' } as ILanguageModelChatMetadata;
 		const enabledNames = ['gpt4ToolRef', 'anyModelToolRef', 'claudeToolRef'];
-		const result = service.toToolAndToolSetEnablementMap(enabledNames, undefined, modelMetadata);
+		const result = service.toToolAndToolSetEnablementMap(enabledNames, modelMetadata);
 
 		// gpt4Tool should be enabled (model matches)
 		assert.strictEqual(result.get(gpt4Tool), true, 'gpt4Tool should be enabled');
@@ -3824,13 +3813,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook denies, tool returns error and creates cancelled invocation', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'deny',
-				permissionDecisionReason: 'Destructive operations require approval',
-			};
-
 			const tool = registerToolForTest(hookService, store, 'hookDenyTool', {
 				invoke: async () => ({ content: [{ kind: 'text', value: 'should not run' }] })
 			});
@@ -3838,8 +3820,14 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: ChatToolInvocation } = {};
 			stubGetSession(hookChatService, 'hook-test', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test' });
+			dto.preToolUseResult = {
+				permissionDecision: 'deny',
+				permissionDecisionReason: 'Destructive operations require approval',
+			};
+
 			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -3862,12 +3850,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook allows, tool executes normally', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-			};
-
 			const tool = registerToolForTest(hookService, store, 'hookAllowTool', {
 				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] })
 			});
@@ -3875,8 +3857,13 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: ChatToolInvocation } = {};
 			stubGetSession(hookChatService, 'hook-test-allow', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test-allow' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+			};
+
 			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-allow' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -3887,8 +3874,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook returns undefined, tool executes normally', async () => {
-			mockHooksService.preToolUseHookResult = undefined;
-
 			const tool = registerToolForTest(hookService, store, 'hookUndefinedTool', {
 				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] })
 			});
@@ -3905,38 +3890,7 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'success');
 		});
 
-		test('hook receives correct input parameters', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-			};
-
-			const tool = registerToolForTest(hookService, store, 'hookInputTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'success' }] })
-			});
-
-			stubGetSession(hookChatService, 'hook-test-input', { requestId: 'req1' });
-
-			await hookService.invokeTool(
-				tool.makeDto({ param1: 'value1', param2: 42 }, { sessionId: 'hook-test-input' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			assert.ok(mockHooksService.lastPreToolUseInput);
-			assert.strictEqual(mockHooksService.lastPreToolUseInput.toolName, 'hookInputTool');
-			assert.deepStrictEqual(mockHooksService.lastPreToolUseInput.toolInput, { param1: 'value1', param2: 42 });
-		});
-
 		test('when hook denies, tool invoke is never called', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'deny',
-				permissionDecisionReason: 'Operation not allowed',
-			};
-
 			let invokeCalled = false;
 			const tool = registerToolForTest(hookService, store, 'hookNeverInvokeTool', {
 				invoke: async () => {
@@ -3948,8 +3902,14 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: unknown } = {};
 			stubGetSession(hookChatService, 'hook-test-no-invoke', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test-no-invoke' });
+			dto.preToolUseResult = {
+				permissionDecision: 'deny',
+				permissionDecisionReason: 'Operation not allowed',
+			};
+
 			await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-no-invoke' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -3958,13 +3918,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook returns ask, tool is not auto-approved', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'ask',
-				permissionDecisionReason: 'Requires user confirmation',
-			};
-
 			let invokeCompleted = false;
 			const tool = registerToolForTest(hookService, store, 'hookAskTool', {
 				invoke: async () => {
@@ -3983,9 +3936,15 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: ChatToolInvocation } = {};
 			stubGetSession(hookChatService, 'hook-test-ask', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test-ask' });
+			dto.preToolUseResult = {
+				permissionDecision: 'ask',
+				permissionDecisionReason: 'Requires user confirmation',
+			};
+
 			// Start invocation - it should wait for confirmation
 			const invokePromise = hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-ask' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -4006,12 +3965,6 @@ suite('LanguageModelToolsService', () => {
 		});
 
 		test('when hook returns allow, tool is auto-approved', async () => {
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-			};
-
 			let invokeCompleted = false;
 			const tool = registerToolForTest(hookService, store, 'hookAutoApproveTool', {
 				invoke: async () => {
@@ -4030,9 +3983,14 @@ suite('LanguageModelToolsService', () => {
 			const capture: { invocation?: ChatToolInvocation } = {};
 			stubGetSession(hookChatService, 'hook-test-auto-approve', { requestId: 'req1', capture });
 
+			const dto = tool.makeDto({ test: 1 }, { sessionId: 'hook-test-auto-approve' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+			};
+
 			// Invoke the tool - it should auto-approve due to hook
 			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'hook-test-auto-approve' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -4045,12 +4003,6 @@ suite('LanguageModelToolsService', () => {
 
 		test('when hook returns updatedInput, tool is invoked with replaced parameters', async () => {
 			let receivedParameters: Record<string, any> | undefined;
-			mockHooksService.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-				updatedInput: { safeCommand: 'echo hello' },
-			};
 
 			const tool = registerToolForTest(hookService, store, 'hookUpdatedInputTool', {
 				invoke: async (dto) => {
@@ -4068,8 +4020,14 @@ suite('LanguageModelToolsService', () => {
 
 			stubGetSession(hookChatService, 'hook-test-updated-input', { requestId: 'req1' });
 
+			const dto = tool.makeDto({ originalCommand: 'rm -rf /' }, { sessionId: 'hook-test-updated-input' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+				updatedInput: { safeCommand: 'echo hello' },
+			};
+
 			await hookService.invokeTool(
-				tool.makeDto({ originalCommand: 'rm -rf /' }, { sessionId: 'hook-test-updated-input' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -4094,12 +4052,6 @@ suite('LanguageModelToolsService', () => {
 			});
 
 			let receivedParameters: Record<string, any> | undefined;
-			mockHooks.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-				updatedInput: { invalidField: 'wrong' },
-			};
 
 			const tool = registerToolForTest(setup.service, store, 'hookValidationFailTool', {
 				invoke: async (dto) => {
@@ -4123,8 +4075,14 @@ suite('LanguageModelToolsService', () => {
 
 			stubGetSession(setup.chatService, 'hook-test-validation-fail', { requestId: 'req1' });
 
+			const dto = tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-fail' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+				updatedInput: { invalidField: 'wrong' },
+			};
+
 			await setup.service.invokeTool(
-				tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-fail' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
@@ -4150,12 +4108,6 @@ suite('LanguageModelToolsService', () => {
 			});
 
 			let receivedParameters: Record<string, any> | undefined;
-			mockHooks.preToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				permissionDecision: 'allow',
-				updatedInput: { command: 'safe-command' },
-			};
 
 			const tool = registerToolForTest(setup.service, store, 'hookValidationPassTool', {
 				invoke: async (dto) => {
@@ -4179,164 +4131,20 @@ suite('LanguageModelToolsService', () => {
 
 			stubGetSession(setup.chatService, 'hook-test-validation-pass', { requestId: 'req1' });
 
+			const dto = tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-pass' });
+			dto.preToolUseResult = {
+				permissionDecision: 'allow',
+				updatedInput: { command: 'safe-command' },
+			};
+
 			await setup.service.invokeTool(
-				tool.makeDto({ command: 'original' }, { sessionId: 'hook-test-validation-pass' }),
+				dto,
 				async () => 0,
 				CancellationToken.None
 			);
 
 			// Updated parameters should be applied since validation passed
 			assert.deepStrictEqual(receivedParameters, { command: 'safe-command' });
-		});
-	});
-
-	suite('postToolUse hooks', () => {
-		let mockHooksService: MockHooksExecutionService;
-		let hookService: LanguageModelToolsService;
-		let hookChatService: MockChatService;
-
-		setup(() => {
-			mockHooksService = new MockHooksExecutionService();
-			const setup = createTestToolsService(store, {
-				hooksExecutionService: mockHooksService
-			});
-			hookService = setup.service;
-			hookChatService = setup.chatService;
-		});
-
-		test('when hook blocks, block context is appended to tool result', async () => {
-			mockHooksService.postToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				decision: 'block',
-				reason: 'Lint errors detected',
-			};
-
-			const tool = registerToolForTest(hookService, store, 'postHookBlockTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'original output' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-block', { requestId: 'req1' });
-
-			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'post-hook-block' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			// Original content should still be present
-			assert.strictEqual(result.content[0].kind, 'text');
-			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'original output');
-
-			// Block context should be appended wrapped in XML tags
-			assert.ok(result.content.length >= 2, 'Block context should be appended');
-			const blockPart = result.content[1] as IToolResultTextPart;
-			assert.strictEqual(blockPart.kind, 'text');
-			assert.ok(blockPart.value.includes('<PostToolUse-context>'), 'Block text should have opening tag');
-			assert.ok(blockPart.value.includes('</PostToolUse-context>'), 'Block text should have closing tag');
-			assert.ok(blockPart.value.includes('Lint errors detected'), 'Block text should include the reason');
-
-			// Should NOT set toolResultError
-			assert.strictEqual(result.toolResultError, undefined);
-		});
-
-		test('when hook returns additionalContext, it is appended to tool result', async () => {
-			mockHooksService.postToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				additionalContext: ['Consider running tests after this change'],
-			};
-
-			const tool = registerToolForTest(hookService, store, 'postHookContextTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'original output' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-context', { requestId: 'req1' });
-
-			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'post-hook-context' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			assert.strictEqual(result.content[0].kind, 'text');
-			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'original output');
-
-			assert.ok(result.content.length >= 2, 'Additional context should be appended');
-			const contextPart = result.content[1] as IToolResultTextPart;
-			assert.strictEqual(contextPart.kind, 'text');
-			assert.ok(contextPart.value.includes('<PostToolUse-context>'), 'Context text should have opening tag');
-			assert.ok(contextPart.value.includes('</PostToolUse-context>'), 'Context text should have closing tag');
-			assert.ok(contextPart.value.includes('Consider running tests after this change'));
-		});
-
-		test('when hook returns undefined, tool result is unchanged', async () => {
-			mockHooksService.postToolUseHookResult = undefined;
-
-			const tool = registerToolForTest(hookService, store, 'postHookNoopTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'original output' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-noop', { requestId: 'req1' });
-
-			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'post-hook-noop' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			assert.strictEqual(result.content.length, 1);
-			assert.strictEqual(result.content[0].kind, 'text');
-			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'original output');
-		});
-
-		test('hook receives correct input including tool response text', async () => {
-			mockHooksService.postToolUseHookResult = undefined;
-
-			const tool = registerToolForTest(hookService, store, 'postHookInputTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'file contents here' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-input', { requestId: 'req1' });
-
-			await hookService.invokeTool(
-				tool.makeDto({ param1: 'value1' }, { sessionId: 'post-hook-input' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			assert.ok(mockHooksService.lastPostToolUseInput);
-			assert.strictEqual(mockHooksService.lastPostToolUseInput.toolName, 'postHookInputTool');
-			assert.deepStrictEqual(mockHooksService.lastPostToolUseInput.toolInput, { param1: 'value1' });
-			assert.strictEqual(typeof mockHooksService.lastPostToolUseInput.getToolResponseText, 'function');
-		});
-
-		test('when hook blocks with both decision and additionalContext, both are appended', async () => {
-			mockHooksService.postToolUseHookResult = {
-				output: undefined,
-				resultKind: 'success',
-				decision: 'block',
-				reason: 'Security issue found',
-				additionalContext: ['Please review the file permissions'],
-			};
-
-			const tool = registerToolForTest(hookService, store, 'postHookBlockContextTool', {
-				invoke: async () => ({ content: [{ kind: 'text', value: 'original' }] })
-			});
-
-			stubGetSession(hookChatService, 'post-hook-block-ctx', { requestId: 'req1' });
-
-			const result = await hookService.invokeTool(
-				tool.makeDto({ test: 1 }, { sessionId: 'post-hook-block-ctx' }),
-				async () => 0,
-				CancellationToken.None
-			);
-
-			// Original + block message + additional context = 3 parts
-			assert.ok(result.content.length >= 3, 'Should have original, block message, and additional context');
-			assert.strictEqual((result.content[0] as IToolResultTextPart).value, 'original');
-			assert.ok((result.content[1] as IToolResultTextPart).value.includes('Security issue found'));
-			assert.ok((result.content[2] as IToolResultTextPart).value.includes('Please review the file permissions'));
 		});
 	});
 });

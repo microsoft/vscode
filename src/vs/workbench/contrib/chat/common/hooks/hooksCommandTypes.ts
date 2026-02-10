@@ -9,10 +9,6 @@
  * "External" means these types define the contract between VS Code and the external hook
  * command process.
  *
- * Examples:
- * - IPreToolUseCommandInput: sent TO the spawned command via stdin
- * - IPreToolUseCommandOutput: received FROM the spawned command via stdout
- *
  * Internal types (in hooksTypes.ts) are used within VS Code.
  */
 
@@ -66,62 +62,6 @@ export interface IHookCommandResult {
 	 * For errors, this is stderr.
 	 */
 	readonly result: string | object;
-}
-
-//#endregion
-
-//#region PreToolUse Hook Types
-
-/**
- * Tool-specific command input fields for preToolUse hook.
- * These are mixed with IHookCommandInput at runtime.
- */
-export interface IPreToolUseCommandInput {
-	readonly tool_name: string;
-	readonly tool_input: unknown;
-	readonly tool_use_id: string;
-}
-
-/**
- * External command output for preToolUse hook.
- * Extends common output with hookSpecificOutput wrapper.
- */
-export interface IPreToolUseCommandOutput extends IHookCommandOutput {
-	readonly hookSpecificOutput?: {
-		readonly hookEventName?: string;
-		readonly permissionDecision?: 'allow' | 'deny';
-		readonly permissionDecisionReason?: string;
-		readonly updatedInput?: object;
-		readonly additionalContext?: string;
-	};
-}
-
-//#endregion
-
-//#region PostToolUse Hook Types
-
-/**
- * Tool-specific command input fields for postToolUse hook.
- * These are mixed with IHookCommandInput at runtime.
- */
-export interface IPostToolUseCommandInput {
-	readonly tool_name: string;
-	readonly tool_input: unknown;
-	readonly tool_response: string;
-	readonly tool_use_id: string;
-}
-
-/**
- * External command output for postToolUse hook.
- * Extends common output with decision control fields.
- */
-export interface IPostToolUseCommandOutput extends IHookCommandOutput {
-	readonly decision?: 'block';
-	readonly reason?: string;
-	readonly hookSpecificOutput?: {
-		readonly hookEventName?: string;
-		readonly additionalContext?: string;
-	};
 }
 
 //#endregion

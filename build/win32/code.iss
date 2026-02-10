@@ -1453,6 +1453,12 @@ begin
   Result := not (IsBackgroundUpdate() and FileExists(Path));
 end;
 
+// Check if VS Code created a cancel file to signal that the update should be aborted
+function CancelFileExists(): Boolean;
+begin
+  Result := FileExists(ExpandConstant('{param:cancel}'))
+end;
+
 function ShouldRunAfterUpdate(): Boolean;
 begin
   if IsBackgroundUpdate() then
@@ -1639,11 +1645,17 @@ begin
       Log('Checking whether application is still running...');
       while (CheckForMutexes('{#AppMutex}')) do
       begin
+        if CancelFileExists() then
+        begin
+          Log('Cancel file detected, aborting background update.');
+          DeleteFile(ExpandConstant('{app}\updating_version'));
+          Abort;
+        end;
         Sleep(1000)
       end;
       Log('Application appears not to be running.');
 
-      if not SessionEndFileExists() then begin
+      if not SessionEndFileExists() and not CancelFileExists() then begin
         StopTunnelServiceIfNeeded();
         Log('Invoking inno_updater for background update');
         Exec(ExpandConstant('{app}\{#VersionedResourcesFolder}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists()) + ' "{cm:UpdatingVisualStudioCode}"'), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
@@ -1657,7 +1669,7 @@ begin
           end;
         #endif
       end else begin
-        Log('Skipping inno_updater.exe call because OS session is ending');
+        Log('Skipping inno_updater.exe call because OS session is ending or cancel was requested');
       end;
     end else begin
       if IsVersionedUpdate() then begin

@@ -177,6 +177,14 @@
 	-webkit-backdrop-filter: var(--backdrop-blur-lg);
 }
 
+/* Remove backdrop-filter when quick chat is active, because it creates a new
+   containing block that shifts position:fixed suggest widgets to the right. */
+.monaco-workbench .quick-input-widget:has(.interactive-session) {
+	backdrop-filter: none;
+	-webkit-backdrop-filter: none;
+	background-color: var(--vscode-quickInput-background) !important;
+}
+
 .monaco-workbench.vs-dark .quick-input-widget {
 	border: 1px solid var(--vscode-menu-border) !important;
 }
@@ -652,6 +660,21 @@
 
 .monaco-workbench .part.titlebar .command-center .agent-status-pill {
 	box-shadow: inset var(--shadow-sm);
+	border-color: var(--vscode-input-border);
+}
+
+.monaco-workbench .part.titlebar .command-center .agent-status-badge {
+	border-color: var(--vscode-input-border);
+}
+
+.monaco-workbench.vs-dark .monaco-action-bar:not(.vertical) .agent-status-badge-section.sparkle .action-container:hover,
+.monaco-workbench.vs-dark .monaco-action-bar:not(.vertical) .agent-status-badge-section.sparkle .dropdown-action-container:hover
+ {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench.vs-dark .monaco-action-bar:not(.vertical) .agent-status-badge .monaco-dropdown-with-primary:not(.disabled):hover {
+	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
 .monaco-dialog-modal-block .dialog-shadow {

@@ -413,7 +413,31 @@ declare module 'vscode' {
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart | ChatResponseQuestionCarouselPart | ChatResponseHookPart;
+	/**
+	 * Internal type that lists all the proposed chat response parts. This is used to generate `ExtendedChatResponsePart`
+	 * which is the actual type used in this API. This is done so that other proposals can easily add their own response parts
+	 * without having to modify this file.
+	 */
+	export interface ExtendedChatResponseParts {
+		ChatResponsePart: ChatResponsePart;
+		ChatResponseTextEditPart: ChatResponseTextEditPart;
+		ChatResponseNotebookEditPart: ChatResponseNotebookEditPart;
+		ChatResponseWorkspaceEditPart: ChatResponseWorkspaceEditPart;
+		ChatResponseConfirmationPart: ChatResponseConfirmationPart;
+		ChatResponseCodeCitationPart: ChatResponseCodeCitationPart;
+		ChatResponseReferencePart2: ChatResponseReferencePart2;
+		ChatResponseMovePart: ChatResponseMovePart;
+		ChatResponseExtensionsPart: ChatResponseExtensionsPart;
+		ChatResponsePullRequestPart: ChatResponsePullRequestPart;
+		ChatToolInvocationPart: ChatToolInvocationPart;
+		ChatResponseMultiDiffPart: ChatResponseMultiDiffPart;
+		ChatResponseThinkingProgressPart: ChatResponseThinkingProgressPart;
+		ChatResponseExternalEditPart: ChatResponseExternalEditPart;
+		ChatResponseQuestionCarouselPart: ChatResponseQuestionCarouselPart;
+	}
+
+	export type ExtendedChatResponsePart = ExtendedChatResponseParts[keyof ExtendedChatResponseParts];
+
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -440,31 +464,6 @@ declare module 'vscode' {
 		 * @param task A task that will emit thinking parts during its execution
 		 */
 		constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>);
-	}
-
-	/**
-	 * A progress part representing the execution result of a hook.
-	 * Hooks are user-configured scripts that run at specific points during chat processing.
-	 * If {@link stopReason} is set, the hook blocked/denied the operation.
-	 */
-	export class ChatResponseHookPart {
-		/** The type of hook that was executed */
-		hookType: ChatHookType;
-		/** If set, the hook blocked processing. This message is shown to the user. */
-		stopReason?: string;
-		/** Warning/system message from the hook, shown to the user */
-		systemMessage?: string;
-		/** Optional metadata associated with the hook execution */
-		metadata?: { readonly [key: string]: unknown };
-
-		/**
-		 * Creates a new hook progress part.
-		 * @param hookType The type of hook that was executed
-		 * @param stopReason Message shown when processing was stopped
-		 * @param systemMessage Warning/system message from the hook
-		 * @param metadata Optional metadata
-		 */
-		constructor(hookType: ChatHookType, stopReason?: string, systemMessage?: string, metadata?: { readonly [key: string]: unknown });
 	}
 
 	export class ChatResponseReferencePart2 {
@@ -567,14 +566,6 @@ declare module 'vscode' {
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
 		thinkingProgress(thinkingDelta: ThinkingDelta): void;
-
-		/**
-		 * Push a hook execution result to this stream.
-		 * @param hookType The type of hook that was executed
-		 * @param stopReason If set, the hook blocked processing. This message is shown to the user.
-		 * @param systemMessage Warning/system message from the hook
-		 */
-		hookProgress(hookType: ChatHookType, stopReason?: string, systemMessage?: string): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 

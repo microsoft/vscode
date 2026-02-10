@@ -271,14 +271,14 @@ export class SettingsEditor2 extends EditorPane {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
-		this.searchDelayer = new Delayer(200);
+		this.searchDelayer = this._register(new Delayer(200));
 		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
-		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
-		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
+		this.settingFastUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE));
+		this.settingSlowUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE));
 
-		this.searchInputDelayer = new Delayer<void>(SettingsEditor2.SEARCH_DEBOUNCE);
-		this.updatedConfigSchemaDelayer = new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER);
+		this.searchInputDelayer = this._register(new Delayer<void>(SettingsEditor2.SEARCH_DEBOUNCE));
+		this.updatedConfigSchemaDelayer = this._register(new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER));
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);

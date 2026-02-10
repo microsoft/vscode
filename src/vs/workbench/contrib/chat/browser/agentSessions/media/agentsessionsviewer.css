@@ -151,7 +151,7 @@
 			font-size: 12px;
 			line-height: 15px;
 			max-height: 15px;
-			color: var(--vscode-disabledForeground);
+			color: var(--vscode-descriptionForeground);
 
 			.rendered-markdown {
 				p {
@@ -234,7 +234,6 @@
 
 		.agent-session-title {
 			font-size: 13px;
-			color: var(--vscode-descriptionForeground);
 		}
 
 		.agent-session-status {
@@ -242,7 +241,7 @@
 			align-items: center;
 			font-variant-numeric: tabular-nums;
 			font-size: 12px;
-			color: var(--vscode-disabledForeground);
+			color: var(--vscode-descriptionForeground);
 			white-space: nowrap;
 
 			.agent-session-status-provider-icon {

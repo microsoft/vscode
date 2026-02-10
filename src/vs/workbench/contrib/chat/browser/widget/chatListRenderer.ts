@@ -34,7 +34,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IMenuEntryActionViewItemOptions, createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { MenuId, MenuItemAction, IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -191,7 +191,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatFollowup>());
 	readonly onDidClickFollowup: Event<IChatFollowup> = this._onDidClickFollowup.event;
 
-	private readonly _onDidClickRerunWithAgentOrCommandDetection = new Emitter<{ readonly sessionResource: URI; readonly requestId: string }>();
+	private readonly _onDidClickRerunWithAgentOrCommandDetection = this._register(new Emitter<{ readonly sessionResource: URI; readonly requestId: string }>());
 	readonly onDidClickRerunWithAgentOrCommandDetection = this._onDidClickRerunWithAgentOrCommandDetection.event;
 
 
@@ -254,6 +254,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IChatService private readonly chatService: IChatService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IHostService private readonly hostService: IHostService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
@@ -1056,9 +1058,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Render tip above the request message (if available)
 		const tip = this.chatTipService.getNextTip(element.id, element.timestamp, this.contextKeyService);
 		if (tip) {
-			const tipPart = new ChatTipContentPart(tip, this.chatContentMarkdownRenderer);
+			const tipPart = new ChatTipContentPart(
+				tip,
+				this.chatContentMarkdownRenderer,
+				this.chatTipService,
+				this.contextMenuService,
+				this.menuService,
+				this.contextKeyService,
+				() => this.chatTipService.getNextTip(element.id, element.timestamp, this.contextKeyService),
+			);
 			templateData.value.appendChild(tipPart.domNode);
 			templateData.elementDisposables.add(tipPart);
+			templateData.elementDisposables.add(tipPart.onDidHide(() => {
+				tipPart.domNode.remove();
+			}));
 		}
 
 		let inlineSlashCommandRendered = false;
