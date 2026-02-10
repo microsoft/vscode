@@ -170,7 +170,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.yoloMode',
-		message: localize('tip.yoloMode', "Tip: Enable [auto-approve mode](command:workbench.action.openSettings?%5B%22chat.tools.global.autoApprove%22%5D) to let the agent run tools without manual confirmation."),
+		message: localize('tip.yoloMode', "Tip: Enable [auto approval](command:workbench.action.openSettings?%5B%22chat.tools.global.autoApprove%22%5D) to let the agent run tools without manual confirmation."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			ContextKeyExpr.notEquals('config.chat.tools.global.autoApprove', true),
@@ -179,13 +179,13 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.mermaid',
-		message: localize('tip.mermaid', "Tip: Ask the agent to visualize architectures and flows; it can render Mermaid diagrams directly in chat."),
+		message: localize('tip.mermaid', "Tip: Ask the agent to draw an architectural diagram or flow chart; it can render Mermaid diagrams directly in chat."),
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		excludeWhenToolsInvoked: ['renderMermaidDiagram'],
 	},
 	{
 		id: 'tip.githubRepo',
-		message: localize('tip.githubRepo', "Tip: Mention a GitHub repository (e.g. @owner/repo) in your prompt so the agent can query code and issues across that repo."),
+		message: localize('tip.githubRepo', "Tip: Mention a GitHub repository (e.g. @owner/repo) in your prompt to let the agent search code, browse issues, and explore pull requests from that repo."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			ContextKeyExpr.notEquals('gitOpenRepositoryCount', '0'),
@@ -194,13 +194,13 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.subagents',
-		message: localize('tip.subagents', "Tip: Ask the agent to implement a plan in parallel; it can delegate work across subagents for faster results."),
+		message: localize('tip.subagents', "Tip: For large tasks, ask the agent to work in parallel. It can split the work across subagents to finish faster."),
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		excludeWhenToolsInvoked: ['runSubagent'],
 	},
 	{
 		id: 'tip.contextUsage',
-		message: localize('tip.contextUsage', "Tip: [View your context window usage](command:workbench.action.chat.showContextUsage) to see how many tokens are being spent and what's consuming them."),
+		message: localize('tip.contextUsage', "Tip: [View your context window usage](command:workbench.action.chat.showContextUsage) to see how many tokens are being used and what's consuming them."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			ChatContextKeys.contextUsageHasBeenOpened.negate(),
