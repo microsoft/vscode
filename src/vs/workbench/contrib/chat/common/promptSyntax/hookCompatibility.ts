@@ -148,3 +148,16 @@ export function getHookSourceFormatLabel(format: HookSourceFormat): string {
 			return 'GitHub Copilot';
 	}
 }
+
+/**
+ * Builds a new hook entry object in the appropriate format for the given source format.
+ * - Copilot format: `{ type: 'command', command: '' }`
+ * - Claude format: `{ matcher: '', hooks: [{ type: 'command', command: '' }] }`
+ */
+export function buildNewHookEntry(format: HookSourceFormat): Record<string, unknown> {
+	const commandEntry = { type: 'command', command: '' };
+	if (format === HookSourceFormat.Claude) {
+		return { matcher: '', hooks: [commandEntry] };
+	}
+	return commandEntry;
+}

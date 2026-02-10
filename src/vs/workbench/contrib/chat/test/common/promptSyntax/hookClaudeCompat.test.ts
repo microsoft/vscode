@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { HookType } from '../../../common/promptSyntax/hookSchema.js';
 import { parseClaudeHooks, resolveClaudeHookType, getClaudeHookTypeName } from '../../../common/promptSyntax/hookClaudeCompat.js';
+import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../../common/promptSyntax/hookCompatibility.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
 suite('HookClaudeCompat', () => {
@@ -338,6 +339,105 @@ suite('HookClaudeCompat', () => {
 				const entry = result.get(HookType.PreToolUse)!;
 				assert.strictEqual(entry.hooks[0].timeoutSec, 60);
 			});
+		});
+	});
+});
+
+suite('HookSourceFormat', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('getHookSourceFormat', () => {
+		test('detects Claude format for .claude/settings.json', () => {
+			assert.strictEqual(getHookSourceFormat(URI.file('/workspace/.claude/settings.json')), HookSourceFormat.Claude);
+		});
+
+		test('detects Claude format for .claude/settings.local.json', () => {
+			assert.strictEqual(getHookSourceFormat(URI.file('/workspace/.claude/settings.local.json')), HookSourceFormat.Claude);
+		});
+
+		test('detects Claude format for ~/.claude/settings.json', () => {
+			assert.strictEqual(getHookSourceFormat(URI.file('/home/user/.claude/settings.json')), HookSourceFormat.Claude);
+		});
+
+		test('returns Copilot format for .github/hooks/hooks.json', () => {
+			assert.strictEqual(getHookSourceFormat(URI.file('/workspace/.github/hooks/hooks.json')), HookSourceFormat.Copilot);
+		});
+
+		test('returns Copilot format for arbitrary .json file', () => {
+			assert.strictEqual(getHookSourceFormat(URI.file('/workspace/.github/hooks/my-hooks.json')), HookSourceFormat.Copilot);
+		});
+
+		test('returns Copilot format for settings.json not inside .claude', () => {
+			assert.strictEqual(getHookSourceFormat(URI.file('/workspace/.vscode/settings.json')), HookSourceFormat.Copilot);
+		});
+	});
+
+	suite('buildNewHookEntry', () => {
+		test('builds Copilot format entry', () => {
+			assert.deepStrictEqual(buildNewHookEntry(HookSourceFormat.Copilot), {
+				type: 'command',
+				command: ''
+			});
+		});
+
+		test('builds Claude format entry with matcher wrapper', () => {
+			assert.deepStrictEqual(buildNewHookEntry(HookSourceFormat.Claude), {
+				matcher: '',
+				hooks: [{
+					type: 'command',
+					command: ''
+				}]
+			});
+		});
+
+		test('Claude format entry serializes correctly in JSON', () => {
+			const entry = buildNewHookEntry(HookSourceFormat.Claude);
+			const hooksContent = {
+				hooks: {
+					SubagentStart: [entry]
+				}
+			};
+			const json = JSON.stringify(hooksContent, null, '\t');
+			const parsed = JSON.parse(json);
+			assert.deepStrictEqual(parsed.hooks.SubagentStart[0], {
+				matcher: '',
+				hooks: [{
+					type: 'command',
+					command: ''
+				}]
+			});
+		});
+
+		test('Copilot format entry serializes correctly in JSON', () => {
+			const entry = buildNewHookEntry(HookSourceFormat.Copilot);
+			const hooksContent = {
+				hooks: {
+					SubagentStart: [entry]
+				}
+			};
+			const json = JSON.stringify(hooksContent, null, '\t');
+			const parsed = JSON.parse(json);
+			assert.deepStrictEqual(parsed.hooks.SubagentStart[0], {
+				type: 'command',
+				command: ''
+			});
+		});
+
+		test('Claude format round-trips through parseClaudeHooks', () => {
+			const entry = buildNewHookEntry(HookSourceFormat.Claude);
+			const hooksContent = {
+				hooks: {
+					PreToolUse: [entry]
+				}
+			};
+
+			const result = parseClaudeHooks(hooksContent, URI.file('/workspace'), '/home/user');
+			assert.strictEqual(result.size, 1);
+			assert.ok(result.has(HookType.PreToolUse));
+			const hooks = result.get(HookType.PreToolUse)!;
+			assert.strictEqual(hooks.hooks.length, 1);
+			// Empty command string is falsy and gets omitted by resolveHookCommand
+			assert.strictEqual(hooks.hooks[0].command, undefined);
 		});
 	});
 });
