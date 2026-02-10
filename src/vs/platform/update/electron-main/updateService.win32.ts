@@ -261,6 +261,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 						});
 					}).then(packagePath => {
 						this.availableUpdate = { packagePath };
+						this.saveUpdateMetadata(update);
 						this.setState(State.Downloaded(update, explicit, this._overwrite));
 
 						const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
@@ -447,6 +448,30 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 	}
 
+	private async saveUpdateMetadata(update: IUpdate): Promise<void> {
+		try {
+			const cachePath = await this.cachePath;
+			const metadataPath = path.join(cachePath, 'update-metadata.json');
+			await pfs.Promises.writeFile(metadataPath, JSON.stringify(update));
+		} catch (e) {
+			this.logService.error('update#saveUpdateMetadata: failed to save', e);
+		}
+	}
+
+	private async loadUpdateMetadata(): Promise<IUpdate | undefined> {
+		try {
+			const cachePath = await this.cachePath;
+			const metadataPath = path.join(cachePath, 'update-metadata.json');
+			if (await pfs.Promises.exists(metadataPath)) {
+				const content = await readFile(metadataPath, 'utf8');
+				return JSON.parse(content);
+			}
+		} catch (e) {
+			this.logService.error('update#loadUpdateMetadata: failed to load', e);
+		}
+		return undefined;
+	}
+
 	protected override getUpdateType(): UpdateType {
 		return getUpdateType();
 	}
@@ -457,7 +482,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
+		const update: IUpdate = await this.loadUpdateMetadata() ?? { version: 'unknown', productVersion: 'unknown' };
 
 		this.setState(State.Downloading(update, true, false));
 		this.availableUpdate = { packagePath };
