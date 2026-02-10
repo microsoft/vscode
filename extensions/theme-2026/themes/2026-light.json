@@ -106,7 +106,7 @@
 		"commandCenter.foreground": "#202020",
 		"commandCenter.activeForeground": "#202020",
 		"commandCenter.background": "#FAFAFD",
-		"commandCenter.activeBackground": "#F0F0F3",
+		"commandCenter.activeBackground": "#F7F7F7",
 		"commandCenter.border": "#D8D8D8",
 		"editor.background": "#FFFFFF",
 		"editor.foreground": "#202020",
@@ -265,7 +265,8 @@
 		"charts.yellow": "#667309",
 		"charts.orange": "#d18616",
 		"charts.green": "#388A34",
-		"charts.purple": "#652D90"
+		"charts.purple": "#652D90",
+		"agentStatusIndicator.background": "#FFFFFF",
 	},
 	"tokenColors": [
 		{

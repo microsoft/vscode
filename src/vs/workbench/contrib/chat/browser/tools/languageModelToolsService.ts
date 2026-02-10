@@ -36,7 +36,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IPostToolUseCallerInput, IPreToolUseCallerInput, IPreToolUseHookResult } from '../../common/hooks/hooksTypes.js';
-import { IHooksExecutionService } from '../../common/hooks/hooksExecutionService.js';
+import { HookAbortError, IHooksExecutionService } from '../../common/hooks/hooksExecutionService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IVariableReference } from '../../common/chatModes.js';
@@ -101,7 +101,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	readonly onDidInvokeTool = this._onDidInvokeTool.event;
 
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
-	private readonly _onDidChangeToolsScheduler = new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750);
+	private readonly _onDidChangeToolsScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750));
 	private readonly _tools = new Map<string, IToolEntry>();
 	private readonly _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
@@ -391,7 +391,16 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolInput: dto.parameters,
 			toolCallId: dto.callId,
 		};
-		const hookResult = await this._hooksExecutionService.executePreToolUseHook(dto.context.sessionResource, hookInput, token);
+		let hookResult: IPreToolUseHookResult | undefined;
+		try {
+			hookResult = await this._hooksExecutionService.executePreToolUseHook(dto.context.sessionResource, hookInput, token);
+		} catch (e) {
+			if (e instanceof HookAbortError) {
+				this._logService.debug(`[LanguageModelToolsService#invokeTool] Tool ${dto.toolId} aborted by preToolUse hook: ${e.stopReason}`);
+				throw new CancellationError();
+			}
+			throw e;
+		}
 
 		if (hookResult?.permissionDecision === 'deny') {
 			const hookReason = hookResult.permissionDecisionReason ?? localize('hookDeniedNoReason', "Hook denied tool execution");
@@ -481,7 +490,16 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			getToolResponseText: () => toolContentToA11yString(toolResult.content),
 			toolCallId: dto.callId,
 		};
-		const hookResult = await this._hooksExecutionService.executePostToolUseHook(dto.context.sessionResource, hookInput, token);
+		let hookResult;
+		try {
+			hookResult = await this._hooksExecutionService.executePostToolUseHook(dto.context.sessionResource, hookInput, token);
+		} catch (e) {
+			if (e instanceof HookAbortError) {
+				this._logService.debug(`[LanguageModelToolsService#invokeTool] PostToolUse hook aborted for tool ${dto.toolId}: ${e.stopReason}`);
+				throw new CancellationError();
+			}
+			throw e;
+		}
 
 		if (hookResult?.decision === 'block') {
 			const hookReason = hookResult.reason ?? localize('postToolUseHookBlockedNoReason', "Hook blocked tool result");
@@ -1251,7 +1269,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * @param fullReferenceNames A list of tool or toolset by their full reference names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
 	 */
-	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], _target: string | undefined, model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap {
+	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap {
 		const toolOrToolSetNames = new Set(fullReferenceNames);
 		const result = new Map<IToolSet | IToolData, boolean>();
 		for (const [tool, fullReferenceName] of this.toolsWithFullReferenceName.get()) {

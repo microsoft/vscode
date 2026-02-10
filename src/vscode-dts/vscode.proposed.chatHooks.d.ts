@@ -63,7 +63,7 @@ declare module 'vscode' {
 	export namespace chat {
 		/**
 		 * Execute all hooks of the specified type for the current chat session.
-		 * Hooks are configured in hooks.json files in the workspace.
+		 * Hooks are configured in hooks .json files in the workspace.
 		 *
 		 * @param hookType The type of hook to execute.
 		 * @param options Hook execution options including the input data.
@@ -71,5 +71,46 @@ declare module 'vscode' {
 		 * @returns A promise that resolves to an array of hook execution results.
 		 */
 		export function executeHook(hookType: ChatHookType, options: ChatHookExecutionOptions, token?: CancellationToken): Thenable<ChatHookResult[]>;
+	}
+
+
+	/**
+	 * A progress part representing the execution result of a hook.
+	 * Hooks are user-configured scripts that run at specific points during chat processing.
+	 * If {@link stopReason} is set, the hook blocked/denied the operation.
+	 */
+	export class ChatResponseHookPart {
+		/** The type of hook that was executed */
+		hookType: ChatHookType;
+		/** If set, the hook blocked processing. This message is shown to the user. */
+		stopReason?: string;
+		/** Warning/system message from the hook, shown to the user */
+		systemMessage?: string;
+		/** Optional metadata associated with the hook execution */
+		metadata?: { readonly [key: string]: unknown };
+
+		/**
+		 * Creates a new hook progress part.
+		 * @param hookType The type of hook that was executed
+		 * @param stopReason Message shown when processing was stopped
+		 * @param systemMessage Warning/system message from the hook
+		 * @param metadata Optional metadata
+		 */
+		constructor(hookType: ChatHookType, stopReason?: string, systemMessage?: string, metadata?: { readonly [key: string]: unknown });
+	}
+
+	export interface ExtendedChatResponseParts {
+		ChatResponseHookPart: ChatResponseHookPart;
+	}
+
+	export interface ChatResponseStream {
+
+		/**
+		 * Push a hook execution result to this stream.
+		 * @param hookType The type of hook that was executed
+		 * @param stopReason If set, the hook blocked processing. This message is shown to the user.
+		 * @param systemMessage Warning/system message from the hook
+		 */
+		hookProgress(hookType: ChatHookType, stopReason?: string, systemMessage?: string): void;
 	}
 }

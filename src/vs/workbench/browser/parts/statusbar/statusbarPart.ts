@@ -663,7 +663,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		const statusBarFocusColor = this.getColor(STATUS_BAR_FOCUS_BORDER);
 
 		if (!this.styleElement) {
-			this.styleElement = createStyleSheet(container);
+			this.styleElement = createStyleSheet(container, undefined, this._store);
 		}
 
 		this.styleElement.textContent = `

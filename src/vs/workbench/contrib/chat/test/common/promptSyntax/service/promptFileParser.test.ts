@@ -8,9 +8,9 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
+import { IStringValue, parseCommaSeparatedList, PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
 
-suite('NewPromptsParser', () => {
+suite('PromptFileParser', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('agent', async () => {
@@ -239,75 +239,6 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.tools, ['search', 'terminal']);
 	});
 
-	test('prompt file tools as map', async () => {
-		const uri = URI.parse('file:///test/prompt2.md');
-		const content = [
-			/* 01 */'---',
-			/* 02 */'tools:',
-			/* 03 */'  built-in: true',
-			/* 04 */'  mcp:',
-			/* 05 */'    vscode-playright-mcp:',
-			/* 06 */'      browser-click: true',
-			/* 07 */'  extensions:',
-			/* 08 */'    github.vscode-pull-request-github:',
-			/* 09 */'      openPullRequest: true',
-			/* 10 */'      copilotCodingAgent: false',
-			/* 11 */'---',
-		].join('\n');
-		const result = new PromptFileParser().parse(uri, content);
-		assert.deepEqual(result.uri, uri);
-		assert.ok(result.header);
-		assert.ok(!result.body);
-		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 11, endColumn: 1 });
-		assert.deepEqual(result.header.attributes, [
-			{
-				key: 'tools', range: new Range(2, 1, 10, 32), value: {
-					type: 'object',
-					properties: [
-						{
-							'key': { type: 'string', value: 'built-in', range: new Range(3, 3, 3, 11) },
-							'value': { type: 'boolean', value: true, range: new Range(3, 13, 3, 17) }
-						},
-						{
-							'key': { type: 'string', value: 'mcp', range: new Range(4, 3, 4, 6) },
-							'value': {
-								type: 'object', range: new Range(5, 5, 6, 26), properties: [
-									{
-										'key': { type: 'string', value: 'vscode-playright-mcp', range: new Range(5, 5, 5, 25) }, 'value': {
-											type: 'object', range: new Range(6, 7, 6, 26), properties: [
-												{ 'key': { type: 'string', value: 'browser-click', range: new Range(6, 7, 6, 20) }, 'value': { type: 'boolean', value: true, range: new Range(6, 22, 6, 26) } }
-											]
-										}
-									}
-								]
-							}
-						},
-						{
-							'key': { type: 'string', value: 'extensions', range: new Range(7, 3, 7, 13) },
-							'value': {
-								type: 'object', range: new Range(8, 5, 10, 32), properties: [
-									{
-										'key': { type: 'string', value: 'github.vscode-pull-request-github', range: new Range(8, 5, 8, 38) }, 'value': {
-											type: 'object', range: new Range(9, 7, 10, 32), properties: [
-												{ 'key': { type: 'string', value: 'openPullRequest', range: new Range(9, 7, 9, 22) }, 'value': { type: 'boolean', value: true, range: new Range(9, 24, 9, 28) } },
-												{ 'key': { type: 'string', value: 'copilotCodingAgent', range: new Range(10, 7, 10, 25) }, 'value': { type: 'boolean', value: false, range: new Range(10, 27, 10, 32) } }
-											]
-										}
-									}
-								]
-							}
-						},
-					],
-					range: new Range(3, 3, 10, 32)
-				},
-			}
-		]);
-		assert.deepEqual(result.header.description, undefined);
-		assert.deepEqual(result.header.agent, undefined);
-		assert.deepEqual(result.header.model, undefined);
-		assert.ok(result.header.tools);
-		assert.deepEqual(result.header.tools, ['built-in', 'browser-click', 'openPullRequest', 'copilotCodingAgent']);
-	});
 
 	test('agent with agents', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');
@@ -372,4 +303,108 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.description, 'Agent without restrictions');
 		assert.deepEqual(result.header.agents, undefined);
 	});
+
+	suite('parseCommaSeparatedList', () => {
+
+		function assertCommaSeparatedList(input: string, expected: IStringValue[]): void {
+			const actual = parseCommaSeparatedList({ type: 'string', value: input, range: new Range(1, 1, 1, input.length + 1) });
+			assert.deepStrictEqual(actual.items, expected);
+		}
+
+		test('simple unquoted values', () => {
+			assertCommaSeparatedList('a, b, c', [
+				{ type: 'string', value: 'a', range: new Range(1, 1, 1, 2) },
+				{ type: 'string', value: 'b', range: new Range(1, 4, 1, 5) },
+				{ type: 'string', value: 'c', range: new Range(1, 7, 1, 8) }
+			]);
+		});
+
+		test('unquoted values without spaces', () => {
+			assertCommaSeparatedList('foo,bar,baz', [
+				{ type: 'string', value: 'foo', range: new Range(1, 1, 1, 4) },
+				{ type: 'string', value: 'bar', range: new Range(1, 5, 1, 8) },
+				{ type: 'string', value: 'baz', range: new Range(1, 9, 1, 12) }
+			]);
+		});
+
+		test('double quoted values', () => {
+			assertCommaSeparatedList('"hello", "world"', [
+				{ type: 'string', value: 'hello', range: new Range(1, 1, 1, 8) },
+				{ type: 'string', value: 'world', range: new Range(1, 10, 1, 17) }
+			]);
+		});
+
+		test('single quoted values', () => {
+			assertCommaSeparatedList(`'one', 'two'`, [
+				{ type: 'string', value: 'one', range: new Range(1, 1, 1, 6) },
+				{ type: 'string', value: 'two', range: new Range(1, 8, 1, 13) }
+			]);
+		});
+
+		test('mixed quoted and unquoted values', () => {
+			assertCommaSeparatedList('unquoted, "double", \'single\'', [
+				{ type: 'string', value: 'unquoted', range: new Range(1, 1, 1, 9) },
+				{ type: 'string', value: 'double', range: new Range(1, 11, 1, 19) },
+				{ type: 'string', value: 'single', range: new Range(1, 21, 1, 29) }
+			]);
+		});
+
+		test('quoted values with commas inside', () => {
+			assertCommaSeparatedList('"a,b", "c,d"', [
+				{ type: 'string', value: 'a,b', range: new Range(1, 1, 1, 6) },
+				{ type: 'string', value: 'c,d', range: new Range(1, 8, 1, 13) }
+			]);
+		});
+
+		test('empty string', () => {
+			assertCommaSeparatedList('', []);
+		});
+
+		test('single value', () => {
+			assertCommaSeparatedList('single', [
+				{ type: 'string', value: 'single', range: new Range(1, 1, 1, 7) }
+			]);
+		});
+
+		test('values with extra whitespace', () => {
+			assertCommaSeparatedList('  a  ,  b  ,  c  ', [
+				{ type: 'string', value: 'a', range: new Range(1, 3, 1, 4) },
+				{ type: 'string', value: 'b', range: new Range(1, 9, 1, 10) },
+				{ type: 'string', value: 'c', range: new Range(1, 15, 1, 16) }
+			]);
+		});
+
+		test('quoted value with spaces', () => {
+			assertCommaSeparatedList('"hello world", "foo bar"', [
+				{ type: 'string', value: 'hello world', range: new Range(1, 1, 1, 14) },
+				{ type: 'string', value: 'foo bar', range: new Range(1, 16, 1, 25) }
+			]);
+		});
+
+		test('with position offset', () => {
+			// Simulate parsing a list that starts at line 5, character 10
+			const result = parseCommaSeparatedList({ type: 'string', value: 'a, b, c', range: new Range(6, 11, 6, 18) });
+			assert.deepStrictEqual(result.items, [
+				{ type: 'string', value: 'a', range: new Range(6, 11, 6, 12) },
+				{ type: 'string', value: 'b', range: new Range(6, 14, 6, 15) },
+				{ type: 'string', value: 'c', range: new Range(6, 17, 6, 18) }
+			]);
+		});
+
+		test('entire input wrapped in double quotes', () => {
+			// When the entire input is wrapped in quotes, it should be treated as a single quoted value
+			assertCommaSeparatedList('"a, b, c"', [
+				{ type: 'string', value: 'a, b, c', range: new Range(1, 1, 1, 10) }
+			]);
+		});
+
+		test('entire input wrapped in single quotes', () => {
+			// When the entire input is wrapped in single quotes, it should be treated as a single quoted value
+			assertCommaSeparatedList(`'a, b, c'`, [
+				{ type: 'string', value: 'a, b, c', range: new Range(1, 1, 1, 10) }
+			]);
+		});
+
+	});
+
 });

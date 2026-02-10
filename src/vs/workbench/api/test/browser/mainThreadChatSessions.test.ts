@@ -60,7 +60,7 @@ suite('ObservableChatSession', function () {
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
-			$provideChatSessionItems: sinon.stub(),
+			$refreshChatSessionItems: sinon.stub(),
 			$onDidChangeChatSessionItemState: sinon.stub(),
 		};
 	});
@@ -357,7 +357,7 @@ suite('MainThreadChatSessions', function () {
 			$interruptChatSessionActiveResponse: sinon.stub(),
 			$invokeChatSessionRequestHandler: sinon.stub(),
 			$disposeChatSessionContent: sinon.stub(),
-			$provideChatSessionItems: sinon.stub(),
+			$refreshChatSessionItems: sinon.stub(),
 			$onDidChangeChatSessionItemState: sinon.stub(),
 		};
 

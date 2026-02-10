@@ -153,7 +153,7 @@ export interface IChatAgentRequest {
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	/**
 	 * Collected hooks configuration for this request.
-	 * Contains all hooks defined in hooks.json files, organized by hook type.
+	 * Contains all hooks defined in hooks .json files, organized by hook type.
 	 */
 	hooks?: IChatRequestHooks;
 	/**

@@ -18,14 +18,14 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 	private _accessibilityModeEnabledContext: IContextKey<boolean>;
 	protected _accessibilitySupport = AccessibilitySupport.Unknown;
-	protected readonly _onDidChangeScreenReaderOptimized = new Emitter<void>();
+	protected readonly _onDidChangeScreenReaderOptimized = this._register(new Emitter<void>());
 
 	protected _configMotionReduced: 'auto' | 'on' | 'off';
 	protected _systemMotionReduced: boolean;
-	protected readonly _onDidChangeReducedMotion = new Emitter<void>();
+	protected readonly _onDidChangeReducedMotion = this._register(new Emitter<void>());
 
 	private _linkUnderlinesEnabled: boolean;
-	protected readonly _onDidChangeLinkUnderline = new Emitter<void>();
+	protected readonly _onDidChangeLinkUnderline = this._register(new Emitter<void>());
 
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,

@@ -903,7 +903,7 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedAgent: IChatAgentData | undefined;
 			let detectedCommand: IChatAgentCommand | undefined;
 
-			// Collect hooks from hooks.json files
+			// Collect hooks from hook .json files
 			let collectedHooks: IChatRequestHooks | undefined;
 			try {
 				collectedHooks = await this.promptsService.getHooks(token);

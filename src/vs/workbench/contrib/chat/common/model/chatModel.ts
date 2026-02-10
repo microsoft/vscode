@@ -1150,6 +1150,9 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 				if (part.kind === 'confirmation' && !part.isUsed) {
 					return part.title;
 				}
+				if (part.kind === 'questionCarousel' && !part.isUsed) {
+					return localize('waitingAnswer', "Answer questions to continue...");
+				}
 				if (part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending) {
 					const title = part.title;
 					return isMarkdownString(title) ? title.value : title;

@@ -37,7 +37,8 @@ export class NodeExtHostHooks implements IExtHostHooks {
 
 	async executeHook(hookType: HookTypeValue, options: IChatHookExecutionOptions, token?: CancellationToken): Promise<vscode.ChatHookResult[]> {
 		if (!options.toolInvocationToken || !isToolInvocationContext(options.toolInvocationToken)) {
-			throw new Error('Invalid or missing tool invocation token');
+			this._logService.error('[NodeExtHostHooks] Invalid or missing tool invocation token');
+			return [];
 		}
 
 		const context = options.toolInvocationToken as IToolInvocationContext;

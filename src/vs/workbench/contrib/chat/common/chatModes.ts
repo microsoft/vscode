@@ -19,8 +19,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IChatAgentService } from './participants/chatAgents.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
-import { IHandOff } from './promptSyntax/promptFileParser.js';
-import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IHandOff, isTarget } from './promptSyntax/promptFileParser.js';
+import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage, Target } from './promptSyntax/service/promptsService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isString } from '../../../../base/common/types.js';
@@ -121,7 +121,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						argumentHint: cachedMode.argumentHint,
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
-						target: cachedMode.target,
+						target: cachedMode.target ?? Target.Undefined,
 						visibility: cachedMode.visibility ?? { userInvokable: true, agentInvokable: cachedMode.infer !== false },
 						agents: cachedMode.agents,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
@@ -248,7 +248,7 @@ export interface IChatModeData {
 	readonly handOffs?: readonly IHandOff[];
 	readonly uri?: URI;
 	readonly source?: IChatModeSourceData;
-	readonly target?: string;
+	readonly target?: Target;
 	readonly visibility?: ICustomAgentVisibility;
 	readonly agents?: readonly string[];
 	readonly infer?: boolean; // deprecated, only available in old cached data
@@ -269,7 +269,7 @@ export interface IChatMode {
 	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
 	readonly source?: IAgentSource;
-	readonly target?: IObservable<string | undefined>;
+	readonly target: IObservable<Target>;
 	readonly visibility?: IObservable<ICustomAgentVisibility | undefined>;
 	readonly agents?: IObservable<readonly string[] | undefined>;
 }
@@ -302,7 +302,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
 		(mode.source === undefined || isChatModeSourceData(mode.source)) &&
-		(mode.target === undefined || typeof mode.target === 'string') &&
+		(mode.target === undefined || isTarget(mode.target)) &&
 		(mode.visibility === undefined || isCustomAgentVisibility(mode.visibility)) &&
 		(mode.agents === undefined || Array.isArray(mode.agents));
 }
@@ -316,7 +316,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _modelObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
-	private readonly _targetObservable: ISettableObservable<string | undefined>;
+	private readonly _targetObservable: ISettableObservable<Target>;
 	private readonly _visibilityObservable: ISettableObservable<ICustomAgentVisibility | undefined>;
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
@@ -371,7 +371,7 @@ export class CustomChatMode implements IChatMode {
 		return this._source;
 	}
 
-	get target(): IObservable<string | undefined> {
+	get target(): IObservable<Target> {
 		return this._targetObservable;
 	}
 
@@ -483,6 +483,7 @@ export class BuiltinChatMode implements IChatMode {
 	public readonly label: IObservable<string>;
 	public readonly description: IObservable<string>;
 	public readonly icon: IObservable<ThemeIcon>;
+	public readonly target: IObservable<Target>;
 
 	constructor(
 		public readonly kind: ChatModeKind,
@@ -494,6 +495,7 @@ export class BuiltinChatMode implements IChatMode {
 		this.label = constObservable(label);
 		this.description = observableValue('description', description);
 		this.icon = constObservable(icon);
+		this.target = constObservable(Target.Undefined);
 	}
 
 	public get isBuiltin(): boolean {
@@ -503,10 +505,6 @@ export class BuiltinChatMode implements IChatMode {
 	get id(): string {
 		// Need a differentiator?
 		return this.kind;
-	}
-
-	get target(): IObservable<string | undefined> {
-		return observableValue('target', undefined);
 	}
 
 	/**

@@ -50,6 +50,16 @@ export interface IHookExecutedEvent {
 }
 
 /**
+ * Event fired when a hook produces progress that should be shown to the user.
+ */
+export interface IHookProgressEvent {
+	readonly hookType: HookTypeValue;
+	readonly sessionResource: URI;
+	readonly stopReason?: string;
+	readonly systemMessage?: string;
+}
+
+/**
  * Callback interface for hook execution proxies.
  * MainThreadHooks implements this to forward calls to the extension host.
  */
@@ -66,6 +76,11 @@ export interface IHooksExecutionService {
 	 * Fires when a hook has finished executing.
 	 */
 	readonly onDidExecuteHook: Event<IHookExecutedEvent>;
+
+	/**
+	 * Fires when a hook produces progress (warning or stop) that should be shown to the user.
+	 */
+	readonly onDidHookProgress: Event<IHookProgressEvent>;
 
 	/**
 	 * Called by mainThreadHooks when extension host is ready
@@ -113,6 +128,9 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 
 	private readonly _onDidExecuteHook = this._register(new Emitter<IHookExecutedEvent>());
 	readonly onDidExecuteHook: Event<IHookExecutedEvent> = this._onDidExecuteHook.event;
+
+	private readonly _onDidHookProgress = this._register(new Emitter<IHookProgressEvent>());
+	readonly onDidHookProgress: Event<IHookProgressEvent> = this._onDidHookProgress.event;
 
 	private _proxy: IHooksExecutionProxy | undefined;
 	private readonly _sessionHooks = new Map<string, IChatRequestHooks>();
@@ -214,24 +232,26 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		} catch (err) {
 			const errMessage = err instanceof Error ? err.message : String(err);
 			this._log(requestId, hookType, `Error in ${Math.round(sw.elapsed())}ms: ${errMessage}`);
-			return this._createErrorResult(errMessage);
+			// Proxy errors (e.g., process spawn failure) are treated as warnings
+			return {
+				resultKind: 'warning',
+				output: undefined,
+				warningMessage: errMessage,
+			};
 		}
-	}
-
-	private _createErrorResult(errorMessage: string): IHookResult {
-		return {
-			resultKind: 'error',
-			output: errorMessage,
-		};
 	}
 
 	private _toInternalResult(commandResult: IHookCommandResult): IHookResult {
 		switch (commandResult.kind) {
 			case HookCommandResultKind.Error: {
-				// Blocking error - shown to model
-				return this._createErrorResult(
-					typeof commandResult.result === 'string' ? commandResult.result : JSON.stringify(commandResult.result)
-				);
+				// Exit code 2 - stop processing with message shown to user (not model)
+				// Equivalent to continue=false with stopReason=stderr
+				const message = typeof commandResult.result === 'string' ? commandResult.result : JSON.stringify(commandResult.result);
+				return {
+					resultKind: 'error',
+					stopReason: message,
+					output: undefined,
+				};
 			}
 			case HookCommandResultKind.NonBlockingError: {
 				// Non-blocking error - shown to user only as warning
@@ -259,16 +279,27 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 				const resultObj = commandResult.result as Record<string, unknown>;
 				const hookOutput = this._extractHookSpecificOutput(resultObj);
 
+				// Handle continue field: when false, stopReason is effective
+				// stopReason takes precedence if both are set
+				let stopReason = commonFields.stopReason;
+				if (commonFields.continue === false && !stopReason) {
+					stopReason = '';  // Empty string signals stop without a specific reason
+				}
+
 				return {
 					resultKind: 'success',
-					stopReason: commonFields.stopReason,
+					stopReason,
 					warningMessage: commonFields.systemMessage,
 					output: Object.keys(hookOutput).length > 0 ? hookOutput : undefined,
 				};
 			}
 			default: {
-				// Unexpected result kind - treat as blocking error
-				return this._createErrorResult(`Unexpected hook command result kind: ${commandResult.kind}`);
+				// Unexpected result kind - treat as warning
+				return {
+					resultKind: 'warning',
+					warningMessage: `Unexpected hook command result kind: ${(commandResult as IHookCommandResult).kind}`,
+					output: undefined,
+				};
 			}
 		}
 	}
@@ -277,7 +308,7 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 	 * Extract hook-specific output fields, excluding common fields.
 	 */
 	private _extractHookSpecificOutput(result: Record<string, unknown>): Record<string, unknown> {
-		const commonFields = new Set(['stopReason', 'systemMessage']);
+		const commonFields = new Set(['continue', 'stopReason', 'systemMessage']);
 		const output: Record<string, unknown> = {};
 		for (const [key, value] of Object.entries(result)) {
 			if (value !== undefined && !commonFields.has(key)) {
@@ -318,6 +349,35 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			return URI.revive(transcriptPath);
 		}
 		return undefined;
+	}
+
+	/**
+	 * Emit a hook progress event to show warnings or stop reasons to the user.
+	 */
+	private _emitHookProgress(hookType: HookTypeValue, sessionResource: URI, stopReason?: string, systemMessage?: string): void {
+		this._onDidHookProgress.fire({
+			hookType,
+			sessionResource,
+			stopReason,
+			systemMessage,
+		});
+	}
+
+	/**
+	 * Collect all warning messages from hook results and emit them as a single aggregated progress event.
+	 * Uses numbered list formatting when there are multiple warnings.
+	 */
+	private _emitAggregatedWarnings(hookType: HookTypeValue, sessionResource: URI, results: readonly IHookResult[]): void {
+		const warnings = results
+			.filter(r => r.warningMessage !== undefined)
+			.map(r => r.warningMessage!);
+
+		if (warnings.length > 0) {
+			const message = warnings.length === 1
+				? warnings[0]
+				: warnings.map((w, i) => `${i + 1}. ${w}`).join('\n');
+			this._emitHookProgress(hookType, sessionResource, undefined, message);
+		}
 	}
 
 	registerHooks(sessionResource: URI, hooks: IChatRequestHooks): IDisposable {
@@ -447,11 +507,18 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			}
 		}
 
-		if (!mostRestrictiveDecision && !lastUpdatedInput && allAdditionalContext.length === 0) {
-			return undefined;
+		const baseResult = winningResult ?? results[0];
+
+		// Emit hook progress for warning messages after all hooks have completed
+		this._emitAggregatedWarnings(HookType.PreToolUse, sessionResource, results);
+
+		// If any hook set stopReason, throw HookAbortError after processing
+		const stoppedResult = results.find(r => r.stopReason !== undefined);
+		if (stoppedResult?.stopReason !== undefined) {
+			this._emitHookProgress(HookType.PreToolUse, sessionResource, formatHookErrorMessage(stoppedResult.stopReason));
+			throw new HookAbortError(HookType.PreToolUse, stoppedResult.stopReason ?? 'Unknown error');
 		}
 
-		const baseResult = winningResult ?? results[0];
 		return {
 			...baseResult,
 			permissionDecision: mostRestrictiveDecision,
@@ -529,12 +596,18 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			}
 		}
 
-		// Return combined result if there's a block decision or any additional context
-		if (!hasBlock && allAdditionalContext.length === 0) {
-			return undefined;
+		const baseResult = blockResult ?? results[0];
+
+		// Emit hook progress for warning messages after all hooks have completed
+		this._emitAggregatedWarnings(HookType.PostToolUse, sessionResource, results);
+
+		// If any hook set stopReason, throw HookAbortError after processing
+		const stoppedResult = results.find(r => r.stopReason !== undefined);
+		if (stoppedResult?.stopReason !== undefined) {
+			this._emitHookProgress(HookType.PostToolUse, sessionResource, formatHookErrorMessage(stoppedResult.stopReason));
+			throw new HookAbortError(HookType.PostToolUse, stoppedResult.stopReason ?? 'Unknown error');
 		}
 
-		const baseResult = blockResult ?? results[0];
 		return {
 			...baseResult,
 			decision: hasBlock ? 'block' : undefined,
@@ -542,4 +615,30 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			additionalContext: allAdditionalContext.length > 0 ? allAdditionalContext : undefined,
 		};
 	}
+}
+
+/**
+ * Error thrown when a hook requests the agent to abort processing.
+ * The message should be shown to the user.
+ */
+export class HookAbortError extends Error {
+	constructor(
+		public readonly hookType: string,
+		public readonly stopReason: string
+	) {
+		super(`Hook ${hookType} aborted: ${stopReason}`);
+		this.name = 'HookAbortError';
+	}
+}
+
+/**
+ * Formats a localized error message for a failed hook.
+ * @param errorMessage The error message from the hook
+ * @returns A localized error message string
+ */
+export function formatHookErrorMessage(errorMessage: string): string {
+	if (errorMessage) {
+		return localize('hookFatalErrorWithMessage', 'A hook prevented chat from continuing. Please check the Hooks output channel for more details. Error message: {0}', errorMessage);
+	}
+	return localize('hookFatalError', 'A hook prevented chat from continuing. Please check the Hooks output channel for more details.');
 }

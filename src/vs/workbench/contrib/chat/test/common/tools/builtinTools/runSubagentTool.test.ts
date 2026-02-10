@@ -15,7 +15,7 @@ import { IChatAgentService } from '../../../../common/participants/chatAgents.js
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { ICustomAgent, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../../promptSyntax/service/mockPromptsService.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 
@@ -55,6 +55,7 @@ suite('RunSubagentTool', () => {
 				tools: ['tool1', 'tool2'],
 				agentInstructions: { content: 'Custom agent body', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
 				visibility: { userInvokable: true, agentInvokable: true }
 			};
 			promptsService.setCustomModes([customMode]);
@@ -274,6 +275,7 @@ suite('RunSubagentTool', () => {
 				model: modelQualifiedNames,
 				agentInstructions: { content: 'test', toolReferences: [] },
 				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
 				visibility: { userInvokable: true, agentInvokable: true }
 			};
 		}

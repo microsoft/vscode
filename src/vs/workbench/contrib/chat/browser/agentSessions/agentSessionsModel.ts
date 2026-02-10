@@ -428,7 +428,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		// Sessions changes
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType }) => this.resolve(chatSessionType)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
-		this._register(this.chatSessionsService.onDidChangeSessionItems(({ chatSessionType }) => this.resolve(chatSessionType)));
+		this._register(this.chatSessionsService.onDidChangeSessionItems(({ chatSessionType }) => this.updateItems([chatSessionType], CancellationToken.None)));
 
 		// State
 		this._register(this.storageService.onWillSaveState(() => {
@@ -468,12 +468,21 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
 
+		const providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
+
+		await this.chatSessionsService.refreshChatSessionItems(providerFilter, token);
+		await this.updateItems(providerFilter, token);
+	}
+
+	/**
+	 * Update the sessions by fetching from the service. This does not trigger an explicit refresh
+	 */
+	private async updateItems(providerFilter: readonly string[] | undefined, token: CancellationToken): Promise<void> {
 		const mapSessionContributionToType = new Map<string, IChatSessionsExtensionPoint>();
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
-		const providerFilter = providersToResolve.includes(undefined) ? undefined : coalesce(providersToResolve);
 		const providerResults = await this.chatSessionsService.getChatSessionItems(providerFilter, token);
 
 		const resolvedProviders = new Set<string>();
