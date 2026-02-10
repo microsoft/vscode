@@ -14,10 +14,10 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { LocalAgentsSessionsProvider } from '../../../browser/agentSessions/localAgentSessionsProvider.js';
+import { LocalAgentsSessionsController } from '../../../browser/agentSessions/localAgentSessionsProvider.js';
 import { ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatDetail, IChatService, IChatSessionStartOptions, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
@@ -59,6 +59,10 @@ class MockChatService implements IChatService {
 	}
 
 	setSaveModelsEnabled(enabled: boolean): void {
+
+	}
+
+	processPendingRequests(sessionResource: URI): void {
 
 	}
 
@@ -144,6 +148,12 @@ class MockChatService implements IChatService {
 
 	cancelCurrentRequestForSession(_sessionResource: URI): void { }
 
+	setYieldRequested(_sessionResource: URI): void { }
+
+	removePendingRequest(_sessionResource: URI, _requestId: string): void { }
+
+	setPendingRequests(_sessionResource: URI, _requests: readonly { requestId: string; kind: ChatRequestQueueKind }[]): void { }
+
 	addCompleteRequest(): void { }
 
 	async getLocalSessionHistory(): Promise<IChatDetail[]> {
@@ -157,6 +167,10 @@ class MockChatService implements IChatService {
 	readonly onDidPerformUserAction = Event.None;
 
 	notifyUserAction(_event: any): void { }
+
+	readonly onDidReceiveQuestionCarouselAnswer = Event.None;
+
+	notifyQuestionCarouselAnswer(_requestId: string, _resolveId: string, _answers: Record<string, unknown> | undefined): void { }
 
 	async transferChatSession(): Promise<void> { }
 
@@ -266,7 +280,7 @@ function createMockChatModel(options: {
 	} as unknown as IChatModel;
 }
 
-suite('LocalAgentsSessionsProvider', () => {
+suite('LocalAgentsSessionsController', () => {
 	const disposables = new DisposableStore();
 	let mockChatService: MockChatService;
 	let mockChatSessionsService: MockChatSessionsService;
@@ -286,8 +300,8 @@ suite('LocalAgentsSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createProvider(): LocalAgentsSessionsProvider {
-		return disposables.add(instantiationService.createInstance(LocalAgentsSessionsProvider));
+	function createProvider(): LocalAgentsSessionsController {
+		return disposables.add(instantiationService.createInstance(LocalAgentsSessionsController));
 	}
 
 	test('should have correct session type', () => {
@@ -310,7 +324,8 @@ suite('LocalAgentsSessionsProvider', () => {
 			mockChatService.setLiveSessionItems([]);
 			mockChatService.setHistorySessionItems([]);
 
-			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+			await provider.refresh(CancellationToken.None);
+			const sessions = provider.items;
 			assert.strictEqual(sessions.length, 0);
 		});
 	});
@@ -336,7 +351,8 @@ suite('LocalAgentsSessionsProvider', () => {
 				lastResponseState: ResponseModelState.Complete
 			}]);
 
-			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+			await provider.refresh(CancellationToken.None);
+			const sessions = provider.items;
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].label, 'Test Session');
 			assert.strictEqual(sessions[0].resource.toString(), sessionResource.toString());
@@ -359,7 +375,8 @@ suite('LocalAgentsSessionsProvider', () => {
 				timing: createTestTiming()
 			}]);
 
-			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+			await provider.refresh(CancellationToken.None);
+			const sessions = provider.items;
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].label, 'History Session');
 		});
@@ -393,7 +410,8 @@ suite('LocalAgentsSessionsProvider', () => {
 				timing: createTestTiming()
 			}]);
 
-			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+			await provider.refresh(CancellationToken.None);
+			const sessions = provider.items;
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].label, 'Live Session');
 		});
@@ -421,7 +439,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					timing: createTestTiming()
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].status, ChatSessionStatus.InProgress);
 			});
@@ -451,7 +470,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					timing: createTestTiming(),
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].status, ChatSessionStatus.Completed);
 			});
@@ -480,7 +500,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					timing: createTestTiming(),
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].status, ChatSessionStatus.Completed);
 			});
@@ -509,7 +530,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					timing: createTestTiming(),
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].status, ChatSessionStatus.Failed);
 			});
@@ -558,7 +580,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					}
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.ok(sessions[0].changes);
 				const changes = sessions[0].changes as { files: number; insertions: number; deletions: number };
@@ -598,7 +621,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					timing: createTestTiming()
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].changes, undefined);
 			});
@@ -628,7 +652,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					timing: createTestTiming({ created: modelTimestamp })
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].timing.created, modelTimestamp);
 			});
@@ -651,7 +676,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					timing: createTestTiming({ created: lastMessageDate })
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].timing.created, lastMessageDate);
 			});
@@ -680,7 +706,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					timing: createTestTiming({ lastRequestEnded: completedAt })
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].timing.lastRequestEnded, completedAt);
 			});
@@ -708,7 +735,8 @@ suite('LocalAgentsSessionsProvider', () => {
 					timing: createTestTiming()
 				}]);
 
-				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
+				await provider.refresh(CancellationToken.None);
+				const sessions = provider.items;
 				assert.strictEqual(sessions.length, 1);
 				assert.strictEqual(sessions[0].iconPath, Codicon.chatSparkle);
 			});
@@ -795,36 +823,6 @@ suite('LocalAgentsSessionsProvider', () => {
 				(mockModel as unknown as { setCustomTitle: (title: string) => void }).setCustomTitle('New Title');
 
 				assert.strictEqual(changeEventCount, 0, 'onDidChangeChatSessionItems should NOT fire after model is removed');
-			});
-		});
-
-		test('should fire onDidChange when session items change for local type', async () => {
-			return runWithFakedTimers({}, async () => {
-				const provider = createProvider();
-
-				let changeEventFired = false;
-				disposables.add(provider.onDidChange(() => {
-					changeEventFired = true;
-				}));
-
-				mockChatSessionsService.notifySessionItemsChanged(localChatSessionType);
-
-				assert.strictEqual(changeEventFired, true);
-			});
-		});
-
-		test('should not fire onDidChange when session items change for other types', async () => {
-			return runWithFakedTimers({}, async () => {
-				const provider = createProvider();
-
-				let changeEventFired = false;
-				disposables.add(provider.onDidChange(() => {
-					changeEventFired = true;
-				}));
-
-				mockChatSessionsService.notifySessionItemsChanged('other-type');
-
-				assert.strictEqual(changeEventFired, false);
 			});
 		});
 	});

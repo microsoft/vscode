@@ -13,36 +13,39 @@ import { AnnotatedDocuments } from './helpers/annotatedDocuments.js';
 import { EditTrackingFeature } from './telemetry/editSourceTrackingFeature.js';
 import { VSCodeWorkspace } from './helpers/vscodeObservableWorkspace.js';
 import { AiStatsFeature } from './editStats/aiStatsFeature.js';
-import { EDIT_TELEMETRY_SETTING_ID, AI_STATS_SETTING_ID } from './settingIds.js';
+import { AI_STATS_SETTING_ID, EDIT_TELEMETRY_SETTING_ID } from './settingIds.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 export class EditTelemetryContribution extends Disposable {
 	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 
-		const workspace = derived(reader => reader.store.add(this._instantiationService.createInstance(VSCodeWorkspace)));
-		const annotatedDocuments = derived(reader => reader.store.add(this._instantiationService.createInstance(AnnotatedDocuments, workspace.read(reader))));
+		const workspace = derived(reader => reader.store.add(instantiationService.createInstance(VSCodeWorkspace)));
+		const annotatedDocuments = derived(reader => reader.store.add(instantiationService.createInstance(AnnotatedDocuments, workspace.read(reader))));
 
-		const editSourceTrackingEnabled = observableConfigValue(EDIT_TELEMETRY_SETTING_ID, true, this._configurationService);
+		const editSourceTrackingEnabled = observableConfigValue(EDIT_TELEMETRY_SETTING_ID, true, configurationService);
 		this._register(autorun(r => {
 			const enabled = editSourceTrackingEnabled.read(r);
-			if (!enabled || !telemetryLevelEnabled(this._telemetryService, TelemetryLevel.USAGE)) {
+			if (!enabled || !telemetryLevelEnabled(telemetryService, TelemetryLevel.USAGE)) {
 				return;
 			}
-			r.store.add(this._instantiationService.createInstance(EditTrackingFeature, workspace.read(r), annotatedDocuments.read(r)));
+			r.store.add(instantiationService.createInstance(EditTrackingFeature, workspace.read(r), annotatedDocuments.read(r)));
 		}));
 
-		const aiStatsEnabled = observableConfigValue(AI_STATS_SETTING_ID, true, this._configurationService);
+		const aiStatsEnabled = observableConfigValue(AI_STATS_SETTING_ID, true, configurationService);
 		this._register(autorun(r => {
 			const enabled = aiStatsEnabled.read(r);
-			if (!enabled) {
+			const aiDisabled = chatEntitlementService.sentimentObs.read(r).hidden;
+			if (!enabled || aiDisabled) {
 				return;
 			}
 
-			r.store.add(this._instantiationService.createInstance(AiStatsFeature, annotatedDocuments.read(r)));
+			r.store.add(instantiationService.createInstance(AiStatsFeature, annotatedDocuments.read(r)));
 		}));
 	}
 }

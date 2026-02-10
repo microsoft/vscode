@@ -207,7 +207,7 @@ const enum VSCodeOscPt {
 	 * Known properties:
 	 *
 	 * - `Cwd` - Reports the current working directory to the terminal.
-	 * - `IsWindows` - Reports whether the shell is using a Windows backend like winpty or conpty.
+	 * - `IsWindows` - Reports whether the shell is using a Windows backend (conpty).
 	 *   This may be used to enable additional heuristics as the positioning of the shell
 	 *   integration sequences are not guaranteed to be correct. Valid values: `True`, `False`.
 	 * - `ContinuationPrompt` - Reports the continuation prompt that is printed at the start of
@@ -335,9 +335,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _status: ShellIntegrationStatus = ShellIntegrationStatus.Off;
 	get status(): ShellIntegrationStatus { return this._status; }
 
-	private readonly _onDidChangeStatus = new Emitter<ShellIntegrationStatus>();
+	private readonly _onDidChangeStatus = this._register(new Emitter<ShellIntegrationStatus>());
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
-	private readonly _onDidChangeSeenSequences = new Emitter<ReadonlySet<string>>();
+	private readonly _onDidChangeSeenSequences = this._register(new Emitter<ReadonlySet<string>>());
 	readonly onDidChangeSeenSequences = this._onDidChangeSeenSequences.event;
 
 	constructor(

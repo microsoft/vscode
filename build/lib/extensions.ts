@@ -98,12 +98,20 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 	const result = es.through();
 
 	const packagedDependencies: string[] = [];
+	const stripOutSourceMaps: string[] = [];
 	const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
 	if (packageJsonConfig.dependencies) {
-		const webpackRootConfig = require(path.join(extensionPath, webpackConfigFileName)).default;
+		const webpackConfig = require(path.join(extensionPath, webpackConfigFileName));
+		const webpackRootConfig = webpackConfig.default;
 		for (const key in webpackRootConfig.externals) {
 			if (key in packageJsonConfig.dependencies) {
 				packagedDependencies.push(key);
+			}
+		}
+
+		if (webpackConfig.StripOutSourceMaps) {
+			for (const filePath of webpackConfig.StripOutSourceMaps) {
+				stripOutSourceMaps.push(filePath);
 			}
 		}
 	}
@@ -177,10 +185,15 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 						// * rewrite sourceMappingURL
 						// * save to disk so that upload-task picks this up
 						if (path.extname(data.basename) === '.js') {
-							const contents = (data.contents as Buffer).toString('utf8');
-							data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-								return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
-							}), 'utf8');
+							if (stripOutSourceMaps.indexOf(data.relative) >= 0) { // remove source map
+								const contents = (data.contents as Buffer).toString('utf8');
+								data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
+							} else {
+								const contents = (data.contents as Buffer).toString('utf8');
+								data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+									return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
+								}), 'utf8');
+							}
 						}
 
 						this.emit('data', data);

@@ -151,7 +151,7 @@ export class PtyService extends Disposable implements IPtyService {
 		}));
 
 		this._detachInstanceRequestStore = this._register(new RequestStore(undefined, this._logService));
-		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
+		this._register(this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach));
 
 		this._autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
 

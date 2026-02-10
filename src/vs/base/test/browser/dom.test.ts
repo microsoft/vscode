@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
@@ -432,6 +432,103 @@ suite('dom', () => {
 
 			const c = new SafeTriangle(30, 0, fakeElement(10, 20, 10, 20));
 			assert.strictEqual(c.contains(25, 5), true);
+		});
+	});
+
+	suite('AnimationFrameScheduler', () => {
+		// Helper to wait for an animation frame
+		const waitForAnimationFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+
+		test('schedules and runs the callback', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
+			});
+
+			assert.strictEqual(scheduler.isScheduled(), false);
+			scheduler.schedule();
+			assert.strictEqual(scheduler.isScheduled(), true);
+
+			// Wait for the animation frame
+			await waitForAnimationFrame();
+
+			assert.strictEqual(callCount, 1);
+			assert.strictEqual(scheduler.isScheduled(), false);
+			scheduler.dispose();
+		});
+
+		test('coalesces multiple schedule calls', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
+			});
+
+			scheduler.schedule();
+			scheduler.schedule();
+			scheduler.schedule();
+
+			assert.strictEqual(scheduler.isScheduled(), true);
+
+			// Wait for the animation frame
+			await waitForAnimationFrame();
+
+			assert.strictEqual(callCount, 1);
+			scheduler.dispose();
+		});
+
+		test('cancel prevents execution', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
+			});
+
+			scheduler.schedule();
+			assert.strictEqual(scheduler.isScheduled(), true);
+			scheduler.cancel();
+			assert.strictEqual(scheduler.isScheduled(), false);
+
+			// Wait for the animation frame
+			await waitForAnimationFrame();
+
+			assert.strictEqual(callCount, 0);
+			scheduler.dispose();
+		});
+
+		test('dispose prevents execution', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
+			});
+
+			scheduler.schedule();
+			scheduler.dispose();
+
+			// Wait for the animation frame
+			await waitForAnimationFrame();
+
+			assert.strictEqual(callCount, 0);
+		});
+
+		test('can schedule again after execution', async () => {
+			const node = document.createElement('div');
+			let callCount = 0;
+			const scheduler = new AnimationFrameScheduler(node, () => {
+				callCount++;
+			});
+
+			scheduler.schedule();
+			await waitForAnimationFrame();
+			assert.strictEqual(callCount, 1);
+
+			scheduler.schedule();
+			await waitForAnimationFrame();
+			assert.strictEqual(callCount, 2);
+
+			scheduler.dispose();
 		});
 	});
 

@@ -9,7 +9,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { localize } from '../../../../nls.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { getRemoteName } from '../../../../platform/remote/common/remoteHosts.js';
+import { getRemoteName, getRemoteServerRootPath } from '../../../../platform/remote/common/remoteHosts.js';
 import { IBannerService } from '../../../services/banner/browser/bannerService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -124,16 +124,19 @@ export class InitialRemoteConnectionHealthContribution implements IWorkbenchCont
 				web: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Is web ui.' };
 				connectionTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time, in ms, until connected' };
 				remoteName: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of the resolver.' };
+				tunnelName?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the tunnel for tunnel connections.' };
 			};
 			type RemoteConnectionSuccessEvent = {
 				web: boolean;
 				connectionTimeMs: number | undefined;
 				remoteName: string | undefined;
+				tunnelName?: string;
 			};
 			this._telemetryService.publicLog2<RemoteConnectionSuccessEvent, RemoteConnectionSuccessClassification>('remoteConnectionSuccess', {
 				web: isWeb,
 				connectionTimeMs: await this._remoteAgentService.getConnection()?.getInitialConnectionTimeMs(),
-				remoteName: getRemoteName(this._environmentService.remoteAuthority)
+				remoteName: getRemoteName(this._environmentService.remoteAuthority),
+				tunnelName: getRemoteServerRootPath(this._environmentService.remoteAuthority)
 			});
 
 			await this._measureExtHostLatency();

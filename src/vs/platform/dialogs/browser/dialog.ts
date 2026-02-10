@@ -14,7 +14,7 @@ import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultDialogStyles } from '../../theme/browser/defaultStyles.js';
 
-const defaultDialogAllowableCommands = [
+const defaultDialogAllowableCommands = new Set([
 	'workbench.action.quit',
 	'workbench.action.reloadWindow',
 	'copy',
@@ -23,14 +23,14 @@ const defaultDialogAllowableCommands = [
 	'editor.action.clipboardCopyAction',
 	'editor.action.clipboardCutAction',
 	'editor.action.clipboardPasteAction'
-];
+]);
 
 export function createWorkbenchDialogOptions(options: Partial<IDialogOptions>, keybindingService: IKeybindingService, layoutService: ILayoutService, allowableCommands = defaultDialogAllowableCommands): IDialogOptions {
 	return {
 		keyEventProcessor: (event: StandardKeyboardEvent) => {
 			const resolved = keybindingService.softDispatch(event, layoutService.activeContainer);
 			if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
-				if (!allowableCommands.includes(resolved.commandId)) {
+				if (!allowableCommands.has(resolved.commandId)) {
 					EventHelper.stop(event, true);
 				}
 			}

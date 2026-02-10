@@ -7,6 +7,7 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
+    "environmentPower",
     "chatParticipantPrivate",
     "chatProvider",
     "contribStatusBarItems",
@@ -17,6 +18,8 @@
     "documentFiltersExclusive",
     "editorInsets",
     "embeddings",
+    "envIsAppPortable",
+    "envIsConnectionMetered",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
@@ -26,6 +29,7 @@
     "fsChunks",
     "interactive",
     "languageStatusText",
+    "mcpServerDefinitions",
     "nativeWindowHandle",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -52,7 +56,8 @@
     "workspaceTrust",
     "inlineCompletionsAdditions",
     "devDeviceId",
-    "languageModelProxy"
+    "languageModelProxy",
+    "agentSessionsWorkspace"
   ],
   "private": true,
   "activationEvents": [],

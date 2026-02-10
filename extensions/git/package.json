@@ -24,6 +24,7 @@
     "contribSourceControlTitleMenu",
     "contribViewsWelcome",
     "editSessionIdentityProvider",
+    "envIsConnectionMetered",
     "findFiles2",
     "quickDiffProvider",
     "quickPickSortByLabel",
@@ -39,7 +40,8 @@
     "tabInputMultiDiff",
     "tabInputTextMerge",
     "textEditorDiffInformation",
-    "timeline"
+    "timeline",
+    "workspaceTrust"
   ],
   "categories": [
     "Other"
@@ -3592,11 +3594,12 @@
           "items": {
             "type": "string"
           },
-          "default": [
-            "**/node_modules/**"
-          ],
+          "default": [],
+          "markdownDescription": "%config.worktreeIncludeFiles%",
           "scope": "resource",
-          "markdownDescription": "%config.worktreeIncludeFiles%"
+          "tags": [
+            "experimental"
+          ]
         },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",

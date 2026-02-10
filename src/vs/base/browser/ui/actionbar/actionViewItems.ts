@@ -385,7 +385,10 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
-		if (this.options.icon) {
+		if (this.action.id === Separator.ID && this.action.class) {
+			this.label?.classList.add(this.action.class);
+
+		} else if (this.options.icon) {
 			this.cssClass = this.getClass();
 
 			if (this.label) {
@@ -433,12 +436,12 @@ export class ActionViewItem extends BaseActionViewItem {
 				if (this.options.isTabList) {
 					this.label.setAttribute('aria-selected', this.action.checked ? 'true' : 'false');
 				} else {
-					this.label.setAttribute('aria-checked', this.action.checked ? 'true' : 'false');
-					this.label.setAttribute('role', 'checkbox');
+					this.label.setAttribute('aria-pressed', this.action.checked ? 'true' : 'false');
+					this.label.setAttribute('role', 'button');
 				}
 			} else {
 				this.label.classList.remove('checked');
-				this.label.removeAttribute(this.options.isTabList ? 'aria-selected' : 'aria-checked');
+				this.label.removeAttribute(this.options.isTabList ? 'aria-selected' : 'aria-pressed');
 				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}

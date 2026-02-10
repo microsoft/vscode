@@ -16,7 +16,7 @@ import { debounce } from '../../../../base/common/decorators.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { ISeparator, template } from '../../../../base/common/labels.js';
+import { ISeparator, normalizeDriveLetter, template } from '../../../../base/common/labels.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, ImmortalReference, MutableDisposable, dispose, toDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
@@ -474,12 +474,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				case TerminalCapability.CommandDetection: {
 					e.capability.promptInputModel.setShellType(this.shellType);
-					capabilityListeners.set(e.id, Event.any(
+					// Use DisposableStore to track multiple listeners for this capability
+					const store = new DisposableStore();
+					store.add(Event.any(
 						e.capability.promptInputModel.onDidStartInput,
 						e.capability.promptInputModel.onDidChangeInput,
 						e.capability.promptInputModel.onDidFinishInput
 					)(refreshInfo));
-					this._register(e.capability.onCommandExecuted(async (command) => {
+					store.add(e.capability.onCommandExecuted(async (command) => {
 						// Only generate ID if command doesn't already have one (i.e., it's a manual command, not Copilot-initiated)
 						// The tool terminal sets the command ID before command start, so this won't override it
 						if (!command.id && command.command) {
@@ -488,6 +490,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							await this._processManager.setNextCommandId(command.command, commandId);
 						}
 					}));
+					capabilityListeners.set(e.id, store);
 					break;
 				}
 				case TerminalCapability.PromptTypeDetection: {
@@ -853,7 +856,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await this._handleOnData(data);
 		}));
 		this._register(xterm.raw.onBinary(data => this._processManager.processBinary(data)));
-		// Init winpty compat and link handler after process creation as they rely on the
+		// Init conpty compat and link handler after process creation as they rely on the
 		// underlying process OS
 		this._register(this._processManager.onProcessReady(async (processTraits) => {
 			// Respond to DA1 with basic conformance. Note that including this is required to avoid
@@ -1551,10 +1554,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Allow remote and local terminals from remote to be created in untrusted remote workspace
 		if (!trusted && !this.remoteAuthority && !this._workbenchEnvironmentService.remoteAuthority) {
 			this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
-		} else if (this._workspaceContextService.getWorkspace().folders.length === 0 && this._cwd && this._userHome && this._cwd !== this._userHome) {
+		} else if (this._workspaceContextService.getWorkspace().folders.length === 0 && this._cwd && this._userHome && normalizeDriveLetter(this._cwd) !== normalizeDriveLetter(this._userHome)) {
 			// something strange is going on if cwd is not userHome in an empty workspace
 			this._onProcessExit({
-				message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)
+				message: nls.localize('workspaceEmptyCreateTerminalCwd', "Cannot launch a terminal process in an empty workspace with cwd {0} different from userHome {1}", this._cwd, this._userHome)
 			});
 		}
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
@@ -2255,8 +2258,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			!this._shellLaunchConfig.isExtensionOwnedTerminal &&
 			// Not a reconnected or revived terminal
 			!this._shellLaunchConfig.attachPersistentProcess &&
-			// Not a Windows remote using ConPTY (#187084)
-			!(this._processManager.remoteAuthority && this._terminalConfigurationService.config.windowsEnableConpty && (await this._processManager.getBackendOS()) === OperatingSystem.Windows)
+			// Not a Windows remote using ConPTY which cannot relaunch (#187084). ConPTY is used on
+			// Windows builds 18309+.
+			!(this._processManager.remoteAuthority && (await this._processManager.getBackendOS()) === OperatingSystem.Windows && this._processManager.processTraits?.windowsPty?.buildNumber && this._processManager.processTraits.windowsPty.buildNumber >= 18309)
 		) {
 			this.relaunch();
 			return;

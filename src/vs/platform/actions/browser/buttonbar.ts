@@ -30,6 +30,7 @@ export interface IWorkbenchButtonBarOptions {
 	telemetrySource?: string;
 	buttonConfigProvider?: IButtonConfigProvider;
 	small?: boolean;
+	disableWhileRunning?: boolean;
 }
 
 export class WorkbenchButtonBar extends ButtonBar {
@@ -137,7 +138,16 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
-				this._actionRunner.run(action);
+				if (this._options?.disableWhileRunning) {
+					btn.enabled = false;
+					try {
+						await this._actionRunner.run(action);
+					} finally {
+						btn.enabled = action.enabled;
+					}
+				} else {
+					this._actionRunner.run(action);
+				}
 			}));
 		}
 

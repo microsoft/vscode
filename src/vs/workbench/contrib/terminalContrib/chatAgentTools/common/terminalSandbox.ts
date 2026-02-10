@@ -19,6 +19,13 @@ export interface ITerminalSandboxRuntimeConfig {
 	};
 }
 
+export interface ITerminalSandboxNetworkSettings {
+	allowedDomains?: string[];
+	deniedDomains?: string[];
+	allowTrustedDomains?: boolean;
+}
+
 export interface ITerminalSandboxSettings extends ITerminalSandboxRuntimeConfig {
 	enabled?: boolean;
+	network?: ITerminalSandboxNetworkSettings;
 }

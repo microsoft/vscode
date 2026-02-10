@@ -1379,9 +1379,8 @@ class CollapseAllAction extends ViewAction<SCMViewPane> {
 			icon: Codicon.collapseAll,
 			menu: {
 				id: MenuId.SCMResourceGroupContext,
-				group: 'inline',
+				group: '9_collapse',
 				when: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
-				order: 10,
 			}
 		});
 	}
@@ -1699,6 +1698,7 @@ class SCMInputWidgetEditorOptions {
 
 	dispose(): void {
 		this._disposables.dispose();
+		this._onDidChange.dispose();
 	}
 
 }
@@ -3008,6 +3008,8 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override dispose(): void {
+		this._onDidChangeViewMode.dispose();
+		this._onDidChangeViewSortKey.dispose();
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
 		this.items.dispose();

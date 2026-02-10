@@ -248,7 +248,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			run(accessor: ServicesAccessor, args: string | IOpenSettingsActionOptions) {
 				// args takes a string for backcompat
 				const opts = typeof args === 'string' ? { query: args } : sanitizeOpenSettingsArgs(args);
-				return accessor.get(IPreferencesService).openSettings(opts);
+				return accessor.get(IPreferencesService).openSettings({ ...opts });
 			}
 		}));
 		this._register(registerAction2(class extends Action2 {

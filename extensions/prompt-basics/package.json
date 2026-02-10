@@ -34,6 +34,9 @@
           ".instructions.md",
           "copilot-instructions.md"
         ],
+        "filenamePatterns": [
+          "**/.claude/rules/**/*.md"
+        ],
         "configuration": "./language-configuration.json"
       },
       {
@@ -47,7 +50,8 @@
           ".chatmode.md"
         ],
         "filenamePatterns": [
-          "**/.github/agents/*.md"
+          "**/.github/agents/*.md",
+          "**/.claude/agents/*.md"
         ],
         "configuration": "./language-configuration.json"
       },
