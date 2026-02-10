@@ -140,7 +140,7 @@ suite('HooksExecutionService', () => {
 			assert.deepStrictEqual(executedCommands, ['cmd1', 'cmd2', 'cmd3']);
 		});
 
-		test('wraps proxy errors in error result', async () => {
+		test('wraps proxy errors in warning result', async () => {
 			const proxy = createMockProxy(() => {
 				throw new Error('proxy failed');
 			});
@@ -152,9 +152,10 @@ suite('HooksExecutionService', () => {
 			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
 
 			assert.strictEqual(results.length, 1);
-			assert.strictEqual(results[0].resultKind, 'error');
-			assert.strictEqual(results[0].output, 'proxy failed');
-			// Error results still have default common fields
+			// Proxy errors are now treated as warnings (non-blocking)
+			assert.strictEqual(results[0].resultKind, 'warning');
+			assert.strictEqual(results[0].warningMessage, 'proxy failed');
+			assert.strictEqual(results[0].output, undefined);
 			assert.strictEqual(results[0].stopReason, undefined);
 		});
 
@@ -217,6 +218,48 @@ suite('HooksExecutionService', () => {
 			assert.deepStrictEqual(results[0].output, { hookSpecificOutput: { permissionDecision: 'allow' } });
 		});
 
+		test('handles continue false by setting stopReason', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					continue: false,
+					systemMessage: 'User requested to stop'
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('echo test')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
+
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].resultKind, 'success');
+			// continue:false without explicit stopReason sets stopReason to empty string
+			assert.strictEqual(results[0].stopReason, '');
+			assert.strictEqual(results[0].warningMessage, 'User requested to stop');
+		});
+
+		test('stopReason takes precedence over continue false', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					continue: false,
+					stopReason: 'Explicit stop reason'
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('echo test')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
+
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].resultKind, 'success');
+			assert.strictEqual(results[0].stopReason, 'Explicit stop reason');
+		});
+
 		test('uses defaults when no common fields present', async () => {
 			const proxy = createMockProxy(() => ({
 				kind: HookCommandResultKind.Success,
@@ -239,7 +282,7 @@ suite('HooksExecutionService', () => {
 			assert.deepStrictEqual(results[0].output, { hookSpecificOutput: { permissionDecision: 'allow' } });
 		});
 
-		test('handles error results from command', async () => {
+		test('handles error results from command (exit code 2) as stop with stopReason', async () => {
 			const proxy = createMockProxy(() => ({
 				kind: HookCommandResultKind.Error,
 				result: 'command failed with error'
@@ -252,10 +295,10 @@ suite('HooksExecutionService', () => {
 			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
 
 			assert.strictEqual(results.length, 1);
+			// Exit code 2 produces error with stopReason
 			assert.strictEqual(results[0].resultKind, 'error');
-			assert.strictEqual(results[0].output, 'command failed with error');
-			// Defaults are still applied
-			assert.strictEqual(results[0].stopReason, undefined);
+			assert.strictEqual(results[0].stopReason, 'command failed with error');
+			assert.strictEqual(results[0].output, undefined);
 		});
 
 		test('handles non-blocking error results from command', async () => {

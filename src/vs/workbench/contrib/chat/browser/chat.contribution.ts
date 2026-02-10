@@ -1182,6 +1182,37 @@ class ChatResolverContribution extends Disposable {
 	}
 }
 
+class ChatHooksProgressContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatHooksProgress';
+
+	constructor(
+		@IChatService private readonly chatService: IChatService,
+		@IHooksExecutionService hooksExecutionService: IHooksExecutionService,
+	) {
+		super();
+
+		this._register(hooksExecutionService.onDidHookProgress(event => {
+			const model = this.chatService.getSession(event.sessionResource);
+			if (!model) {
+				return;
+			}
+
+			const request = model.getRequests().at(-1);
+			if (!request) {
+				return;
+			}
+
+			this.chatService.appendProgress(request, {
+				kind: 'hook',
+				hookType: event.hookType,
+				stopReason: event.stopReason,
+				systemMessage: event.systemMessage,
+			});
+		}));
+	}
+}
+
 class ChatAgentSettingContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatAgentSetting';
@@ -1448,6 +1479,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChatHooksProgressContribution.ID, ChatHooksProgressContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashStaticSlashCommandsContribution.ID, ChatSlashStaticSlashCommandsContribution, WorkbenchPhase.Eventually);
 
