@@ -174,7 +174,7 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'chat',
 			label: localize('chat', "Chat"),
-			settings: ['chat.*'],
+			settings: [],
 			children: [
 				{
 					id: 'chat/agent',
@@ -187,7 +187,8 @@ export const tocData: ITOCEntry<string> = {
 						'chat.undoRequests.*',
 						'chat.customAgentInSubagent.*',
 						'chat.editing.autoAcceptDelay',
-						'chat.editing.confirmEditRequest*'
+						'chat.editing.confirmEditRequest*',
+						'chat.planAgent.defaultModel'
 					]
 				},
 				{
@@ -209,7 +210,8 @@ export const tocData: ITOCEntry<string> = {
 						'chat.notifyWindow*',
 						'chat.statusWidget.*',
 						'chat.tips.*',
-						'chat.unifiedAgentsBar.*'
+						'chat.unifiedAgentsBar.*',
+						'chat.confettiOnThumbsUp'
 					]
 				},
 				{
@@ -259,7 +261,8 @@ export const tocData: ITOCEntry<string> = {
 						'chat.useChatHooks',
 						'chat.includeApplyingInstructions',
 						'chat.includeReferencedInstructions',
-						'chat.sendElementsToChat.*'
+						'chat.sendElementsToChat.*',
+						'chat.useClaudeMdFile'
 					]
 				},
 				{
