@@ -793,7 +793,7 @@ export function registerChatActions() {
 				precondition: ChatContextKeys.inChatSession,
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyQ,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyH,
 					when: ChatContextKeys.inChatSession,
 				}]
 			});
