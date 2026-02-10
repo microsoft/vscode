@@ -27,6 +27,8 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platf
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { parseAllHookFiles, IParsedHook } from '../promptSyntax/hookUtils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { OS } from '../../../../../base/common/platform.js';
 
 /**
  * URL encodes path segments for use in markdown links.
@@ -155,6 +157,7 @@ export function registerChatCustomizationDiagnosticsAction() {
 			const commandService = accessor.get(ICommandService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const labelService = accessor.get(ILabelService);
+			const remoteAgentService = accessor.get(IRemoteAgentService);
 
 			const token = CancellationToken.None;
 			const workspaceFolders = workspaceContextService.getWorkspace().folders;
@@ -180,7 +183,7 @@ export function registerChatCustomizationDiagnosticsAction() {
 			statusInfos.push(skillsStatus);
 
 			// 5. Hooks
-			const hooksStatus = await collectHooksStatus(promptsService, fileService, labelService, pathService, workspaceContextService, token);
+			const hooksStatus = await collectHooksStatus(promptsService, fileService, labelService, pathService, workspaceContextService, remoteAgentService, token);
 			statusInfos.push(hooksStatus);
 
 			// 6. Special files (AGENTS.md, copilot-instructions.md)
@@ -308,6 +311,7 @@ async function collectHooksStatus(
 	labelService: ILabelService,
 	pathService: IPathService,
 	workspaceContextService: IWorkspaceContextService,
+	remoteAgentService: IRemoteAgentService,
 	token: CancellationToken
 ): Promise<ITypeStatusInfo> {
 	const type = PromptsType.hook;
@@ -322,7 +326,7 @@ async function collectHooksStatus(
 	const files = discoveryInfo.files.map(convertDiscoveryResultToFileStatus);
 
 	// Parse hook files to extract individual hooks grouped by lifecycle
-	const parsedHooks = await parseHookFiles(promptsService, fileService, labelService, pathService, workspaceContextService, token);
+	const parsedHooks = await parseHookFiles(promptsService, fileService, labelService, pathService, workspaceContextService, remoteAgentService, token);
 
 	return { type, paths, files, enabled, parsedHooks };
 }
@@ -336,6 +340,7 @@ async function parseHookFiles(
 	labelService: ILabelService,
 	pathService: IPathService,
 	workspaceContextService: IWorkspaceContextService,
+	remoteAgentService: IRemoteAgentService,
 	token: CancellationToken
 ): Promise<IParsedHook[]> {
 	// Get workspace root and user home for path resolution
@@ -344,8 +349,12 @@ async function parseHookFiles(
 	const userHomeUri = await pathService.userHome();
 	const userHome = userHomeUri.fsPath ?? userHomeUri.path;
 
+	// Get the remote OS (or fall back to local OS)
+	const remoteEnv = await remoteAgentService.getEnvironment();
+	const targetOS = remoteEnv?.os ?? OS;
+
 	// Use the shared helper
-	return parseAllHookFiles(promptsService, fileService, labelService, workspaceRootUri, userHome, token);
+	return parseAllHookFiles(promptsService, fileService, labelService, workspaceRootUri, userHome, targetOS, token);
 }
 
 /**

@@ -153,9 +153,13 @@ export interface IChatAgentRequest {
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	/**
 	 * Collected hooks configuration for this request.
-	 * Contains all hooks defined in hooks.json files, organized by hook type.
+	 * Contains all hooks defined in hooks .json files, organized by hook type.
 	 */
 	hooks?: IChatRequestHooks;
+	/**
+	 * Whether any hooks are enabled for this request.
+	 */
+	hasHooksEnabled?: boolean;
 	/**
 	 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 	 */
@@ -267,7 +271,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	private _agents = new Map<string, IChatAgentEntry>();
 
-	private readonly _onDidChangeAgents = new Emitter<IChatAgent | undefined>();
+	private readonly _onDidChangeAgents = this._register(new Emitter<IChatAgent | undefined>());
 	readonly onDidChangeAgents: Event<IChatAgent | undefined> = this._onDidChangeAgents.event;
 
 	private readonly _agentsContextKeys = new Set<string>();

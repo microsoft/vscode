@@ -12,8 +12,8 @@ const root = path.dirname(path.dirname(import.meta.dirname));
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 
-export function spawnTsgo(projectPath: string, onComplete?: () => Promise<void> | void): Promise<void> {
-	const reporter = createReporter('extensions');
+export function spawnTsgo(projectPath: string, config: { reporterId: string }, onComplete?: () => Promise<void> | void): Promise<void> {
+	const reporter = createReporter(config.reporterId);
 	let report: NodeJS.ReadWriteStream | undefined;
 
 	const beginReport = (emitError: boolean) => {
@@ -31,10 +31,9 @@ export function spawnTsgo(projectPath: string, onComplete?: () => Promise<void> 
 		report = undefined;
 	};
 
-	const args = ['tsgo', '--project', projectPath, '--pretty', 'false', '--sourceMap', '--inlineSources'];
-
 	beginReport(false);
 
+	const args = ['tsgo', '--project', projectPath, '--pretty', 'false', '--sourceMap', '--inlineSources'];
 	const child = cp.spawn(npx, args, {
 		cwd: root,
 		stdio: ['ignore', 'pipe', 'pipe'],
@@ -79,7 +78,7 @@ export function spawnTsgo(projectPath: string, onComplete?: () => Promise<void> 
 	child.stdout?.on('data', handleData);
 	child.stderr?.on('data', handleData);
 
-	const done = new Promise<void>((resolve, reject) => {
+	return new Promise<void>((resolve, reject) => {
 		child.on('exit', code => {
 			if (buffer.trim()) {
 				handleLine(buffer);
@@ -88,23 +87,22 @@ export function spawnTsgo(projectPath: string, onComplete?: () => Promise<void> 
 			endReport();
 			if (code === 0) {
 				Promise.resolve(onComplete?.()).then(() => resolve(), reject);
-				return;
+			} else {
+				reject(new Error(`tsgo exited with code ${code ?? 'unknown'}`));
 			}
-			reject(new Error(`tsgo exited with code ${code ?? 'unknown'}`));
 		});
+
 		child.on('error', err => {
 			endReport();
 			reject(err);
 		});
 	});
-
-	return done;
 }
 
-export function createTsgoStream(projectPath: string, onComplete?: () => Promise<void> | void): NodeJS.ReadWriteStream {
+export function createTsgoStream(projectPath: string, config: { reporterId: string }, onComplete?: () => Promise<void> | void): NodeJS.ReadWriteStream {
 	const stream = es.through();
 
-	spawnTsgo(projectPath, onComplete).then(() => {
+	spawnTsgo(projectPath, config, onComplete).then(() => {
 		stream.emit('end');
 	}).catch(() => {
 		// Errors are already reported by spawnTsgo via the reporter.

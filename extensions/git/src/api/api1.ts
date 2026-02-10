@@ -460,7 +460,7 @@ export class ApiImpl implements API {
 			return null;
 		}
 
-		await this.#model.openRepository(root.fsPath);
+		await this.#model.openRepository(root.fsPath, true, true);
 		return this.getRepository(root) || null;
 	}
 

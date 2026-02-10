@@ -16,9 +16,14 @@
  * External types (in hooksCommandTypes.ts) define the contract with spawned commands.
  */
 
-import { vEnum, vObj, vOptionalProp, vString } from '../../../../../base/common/validation.js';
+import { vBoolean, vEnum, vObj, vObjAny, vOptionalProp, vString } from '../../../../../base/common/validation.js';
 
 //#region Common Hook Types
+
+/**
+ * The kind of result from executing a hook command.
+ */
+export type HookResultKind = 'success' | 'error' | 'warning';
 
 /**
  * Semantic hook result with common fields extracted and defaults applied.
@@ -26,27 +31,28 @@ import { vEnum, vObj, vOptionalProp, vString } from '../../../../../base/common/
  */
 export interface IHookResult {
 	/**
+	 * The kind of result from executing the hook.
+	 */
+	readonly resultKind: HookResultKind;
+	/**
 	 * If set, the agent should stop processing entirely after this hook.
 	 * The message is shown to the user but not to the agent.
 	 */
 	readonly stopReason?: string;
 	/**
-	 * Message shown to the user.
-	 * (Mapped from `systemMessage` in command output.)
+	 * Warning message shown to the user.
+	 * (Mapped from `systemMessage` in command output, or stderr for non-blocking errors.)
 	 */
-	readonly messageForUser?: string;
+	readonly warningMessage?: string;
 	/**
 	 * The hook's output (hook-specific fields only).
 	 * For errors, this is the error message string.
 	 */
 	readonly output: unknown;
-	/**
-	 * Whether the hook command executed successfully (exit code 0).
-	 */
-	readonly success: boolean;
 }
 
 export const commonHookOutputValidator = vObj({
+	continue: vOptionalProp(vBoolean()),
 	stopReason: vOptionalProp(vString()),
 	systemMessage: vOptionalProp(vString()),
 });
@@ -67,8 +73,9 @@ export interface IPreToolUseCallerInput {
 export const preToolUseOutputValidator = vObj({
 	hookSpecificOutput: vOptionalProp(vObj({
 		hookEventName: vOptionalProp(vString()),
-		permissionDecision: vEnum('allow', 'deny', 'ask'),
+		permissionDecision: vOptionalProp(vEnum('allow', 'deny', 'ask')),
 		permissionDecisionReason: vOptionalProp(vString()),
+		updatedInput: vOptionalProp(vObjAny()),
 		additionalContext: vOptionalProp(vString()),
 	})),
 });
@@ -88,6 +95,12 @@ export type PreToolUsePermissionDecision = 'allow' | 'deny' | 'ask';
 export interface IPreToolUseHookResult extends IHookResult {
 	readonly permissionDecision?: PreToolUsePermissionDecision;
 	readonly permissionDecisionReason?: string;
+	/**
+	 * Modified tool input parameters from the hook.
+	 * When set, replaces the original tool input before execution.
+	 * Combine with 'allow' to auto-approve, or 'ask' to show modified input to the user.
+	 */
+	readonly updatedInput?: object;
 	readonly additionalContext?: string[];
 }
 

@@ -29,7 +29,7 @@ import { TestContextService, TestUserDataProfileService } from '../../../../../t
 import { ChatRequestVariableSet, isPromptFileVariableEntry, isPromptTextVariableEntry, toFileVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions } from '../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
-import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_RULES_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../common/promptSyntax/service/promptsServiceImpl.js';
@@ -69,10 +69,11 @@ suite('ComputeAutomaticInstructions', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_APPLYING_INSTRUCTIONS, true);
 		testConfigService.setUserConfiguration(PromptsConfig.INCLUDE_REFERENCED_INSTRUCTIONS, true);
-		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
+		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true, [CLAUDE_RULES_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, { '.claude/skills': true });
+		testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, { [AGENTS_SOURCE_FOLDER]: true });
 
 		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
@@ -547,6 +548,177 @@ suite('ComputeAutomaticInstructions', () => {
 
 			const instructionFiles = variables.asArray().filter(v => isPromptFileVariableEntry(v));
 			assert.strictEqual(instructionFiles.length, 1, 'Should match relative glob pattern');
+		});
+	});
+
+	suite('claude rules', () => {
+		test('should collect claude rules files as instructions', async () => {
+			const rootFolderName = 'claude-rules-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/rules/code-style.md`,
+					contents: [
+						'Code style guidelines',
+					]
+				},
+				{
+					path: `${rootFolder}/src/file.ts`,
+					contents: ['code'],
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const variables = new ChatRequestVariableSet();
+			variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const paths = variables.asArray()
+				.filter(v => isPromptFileVariableEntry(v))
+				.map(v => isPromptFileVariableEntry(v) ? v.value.path : undefined);
+
+			// Claude rules without paths default to '**', so they are always auto-attached
+			assert.ok(paths.includes(`${rootFolder}/.claude/rules/code-style.md`), 'Should include rules without paths as they default to **');
+		});
+
+		test('should match claude rules with paths attribute', async () => {
+			const rootFolderName = 'claude-rules-paths-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/rules/api-rules.md`,
+					contents: [
+						'---',
+						'paths:',
+						'  - "src/api/**/*.ts"',
+						'---',
+						'API development rules',
+					]
+				},
+				{
+					path: `${rootFolder}/.claude/rules/frontend-rules.md`,
+					contents: [
+						'---',
+						'paths:',
+						'  - "src/frontend/**/*.tsx"',
+						'---',
+						'Frontend rules',
+					]
+				},
+				{
+					path: `${rootFolder}/src/api/handler.ts`,
+					contents: ['code'],
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const variables = new ChatRequestVariableSet();
+			variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/api/handler.ts')));
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const paths = variables.asArray()
+				.filter(v => isPromptFileVariableEntry(v))
+				.map(v => isPromptFileVariableEntry(v) ? v.value.path : undefined);
+
+			assert.ok(paths.includes(`${rootFolder}/.claude/rules/api-rules.md`), 'Should match API rules via paths');
+			assert.ok(!paths.includes(`${rootFolder}/.claude/rules/frontend-rules.md`), 'Should not match frontend rules');
+		});
+
+		test('should collect claude rules from subdirectories', async () => {
+			const rootFolderName = 'claude-rules-subdir-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/rules/frontend/react.md`,
+					contents: [
+						'---',
+						'paths:',
+						'  - "**/*.tsx"',
+						'---',
+						'React guidelines',
+					]
+				},
+				{
+					path: `${rootFolder}/.claude/rules/backend/api.md`,
+					contents: [
+						'---',
+						'paths:',
+						'  - "src/api/**/*.ts"',
+						'---',
+						'API guidelines',
+					]
+				},
+				{
+					path: `${rootFolder}/src/component.tsx`,
+					contents: ['code'],
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const variables = new ChatRequestVariableSet();
+			variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/component.tsx')));
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const paths = variables.asArray()
+				.filter(v => isPromptFileVariableEntry(v))
+				.map(v => isPromptFileVariableEntry(v) ? v.value.path : undefined);
+
+			assert.ok(paths.includes(`${rootFolder}/.claude/rules/frontend/react.md`), 'Should match react rules from subdirectory');
+			assert.ok(!paths.includes(`${rootFolder}/.claude/rules/backend/api.md`), 'Should not match API rules for tsx file');
+		});
+
+		test('should support multiple paths patterns', async () => {
+			const rootFolderName = 'claude-rules-multi-paths-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/rules/typescript.md`,
+					contents: [
+						'---',
+						'paths:',
+						'  - "src/**/*.ts"',
+						'  - "lib/**/*.ts"',
+						'  - "tests/**/*.test.ts"',
+						'---',
+						'TypeScript rules',
+					]
+				},
+				{
+					path: `${rootFolder}/lib/utils.ts`,
+					contents: ['code'],
+				},
+			]);
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const variables = new ChatRequestVariableSet();
+			variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'lib/utils.ts')));
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const paths = variables.asArray()
+				.filter(v => isPromptFileVariableEntry(v))
+				.map(v => isPromptFileVariableEntry(v) ? v.value.path : undefined);
+
+			assert.ok(paths.includes(`${rootFolder}/.claude/rules/typescript.md`), 'Should match via lib/**/*.ts pattern');
 		});
 	});
 

@@ -27,7 +27,13 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
 	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available'); }
-	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, version: string, productVersion: string, timestamp: number) => ({ version, productVersion, timestamp })); }
+	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> {
+		return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, version: string, productVersion: string, releaseDate: Date | number) => ({
+			version,
+			productVersion,
+			timestamp: releaseDate instanceof Date ? releaseDate.getTime() || undefined : releaseDate
+		}));
+	}
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,

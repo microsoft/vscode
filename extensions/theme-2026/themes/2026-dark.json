@@ -5,7 +5,7 @@
 	"type": "dark",
 	"colors": {
 		"foreground": "#bfbfbf",
-		"disabledForeground": "#444444",
+		"disabledForeground": "#666666",
 		"errorForeground": "#f48771",
 		"descriptionForeground": "#999999",
 		"icon.foreground": "#888888",

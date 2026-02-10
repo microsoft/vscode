@@ -200,12 +200,14 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 export interface IToolInvocationPreparationContext {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
+	toolCallId: string;
 	chatRequestId?: string;
 	/** @deprecated Use {@link chatSessionResource} instead */
 	chatSessionId?: string;
 	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
-	/** If set, tells the tool that it should include confirmmation messages. */
+	modelId?: string;
+	/** If set, tells the tool that it should include confirmation messages. */
 	forceConfirmationReason?: string;
 }
 
@@ -571,15 +573,10 @@ export interface ILanguageModelToolsService {
 	/**
 	 * Gets the enablement maps based on the given set of references.
 	 * @param fullReferenceNames The full reference names of the tools and tool sets to enable.
-	 * @param target Optional target to filter tools by.
 	 * @param model Optional language model metadata to filter tools by.
 	 * If undefined is passed, all tools will be returned, even if normally disabled.
 	 */
-	toToolAndToolSetEnablementMap(
-		fullReferenceNames: readonly string[],
-		target: string | undefined,
-		model: ILanguageModelChatMetadata | undefined,
-	): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap;
 
 	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];

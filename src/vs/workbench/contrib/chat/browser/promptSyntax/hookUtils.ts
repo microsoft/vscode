@@ -14,6 +14,7 @@ import { formatHookCommandLabel, HOOK_TYPES, HookType, IHookCommand } from '../.
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import * as nls from '../../../../../nls.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 
 /**
  * Converts an offset in content to a 1-based line and column.
@@ -137,6 +138,7 @@ export async function parseAllHookFiles(
 	labelService: ILabelService,
 	workspaceRootUri: URI | undefined,
 	userHome: string,
+	os: OperatingSystem,
 	token: CancellationToken
 ): Promise<IParsedHook[]> {
 	const hookFiles = await promptsService.listPromptFiles(PromptsType.hook, token);
@@ -158,7 +160,7 @@ export async function parseAllHookFiles(
 
 				for (let i = 0; i < commands.length; i++) {
 					const command = commands[i];
-					const commandLabel = formatHookCommandLabel(command) || nls.localize('commands.hook.emptyCommand', '(empty command)');
+					const commandLabel = formatHookCommandLabel(command, os) || nls.localize('commands.hook.emptyCommand', '(empty command)');
 					parsedHooks.push({
 						hookType,
 						hookTypeLabel: hookTypeMeta.label,

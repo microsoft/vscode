@@ -58,13 +58,13 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 
 	protected _onDidStateChange: Emitter<IProblemCollectorEvent>;
 
-	protected readonly _onDidFindFirstMatch = new Emitter<void>();
+	protected readonly _onDidFindFirstMatch = this._register(new Emitter<void>());
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
 
-	protected readonly _onDidFindErrors = new Emitter<IMarker[]>();
+	protected readonly _onDidFindErrors = this._register(new Emitter<IMarker[]>());
 	readonly onDidFindErrors = this._onDidFindErrors.event;
 
-	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
+	protected readonly _onDidRequestInvalidateLastMarker = this._register(new Emitter<void>());
 	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
 
 	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
@@ -108,7 +108,7 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		}, this, this.modelListeners));
 		this.modelService.getModels().forEach(model => this.openModels[model.uri.toString()] = true);
 
-		this._onDidStateChange = new Emitter();
+		this._onDidStateChange = this._register(new Emitter());
 	}
 
 	public get onDidStateChange(): Event<IProblemCollectorEvent> {

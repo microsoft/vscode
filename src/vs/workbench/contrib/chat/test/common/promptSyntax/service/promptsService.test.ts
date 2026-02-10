@@ -38,9 +38,9 @@ import { TestContextService, TestUserDataProfileService } from '../../../../../.
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
-import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -74,6 +74,7 @@ suite('PromptsService', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
+		testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, { [AGENTS_SOURCE_FOLDER]: true });
 
 		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IWorkbenchEnvironmentService, {});
@@ -767,7 +768,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					target: undefined,
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
@@ -823,7 +824,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
-					target: undefined,
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
@@ -841,6 +842,7 @@ suite('PromptsService', () => {
 					},
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local },
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true }
 				}
 			];
@@ -897,7 +899,7 @@ suite('PromptsService', () => {
 					},
 					handOffs: undefined,
 					model: undefined,
-					target: undefined,
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
@@ -915,7 +917,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					tools: undefined,
-					target: undefined,
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
@@ -976,7 +978,7 @@ suite('PromptsService', () => {
 				{
 					name: 'github-agent',
 					description: 'GitHub Copilot specialized agent.',
-					target: 'github-copilot',
+					target: Target.GitHubCopilot,
 					tools: ['github-api', 'code-search'],
 					agentInstructions: {
 						content: 'I am optimized for GitHub Copilot workflows.',
@@ -994,7 +996,7 @@ suite('PromptsService', () => {
 				{
 					name: 'vscode-agent',
 					description: 'VS Code specialized agent.',
-					target: 'vscode',
+					target: Target.VSCode,
 					model: ['gpt-4'],
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
@@ -1021,7 +1023,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					target: undefined,
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
@@ -1033,6 +1035,122 @@ suite('PromptsService', () => {
 				result,
 				expected,
 				'Must get custom agents with target attribute.',
+			);
+		});
+
+		test('claude agent maps tools and model to vscode equivalents', async () => {
+			const rootFolderName = 'claude-agent-mapping';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					// Claude agent with tools and model that should be mapped
+					path: `${rootFolder}/.claude/agents/claude-agent.md`,
+					contents: [
+						'---',
+						'description: \'Claude agent with tools and model.\'',
+						'tools: [ Read, Edit, Bash ]',
+						'model: opus',
+						'---',
+						'I am a Claude agent.',
+					]
+				},
+				{
+					// Claude agent with more tools, some with empty equivalents
+					path: `${rootFolder}/.claude/agents/claude-agent2.md`,
+					contents: [
+						'---',
+						'description: \'Claude agent with various tools.\'',
+						'tools: [ Glob, Grep, Write, Task, Skill ]',
+						'model: sonnet',
+						'---',
+						'I am another Claude agent.',
+					]
+				},
+				{
+					// Non-Claude agent should NOT have tools/model mapped
+					path: `${rootFolder}/.github/agents/copilot-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Copilot agent with same tool names.\'',
+						'target: \'github-copilot\'',
+						'tools: [ Read, Edit ]',
+						'model: gpt-4',
+						'---',
+						'I am a Copilot agent.',
+					]
+				},
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'copilot-agent',
+					description: 'Copilot agent with same tool names.',
+					target: Target.GitHubCopilot,
+					// Non-Claude agent: tools and model stay as-is
+					tools: ['Read', 'Edit'],
+					model: ['gpt-4'],
+					agentInstructions: {
+						content: 'I am a Copilot agent.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					argumentHint: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
+					agents: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'claude-agent',
+					description: 'Claude agent with tools and model.',
+					target: Target.Claude,
+					// Claude tools mapped to vscode equivalents
+					tools: ['read/readFile', 'read/getNotebookSummary', 'edit/editNotebook', 'edit/editFiles', 'execute'],
+					// Claude model mapped to vscode equivalent
+					model: ['Claude Opus 4.6 (copilot)'],
+					agentInstructions: {
+						content: 'I am a Claude agent.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					argumentHint: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
+					agents: undefined,
+					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'claude-agent2',
+					description: 'Claude agent with various tools.',
+					target: Target.Claude,
+					// Tools mapped: Glob->search/fileSearch, Grep->search/textSearch, Write->edit/create*, Task->agent, Skill->[] (empty)
+					tools: ['search/fileSearch', 'search/textSearch', 'edit/createDirectory', 'edit/createFile', 'edit/createJupyterNotebook', 'agent'],
+					model: ['Claude Sonnet 4.5 (copilot)'],
+					agentInstructions: {
+						content: 'I am another Claude agent.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					argumentHint: undefined,
+					visibility: { userInvokable: true, agentInvokable: true },
+					agents: undefined,
+					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md'),
+					source: { storage: PromptsStorage.local }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Claude tools and models must be mapped to VS Code equivalents; non-Claude agents must remain unchanged.',
 			);
 		});
 
@@ -1076,7 +1194,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
-					target: undefined,
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
@@ -1147,7 +1265,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
-					target: undefined,
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1165,7 +1283,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					target: undefined,
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1183,7 +1301,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					target: undefined,
+					target: Target.Undefined,
 					visibility: { userInvokable: true, agentInvokable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1504,7 +1622,7 @@ suite('PromptsService', () => {
 			const copilotSkill = personalSkills.find(s => s.uri.path.includes('.copilot'));
 			assert.ok(copilotSkill, 'Should find copilot personal skill');
 
-			const claudeSkill = personalSkills.find(s => s.uri.path.includes('.claude'));
+			const claudeSkill = personalSkills.find(s => s.uri.path.includes(CLAUDE_CONFIG_FOLDER));
 			assert.ok(claudeSkill, 'Should find claude personal skill');
 		});
 

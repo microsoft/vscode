@@ -19,7 +19,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
-import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
+import { isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
 import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
@@ -131,8 +131,14 @@ export class ComputeAutomaticInstructions {
 			}
 
 			const applyTo = parsedFile.header?.applyTo;
+			const paths = parsedFile.header?.paths;
 
-			if (!applyTo) {
+			// Claude rules files use `paths` (defaulting to '**' when omitted),
+			// regular instruction files use `applyTo` (skipped when omitted)
+			const isClaudeRules = isInClaudeRulesFolder(uri);
+			const pattern = isClaudeRules ? (paths?.join(', ') ?? '**') : applyTo;
+
+			if (!pattern) {
 				this._logService.trace(`[InstructionsContextComputer] No 'applyTo' found: ${uri}`);
 				continue;
 			}
@@ -143,18 +149,18 @@ export class ComputeAutomaticInstructions {
 				continue;
 			}
 
-			const match = this._matches(context.files, applyTo);
+			const match = this._matches(context.files, pattern);
 			if (match) {
 				this._logService.trace(`[InstructionsContextComputer] Match for ${uri} with ${match.pattern}${match.file ? ` for file ${match.file}` : ''}`);
 
 				const reason = !match.file ?
 					localize('instruction.file.reason.allFiles', 'Automatically attached as pattern is **') :
-					localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', applyTo, this._labelService.getUriLabel(match.file, { relative: true }));
+					localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', pattern, this._labelService.getUriLabel(match.file, { relative: true }));
 
 				variables.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason, true));
 				telemetryEvent.applyingInstructionsCount++;
 			} else {
-				this._logService.trace(`[InstructionsContextComputer] No match for ${uri} with ${applyTo}`);
+				this._logService.trace(`[InstructionsContextComputer] No match for ${uri} with ${pattern}`);
 			}
 		}
 	}
@@ -207,6 +213,21 @@ export class ComputeAutomaticInstructions {
 		for (const entry of entries.asArray()) {
 			variables.add(entry);
 		}
+	}
+
+	/**
+	 * Combines the `applyTo` and `paths` attributes into a single comma-separated
+	 * pattern string that can be matched by {@link _matches}.
+	 * Used for the instructions list XML output where both should be shown.
+	 */
+	private _getApplyToPattern(applyTo: string | undefined, paths: readonly string[] | undefined): string | undefined {
+		if (applyTo) {
+			return applyTo;
+		}
+		if (paths && paths.length > 0) {
+			return paths.join(', ');
+		}
+		return undefined;
 	}
 
 	private _matches(files: ResourceSet, applyToPattern: string): { pattern: string; file?: URI } | undefined {
@@ -279,13 +300,14 @@ export class ComputeAutomaticInstructions {
 				if (parsedFile) {
 					entries.push('<instruction>');
 					if (parsedFile.header) {
-						const { description, applyTo } = parsedFile.header;
+						const { description, applyTo, paths } = parsedFile.header;
 						if (description) {
 							entries.push(`<description>${description}</description>`);
 						}
 						entries.push(`<file>${getFilePath(uri)}</file>`);
-						if (applyTo) {
-							entries.push(`<applyTo>${applyTo}</applyTo>`);
+						const applyToPattern = this._getApplyToPattern(applyTo, paths);
+						if (applyToPattern) {
+							entries.push(`<applyTo>${applyToPattern}</applyTo>`);
 						}
 					} else {
 						entries.push(`<file>${getFilePath(uri)}</file>`);

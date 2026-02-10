@@ -20,10 +20,10 @@ import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWi
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatSubmitAction } from '../../actions/chatExecuteActions.js';
 import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../actions/chatQueueActions.js';
@@ -61,11 +61,15 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		this._primaryActionAction = this._register(new Action(
 			'chat.queuePickerPrimary',
 			isSteerDefault ? localize('chat.steerWithMessage', "Steer with Message") : localize('chat.queueMessage', "Add to Queue"),
-			ThemeIcon.asClassName(isSteerDefault ? Codicon.arrowRight : Codicon.add),
-			true,
+			ThemeIcon.asClassName(Codicon.send),
+			!!contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key),
 			() => this._runDefaultAction()
 		));
 		this._primaryAction = this._register(new ActionViewItem(undefined, this._primaryActionAction, { icon: true, label: false }));
+
+		this._register(contextKeyService.onDidChangeContext(e => {
+			this._primaryActionAction.enabled = !!contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key);
+		}));
 
 		// Dropdown - action widget with hover descriptions and chevron-down icon
 		const dropdownAction = this._register(new Action('chat.queuePickerDropdown', localize('chat.queuePicker.moreActions', "More Actions...")));
@@ -98,7 +102,6 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		this._primaryActionAction.label = isSteerDefault
 			? localize('chat.steerWithMessage', "Steer with Message")
 			: localize('chat.queueMessage', "Add to Queue");
-		this._primaryActionAction.class = ThemeIcon.asClassName(isSteerDefault ? Codicon.arrowRight : Codicon.add);
 	}
 
 	private _runDefaultAction(): void {
@@ -188,7 +191,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 
 		const sendAction: IActionWidgetDropdownAction = {
 			id: '_' + ChatSubmitAction.ID, // _ to avoid showing a keybinding which is not valid in this context
-			label: localize('chat.sendImmediately', "Send Immediately"),
+			label: localize('chat.sendImmediately', "Stop and Send"),
 			tooltip: '',
 			enabled: true,
 			icon: Codicon.send,
@@ -228,10 +231,9 @@ export class ChatQueuePickerRendering extends Disposable implements IWorkbenchCo
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(actionViewItemService.register(MenuId.ChatExecute, MenuId.ChatExecuteQueue, (action, options) => {
+		this._register(actionViewItemService.register(MenuId.ChatExecute, MenuId.ChatExecuteQueue, (action, options, instantiationService) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}

@@ -116,7 +116,7 @@ suite('HooksExecutionService', () => {
 			const results = await service.executeHook(HookType.PreToolUse, sessionUri, { input: 'test-input' });
 
 			assert.strictEqual(results.length, 1);
-			assert.strictEqual(results[0].success, true);
+			assert.strictEqual(results[0].resultKind, 'success');
 			assert.strictEqual(results[0].stopReason, undefined);
 			assert.strictEqual(results[0].output, 'executed: echo test');
 		});
@@ -140,7 +140,7 @@ suite('HooksExecutionService', () => {
 			assert.deepStrictEqual(executedCommands, ['cmd1', 'cmd2', 'cmd3']);
 		});
 
-		test('wraps proxy errors in error result', async () => {
+		test('wraps proxy errors in warning result', async () => {
 			const proxy = createMockProxy(() => {
 				throw new Error('proxy failed');
 			});
@@ -152,9 +152,10 @@ suite('HooksExecutionService', () => {
 			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
 
 			assert.strictEqual(results.length, 1);
-			assert.strictEqual(results[0].success, false);
-			assert.strictEqual(results[0].output, 'proxy failed');
-			// Error results still have default common fields
+			// Proxy errors are now treated as warnings (non-blocking)
+			assert.strictEqual(results[0].resultKind, 'warning');
+			assert.strictEqual(results[0].warningMessage, 'proxy failed');
+			assert.strictEqual(results[0].output, undefined);
 			assert.strictEqual(results[0].stopReason, undefined);
 		});
 
@@ -210,11 +211,53 @@ suite('HooksExecutionService', () => {
 			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
 
 			assert.strictEqual(results.length, 1);
-			assert.strictEqual(results[0].success, true);
+			assert.strictEqual(results[0].resultKind, 'success');
 			assert.strictEqual(results[0].stopReason, 'User requested stop');
-			assert.strictEqual(results[0].messageForUser, 'Warning: hook triggered');
+			assert.strictEqual(results[0].warningMessage, 'Warning: hook triggered');
 			// Hook-specific fields are in output with wrapper
 			assert.deepStrictEqual(results[0].output, { hookSpecificOutput: { permissionDecision: 'allow' } });
+		});
+
+		test('handles continue false by setting stopReason', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					continue: false,
+					systemMessage: 'User requested to stop'
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('echo test')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
+
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].resultKind, 'success');
+			// continue:false without explicit stopReason sets stopReason to empty string
+			assert.strictEqual(results[0].stopReason, '');
+			assert.strictEqual(results[0].warningMessage, 'User requested to stop');
+		});
+
+		test('stopReason takes precedence over continue false', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					continue: false,
+					stopReason: 'Explicit stop reason'
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('echo test')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
+
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].resultKind, 'success');
+			assert.strictEqual(results[0].stopReason, 'Explicit stop reason');
 		});
 
 		test('uses defaults when no common fields present', async () => {
@@ -235,11 +278,11 @@ suite('HooksExecutionService', () => {
 
 			assert.strictEqual(results.length, 1);
 			assert.strictEqual(results[0].stopReason, undefined);
-			assert.strictEqual(results[0].messageForUser, undefined);
+			assert.strictEqual(results[0].warningMessage, undefined);
 			assert.deepStrictEqual(results[0].output, { hookSpecificOutput: { permissionDecision: 'allow' } });
 		});
 
-		test('handles error results from command', async () => {
+		test('handles error results from command (exit code 2) as stop with stopReason', async () => {
 			const proxy = createMockProxy(() => ({
 				kind: HookCommandResultKind.Error,
 				result: 'command failed with error'
@@ -252,9 +295,47 @@ suite('HooksExecutionService', () => {
 			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
 
 			assert.strictEqual(results.length, 1);
-			assert.strictEqual(results[0].success, false);
-			assert.strictEqual(results[0].output, 'command failed with error');
-			// Defaults are still applied
+			// Exit code 2 produces error with stopReason
+			assert.strictEqual(results[0].resultKind, 'error');
+			assert.strictEqual(results[0].stopReason, 'command failed with error');
+			assert.strictEqual(results[0].output, undefined);
+		});
+
+		test('handles non-blocking error results from command', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.NonBlockingError,
+				result: 'non-blocking warning message'
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('echo test')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
+
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].resultKind, 'warning');
+			assert.strictEqual(results[0].output, undefined);
+			assert.strictEqual(results[0].warningMessage, 'non-blocking warning message');
+			assert.strictEqual(results[0].stopReason, undefined);
+		});
+
+		test('handles non-blocking error with object result', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.NonBlockingError,
+				result: { code: 'WARN_001', message: 'Something went wrong' }
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('echo test')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const results = await service.executeHook(HookType.PreToolUse, sessionUri);
+
+			assert.strictEqual(results.length, 1);
+			assert.strictEqual(results[0].resultKind, 'warning');
+			assert.strictEqual(results[0].output, undefined);
+			assert.strictEqual(results[0].warningMessage, '{"code":"WARN_001","message":"Something went wrong"}');
 			assert.strictEqual(results[0].stopReason, undefined);
 		});
 
@@ -275,7 +356,7 @@ suite('HooksExecutionService', () => {
 			const results = await service.executeHook(HookType.Stop, sessionUri);
 
 			assert.strictEqual(results.length, 1);
-			assert.strictEqual(results[0].success, true);
+			assert.strictEqual(results[0].resultKind, 'success');
 			// Hook-specific fields should be in output, not undefined
 			assert.deepStrictEqual(results[0].output, {
 				decision: 'block',
@@ -493,6 +574,111 @@ suite('HooksExecutionService', () => {
 
 			assert.ok(result);
 			assert.strictEqual(result.permissionDecision, 'allow');
+		});
+
+		test('returns updatedInput when hook provides it', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					hookSpecificOutput: {
+						permissionDecision: 'allow',
+						updatedInput: { path: '/safe/path.ts' }
+					}
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: { path: '/original/path.ts' }, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'allow');
+			assert.deepStrictEqual(result.updatedInput, { path: '/safe/path.ts' });
+		});
+
+		test('later hook updatedInput overrides earlier one', async () => {
+			let callCount = 0;
+			const proxy = createMockProxy(() => {
+				callCount++;
+				if (callCount === 1) {
+					return {
+						kind: HookCommandResultKind.Success,
+						result: { hookSpecificOutput: { permissionDecision: 'allow', updatedInput: { value: 'first' } } }
+					};
+				}
+				return {
+					kind: HookCommandResultKind.Success,
+					result: { hookSpecificOutput: { permissionDecision: 'allow', updatedInput: { value: 'second' } } }
+				};
+			});
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook1'), cmd('hook2')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.updatedInput, { value: 'second' });
+		});
+
+		test('returns result with updatedInput even without permission decision', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					hookSpecificOutput: {
+						updatedInput: { modified: true }
+					}
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: {}, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.updatedInput, { modified: true });
+			assert.strictEqual(result.permissionDecision, undefined);
+		});
+
+		test('updatedInput combined with ask shows modified input to user', async () => {
+			const proxy = createMockProxy(() => ({
+				kind: HookCommandResultKind.Success,
+				result: {
+					hookSpecificOutput: {
+						permissionDecision: 'ask',
+						permissionDecisionReason: 'Modified input needs review',
+						updatedInput: { command: 'echo safe' }
+					}
+				}
+			}));
+			service.setProxy(proxy);
+
+			const hooks = { [HookType.PreToolUse]: [cmd('hook')] };
+			store.add(service.registerHooks(sessionUri, hooks));
+
+			const result = await service.executePreToolUseHook(
+				sessionUri,
+				{ toolName: 'test-tool', toolInput: { command: 'rm -rf /' }, toolCallId: 'call-1' }
+			);
+
+			assert.ok(result);
+			assert.strictEqual(result.permissionDecision, 'ask');
+			assert.strictEqual(result.permissionDecisionReason, 'Modified input needs review');
+			assert.deepStrictEqual(result.updatedInput, { command: 'echo safe' });
 		});
 	});
 

@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { URI, isUriComponents } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -50,6 +50,16 @@ export interface IHookExecutedEvent {
 }
 
 /**
+ * Event fired when a hook produces progress that should be shown to the user.
+ */
+export interface IHookProgressEvent {
+	readonly hookType: HookTypeValue;
+	readonly sessionResource: URI;
+	readonly stopReason?: string;
+	readonly systemMessage?: string;
+}
+
+/**
  * Callback interface for hook execution proxies.
  * MainThreadHooks implements this to forward calls to the extension host.
  */
@@ -66,6 +76,11 @@ export interface IHooksExecutionService {
 	 * Fires when a hook has finished executing.
 	 */
 	readonly onDidExecuteHook: Event<IHookExecutedEvent>;
+
+	/**
+	 * Fires when a hook produces progress (warning or stop) that should be shown to the user.
+	 */
+	readonly onDidHookProgress: Event<IHookProgressEvent>;
 
 	/**
 	 * Called by mainThreadHooks when extension host is ready
@@ -114,8 +129,13 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 	private readonly _onDidExecuteHook = this._register(new Emitter<IHookExecutedEvent>());
 	readonly onDidExecuteHook: Event<IHookExecutedEvent> = this._onDidExecuteHook.event;
 
+	private readonly _onDidHookProgress = this._register(new Emitter<IHookProgressEvent>());
+	readonly onDidHookProgress: Event<IHookProgressEvent> = this._onDidHookProgress.event;
+
 	private _proxy: IHooksExecutionProxy | undefined;
 	private readonly _sessionHooks = new Map<string, IChatRequestHooks>();
+	/** Stored transcript path per session (keyed by session URI string). */
+	private readonly _sessionTranscriptPaths = new Map<string, URI>();
 	private _channelRegistered = false;
 	private _requestCounter = 0;
 
@@ -160,20 +180,37 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		return result;
 	}
 
+	/**
+	 * JSON.stringify replacer that converts URI / UriComponents values to their string form.
+	 */
+	private readonly _uriReplacer = (_key: string, value: unknown): unknown => {
+		if (URI.isUri(value)) {
+			return value.fsPath;
+		}
+		if (isUriComponents(value)) {
+			return URI.revive(value).fsPath;
+		}
+		return value;
+	};
+
 	private async _runSingleHook(
 		requestId: number,
 		hookType: HookTypeValue,
 		hookCommand: IHookCommand,
 		sessionResource: URI,
 		callerInput: unknown,
+		transcriptPath: URI | undefined,
 		token: CancellationToken
 	): Promise<IHookResult> {
-		// Build the common hook input properties
+		// Build the common hook input properties.
+		// URI values are kept as URI objects through the RPC boundary, and converted
+		// to filesystem paths on the extension host side during JSON serialization.
 		const commonInput: IHookCommandInput = {
 			timestamp: new Date().toISOString(),
-			cwd: hookCommand.cwd?.fsPath ?? '',
+			cwd: hookCommand.cwd ?? URI.file(''),
 			sessionId: sessionResource.toString(),
 			hookEventName: hookType,
+			...(transcriptPath ? { transcript_path: transcriptPath } : undefined),
 		};
 
 		// Merge common properties with caller-specific input
@@ -181,13 +218,10 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			? { ...commonInput, ...callerInput }
 			: commonInput;
 
-		const hookCommandJson = JSON.stringify({
-			...hookCommand,
-			cwd: hookCommand.cwd?.fsPath
-		});
+		const hookCommandJson = JSON.stringify(hookCommand, this._uriReplacer);
 		this._log(requestId, hookType, `Running: ${hookCommandJson}`);
 		const inputForLog = this._redactForLogging(fullInput);
-		this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog)}`);
+		this._log(requestId, hookType, `Input: ${JSON.stringify(inputForLog, this._uriReplacer)}`);
 
 		const sw = StopWatch.create();
 		try {
@@ -198,53 +232,83 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		} catch (err) {
 			const errMessage = err instanceof Error ? err.message : String(err);
 			this._log(requestId, hookType, `Error in ${Math.round(sw.elapsed())}ms: ${errMessage}`);
-			return this._createErrorResult(errMessage);
+			// Proxy errors (e.g., process spawn failure) are treated as warnings
+			return {
+				resultKind: 'warning',
+				output: undefined,
+				warningMessage: errMessage,
+			};
 		}
-	}
-
-	private _createErrorResult(errorMessage: string): IHookResult {
-		return {
-			output: errorMessage,
-			success: false,
-		};
 	}
 
 	private _toInternalResult(commandResult: IHookCommandResult): IHookResult {
-		if (commandResult.kind !== HookCommandResultKind.Success) {
-			return this._createErrorResult(
-				typeof commandResult.result === 'string' ? commandResult.result : JSON.stringify(commandResult.result)
-			);
+		switch (commandResult.kind) {
+			case HookCommandResultKind.Error: {
+				// Exit code 2 - stop processing with message shown to user (not model)
+				// Equivalent to continue=false with stopReason=stderr
+				const message = typeof commandResult.result === 'string' ? commandResult.result : JSON.stringify(commandResult.result);
+				return {
+					resultKind: 'error',
+					stopReason: message,
+					output: undefined,
+				};
+			}
+			case HookCommandResultKind.NonBlockingError: {
+				// Non-blocking error - shown to user only as warning
+				const errorMessage = typeof commandResult.result === 'string' ? commandResult.result : JSON.stringify(commandResult.result);
+				return {
+					resultKind: 'warning',
+					output: undefined,
+					warningMessage: errorMessage,
+				};
+			}
+			case HookCommandResultKind.Success: {
+				// For string results, no common fields to extract
+				if (typeof commandResult.result !== 'object') {
+					return {
+						resultKind: 'success',
+						output: commandResult.result,
+					};
+				}
+
+				// Extract and validate common fields
+				const validationResult = commonHookOutputValidator.validate(commandResult.result);
+				const commonFields = validationResult.error ? {} : validationResult.content;
+
+				// Extract only known hook-specific fields for output
+				const resultObj = commandResult.result as Record<string, unknown>;
+				const hookOutput = this._extractHookSpecificOutput(resultObj);
+
+				// Handle continue field: when false, stopReason is effective
+				// stopReason takes precedence if both are set
+				let stopReason = commonFields.stopReason;
+				if (commonFields.continue === false && !stopReason) {
+					stopReason = '';  // Empty string signals stop without a specific reason
+				}
+
+				return {
+					resultKind: 'success',
+					stopReason,
+					warningMessage: commonFields.systemMessage,
+					output: Object.keys(hookOutput).length > 0 ? hookOutput : undefined,
+				};
+			}
+			default: {
+				// Unexpected result kind - treat as warning
+				return {
+					resultKind: 'warning',
+					warningMessage: `Unexpected hook command result kind: ${(commandResult as IHookCommandResult).kind}`,
+					output: undefined,
+				};
+			}
 		}
-
-		// For string results, no common fields to extract
-		if (typeof commandResult.result !== 'object') {
-			return {
-				output: commandResult.result,
-				success: true,
-			};
-		}
-
-		// Extract and validate common fields
-		const validationResult = commonHookOutputValidator.validate(commandResult.result);
-		const commonFields = validationResult.error ? {} : validationResult.content;
-
-		// Extract only known hook-specific fields for output
-		const resultObj = commandResult.result as Record<string, unknown>;
-		const hookOutput = this._extractHookSpecificOutput(resultObj);
-
-		return {
-			stopReason: commonFields.stopReason,
-			messageForUser: commonFields.systemMessage,
-			output: Object.keys(hookOutput).length > 0 ? hookOutput : undefined,
-			success: true,
-		};
 	}
 
 	/**
 	 * Extract hook-specific output fields, excluding common fields.
 	 */
 	private _extractHookSpecificOutput(result: Record<string, unknown>): Record<string, unknown> {
-		const commonFields = new Set(['stopReason', 'systemMessage']);
+		const commonFields = new Set(['continue', 'stopReason', 'systemMessage']);
 		const output: Record<string, unknown> = {};
 		for (const [key, value] of Object.entries(result)) {
 			if (value !== undefined && !commonFields.has(key)) {
@@ -256,7 +320,9 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 	}
 
 	private _logCommandResult(requestId: number, hookType: HookTypeValue, result: IHookCommandResult, elapsed: number): void {
-		const resultKindStr = result.kind === HookCommandResultKind.Success ? 'Success' : 'Error';
+		const resultKindStr = result.kind === HookCommandResultKind.Success ? 'Success'
+			: result.kind === HookCommandResultKind.NonBlockingError ? 'NonBlockingError'
+				: 'Error';
 		const resultStr = typeof result.result === 'string' ? result.result : JSON.stringify(result.result);
 		const hasOutput = resultStr.length > 0 && resultStr !== '{}' && resultStr !== '[]';
 		if (hasOutput) {
@@ -267,11 +333,59 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		}
 	}
 
+	/**
+	 * Extract `transcript_path` from hook input if present.
+	 * The caller (e.g. SessionStart) may include it as a URI in the input object.
+	 */
+	private _extractTranscriptPath(input: unknown): URI | undefined {
+		if (typeof input !== 'object' || input === null) {
+			return undefined;
+		}
+		const transcriptPath = (input as Record<string, unknown>)['transcriptPath'];
+		if (URI.isUri(transcriptPath)) {
+			return transcriptPath;
+		}
+		if (isUriComponents(transcriptPath)) {
+			return URI.revive(transcriptPath);
+		}
+		return undefined;
+	}
+
+	/**
+	 * Emit a hook progress event to show warnings or stop reasons to the user.
+	 */
+	private _emitHookProgress(hookType: HookTypeValue, sessionResource: URI, stopReason?: string, systemMessage?: string): void {
+		this._onDidHookProgress.fire({
+			hookType,
+			sessionResource,
+			stopReason,
+			systemMessage,
+		});
+	}
+
+	/**
+	 * Collect all warning messages from hook results and emit them as a single aggregated progress event.
+	 * Uses numbered list formatting when there are multiple warnings.
+	 */
+	private _emitAggregatedWarnings(hookType: HookTypeValue, sessionResource: URI, results: readonly IHookResult[]): void {
+		const warnings = results
+			.filter(r => r.warningMessage !== undefined)
+			.map(r => r.warningMessage!);
+
+		if (warnings.length > 0) {
+			const message = warnings.length === 1
+				? warnings[0]
+				: warnings.map((w, i) => `${i + 1}. ${w}`).join('\n');
+			this._emitHookProgress(hookType, sessionResource, undefined, message);
+		}
+	}
+
 	registerHooks(sessionResource: URI, hooks: IChatRequestHooks): IDisposable {
 		const key = sessionResource.toString();
 		this._sessionHooks.set(key, hooks);
 		return toDisposable(() => {
 			this._sessionHooks.delete(key);
+			this._sessionTranscriptPaths.delete(key);
 		});
 	}
 
@@ -288,6 +402,14 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 				return results;
 			}
 
+			const sessionKey = sessionResource.toString();
+
+			// Extract and store transcript_path from input when present (e.g. SessionStart)
+			const inputTranscriptPath = this._extractTranscriptPath(options?.input);
+			if (inputTranscriptPath) {
+				this._sessionTranscriptPaths.set(sessionKey, inputTranscriptPath);
+			}
+
 			const hooks = this.getHooksForSession(sessionResource);
 			if (!hooks) {
 				return results;
@@ -298,6 +420,8 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 				return results;
 			}
 
+			const transcriptPath = this._sessionTranscriptPaths.get(sessionKey);
+
 			const requestId = this._requestCounter++;
 			const token = options?.token ?? CancellationToken.None;
 
@@ -305,7 +429,7 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			this._log(requestId, hookType, `Executing ${hookCommands.length} hook(s)`);
 
 			for (const hookCommand of hookCommands) {
-				const result = await this._runSingleHook(requestId, hookType, hookCommand, sessionResource, options?.input, token);
+				const result = await this._runSingleHook(requestId, hookType, hookCommand, sessionResource, options?.input, transcriptPath, token);
 				results.push(result);
 
 				// If stopReason is set, stop processing remaining hooks
@@ -345,9 +469,10 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		let mostRestrictiveDecision: PreToolUsePermissionDecision | undefined;
 		let winningResult: IHookResult | undefined;
 		let winningReason: string | undefined;
+		let lastUpdatedInput: object | undefined;
 
 		for (const result of results) {
-			if (result.success && typeof result.output === 'object' && result.output !== null) {
+			if (result.resultKind === 'success' && typeof result.output === 'object' && result.output !== null) {
 				const validationResult = preToolUseOutputValidator.validate(result.output);
 				if (!validationResult.error) {
 					const hookSpecificOutput = validationResult.content.hookSpecificOutput;
@@ -361,6 +486,11 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 						// Collect additionalContext from every hook
 						if (hookSpecificOutput.additionalContext) {
 							allAdditionalContext.push(hookSpecificOutput.additionalContext);
+						}
+
+						// Track the last updatedInput (later hooks override earlier ones)
+						if (hookSpecificOutput.updatedInput) {
+							lastUpdatedInput = hookSpecificOutput.updatedInput;
 						}
 
 						// Track the most restrictive decision: deny > ask > allow
@@ -377,14 +507,23 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			}
 		}
 
-		if (!mostRestrictiveDecision || !winningResult) {
-			return undefined;
+		const baseResult = winningResult ?? results[0];
+
+		// Emit hook progress for warning messages after all hooks have completed
+		this._emitAggregatedWarnings(HookType.PreToolUse, sessionResource, results);
+
+		// If any hook set stopReason, throw HookAbortError after processing
+		const stoppedResult = results.find(r => r.stopReason !== undefined);
+		if (stoppedResult?.stopReason !== undefined) {
+			this._emitHookProgress(HookType.PreToolUse, sessionResource, formatHookErrorMessage(stoppedResult.stopReason));
+			throw new HookAbortError(HookType.PreToolUse, stoppedResult.stopReason ?? 'Unknown error');
 		}
 
 		return {
-			...winningResult,
+			...baseResult,
 			permissionDecision: mostRestrictiveDecision,
 			permissionDecisionReason: winningReason,
+			updatedInput: lastUpdatedInput,
 			additionalContext: allAdditionalContext.length > 0 ? allAdditionalContext : undefined,
 		};
 	}
@@ -429,7 +568,7 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 		let blockResult: IHookResult | undefined;
 
 		for (const result of results) {
-			if (result.success && typeof result.output === 'object' && result.output !== null) {
+			if (result.resultKind === 'success' && typeof result.output === 'object' && result.output !== null) {
 				const validationResult = postToolUseOutputValidator.validate(result.output);
 				if (!validationResult.error) {
 					const validated = validationResult.content;
@@ -457,12 +596,18 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			}
 		}
 
-		// Return combined result if there's a block decision or any additional context
-		if (!hasBlock && allAdditionalContext.length === 0) {
-			return undefined;
+		const baseResult = blockResult ?? results[0];
+
+		// Emit hook progress for warning messages after all hooks have completed
+		this._emitAggregatedWarnings(HookType.PostToolUse, sessionResource, results);
+
+		// If any hook set stopReason, throw HookAbortError after processing
+		const stoppedResult = results.find(r => r.stopReason !== undefined);
+		if (stoppedResult?.stopReason !== undefined) {
+			this._emitHookProgress(HookType.PostToolUse, sessionResource, formatHookErrorMessage(stoppedResult.stopReason));
+			throw new HookAbortError(HookType.PostToolUse, stoppedResult.stopReason ?? 'Unknown error');
 		}
 
-		const baseResult = blockResult ?? results[0];
 		return {
 			...baseResult,
 			decision: hasBlock ? 'block' : undefined,
@@ -470,4 +615,30 @@ export class HooksExecutionService extends Disposable implements IHooksExecution
 			additionalContext: allAdditionalContext.length > 0 ? allAdditionalContext : undefined,
 		};
 	}
+}
+
+/**
+ * Error thrown when a hook requests the agent to abort processing.
+ * The message should be shown to the user.
+ */
+export class HookAbortError extends Error {
+	constructor(
+		public readonly hookType: string,
+		public readonly stopReason: string
+	) {
+		super(`Hook ${hookType} aborted: ${stopReason}`);
+		this.name = 'HookAbortError';
+	}
+}
+
+/**
+ * Formats a localized error message for a failed hook.
+ * @param errorMessage The error message from the hook
+ * @returns A localized error message string
+ */
+export function formatHookErrorMessage(errorMessage: string): string {
+	if (errorMessage) {
+		return localize('hookFatalErrorWithMessage', 'A hook prevented chat from continuing. Please check the Hooks output channel for more details. Error message: {0}', errorMessage);
+	}
+	return localize('hookFatalError', 'A hook prevented chat from continuing. Please check the Hooks output channel for more details.');
 }

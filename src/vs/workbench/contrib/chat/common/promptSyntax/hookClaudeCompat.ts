@@ -16,6 +16,7 @@ export const CLAUDE_HOOK_TYPE_MAP: Record<string, HookType> = {
 	'UserPromptSubmit': HookType.UserPromptSubmit,
 	'PreToolUse': HookType.PreToolUse,
 	'PostToolUse': HookType.PostToolUse,
+	'PreCompact': HookType.PreCompact,
 	'SubagentStart': HookType.SubagentStart,
 	'SubagentStop': HookType.SubagentStop,
 	'Stop': HookType.Stop,
