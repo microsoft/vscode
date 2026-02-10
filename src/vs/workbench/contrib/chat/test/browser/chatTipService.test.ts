@@ -12,10 +12,12 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ChatTipService, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
-import { AgentFileType, IPromptPath, IPromptsService, IResolvedAgentFile } from '../../common/promptSyntax/service/promptsService.js';
+import { AgentFileType, IPromptPath, IPromptsService, IResolvedAgentFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -61,6 +63,7 @@ suite('ChatTipService', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ICommandService, {
 			onDidExecuteCommand: commandExecutedEmitter.event,
 			onWillExecuteCommand: testDisposables.add(new Emitter<ICommandEvent>()).event,
@@ -207,7 +210,7 @@ suite('ChatTipService', () => {
 		assert.ok(fired, 'onDidDisableTips should fire');
 	});
 
-	test('disableTips resets state so re-enabling works', () => {
+	test('disableTips resets state so re-enabling works', async () => {
 		const service = createService();
 		const now = Date.now();
 
@@ -216,7 +219,7 @@ suite('ChatTipService', () => {
 		assert.ok(tip1);
 
 		// Disable tips
-		service.disableTips();
+		await service.disableTips();
 
 		// Re-enable tips
 		configurationService.setUserConfiguration('chat.tips.enabled', true);
@@ -302,7 +305,7 @@ suite('ChatTipService', () => {
 			[tip],
 			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
 			storageService,
-			createMockPromptsService([], [{ uri: { path: '/.github/instructions/coding.instructions.md' } } as unknown as IPromptPath]) as IPromptsService,
+			createMockPromptsService([], [{ uri: URI.file('/.github/instructions/coding.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions }]) as IPromptsService,
 		));
 
 		// Wait for the async file check to complete

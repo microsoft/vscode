@@ -59,7 +59,7 @@ export interface IChatTipService {
 	/**
 	 * Disables tips permanently by setting the `chat.tips.enabled` configuration to false.
 	 */
-	disableTips(): void;
+	disableTips(): Promise<void>;
 }
 
 export interface ITipDefinition {
