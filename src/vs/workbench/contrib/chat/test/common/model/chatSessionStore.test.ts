@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -42,8 +43,8 @@ function createMockChatModel(sessionResource: URI, options?: { customTitle?: str
 	return model as unknown as ChatModel;
 }
 
-class MockWorkspaceEditingService implements Partial<IWorkspaceEditingService> {
-	private readonly _onDidEnterWorkspace = new Emitter<IDidEnterWorkspaceEvent>();
+class MockWorkspaceEditingService extends Disposable implements Partial<IWorkspaceEditingService> {
+	private readonly _onDidEnterWorkspace = this._register(new Emitter<IDidEnterWorkspaceEvent>());
 	readonly onDidEnterWorkspace = this._onDidEnterWorkspace.event;
 
 	fireWorkspaceTransition(oldWorkspace: IAnyWorkspaceIdentifier, newWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
@@ -55,10 +56,6 @@ class MockWorkspaceEditingService implements Partial<IWorkspaceEditingService> {
 		};
 		this._onDidEnterWorkspace.fire(event);
 		return Promise.all(promises).then(() => { });
-	}
-
-	dispose() {
-		this._onDidEnterWorkspace.dispose();
 	}
 }
 
@@ -84,7 +81,7 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(ILifecycleService, testDisposables.add(new TestLifecycleService()));
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		mockWorkspaceEditingService = new MockWorkspaceEditingService();
+		mockWorkspaceEditingService = testDisposables.add(new MockWorkspaceEditingService());
 		instantiationService.stub(IWorkspaceEditingService, mockWorkspaceEditingService as unknown as IWorkspaceEditingService);
 	});
 
@@ -420,7 +417,7 @@ suite('ChatSessionStore', () => {
 
 			// Simulate workspace transition via the onDidEnterWorkspace event
 			const oldWorkspace: IAnyWorkspaceIdentifier = { id: 'empty-window-id' };
-			const newWorkspace: IAnyWorkspaceIdentifier = { id: TestWorkspace.id };
+			const newWorkspace: IAnyWorkspaceIdentifier = { id: TestWorkspace.id, uri: URI.file('/test/folder') };
 
 			// Fire the workspace transition event - migration happens synchronously via join()
 			await mockWorkspaceEditingService.fireWorkspaceTransition(oldWorkspace, newWorkspace);

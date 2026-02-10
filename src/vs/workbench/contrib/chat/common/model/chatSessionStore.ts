@@ -75,7 +75,8 @@ export class ChatSessionStore extends Disposable {
 
 		// Listen to workspace transitions to migrate chat sessions
 		this._register(this.workspaceEditingService.onDidEnterWorkspace(event => {
-			event.join(this.handleWorkspaceTransition(event.oldWorkspace, event.newWorkspace));
+			const transitionPromise = this.storeQueue.queue(() => this.handleWorkspaceTransition(event.oldWorkspace, event.newWorkspace));
+			event.join(transitionPromise);
 		}));
 
 		this._register(this.lifecycleService.onWillShutdown(e => {
@@ -104,10 +105,19 @@ export class ChatSessionStore extends Disposable {
 			joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'emptyWindowChatSessions') :
 			joinPath(this.environmentService.workspaceStorageHome, oldWorkspaceId, 'chatSessions');
 
-		// Update storage root for the new workspace
-		this.storageRoot = isNewWorkspaceEmpty ?
+		// Determine the new storage location based on the new workspace
+		const newStorageRoot = isNewWorkspaceEmpty ?
 			joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'emptyWindowChatSessions') :
 			joinPath(this.environmentService.workspaceStorageHome, newWorkspaceId, 'chatSessions');
+
+		// If the storage roots are identical, there is nothing to migrate
+		if (oldStorageRoot.toString() === newStorageRoot.toString()) {
+			this.storageRoot = newStorageRoot;
+			return;
+		}
+
+		// Update storage root for the new workspace
+		this.storageRoot = newStorageRoot;
 
 		// Migrate session files from old to new location
 		await this.migrateSessionsToNewWorkspace(oldStorageRoot, wasEmptyWindow, isNewWorkspaceEmpty);
@@ -142,15 +152,25 @@ export class ChatSessionStore extends Disposable {
 						await this.fileService.copy(oldFilePath, newFilePath, false);
 						migratedCount++;
 					} catch (e) {
-						this.reportError('sessionMigration', `Error migrating chat session file ${child.name}`, e);
+						if (toFileOperationResult(e) === FileOperationResult.FILE_MOVE_CONFLICT) {
+							// File already exists at target - skip as a no-op
+							this.logService.trace(`ChatSessionStore: Session file ${child.name} already exists at target, skipping`);
+						} else {
+							this.reportError('sessionMigration', `Error migrating chat session file ${child.name}`, e);
+						}
 					}
 				}
 			}
 
 			this.logService.info(`ChatSessionStore: Copied ${migratedCount} chat session files from ${wasEmptyWindow ? 'empty window' : oldStorageRoot.toString()} to ${isNewWorkspaceEmpty ? 'empty window' : this.storageRoot.toString()} (originals preserved at old location)`);
 
-			// Clear the index cache to force re-reading from the new location
+			// Clear the index cache and flush it to the new storage scope
 			this.indexCache = undefined;
+			try {
+				await this.flushIndex();
+			} catch (e) {
+				this.reportError('migrateWorkspace', 'Error flushing chat session index after workspace migration', e);
+			}
 
 		} catch (e) {
 			this.reportError('migrateWorkspace', 'Error migrating chat sessions to new workspace', e);
