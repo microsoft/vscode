@@ -68,6 +68,24 @@ declare module 'vscode' {
 		 */
 		readonly onDidCommitChatSessionItem: Event<{ original: ChatSessionItem /** untitled */; modified: ChatSessionItem /** newly created */ }>;
 
+		/**
+		 * Called during provider registration to migrate legacy URIs to the current format.
+		 *
+		 * When the URI format of chat sessions needs to change, this method allows the provider
+		 * to migrate stored session state (archived, read status, etc.) from old URIs to new URIs.
+		 *
+		 * The method receives all stored URIs that match the provider's session type scheme.
+		 * Return a map of old URIs to new URIs for any that need migration.
+		 * URIs not included in the returned map will remain unchanged.
+		 *
+		 * After migration, old URI entries are deleted from storage.
+		 *
+		 * @param legacyUris URIs from stored session state matching this provider's scheme
+		 * @param token A cancellation token
+		 * @returns A map of old URIs to new URIs, or undefined if no migration is needed
+		 */
+		provideChatSessionUriMigrations?(legacyUris: readonly Uri[], token: CancellationToken): ProviderResult<ReadonlyMap<Uri, Uri> | undefined>;
+
 		// #endregion
 	}
 

@@ -375,7 +375,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		return this._sessionTypeToHandle.get(chatSessionType);
 	}
 
-	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void {
+	async $registerChatSessionItemProvider(handle: number, chatSessionType: string): Promise<void> {
 		// Register the provider handle - this tracks that a provider exists
 		const disposables = new DisposableStore();
 		const changeEmitter = disposables.add(new Emitter<void>());
@@ -416,6 +416,36 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			chatSessionType,
 			() => changeEmitter.fire()
 		));
+
+		// Trigger URI migration if the provider supports it
+		await this._migrateSessionUris(handle, chatSessionType);
+	}
+
+	private async _migrateSessionUris(handle: number, chatSessionType: string): Promise<void> {
+		try {
+			// Get all stored URIs for this provider type
+			const storedUris = this._agentSessionsService.getStoredSessionUris(chatSessionType);
+			if (storedUris.length === 0) {
+				return;
+			}
+
+			// Ask the extension to migrate URIs
+			const migrations = await this._proxy.$provideChatSessionUriMigrations(handle, storedUris, CancellationToken.None);
+			if (!migrations || migrations.length === 0) {
+				return;
+			}
+
+			// Apply migrations
+			const migrationArray = migrations.map(m => ({
+				from: URI.revive(m.from),
+				to: URI.revive(m.to)
+			}));
+			this._agentSessionsService.migrateSessionUris(chatSessionType, migrationArray);
+
+			this._logService.trace(`$registerChatSessionItemProvider: Migrated ${migrations.length} session URIs for provider type: ${chatSessionType}`);
+		} catch (e) {
+			this._logService.error(`Failed to migrate session URIs for provider type ${chatSessionType}:`, e);
+		}
 	}
 
 	$onDidChangeChatSessionItems(handle: number): void {

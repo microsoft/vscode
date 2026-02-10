@@ -524,6 +524,36 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return response;
 	}
 
+	async $provideChatSessionUriMigrations(handle: number, legacyUris: UriComponents[], token: CancellationToken): Promise<{ from: UriComponents; to: UriComponents }[] | undefined> {
+		const itemProvider = this._chatSessionItemProviders.get(handle);
+		if (!itemProvider) {
+			this._logService.error(`No provider registered for handle ${handle}`);
+			return undefined;
+		}
+
+		const provider = itemProvider.provider;
+		if (!provider.provideChatSessionUriMigrations) {
+			return undefined;
+		}
+
+		this._logService.trace(`ExtHostChatSessions:$provideChatSessionUriMigrations(${itemProvider.sessionType}, ${legacyUris.length} URIs)`);
+
+		const uris = legacyUris.map(uri => URI.revive(uri));
+		const migrationMap = await provider.provideChatSessionUriMigrations(uris, token);
+
+		if (token.isCancellationRequested || !migrationMap || migrationMap.size === 0) {
+			return undefined;
+		}
+
+		const result: { from: UriComponents; to: UriComponents }[] = [];
+		for (const [from, to] of migrationMap) {
+			result.push({ from, to });
+		}
+
+		this._logService.trace(`ExtHostChatSessions:$provideChatSessionUriMigrations(${itemProvider.sessionType}) returning ${result.length} migrations`);
+		return result;
+	}
+
 	async $provideChatSessionContent(handle: number, sessionResourceComponents: UriComponents, token: CancellationToken): Promise<ChatSessionDto> {
 		const provider = this._chatSessionContentProviders.get(handle);
 		if (!provider) {

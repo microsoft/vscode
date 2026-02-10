@@ -15,6 +15,21 @@ export interface IAgentSessionsService {
 	readonly model: IAgentSessionsModel;
 
 	getSession(resource: URI): IAgentSession | undefined;
+
+	/**
+	 * Migrates session state (archived, read status) from old URIs to new URIs.
+	 * Used when an extension needs to change the URI format of its sessions.
+	 *
+	 * @param providerType The provider type/scheme to filter URIs to migrate
+	 * @param migrations Array of old-to-new URI mappings
+	 */
+	migrateSessionUris(providerType: string, migrations: ReadonlyArray<{ from: URI; to: URI }>): void;
+
+	/**
+	 * Gets all stored session URIs for a given provider type.
+	 * Used during provider registration to collect URIs that may need migration.
+	 */
+	getStoredSessionUris(providerType: string): URI[];
 }
 
 export class AgentSessionsService extends Disposable implements IAgentSessionsService {
@@ -37,6 +52,14 @@ export class AgentSessionsService extends Disposable implements IAgentSessionsSe
 
 	getSession(resource: URI): IAgentSession | undefined {
 		return this.model.getSession(resource);
+	}
+
+	migrateSessionUris(providerType: string, migrations: ReadonlyArray<{ from: URI; to: URI }>): void {
+		return this.model.migrateSessionUris(providerType, migrations);
+	}
+
+	getStoredSessionUris(providerType: string): URI[] {
+		return this.model.getStoredSessionUris(providerType);
 	}
 }
 

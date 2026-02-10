@@ -46,6 +46,21 @@ export interface IAgentSessionsModel {
 	getSession(resource: URI): IAgentSession | undefined;
 
 	resolve(provider: string | string[] | undefined): Promise<void>;
+
+	/**
+	 * Migrates session state (archived, read status) from old URIs to new URIs.
+	 * After migration, old URI entries are deleted from storage.
+	 *
+	 * @param providerType The provider type/scheme to filter URIs to migrate
+	 * @param migrations Array of old-to-new URI mappings
+	 */
+	migrateSessionUris(providerType: string, migrations: ReadonlyArray<{ from: URI; to: URI }>): void;
+
+	/**
+	 * Gets all stored session URIs for a given provider type.
+	 * Used during provider registration to collect URIs that may need migration.
+	 */
+	getStoredSessionUris(providerType: string): URI[];
 }
 
 interface IAgentSessionData extends Omit<IChatSessionItem, 'archived' | 'iconPath'> {
@@ -646,6 +661,65 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		this.storageService.store(AgentSessionsModel.READ_DATE_BASELINE_KEY, readDateBaseline, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		return readDateBaseline;
+	}
+
+	getStoredSessionUris(providerType: string): URI[] {
+		const uris: URI[] = [];
+
+		// Collect URIs from cached sessions
+		for (const session of this._sessions.values()) {
+			if (session.providerType === providerType) {
+				uris.push(session.resource);
+			}
+		}
+
+		// Collect URIs from session states that might not be in sessions
+		// (e.g., orphaned states from deleted sessions)
+		for (const [uri] of this.sessionStates.entries()) {
+			if (uri.scheme === providerType && !uris.some(u => u.toString() === uri.toString())) {
+				uris.push(uri);
+			}
+		}
+
+		return uris;
+	}
+
+	migrateSessionUris(providerType: string, migrations: ReadonlyArray<{ from: URI; to: URI }>): void {
+		if (migrations.length === 0) {
+			return;
+		}
+
+		this.logger.logIfTrace(`Migrating ${migrations.length} session URI(s) for provider type: ${providerType}`);
+
+		for (const { from, to } of migrations) {
+			// Migrate session states (archived, read status)
+			const state = this.sessionStates.get(from);
+			if (state) {
+				this.sessionStates.set(to, state);
+				this.sessionStates.delete(from);
+				this.logger.logIfTrace(`  Migrated state: ${from.toString()} -> ${to.toString()}`);
+			}
+
+			// Migrate cached sessions
+			const session = this._sessions.get(from);
+			if (session) {
+				// Create a new session with the updated resource
+				const migratedSession: IInternalAgentSession = {
+					...session,
+					resource: to,
+				};
+				this._sessions.delete(from);
+				this._sessions.set(to, migratedSession);
+				this.logger.logIfTrace(`  Migrated session: ${from.toString()} -> ${to.toString()}`);
+			}
+		}
+
+		// Persist changes immediately
+		this.cache.saveCachedSessions(Array.from(this._sessions.values()));
+		this.cache.saveSessionStates(this.sessionStates);
+
+		// Notify listeners that sessions changed
+		this._onDidChangeSessions.fire();
 	}
 
 	//#endregion
