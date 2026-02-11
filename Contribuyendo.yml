@@ -1,0 +1,80 @@
+Contribuyendo a VS Code
+¡Bienvenido y gracias por tu interés en contribuir a VS Code!
+
+Hay varias maneras de contribuir, además de escribir código. El objetivo de este documento es ofrecer una visión general de cómo puedes participar.
+
+Haciendo preguntas
+¿Tienes alguna pregunta? En lugar de abrir un problema, pregunta en Stack Overflow usando la etiqueta visual-studio-code.
+
+La comunidad activa estará encantada de ayudarte. Tu pregunta bien formulada servirá de recurso para quienes buscan ayuda.
+
+Proporcionar retroalimentación
+Sus comentarios y sugerencias son bienvenidos, y el equipo de desarrollo está disponible a través de varios canales diferentes.
+
+Consulta la página wiki de Canales de comentarios para obtener detalles sobre cómo compartir tus ideas.
+
+Informes de problemas
+¿Has identificado un problema reproducible en VS Code? ¿Tienes alguna solicitud de funcionalidad? ¡Nos gustaría saberlo! Aquí te explicamos cómo puedes reportar tu problema de la manera más eficaz posible.
+
+Identificar dónde informar
+El proyecto de VS Code se distribuye en varios repositorios. Intenta reportar el problema en el repositorio correcto. Consulta la lista de Proyectos Relacionados si no estás seguro de cuál es el repositorio correcto.
+
+¿Puedes recrear el problema incluso después de deshabilitar todas las extensiones ? Si descubres que el problema se debe a una extensión que instalaste, reporta el problema directamente en el repositorio de la extensión.
+
+Busque un problema existente
+Antes de crear un nuevo problema, realice una búsqueda en los problemas abiertos para ver si el problema o la solicitud de función ya se ha presentado.
+
+Asegúrese de revisar las solicitudes de funciones más populares .
+
+Si el problema ya existe, comenta lo que corresponda y añade tu reacción . Usa una reacción en lugar de un comentario "+1":
+
+👍 - voto positivo
+👎 - voto negativo
+Si no puede encontrar un problema existente que describa su error o característica, cree un nuevo problema siguiendo las pautas a continuación.
+
+Cómo escribir buenos informes de errores y solicitudes de funciones
+Presentar un solo problema por cada problema y solicitud de función. No enumerar varios errores ni solicitudes de función en el mismo problema.
+
+No añada su problema como comentario a un problema existente, a menos que sea para la misma entrada. Muchos problemas parecen similares, pero tienen causas diferentes.
+
+Cuanta más información pueda proporcionar, más probabilidades habrá de que alguien pueda reproducir el problema y encontrar una solución.
+
+La herramienta integrada para reportar problemas, accesible desde Report Issueel menú Ayuda de VS Code, agiliza este proceso al proporcionar automáticamente la versión de VS Code, todas las extensiones instaladas y la información del sistema. Además, la herramienta buscará entre los problemas existentes para ver si ya existe uno similar.
+
+Incluya lo siguiente con cada número:
+
+Versión de VS Code
+Su sistema operativo
+Lista de extensiones que tienes instaladas
+Pasos reproducibles (1... 2... 3...) que causan el problema
+Lo que esperabas ver versus lo que realmente viste
+Imágenes, animaciones o un enlace a un vídeo que muestre el problema.
+Un fragmento de código que demuestra el problema o un enlace a un repositorio de código que los desarrolladores pueden descargar fácilmente para recrear el problema localmente
+Nota: Debido a que los desarrolladores necesitan copiar y pegar el fragmento de código, incluir un fragmento de código como archivo multimedia (es decir, .gif) no es suficiente.
+Errores de la consola de herramientas de desarrollo (abrir desde el menú: Ayuda > Activar/desactivar herramientas de desarrollo)
+Creación de solicitudes de extracción
+Consulte el artículo sobre cómo crear solicitudes de extracción y contribuir a este proyecto.
+Lista de verificación final
+Por favor recuerda hacer lo siguiente:
+
+Busque en el repositorio de problemas para asegurarse de que su informe sea un problema nuevo
+Recrear el problema después de deshabilitar todas las extensiones
+Simplifique su código en torno al problema para aislarlo mejor.
+No te preocupes si los desarrolladores no pueden solucionar el problema de inmediato. ¡Simplemente te pedirán más información!
+
+Sigue tu problema
+Una vez enviado, su informe se integrará en el flujo de trabajo de seguimiento de incidencias . Asegúrese de comprender qué sucederá a continuación para saber qué esperar y cómo seguir colaborando durante todo el proceso.
+
+Gestión automatizada de problemas
+Usamos Acciones de GitHub para gestionar incidencias. Estas acciones y sus descripciones se pueden consultar aquí . Algunos ejemplos de su función son:
+
+Cerrar automáticamente cualquier problema marcado info-neededsi no ha habido respuesta en los últimos 7 días.
+Bloquear automáticamente los problemas 45 días después de su cierre.
+Implementar automáticamente la canalización de solicitudes de funciones de VS Code .
+Si cree que el bot hizo algo mal, abra un nuevo problema y avísenos.
+
+Contribuyendo con correcciones
+Si está interesado en escribir código para solucionar problemas, consulte Cómo contribuir en la wiki.
+
+Gracias
+Tus contribuciones al código abierto, grandes o pequeñas, hacen posibles proyectos como este. Gracias por dedicar tu tiempo a contribuir.
