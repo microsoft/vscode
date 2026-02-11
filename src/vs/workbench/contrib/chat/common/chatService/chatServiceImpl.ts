@@ -49,6 +49,8 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants
 import { ChatMessageRole, IChatMessage } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
+import { IPromptsService } from '../promptSyntax/service/promptsService.js';
+import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -141,6 +143,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService private readonly mcpService: IMcpService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 
@@ -863,6 +866,14 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedAgent: IChatAgentData | undefined;
 			let detectedCommand: IChatAgentCommand | undefined;
 
+			// Collect hooks from hook .json files
+			let collectedHooks: IChatRequestHooks | undefined;
+			try {
+				collectedHooks = await this.promptsService.getHooks(token);
+			} catch (error) {
+				this.logService.warn('[ChatService] Failed to collect hooks:', error);
+			}
+
 			const stopWatch = new StopWatch(false);
 			store.add(token.onCancellationRequested(() => {
 				this.trace('sendRequest', `Request for session ${model.sessionResource} was cancelled`);
@@ -923,6 +934,8 @@ export class ChatService extends Disposable implements IChatService {
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							editedFileEvents: request.editedFileEvents,
+							hooks: collectedHooks,
+							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
 						};
 
 						let isInitialTools = true;

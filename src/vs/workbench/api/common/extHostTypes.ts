@@ -32,6 +32,7 @@ import { SnippetString } from './extHostTypes/snippetString.js';
 import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
+import { HookTypeValue } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 
 export { CodeActionKind } from './extHostTypes/codeActionKind.js';
 export {
@@ -3227,6 +3228,19 @@ export class ChatResponseThinkingProgressPart {
 	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
 		this.value = value;
 		this.id = id;
+		this.metadata = metadata;
+	}
+}
+
+export class ChatResponseHookPart {
+	hookType: HookTypeValue;
+	stopReason?: string;
+	systemMessage?: string;
+	metadata?: { readonly [key: string]: unknown };
+	constructor(hookType: HookTypeValue, stopReason?: string, systemMessage?: string, metadata?: { readonly [key: string]: unknown }) {
+		this.hookType = hookType;
+		this.stopReason = stopReason;
+		this.systemMessage = systemMessage;
 		this.metadata = metadata;
 	}
 }

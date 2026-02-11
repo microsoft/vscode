@@ -44,6 +44,8 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -156,6 +158,7 @@ suite('ChatService', () => {
 			[IChatVariablesService, new MockChatVariablesService()],
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[IMcpService, new TestMcpService()],
+			[IPromptsService, new MockPromptsService()],
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());

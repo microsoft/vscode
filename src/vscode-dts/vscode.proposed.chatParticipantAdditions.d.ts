@@ -346,7 +346,31 @@ declare module 'vscode' {
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseWorkspaceEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart | ChatResponseQuestionCarouselPart;
+	/**
+	 * Internal type that lists all the proposed chat response parts. This is used to generate `ExtendedChatResponsePart`
+	 * which is the actual type used in this API. This is done so that other proposals can easily add their own response parts
+	 * without having to modify this file.
+	 */
+	export interface ExtendedChatResponseParts {
+		ChatResponsePart: ChatResponsePart;
+		ChatResponseTextEditPart: ChatResponseTextEditPart;
+		ChatResponseNotebookEditPart: ChatResponseNotebookEditPart;
+		ChatResponseWorkspaceEditPart: ChatResponseWorkspaceEditPart;
+		ChatResponseConfirmationPart: ChatResponseConfirmationPart;
+		ChatResponseCodeCitationPart: ChatResponseCodeCitationPart;
+		ChatResponseReferencePart2: ChatResponseReferencePart2;
+		ChatResponseMovePart: ChatResponseMovePart;
+		ChatResponseExtensionsPart: ChatResponseExtensionsPart;
+		ChatResponsePullRequestPart: ChatResponsePullRequestPart;
+		ChatToolInvocationPart: ChatToolInvocationPart;
+		ChatResponseMultiDiffPart: ChatResponseMultiDiffPart;
+		ChatResponseThinkingProgressPart: ChatResponseThinkingProgressPart;
+		ChatResponseExternalEditPart: ChatResponseExternalEditPart;
+		ChatResponseQuestionCarouselPart: ChatResponseQuestionCarouselPart;
+	}
+
+	export type ExtendedChatResponsePart = ExtendedChatResponseParts[keyof ExtendedChatResponseParts];
+
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);

@@ -92,6 +92,11 @@ export const CLAUDE_AGENTS_SOURCE_FOLDER = '.claude/agents';
 export const CLAUDE_RULES_SOURCE_FOLDER = '.claude/rules';
 
 /**
+ * Hooks folder.
+ */
+export const HOOKS_SOURCE_FOLDER = '.github/hooks';
+
+/**
  * Tracks where prompt files originate from.
  */
 export enum PromptFileSource {
@@ -99,6 +104,7 @@ export enum PromptFileSource {
 	CopilotPersonal = 'copilot-personal',
 	ClaudePersonal = 'claude-personal',
 	ClaudeWorkspace = 'claude-workspace',
+	ClaudeWorkspaceLocal = 'claude-workspace-local',
 	AgentsWorkspace = 'agents-workspace',
 	AgentsPersonal = 'agents-personal',
 	ConfigWorkspace = 'config-workspace',
@@ -180,6 +186,17 @@ export const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 ];
 
 /**
+ * Default hook file paths.
+ * Entries can be either a directory or a specific file path (.json)
+ */
+export const DEFAULT_HOOK_FILE_PATHS: readonly IPromptSourceFolder[] = [
+	{ path: '.github/hooks', source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
+	{ path: '.claude/settings.local.json', source: PromptFileSource.ClaudeWorkspaceLocal, storage: PromptsStorage.local },
+	{ path: '.claude/settings.json', source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/.claude/settings.json', source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
+];
+
+/**
  * Helper function to check if a file is directly in the .github/agents/ folder (not in subfolders).
  */
 function isInAgentsFolder(fileUri: URI): boolean {
@@ -198,6 +215,11 @@ export function isInClaudeRulesFolder(fileUri: URI): boolean {
 
 /**
  * Gets the prompt file type from the provided path.
+ *
+ * Note: This function assumes the URI is already known to be a prompt file
+ * (e.g., from a configured prompt source folder). It does not validate that
+ * arbitrary URIs are prompt files - for example, any .json file will return
+ * PromptsType.hook regardless of its location.
  */
 export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 	const filename = basename(fileUri.path);
@@ -230,6 +252,12 @@ export function getPromptFileType(fileUri: URI): PromptsType | undefined {
 		return PromptsType.instructions;
 	}
 
+	// Any .json file is treated as a hook file.
+	// The caller is responsible for only passing URIs from valid prompt source folders.
+	if (filename.toLowerCase().endsWith('.json')) {
+		return PromptsType.hook;
+	}
+
 	return undefined;
 }
 
@@ -250,6 +278,8 @@ export function getPromptFileExtension(type: PromptsType): string {
 			return AGENT_FILE_EXTENSION;
 		case PromptsType.skill:
 			return SKILL_FILENAME;
+		case PromptsType.hook:
+			return '.json';
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -265,6 +295,8 @@ export function getPromptFileDefaultLocations(type: PromptsType): readonly IProm
 			return DEFAULT_AGENT_SOURCE_FOLDERS;
 		case PromptsType.skill:
 			return DEFAULT_SKILL_SOURCE_FOLDERS;
+		case PromptsType.hook:
+			return DEFAULT_HOOK_FILE_PATHS;
 		default:
 			throw new Error('Unknown prompt type');
 	}

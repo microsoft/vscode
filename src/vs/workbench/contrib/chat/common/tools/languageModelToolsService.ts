@@ -162,6 +162,16 @@ export namespace ToolDataSource {
 	}
 }
 
+/**
+ * Pre-tool-use hook result passed from the extension when the hook was executed externally.
+ */
+export interface IExternalPreToolUseHookResult {
+	permissionDecision?: 'allow' | 'deny' | 'ask';
+	permissionDecisionReason?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	updatedInput?: Record<string, any>;
+}
+
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
@@ -182,6 +192,8 @@ export interface IToolInvocation {
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
 	modelId?: string;
 	userSelectedTools?: UserSelectedTools;
+	/** Pre-tool-use hook result passed from the extension, if the hook was already executed externally. */
+	preToolUseResult?: IExternalPreToolUseHookResult;
 }
 
 export interface IToolInvocationContext {
@@ -203,6 +215,8 @@ export interface IToolInvocationPreparationContext {
 	chatSessionId?: string;
 	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
+	/** If set, tells the tool that it should include confirmmation messages. */
+	forceConfirmationReason?: string;
 }
 
 export type ToolInputOutputBase = {

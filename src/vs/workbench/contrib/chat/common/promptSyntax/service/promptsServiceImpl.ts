@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { parse as parseJSONC } from '../../../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../../base/common/resources.js';
@@ -36,6 +37,9 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptValidator.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { IChatRequestHooks, IHookCommand, HookType } from '../hookSchema.js';
+import { parseHooksFromFile } from '../hookCompatibility.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 
 /**
  * Error thrown when a skill file is missing the required name attribute.
@@ -90,6 +94,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly cachedSlashCommands: CachedPromise<readonly IChatPromptSlashCommand[]>;
 
 	/**
+	 * Cached hooks. Invalidated when hook files change.
+	 */
+	private readonly cachedHooks: CachedPromise<IChatRequestHooks | undefined>;
+
+	/**
 	 * Cache for parsed prompt files keyed by URI.
 	 * The number in the returned tuple is textModel.getVersionId(), which is an internal VS Code counter that increments every time the text model's content changes.
 	 */
@@ -116,6 +125,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		[PromptsType.instructions]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 		[PromptsType.agent]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 		[PromptsType.skill]: new ResourceMap<Promise<IExtensionPromptPath>>(),
+		[PromptsType.hook]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 	};
 
 	constructor(
@@ -130,6 +140,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
@@ -149,6 +160,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 			(token) => this.computePromptSlashCommands(token),
 			() => Event.any(this.getFileLocatorEvent(PromptsType.prompt), Event.filter(modelChangeEvent, e => e.promptType === PromptsType.prompt))
 		));
+
+		this.cachedHooks = this._register(new CachedPromise(
+			(token) => this.computeHooks(token),
+			() => this.getFileLocatorEvent(PromptsType.hook)
+		));
+
+		// Hack: Subscribe to activate caching (CachedPromise only caches when onDidChange has listeners)
+		this._register(this.cachedHooks.onDidChange(() => { }));
 	}
 
 	private getFileLocatorEvent(type: PromptsType): Event<void> {
@@ -344,11 +363,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 			.map(result => result.value);
 
 		const activationEvent = this.getProviderActivationEvent(type);
+		if (!activationEvent) {
+			// No provider activation event for this type (e.g., hooks)
+			return contributedFiles;
+		}
 		const providerFiles = await this.listFromProviders(type, activationEvent, token);
 		return [...contributedFiles, ...providerFiles];
 	}
 
-	private getProviderActivationEvent(type: PromptsType): string {
+	private getProviderActivationEvent(type: PromptsType): string | undefined {
 		switch (type) {
 			case PromptsType.agent:
 				return CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT;
@@ -358,6 +381,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return PROMPT_FILE_PROVIDER_ACTIVATION_EVENT;
 			case PromptsType.skill:
 				return SKILL_PROVIDER_ACTIVATION_EVENT;
+			case PromptsType.hook:
+				return undefined; // hooks don't have extension providers
 		}
 	}
 
@@ -369,14 +394,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 			for (const uri of folders) {
 				result.push({ uri, storage: PromptsStorage.local, type });
 			}
+		} else if (type === PromptsType.hook) {
+			// For hooks, return the Copilot hooks folder for creating new hooks
+			// (Claude paths are read-only and not included here)
+			const hooksFolders = await this.fileLocator.getHookSourceFolders();
+			for (const uri of hooksFolders) {
+				result.push({ uri, storage: PromptsStorage.local, type });
+			}
 		} else {
 			for (const uri of await this.fileLocator.getConfigBasedSourceFolders(type)) {
 				result.push({ uri, storage: PromptsStorage.local, type });
 			}
 		}
 
-		if (type !== PromptsType.skill) {
-			// no user source folders for skills
+		if (type !== PromptsType.skill && type !== PromptsType.hook) {
+			// no user source folders for skills and hooks
 			const userHome = this.userDataService.currentProfile.promptsHome;
 			result.push({ uri: userHome, storage: PromptsStorage.user, type });
 		}
@@ -920,6 +952,80 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return result;
 	}
 
+	public getHooks(token: CancellationToken): Promise<IChatRequestHooks | undefined> {
+		return this.cachedHooks.get(token);
+	}
+
+	private async computeHooks(token: CancellationToken): Promise<IChatRequestHooks | undefined> {
+		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
+
+		if (hookFiles.length === 0) {
+			this.logger.trace('[PromptsService] No hook files found.');
+			return undefined;
+		}
+
+		this.logger.trace(`[PromptsService] Found ${hookFiles.length} hook file(s).`);
+
+		// Get user home for tilde expansion
+		const userHomeUri = await this.pathService.userHome();
+		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
+
+		// Get workspace root for resolving relative cwd paths
+		const workspaceFolder = this.workspaceService.getWorkspace().folders[0];
+		const workspaceRootUri = workspaceFolder?.uri;
+
+		const collectedHooks: Record<HookType, IHookCommand[]> = {
+			[HookType.SessionStart]: [],
+			[HookType.UserPromptSubmit]: [],
+			[HookType.PreToolUse]: [],
+			[HookType.PostToolUse]: [],
+			[HookType.PreCompact]: [],
+			[HookType.SubagentStart]: [],
+			[HookType.SubagentStop]: [],
+			[HookType.Stop]: [],
+		};
+
+		for (const hookFile of hookFiles) {
+			try {
+				const content = await this.fileService.readFile(hookFile.uri);
+				const json = parseJSONC(content.value.toString());
+
+				// Use format-aware parsing that handles Copilot and Claude formats
+				const { format, hooks, disabledAllHooks } = parseHooksFromFile(hookFile.uri, json, workspaceRootUri, userHome);
+
+				// Skip files that have all hooks disabled
+				if (disabledAllHooks) {
+					this.logger.trace(`[PromptsService] Skipping hook file with disableAllHooks: ${hookFile.uri}`);
+					continue;
+				}
+
+				for (const [hookType, { hooks: commands }] of hooks) {
+					for (const command of commands) {
+						collectedHooks[hookType].push(command);
+						this.logger.trace(`[PromptsService] Collected ${hookType} hook from ${hookFile.uri} (format: ${format})`);
+					}
+				}
+			} catch (error) {
+				this.logger.warn(`[PromptsService] Failed to parse hook file: ${hookFile.uri}`, error);
+			}
+		}
+
+		// Check if any hooks were collected
+		const hasHooks = Object.values(collectedHooks).some(arr => arr.length > 0);
+		if (!hasHooks) {
+			this.logger.trace('[PromptsService] No valid hooks collected.');
+			return undefined;
+		}
+
+		// Build the result, only including hook types that have entries
+		const result: IChatRequestHooks = Object.fromEntries(
+			Object.entries(collectedHooks).filter(([_, commands]) => commands.length > 0)
+		) as IChatRequestHooks;
+
+		this.logger.trace(`[PromptsService] Collected hooks: ${JSON.stringify(Object.keys(result))}`);
+		return result;
+	}
+
 	public async getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo> {
 		const files: IPromptFileDiscoveryResult[] = [];
 
@@ -931,6 +1037,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return this.getPromptSlashCommandDiscoveryInfo(token);
 		} else if (type === PromptsType.instructions) {
 			return this.getInstructionsDiscoveryInfo(token);
+		} else if (type === PromptsType.hook) {
+			return this.getHookDiscoveryInfo(token);
 		}
 
 		return { type, files };
@@ -1154,6 +1262,76 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		return { type: PromptsType.instructions, files };
 	}
+
+	private async getHookDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
+		const files: IPromptFileDiscoveryResult[] = [];
+
+		// Get user home for tilde expansion
+		const userHomeUri = await this.pathService.userHome();
+		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
+
+		// Get workspace root for resolving relative cwd paths
+		const workspaceFolder = this.workspaceService.getWorkspace().folders[0];
+		const workspaceRootUri = workspaceFolder?.uri;
+
+		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
+		for (const promptPath of hookFiles) {
+			const uri = promptPath.uri;
+			const storage = promptPath.storage;
+			const extensionId = promptPath.extension?.identifier?.value;
+			const name = basename(uri);
+
+			try {
+				// Try to parse the JSON to validate it (supports JSONC with comments)
+				const content = await this.fileService.readFile(uri);
+				const json = parseJSONC(content.value.toString());
+
+				// Validate it's an object
+				if (!json || typeof json !== 'object') {
+					files.push({
+						uri,
+						storage,
+						status: 'skipped',
+						skipReason: 'parse-error',
+						errorMessage: 'Invalid hooks file: must be a JSON object',
+						name,
+						extensionId
+					});
+					continue;
+				}
+
+				// Use format-aware parsing to check for disabledAllHooks
+				const { disabledAllHooks } = parseHooksFromFile(uri, json, workspaceRootUri, userHome);
+
+				if (disabledAllHooks) {
+					files.push({
+						uri,
+						storage,
+						status: 'skipped',
+						skipReason: 'all-hooks-disabled',
+						name,
+						extensionId
+					});
+					continue;
+				}
+
+				// File is valid
+				files.push({ uri, storage, status: 'loaded', name, extensionId });
+			} catch (e) {
+				files.push({
+					uri,
+					storage,
+					status: 'skipped',
+					skipReason: 'parse-error',
+					errorMessage: e instanceof Error ? e.message : String(e),
+					name,
+					extensionId
+				});
+			}
+		}
+
+		return { type: PromptsType.hook, files };
+	}
 }
 
 // helpers
@@ -1258,4 +1436,3 @@ namespace IAgentSource {
 		}
 	}
 }
-
