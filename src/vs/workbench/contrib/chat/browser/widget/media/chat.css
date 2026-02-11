@@ -609,6 +609,10 @@
 	padding-inline-start: 28px;
 }
 
+.interactive-item-container .value .rendered-markdown li {
+	margin: 4px 0;
+}
+
 /* NOTE- We want to dedent codeblocks in lists specifically to give them the full width. No more elegant way to do this, these values
 have to be updated for changes to the rules above, or to support more deeply nested lists. */
 .interactive-item-container .value .rendered-markdown ul .interactive-result-code-block {
