@@ -333,7 +333,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const builtinSessionProviders = [AgentSessionProviders.Local];
 		const contributedSessionProviders = observableFromEvent(
 			this.onDidChangeAvailability,
-			() => Array.from(this._contributions.keys()).filter(isAgentSessionProviderType) as AgentSessionProviders[],
+			() => Array.from(this._contributions.keys()).filter(key => this._contributionDisposables.has(key) && isAgentSessionProviderType(key)) as AgentSessionProviders[],
 		).recomputeInitiallyAndOnChange(this._store);
 
 		this._register(autorun(reader => {
@@ -371,8 +371,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			displayName = localize('chat.session.inProgress.background', "Background Agent");
 		} else if (chatSessionType === AgentSessionProviders.Cloud) {
 			displayName = localize('chat.session.inProgress.cloud', "Cloud Agent");
-		} else if (chatSessionType === AgentSessionProviders.Growth) {
-			displayName = localize('chat.session.inProgress.growth', "Growth");
 		} else {
 			displayName = this._contributions.get(chatSessionType)?.contribution.displayName;
 		}
