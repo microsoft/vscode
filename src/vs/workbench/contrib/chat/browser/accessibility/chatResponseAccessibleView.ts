@@ -39,8 +39,17 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 		}
 
 		const verifiedWidget: IChatWidget = widget;
-		const focusedItem = verifiedWidget.getFocus();
-		if (!focusedItem) {
+		let focusedItem = verifiedWidget.getFocus();
+		if (!focusedItem || !isResponseVM(focusedItem)) {
+			const responseItems = verifiedWidget.viewModel?.getItems().filter(isResponseVM);
+			const lastResponse = responseItems?.at(-1);
+			if (lastResponse) {
+				focusedItem = lastResponse;
+				verifiedWidget.focus(lastResponse);
+			}
+		}
+
+		if (!focusedItem || !isResponseVM(focusedItem)) {
 			return;
 		}
 

@@ -273,11 +273,33 @@ gulp.task(compileWebExtensionsTask);
 export const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions(true));
 gulp.task(watchWebExtensionsTask);
 
-async function buildWebExtensions(isWatch: boolean) {
+async function buildWebExtensions(isWatch: boolean): Promise<void> {
 	const extensionsPath = path.join(root, 'extensions');
-	const webpackConfigLocations = await nodeUtil.promisify(glob)(
-		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
+
+	// Find all esbuild-browser.ts files
+	const esbuildConfigLocations = await nodeUtil.promisify(glob)(
+		path.join(extensionsPath, '**', 'esbuild-browser.ts'),
 		{ ignore: ['**/node_modules'] }
 	);
-	return ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
+
+	// Find all webpack configs, excluding those that will be esbuilt
+	const esbuildExtensionDirs = new Set(esbuildConfigLocations.map(p => path.dirname(p)));
+	const webpackConfigLocations = (await nodeUtil.promisify(glob)(
+		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
+		{ ignore: ['**/node_modules'] }
+	)).filter(configPath => !esbuildExtensionDirs.has(path.dirname(configPath)));
+
+	const promises: Promise<unknown>[] = [];
+
+	// Esbuild for extensions
+	if (esbuildConfigLocations.length > 0) {
+		promises.push(ext.esbuildExtensions('packaging web extension (esbuild)', isWatch, esbuildConfigLocations.map(script => ({ script }))));
+	}
+
+	// Run webpack for remaining extensions
+	if (webpackConfigLocations.length > 0) {
+		promises.push(ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath }))));
+	}
+
+	await Promise.all(promises);
 }

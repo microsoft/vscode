@@ -173,36 +173,6 @@
             "description": "%typescript.enablePromptUseWorkspaceTsdk%",
             "scope": "window"
           },
-          "javascript.referencesCodeLens.enabled": {
-            "type": "boolean",
-            "default": false,
-            "description": "%javascript.referencesCodeLens.enabled%",
-            "scope": "window"
-          },
-          "javascript.referencesCodeLens.showOnAllFunctions": {
-            "type": "boolean",
-            "default": false,
-            "description": "%javascript.referencesCodeLens.showOnAllFunctions%",
-            "scope": "window"
-          },
-          "typescript.referencesCodeLens.enabled": {
-            "type": "boolean",
-            "default": false,
-            "description": "%typescript.referencesCodeLens.enabled%",
-            "scope": "window"
-          },
-          "typescript.referencesCodeLens.showOnAllFunctions": {
-            "type": "boolean",
-            "default": false,
-            "description": "%typescript.referencesCodeLens.showOnAllFunctions%",
-            "scope": "window"
-          },
-          "typescript.implementationsCodeLens.enabled": {
-            "type": "boolean",
-            "default": false,
-            "description": "%typescript.implementationsCodeLens.enabled%",
-            "scope": "window"
-          },
           "typescript.experimental.useTsgo": {
             "type": "boolean",
             "default": false,
@@ -212,16 +182,103 @@
               "experimental"
             ]
           },
+          "js/ts.referencesCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.referencesCodeLens.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
+          },
+          "javascript.referencesCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.referencesCodeLens.enabled%",
+            "markdownDeprecationMessage": "%configuration.referencesCodeLens.enabled.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "typescript.referencesCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.referencesCodeLens.enabled%",
+            "markdownDeprecationMessage": "%configuration.referencesCodeLens.enabled.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "js/ts.referencesCodeLens.showOnAllFunctions": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.referencesCodeLens.showOnAllFunctions%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
+          },
+          "javascript.referencesCodeLens.showOnAllFunctions": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.referencesCodeLens.showOnAllFunctions%",
+            "markdownDeprecationMessage": "%configuration.referencesCodeLens.showOnAllFunctions.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "typescript.referencesCodeLens.showOnAllFunctions": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.referencesCodeLens.showOnAllFunctions%",
+            "markdownDeprecationMessage": "%configuration.referencesCodeLens.showOnAllFunctions.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "js/ts.implementationsCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.implementationsCodeLens.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
+          },
+          "typescript.implementationsCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.implementationsCodeLens.enabled%",
+            "markdownDeprecationMessage": "%configuration.implementationsCodeLens.enabled.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "js/ts.implementationsCodeLens.showOnInterfaceMethods": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.implementationsCodeLens.showOnInterfaceMethods%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
+          },
           "typescript.implementationsCodeLens.showOnInterfaceMethods": {
             "type": "boolean",
             "default": false,
-            "description": "%typescript.implementationsCodeLens.showOnInterfaceMethods%",
+            "description": "%configuration.implementationsCodeLens.showOnInterfaceMethods%",
+            "markdownDeprecationMessage": "%configuration.implementationsCodeLens.showOnInterfaceMethods.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.implementationsCodeLens.showOnAllClassMethods": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.implementationsCodeLens.showOnAllClassMethods%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "typescript.implementationsCodeLens.showOnAllClassMethods": {
             "type": "boolean",
             "default": false,
-            "description": "%typescript.implementationsCodeLens.showOnAllClassMethods%",
+            "description": "%configuration.implementationsCodeLens.showOnAllClassMethods%",
+            "markdownDeprecationMessage": "%configuration.implementationsCodeLens.showOnAllClassMethods.unifiedDeprecationMessage%",
             "scope": "window"
           },
           "typescript.reportStyleChecksAsWarnings": {

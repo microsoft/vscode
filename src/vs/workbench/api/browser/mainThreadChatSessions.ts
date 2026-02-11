@@ -5,7 +5,7 @@
 
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -326,7 +326,7 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 	private readonly _handle: number;
 
 	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
-	readonly onDidChangeChatSessionItems: Event<void> = this._onDidChangeChatSessionItems.event;
+	public readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
 	constructor(
 		proxy: ExtHostChatSessionsShape,
@@ -337,18 +337,30 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		this._handle = handle;
 	}
 
-	private _items: IChatSessionItem[] = [];
+	private readonly _items = new ResourceMap<IChatSessionItem>();
 	get items(): IChatSessionItem[] {
-		return this._items;
+		return Array.from(this._items.values());
 	}
 
 	refresh(token: CancellationToken): Promise<void> {
 		return this._proxy.$refreshChatSessionItems(this._handle, token);
 	}
 
-	setItems(items: IChatSessionItem[]): void {
-		this._items = items;
+	setItems(items: readonly IChatSessionItem[]): void {
+		this._items.clear();
+		for (const item of items) {
+			this._items.set(item.resource, item);
+		}
 		this._onDidChangeChatSessionItems.fire();
+	}
+
+	updateItem(item: IChatSessionItem): void {
+		if (this._items.has(item.resource)) {
+			this._items.set(item.resource, item);
+			this._onDidChangeChatSessionItems.fire();
+		} else {
+			console.warn(`Item with resource ${item.resource.toString()} does not exist. Skipping update.`);
+		}
 	}
 
 	fireOnDidChangeChatSessionItems(): void {
@@ -410,17 +422,15 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	}
 
 	$registerChatSessionItemController(handle: number, chatSessionType: string): void {
-		// Register the controller handle - items will be pushed via $setChatSessionItems
 		const disposables = new DisposableStore();
 
-		const controller = new MainThreadChatSessionItemController(this._proxy, handle);
-		disposables.add(controller);
+		const controller = disposables.add(new MainThreadChatSessionItemController(this._proxy, handle));
 		disposables.add(this._chatSessionsService.registerChatSessionItemController(chatSessionType, controller));
 
 		this._itemControllerRegistrations.set(handle, {
-			dispose: () => disposables.dispose(),
 			chatSessionType,
 			controller,
+			dispose: () => disposables.dispose(),
 		});
 
 		disposables.add(this._chatSessionsService.registerChatModelChangeListeners(
@@ -434,44 +444,56 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemControllerRegistrations.get(handle)?.controller.fireOnDidChangeChatSessionItems();
 	}
 
+	private async _resolveSessionItem(item: Dto<IChatSessionItem>): Promise<IChatSessionItem> {
+		const uri = URI.revive(item.resource);
+		const model = this._chatService.getSession(uri);
+		if (model) {
+			item = await this.handleSessionModelOverrides(model, item);
+		}
+
+		// We can still get stats if there is no model or if fetching from model failed
+		if (!item.changes || !model) {
+			const stats = (await this._chatService.getMetadataForSession(uri))?.stats;
+			const diffs: IAgentSession['changes'] = {
+				files: stats?.fileCount || 0,
+				insertions: stats?.added || 0,
+				deletions: stats?.removed || 0
+			};
+			if (hasValidDiff(diffs)) {
+				item.changes = diffs;
+			}
+		}
+
+		return {
+			...item,
+			changes: revive(item.changes),
+			resource: uri,
+			iconPath: item.iconPath,
+			tooltip: item.tooltip ? this._reviveTooltip(item.tooltip) : undefined,
+			archived: item.archived,
+		};
+	}
+
 	async $setChatSessionItems(handle: number, items: Dto<IChatSessionItem>[]): Promise<void> {
 		const registration = this._itemControllerRegistrations.get(handle);
 		if (!registration) {
-			this._logService.warn(`No controller registered for handle ${handle}`);
+			this._logService.warn(`No chat session controller registered for handle ${handle}`);
 			return;
 		}
 
-		const resolvedItems = await Promise.all(items.map(async item => {
-			const uri = URI.revive(item.resource);
-			const model = this._chatService.getSession(uri);
-			if (model) {
-				item = await this.handleSessionModelOverrides(model, item);
-			}
-
-			// We can still get stats if there is no model or if fetching from model failed
-			if (!item.changes || !model) {
-				const stats = (await this._chatService.getMetadataForSession(uri))?.stats;
-				const diffs: IAgentSession['changes'] = {
-					files: stats?.fileCount || 0,
-					insertions: stats?.added || 0,
-					deletions: stats?.removed || 0
-				};
-				if (hasValidDiff(diffs)) {
-					item.changes = diffs;
-				}
-			}
-
-			return {
-				...item,
-				changes: revive(item.changes),
-				resource: uri,
-				iconPath: item.iconPath,
-				tooltip: item.tooltip ? this._reviveTooltip(item.tooltip) : undefined,
-				archived: item.archived,
-			} satisfies IChatSessionItem;
-		}));
-
+		const resolvedItems = await Promise.all(items.map(item => this._resolveSessionItem(item)));
 		registration.controller.setItems(resolvedItems);
+	}
+
+	async $updateChatSessionItem(controllerHandle: number, item: Dto<IChatSessionItem>): Promise<void> {
+		const registration = this._itemControllerRegistrations.get(controllerHandle);
+		if (!registration) {
+			this._logService.warn(`No chat session controller registered for handle ${controllerHandle}`);
+			return;
+		}
+
+		const resolvedItem = await this._resolveSessionItem(item);
+		registration.controller.updateItem(resolvedItem);
 	}
 
 	$onDidChangeChatSessionOptions(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: string }>): void {

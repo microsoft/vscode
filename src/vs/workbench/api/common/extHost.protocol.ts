@@ -99,9 +99,6 @@ import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IHookCommandResult } from '../../contrib/chat/common/hooks/hooksCommandTypes.js';
-import { IHookResult } from '../../contrib/chat/common/hooks/hooksTypes.js';
-import { IHookCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 
 export type IconPathDto =
 	| UriComponents
@@ -3234,12 +3231,6 @@ export interface IStartMcpOptions {
 	errorOnUserInteraction?: boolean;
 }
 
-export type IHookCommandDto = Dto<IHookCommand>;
-
-export interface ExtHostHooksShape {
-	$runHookCommand(hookCommand: IHookCommandDto, input: unknown, token: CancellationToken): Promise<IHookCommandResult>;
-}
-
 export interface ExtHostMcpShape {
 	$substituteVariables(workspaceFolder: UriComponents | undefined, value: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
 	$resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined>;
@@ -3293,10 +3284,6 @@ export interface MainThreadMcpShape {
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {
-}
-
-export interface MainThreadHooksShape extends IDisposable {
-	$executeHook(hookType: string, sessionResource: UriComponents, input: unknown, token: CancellationToken): Promise<IHookResult[]>;
 }
 
 export interface ExtHostDataChannelsShape {
@@ -3431,6 +3418,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$registerChatSessionItemController(handle: number, chatSessionType: string): void;
 	$unregisterChatSessionItemController(handle: number): void;
 	$setChatSessionItems(handle: number, items: Dto<IChatSessionItem>[]): Promise<void>;
+	$updateChatSessionItem(handle: number, item: Dto<IChatSessionItem>): Promise<void>;
 	$onDidChangeChatSessionItems(handle: number): void;
 	$onDidCommitChatSessionItem(handle: number, original: UriComponents, modified: UriComponents): void;
 	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
@@ -3535,7 +3523,6 @@ export const MainContext = {
 	MainThreadChatStatus: createProxyIdentifier<MainThreadChatStatusShape>('MainThreadChatStatus'),
 	MainThreadAiSettingsSearch: createProxyIdentifier<MainThreadAiSettingsSearchShape>('MainThreadAiSettingsSearch'),
 	MainThreadDataChannels: createProxyIdentifier<MainThreadDataChannelsShape>('MainThreadDataChannels'),
-	MainThreadHooks: createProxyIdentifier<MainThreadHooksShape>('MainThreadHooks'),
 	MainThreadChatSessions: createProxyIdentifier<MainThreadChatSessionsShape>('MainThreadChatSessions'),
 	MainThreadChatOutputRenderer: createProxyIdentifier<MainThreadChatOutputRendererShape>('MainThreadChatOutputRenderer'),
 	MainThreadChatContext: createProxyIdentifier<MainThreadChatContextShape>('MainThreadChatContext'),
@@ -3615,7 +3602,6 @@ export const ExtHostContext = {
 	ExtHostMeteredConnection: createProxyIdentifier<ExtHostMeteredConnectionShape>('ExtHostMeteredConnection'),
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 	ExtHostMcp: createProxyIdentifier<ExtHostMcpShape>('ExtHostMcp'),
-	ExtHostHooks: createProxyIdentifier<ExtHostHooksShape>('ExtHostHooks'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
 	ExtHostChatSessions: createProxyIdentifier<ExtHostChatSessionsShape>('ExtHostChatSessions'),
 };

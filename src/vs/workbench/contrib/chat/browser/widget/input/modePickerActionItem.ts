@@ -45,7 +45,13 @@ export interface IModePickerDelegate {
 }
 
 // TODO: there should be an icon contributed for built-in modes
-const builtinDefaultIcon = Codicon.tasklist;
+const builtinDefaultIcon = (mode: IChatMode) => {
+	switch (mode.name.get().toLowerCase()) {
+		case 'ask': return Codicon.ask;
+		case 'plan': return Codicon.tasklist;
+		default: return undefined;
+	}
+};
 
 export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	constructor(
@@ -165,7 +171,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				...makeAction(mode, currentMode),
 				tooltip: '',
 				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip, position: this.pickerOptions.hoverPosition },
-				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon : undefined),
+				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined),
 				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
 			};
 		};
@@ -203,7 +209,18 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const shouldHideEditMode = configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden) && chatAgentService.hasToolsAgent && currentMode.id !== ChatMode.Edit.id;
 
-				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id && !(shouldHideEditMode && mode.id === ChatMode.Edit.id));
+				const otherBuiltinModes = modes.builtin.filter(mode => {
+					if (mode.id === ChatMode.Agent.id) {
+						return false;
+					}
+					if (shouldHideEditMode && mode.id === ChatMode.Edit.id) {
+						return false;
+					}
+					if (mode.id === ChatMode.Ask.id) {
+						return false;
+					}
+					return true;
+				});
 				// Filter out 'implement' mode from the dropdown - it's available for handoffs but not user-selectable
 				const customModes = groupBy(
 					modes.custom,
@@ -267,7 +284,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 		// Every built-in mode should have an icon. // TODO: this should be provided by the mode itself
 		if (!icon && isModeConsideredBuiltIn(currentMode, this._productService)) {
-			icon = builtinDefaultIcon;
+			icon = builtinDefaultIcon(currentMode);
 		}
 
 		const labelElements = [];
@@ -282,21 +299,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		dom.reset(element, ...labelElements);
 		return null;
 	}
-}
-
-/**
- * Returns true if the mode is the built-in 'implement' mode from the chat extension.
- * This mode is hidden from the mode picker but available for handoffs.
- */
-export function isBuiltinImplementMode(mode: IChatMode, productService: IProductService): boolean {
-	if (mode.name.get().toLowerCase() !== 'implement') {
-		return false;
-	}
-	if (mode.source?.storage !== PromptsStorage.extension) {
-		return false;
-	}
-	const chatExtensionId = productService.defaultChatAgent?.chatExtensionId;
-	return !!chatExtensionId && mode.source.extensionId.value === chatExtensionId;
 }
 
 function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductService): boolean {

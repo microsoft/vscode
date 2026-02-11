@@ -49,13 +49,17 @@ interface ICompileTaskOptions {
 	readonly emitError: boolean;
 	readonly transpileOnly: boolean | { esbuild: boolean };
 	readonly preserveEnglish: boolean;
+	readonly noEmit?: boolean;
 }
 
-export function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish }: ICompileTaskOptions) {
+export function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish, noEmit }: ICompileTaskOptions) {
 	const projectPath = path.join(import.meta.dirname, '../../', src, 'tsconfig.json');
 	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
 	if (!build) {
 		overrideOptions.inlineSourceMap = true;
+	}
+	if (noEmit) {
+		overrideOptions.noEmit = true;
 	}
 
 	const compilation = tsb.create(projectPath, overrideOptions, {
@@ -163,10 +167,10 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 	return task;
 }
 
-export function watchTask(out: string, build: boolean, srcPath: string = 'src'): task.StreamTask {
+export function watchTask(out: string, build: boolean, srcPath: string = 'src', options?: { noEmit?: boolean }): task.StreamTask {
 
 	const task = () => {
-		const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
+		const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false, noEmit: options?.noEmit });
 
 		const src = gulp.src(`${srcPath}/**`, { base: srcPath });
 		const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });

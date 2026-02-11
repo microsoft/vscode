@@ -7,7 +7,9 @@ import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatSessionTiming } from '../../common/chatService/chatService.js';
+import { IChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 
@@ -17,6 +19,7 @@ export enum AgentSessionProviders {
 	Cloud = 'copilot-cloud-agent',
 	Claude = 'claude-code',
 	Codex = 'openai-codex',
+	Growth = 'copilot-growth',
 }
 
 export function isBuiltInAgentSessionProvider(provider: string): boolean {
@@ -34,24 +37,33 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Cloud:
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.Growth:
 			return type;
 		default:
 			return undefined;
 	}
 }
 
+/**
+ * Observable holding the display name for the background agent session provider.
+ * Updated via experiment treatment to allow A/B testing of the display name.
+ */
+export const backgroundAgentDisplayName = observableValue<string>('backgroundAgentDisplayName', localize('chat.session.providerLabel.background', "Background"));
+
 export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerLabel.local', "Local");
 		case AgentSessionProviders.Background:
-			return localize('chat.session.providerLabel.background', "Background");
+			return backgroundAgentDisplayName.get();
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
 		case AgentSessionProviders.Claude:
 			return 'Claude';
 		case AgentSessionProviders.Codex:
 			return 'Codex';
+		case AgentSessionProviders.Growth:
+			return 'Growth';
 	}
 }
 
@@ -67,6 +79,8 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.openai;
 		case AgentSessionProviders.Claude:
 			return Codicon.claude;
+		case AgentSessionProviders.Growth:
+			return Codicon.lightbulb;
 	}
 }
 
@@ -78,11 +92,16 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 			return true;
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.Growth:
 			return false;
 	}
 }
 
-export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
+export function getAgentCanContinueIn(provider: AgentSessionProviders, contribution?: IChatSessionsExtensionPoint): boolean {
+	// Read-only sessions (e.g., Growth) are passive/informational and cannot be delegation targets
+	if (contribution?.isReadOnly) {
+		return false;
+	}
 	switch (provider) {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
@@ -90,6 +109,7 @@ export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean 
 			return true;
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.Growth:
 			return false;
 	}
 }
@@ -106,6 +126,8 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 			return localize('chat.session.providerDescription.claude', "Delegate tasks to the Claude Agent SDK using the Claude models included in your GitHub Copilot subscription. The agent iterates via chat and works interactively to implement changes on your main workspace.");
 		case AgentSessionProviders.Codex:
 			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
+		case AgentSessionProviders.Growth:
+			return localize('chat.session.providerDescription.growth', "Educational messages to help you learn Copilot features.");
 	}
 }
 

@@ -16,7 +16,7 @@ import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { IChatHookPart, IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { IRunSubagentToolInputParams } from '../../../common/tools/builtinTools/runSubagentTool.js';
 import { CodeBlockModelCollection } from '../../../common/widget/codeBlockModelCollection.js';
@@ -51,7 +51,16 @@ interface ILazyMarkdownItem {
 	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
 }
 
-type ILazyItem = ILazyToolItem | ILazyMarkdownItem;
+/**
+ * Represents a lazy hook item (blocked/warning) that will be rendered when expanded.
+ */
+interface ILazyHookItem {
+	kind: 'hook';
+	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
+	hookPart: IChatHookPart;
+}
+
+type ILazyItem = ILazyToolItem | ILazyMarkdownItem | ILazyHookItem;
 
 /**
  * This is generally copied from ChatThinkingContentPart. We are still experimenting with both UIs so I'm not
@@ -588,6 +597,58 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	/**
+	 * Appends a hook item (blocked/warning) to the subagent content part.
+	 */
+	public appendHookItem(
+		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
+		hookPart: IChatHookPart
+	): void {
+		if (this.isExpanded() || this.hasExpandedOnce) {
+			const result = factory();
+			this.appendHookItemToDOM(result.domNode, hookPart);
+			if (result.disposable) {
+				this._register(result.disposable);
+			}
+		} else {
+			const item: ILazyHookItem = {
+				kind: 'hook',
+				lazy: new Lazy(factory),
+				hookPart,
+			};
+			this.lazyItems.push(item);
+		}
+	}
+
+	/**
+	 * Appends a hook item's DOM node to the wrapper.
+	 */
+	private appendHookItemToDOM(domNode: HTMLElement, hookPart: IChatHookPart): void {
+		const itemWrapper = $('.chat-thinking-tool-wrapper');
+		const icon = hookPart.stopReason ? Codicon.error : Codicon.warning;
+		const iconElement = createThinkingIcon(icon);
+		itemWrapper.appendChild(iconElement);
+		itemWrapper.appendChild(domNode);
+
+		// Treat hook items as tool items for visibility purposes
+		if (!this.hasToolItems) {
+			this.hasToolItems = true;
+			if (this.wrapper) {
+				this.wrapper.style.display = '';
+			}
+		}
+
+		if (this.wrapper) {
+			if (this.resultContainer) {
+				this.wrapper.insertBefore(itemWrapper, this.resultContainer);
+			} else {
+				this.wrapper.appendChild(itemWrapper);
+			}
+		}
+		this.lastItemWrapper = itemWrapper;
+		this.layoutScheduler.schedule();
+	}
+
+	/**
 	 * Appends a markdown item's DOM node to the wrapper.
 	 */
 	private appendMarkdownItemToDOM(domNode: HTMLElement): void {
@@ -705,6 +766,12 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			if (result.disposable) {
 				this._register(result.disposable);
 			}
+		} else if (item.kind === 'hook') {
+			const result = item.lazy.value;
+			this.appendHookItemToDOM(result.domNode, item.hookPart);
+			if (result.disposable) {
+				this._register(result.disposable);
+			}
 		}
 	}
 
@@ -757,6 +824,11 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
 		if (other.kind === 'markdownContent') {
 			return true;
+		}
+
+		// Match hook parts with the same subAgentInvocationId to keep them grouped in the subagent dropdown
+		if (other.kind === 'hook' && other.subAgentInvocationId) {
+			return this.subAgentInvocationId === other.subAgentInvocationId;
 		}
 
 		// Match subagent tool invocations with the same subAgentInvocationId to keep them grouped

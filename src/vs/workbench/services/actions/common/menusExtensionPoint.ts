@@ -514,6 +514,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.chatContextUsageActions', "Actions in the chat context usage details popup."),
 		proposed: 'chatParticipantAdditions'
 	},
+	{
+		key: 'chat/newSession',
+		id: MenuId.ChatNewMenu,
+		description: localize('menus.chatNewSession', "The Chat new session menu."),
+		proposed: 'chatSessionsProvider'
+	},
 ];
 
 namespace schema {

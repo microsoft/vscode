@@ -877,13 +877,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _getLanguageModel(): Promise<string | undefined> {
-		let models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
-
-		// Fallback to gpt-4o-mini if copilot-fast is not available for backwards compatibility
-		if (!models.length) {
-			models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
-		}
-
+		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
 		return models.length ? models[0] : undefined;
 	}
 }

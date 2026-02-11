@@ -66,16 +66,31 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 
 function fromLocal(extensionPath: string, forWeb: boolean, disableMangle: boolean): Stream {
 
+	const esbuildConfigFileName = forWeb
+		? 'esbuild-browser.ts'
+		: 'esbuild.ts';
+
 	const webpackConfigFileName = forWeb
 		? `extension-browser.webpack.config.js`
 		: `extension.webpack.config.js`;
 
+	const hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
 	const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFileName));
-	let input = isWebPacked
-		? fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle)
-		: fromLocalNormal(extensionPath);
 
-	if (isWebPacked) {
+	let input: Stream;
+	let isBundled = false;
+
+	if (hasEsbuild) {
+		input = fromLocalEsbuild(extensionPath, esbuildConfigFileName);
+		isBundled = true;
+	} else if (isWebPacked) {
+		input = fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle);
+		isBundled = true;
+	} else {
+		input = fromLocalNormal(extensionPath);
+	}
+
+	if (isBundled) {
 		input = updateExtensionPackageJSON(input, (data: any) => {
 			delete data.scripts;
 			delete data.dependencies;
@@ -236,6 +251,51 @@ function fromLocalNormal(extensionPath: string): Stream {
 			es.readArray(files).pipe(result);
 		})
 		.catch(err => result.emit('error', err));
+
+	return result.pipe(createStatsStream(path.basename(extensionPath)));
+}
+
+function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
+	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
+	const result = es.through();
+
+	const esbuildScript = path.join(extensionPath, esbuildConfigFileName);
+
+	// Run esbuild, then collect the files
+	new Promise<void>((resolve, reject) => {
+		const proc = cp.execFile(process.argv[0], [esbuildScript], {}, (error, _stdout, stderr) => {
+			if (error) {
+				return reject(error);
+			}
+			const matches = (stderr || '').match(/\> (.+): error: (.+)?/g);
+			fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), esbuildConfigFileName))} with ${matches ? matches.length : 0} errors.`);
+			for (const match of matches || []) {
+				fancyLog.error(match);
+			}
+			return resolve();
+		});
+
+		proc.stdout!.on('data', (data) => {
+			fancyLog(`${ansiColors.green('esbuilding')}: ${data.toString('utf8')}`);
+		});
+	}).then(() => {
+		// After esbuild completes, collect all files using vsce
+		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None });
+	}).then(fileNames => {
+		const files = fileNames
+			.map(fileName => path.join(extensionPath, fileName))
+			.map(filePath => new File({
+				path: filePath,
+				stat: fs.statSync(filePath),
+				base: extensionPath,
+				contents: fs.createReadStream(filePath)
+			}));
+
+		es.readArray(files).pipe(result);
+	}).catch(err => {
+		console.error(extensionPath);
+		result.emit('error', err);
+	});
 
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
@@ -647,7 +707,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 	});
 }
 
-async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string; outputRoot?: string }[]) {
+export async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string; outputRoot?: string }[]): Promise<void> {
 	function reporter(stdError: string, script: string) {
 		const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
 		fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
@@ -678,10 +738,11 @@ async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { 
 			});
 		});
 	});
-	return Promise.all(tasks);
+
+	await Promise.all(tasks);
 }
 
-export async function buildExtensionMedia(isWatch: boolean, outputRoot?: string) {
+export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Promise<void> {
 	return esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
 		script: path.join(extensionsPath, p),
 		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined

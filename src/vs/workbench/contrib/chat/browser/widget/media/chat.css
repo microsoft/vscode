@@ -300,18 +300,37 @@
 	border-color: var(--vscode-textBlockQuote-border);
 }
 
+.interactive-item-container .value .rendered-markdown strong {
+	font-weight: 600;
+}
+
 .interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
 	margin-bottom: 16px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+	border-collapse: separate;
+	border-spacing: 0;
+	border: 1px solid var(--vscode-chat-requestBorder);
 }
 
-.interactive-item-container .value .rendered-markdown table,
 .interactive-item-container .value .rendered-markdown table td,
 .interactive-item-container .value .rendered-markdown table th {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-collapse: collapse;
+	border-top: none;
+	border-left: none;
 	padding: 4px 6px;
+}
+
+.interactive-item-container .value .rendered-markdown table td:last-child,
+.interactive-item-container .value .rendered-markdown table th:last-child {
+	border-right: none;
+}
+
+.interactive-item-container .value .rendered-markdown table tr:last-child td,
+.interactive-item-container .value .rendered-markdown table tr:last-child th {
+	border-bottom: none;
 }
 
 .interactive-item-container .value .rendered-markdown a,
@@ -607,6 +626,10 @@
 .interactive-item-container .value .rendered-markdown ol {
 	/* Keep this in sync with the values for dedented codeblocks below */
 	padding-inline-start: 28px;
+}
+
+.interactive-item-container .value .rendered-markdown li {
+	margin: 4px 0;
 }
 
 /* NOTE- We want to dedent codeblocks in lists specifically to give them the full width. No more elegant way to do this, these values
@@ -1239,14 +1262,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
 	display: flex;
 	justify-content: space-between;
 	padding-bottom: 0;
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -2099,6 +2122,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session-list.collapsed {
 	display: none;
+}
+
+/* Tree view: remove twistie indent for leaf (non-collapsible) file rows */
+.interactive-session .chat-editing-session-list .monaco-tl-twistie:not(.collapsible) {
+	width: 0;
+	padding-right: 0;
 }
 
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {

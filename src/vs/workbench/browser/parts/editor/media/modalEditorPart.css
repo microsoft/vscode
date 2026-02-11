@@ -6,15 +6,15 @@
 /** Modal Editor Part: Modal Block */
 .monaco-modal-editor-block {
 	position: fixed;
-	height: 100%;
 	width: 100%;
 	left: 0;
-	top: 0;
 	/* z-index for modal editors: below dialogs, quick input, context views, hovers but above other things */
 	z-index: 2000;
 	display: flex;
 	justify-content: center;
 	align-items: center;
+	/* Never allow content to escape above the title bar */
+	overflow: hidden;
 }
 
 .monaco-modal-editor-block.dimmed {

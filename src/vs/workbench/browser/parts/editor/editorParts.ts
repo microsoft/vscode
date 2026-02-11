@@ -155,6 +155,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	//#region Modal Editor Part
 
 	private modalEditorPart: IModalEditorPart | undefined;
+	get activeModalEditorPart(): IModalEditorPart | undefined { return this.modalEditorPart; }
 
 	async createModalEditorPart(): Promise<IModalEditorPart> {
 

@@ -67,6 +67,7 @@ export class AgentSessionsPicker {
 	private readonly sorter = new AgentSessionsSorter();
 
 	constructor(
+		private readonly anchor: HTMLElement | undefined,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -78,6 +79,7 @@ export class AgentSessionsPicker {
 		const picker = disposables.add(this.quickInputService.createQuickPick<ISessionPickItem>({ useSeparators: true }));
 		const filter = disposables.add(this.instantiationService.createInstance(AgentSessionsFilter, {}));
 
+		picker.anchor = this.anchor;
 		picker.items = this.createPickerItems(filter);
 		picker.canAcceptInBackground = true;
 		picker.placeholder = localize('chatAgentPickerPlaceholder', "Search agent sessions by name");

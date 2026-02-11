@@ -54,7 +54,8 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return true; // Always show active session type
 		}
 
-		return getAgentCanContinueIn(type);
+		const contribution = this.chatSessionsService.getChatSessionContribution(type);
+		return getAgentCanContinueIn(type, contribution);
 	}
 
 	protected override _getSessionCategory(sessionTypeItem: ISessionTypeItem) {

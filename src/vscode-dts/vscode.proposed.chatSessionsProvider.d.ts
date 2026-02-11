@@ -23,7 +23,12 @@ declare module 'vscode' {
 		/**
 		 * The chat session is currently in progress.
 		 */
-		InProgress = 2
+		InProgress = 2,
+
+		/**
+		 * The chat session needs user input (e.g. an unresolved confirmation).
+		 */
+		NeedsInput = 3
 	}
 
 	export namespace chat {

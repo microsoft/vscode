@@ -19,7 +19,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 
 export class LocalAgentsSessionsController extends Disposable implements IChatSessionItemController, IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.localAgentsSessionsProvider';
+	static readonly ID = 'workbench.contrib.localAgentsSessionsController';
 
 	readonly chatSessionType = localChatSessionType;
 
@@ -51,22 +51,18 @@ export class LocalAgentsSessionsController extends Disposable implements IChatSe
 	}
 
 	private registerListeners(): void {
-		this._register(this.chatSessionsService.registerChatModelChangeListeners(
-			this.chatService,
-			Schemas.vscodeLocalChatSession,
-			() => this._onDidChangeChatSessionItems.fire()
-		));
+		const refreshItems = async () => {
+			this._onDidChangeChatSessionItems.fire();
+			await this.refresh(CancellationToken.None);
+			this._onDidChangeChatSessionItems.fire();
+		};
 
-		this._register(this.chatSessionsService.onDidChangeSessionItems(({ chatSessionType }) => {
-			if (chatSessionType === this.chatSessionType) {
-				this._onDidChange.fire();
-			}
-		}));
+		this._register(this.chatSessionsService.registerChatModelChangeListeners(this.chatService, Schemas.vscodeLocalChatSession, refreshItems));
 
 		this._register(this.chatService.onDidDisposeSession(e => {
 			const session = e.sessionResource.filter(resource => getChatSessionType(resource) === this.chatSessionType);
 			if (session.length > 0) {
-				this._onDidChangeChatSessionItems.fire();
+				refreshItems();
 			}
 		}));
 	}

@@ -54,6 +54,20 @@ export function getClaudeHookTypeName(hookType: HookType): string | undefined {
 }
 
 /**
+ * Result of parsing Claude hooks file.
+ */
+export interface IParseClaudeHooksResult {
+	/**
+	 * The parsed hooks by type.
+	 */
+	readonly hooks: Map<HookType, { hooks: IHookCommand[]; originalId: string }>;
+	/**
+	 * Whether all hooks from this file were disabled via `disableAllHooks: true`.
+	 */
+	readonly disabledAllHooks: boolean;
+}
+
+/**
  * Parses hooks from a Claude settings.json file.
  * Claude format:
  * {
@@ -70,23 +84,31 @@ export function getClaudeHookTypeName(hookType: HookType): string | undefined {
  *     "PreToolUse": [{ "type": "command", "command": "..." }]
  *   }
  * }
+ *
+ * If the file has `disableAllHooks: true` at the top level, all hooks are filtered out.
  */
 export function parseClaudeHooks(
 	json: unknown,
 	workspaceRootUri: URI | undefined,
 	userHome: string
-): Map<HookType, { hooks: IHookCommand[]; originalId: string }> {
+): IParseClaudeHooksResult {
 	const result = new Map<HookType, { hooks: IHookCommand[]; originalId: string }>();
 
 	if (!json || typeof json !== 'object') {
-		return result;
+		return { hooks: result, disabledAllHooks: false };
 	}
 
 	const root = json as Record<string, unknown>;
+
+	// Check for disableAllHooks property at the top level
+	if (root.disableAllHooks === true) {
+		return { hooks: result, disabledAllHooks: true };
+	}
+
 	const hooks = root.hooks;
 
 	if (!hooks || typeof hooks !== 'object') {
-		return result;
+		return { hooks: result, disabledAllHooks: false };
 	}
 
 	const hooksObj = hooks as Record<string, unknown>;
@@ -140,7 +162,7 @@ export function parseClaudeHooks(
 		}
 	}
 
-	return result;
+	return { hooks: result, disabledAllHooks: false };
 }
 
 /**
@@ -158,7 +180,5 @@ function resolveClaudeCommand(
 		return undefined;
 	}
 
-	// Add type if missing for resolveHookCommand
-	const normalized = { ...raw, type: 'command' };
-	return resolveHookCommand(normalized, workspaceRootUri, userHome);
+	return resolveHookCommand(raw, workspaceRootUri, userHome);
 }
