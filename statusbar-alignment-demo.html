@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VS Code Status Bar Alignment Comparison</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #1e1e1e;
+            color: #cccccc;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #ffffff;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #858585;
+            margin-bottom: 40px;
+            font-size: 14px;
+        }
+
+        .comparison-section {
+            margin-bottom: 60px;
+        }
+
+        .section-title {
+            color: #ffffff;
+            font-size: 20px;
+            margin-bottom: 20px;
+            padding: 10px 15px;
+            background: #2d2d30;
+            border-left: 3px solid #007acc;
+        }
+
+        .code-label {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #4ec9b0;
+            margin-bottom: 10px;
+            padding: 5px 10px;
+            background: #252526;
+            display: inline-block;
+            border-radius: 3px;
+        }
+
+        /* Mock VS Code Status Bar */
+        .statusbar-wrapper {
+            margin-bottom: 30px;
+            background: #252526;
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        .statusbar {
+            box-sizing: border-box;
+            width: 100%;
+            height: 22px;
+            font-size: 12px;
+            display: flex;
+            overflow: hidden;
+            background-color: #007acc;
+            color: #ffffff;
+            position: relative;
+        }
+
+        .items-container {
+            display: flex;
+            height: 100%;
+        }
+
+        .left-items {
+            display: flex;
+            flex-grow: 1;
+        }
+
+        .right-items {
+            display: flex;
+        }
+
+        /* BEFORE: Using inline-block (current main branch) */
+        .statusbar.before .statusbar-item {
+            display: inline-block;
+            line-height: 22px;
+            height: 100%;
+            vertical-align: top;
+            max-width: 40vw;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* AFTER: Using flexbox (PR fix) */
+        .statusbar.after .statusbar-item {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            max-width: 40vw;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .statusbar-item-label {
+            cursor: pointer;
+            display: flex;
+            height: 100%;
+            margin-right: 3px;
+            margin-left: 3px;
+            padding: 0 5px;
+            white-space: pre;
+            align-items: center;
+            text-overflow: ellipsis;
+            overflow: hidden;
+        }
+
+        .statusbar-item-label:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .codicon {
+            display: inline-block;
+            text-align: center;
+            margin-right: 4px;
+            font-size: 16px;
+        }
+
+        /* Zoom section */
+        .zoom-container {
+            display: flex;
+            gap: 40px;
+            margin-top: 20px;
+        }
+
+        .zoom-box {
+            flex: 1;
+            background: #252526;
+            padding: 20px;
+            border-radius: 5px;
+        }
+
+        .zoom-title {
+            color: #ffffff;
+            font-size: 14px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .zoomed-statusbar {
+            transform: scale(3);
+            transform-origin: left center;
+            margin: 40px 0 40px 20px;
+        }
+
+        /* Measurement lines */
+        .measurement-overlay {
+            position: relative;
+            margin-top: 30px;
+        }
+
+        .measurement-line {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: #ff0000;
+            opacity: 0.7;
+        }
+
+        .measurement-line.center {
+            top: 11px;
+        }
+
+        .measurement-label {
+            position: absolute;
+            right: 10px;
+            background: #ff0000;
+            color: white;
+            padding: 2px 6px;
+            font-size: 10px;
+            border-radius: 2px;
+        }
+
+        .notes {
+            background: #2d2d30;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 40px;
+            border-left: 3px solid #ffa500;
+        }
+
+        .notes h3 {
+            color: #ffa500;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .notes ul {
+            margin-left: 20px;
+            line-height: 1.8;
+        }
+
+        .notes li {
+            color: #cccccc;
+        }
+
+        .notes code {
+            background: #1e1e1e;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: #4ec9b0;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VS Code Status Bar Vertical Alignment Fix</h1>
+        <p class="subtitle">Comparison: inline-block vs flexbox layout (PR #293822)</p>
+
+        <!-- Normal View Comparison -->
+        <div class="comparison-section">
+            <div class="section-title">Normal View (100% zoom)</div>
+
+            <div class="statusbar-wrapper">
+                <div class="code-label">BEFORE: display: inline-block; line-height: 22px; vertical-align: top;</div>
+                <div class="statusbar before">
+                    <div class="items-container left-items">
+                        <div class="statusbar-item">
+                            <a class="statusbar-item-label">
+                                <i class="codicon fa-solid fa-code-branch"></i>
+                                <span>main</span>
+                            </a>
+                        </div>
+                        <div class="statusbar-item">
+                            <a class="statusbar-item-label">
+                                <i class="codicon fa-solid fa-rotate"></i>
+                            </a>
+                        </div>
+                        <div class="statusbar-item">
+                            <a class="statusbar-item-label">
+                                <i class="codicon fa-solid fa-circle-xmark"></i>
+                                <span>0</span>
+                            </a>
+                        </div>
+                        <div class="statusbar-item">
+                            <a class="statusbar-item-label">
+                                <i class="codicon fa-solid fa-triangle-exclamation"></i>
+                                <span>2</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="statusbar-wrapper">
+                <div class="code-label">AFTER: display: flex; align-items: center;</div>
+                <div class="statusbar after">
+                    <div class="items-container left-items">
+                        <div class="statusbar-item">
+                            <a class="statusbar-item-label">
+                                <i class="codicon fa-solid fa-code-branch"></i>
+                                <span>main</span>
+                            </a>
+                        </div>
+                        <div class="statusbar-item">
+                            <a class="statusbar-item-label">
+                                <i class="codicon fa-solid fa-rotate"></i>
+                            </a>
+                        </div>
+                        <div class="statusbar-item">
+                            <a class="statusbar-item-label">
+                                <i class="codicon fa-solid fa-circle-xmark"></i>
+                                <span>0</span>
+                            </a>
+                        </div>
+                        <div class="statusbar-item">
+                            <a class="statusbar-item-label">
+                                <i class="codicon fa-solid fa-triangle-exclamation"></i>
+                                <span>2</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Zoomed View Comparison -->
+        <div class="comparison-section">
+            <div class="section-title">Zoomed View (300% zoom) - Shows Alignment Differences</div>
+
+            <div class="zoom-container">
+                <div class="zoom-box">
+                    <div class="zoom-title">❌ BEFORE (inline-block)</div>
+                    <div class="statusbar before zoomed-statusbar">
+                        <div class="items-container left-items">
+                            <div class="statusbar-item">
+                                <a class="statusbar-item-label">
+                                    <i class="codicon fa-solid fa-code-branch"></i>
+                                    <span>main</span>
+                                </a>
+                            </div>
+                            <div class="statusbar-item">
+                                <a class="statusbar-item-label">
+                                    <i class="codicon fa-solid fa-circle-xmark"></i>
+                                    <span>0</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="measurement-overlay">
+                        <div class="measurement-line center">
+                            <span class="measurement-label">Center line (11px)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="zoom-box">
+                    <div class="zoom-title">✅ AFTER (flexbox)</div>
+                    <div class="statusbar after zoomed-statusbar">
+                        <div class="items-container left-items">
+                            <div class="statusbar-item">
+                                <a class="statusbar-item-label">
+                                    <i class="codicon fa-solid fa-code-branch"></i>
+                                    <span>main</span>
+                                </a>
+                            </div>
+                            <div class="statusbar-item">
+                                <a class="statusbar-item-label">
+                                    <i class="codicon fa-solid fa-circle-xmark"></i>
+                                    <span>0</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="measurement-overlay">
+                        <div class="measurement-line center">
+                            <span class="measurement-label">Center line (11px)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Notes -->
+        <div class="notes">
+            <h3>📝 Technical Details</h3>
+            <ul>
+                <li><strong>Issue:</strong> The <code>inline-block</code> layout with <code>line-height: 22px</code> and <code>vertical-align: top</code> causes subtle 1-2px misalignment between icons and text</li>
+                <li><strong>Root Cause:</strong> <code>line-height</code> affects text baseline alignment differently than icon rendering, creating inconsistent vertical positioning</li>
+                <li><strong>Solution:</strong> Flexbox with <code>align-items: center</code> ensures all child elements (icons and text) are perfectly centered vertically within the 22px container</li>
+                <li><strong>Platform Impact:</strong> The misalignment is most noticeable on Windows 11 and macOS due to font rendering differences</li>
+                <li><strong>Visual Difference:</strong> While subtle at 100% zoom, the difference becomes clear when zoomed in or when comparing pixel-perfect alignment</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
