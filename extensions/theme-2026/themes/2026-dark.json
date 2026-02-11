@@ -15,6 +15,7 @@
 		"textCodeBlock.background": "#242526",
 		"textLink.foreground": "#48A0C7",
 		"textLink.activeForeground": "#53A5CA",
+		"textPreformat.background": "#262626",
 		"textPreformat.foreground": "#888888",
 		"textSeparator.foreground": "#2a2a2aFF",
 		"button.background": "#3994BCF2",
