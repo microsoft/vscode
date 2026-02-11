@@ -148,6 +148,7 @@ export class SettingsEditor2 extends EditorPane {
 		`@${FEATURE_SETTING_TAG}remote`,
 		`@${FEATURE_SETTING_TAG}timeline`,
 		`@${FEATURE_SETTING_TAG}notebook`,
+		`@${FEATURE_SETTING_TAG}chat`,
 		`@${POLICY_SETTING_TAG}`
 	];
 
