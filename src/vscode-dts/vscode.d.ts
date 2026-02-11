@@ -1044,6 +1044,11 @@ declare module 'vscode' {
 		borderStyle?: string;
 
 		/**
+		 * Line height
+		 */
+		lineHeight?: number;
+
+		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 * Better use 'border' for setting one or more of the individual border properties.
 		 */
@@ -1058,6 +1063,16 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
 		fontWeight?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		fontFamily?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration. Maximum is 100.
+		 */
+		fontSize?: string;
 
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
@@ -1142,6 +1157,14 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
 		fontWeight?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontFamily?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontSize?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
