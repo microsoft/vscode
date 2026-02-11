@@ -4118,7 +4118,7 @@ export namespace ChatHookCommand {
 			command,
 			cwd: hook.cwd,
 			env: hook.env,
-			timeoutSec: hook.timeoutSec,
+			timeout: hook.timeout,
 		};
 	}
 }
