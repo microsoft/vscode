@@ -300,6 +300,10 @@
 	border-color: var(--vscode-textBlockQuote-border);
 }
 
+.interactive-item-container .value .rendered-markdown strong {
+	font-weight: 600;
+}
+
 .interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
