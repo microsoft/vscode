@@ -814,10 +814,21 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 
 		const sessionsWidth = Math.min(800, this.lastDimension.width - 80);
-		const visibleSessions = Math.min(
-			this.agentSessionsService.model.sessions.filter(s => !s.isArchived()).length,
-			MAX_SESSIONS
-		);
+
+		// Prefer to base the count on the actually rendered items, which
+		// already reflect any AgentSessionsFilter criteria that may be
+		// applied by the control.
+		let visibleSessions = this.sessionsControl.element
+			? this.sessionsControl.element.querySelectorAll('.monaco-list-row').length
+			: 0;
+
+		// If the control has not rendered yet (or no rows are present),
+		// fall back to the model-based computation used previously.
+		if (!visibleSessions) {
+			visibleSessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived()).length;
+		}
+
+		visibleSessions = Math.min(visibleSessions, MAX_SESSIONS);
 
 		if (visibleSessions === 0) {
 			return;
