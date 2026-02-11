@@ -1409,6 +1409,16 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'debug',
+			detail: nls.localize('debug', "Show Chat Debug View"),
+			sortText: 'z3_debug',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('github.copilot.debug.showChatLogView');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'agents',
 			detail: nls.localize('agents', "Configure custom agents"),
 			sortText: 'z3_agents',
