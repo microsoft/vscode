@@ -313,7 +313,8 @@ function normalizeHookCommand(raw: Record<string, unknown>): { command?: string;
 		...(osxSource && { osxSource }),
 		...(typeof raw.cwd === 'string' && { cwd: raw.cwd }),
 		...(typeof raw.env === 'object' && raw.env !== null && { env: raw.env as Record<string, string> }),
-		...((typeof raw.timeout === 'number' ? { timeout: raw.timeout } : typeof raw.timeoutSec === 'number' ? { timeout: raw.timeoutSec } : undefined)),
+		...(typeof raw.timeout !== 'number' && typeof raw.timeoutSec === 'number' && { timeout: raw.timeoutSec }),
+		...(typeof raw.timeout === 'number' && { timeout: raw.timeout }),
 	};
 }
 
