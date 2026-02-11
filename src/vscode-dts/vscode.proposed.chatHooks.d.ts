@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 5
+// version: 6
 
 declare module 'vscode' {
 
@@ -32,7 +32,7 @@ declare module 'vscode' {
 		/**
 		 * Maximum execution time in seconds.
 		 */
-		readonly timeoutSec?: number;
+		readonly timeout?: number;
 	}
 
 	/**

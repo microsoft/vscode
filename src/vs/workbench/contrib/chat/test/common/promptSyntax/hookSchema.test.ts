@@ -35,14 +35,14 @@ suite('HookSchema', () => {
 					command: './scripts/validate.sh',
 					cwd: 'src',
 					env: { NODE_ENV: 'test' },
-					timeoutSec: 60
+					timeout: 60
 				}, workspaceRoot, userHome);
 				assert.deepStrictEqual(result, {
 					type: 'command',
 					command: './scripts/validate.sh',
 					cwd: URI.file('/workspace/src'),
 					env: { NODE_ENV: 'test' },
-					timeoutSec: 60
+					timeout: 60
 				});
 			});
 
@@ -118,18 +118,18 @@ suite('HookSchema', () => {
 				});
 			});
 
-			test('powershell with timeoutSec', () => {
+			test('powershell with timeout', () => {
 				const result = resolveHookCommand({
 					type: 'command',
 					powershell: 'Get-Process',
-					timeoutSec: 30
+					timeout: 30
 				}, workspaceRoot, userHome);
 				assert.deepStrictEqual(result, {
 					type: 'command',
 					windows: 'Get-Process',
 					windowsSource: 'powershell',
 					cwd: workspaceRoot,
-					timeoutSec: 30
+					timeout: 30
 				});
 			});
 
@@ -277,11 +277,11 @@ suite('HookSchema', () => {
 				});
 			});
 
-			test('ignores non-number timeoutSec', () => {
+			test('ignores non-number timeout', () => {
 				const result = resolveHookCommand({
 					type: 'command',
 					command: 'echo hello',
-					timeoutSec: '30'
+					timeout: '30'
 				}, workspaceRoot, userHome);
 				assert.deepStrictEqual(result, {
 					type: 'command',

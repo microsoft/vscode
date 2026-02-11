@@ -325,11 +325,11 @@ suite('HookClaudeCompat', () => {
 				assert.deepStrictEqual(entry.hooks[0].env, { NODE_ENV: 'production' });
 			});
 
-			test('preserves timeoutSec', () => {
+			test('preserves timeout', () => {
 				const json = {
 					hooks: {
 						PreToolUse: [
-							{ type: 'command', command: 'echo "test"', timeoutSec: 60 }
+							{ type: 'command', command: 'echo "test"', timeout: 60 }
 						]
 					}
 				};
@@ -337,7 +337,7 @@ suite('HookClaudeCompat', () => {
 				const result = parseClaudeHooks(json, workspaceRoot, userHome);
 
 				const entry = result.get(HookType.PreToolUse)!;
-				assert.strictEqual(entry.hooks[0].timeoutSec, 60);
+				assert.strictEqual(entry.hooks[0].timeout, 60);
 			});
 		});
 	});
