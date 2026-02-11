@@ -251,6 +251,24 @@
 	display: block;
 }
 
+/* When horizontal scrolling is enabled, shift actions back to the viewport's right edge */
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:hover .custom-view-tree-node-item .actions,
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.selected .custom-view-tree-node-item .actions,
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.focused .custom-view-tree-node-item .actions {
+	position: relative;
+	right: var(--list-scroll-right-offset, 0px);
+	background-color: var(--vscode-list-hoverBackground);
+	padding-left: 4px;
+}
+
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.selected .custom-view-tree-node-item .actions {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.focused .custom-view-tree-node-item .actions {
+	background-color: var(--vscode-list-focusBackground);
+}
+
 /* filter view pane */
 
 .monaco-workbench .auxiliarybar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item.viewpane-filter-container {
