@@ -611,7 +611,7 @@ export async function showConfigureHooksQuickPick(
 					const inputBox = inputDisposables.add(quickInputService.createInputBox());
 					inputBox.prompt = localize('commands.hook.filename.prompt', "Enter hook file name");
 					inputBox.placeholder = localize('commands.hook.filename.placeholder', "e.g., hooks, diagnostics, security");
-					inputBox.title = localize('commands.hook.filename.title', 'Hook File Name');
+					inputBox.title = localize('commands.hook.filename.title', "Hook File Name");
 					inputBox.buttons = [backButton];
 					inputBox.ignoreFocusOut = true;
 
