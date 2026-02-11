@@ -145,8 +145,8 @@ export const startEntries: GettingStartedStartEntryContent = [
 	},
 	{
 		id: 'topLevelOpenFolder',
-		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
-		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
+		title: localize('gettingStarted.openFolder.title', "Open Case..."),
+		description: localize('gettingStarted.openFolder.description', "Open a case to start working"),
 		icon: Codicon.folderOpened,
 		when: '!isWeb && !isMac',
 		content: {
@@ -156,8 +156,8 @@ export const startEntries: GettingStartedStartEntryContent = [
 	},
 	{
 		id: 'topLevelOpenFolderWeb',
-		title: localize('gettingStarted.openFolder.title', "Open Folder..."),
-		description: localize('gettingStarted.openFolder.description', "Open a folder to start working"),
+		title: localize('gettingStarted.openFolder.title', "Open Case..."),
+		description: localize('gettingStarted.openFolder.description', "Open a case to start working"),
 		icon: Codicon.folderOpened,
 		when: '!openFolderWorkspaceSupport && workbenchState == \'workspace\'',
 		content: {
@@ -353,7 +353,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				{
 					id: 'pickAFolderTask-WebWeb',
 					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
-					description: localize('gettingStarted.setup.OpenFolderWeb.description.interpolated', "You're all set to start coding. You can open a local project or a remote repository to get your files into VS Code.\n{0}\n{1}", Button(localize('openFolder', "Open Folder"), 'command:workbench.action.addRootFolder'), Button(localize('openRepository', "Open Repository"), 'command:remoteHub.openRepository')),
+					description: localize('gettingStarted.setup.OpenFolderWeb.description.interpolated', "You're all set to get started. You can open a local case or a remote repository to load your files.\n{0}\n{1}", Button(localize('openFolder', "Open Case"), 'command:workbench.action.addRootFolder'), Button(localize('openRepository', "Open Repository"), 'command:remoteHub.openRepository')),
 					when: 'workspaceFolderCount == 0',
 					media: {
 						type: 'svg', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: 'openFolder.svg'

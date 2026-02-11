@@ -58,7 +58,7 @@ export class OpenFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenFolderAction.ID,
-			title: localize2('openFolder', 'Open Folder...'),
+			title: localize2('openFolder', 'Open Case...'),
 			category: Categories.File,
 			f1: true,
 			precondition: OpenFolderWorkspaceSupportContext,
@@ -86,7 +86,7 @@ export class OpenFolderViaWorkspaceAction extends Action2 {
 
 	// This action swaps the folders of a workspace with
 	// the selected folder and is a workaround for providing
-	// "Open Folder..." in environments that do not support
+	// "Open Case..." in environments that do not support
 	// this without having a workspace open (e.g. web serverless)
 
 	static readonly ID = 'workbench.action.files.openFolderViaWorkspace';
@@ -94,7 +94,7 @@ export class OpenFolderViaWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenFolderViaWorkspaceAction.ID,
-			title: localize2('openFolder', 'Open Folder...'),
+			title: localize2('openFolder', 'Open Case...'),
 			category: Categories.File,
 			f1: true,
 			precondition: ContextKeyExpr.and(OpenFolderWorkspaceSupportContext.toNegated(), WorkbenchStateContext.isEqualTo('workspace')),
@@ -145,7 +145,7 @@ class OpenWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: OpenWorkspaceAction.ID,
-			title: localize2('openWorkspaceAction', 'Open Workspace from File...'),
+			title: localize2('openWorkspaceAction', 'Open Case from File...'),
 			category: Categories.File,
 			f1: true,
 			precondition: EnterMultiRootWorkspaceSupportContext
@@ -166,7 +166,7 @@ class CloseWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: CloseWorkspaceAction.ID,
-			title: localize2('closeWorkspace', 'Close Workspace'),
+			title: localize2('closeWorkspace', 'Close Case'),
 			category: workspacesCategory,
 			f1: true,
 			precondition: ContextKeyExpr.and(WorkbenchStateContext.notEqualsTo('empty'), EmptyWorkspaceSupportContext),

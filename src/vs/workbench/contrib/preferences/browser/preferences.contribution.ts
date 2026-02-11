@@ -401,7 +401,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openFolderSettings',
-					title: nls.localize2('openFolderSettings', "Open Folder Settings"),
+					title: nls.localize2('openFolderSettings', "Open Case Settings"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -423,7 +423,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: 'workbench.action.openFolderSettingsFile',
-					title: nls.localize2('openFolderSettingsFile', "Open Folder Settings (JSON)"),
+					title: nls.localize2('openFolderSettingsFile', "Open Case Settings (JSON)"),
 					category,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -445,7 +445,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 			constructor() {
 				super({
 					id: '_workbench.action.openFolderSettings',
-					title: nls.localize('openFolderSettings', "Open Folder Settings"),
+					title: nls.localize('openFolderSettings', "Open Case Settings"),
 					category,
 					menu: {
 						id: MenuId.ExplorerContext,
