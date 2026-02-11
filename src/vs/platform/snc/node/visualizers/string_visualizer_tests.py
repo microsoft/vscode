@@ -40,8 +40,6 @@ from string_visualizer import (
     is_adjacent_left,
     synthesize_fuzzy_pattern,
     find_available_variable_name,
-    generate_slice_code,
-    generate_regex_code,
     generate_regex_code_from_pattern,
     generate_regex_delete_from_pattern,
     DC1, DC2, DC3, DC4,  # Sentinel characters
@@ -945,7 +943,7 @@ class TestKeyboardEvents(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         self.assertIsInstance(commands[0], NewCode)
         # Check generated code
-        expected_code = "import re\nx = 'hello world'\nx_match = re.search(r'hello', x, re.M).group(0)"
+        expected_code = "import re\nx = 'hello world'\nx_matches = list(re.finditer(r'hello', x, flags=re.M))"
         self.assertEqual(commands[0].code, expected_code)
 
     def test_enter_without_selection_does_nothing(self):
@@ -968,8 +966,8 @@ class TestKeyboardEvents(unittest.TestCase):
         self.assertEqual(commands[0].code, expected_code)
 
     def test_enter_avoids_name_collision_for_match_variable(self):
-        """Enter key uses the next available _match suffix when name collides."""
-        source_code = "x = 'hello world'\nx_match = 'already used'\nx_match2 = 'also used'"
+        """Enter key uses the next available _matches suffix when name collides."""
+        source_code = "x = 'hello world'\nx_matches = 'already used'\nx_matches2 = 'also used'"
         model = self._create_hello_selection(self.model)
 
         model, commands = update(make_key_down_event('Enter'),
@@ -980,9 +978,9 @@ class TestKeyboardEvents(unittest.TestCase):
         expected_code = (
             "import re\n"
             "x = 'hello world'\n"
-            "x_match3 = re.search(r'hello', x, re.M).group(0)\n"
-            "x_match = 'already used'\n"
-            "x_match2 = 'also used'"
+            "x_matches3 = list(re.finditer(r'hello', x, flags=re.M))\n"
+            "x_matches = 'already used'\n"
+            "x_matches2 = 'also used'"
         )
         self.assertEqual(commands[0].code, expected_code)
 
@@ -3143,7 +3141,7 @@ class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         self.assertIsInstance(commands[0], NewCode)
         # The generated code should have the stripped pattern (no groups)
-        self.assertIn("re.search(r'hello.*world'", commands[0].code)
+        self.assertIn("list(re.finditer(r'hello.*world'", commands[0].code)
 
     def test_enter_after_search_box_simple_regex(self):
         """Enter generates code for a simple regex without groups."""
@@ -3155,11 +3153,11 @@ class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
 
         self.assertEqual(len(commands), 1)
         self.assertIsInstance(commands[0], NewCode)
-        self.assertIn("re.search(r'hello'", commands[0].code)
+        self.assertIn("list(re.finditer(r'hello'", commands[0].code)
 
     def test_enter_after_search_box_avoids_match_collision(self):
-        """Search-box Enter path also avoids collisions for _match variable names."""
-        source_code = "x = 'hello world'\nx_match = 'already used'"
+        """Search-box Enter path also avoids collisions for _matches variable names."""
+        source_code = "x = 'hello world'\nx_matches = 'already used'"
         model, _ = update(make_search_box_input_event('/hello/'),
                           source_code, self.source_line, self.model, self.value)
 
@@ -3168,7 +3166,7 @@ class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
 
         self.assertEqual(len(commands), 1)
         self.assertIsInstance(commands[0], NewCode)
-        self.assertIn("x_match2 = re.search(r'hello'", commands[0].code)
+        self.assertIn("x_matches2 = list(re.finditer(r'hello'", commands[0].code)
 
 
 class TestFindAvailableVariableName(unittest.TestCase):
@@ -3182,26 +3180,15 @@ class TestFindAvailableVariableName(unittest.TestCase):
         source_code = "x_match = 1\nx_match2 = 2\nx_match3 = 3"
         self.assertEqual(find_available_variable_name(source_code, "x_match"), "x_match4")
 
-    def test_generate_slice_code_avoids_result_slice_collision(self):
-        source_code = "print('hello world')\nresult_slice = 'used'"
-        new_code = generate_slice_code(source_code, 1, "hello world", 2, 7)
-        self.assertIn("result_slice2 = (print('hello world'))[0:5]", new_code)
-
-    def test_generate_regex_code_avoids_result_match_collision(self):
-        source_code = "print('hello world')\nresult_match = 'used'"
-        segments = [{"start": 2, "end": 7, "type": "literal"}]
-        new_code = generate_regex_code(source_code, 1, "hello world", segments)
-        self.assertIn("result_match2 = re.search(r'hello', (print('hello world')), re.M).group(0)", new_code)
-
     def test_generate_regex_code_from_pattern_avoids_result_match_collision(self):
-        source_code = "print('hello world')\nresult_match = 'used'"
+        source_code = "print('hello world')\nresult_matches = 'used'"
         new_code = generate_regex_code_from_pattern(source_code, 1, "/hello/")
-        self.assertIn("result_match2 = re.search(r'hello', (print('hello world')), re.M).group(0)", new_code)
+        self.assertIn("result_matches2 = list(re.finditer(r'hello', (print('hello world')), flags=re.M))", new_code)
 
     def test_generate_regex_delete_from_pattern_avoids_result2_collision(self):
         source_code = "print('hello world')\nresult2 = 'used'\nresult3 = 'also used'"
         new_code = generate_regex_delete_from_pattern(source_code, 1, "/hello/")
-        self.assertIn("result4 = re.sub(r'hello', '', (print('hello world')), flags=re.M)", new_code)
+        self.assertIn("result = re.sub(r'hello', '', (print('hello world')), flags=re.M)", new_code)
 
 
 class TestSearchBoxEscape(unittest.TestCase):

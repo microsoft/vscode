@@ -45,7 +45,7 @@ SELECTION (Programming by Demonstration):
 - Dragging the BOTTOM half creates "fuzzy" selections (purple = .*)
 - Multiple segments can be chained by starting a new drag at the end of
   the previous selection
-- Pressing Enter generates regex code: re.search(r'pattern', var, re.M).group(0)
+- Pressing Enter generates regex code: list(re.finditer(r'pattern', var, flags=re.M))
 
 MODEL STATE:
 - selectionRegex: Regex pattern with / delimiters in canonical form.
@@ -78,7 +78,6 @@ from re._constants import (  # type: ignore[import]
 )
 
 from dataclasses import dataclass
-from collections.abc import Callable
 from typing import List, Tuple, Any
 
 # === Command types (Elm-style commands for VS Code to execute) ===
@@ -264,20 +263,11 @@ def char_to_regex_literal(char: str) -> str:
         return re.escape(char)
 
 
-def safe_repr(value):
-    try:
-        return html.escape(repr(value))
-    except Exception:
-        return '<span style="color: #f44747;">[Error]</span>'
-
 def span(text, color, style=''):
     return f'<span style="color: {color};{style}">{text}</span>'
 
 def can_visualize(value):
     return isinstance(value, str)
-
-def plain_char(char):
-    return span(html.escape(char), GRAY)
 
 
 def render_dropdown(
@@ -675,19 +665,6 @@ def extract_by_internal_indices(string_value: str, start: int, end: int) -> str:
     return ''.join(result)
 
 
-def convert_sentinels_to_regex_anchors(text: str) -> str:
-    """
-    Convert sentinel characters back to regex anchor syntax.
-
-    Used when building the regex pattern from selected text that may include anchors.
-    """
-    text = text.replace(DC1, r'\A')
-    text = text.replace(DC2, '^')
-    text = text.replace(DC3, '$')
-    text = text.replace(DC4, r'\Z')
-    return text
-
-
 def build_internal_to_string_mapping(string_value: str) -> List[int]:
     """
     Build a mapping from internal visualizer indices to actual string character indices.
@@ -758,25 +735,6 @@ def build_string_to_internal_mapping(string_value: str) -> List[int]:
     mapping.append(internal_idx)
 
     return mapping
-
-
-def string_index_to_internal_index(string_idx: int, string_value: str) -> int:
-    """
-    Convert a string character index to an internal visualizer index.
-
-    Args:
-        string_idx: Index in the original string (0-based)
-        string_value: The string being visualized
-
-    Returns:
-        The corresponding internal index for highlighting/display.
-    """
-    mapping = build_string_to_internal_mapping(string_value)
-    if string_idx < 0:
-        return 0
-    if string_idx >= len(mapping):
-        return mapping[-1] if mapping else 2
-    return mapping[string_idx]
 
 
 def internal_range_to_string_slice(internal_start: int, internal_end: int, string_value: str) -> Tuple[int, int]:
@@ -1137,21 +1095,6 @@ def get_regex_inner_pattern(selection_regex: str | None) -> str | None:
     if selection_regex is None:
         return None
     return selection_regex[1:-1]
-
-
-def count_regex_segments(selection_regex: str | None) -> int:
-    """
-    Count the number of segments in the regex (both grouped and ungrouped).
-
-    This tells us how many segments have been selected.
-    Works with canonical regex format where some segments may not be in groups.
-    """
-    if selection_regex is None:
-        return 0
-    inner = get_regex_inner_pattern(selection_regex)
-    if not inner:
-        return 0
-    return len(parse_all_segments(inner))
 
 
 # Mapping from category constants to shorthand display strings
@@ -1757,7 +1700,7 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
     # Run the fully-grouped regex against the ORIGINAL string (not augmented!)
     # re.M makes ^ and $ match at line boundaries
     try:
-        match = re.search(grouped_pattern, string_value, re.M)
+        match = re.search(grouped_pattern, string_value, flags=re.M)
     except Exception:
         return []
 
@@ -2043,87 +1986,11 @@ def _ensure_import_statement(lines: List[str], import_stmt: str) -> None:
 
 
 def _build_regex_search_assignment(source_code: str, var_name: str | None, expr: str, regex_pattern: str) -> str:
-    """Build a collision-safe assignment for a re.search(...).group(0) expression."""
-    desired_name = f"{var_name}_match" if var_name else "result_match"
+    """Build a collision-safe assignment for a list(re.finditer(...)) expression."""
+    desired_name = f"{var_name}_matches" if var_name else "result_matches"
     var_to_search = var_name if var_name else f"({expr})"
     new_var = find_available_variable_name(source_code, desired_name)
-    return f"{new_var} = re.search(r'{regex_pattern}', {var_to_search}, re.M).group(0)"
-
-
-def generate_slice_code(source_code: str, line_number: int, string_value: str,
-                        internal_start: int, internal_end: int) -> str:
-    """
-    Generate new source code with a slice expression inserted after the current line.
-
-    Args:
-        source_code: The full source code
-        line_number: Line where the string is visualized (1-indexed)
-        string_value: The actual string value
-        internal_start: Start of selection (internal index, inclusive)
-        internal_end: End of selection (internal index, exclusive)
-
-    Returns:
-        New source code with slice line inserted
-    """
-    slice_start, slice_end = internal_range_to_string_slice(internal_start, internal_end, string_value)
-    expr, var_name = extract_expression_from_line(source_code, line_number)
-
-    # Generate the slice expression
-    desired_name = f"{var_name}_slice" if var_name else "result_slice"
-    source_expr = var_name if var_name else f"({expr})"
-    new_var = find_available_variable_name(source_code, desired_name)
-    slice_expr = f"{new_var} = {source_expr}[{slice_start}:{slice_end}]"
-
-    lines = _insert_line_after_with_matching_indent(source_code, line_number, slice_expr)
-
-    return '\n'.join(lines)
-
-
-def generate_regex_code(source_code: str, line_number: int, string_value: str,
-                        segments: List[dict]) -> str:
-    """
-    Generate new source code with a regex search expression inserted after the current line.
-
-    Args:
-        source_code: The full source code
-        line_number: Line where the string is visualized (1-indexed)
-        string_value: The actual string value
-        segments: List of {"start": int, "end": int, "type": "literal"|"fuzzy"}
-
-    Returns:
-        New source code with regex search line inserted
-    """
-    expr, var_name = extract_expression_from_line(source_code, line_number)
-    mapping = build_internal_to_string_mapping(string_value)
-
-    # Build regex pattern from segments
-    pattern_parts = []
-    for seg in segments:
-        # Convert internal indices to string slice
-        seg_start = seg['start']
-        seg_end = seg['end']
-
-        # Map internal indices to string indices
-        slice_start = mapping[seg_start] if seg_start < len(mapping) else len(string_value)
-        slice_end = mapping[seg_end - 1] + 1 if seg_end - 1 < len(mapping) else len(string_value)
-        slice_end = min(slice_end, len(string_value))
-
-        text = string_value[slice_start:slice_end]
-
-        if seg['type'] == 'literal':
-            pattern_parts.append(re.escape(text))
-        else:  # fuzzy
-            pattern_parts.append('.*')
-
-    regex_pattern = ''.join(pattern_parts)
-
-    # Generate the regex expression
-    regex_expr = _build_regex_search_assignment(source_code, var_name, expr, regex_pattern)
-
-    lines = _insert_line_after_with_matching_indent(source_code, line_number, regex_expr)
-    _ensure_import_statement(lines, 'import re')
-
-    return '\n'.join(lines)
+    return f"{new_var} = list(re.finditer(r'{regex_pattern}', {var_to_search}, flags=re.M))"
 
 
 def strip_capturing_groups(pattern: str) -> str:

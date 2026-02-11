@@ -31,6 +31,12 @@
 	user-select: text;
 }
 
+.monaco-editor .snc-visualization-widget.snc-visualization-widget-block-layout {
+	display: block;
+	margin-left: 0;
+	margin-top: 0;
+}
+
 .monaco-editor .snc-visualization-widget.snc-syntax-error {
 	filter: grayscale(1.0);
 	opacity: 0.8;

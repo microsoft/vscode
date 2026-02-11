@@ -4,6 +4,7 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { ICodeEditor, IViewZone, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
+import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
 import { IProcessOptions, IVisualizationItem, SNCCommand, SNCStreamMessage, SNCTimingData, UiEvent } from '../../../../platform/snc/common/snc.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -46,6 +47,7 @@ const ttPolicy = createTrustedTypesPolicy('sncVisualization', { createHTML: valu
  * Widget that displays visualization data for a specific line of code.
  */
 class VisualizationWidget extends Disposable implements IOverlayWidget {
+	private static readonly BLOCK_LAYOUT_THRESHOLD_PX = 150;
 	private readonly editor: ICodeEditor;
 	private readonly domNode: HTMLElement;
 	private position: Position | null = null;
@@ -61,6 +63,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	private focusRestoreVersion = 0;
 	private hoistedDropdown: HTMLElement | null = null;
 	private hoistedDropdownListeners: IDisposable[] = [];
+	private useBlockLayout = false;
 
 	constructor(editor: ICodeEditor, lineNumber: number, visIndex: number, onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void, onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void, onInputEvent: (pythonEventStr: string, value: string) => void) {
 		super();
@@ -204,9 +207,13 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			// Get the line content to find the end column
 			const lineContent = model.getLineContent(lineNumber);
 			const endColumn = lineContent.length + 1;
+			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+			const firstNonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
+			const indentationColumn = firstNonWhitespaceColumn > 0 ? firstNonWhitespaceColumn : 1;
+			const targetColumn = this.useBlockLayout ? indentationColumn : endColumn;
 
 			// Use the editor's coordinate conversion methods
-			const position = { lineNumber, column: endColumn };
+			const position = { lineNumber, column: targetColumn };
 			const pixelPosition = this.editor.getScrolledVisiblePosition(position);
 
 			if (!pixelPosition) {
@@ -214,7 +221,9 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				return null;
 			}
 
-			pixelPosition.top -= 1; // align first line of text b/c 1px border
+			// Align first line of text with 1px border; block layout starts on the next
+			// visual line to render below the code line.
+			pixelPosition.top += this.useBlockLayout ? lineHeight : -1;
 
 			if (pixelPosition.top < 0 && this.lastOnscreenPixelPosition) {
 				// x coordinate is not reliable when lines are offscreen, use last known coordinate
@@ -284,6 +293,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 
 		// Hoist any dropdown panel outside the overflow container
 		this.hoistDropdownPanel();
+		this.updateLayoutMode();
 
 		// Restore focus to the same nth focusable element
 		// Look in both the widget and any hoisted dropdown
@@ -310,6 +320,16 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				}
 			});
 		}
+	}
+
+	usesBlockLayout(): boolean {
+		return this.useBlockLayout;
+	}
+
+	private updateLayoutMode(): void {
+		const rect = this.domNode.getBoundingClientRect();
+		this.useBlockLayout = rect.width > VisualizationWidget.BLOCK_LAYOUT_THRESHOLD_PX || rect.height > VisualizationWidget.BLOCK_LAYOUT_THRESHOLD_PX;
+		this.domNode.classList.toggle('snc-visualization-widget-block-layout', this.useBlockLayout);
 	}
 
 	/**
@@ -762,6 +782,25 @@ export class SNCController extends Disposable implements IEditorContribution {
 		// console.log("groupedByLine", groupedByLine)
 
 		const presentLines = new Set<number>(Array.from(groupedByLine.keys()));
+		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		const getViewZoneHeightInPx = (widgets: VisualizationWidget[]): number => {
+			if (widgets.length === 0) {
+				return 0;
+			}
+
+			const maxHeight = Math.max(...widgets.map(w => w.getDomNode().getBoundingClientRect().height));
+			const usesBlockLayout = widgets.some(w => w.usesBlockLayout());
+
+			if (usesBlockLayout) {
+				return Math.max(Math.ceil(maxHeight) + 4, lineHeight);
+			}
+
+			if (maxHeight > 22) {
+				return Math.ceil(maxHeight) - 12;
+			}
+
+			return 0;
+		};
 
 		// console.log("presentLines", presentLines)
 
@@ -809,15 +848,15 @@ export class SNCController extends Disposable implements IEditorContribution {
 					}
 
 					// Adjust view zone height if needed
-					const maxHeight = Math.max(...existing.map(w => w.getDomNode().getBoundingClientRect().height));
+					const viewZoneHeightInPx = getViewZoneHeightInPx(existing);
 					const existingZoneId = this.viewZones.get(lineNumber);
-					if (maxHeight > 22) {
+					if (viewZoneHeightInPx > 0) {
 						if (existingZoneId) {
 							accessor.removeZone(existingZoneId);
 						}
 						const viewZone: IViewZone = {
 							afterLineNumber: lineNumber,
-							heightInPx: maxHeight - 12,
+							heightInPx: viewZoneHeightInPx,
 							domNode: document.createElement('div'),
 							suppressMouseDown: false
 						};
@@ -855,11 +894,11 @@ export class SNCController extends Disposable implements IEditorContribution {
 						this.visualizationWidgets.set(lineNumber, widgets);
 					}
 
-					const maxHeight = widgets.length ? Math.max(...widgets.map(w => w.getDomNode().getBoundingClientRect().height)) : 0;
-					if (maxHeight > 22) {
+					const viewZoneHeightInPx = getViewZoneHeightInPx(widgets);
+					if (viewZoneHeightInPx > 0) {
 						const viewZone: IViewZone = {
 							afterLineNumber: lineNumber,
-							heightInPx: maxHeight - 12,
+							heightInPx: viewZoneHeightInPx,
 							domNode: document.createElement('div'),
 							suppressMouseDown: false
 						};
