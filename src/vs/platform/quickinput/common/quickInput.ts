@@ -703,6 +703,12 @@ export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators:
 	hideCheckAll: boolean;
 
 	/**
+	 * An optional custom widget to display between the input header and the list.
+	 * Setting this will show the widget container; setting to undefined hides it.
+	 */
+	headerWidget: HTMLElement | undefined;
+
+	/**
 	 * Focus a particular item in the list. Used internally for keyboard navigation.
 	 * @param focus The focus behavior.
 	 */

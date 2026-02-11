@@ -203,12 +203,36 @@
 	padding: 0 12px;
 }
 
+/* When active content replaces the command center center, the inner toolbar chain must fill the full width */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.has-active-content > .monaco-toolbar,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.has-active-content > .monaco-toolbar > .monaco-action-bar,
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.has-active-content > .monaco-toolbar > .monaco-action-bar > .actions-container {
+	width: 100%;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.has-active-content > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item {
+	flex: 1;
+}
+
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.multiple.active .action-label {
 	background-color: inherit;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:only-child {
 	margin-left: 0; /* no margin if there is only the command center, without nav buttons */
+}
+
+/* When active content replaces the command center center, expand the toolbar chain to fill the width */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.has-active-content > .monaco-toolbar {
+	flex: 1;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.has-active-content > .monaco-toolbar > .monaco-action-bar {
+	width: 100%;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center.has-active-content > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item {
+	flex: 1;
 }
 
 .monaco-workbench .part.titlebar.inactive > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {

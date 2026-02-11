@@ -216,9 +216,9 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental']
 		},
-		[ChatConfiguration.UnifiedAgentsBar]: {
+		[ChatConfiguration.CommandCenterShowStatus]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.unifiedAgentsBar.enabled', "Replaces the command center search box with a unified chat and search widget."),
+			markdownDescription: nls.localize('chat.commandCenter.showStatus', "Shows agent session attention indicators in the command center when sessions need user input."),
 			default: false,
 			tags: ['experimental']
 		},

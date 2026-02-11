@@ -16,7 +16,7 @@ export enum ChatConfiguration {
 	RequestQueueingDefaultAction = 'chat.requestQueuing.defaultAction',
 	AgentStatusEnabled = 'chat.agentsControl.enabled',
 	EditorAssociations = 'chat.editorAssociations',
-	UnifiedAgentsBar = 'chat.unifiedAgentsBar.enabled',
+	CommandCenterShowStatus = 'chat.commandCenter.showStatus',
 	AgentSessionProjectionEnabled = 'chat.agentSessionProjection.enabled',
 	EditModeHidden = 'chat.editMode.hidden',
 	AlternativeToolAction = 'chat.alternativeToolAction.enabled',

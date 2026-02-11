@@ -5,7 +5,7 @@
 		"chat.agentsControl.enabled": true,
 		"chat.agent.maxRequests": 1000,
 		"chat.restoreLastPanelSession": true,
-		"chat.unifiedAgentsBar.enabled": true,
+		"chat.commandCenter.showStatus": true,
 		"diffEditor.renderSideBySide": false,
 		"diffEditor.hideUnchangedRegions.enabled": true,
 		"files.autoSave": "afterDelay",

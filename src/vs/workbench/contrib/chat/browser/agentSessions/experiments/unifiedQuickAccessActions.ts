@@ -7,131 +7,109 @@ import { Action2, registerAction2 } from '../../../../../../platform/actions/com
 import { ServicesAccessor, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { localize2 } from '../../../../../../nls.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { UnifiedQuickAccess, DEFAULT_UNIFIED_QUICK_ACCESS_TABS } from './unifiedQuickAccess.js';
-
-// Singleton instance for the unified quick access
-let unifiedQuickAccessInstance: UnifiedQuickAccess | undefined;
-
-function getUnifiedQuickAccess(instantiationService: IInstantiationService): UnifiedQuickAccess {
-	if (!unifiedQuickAccessInstance) {
-		unifiedQuickAccessInstance = instantiationService.createInstance(UnifiedQuickAccess, DEFAULT_UNIFIED_QUICK_ACCESS_TABS);
-	}
-	return unifiedQuickAccessInstance;
-}
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { KeybindingWeight, KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IWorkbenchContribution } from '../../../../../common/contributions.js';
+import { UnifiedQuickAccess, DEFAULT_UNIFIED_QUICK_ACCESS_TABS, InUnifiedQuickAccessContext, SEND_TO_AGENT_COMMAND_ID } from './unifiedQuickAccess.js';
 
 /**
  * Action ID for showing the unified quick access widget.
  */
-export const UNIFIED_QUICK_ACCESS_ACTION_ID = 'workbench.action.unifiedQuickAccess';
+const UNIFIED_QUICK_ACCESS_ACTION_ID = 'workbench.action.unifiedQuickAccess';
+
+const PRECONDITION = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+);
 
 /**
- * Action to show the unified quick access widget with tabbed providers.
+ * Workbench contribution that manages the lifecycle of the {@link UnifiedQuickAccess} instance.
+ * Actions retrieve the instance from here instead of using a leaked module-level singleton.
  */
-export class ShowUnifiedQuickAccessAction extends Action2 {
+export class UnifiedQuickAccessContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = UNIFIED_QUICK_ACCESS_ACTION_ID;
+	static readonly ID = 'workbench.contrib.unifiedQuickAccess';
 
-	constructor() {
-		super({
-			id: ShowUnifiedQuickAccessAction.ID,
-			title: localize2('showAgentQuickAccess', "Show Agent Quick Access"),
-			f1: true,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-			),
-		});
+	private _instance: UnifiedQuickAccess | undefined;
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
 	}
 
-	override run(accessor: ServicesAccessor, initialTabId?: string): void {
-		const instantiationService = accessor.get(IInstantiationService);
-		const unifiedQuickAccess = getUnifiedQuickAccess(instantiationService);
-		unifiedQuickAccess.show(initialTabId);
+	get instance(): UnifiedQuickAccess {
+		if (!this._instance) {
+			this._instance = this._register(
+				this.instantiationService.createInstance(UnifiedQuickAccess, DEFAULT_UNIFIED_QUICK_ACCESS_TABS)
+			);
+		}
+		return this._instance;
 	}
 }
 
-/**
- * Action to show the unified quick access widget starting on the Agent Sessions tab.
- */
-export class ShowAgentSessionsQuickAccessAction extends Action2 {
+// Hold a reference set by the contribution registration.
+// Actions look this up via accessor.get(IInstantiationService) → contribution.
+let _contributionInstance: UnifiedQuickAccessContribution | undefined;
 
-	static readonly ID = 'workbench.action.showAgentSessionsQuickAccess';
+/** @internal Called by the contribution registration to make the instance accessible to actions. */
+export function _setUnifiedQuickAccessContribution(c: UnifiedQuickAccessContribution): void {
+	_contributionInstance = c;
+}
 
-	constructor() {
-		super({
-			id: ShowAgentSessionsQuickAccessAction.ID,
-			title: localize2('showAgentSessionsQuickAccess', "Show Agent Sessions"),
-			f1: true,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-			),
-		});
+function getUnifiedQuickAccess(instantiationService: IInstantiationService): UnifiedQuickAccess {
+	if (_contributionInstance) {
+		return _contributionInstance.instance;
 	}
-
-	override run(accessor: ServicesAccessor): void {
-		const instantiationService = accessor.get(IInstantiationService);
-		const unifiedQuickAccess = getUnifiedQuickAccess(instantiationService);
-		unifiedQuickAccess.show('agentSessions');
-	}
+	// Fallback: create via instantiation service if contribution hasn't been registered yet
+	return instantiationService.createInstance(UnifiedQuickAccess, DEFAULT_UNIFIED_QUICK_ACCESS_TABS);
 }
 
 /**
- * Action to show the unified quick access widget starting on the Commands tab.
+ * Creates and registers an action that opens the unified quick access at a specific tab.
  */
-export class ShowCommandsQuickAccessAction extends Action2 {
-
-	static readonly ID = 'workbench.action.showCommandsQuickAccess';
-
-	constructor() {
-		super({
-			id: ShowCommandsQuickAccessAction.ID,
-			title: localize2('showCommandsQuickAccess', "Show Commands (Unified)"),
-			f1: true,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-			),
-		});
-	}
-
-	override run(accessor: ServicesAccessor): void {
-		const instantiationService = accessor.get(IInstantiationService);
-		const unifiedQuickAccess = getUnifiedQuickAccess(instantiationService);
-		unifiedQuickAccess.show('commands');
-	}
-}
-
-/**
- * Action to show the unified quick access widget starting on the Files tab.
- */
-export class ShowFilesQuickAccessAction extends Action2 {
-
-	static readonly ID = 'workbench.action.showFilesQuickAccess';
-
-	constructor() {
-		super({
-			id: ShowFilesQuickAccessAction.ID,
-			title: localize2('showFilesQuickAccess', "Show Files (Unified)"),
-			f1: true,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				ContextKeyExpr.has(`config.${ChatConfiguration.UnifiedAgentsBar}`)
-			),
-		});
-	}
-
-	override run(accessor: ServicesAccessor): void {
-		const instantiationService = accessor.get(IInstantiationService);
-		const unifiedQuickAccess = getUnifiedQuickAccess(instantiationService);
-		unifiedQuickAccess.show('files');
-	}
+function registerShowTabAction(id: string, title: ReturnType<typeof localize2>, tabId?: string): void {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({ id, title, f1: true, precondition: PRECONDITION });
+		}
+		override run(accessor: ServicesAccessor): void {
+			const instantiationService = accessor.get(IInstantiationService);
+			getUnifiedQuickAccess(instantiationService).show(tabId);
+		}
+	});
 }
 
 // Register actions
-registerAction2(ShowUnifiedQuickAccessAction);
-registerAction2(ShowAgentSessionsQuickAccessAction);
-registerAction2(ShowCommandsQuickAccessAction);
-registerAction2(ShowFilesQuickAccessAction);
+registerShowTabAction(
+	UNIFIED_QUICK_ACCESS_ACTION_ID,
+	localize2('showAgentQuickAccess', "Show Agent Quick Access"),
+);
+registerShowTabAction(
+	'workbench.action.showAgentSessionsQuickAccess',
+	localize2('showAgentSessionsQuickAccess', "Show Agent Sessions"),
+	'agentSessions',
+);
+registerShowTabAction(
+	'workbench.action.showCommandsQuickAccess',
+	localize2('showCommandsQuickAccess', "Show Commands (Unified)"),
+	'commands',
+);
+registerShowTabAction(
+	'workbench.action.showFilesQuickAccess',
+	localize2('showFilesQuickAccess', "Show Files (Unified)"),
+	'files',
+);
+
+// Register Shift+Enter keybinding to send message to agent from the unified quick access
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: SEND_TO_AGENT_COMMAND_ID,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: InUnifiedQuickAccessContext,
+	primary: KeyMod.Shift | KeyCode.Enter,
+	handler: (accessor) => {
+		const instantiationService = accessor.get(IInstantiationService);
+		getUnifiedQuickAccess(instantiationService).sendCurrentMessage();
+	},
+});

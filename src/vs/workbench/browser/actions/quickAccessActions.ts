@@ -156,7 +156,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 			icon: Codicon.search,
 			menu: {
 				id: MenuId.CommandCenterCenter,
-				order: 100
+				order: 100,
 			}
 		});
 	}

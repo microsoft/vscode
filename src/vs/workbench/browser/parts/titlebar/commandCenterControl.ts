@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isActiveDocument, reset } from '../../../../base/browser/dom.js';
+import { getWindow, isActiveDocument, reset } from '../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
@@ -13,6 +13,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
@@ -86,6 +87,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
+		@IActionViewItemService private _actionViewItemService: IActionViewItemService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
@@ -94,7 +96,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('command-center-center');
-		container.classList.toggle('multiple', (this._submenu.actions.length > 1));
 
 		const hover = this._store.add(this._hoverService.setupManagedHover(this._hoverDelegate, container, this.getTooltip()));
 
@@ -103,20 +104,34 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 			hover.update(this.getTooltip());
 		}));
 
+		// Check for active content submenu - when present and non-empty,
+		// render only its actions (full-width), hiding all other groups.
+		let activeContentSubmenu: MenuId | undefined;
 		const groups: (readonly IAction[])[] = [];
+		const normalGroups: (readonly IAction[])[] = [];
 		for (const action of this._submenu.actions) {
-			if (action instanceof SubmenuAction) {
-				groups.push(action.actions);
+			if (action instanceof SubmenuItemAction && action.item.submenu === MenuId.CommandCenterCenterActiveContent) {
+				if (action.actions.length > 0) {
+					activeContentSubmenu = action.item.submenu;
+					groups.push(action.actions);
+				}
+			} else if (action instanceof SubmenuAction) {
+				normalGroups.push(action.actions);
 			} else {
-				groups.push([action]);
+				normalGroups.push([action]);
 			}
 		}
-
+		if (!activeContentSubmenu) {
+			groups.push(...normalGroups);
+		}
+		container.classList.toggle('multiple', groups.length > 1);
+		container.classList.toggle('has-active-content', !!activeContentSubmenu);
 
 		for (let i = 0; i < groups.length; i++) {
 			const group = groups[i];
 
 			// nested toolbar
+			const lookupMenuId = activeContentSubmenu ?? MenuId.CommandCenterCenter;
 			const toolbar = this._instaService.createInstance(WorkbenchToolBar, container, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				telemetrySource: 'commandCenterCenter',
@@ -125,6 +140,15 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 						...options,
 						hoverDelegate: this._hoverDelegate,
 					};
+
+					// Check IActionViewItemService for custom view items
+					const provider = this._actionViewItemService.lookUp(lookupMenuId, action.id);
+					if (provider) {
+						const viewItem = provider(action, options, this._instaService, getWindow(container).vscodeWindowId);
+						if (viewItem) {
+							return viewItem;
+						}
+					}
 
 					if (action.id !== CommandCenterCenterViewItem._quickOpenCommandId) {
 						return createActionViewItem(this._instaService, action, options);

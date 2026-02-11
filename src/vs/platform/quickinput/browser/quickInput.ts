@@ -118,6 +118,7 @@ export interface QuickInputUI {
 	message: HTMLElement;
 	customButtonContainer: HTMLElement;
 	customButton: Button;
+	headerWidgetContainer: HTMLElement;
 	progressBar: ProgressBar;
 	list: QuickInputList;
 	tree: QuickInputTreeController;
@@ -147,6 +148,7 @@ export type Visibilities = {
 	tree?: boolean;
 	ok?: boolean;
 	customButton?: boolean;
+	headerWidget?: boolean;
 	progressBar?: boolean;
 };
 
@@ -565,6 +567,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 	private _hideInput: boolean | undefined;
 	private _hideCountBadge: boolean | undefined;
 	private _hideCheckAll: boolean | undefined;
+	private _headerWidget: HTMLElement | undefined;
 	private _focusEventBufferer = new EventBufferer();
 
 	readonly type = QuickInputType.QuickPick;
@@ -875,6 +878,23 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		this.update();
 	}
 
+	get headerWidget(): HTMLElement | undefined {
+		return this._headerWidget;
+	}
+
+	set headerWidget(headerWidget: HTMLElement | undefined) {
+		if (this._headerWidget !== headerWidget) {
+			this._headerWidget = headerWidget;
+			// Replace the contents of the header widget container
+			const container = this.ui.headerWidgetContainer;
+			dom.clearNode(container);
+			if (headerWidget) {
+				container.appendChild(headerWidget);
+			}
+			this.update();
+		}
+	}
+
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
 
 	onDidTriggerItemButton = this.onDidTriggerItemButtonEmitter.event;
@@ -1045,7 +1065,8 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 			ok: this.ok === 'default' ? this.canSelectMany : this.ok,
 			list: true,
 			message: !!this.validationMessage || !!this.prompt,
-			customButton: this.customButton
+			customButton: this.customButton,
+			headerWidget: !!this._headerWidget
 		};
 		this.ui.setVisibilities(visibilities);
 		super.update();

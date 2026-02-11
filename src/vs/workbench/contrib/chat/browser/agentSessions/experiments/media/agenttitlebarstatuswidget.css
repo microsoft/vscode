@@ -4,28 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Command Center Integration */
-.unified-agents-bar .command-center .action-item.command-center-center {
-	display: none !important;
-}
-
-.agent-status-enabled .command-center,
-.unified-agents-bar .command-center {
-	overflow: visible !important;
-}
-
-/* Container layouts */
-.unified-agents-bar .command-center .action-item.agent-status-container {
-	width: 38vw;
-	max-width: 600px;
-	display: flex;
-	flex-direction: row;
-	flex-wrap: nowrap;
-	align-items: center;
-	justify-content: flex-start;
+.agent-status-enabled .command-center {
+	overflow: visible;
 }
 
 /* Badge-only mode - compact layout next to command center */
-.agent-status-enabled:not(.unified-agents-bar) .command-center .action-item.agent-status-container {
+.agent-status-enabled .command-center .action-item.agent-status-container {
 	display: flex;
 	flex-direction: row;
 	flex-wrap: nowrap;
@@ -390,4 +374,34 @@
 /* Active section in needs-input state - uses report icon with warning color */
 .agent-status-badge-section.active.needs-input .agent-status-icon {
 	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+/* Chat Attention Indicator in Command Center - replaces entire center content.
+	Needs .monaco-action-bar prefix to override .action-item { display: block } (specificity 0-2-0 -> 0-3-0). */
+.monaco-action-bar .action-item.chat-attention-indicator {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	cursor: pointer;
+	padding: 0 10px;
+	height: 100%;
+	width: 100%;
+}
+
+.chat-attention-indicator .codicon-report {
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.chat-attention-count {
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.chat-attention-label {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-align: center;
+	flex: 1;
+	min-width: 0;
 }
