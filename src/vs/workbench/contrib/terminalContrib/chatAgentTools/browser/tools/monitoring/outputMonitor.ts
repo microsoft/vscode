@@ -294,6 +294,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				const normalizedInput = this._normalizeAutoReplyInput(explicitInput);
 				if (normalizedInput !== undefined) {
 					this._logService.trace('OutputMonitor: Auto-replying to free-form prompt');
+					// Register marker and track prompt to prevent re-detection
+					const currentMarker = this._execution.instance.registerMarker();
+					if (currentMarker) {
+						this._lastPromptMarker = currentMarker;
+						this._lastPrompt = confirmationPrompt.prompt;
+					}
 					await this._execution.instance.sendText(normalizedInput, true);
 					this._outputMonitorTelemetryCounters.inputToolAutoAcceptCount++;
 					this._outputMonitorTelemetryCounters.inputToolAutoChars += normalizedInput.length;
