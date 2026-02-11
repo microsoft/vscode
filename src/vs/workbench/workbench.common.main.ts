@@ -434,4 +434,7 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 // Opener
 import './contrib/opener/browser/opener.contribution.js';
 
+// AiGuard
+import './contrib/aiGuard/browser/aiGuard.contribution.js';
+
 //#endregion
