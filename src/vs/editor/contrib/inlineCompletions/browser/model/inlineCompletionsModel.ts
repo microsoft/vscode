@@ -82,7 +82,7 @@ export class InlineCompletionsModel extends Disposable {
 	});
 	public get isAcceptingPartially() { return this._isAcceptingPartially; }
 
-	private readonly _onDidAccept = new Emitter<void>();
+	private readonly _onDidAccept = this._register(new Emitter<void>());
 	public readonly onDidAccept = this._onDidAccept.event;
 
 	private readonly _editorObs;

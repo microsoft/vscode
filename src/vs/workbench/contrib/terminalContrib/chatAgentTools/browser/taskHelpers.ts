@@ -39,12 +39,13 @@ export function getTaskDefinition(id: string) {
 }
 
 export function getTaskRepresentation(task: IConfiguredTask | Task): string {
-	if ('label' in task && task.label) {
-		return task.label;
-	} else if ('script' in task && task.script) {
-		return task.script;
-	} else if ('command' in task && task.command) {
-		return isString(task.command) ? task.command : task.command.name?.toString() || '';
+	if (Object.hasOwn(task, 'label') && (task as IConfiguredTask).label) {
+		return (task as IConfiguredTask).label!;
+	} else if (Object.hasOwn(task, 'script') && (task as IConfiguredTask).script) {
+		return (task as IConfiguredTask).script!;
+	} else if (Object.hasOwn(task, 'command') && (task as IConfiguredTask).command) {
+		const command = (task as IConfiguredTask).command;
+		return isString(command) ? command : command!.name?.toString() || '';
 	}
 	return '';
 }
@@ -81,7 +82,7 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 		}
 	}
 	for (const configTask of configTasks) {
-		if ((!allowParentTask && !configTask.type) || ('hide' in configTask && configTask.hide)) {
+		if ((!allowParentTask && !configTask.type) || (Object.hasOwn(configTask, 'hide') && configTask.hide)) {
 			// Skip these as they are not included in the agent prompt and we need to align with
 			// the indices used there.
 			continue;
@@ -144,11 +145,12 @@ export interface IConfiguredTask {
 	label?: string;
 	type?: string;
 	script?: string;
-	command?: string;
+	command?: string | { name?: string };
 	args?: string[];
 	isBackground?: boolean;
 	problemMatcher?: string[];
 	group?: string;
+	hide?: boolean;
 }
 
 export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task[] | undefined> {
@@ -219,16 +221,16 @@ export async function collectTerminalResults(
 			// Use reconnection data if possible to match, since the properties here are unique
 			const reconnectionData = instance.reconnectionProperties?.data as IReconnectionTaskData | undefined;
 			if (reconnectionData) {
-				if (reconnectionData.lastTask in commonTaskIdToTaskMap) {
+				if (Object.hasOwn(commonTaskIdToTaskMap, reconnectionData.lastTask)) {
 					terminalTask = commonTaskIdToTaskMap[reconnectionData.lastTask];
-				} else if (reconnectionData.id in taskIdToTaskMap) {
+				} else if (Object.hasOwn(taskIdToTaskMap, reconnectionData.id)) {
 					terminalTask = taskIdToTaskMap[reconnectionData.id];
 				}
 			} else {
 				// Otherwise, fallback to label matching
-				if (instance.shellLaunchConfig.name && instance.shellLaunchConfig.name in taskLabelToTaskMap) {
+				if (instance.shellLaunchConfig.name && Object.hasOwn(taskLabelToTaskMap, instance.shellLaunchConfig.name)) {
 					terminalTask = taskLabelToTaskMap[instance.shellLaunchConfig.name];
-				} else if (instance.title in taskLabelToTaskMap) {
+				} else if (Object.hasOwn(taskLabelToTaskMap, instance.title)) {
 					terminalTask = taskLabelToTaskMap[instance.title];
 				}
 			}
@@ -240,7 +242,7 @@ export async function collectTerminalResults(
 			isActive: isActive ? () => isActive(terminalTask) : undefined,
 			instance,
 			dependencyTasks,
-			sessionId: invocationContext.sessionId
+			sessionResource: invocationContext.sessionResource
 		};
 
 		// For tasks with problem matchers, wait until the task becomes busy before creating the output monitor

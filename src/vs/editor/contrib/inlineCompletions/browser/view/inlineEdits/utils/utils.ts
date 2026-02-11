@@ -131,11 +131,11 @@ export function getEditorValidOverlayRect(editor: ObservableCodeEditor): IObserv
 
 	const width = derived({ name: 'editor.validOverlay.width' }, r => {
 		const hasMinimapOnTheRight = editor.layoutInfoMinimap.read(r).minimapLeft !== 0;
-		const editorWidth = editor.layoutInfoWidth.read(r) - contentLeft.read(r);
+		const editorWidth = Math.max(0, editor.layoutInfoWidth.read(r) - contentLeft.read(r));
 
 		if (hasMinimapOnTheRight) {
 			const minimapAndScrollbarWidth = editor.layoutInfoMinimap.read(r).minimapWidth + editor.layoutInfoVerticalScrollbarWidth.read(r);
-			return editorWidth - minimapAndScrollbarWidth;
+			return Math.max(0, editorWidth - minimapAndScrollbarWidth);
 		}
 
 		return editorWidth;

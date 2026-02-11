@@ -176,6 +176,7 @@ export interface ILanguageModelChatMetadata {
 	readonly tooltip?: string;
 	readonly detail?: string;
 	readonly multiplier?: string;
+	readonly multiplierNumeric?: number;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;

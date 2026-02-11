@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IToastOptions, IToastResult } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -118,7 +118,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
 			);
 
+			this.onDidSuspendOS = Event.fromNodeEventEmitter(powerMonitor, 'suspend');
 			this.onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+
+			// Battery power events (macOS and Windows only)
+			this.onDidChangeOnBatteryPower = Event.any(
+				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-ac'), () => false),
+				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-battery'), () => true)
+			);
+
+			// Thermal state events (macOS only)
+			this.onDidChangeThermalState = Event.map(
+				Event.fromNodeEventEmitter<{ state: ThermalState }>(powerMonitor, 'thermal-state-change'),
+				e => e.state
+			);
+
+			// Speed limit events (macOS and Windows only)
+			this.onDidChangeSpeedLimit = Event.map(
+				Event.fromNodeEventEmitter<{ limit: number }>(powerMonitor, 'speed-limit-change'),
+				e => e.limit
+			);
+
+			// Shutdown event (Linux and macOS only)
+			this.onWillShutdownOS = Event.fromNodeEventEmitter(powerMonitor, 'shutdown');
+
+			// Screen lock events (macOS and Windows only)
+			this.onDidLockScreen = Event.fromNodeEventEmitter(powerMonitor, 'lock-screen');
+			this.onDidUnlockScreen = Event.fromNodeEventEmitter(powerMonitor, 'unlock-screen');
 
 			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
@@ -162,7 +188,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	readonly onDidChangeWindowAlwaysOnTop: Event<{ readonly windowId: number; readonly alwaysOnTop: boolean }>;
 
+	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<void>;
+
+	readonly onDidChangeOnBatteryPower: Event<boolean>;
+	readonly onDidChangeThermalState: Event<ThermalState>;
+	readonly onDidChangeSpeedLimit: Event<number>;
+	readonly onWillShutdownOS: Event<void>;
+	readonly onDidLockScreen: Event<void>;
+	readonly onDidUnlockScreen: Event<void>;
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
@@ -1190,7 +1224,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				disposables.dispose();	// ...disposing which would invalidate the result object
 			};
 
-			cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false }));
+			disposables.add(cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false })));
 
 			toast.on('click', () => resolve({ supported: true, clicked: true }));
 			toast.on('action', (_event, actionIndex) => resolve({ supported: true, clicked: true, actionIndex }));
@@ -1232,6 +1266,39 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async createZipFile(windowId: number | undefined, zipPath: URI, files: { path: string; contents: string }[]): Promise<void> {
 		await zip(zipPath.fsPath, files);
+	}
+
+	//#endregion
+
+
+	//#region Power
+
+	async getSystemIdleState(windowId: number | undefined, idleThreshold: number): Promise<SystemIdleState> {
+		return powerMonitor.getSystemIdleState(idleThreshold);
+	}
+
+	async getSystemIdleTime(windowId: number | undefined): Promise<number> {
+		return powerMonitor.getSystemIdleTime();
+	}
+
+	async getCurrentThermalState(windowId: number | undefined): Promise<ThermalState> {
+		return powerMonitor.getCurrentThermalState();
+	}
+
+	async isOnBatteryPower(windowId: number | undefined): Promise<boolean> {
+		return powerMonitor.isOnBatteryPower();
+	}
+
+	async startPowerSaveBlocker(windowId: number | undefined, type: PowerSaveBlockerType): Promise<number> {
+		return powerSaveBlocker.start(type);
+	}
+
+	async stopPowerSaveBlocker(windowId: number | undefined, id: number): Promise<boolean> {
+		return powerSaveBlocker.stop(id);
+	}
+
+	async isPowerSaveBlockerStarted(windowId: number | undefined, id: number): Promise<boolean> {
+		return powerSaveBlocker.isStarted(id);
 	}
 
 	//#endregion

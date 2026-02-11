@@ -253,7 +253,7 @@ suite('ChatQuestionCarouselPart', () => {
 			// Use dedicated class selector for stability
 			const nextButton = widget.domNode.querySelector('.chat-question-nav-next') as HTMLElement;
 			assert.ok(nextButton, 'Next button should exist');
-			assert.strictEqual(nextButton.title, 'Submit', 'Next button should have Submit title on last question');
+			assert.strictEqual(nextButton.getAttribute('aria-label'), 'Submit', 'Next button should have Submit aria-label on last question');
 		});
 	});
 

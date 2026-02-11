@@ -3354,7 +3354,7 @@ suite('PromptFilesLocator', () => {
 
 			return {
 				async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
-					return locator.findAgentMDsInWorkspace(token);
+					return (await locator.findAgentMDsInWorkspace(token)).map(f => f.uri);
 				},
 				async disposeAsync(): Promise<void> {
 					await mockFs.delete();

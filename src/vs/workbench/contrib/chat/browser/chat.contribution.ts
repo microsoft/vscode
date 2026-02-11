@@ -54,9 +54,11 @@ import { ILanguageModelToolsConfirmationService } from '../common/tools/language
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME } from '../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME, CLAUDE_AGENTS_SOURCE_FOLDER, CLAUDE_RULES_SOURCE_FOLDER, DEFAULT_HOOK_FILE_PATHS } from '../common/promptSyntax/config/promptFileLocations.js';
 import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
-import { AGENT_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
+import { AGENT_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL, HOOK_DOCUMENTATION_URL } from '../common/promptSyntax/promptTypes.js';
+import { hookFileSchema, HOOK_SCHEMA_URI, HOOK_FILE_GLOB } from '../common/promptSyntax/hookSchema.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
@@ -78,6 +80,7 @@ import { registerLanguageModelActions } from './actions/chatLanguageModelActions
 import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerNewChatActions } from './actions/chatNewActions.js';
 import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
+import { registerChatQueueActions } from './actions/chatQueueActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { ChatAgentRecommendation } from './actions/chatAgentRecommendationActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
@@ -86,6 +89,7 @@ import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
 import { registerChatCustomizationDiagnosticsAction } from './actions/chatCustomizationDiagnosticsAction.js';
 import './agentSessions/agentSessions.contribution.js';
+import { backgroundAgentDisplayName } from './agentSessions/agentSessions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './accessibility/chatAccessibilityService.js';
@@ -128,6 +132,7 @@ import { LanguageModelToolsConfirmationService } from './tools/languageModelTool
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
+import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
@@ -137,9 +142,16 @@ import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
+import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
+import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
+
+// Register JSON schema for hook files
+const jsonContributionRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+jsonContributionRegistry.registerSchema(HOOK_SCHEMA_URI, hookFileSchema);
+jsonContributionRegistry.registerSchemaAssociation(HOOK_SCHEMA_URI, HOOK_FILE_GLOB);
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -275,6 +287,11 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		'chat.confettiOnThumbsUp': {
+			type: 'boolean',
+			description: nls.localize('chat.confettiOnThumbsUp', "Controls whether a confetti animation is shown when clicking the thumbs up button on a chat response."),
+			default: false,
+		},
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
 			deprecationMessage: nls.localize('chat.experimental.detectParticipant.enabled.deprecated', "This setting is deprecated. Please use `chat.detectParticipant.enabled` instead."),
@@ -339,7 +356,7 @@ configurationRegistry.registerConfiguration({
 				'**/*.lock': false, // yarn.lock, bun.lock, etc.
 				'**/*-lock.{yaml,json}': false, // pnpm-lock.yaml, package-lock.json
 			},
-			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nSet to `true` to automatically approve edits to matching files, `false` to always require explicit approval. The last pattern matching a given file will determine whether the edit is automatically approved."),
+			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by the agent are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nSet to `true` to automatically approve edits to matching files, `false` to always require explicit approval. The last pattern matching a given file will determine whether the edit is automatically approved."),
 			type: 'object',
 			additionalProperties: {
 				type: 'boolean',
@@ -584,6 +601,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agent.enabled.description', "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."),
 			default: true,
+			order: 1,
 			policy: {
 				name: 'ChatAgentMode',
 				category: PolicyCategory.InteractiveSession,
@@ -596,6 +614,30 @@ configurationRegistry.registerConfiguration({
 					}
 				}
 			}
+		},
+		[ChatConfiguration.PlanAgentDefaultModel]: {
+			type: 'string',
+			description: nls.localize('chat.planAgent.defaultModel.description', "Select the default language model to use for the Plan agent from the available providers."),
+			default: '',
+			enum: PlanAgentDefaultModel.modelIds,
+			enumItemLabels: PlanAgentDefaultModel.modelLabels,
+			markdownEnumDescriptions: PlanAgentDefaultModel.modelDescriptions
+		},
+		[ChatConfiguration.RequestQueueingEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.requestQueuing.enabled.description', "When enabled, allows queuing additional messages while a request is in progress and steering the current request with a new message."),
+			default: true,
+			tags: ['experimental'],
+		},
+		[ChatConfiguration.RequestQueueingDefaultAction]: {
+			type: 'string',
+			enum: ['queue', 'steer'],
+			enumDescriptions: [
+				nls.localize('chat.requestQueuing.defaultAction.queue', "Queue the message to send after the current request completes."),
+				nls.localize('chat.requestQueuing.defaultAction.steer', "Steer the current request by sending the message immediately, signaling the current request to yield."),
+			],
+			description: nls.localize('chat.requestQueuing.defaultAction.description', "Controls which action is the default for the queue button when a request is in progress."),
+			default: 'steer',
 		},
 		[ChatConfiguration.EditModeHidden]: {
 			type: 'boolean',
@@ -688,6 +730,7 @@ configurationRegistry.registerConfiguration({
 			),
 			default: {
 				[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+				[CLAUDE_RULES_SOURCE_FOLDER]: true,
 			},
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
@@ -699,6 +742,7 @@ configurationRegistry.registerConfiguration({
 			examples: [
 				{
 					[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
+					[CLAUDE_RULES_SOURCE_FOLDER]: true,
 				},
 				{
 					[INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true,
@@ -783,6 +827,7 @@ configurationRegistry.registerConfiguration({
 			),
 			default: {
 				[AGENTS_SOURCE_FOLDER]: true,
+				[CLAUDE_AGENTS_SOURCE_FOLDER]: true,
 			},
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
@@ -820,6 +865,15 @@ configurationRegistry.registerConfiguration({
 			restricted: true,
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
+		[PromptsConfig.USE_CLAUDE_MD]: {
+			type: 'boolean',
+			title: nls.localize('chat.useClaudeMd.title', "Use CLAUDE.md file",),
+			markdownDescription: nls.localize('chat.useClaudeMd.description', "Controls whether instructions from `CLAUDE.md` file found in workspace roots, .claude and ~/.claude folder are attached to all chat requests.",),
+			default: true,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
 		[PromptsConfig.USE_AGENT_SKILLS]: {
 			type: 'boolean',
@@ -890,6 +944,43 @@ configurationRegistry.registerConfiguration({
 					'~/.custom/skills': true,
 				},
 			],
+		},
+		[PromptsConfig.HOOKS_LOCATION_KEY]: {
+			type: 'object',
+			title: nls.localize('chat.hookFilesLocations.title', "Hook File Locations",),
+			markdownDescription: nls.localize(
+				'chat.hookFilesLocations.description',
+				"Specify paths to hook configuration files that define custom shell commands to execute at strategic points in an agent's workflow. [Learn More]({0}).\n\nRelative paths are resolved from the root folder(s) of your workspace. Supports Copilot hooks (`*.json`) and Claude Code hooks (`settings.json`, `settings.local.json`).",
+				HOOK_DOCUMENTATION_URL,
+			),
+			default: {
+				...DEFAULT_HOOK_FILE_PATHS.map((f) => ({ [f.path]: true })).reduce((acc, curr) => ({ ...acc, ...curr }), {}),
+			},
+			additionalProperties: { type: 'boolean' },
+			propertyNames: {
+				pattern: VALID_PROMPT_FOLDER_PATTERN,
+				patternErrorMessage: nls.localize('chat.hookFilesLocations.invalidPath', "Paths must be relative or start with '~/'. Absolute paths and '\\' separators are not supported."),
+			},
+			restricted: true,
+			tags: ['prompts', 'hooks', 'agent'],
+			examples: [
+				{
+					[DEFAULT_HOOK_FILE_PATHS[0].path]: true,
+				},
+				{
+					[DEFAULT_HOOK_FILE_PATHS[0].path]: true,
+					'custom-hooks/hooks.json': true,
+				},
+			],
+		},
+		[PromptsConfig.USE_CHAT_HOOKS]: {
+			type: 'boolean',
+			title: nls.localize('chat.useChatHooks.title', "Use Chat Hooks",),
+			markdownDescription: nls.localize('chat.useChatHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`.",),
+			default: true,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['prompts', 'hooks', 'agent']
 		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',
@@ -1110,6 +1201,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 		this.registerMaxRequestsSetting();
+		this.registerBackgroundAgentDisplayName();
 	}
 
 
@@ -1130,6 +1222,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 							type: 'number',
 							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn when using an agent. When the limit is reached, will ask to confirm to continue."),
 							default: defaultValue,
+							order: 2,
 						},
 					}
 				};
@@ -1138,6 +1231,14 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			});
 		};
 		this._register(Event.runAndSubscribe(Event.debounce(this.entitlementService.onDidChangeEntitlement, () => { }, 1000), () => registerMaxRequestsSetting()));
+	}
+
+	private registerBackgroundAgentDisplayName(): void {
+		this.experimentService.getTreatment<string>('backgroundAgentDisplayName').then((value) => {
+			if (value) {
+				backgroundAgentDisplayName.set(value, undefined);
+			}
+		});
 	}
 }
 
@@ -1298,6 +1399,66 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'hooks',
+			detail: nls.localize('hooks', "Configure hooks"),
+			sortText: 'z3_hooks',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'debug',
+			detail: nls.localize('debug', "Show Chat Debug View"),
+			sortText: 'z3_debug',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('github.copilot.debug.showChatLogView');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'agents',
+			detail: nls.localize('agents', "Configure custom agents"),
+			sortText: 'z3_agents',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.customagents');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'skills',
+			detail: nls.localize('skills', "Configure skills"),
+			sortText: 'z3_skills',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.skills');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'instructions',
+			detail: nls.localize('instructions', "Configure instructions"),
+			sortText: 'z3_instructions',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.instructions');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'prompts',
+			detail: nls.localize('prompts', "Configure prompt files"),
+			sortText: 'z3_prompts',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand('workbench.action.chat.configure.prompts');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
 			detail: '',
 			sortText: 'z1_help',
@@ -1375,6 +1536,7 @@ registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActions
 registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatAgentRecommendation.ID, ChatAgentRecommendation, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatQueuePickerRendering.ID, ChatQueuePickerRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
@@ -1398,6 +1560,7 @@ registerChatFileTreeActions();
 registerChatPromptNavigationActions();
 registerChatTitleActions();
 registerChatExecuteActions();
+registerChatQueueActions();
 registerQuickChatActions();
 registerChatExportActions();
 registerMoveActions();

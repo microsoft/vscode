@@ -55,7 +55,7 @@ export class BracketPairsTree extends Disposable {
 		private readonly getLanguageConfiguration: (languageId: string) => ResolvedLanguageConfiguration
 	) {
 		super();
-		this.didChangeEmitter = new Emitter<void>();
+		this.didChangeEmitter = this._register(new Emitter<void>());
 		this.denseKeyProvider = new DenseKeyProvider<string>();
 		this.brackets = new LanguageAgnosticBracketTokens(this.denseKeyProvider, this.getLanguageConfiguration);
 		this.onDidChange = this.didChangeEmitter.event;
