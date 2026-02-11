@@ -106,6 +106,7 @@
 	align-items: center;
 	text-overflow: ellipsis;
 	overflow: hidden;
+	min-width: 0;
 	outline-width: 0px; /* do not render focus outline, we already have background */
 }
 
