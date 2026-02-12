@@ -33,6 +33,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { getContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { VisibleViewContainersTracker } from '../visibleViewContainersTracker.js';
+import { Extensions } from '../../panecomposite.js';
 
 interface IAuxiliaryBarPartConfiguration {
 	position: ActivityBarPosition;
@@ -110,6 +111,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			'auxiliarybar',
 			undefined,
 			SIDE_BAR_TITLE_BORDER,
+			ViewContainerLocation.AuxiliaryBar,
+			Extensions.Auxiliary,
+			MenuId.AuxiliaryBarTitle,
 			notificationService,
 			storageService,
 			contextMenuService,

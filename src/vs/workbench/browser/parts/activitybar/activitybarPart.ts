@@ -68,6 +68,7 @@ export class ActivitybarPart extends Part {
 	private _isCompact: boolean;
 
 	constructor(
+		private readonly location: ViewContainerLocation,
 		private readonly paneCompositePart: IPaneCompositePart,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -117,7 +118,7 @@ export class ActivitybarPart extends Part {
 		const actionHeight = this._isCompact ? ActivitybarPart.COMPACT_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
 		const iconSize = this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE;
 
-		return this.instantiationService.createInstance(ActivityBarCompositeBar, {
+		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.location, {
 			partContainerClass: 'activitybar',
 			pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
 			placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
@@ -251,6 +252,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
 
 	constructor(
+		location: ViewContainerLocation,
 		options: IPaneCompositeBarOptions,
 		part: Parts,
 		paneCompositePart: IPaneCompositePart,
@@ -266,13 +268,14 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		@IMenuService private readonly menuService: IMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
-		super({
-			...options,
-			fillExtraContextMenuActions: (actions, e) => {
-				options.fillExtraContextMenuActions(actions, e);
-				this.fillContextMenuActions(actions, e);
-			}
-		}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
+		super(location,
+			{
+				...options,
+				fillExtraContextMenuActions: (actions, e) => {
+					options.fillExtraContextMenuActions(actions, e);
+					this.fillContextMenuActions(actions, e);
+				}
+			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
 
 		if (showGlobalActivities) {
 			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.activityHoverOptions));

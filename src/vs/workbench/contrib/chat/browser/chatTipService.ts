@@ -107,6 +107,13 @@ export interface ITipDefinition {
 	 */
 	readonly excludeWhenToolsInvoked?: string[];
 	/**
+	 * Tool set reference names. If any tool belonging to one of these tool sets
+	 * has ever been invoked in this workspace, the tip becomes ineligible.
+	 * Unlike {@link excludeWhenToolsInvoked}, this does not require listing
+	 * individual tool IDs, it checks all tools that belong to the named sets.
+	 */
+	readonly excludeWhenAnyToolSetToolInvoked?: string[];
+	/**
 	 * Tool set reference names where at least one must be registered for the tip to be eligible.
 	 * If none of the listed tool sets are registered, the tip is not shown.
 	 */
@@ -210,7 +217,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			ContextKeyExpr.notEquals('gitOpenRepositoryCount', '0'),
 		),
-		excludeWhenToolsInvoked: ['github-pull-request_doSearch', 'github-pull-request_issue_fetch', 'github-pull-request_formSearchQuery'],
+		excludeWhenAnyToolSetToolInvoked: ['github', 'github-pull-request'],
 		requiresAnyToolSetRegistered: ['github', 'github-pull-request'],
 	},
 	{
@@ -257,6 +264,9 @@ export class TipEligibilityTracker extends Disposable {
 	private readonly _pendingCommands: Set<string>;
 	private readonly _pendingModes: Set<string>;
 	private readonly _pendingTools: Set<string>;
+
+	/** Tool set reference names monitored via {@link ITipDefinition.excludeWhenAnyToolSetToolInvoked}. */
+	private readonly _monitoredToolSets: Set<string>;
 
 	private readonly _commandListener = this._register(new MutableDisposable());
 	private readonly _toolListener = this._register(new MutableDisposable());
@@ -323,6 +333,13 @@ export class TipEligibilityTracker extends Disposable {
 			}
 		}
 
+		this._monitoredToolSets = new Set<string>();
+		for (const tip of tips) {
+			for (const name of tip.excludeWhenAnyToolSetToolInvoked ?? []) {
+				this._monitoredToolSets.add(name);
+			}
+		}
+
 		// --- Set up command listener (auto-disposes when all seen) --------------
 
 		if (this._pendingCommands.size > 0) {
@@ -341,16 +358,45 @@ export class TipEligibilityTracker extends Disposable {
 
 		// --- Set up tool listener (auto-disposes when all seen) -----------------
 
-		if (this._pendingTools.size > 0) {
+		if (this._pendingTools.size > 0 || this._monitoredToolSets.size > 0) {
 			this._toolListener.value = this._languageModelToolsService.onDidInvokeTool(e => {
+				let changed = false;
+
+				// Track explicit tool IDs
 				if (this._pendingTools.has(e.toolId)) {
 					this._invokedTools.add(e.toolId);
-					this._persistSet(TipEligibilityTracker._TOOLS_STORAGE_KEY, this._invokedTools);
 					this._pendingTools.delete(e.toolId);
+					changed = true;
+				}
 
-					if (this._pendingTools.size === 0) {
-						this._toolListener.clear();
+				// Track tools belonging to monitored tool sets
+				if (this._monitoredToolSets.size > 0 && !this._invokedTools.has(e.toolId)) {
+					for (const setName of this._monitoredToolSets) {
+						const toolSet = this._languageModelToolsService.getToolSetByName(setName);
+						if (toolSet) {
+							for (const tool of toolSet.getTools()) {
+								if (tool.id === e.toolId) {
+									this._invokedTools.add(e.toolId);
+									// Remove set name from monitoring since ANY tool from the set excludes the tip.
+									// The tip remains excluded via _invokedTools even after we stop monitoring.
+									this._monitoredToolSets.delete(setName);
+									changed = true;
+									break;
+								}
+							}
+						}
+						if (changed) {
+							break;
+						}
 					}
+				}
+
+				if (changed) {
+					this._persistSet(TipEligibilityTracker._TOOLS_STORAGE_KEY, this._invokedTools);
+				}
+
+				if (this._pendingTools.size === 0 && this._monitoredToolSets.size === 0) {
+					this._toolListener.clear();
 				}
 			});
 		}
@@ -428,6 +474,19 @@ export class TipEligibilityTracker extends Disposable {
 				if (this._invokedTools.has(toolId)) {
 					this._logService.debug('#ChatTips: tip excluded because tool was invoked', tip.id, toolId);
 					return true;
+				}
+			}
+		}
+		if (tip.excludeWhenAnyToolSetToolInvoked) {
+			for (const setName of tip.excludeWhenAnyToolSetToolInvoked) {
+				const toolSet = this._languageModelToolsService.getToolSetByName(setName);
+				if (toolSet) {
+					for (const tool of toolSet.getTools()) {
+						if (this._invokedTools.has(tool.id)) {
+							this._logService.debug('#ChatTips: tip excluded because tool set tool was invoked', tip.id, setName, tool.id);
+							return true;
+						}
+					}
 				}
 			}
 		}
