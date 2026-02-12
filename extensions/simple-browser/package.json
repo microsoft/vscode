@@ -67,11 +67,11 @@
     ]
   },
   "scripts": {
-    "compile": "gulp compile-extension:simple-browser && npm run build-preview",
-    "watch": "npm run build-preview && gulp watch-extension:simple-browser",
-    "vscode:prepublish": "npm run build-ext && npm run build-preview",
+    "compile": "gulp compile-extension:simple-browser && npm run build-webview",
+    "watch": "npm run build-webview && gulp watch-extension:simple-browser",
+    "vscode:prepublish": "npm run build-ext && npm run build-webview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:simple-browser ./tsconfig.json",
-    "build-preview": "node ./esbuild-preview.mjs",
+    "build-webview": "node ./esbuild.webview.mts",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },

@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { Location } from '../../../../../../editor/common/languages.js';
-import { getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ChatResponseAccessibleView, getToolSpecificDataDescription, getResultDetailsDescription, getToolInvocationA11yDescription } from '../../../browser/accessibility/chatResponseAccessibleView.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatExtensionsContent, IChatPullRequestContent, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolResourcesInvocationData } from '../../../common/chatService/chatService.js';
 
 suite('ChatResponseAccessibleView', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('getToolSpecificDataDescription', () => {
 		test('returns empty string for undefined', () => {
@@ -386,6 +390,49 @@ suite('ChatResponseAccessibleView', () => {
 			assert.ok(result.includes('CodeReviewer'));
 			assert.ok(result.includes('Reviewing code changes'));
 			assert.ok(result.includes('test.ts'));
+		});
+	});
+
+	suite('getProvider', () => {
+		test('prefers the latest response when focus is on a queued request', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const responseItem = {
+				response: { value: [{ kind: 'markdownContent', content: new MarkdownString('Response content') }] },
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const queuedRequest = { message: 'Queued request' };
+			const items = [responseItem, queuedRequest];
+			let focusedItem: unknown = queuedRequest;
+
+			const widget = {
+				hasInputFocus: () => true,
+				focusResponseItem: () => { focusedItem = queuedRequest; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			assert.ok(provider.provideContent().includes('Response content'));
 		});
 	});
 });

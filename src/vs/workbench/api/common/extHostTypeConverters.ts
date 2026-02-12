@@ -16,6 +16,7 @@ import { parse, revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
 import { cloneAndChange } from '../../../base/common/objects.js';
+import { OS } from '../../../base/common/platform.js';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../base/common/prefixTree.js';
 import { basename } from '../../../base/common/resources.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -44,8 +45,9 @@ import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/ch
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { IHookResult } from '../../contrib/chat/common/hooks/hooksTypes.js';
+import { IChatRequestHooks, IHookCommand, resolveEffectiveCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
 import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
@@ -3437,6 +3439,7 @@ export namespace ChatAgentRequest {
 			subAgentName: request.subAgentName,
 			parentRequestId: request.parentRequestId,
 			hasHooksEnabled: request.hasHooksEnabled ?? false,
+			hooks: request.hooks ? ChatRequestHooksConverter.to(request.hooks) : undefined,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3464,6 +3467,8 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).parentRequestId;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).hasHooksEnabled;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).hooks;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
@@ -4082,13 +4087,86 @@ export namespace SourceControlInputBoxValidationType {
 	}
 }
 
-export namespace ChatHookResult {
-	export function to(result: IHookResult): vscode.ChatHookResult {
+export namespace ChatRequestHooksConverter {
+	export function to(hooks: IChatRequestHooks): vscode.ChatRequestHooks {
+		const result: Record<string, vscode.ChatHookCommand[]> = {};
+		for (const [hookType, commands] of Object.entries(hooks)) {
+			if (!commands || commands.length === 0) {
+				continue;
+			}
+			const converted: vscode.ChatHookCommand[] = [];
+			for (const cmd of commands) {
+				const resolved = ChatHookCommand.to(cmd);
+				if (resolved) {
+					converted.push(resolved);
+				}
+			}
+			if (converted.length > 0) {
+				result[hookType] = converted;
+			}
+		}
+		return result;
+	}
+}
+
+export namespace ChatHookCommand {
+	export function to(hook: IHookCommand): vscode.ChatHookCommand | undefined {
+		const command = resolveEffectiveCommand(hook, OS);
+		if (!command) {
+			return undefined;
+		}
 		return {
-			resultKind: result.resultKind,
-			stopReason: result.stopReason,
-			warningMessage: result.warningMessage,
-			output: result.output,
+			command,
+			cwd: hook.cwd,
+			env: hook.env,
+			timeout: hook.timeout,
+		};
+	}
+}
+
+export namespace ChatSessionItem {
+
+	function convertStatus(status: vscode.ChatSessionStatus | undefined): ChatSessionStatus | undefined {
+		if (status === undefined) {
+			return undefined;
+		}
+
+		switch (status) {
+			case 0: // vscode.ChatSessionStatus.Failed
+				return ChatSessionStatus.Failed;
+			case 1: // vscode.ChatSessionStatus.Completed
+				return ChatSessionStatus.Completed;
+			case 2: // vscode.ChatSessionStatus.InProgress
+				return ChatSessionStatus.InProgress;
+			case 3: // vscode.ChatSessionStatus.NeedsInput
+				return ChatSessionStatus.NeedsInput;
+			default:
+				return undefined;
+		}
+	}
+
+	export function from(sessionContent: vscode.ChatSessionItem): Dto<IChatSessionItem> {
+		// Support both new (created, lastRequestStarted, lastRequestEnded) and old (startTime, endTime) timing properties
+		const timing = sessionContent.timing;
+		const created = timing?.created ?? timing?.startTime ?? 0;
+		const lastRequestStarted = timing?.lastRequestStarted ?? timing?.startTime;
+		const lastRequestEnded = timing?.lastRequestEnded ?? timing?.endTime;
+
+		return {
+			resource: sessionContent.resource,
+			label: sessionContent.label,
+			description: sessionContent.description ? MarkdownString.from(sessionContent.description) : undefined,
+			badge: sessionContent.badge ? MarkdownString.from(sessionContent.badge) : undefined,
+			status: convertStatus(sessionContent.status),
+			archived: sessionContent.archived,
+			tooltip: MarkdownString.fromStrict(sessionContent.tooltip),
+			timing: {
+				created,
+				lastRequestStarted,
+				lastRequestEnded,
+			},
+			changes: sessionContent.changes instanceof Array ? sessionContent.changes : undefined,
+			metadata: sessionContent.metadata,
 		};
 	}
 }

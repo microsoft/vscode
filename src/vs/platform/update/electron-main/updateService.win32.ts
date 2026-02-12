@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, spawn } from 'child_process';
+import { app } from 'electron';
 import { existsSync, unlinkSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
-import { app } from 'electron';
 import { Delayer, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
 import { hash } from '../../../base/common/hash.js';
 import * as path from '../../../base/common/path.js';
@@ -24,19 +24,13 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { IFileService } from '../../files/common/files.js';
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { INativeHostMainService } from '../../native/electron-main/nativeHostMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
-import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
-
-async function pollUntil(fn: () => boolean, millis = 1000): Promise<void> {
-	while (!fn()) {
-		await timeout(millis);
-	}
-}
 
 interface IAvailableUpdate {
 	packagePath: string;
@@ -61,6 +55,7 @@ function getUpdateType(): UpdateType {
 export class Win32UpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private availableUpdate: IAvailableUpdate | undefined;
+	private updateCancellationTokenSource: CancellationTokenSource | undefined;
 
 	@memoize
 	get cachePath(): Promise<string> {
@@ -342,6 +337,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			// ignore
 		}
 
+		const progressFilePath = path.join(cachePath, `update-progress`);
+		try {
+			await unlink(progressFilePath);
+		} catch {
+			// ignore
+		}
+
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 		this.availableUpdate.cancelFilePath = cancelFilePath;
 
@@ -351,6 +353,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				'/verysilent',
 				'/log',
 				`/update="${this.availableUpdate.updateFilePath}"`,
+				`/progress="${progressFilePath}"`,
 				`/sessionend="${sessionEndFlagPath}"`,
 				`/cancel="${cancelFilePath}"`,
 				'/nocloseapplications',
@@ -374,15 +377,63 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
 		const mutex = await import('@vscode/windows-mutex');
 
-		// poll for mutex-ready
-		pollUntil(() => mutex.isActive(readyMutexName))
-			.then(() => this.setState(State.Ready(update, explicit, this._overwrite)));
+		// Poll for progress and ready mutex (timeout after 30 minutes)
+		const pollTimeoutMs = 30 * 60 * 1000;
+		const pollStartTime = Date.now();
+
+		this.updateCancellationTokenSource?.dispose(true);
+		const cts = this.updateCancellationTokenSource = new CancellationTokenSource();
+		const token = cts.token;
+
+		const poll = async () => {
+			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
+				if (mutex.isActive(readyMutexName)) {
+					this.setState(State.Ready(update, explicit, this._overwrite));
+					return;
+				}
+
+				if (Date.now() - pollStartTime > pollTimeoutMs) {
+					this.logService.warn('update#doApplyUpdate: polling timed out waiting for update to be ready');
+					this.setState(State.Idle(getUpdateType(), 'Update did not complete within expected time'));
+					return;
+				}
+
+				try {
+					const progressContent = await readFile(progressFilePath, 'utf8');
+					if (!token.isCancellationRequested) {
+						const [currentStr, maxStr] = progressContent.split(',');
+						const currentProgress = parseInt(currentStr, 10);
+						const maxProgress = parseInt(maxStr, 10);
+						if (!isNaN(currentProgress) && !isNaN(maxProgress) && this.state.type === StateType.Updating) {
+							if (this.state.currentProgress !== currentProgress || this.state.maxProgress !== maxProgress) {
+								this.setState(State.Updating(update, currentProgress, maxProgress));
+							}
+						}
+					}
+				} catch {
+					// Progress file may not exist yet or be locked, ignore
+				}
+
+				await timeout(500);
+			}
+		};
+
+		poll().finally(() => {
+			if (this.updateCancellationTokenSource === cts) {
+				this.updateCancellationTokenSource = undefined;
+			}
+			cts.dispose();
+		});
 	}
 
 	protected override async cancelPendingUpdate(): Promise<void> {
 		if (!this.availableUpdate) {
 			return;
 		}
+
+		// Cancel the polling loop
+		this.updateCancellationTokenSource?.dispose(true);
+		this.updateCancellationTokenSource = undefined;
 
 		this.logService.trace('update#cancelPendingUpdate: cancelling pending update');
 		const { updateProcess, updateFilePath, cancelFilePath } = this.availableUpdate;

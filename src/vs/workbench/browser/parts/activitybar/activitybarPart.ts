@@ -77,7 +77,7 @@ export class ActivitybarPart extends Part {
 			viewContainersWorkspaceStateKey: ActivitybarPart.viewContainersWorkspaceStateKey,
 			orientation: ActionsOrientation.VERTICAL,
 			icon: true,
-			iconSize: 24,
+			iconSize: 16,
 			activityHoverOptions: {
 				position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
 			},

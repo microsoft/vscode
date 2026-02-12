@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { parse as parseJSONC } from '../../../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../../base/common/resources.js';
@@ -176,7 +177,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this.cachedHooks = this._register(new CachedPromise(
 			(token) => this.computeHooks(token),
-			() => this.getFileLocatorEvent(PromptsType.hook)
+			() => Event.any(
+				this.getFileLocatorEvent(PromptsType.hook),
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CHAT_HOOKS)),
+			)
 		));
 
 		// Hack: Subscribe to activate caching (CachedPromise only caches when onDidChange has listeners)
@@ -999,6 +1003,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async computeHooks(token: CancellationToken): Promise<IChatRequestHooks | undefined> {
+		const useChatHooks = this.configurationService.getValue(PromptsConfig.USE_CHAT_HOOKS);
+		if (!useChatHooks) {
+			return undefined;
+		}
+
 		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
 
 		if (hookFiles.length === 0) {
@@ -1030,10 +1039,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const hookFile of hookFiles) {
 			try {
 				const content = await this.fileService.readFile(hookFile.uri);
-				const json = JSON.parse(content.value.toString());
+				const json = parseJSONC(content.value.toString());
 
-				// Use format-aware parsing that handles Copilot, Claude, and Cursor formats
-				const { format, hooks } = parseHooksFromFile(hookFile.uri, json, workspaceRootUri, userHome);
+				// Use format-aware parsing that handles Copilot and Claude formats
+				const { format, hooks, disabledAllHooks } = parseHooksFromFile(hookFile.uri, json, workspaceRootUri, userHome);
+
+				// Skip files that have all hooks disabled
+				if (disabledAllHooks) {
+					this.logger.trace(`[PromptsService] Skipping hook file with disableAllHooks: ${hookFile.uri}`);
+					continue;
+				}
 
 				for (const [hookType, { hooks: commands }] of hooks) {
 					for (const command of commands) {
@@ -1304,6 +1319,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async getHookDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
 		const files: IPromptFileDiscoveryResult[] = [];
 
+		// Get user home for tilde expansion
+		const userHomeUri = await this.pathService.userHome();
+		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
+
+		// Get workspace root for resolving relative cwd paths
+		const workspaceFolder = this.workspaceService.getWorkspace().folders[0];
+		const workspaceRootUri = workspaceFolder?.uri;
+
 		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
 		for (const promptPath of hookFiles) {
 			const uri = promptPath.uri;
@@ -1312,9 +1335,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const name = basename(uri);
 
 			try {
-				// Try to parse the JSON to validate it
+				// Try to parse the JSON to validate it (supports JSONC with comments)
 				const content = await this.fileService.readFile(uri);
-				const json = JSON.parse(content.value.toString());
+				const json = parseJSONC(content.value.toString());
 
 				// Validate it's an object
 				if (!json || typeof json !== 'object') {
@@ -1324,6 +1347,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 						status: 'skipped',
 						skipReason: 'parse-error',
 						errorMessage: 'Invalid hooks file: must be a JSON object',
+						name,
+						extensionId
+					});
+					continue;
+				}
+
+				// Use format-aware parsing to check for disabledAllHooks
+				const { disabledAllHooks } = parseHooksFromFile(uri, json, workspaceRootUri, userHome);
+
+				if (disabledAllHooks) {
+					files.push({
+						uri,
+						storage,
+						status: 'skipped',
+						skipReason: 'all-hooks-disabled',
 						name,
 						extensionId
 					});

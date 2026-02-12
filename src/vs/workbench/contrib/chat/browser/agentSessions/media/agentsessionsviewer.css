@@ -9,7 +9,7 @@
 	height: 100%;
 	min-height: 0;
 
-	.monaco-scrollable-element {
+	.pane-body & .monaco-scrollable-element {
 		padding: 0 6px;
 	}
 

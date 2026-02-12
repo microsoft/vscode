@@ -603,6 +603,17 @@
 			}
 		},
 		{
+			"name": "Component Explorer",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5199/___explorer",
+			"preLaunchTask": "Launch Monaco Editor Vite",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
+		},
+		{
 			"name": "Monaco Editor - Self Contained Diff Editor",
 			"type": "chrome",
 			"request": "launch",

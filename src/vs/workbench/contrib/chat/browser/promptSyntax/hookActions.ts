@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { parse as parseJSONC } from '../../../../../base/common/jsonc.js';
+import { setProperty, applyEdits } from '../../../../../base/common/jsonEdit.js';
+import { FormattingOptions } from '../../../../../base/common/jsonFormatter.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -22,6 +25,8 @@ import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQui
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { HOOK_TYPES, HookType, getEffectiveCommandFieldKey } from '../../common/promptSyntax/hookSchema.js';
 import { getCopilotCliHookTypeName, resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
+import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../common/promptSyntax/hookCompatibility.js';
+import { getClaudeHookTypeName, resolveClaudeHookType } from '../../common/promptSyntax/hookClaudeCompat.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextEditorSelection } from '../../../../../platform/editor/common/editor.js';
@@ -100,7 +105,7 @@ async function addHookToFile(
 	if (fileExists) {
 		const existingContent = await fileService.readFile(hookFileUri);
 		try {
-			hooksContent = JSON.parse(existingContent.value.toString());
+			hooksContent = parseJSONC(existingContent.value.toString());
 			// Ensure hooks object exists
 			if (!hooksContent.hooks) {
 				hooksContent.hooks = {};
@@ -116,15 +121,23 @@ async function addHookToFile(
 		hooksContent = { hooks: {} };
 	}
 
+	// Detect source format from file URI
+	const sourceFormat = getHookSourceFormat(hookFileUri);
+	const isClaude = sourceFormat === HookSourceFormat.Claude;
+
 	// Detect naming convention from existing keys
-	const useCopilotCliNamingConvention = usesCopilotCliNaming(hooksContent.hooks);
-	const hookTypeKeyName = getHookTypeKeyName(hookTypeId, useCopilotCliNamingConvention);
+	const useCopilotCliNamingConvention = !isClaude && usesCopilotCliNaming(hooksContent.hooks);
+	const hookTypeKeyName = isClaude
+		? (getClaudeHookTypeName(hookTypeId) ?? hookTypeId)
+		: getHookTypeKeyName(hookTypeId, useCopilotCliNamingConvention);
 
 	// Also check if there's an existing key for this hook type (with either naming)
 	// Find existing key that resolves to the same hook type
 	let existingKeyForType: string | undefined;
 	for (const key of Object.keys(hooksContent.hooks)) {
-		const resolvedType = resolveCopilotCliHookType(key);
+		const resolvedType = isClaude
+			? resolveClaudeHookType(key)
+			: resolveCopilotCliHookType(key);
 		if (resolvedType === hookTypeId || key === hookTypeId) {
 			existingKeyForType = key;
 			break;
@@ -134,22 +147,25 @@ async function addHookToFile(
 	// Use existing key if found, otherwise use the detected naming convention
 	const keyToUse = existingKeyForType ?? hookTypeKeyName;
 
-	// Add the new hook entry (append if hook type already exists)
-	const newHookEntry = {
-		type: 'command',
-		command: ''
-	};
-	let newHookIndex: number;
-	if (!hooksContent.hooks[keyToUse]) {
-		hooksContent.hooks[keyToUse] = [newHookEntry];
-		newHookIndex = 0;
-	} else {
-		hooksContent.hooks[keyToUse].push(newHookEntry);
-		newHookIndex = hooksContent.hooks[keyToUse].length - 1;
-	}
+	// Determine the new hook index (append if hook type already exists)
+	const newHookEntry = buildNewHookEntry(sourceFormat);
+	const existingHooks = hooksContent.hooks[keyToUse];
+	const newHookIndex = Array.isArray(existingHooks) ? existingHooks.length : 0;
 
-	// Write the file
-	const jsonContent = JSON.stringify(hooksContent, null, '\t');
+	// Generate the new JSON content using setProperty to preserve comments
+	let jsonContent: string;
+	if (fileExists) {
+		// Use setProperty to make targeted edits that preserve comments
+		const originalText = (await fileService.readFile(hookFileUri)).value.toString();
+		const detectedEol = originalText.includes('\r\n') ? '\r\n' : '\n';
+		const formattingOptions: FormattingOptions = { tabSize: 1, insertSpaces: false, eol: detectedEol };
+		const edits = setProperty(originalText, ['hooks', keyToUse, newHookIndex], newHookEntry, formattingOptions);
+		jsonContent = applyEdits(originalText, edits);
+	} else {
+		// New file - use JSON.stringify since there are no comments to preserve
+		const newContent = { hooks: { [keyToUse]: [newHookEntry] } };
+		jsonContent = JSON.stringify(newContent, null, '\t');
+	}
 
 	// Check if the file is already open in an editor
 	const existingEditor = editorService.editors.find(e => isEqual(e.resource, hookFileUri));
@@ -604,7 +620,7 @@ export async function showConfigureHooksQuickPick(
 					const inputBox = inputDisposables.add(quickInputService.createInputBox());
 					inputBox.prompt = localize('commands.hook.filename.prompt', "Enter hook file name");
 					inputBox.placeholder = localize('commands.hook.filename.placeholder', "e.g., hooks, diagnostics, security");
-					inputBox.title = localize('commands.hook.selectFolder.title', 'Hook File Location');
+					inputBox.title = localize('commands.hook.filename.title', "Hook File Name");
 					inputBox.buttons = [backButton];
 					inputBox.ignoreFocusOut = true;
 
@@ -668,14 +684,19 @@ export async function showConfigureHooksQuickPick(
 					return;
 				}
 
+				// Detect if new file is a Claude hooks file based on its path
+				const newFileFormat = getHookSourceFormat(hookFileUri);
+				const isClaudeNewFile = newFileFormat === HookSourceFormat.Claude;
+				const hookTypeKey = isClaudeNewFile
+					? (getClaudeHookTypeName(selectedHookType!.hookType.id as HookType) ?? selectedHookType!.hookType.id)
+					: selectedHookType!.hookType.id;
+				const newFileHookEntry = buildNewHookEntry(newFileFormat);
+
 				// Create new hook file with the selected hook type
 				const hooksContent = {
 					hooks: {
-						[selectedHookType!.hookType.id]: [
-							{
-								type: 'command',
-								command: ''
-							}
+						[hookTypeKey]: [
+							newFileHookEntry
 						]
 					}
 				};
@@ -684,7 +705,7 @@ export async function showConfigureHooksQuickPick(
 				await fileService.writeFile(hookFileUri, VSBuffer.fromString(jsonContent));
 
 				// Find the selection for the new hook's command field
-				const selection = findHookCommandSelection(jsonContent, selectedHookType!.hookType.id, 0, 'command');
+				const selection = findHookCommandSelection(jsonContent, hookTypeKey, 0, 'command');
 
 				// Open editor with selection
 				store.dispose();

@@ -2064,9 +2064,12 @@ export default tseslint.config(
 	// Additional extension strictness rules
 	{
 		files: [
-			'extensions/markdown-language-features/**/*.ts',
-			'extensions/mermaid-chat-features/**/*.ts',
-			'extensions/media-preview/**/*.ts',
+			'extensions/markdown-language-features/src/**/*.ts',
+			'extensions/markdown-language-features/notebook/**/*.ts',
+			'extensions/markdown-language-features/preview-src/**/*.ts',
+			'extensions/mermaid-chat-features/chat-webview-src/**/*.ts',
+			'extensions/mermaid-chat-features/src/**/*.ts',
+			'extensions/media-preview/src/**/*.ts',
 			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],

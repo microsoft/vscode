@@ -3,5 +3,8 @@
 	"compilerOptions": {},
 	"exclude": [
 		"./src/test/**"
+	],
+	"files": [
+		"./src/extension.browser.ts"
 	]
 }

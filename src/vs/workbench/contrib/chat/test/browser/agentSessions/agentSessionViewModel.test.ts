@@ -22,7 +22,7 @@ import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 
 
 suite('AgentSessions', () => {
@@ -1949,6 +1949,16 @@ suite('AgentSessions', () => {
 			assert.strictEqual(icon.id, Codicon.cloud.id);
 		});
 
+		test('should return correct name for Growth provider', () => {
+			const name = getAgentSessionProviderName(AgentSessionProviders.Growth);
+			assert.strictEqual(name, 'Growth');
+		});
+
+		test('should return correct icon for Growth provider', () => {
+			const icon = getAgentSessionProviderIcon(AgentSessionProviders.Growth);
+			assert.strictEqual(icon.id, Codicon.lightbulb.id);
+		});
+
 		test('should handle Local provider type in model', async () => {
 			return runWithFakedTimers({}, async () => {
 				const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
@@ -2084,6 +2094,25 @@ suite('AgentSessions', () => {
 				const session = viewModel.sessions[0];
 				assert.strictEqual(session.icon.id, Codicon.terminal.id);
 			});
+		});
+	});
+
+	suite('AgentSessionsViewModel - getAgentCanContinueIn', () => {
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		test('should return false when contribution.isReadOnly is true', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Cloud, { type: 'test', name: 'test', displayName: 'Test', description: 'test', isReadOnly: true });
+			assert.strictEqual(result, false);
+		});
+
+		test('should return true for Cloud when contribution is not read-only', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Cloud, { type: 'test', name: 'test', displayName: 'Test', description: 'test', isReadOnly: false });
+			assert.strictEqual(result, true);
+		});
+
+		test('should return false for Growth provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Growth);
+			assert.strictEqual(result, false);
 		});
 	});
 

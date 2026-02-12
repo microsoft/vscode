@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
+// version: 6
 
 declare module 'vscode' {
 
@@ -13,18 +13,33 @@ declare module 'vscode' {
 	export type ChatHookType = 'SessionStart' | 'UserPromptSubmit' | 'PreToolUse' | 'PostToolUse' | 'PreCompact' | 'SubagentStart' | 'SubagentStop' | 'Stop';
 
 	/**
-	 * Options for executing a hook command.
+	 * A resolved hook command ready for execution.
+	 * The command has already been resolved for the current platform.
 	 */
-	export interface ChatHookExecutionOptions {
+	export interface ChatHookCommand {
 		/**
-		 * Input data to pass to the hook via stdin (will be JSON-serialized).
+		 * The shell command to execute, already resolved for the current platform.
 		 */
-		readonly input?: unknown;
+		readonly command: string;
 		/**
-		 * The tool invocation token from the chat request context,
-		 * used to associate the hook execution with the current chat session.
+		 * Working directory for the command.
 		 */
-		readonly toolInvocationToken: ChatParticipantToolToken;
+		readonly cwd?: Uri;
+		/**
+		 * Additional environment variables for the command.
+		 */
+		readonly env?: Record<string, string>;
+		/**
+		 * Maximum execution time in seconds.
+		 */
+		readonly timeout?: number;
+	}
+
+	/**
+	 * Collected hooks for a chat request, organized by hook type.
+	 */
+	export interface ChatRequestHooks {
+		readonly [hookType: string]: readonly ChatHookCommand[];
 	}
 
 	/**
@@ -60,19 +75,14 @@ declare module 'vscode' {
 		readonly output: unknown;
 	}
 
-	export namespace chat {
+	export interface ChatRequest {
 		/**
-		 * Execute all hooks of the specified type for the current chat session.
-		 * Hooks are configured in hooks .json files in the workspace.
-		 *
-		 * @param hookType The type of hook to execute.
-		 * @param options Hook execution options including the input data.
-		 * @param token Optional cancellation token.
-		 * @returns A promise that resolves to an array of hook execution results.
+		 * Resolved hook commands for this request, organized by hook type.
+		 * The commands have already been resolved for the current platform.
+		 * Only present when hooks are enabled.
 		 */
-		export function executeHook(hookType: ChatHookType, options: ChatHookExecutionOptions, token?: CancellationToken): Thenable<ChatHookResult[]>;
+		readonly hooks?: ChatRequestHooks;
 	}
-
 
 	/**
 	 * A progress part representing the execution result of a hook.

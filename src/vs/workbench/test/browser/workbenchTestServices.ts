@@ -149,7 +149,7 @@ import { CodeEditorService } from '../../services/editor/browser/codeEditorServi
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
 import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
 import { CustomEditorLabelService, ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
-import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions, IModalEditorPart } from '../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupActivationEvent, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions, IModalEditorPart } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
 import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
 import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, PreferredGroup } from '../../services/editor/common/editorService.js';
@@ -863,7 +863,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
 	readonly onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
-	readonly onDidActivateGroup: Event<IEditorGroup> = Event.None;
+	readonly onDidActivateGroup: Event<IEditorGroupActivationEvent> = Event.None;
 	readonly onDidAddGroup: Event<IEditorGroup> = Event.None;
 	readonly onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	readonly onDidMoveGroup: Event<IEditorGroup> = Event.None;
@@ -924,6 +924,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 
 	readonly mainPart = this;
+	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
 	createModalEditorPart(): Promise<IModalEditorPart> { throw new Error('Method not implemented.'); }
@@ -1639,6 +1640,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
+	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
 

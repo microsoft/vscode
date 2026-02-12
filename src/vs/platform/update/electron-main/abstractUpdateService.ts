@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as os from 'os';
 import { IntervalTimer, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { isMacintosh } from '../../../base/common/platform.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -27,6 +29,23 @@ export function createUpdateURL(baseUpdateUrl: string, platform: string, quality
 	}
 
 	return url.toString();
+}
+
+/**
+ * Builds common headers for macOS update requests, including those issued
+ * via Electron's auto-updater (e.g. setFeedURL({ url, headers })) and
+ * manual HTTP requests that bypass the auto-updater. On macOS, this includes
+ * the Darwin kernel version which the update server uses for EOL detection.
+ */
+export function getUpdateRequestHeaders(productVersion: string): Record<string, string> | undefined {
+	if (isMacintosh) {
+		const darwinVersion = os.release();
+		return {
+			'User-Agent': `Code/${productVersion} Darwin/${darwinVersion}`
+		};
+	}
+
+	return undefined;
 }
 
 export type UpdateErrorClassification = {
@@ -288,11 +307,16 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return undefined;
 		}
 
+		const headers = getUpdateRequestHeaders(this.productService.version);
+		this.logService.trace('update#isLatestVersion() - checking update server', { url, headers });
+
 		try {
-			const context = await this.requestService.request({ url }, token);
+			const context = await this.requestService.request({ url, headers }, token);
+			const statusCode = context.res.statusCode;
+			this.logService.trace('update#isLatestVersion() - response', { statusCode });
 			// The update server replies with 204 (No Content) when no
 			// update is available - that's all we want to know.
-			return context.res.statusCode === 204;
+			return statusCode === 204;
 
 		} catch (error) {
 			this.logService.error('update#isLatestVersion(): failed to check for updates');

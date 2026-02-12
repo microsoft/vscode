@@ -299,7 +299,7 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 	}
 }
 
-interface ICollapsibleListTemplate {
+export interface ICollapsibleListTemplate {
 	readonly contextKeyService?: IContextKeyService;
 	readonly label: IResourceLabel;
 	readonly templateDisposables: DisposableStore;
@@ -310,7 +310,7 @@ interface ICollapsibleListTemplate {
 	removedSpan?: HTMLElement;
 }
 
-class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
+export class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem, ICollapsibleListTemplate> {
 	static TEMPLATE_ID = 'chatCollapsibleListRenderer';
 	readonly templateId: string = CollapsibleListRenderer.TEMPLATE_ID;
 
