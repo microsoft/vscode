@@ -203,7 +203,7 @@
 }
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .action-label:not(.icon) {
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .extension-list-item > .details > .footer > .monaco-action-bar > .actions-container .extension-action.label {

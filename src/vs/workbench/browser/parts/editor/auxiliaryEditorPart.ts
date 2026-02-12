@@ -360,6 +360,13 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
+	protected override handleContextKeys(): void {
+		const isAuxiliaryWindowContext = IsAuxiliaryWindowContext.bindTo(this.scopedContextKeyService);
+		isAuxiliaryWindowContext.set(true);
+
+		super.handleContextKeys();
+	}
+
 	updateOptions(options: { compact: boolean }): void {
 		this.isCompact = options.compact;
 
@@ -439,6 +446,9 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 			// Then merge remaining to main part
 			result = this.mergeGroupsToMainPart();
+			if (!result) {
+				return false; // Do not close when editors could not be merged back
+			}
 		}
 
 		this._onWillClose.fire();

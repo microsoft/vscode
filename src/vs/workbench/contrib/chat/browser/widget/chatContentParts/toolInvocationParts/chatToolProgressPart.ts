@@ -53,11 +53,26 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			return part.domNode;
 		} else {
 			const container = document.createElement('div');
-			const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.state.map((s, r) => s.type === IChatToolInvocation.StateKind.Executing ? s.progress.read(r) : undefined) : undefined;
 			this._register(autorun(reader => {
-				const progress = progressObservable?.read(reader);
+				let progressContent: IMarkdownString | string | undefined;
 				const key = this.getAnnouncementKey('progress');
-				const progressContent = progress?.message ?? this.toolInvocation.invocationMessage;
+
+				if (this.toolInvocation.kind === 'toolInvocation') {
+					const state = this.toolInvocation.state.read(reader);
+
+					// Handle cancelled state with reason message
+					if (state.type === IChatToolInvocation.StateKind.Cancelled && state.reasonMessage) {
+						progressContent = state.reasonMessage;
+					} else if (state.type === IChatToolInvocation.StateKind.Executing) {
+						const progress = state.progress.read(reader);
+						progressContent = progress?.message ?? this.toolInvocation.invocationMessage;
+					} else {
+						progressContent = this.toolInvocation.invocationMessage;
+					}
+				} else {
+					progressContent = this.toolInvocation.invocationMessage;
+				}
+
 				// Don't render anything if there's no meaningful content
 				if (!this.hasMeaningfulContent(progressContent)) {
 					dom.clearNode(container);

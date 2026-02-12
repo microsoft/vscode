@@ -66,6 +66,8 @@ export async function getOSReleaseInfo(errorLogger: (error: string | Error) => v
 		return releaseInfo;
 	} catch (err) {
 		errorLogger(err);
+	} finally {
+		await handle.close();
 	}
 
 	return;

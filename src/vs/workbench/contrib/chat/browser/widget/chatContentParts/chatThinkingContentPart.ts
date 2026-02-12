@@ -718,10 +718,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const timeout = setTimeout(() => cts.cancel(), 5000);
 
 		try {
-			let models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
-			if (!models.length) {
-				models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
-			}
+			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
 			if (!models.length) {
 				this.setFallbackTitle();
 				return;
@@ -765,6 +762,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			- For reasoning/thinking: "Considered", "Planned", "Analyzed", "Reviewed", "Evaluated"
 			- Choose the synonym that best fits the context
 
+			PRIORITY RULE - BLOCKED/DENIED CONTENT:
+			- If any item mentions being "blocked" (e.g. "Tried to use X, but was blocked"), it MUST be reflected in the title
+			- Blocked content takes priority over all other tool calls
+			- Use natural phrasing like "Tried to <action>, but was blocked" or "Attempted <tool> but was denied"
+			- If there are both blocked items AND normal tool calls, mention both: e.g. "Tried to run terminal but was blocked, edited file.ts"
+
 			RULES FOR TOOL CALLS:
 			1. If the SAME file was both edited AND read: Use a combined phrase like "Reviewed and updated <filename>"
 			2. If exactly ONE file was edited: Start with an edit synonym + "<filename>" (include actual filename)
@@ -803,6 +806,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			- "Edited api.ts, Edited models.ts, Read schema.json" → "Updated 2 files and reviewed schema.json"
 			- "Edited Button.tsx, Edited Button.css, Edited index.ts" → "Modified 3 files"
 			- "Searched codebase for error handling" → "Looked up error handling"
+
+			EXAMPLES WITH BLOCKED CONTENT:
+			- "Tried to use Run in Terminal, but was blocked" → "Tried to run command, but was blocked"
+			- "Tried to use Run in Terminal, but was blocked, Edited config.ts" → "Tried to run command but was blocked, edited config.ts"
+			- "Tried to use Edit File, but was blocked, Tried to use Run in Terminal, but was blocked" → "Tried to use 2 tools, but was blocked"
+			- "Used Read File, but received a warning, Edited utils.ts" → "Read file with a warning, edited utils.ts"
 
 			EXAMPLES WITH REASONING HEADERS (no tools):
 			- "Analyzing component architecture" → "Considered component architecture"
@@ -1160,7 +1169,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				toolCallLabel = localize('chat.thinking.editingFile', 'Edited file');
 			}
 		} else {
-			toolCallLabel = `Invoked \`${toolInvocationId}\``;
+			toolCallLabel = toolInvocationId;
 		}
 
 		// Add tool call to extracted titles for LLM title generation
@@ -1207,6 +1216,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number } };
 			const exitCode = terminalData?.terminalCommandState?.exitCode;
 			icon = exitCode !== undefined && exitCode !== 0 ? Codicon.error : Codicon.terminal;
+		} else if (content.classList.contains('chat-hook-outcome-blocked')) {
+			icon = Codicon.error;
+		} else if (content.classList.contains('chat-hook-outcome-warning')) {
+			icon = Codicon.warning;
 		} else {
 			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId) : Codicon.tools;
 		}

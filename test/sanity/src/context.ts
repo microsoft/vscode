@@ -779,18 +779,22 @@ export class TestContext {
 		switch (os.platform()) {
 			case 'darwin': {
 				let appName: string;
+				let binaryName: string;
 				switch (this.options.quality) {
 					case 'stable':
 						appName = 'Visual Studio Code.app';
+						binaryName = 'Code';
 						break;
 					case 'insider':
 						appName = 'Visual Studio Code - Insiders.app';
+						binaryName = 'Code - Insiders';
 						break;
 					case 'exploration':
 						appName = 'Visual Studio Code - Exploration.app';
+						binaryName = 'Code - Exploration';
 						break;
 				}
-				filePath = path.join(dir, appName, 'Contents/MacOS/Electron');
+				filePath = path.join(dir, appName, 'Contents/MacOS', binaryName);
 				break;
 			}
 			case 'linux': {

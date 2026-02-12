@@ -36,6 +36,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 export class ReleaseNotesManager extends Disposable {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -58,6 +60,8 @@ export class ReleaseNotesManager extends Disposable {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IUpdateService private readonly _updateService: IUpdateService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -67,6 +71,7 @@ export class ReleaseNotesManager extends Disposable {
 
 		this._register(_configurationService.onDidChangeConfiguration((e) => this.onDidChangeConfiguration(e)));
 		this._register(_webviewWorkbenchService.onDidChangeActiveWebviewEditor((e) => this.onDidChangeActiveWebviewEditor(e)));
+		this._register(this._updateService.onStateChange(() => this.postUpdateAction()));
 		this._simpleSettingRenderer = this._instantiationService.createInstance(SimpleSettingRenderer);
 	}
 
@@ -129,6 +134,10 @@ export class ReleaseNotesManager extends Disposable {
 			disposables.add(this._currentReleaseNotes.webview.onMessage(e => {
 				if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
+				} else if (e.message.type === 'updateAction') {
+					if (e.message.commandId) {
+						this._commandService.executeCommand(e.message.commandId);
+					}
 				} else if (e.message.type === 'clickSetting') {
 					const x = this._currentReleaseNotes?.webview.container.offsetLeft + e.message.value.x;
 					const y = this._currentReleaseNotes?.webview.container.offsetTop + e.message.value.y;
@@ -271,6 +280,7 @@ export class ReleaseNotesManager extends Disposable {
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
+		const updateAction = this.getUpdateAction();
 
 		return `<!DOCTYPE html>
 		<html>
@@ -531,6 +541,80 @@ export class ReleaseNotesManager extends Disposable {
 							margin-left: 0;
 						}
 					}
+
+					/* Update action button */
+					#update-action-btn {
+						position: fixed;
+						right: 25px;
+						top: 25px;
+						background-color: var(--vscode-button-background);
+						color: var(--vscode-button-foreground);
+						border: 1px solid var(--vscode-button-border, transparent);
+						border-radius: 50%;
+						width: 40px;
+						height: 40px;
+						padding: 0;
+						cursor: pointer;
+						font-size: var(--vscode-font-size);
+						font-family: var(--vscode-font-family);
+						white-space: nowrap;
+						box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+						z-index: 100;
+						overflow: hidden;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						transition: border-radius 0.25s ease, padding 0.25s ease, width 0.25s ease;
+					}
+
+					#update-action-btn .icon {
+						flex-shrink: 0;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						width: 16px;
+						height: 16px;
+					}
+
+					#update-action-btn .icon svg {
+						width: 16px;
+						height: 16px;
+						display: block;
+					}
+
+					#update-action-btn .label {
+						overflow: hidden;
+						max-width: 0;
+						opacity: 0;
+						margin-left: 0;
+						transition: max-width 0.25s ease, opacity 0.2s ease, margin-left 0.25s ease;
+					}
+
+					#update-action-btn:hover,
+					#update-action-btn.expanded {
+						background-color: var(--vscode-button-hoverBackground);
+						box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+						width: auto;
+						border-radius: 20px;
+						padding: 0 14px;
+					}
+
+					#update-action-btn:hover .label,
+					#update-action-btn.expanded .label {
+						max-width: 200px;
+						opacity: 1;
+						margin-left: 6px;
+					}
+
+					#update-action-btn.expanded {
+						background-color: var(--vscode-button-background);
+					}
+
+					body.vscode-high-contrast #update-action-btn {
+						border-width: 2px;
+						border-style: solid;
+						box-shadow: none;
+					}
 				</style>
 			</head>
 			<body>
@@ -562,6 +646,15 @@ export class ReleaseNotesManager extends Disposable {
 					window.addEventListener('message', event => {
 						if (event.data.type === 'showReleaseNotes') {
 							input.checked = event.data.value;
+						} else if (event.data.type === 'updateAction') {
+							if (event.data.label) {
+								updateActionBtn.querySelector('.label').textContent = event.data.label;
+								updateActionBtn.dataset.commandId = event.data.commandId;
+								updateActionBtn.setAttribute('aria-label', event.data.label);
+								updateActionBtn.style.display = 'flex';
+							} else {
+								updateActionBtn.style.display = 'none';
+							}
 						}
 					});
 
@@ -584,9 +677,77 @@ export class ReleaseNotesManager extends Disposable {
 					input.addEventListener('change', event => {
 						vscode.postMessage({ type: 'showReleaseNotes', value: input.checked }, '*');
 					});
+
+					// Update action button
+					const updateActionBtn = document.createElement('button');
+					updateActionBtn.id = 'update-action-btn';
+
+					// Arrow-circle-down SVG icon
+					const iconSpan = document.createElement('span');
+					iconSpan.className = 'icon';
+					iconSpan.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 1v9.5M4.5 7.5L8 11l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+					updateActionBtn.appendChild(iconSpan);
+
+					const labelSpan = document.createElement('span');
+					labelSpan.className = 'label';
+					updateActionBtn.appendChild(labelSpan);
+
+					const initialAction = ${JSON.stringify(updateAction ?? null)};
+					if (initialAction) {
+						labelSpan.textContent = initialAction.label;
+						updateActionBtn.dataset.commandId = initialAction.commandId;
+						updateActionBtn.setAttribute('aria-label', initialAction.label);
+						updateActionBtn.style.display = 'flex';
+					} else {
+						updateActionBtn.style.display = 'none';
+					}
+
+					document.body.appendChild(updateActionBtn);
+
+					updateActionBtn.addEventListener('click', () => {
+						if (updateActionBtn.dataset.commandId) {
+							vscode.postMessage({ type: 'updateAction', commandId: updateActionBtn.dataset.commandId });
+						}
+					});
+
+					// Expand button when at top of page
+					function updateExpandedState() {
+						if (window.scrollY <= 100) {
+							updateActionBtn.classList.add('expanded');
+						} else {
+							updateActionBtn.classList.remove('expanded');
+						}
+					}
+					updateExpandedState();
+					window.addEventListener('scroll', updateExpandedState);
 				</script>
 			</body>
 		</html>`;
+	}
+
+	private getUpdateAction(): { label: string; commandId: string } | undefined {
+		const state = this._updateService.state;
+		switch (state.type) {
+			case StateType.AvailableForDownload:
+				return { label: nls.localize('releaseNotes.downloadUpdate', "Download Update"), commandId: 'update.downloadNow' };
+			case StateType.Downloaded:
+				return { label: nls.localize('releaseNotes.installUpdate', "Install Update"), commandId: 'update.install' };
+			case StateType.Ready:
+				return { label: nls.localize('releaseNotes.restartToUpdate', "Restart to Update"), commandId: 'update.restart' };
+			default:
+				return undefined;
+		}
+	}
+
+	private postUpdateAction(): void {
+		if (this._currentReleaseNotes) {
+			const action = this.getUpdateAction();
+			this._currentReleaseNotes.webview.postMessage({
+				type: 'updateAction',
+				label: action?.label ?? '',
+				commandId: action?.commandId ?? ''
+			});
+		}
 	}
 
 	private onDidChangeConfiguration(e: IConfigurationChangeEvent): void {

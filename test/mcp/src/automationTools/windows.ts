@@ -18,7 +18,7 @@ function textResponse(text: string) {
 
 /**
  * Window Management Tools for multi-window support.
- * These tools are thin wrappers around PlaywrightDriver methods.
+ * These tools provide Playwright-based window interactions through the automation driver.
  */
 export function applyWindowTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
 	const tools: RegisteredTool[] = [];

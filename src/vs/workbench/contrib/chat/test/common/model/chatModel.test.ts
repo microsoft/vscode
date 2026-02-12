@@ -25,9 +25,9 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, IChatRequestFileEntry, StringChatContextValue } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ChatModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel, IExportableChatData, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, isExportableSessionData, isSerializableSessionData, normalizeSerializableChatData, Response } from '../../../common/model/chatModel.js';
 import { ChatRequestTextPart } from '../../../common/requestParser/chatParserTypes.js';
-import { IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { MockChatService } from '../chatService/mockChatService.js';
 
@@ -736,5 +736,224 @@ suite('ChatResponseModel', () => {
 		} finally {
 			clock.restore();
 		}
+	});
+});
+
+suite('ChatModel - Pending Requests', () => {
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let instantiationService: TestInstantiationService;
+
+	function createModel(): ChatModel {
+		return testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			undefined,
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true }
+		));
+	}
+
+	function addRequestToModel(model: ChatModel, text: string): ChatRequestModel {
+		return model.addRequest(
+			{ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] },
+			{ variables: [] },
+			0
+		);
+	}
+
+	setup(async () => {
+		instantiationService = testDisposables.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
+	});
+
+	test('addPendingRequest - queued messages are added at the end', () => {
+		const model = createModel();
+		const request1 = addRequestToModel(model, 'first');
+		const request2 = addRequestToModel(model, 'second');
+
+		model.addPendingRequest(request1, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(request2, ChatRequestQueueKind.Queued, {});
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 2);
+		assert.strictEqual(pending[0].request.id, request1.id);
+		assert.strictEqual(pending[1].request.id, request2.id);
+	});
+
+	test('addPendingRequest - steering messages are inserted before queued messages', () => {
+		const model = createModel();
+		const queued = addRequestToModel(model, 'queued');
+		const steering = addRequestToModel(model, 'steering');
+
+		model.addPendingRequest(queued, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(steering, ChatRequestQueueKind.Steering, {});
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 2);
+		assert.strictEqual(pending[0].request.id, steering.id);
+		assert.strictEqual(pending[0].kind, ChatRequestQueueKind.Steering);
+		assert.strictEqual(pending[1].request.id, queued.id);
+		assert.strictEqual(pending[1].kind, ChatRequestQueueKind.Queued);
+	});
+
+	test('addPendingRequest - multiple steering messages maintain order', () => {
+		const model = createModel();
+		const [steering1, steering2, queued] = ['s1', 's2', 'q'].map(t => addRequestToModel(model, t));
+
+		model.addPendingRequest(queued, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(steering1, ChatRequestQueueKind.Steering, {});
+		model.addPendingRequest(steering2, ChatRequestQueueKind.Steering, {});
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 3);
+		assert.strictEqual(pending[0].request.id, steering1.id);
+		assert.strictEqual(pending[1].request.id, steering2.id);
+		assert.strictEqual(pending[2].request.id, queued.id);
+	});
+
+	test('addPendingRequest - fires onDidChangePendingRequests event', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+
+		let eventFired = false;
+		testDisposables.add(model.onDidChangePendingRequests(() => { eventFired = true; }));
+
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, {});
+
+		assert.strictEqual(eventFired, true);
+	});
+
+	test('removePendingRequest - removes specified request', () => {
+		const model = createModel();
+		const [request1, request2] = ['r1', 'r2'].map(t => addRequestToModel(model, t));
+
+		model.addPendingRequest(request1, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(request2, ChatRequestQueueKind.Queued, {});
+
+		model.removePendingRequest(request1.id);
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 1);
+		assert.strictEqual(pending[0].request.id, request2.id);
+	});
+
+	test('removePendingRequest - no-op for non-existent request', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, {});
+
+		let eventCount = 0;
+		testDisposables.add(model.onDidChangePendingRequests(() => { eventCount++; }));
+
+		model.removePendingRequest('non-existent-id');
+
+		assert.strictEqual(model.getPendingRequests().length, 1);
+		assert.strictEqual(eventCount, 0);
+	});
+
+	test('dequeuePendingRequest - returns and removes first request', () => {
+		const model = createModel();
+		const [request1, request2] = ['r1', 'r2'].map(t => addRequestToModel(model, t));
+
+		model.addPendingRequest(request1, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(request2, ChatRequestQueueKind.Queued, {});
+
+		const dequeued = model.dequeuePendingRequest();
+
+		assert.strictEqual(dequeued?.request.id, request1.id);
+		assert.strictEqual(model.getPendingRequests().length, 1);
+		assert.strictEqual(model.getPendingRequests()[0].request.id, request2.id);
+	});
+
+	test('dequeuePendingRequest - returns undefined when empty', () => {
+		const model = createModel();
+		assert.strictEqual(model.dequeuePendingRequest(), undefined);
+	});
+
+	test('dequeuePendingRequest - fires event when request dequeued', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, {});
+
+		let eventFired = false;
+		testDisposables.add(model.onDidChangePendingRequests(() => { eventFired = true; }));
+
+		model.dequeuePendingRequest();
+
+		assert.strictEqual(eventFired, true);
+	});
+
+	test('clearPendingRequests - removes all pending requests', () => {
+		const model = createModel();
+		['r1', 'r2', 'r3'].forEach(t => {
+			model.addPendingRequest(addRequestToModel(model, t), ChatRequestQueueKind.Queued, {});
+		});
+
+		model.clearPendingRequests();
+
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
+	test('clearPendingRequests - no event when already empty', () => {
+		const model = createModel();
+
+		let eventFired = false;
+		testDisposables.add(model.onDidChangePendingRequests(() => { eventFired = true; }));
+
+		model.clearPendingRequests();
+
+		assert.strictEqual(eventFired, false);
+	});
+
+	test('setPendingRequests - reorders existing pending requests', () => {
+		const model = createModel();
+		const [r1, r2, r3] = ['r1', 'r2', 'r3'].map(t => addRequestToModel(model, t));
+
+		model.addPendingRequest(r1, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(r2, ChatRequestQueueKind.Queued, {});
+		model.addPendingRequest(r3, ChatRequestQueueKind.Steering, {});
+
+		// Reverse the order
+		model.setPendingRequests([
+			{ requestId: r2.id, kind: ChatRequestQueueKind.Queued },
+			{ requestId: r1.id, kind: ChatRequestQueueKind.Steering }, // Change kind
+		]);
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 2);
+		assert.strictEqual(pending[0].request.id, r2.id);
+		assert.strictEqual(pending[1].request.id, r1.id);
+		assert.strictEqual(pending[1].kind, ChatRequestQueueKind.Steering);
+	});
+
+	test('setPendingRequests - ignores non-existent request IDs', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+		model.addPendingRequest(request, ChatRequestQueueKind.Queued, {});
+
+		model.setPendingRequests([
+			{ requestId: 'non-existent', kind: ChatRequestQueueKind.Queued },
+			{ requestId: request.id, kind: ChatRequestQueueKind.Queued },
+		]);
+
+		const pending = model.getPendingRequests();
+		assert.strictEqual(pending.length, 1);
+		assert.strictEqual(pending[0].request.id, request.id);
+	});
+
+	test('pending requests preserve send options', () => {
+		const model = createModel();
+		const request = addRequestToModel(model, 'test');
+		const sendOptions = { agentId: 'test-agent', attempt: 3 };
+
+		const pending = model.addPendingRequest(request, ChatRequestQueueKind.Queued, sendOptions);
+
+		assert.strictEqual(pending.sendOptions.agentId, 'test-agent');
+		assert.strictEqual(pending.sendOptions.attempt, 3);
 	});
 });

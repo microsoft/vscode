@@ -15,6 +15,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participa
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatProgress, IChatService, IChatSessionTiming } from './chatService/chatService.js';
+import { Target } from './promptSyntax/service/promptsService.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -84,13 +85,14 @@ export interface IChatSessionsExtensionPoint {
 	readonly capabilities?: IChatAgentAttachmentCapabilities;
 	readonly commands?: IChatSessionCommandContribution[];
 	readonly canDelegate?: boolean;
+	readonly isReadOnly?: boolean;
 	/**
 	 * When set, the chat session will show a filtered mode picker with custom agents
 	 * that have a matching `target` property. This enables contributed chat sessions
 	 * to reuse the standard agent/mode dropdown with filtered custom agents.
 	 * Custom agents without a `target` property are also shown in all filtered lists
 	 */
-	readonly customAgentTarget?: string;
+	readonly customAgentTarget?: Target;
 }
 
 export interface IChatSessionItem {
@@ -183,14 +185,17 @@ export interface IChatSession extends IDisposable {
 	) => Promise<void>;
 }
 
-export interface IChatSessionItemProvider {
-	readonly chatSessionType: string;
-	readonly onDidChangeChatSessionItems: Event<void>;
-	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
-}
-
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+}
+
+export interface IChatSessionItemController {
+
+	readonly onDidChangeChatSessionItems: Event<void>;
+
+	get items(): readonly IChatSessionItem[];
+
+	refresh(token: CancellationToken): Promise<void>;
 }
 
 /**
@@ -206,16 +211,16 @@ export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
 	// #region Chat session item provider support
-	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
-	readonly onDidChangeSessionItems: Event<string>;
+	readonly onDidChangeItemsProviders: Event<{ readonly chatSessionType: string }>;
+	readonly onDidChangeSessionItems: Event<{ readonly chatSessionType: string }>;
 
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
 
 	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined;
 
-	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
-	activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined>;
+	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
+	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
 	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined;
@@ -224,16 +229,19 @@ export interface IChatSessionsService {
 	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
 
 	/**
-	 * Get the list of chat session items grouped by session type.
+	 * Get the list of current chat session items grouped by session type.
 	 * @param providerTypeFilter If specified, only returns items from the given providers. If undefined, returns items from all providers.
 	 */
-	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>>;
+	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>>;
+
+	/**
+	 * Forces the controllers to refresh their session items, optionally filtered by provider type.
+	 */
+	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<void>;
 
 	reportInProgress(chatSessionType: string, count: number): void;
 	getInProgress(): { displayName: string; count: number }[];
 
-	// Notify providers about session items changes
-	notifySessionItemsChanged(chatSessionType: string): void;
 	// #endregion
 
 	// #region Content provider support
@@ -261,9 +269,9 @@ export interface IChatSessionsService {
 
 	/**
 	 * Get the customAgentTarget for a specific session type.
-	 * When set, the mode picker should show filtered custom agents matching this target.
+	 * When the Target is not `Target.Undefined`, the mode picker should show filtered custom agents matching this target.
 	 */
-	getCustomAgentTargetForSessionType(chatSessionType: string): string | undefined;
+	getCustomAgentTargetForSessionType(chatSessionType: string): Target;
 
 	onDidChangeOptionGroups: Event<string>;
 

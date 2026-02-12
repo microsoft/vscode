@@ -54,7 +54,8 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return true; // Always show active session type
 		}
 
-		return getAgentCanContinueIn(type);
+		const contribution = this.chatSessionsService.getChatSessionContribution(type);
+		return getAgentCanContinueIn(type, contribution);
 	}
 
 	protected override _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
@@ -62,13 +63,6 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			return { label: localize('continueIn', "Continue In"), order: 1, showHeader: true };
 		}
 		return { label: localize('continueInThirdParty', "Continue In (Third Party)"), order: 2, showHeader: false };
-	}
-
-	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
-		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === sessionTypeItem.type);
-
-		return contribution?.name ? `@${contribution.name}` : undefined;
 	}
 
 	protected override _getLearnMore(): IAction {

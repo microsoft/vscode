@@ -19,14 +19,14 @@ import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/brows
 
 export class BrowserDialogHandler extends AbstractDialogHandler {
 
-	private static readonly ALLOWABLE_COMMANDS = [
+	private static readonly ALLOWABLE_COMMANDS = new Set([
 		'copy',
 		'cut',
 		'editor.action.selectAll',
 		'editor.action.clipboardCopyAction',
 		'editor.action.clipboardCutAction',
 		'editor.action.clipboardPasteAction'
-	];
+	]);
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

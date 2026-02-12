@@ -24,7 +24,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { IVariableReference } from '../chatModes.js';
-import { IChatExtensionsContent, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
+import { IChatExtensionsContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
 import { ILanguageModelChatMetadata, LanguageModelPartAudience } from '../languageModels.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
@@ -162,6 +162,16 @@ export namespace ToolDataSource {
 	}
 }
 
+/**
+ * Pre-tool-use hook result passed from the extension when the hook was executed externally.
+ */
+export interface IExternalPreToolUseHookResult {
+	permissionDecision?: 'allow' | 'deny' | 'ask';
+	permissionDecisionReason?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	updatedInput?: Record<string, any>;
+}
+
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
@@ -179,9 +189,13 @@ export interface IToolInvocation {
 	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
 	 */
 	subAgentInvocationId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData;
 	modelId?: string;
 	userSelectedTools?: UserSelectedTools;
+	/** The label of the custom button selected by the user during confirmation, if custom buttons were used. */
+	selectedCustomButton?: string;
+	/** Pre-tool-use hook result passed from the extension, if the hook was already executed externally. */
+	preToolUseResult?: IExternalPreToolUseHookResult;
 }
 
 export interface IToolInvocationContext {
@@ -198,11 +212,15 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 export interface IToolInvocationPreparationContext {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
+	toolCallId: string;
 	chatRequestId?: string;
 	/** @deprecated Use {@link chatSessionResource} instead */
 	chatSessionId?: string;
 	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
+	modelId?: string;
+	/** If set, tells the tool that it should include confirmation messages. */
+	forceConfirmationReason?: string;
 }
 
 export type ToolInputOutputBase = {
@@ -312,6 +330,8 @@ export interface IToolConfirmationMessages {
 	confirmResults?: boolean;
 	/** If title is not set (no confirmation needed), this reason will be shown to explain why confirmation was not needed */
 	confirmationNotNeededReason?: string | IMarkdownString;
+	/** Custom button labels to display instead of the default Allow/Skip buttons. */
+	customButtons?: string[];
 }
 
 export interface IToolConfirmationAction {
@@ -349,7 +369,7 @@ export interface IPreparedToolInvocation {
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: ToolInvocationPresentation;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData;
 }
 
 export interface IToolImpl {
@@ -565,15 +585,10 @@ export interface ILanguageModelToolsService {
 	/**
 	 * Gets the enablement maps based on the given set of references.
 	 * @param fullReferenceNames The full reference names of the tools and tool sets to enable.
-	 * @param target Optional target to filter tools by.
 	 * @param model Optional language model metadata to filter tools by.
 	 * If undefined is passed, all tools will be returned, even if normally disabled.
 	 */
-	toToolAndToolSetEnablementMap(
-		fullReferenceNames: readonly string[],
-		target: string | undefined,
-		model: ILanguageModelChatMetadata | undefined,
-	): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap;
 
 	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];

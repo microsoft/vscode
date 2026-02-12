@@ -178,7 +178,8 @@ abstract class SubmitAction extends Action2 {
 	}
 }
 
-const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
+const requestInProgressOrPendingToolCall = ContextKeyExpr.or(ChatContextKeys.requestInProgress, ChatContextKeys.Editing.hasToolConfirmation);
+const whenNotInProgress = ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.Editing.hasToolConfirmation.negate());
 
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
@@ -648,10 +649,15 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.edits.submit';
 
 	constructor() {
+		const notInProgressOrEditing = ContextKeyExpr.and(
+			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
+			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.QueueOrSteer)
+		);
+
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
-			whenNotInProgress,
+			notInProgressOrEditing,
 			ChatContextKeys.chatSessionOptionsValid
 		);
 
@@ -667,7 +673,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						ChatContextKeys.requestInProgress.negate(),
+						notInProgressOrEditing,
 						menuCondition),
 					group: 'navigation',
 					alt: {
@@ -803,6 +809,9 @@ class SendToNewChatAction extends Action2 {
 			}
 		}
 
+		// Clear the input from the current session before creating a new one
+		widget.setInput('');
+
 		await widget.clear();
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}
@@ -821,8 +830,9 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.requestInProgress,
-					ChatContextKeys.remoteJobCreating.negate()
+					requestInProgressOrPendingToolCall,
+					ChatContextKeys.remoteJobCreating.negate(),
+					ChatContextKeys.currentlyEditing.negate(),
 				),
 				order: 4,
 				group: 'navigation',
@@ -840,7 +850,7 @@ export class CancelAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.requestInProgress,
+					requestInProgressOrPendingToolCall,
 					ChatContextKeys.remoteJobCreating.negate()
 				),
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },

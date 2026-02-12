@@ -57,6 +57,7 @@ import { IFolderBackupInfo, IWorkspaceBackupInfo } from '../../../platform/backu
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyValue, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
 import { IContextMenuMenuDelegate, IContextMenuService, IContextViewService } from '../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../platform/contextview/browser/contextViewService.js';
@@ -148,7 +149,7 @@ import { CodeEditorService } from '../../services/editor/browser/codeEditorServi
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
 import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
 import { CustomEditorLabelService, ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
-import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions } from '../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions, IModalEditorPart } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
 import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
 import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, PreferredGroup } from '../../services/editor/common/editorService.js';
@@ -189,6 +190,7 @@ import { IWorkingCopyEditorService, WorkingCopyEditorService } from '../../servi
 import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
 import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
+import { DefaultAccountService } from '../../services/accounts/browser/defaultAccount.js';
 
 // Backcompat export
 export { TestFileService, TestLifecycleService };
@@ -378,6 +380,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 	instantiationService.stub(IChatWidgetService, instantiationService.createInstance(TestChatWidgetService));
+	instantiationService.stub(IDefaultAccountService, DefaultAccountService);
 
 	return instantiationService;
 }
@@ -921,8 +924,10 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 
 	readonly mainPart = this;
+	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
+	createModalEditorPart(): Promise<IModalEditorPart> { throw new Error('Method not implemented.'); }
 }
 
 export class TestEditorGroupView implements IEditorGroupView {
@@ -1635,6 +1640,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
+	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
 
@@ -1659,6 +1665,10 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	}
 
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
+		throw new Error('Method not implemented.');
+	}
+
+	createModalEditorPart(): Promise<IModalEditorPart> {
 		throw new Error('Method not implemented.');
 	}
 

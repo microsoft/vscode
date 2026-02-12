@@ -54,21 +54,21 @@ suite('sessionDateFromNow', () => {
 
 	const ONE_DAY = 24 * 60 * 60 * 1000;
 
-	test('returns "1 day ago" for yesterday', () => {
+	test('returns "1 day" for yesterday', () => {
 		const now = Date.now();
 		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 		// Time in the middle of yesterday
 		const yesterday = startOfToday - ONE_DAY / 2;
-		assert.strictEqual(sessionDateFromNow(yesterday), '1 day ago');
+		assert.strictEqual(sessionDateFromNow(yesterday), '1 day');
 	});
 
-	test('returns "2 days ago" for two days ago', () => {
+	test('returns "2 days" for two days ago', () => {
 		const now = Date.now();
 		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 		const startOfYesterday = startOfToday - ONE_DAY;
 		// Time in the middle of two days ago
 		const twoDaysAgo = startOfYesterday - ONE_DAY / 2;
-		assert.strictEqual(sessionDateFromNow(twoDaysAgo), '2 days ago');
+		assert.strictEqual(sessionDateFromNow(twoDaysAgo), '2 days');
 	});
 
 	test('returns fromNow result for today', () => {
@@ -146,12 +146,13 @@ suite('AgentSessionsDataSource', () => {
 	function createMockFilter(options: {
 		groupBy?: AgentSessionsGrouping;
 		exclude?: (session: IAgentSession) => boolean;
+		excludeRead?: boolean;
 	}): IAgentSessionsFilter {
 		return {
 			onDidChange: Event.None,
 			groupResults: () => options.groupBy,
 			exclude: options.exclude ?? (() => false),
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: false })
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: options.excludeRead ?? false })
 		};
 	}
 
@@ -446,6 +447,59 @@ suite('AgentSessionsDataSource', () => {
 			assert.ok(olderSection);
 			assert.strictEqual(olderSection.sessions[0].label, 'Session old2');
 			assert.strictEqual(olderSection.sessions[1].label, 'Session old1');
+		});
+
+		test('capped grouping with unread filter returns flat list without More section', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now, isRead: false }),
+				createMockSession({ id: '2', startTime: now - ONE_DAY, isRead: false }),
+				createMockSession({ id: '3', startTime: now - 2 * ONE_DAY, isRead: false }),
+				createMockSession({ id: '4', startTime: now - 3 * ONE_DAY, isRead: false }),
+				createMockSession({ id: '5', startTime: now - 4 * ONE_DAY, isRead: false }),
+			];
+
+			const filter = createMockFilter({
+				groupBy: AgentSessionsGrouping.Capped,
+				excludeRead: true  // Filtering to show only unread sessions
+			});
+			const sorter = createMockSorter();
+			const dataSource = new AgentSessionsDataSource(filter, sorter);
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			// Should be a flat list without sections (no More section)
+			assert.strictEqual(result.length, 5);
+			assert.strictEqual(getSectionsFromResult(result).length, 0);
+		});
+
+		test('capped grouping without unread filter includes More section', () => {
+			const now = Date.now();
+			const sessions = [
+				createMockSession({ id: '1', startTime: now }),
+				createMockSession({ id: '2', startTime: now - ONE_DAY }),
+				createMockSession({ id: '3', startTime: now - 2 * ONE_DAY }),
+				createMockSession({ id: '4', startTime: now - 3 * ONE_DAY }),
+				createMockSession({ id: '5', startTime: now - 4 * ONE_DAY }),
+			];
+
+			const filter = createMockFilter({
+				groupBy: AgentSessionsGrouping.Capped,
+				excludeRead: false  // Not filtering to unread only
+			});
+			const sorter = createMockSorter();
+			const dataSource = new AgentSessionsDataSource(filter, sorter);
+
+			const mockModel = createMockModel(sessions);
+			const result = Array.from(dataSource.getChildren(mockModel));
+
+			// Should have 3 top sessions + 1 More section
+			assert.strictEqual(result.length, 4);
+			const sections = getSectionsFromResult(result);
+			assert.strictEqual(sections.length, 1);
+			assert.strictEqual(sections[0].section, AgentSessionSection.More);
+			assert.strictEqual(sections[0].sessions.length, 2);
 		});
 	});
 });

@@ -114,8 +114,10 @@ import { ExtHostWebviews } from './extHostWebview.js';
 import { ExtHostWebviewPanels } from './extHostWebviewPanels.js';
 import { ExtHostWebviewViews } from './extHostWebviewView.js';
 import { IExtHostWindow } from './extHostWindow.js';
+import { IExtHostPower } from './extHostPower.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostChatContext } from './extHostChatContext.js';
+import { IExtHostMeteredConnection } from './extHostMeteredConnection.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -148,6 +150,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostTunnelService = accessor.get(IExtHostTunnelService);
 	const extHostApiDeprecation = accessor.get(IExtHostApiDeprecationService);
 	const extHostWindow = accessor.get(IExtHostWindow);
+	const extHostPower = accessor.get(IExtHostPower);
 	const extHostUrls = accessor.get(IExtHostUrlsService);
 	const extHostSecretState = accessor.get(IExtHostSecretState);
 	const extHostEditorTabs = accessor.get(IExtHostEditorTabs);
@@ -157,6 +160,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostLanguageModels = accessor.get(IExtHostLanguageModels);
 	const extHostMcp = accessor.get(IExtHostMpcService);
 	const extHostDataChannels = accessor.get(IExtHostDataChannels);
+	const extHostMeteredConnection = accessor.get(IExtHostMeteredConnection);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
@@ -168,6 +172,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostStorage, extHostStorage);
 	rpcProtocol.set(ExtHostContext.ExtHostTunnelService, extHostTunnelService);
 	rpcProtocol.set(ExtHostContext.ExtHostWindow, extHostWindow);
+	rpcProtocol.set(ExtHostContext.ExtHostPower, extHostPower);
 	rpcProtocol.set(ExtHostContext.ExtHostUrls, extHostUrls);
 	rpcProtocol.set(ExtHostContext.ExtHostSecretState, extHostSecretState);
 	rpcProtocol.set(ExtHostContext.ExtHostTelemetry, extHostTelemetry);
@@ -177,6 +182,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostAuthentication, extHostAuthentication);
 	rpcProtocol.set(ExtHostContext.ExtHostChatProvider, extHostLanguageModels);
 	rpcProtocol.set(ExtHostContext.ExtHostDataChannels, extHostDataChannels);
+	rpcProtocol.set(ExtHostContext.ExtHostMeteredConnection, extHostMeteredConnection);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));
@@ -422,6 +428,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'telemetry');
 				return _asExtensionEvent(extHostTelemetry.onDidChangeTelemetryConfiguration);
 			},
+			get isMeteredConnection(): boolean {
+				checkProposedApiEnabled(extension, 'envIsConnectionMetered');
+				return extHostMeteredConnection.isConnectionMetered;
+			},
+			get onDidChangeMeteredConnection(): vscode.Event<boolean> {
+				checkProposedApiEnabled(extension, 'envIsConnectionMetered');
+				return _asExtensionEvent(extHostMeteredConnection.onDidChangeIsConnectionMetered);
+			},
 			get isNewAppInstall() {
 				return isNewAppInstall(initData.telemetryInfo.firstSessionDate);
 			},
@@ -477,6 +491,59 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			getDataChannel<T>(channelId: string): vscode.DataChannel<T> {
 				checkProposedApiEnabled(extension, 'dataChannels');
 				return extHostDataChannels.createDataChannel(extension, channelId);
+			},
+			get power(): typeof vscode.env.power {
+				checkProposedApiEnabled(extension, 'environmentPower');
+				return {
+					get onDidSuspend() {
+						return _asExtensionEvent(extHostPower.onDidSuspend);
+					},
+					get onDidResume() {
+						return _asExtensionEvent(extHostPower.onDidResume);
+					},
+					get onDidChangeOnBatteryPower() {
+						return _asExtensionEvent(extHostPower.onDidChangeOnBatteryPower);
+					},
+					get onDidChangeThermalState() {
+						return _asExtensionEvent(extHostPower.onDidChangeThermalState);
+					},
+					get onDidChangeSpeedLimit() {
+						return _asExtensionEvent(extHostPower.onDidChangeSpeedLimit);
+					},
+					get onWillShutdown() {
+						return _asExtensionEvent(extHostPower.onWillShutdown);
+					},
+					get onDidLockScreen() {
+						return _asExtensionEvent(extHostPower.onDidLockScreen);
+					},
+					get onDidUnlockScreen() {
+						return _asExtensionEvent(extHostPower.onDidUnlockScreen);
+					},
+					getSystemIdleState(idleThresholdSeconds: number) {
+						return extHostPower.getSystemIdleState(idleThresholdSeconds);
+					},
+					getSystemIdleTime() {
+						return extHostPower.getSystemIdleTime();
+					},
+					getCurrentThermalState() {
+						return extHostPower.getCurrentThermalState();
+					},
+					isOnBatteryPower() {
+						return extHostPower.isOnBatteryPower();
+					},
+					async startPowerSaveBlocker(type: vscode.env.power.PowerSaveBlockerType): Promise<vscode.env.power.PowerSaveBlocker> {
+						const blocker = await extHostPower.startPowerSaveBlocker(type);
+						return {
+							id: blocker.id,
+							get isStarted() {
+								return blocker.isStarted;
+							},
+							dispose() {
+								blocker.dispose();
+							}
+						};
+					}
+				};
 			}
 		};
 		if (!initData.environment.extensionTestsLocationURI) {
@@ -1673,6 +1740,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
 				return extHostMcp.mcpServerDefinitions;
 			},
+			startMcpGateway() {
+				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
+				return extHostMcp.startMcpGateway();
+			},
 			onDidChangeChatRequestTools(...args) {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
 				return _asExtensionEvent(extHostChatAgents2.onDidChangeChatRequestTools)(...args);
@@ -1944,6 +2015,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseProgressPart2: extHostTypes.ChatResponseProgressPart2,
 			ChatResponseThinkingProgressPart: extHostTypes.ChatResponseThinkingProgressPart,
+			ChatResponseHookPart: extHostTypes.ChatResponseHookPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 			ChatResponseReferencePart2: extHostTypes.ChatResponseReferencePart,
 			ChatResponseCodeCitationPart: extHostTypes.ChatResponseCodeCitationPart,
@@ -1969,6 +2041,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatRequestTurn2: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			ChatResponseTurn2: extHostTypes.ChatResponseTurn2,
+			ChatSubagentToolInvocationData: extHostTypes.ChatSubagentToolInvocationData,
 			ChatToolInvocationPart: extHostTypes.ChatToolInvocationPart,
 			ChatLocation: extHostTypes.ChatLocation,
 			ChatSessionStatus: extHostTypes.ChatSessionStatus,
@@ -2013,6 +2086,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			McpToolAvailability: extHostTypes.McpToolAvailability,
 			McpToolInvocationContentData: extHostTypes.McpToolInvocationContentData,
 			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind,
+			ChatTodoStatus: extHostTypes.ChatTodoStatus,
 		};
 	};
 }

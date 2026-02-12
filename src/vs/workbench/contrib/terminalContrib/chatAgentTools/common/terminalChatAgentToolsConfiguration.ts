@@ -534,11 +534,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				description: localize('terminalSandbox.networkSetting.deniedDomains', "Array of denied domains (checked first, takes precedence over allowedDomains)."),
 				items: { type: 'string' },
 				default: []
+			},
+			allowTrustedDomains: {
+				type: 'boolean',
+				description: localize('terminalSandbox.networkSetting.allowTrustedDomains', "When enabled, the Trusted Domains list is included in the allowed domains for network access."),
+				default: false
 			}
 		},
 		default: {
 			allowedDomains: [],
-			deniedDomains: []
+			deniedDomains: [],
+			allowTrustedDomains: false
 		},
 		tags: ['experimental'],
 		restricted: true,

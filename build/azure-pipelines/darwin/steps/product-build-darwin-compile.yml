@@ -170,6 +170,21 @@ steps:
         set -e
         APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
         APP_NAME="`ls $APP_ROOT | head -n 1`"
+        APP_PATH="$APP_ROOT/$APP_NAME"
+        EXEC_NAME=$(node -p "require(\"$APP_PATH/Contents/Resources/app/product.json\").nameShort")
+        # Create a symlink from 'Electron' to the actual executable for backward compatibility
+        # This ensures apps that relied on the hardcoded path 'Contents/MacOS/Electron' continue to work
+        # Remove this step once main branch is on 1.112 release.
+        if [ "$EXEC_NAME" != "Electron" ] && [ ! -L "$APP_PATH/Contents/MacOS/Electron" ]; then
+          ln -s "$EXEC_NAME" "$APP_PATH/Contents/MacOS/Electron"
+        fi
+      condition: eq(variables['BUILT_CLIENT'], 'true')
+      displayName: Create Electron symlink for backward compatibility
+
+    - script: |
+        set -e
+        APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+        APP_NAME="`ls $APP_ROOT | head -n 1`"
         APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
         APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.ts $(VSCODE_ARCH)
       displayName: Verify arch of Mach-O objects

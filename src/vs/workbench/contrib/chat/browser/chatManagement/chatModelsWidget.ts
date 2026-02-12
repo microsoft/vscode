@@ -891,7 +891,7 @@ export class ChatModelsWidget extends Disposable {
 		super();
 
 		this.searchFocusContextKey = CONTEXT_MODELS_SEARCH_FOCUS.bindTo(contextKeyService);
-		this.delayedFiltering = new Delayer<void>(200);
+		this.delayedFiltering = this._register(new Delayer<void>(200));
 		this.viewModel = this._register(this.instantiationService.createInstance(ChatModelsViewModel));
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
