@@ -23,15 +23,13 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, dispose, thenIfNotDisposed, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
-import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IMenuEntryActionViewItemOptions, createActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -41,14 +39,11 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -63,7 +58,7 @@ import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPullRequestContent, IChatQuestion, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPullRequestContent, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -71,7 +66,6 @@ import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, ICh
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
-import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../common/languageModels.js';
 import { MarkUnhelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -115,14 +109,11 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookSchema.js';
+import { ChatQuestionCarouselAutoReply } from './chatQuestionCarouselAutoReply.js';
 
 const $ = dom.$;
 
 const COPILOT_USERNAME = 'GitHub Copilot';
-
-const enum AutoReplyStorageKeys {
-	AutoReplyOptIn = 'chat.autoReply.optIn'
-}
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
@@ -194,6 +185,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
 	private readonly _autoRepliedQuestionCarousels = new Set<string>();
+	private readonly _autoReply: ChatQuestionCarouselAutoReply;
 
 	private _activeTipPart: ChatTipContentPart | undefined;
 
@@ -270,9 +262,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IHostService private readonly hostService: IHostService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IDialogService private readonly dialogService: IDialogService,
-		@IStorageService private readonly storageService: IStorageService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -286,15 +275,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
 		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
-
-		// Clear out warning accepted state if the setting is disabled
-		this._register(Event.runAndSubscribe(this.configService.onDidChangeConfiguration, e => {
-			if (!e || e.affectsConfiguration(ChatConfiguration.AutoReply)) {
-				if (this.configService.getValue(ChatConfiguration.AutoReply) !== true) {
-					this.storageService.remove(AutoReplyStorageKeys.AutoReplyOptIn, StorageScope.APPLICATION);
-				}
-			}
-		}));
+		this._autoReply = this._register(this.instantiationService.createInstance(ChatQuestionCarouselAutoReply));
 
 		// Auto-skip pending question carousels when user submits a new chat message
 		this._register(this.chatService.onDidSubmitRequest(e => {
@@ -2322,7 +2303,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this._autoRepliedQuestionCarousels.add(stableKey);
 		}
 
-		void this.shouldAutoReplyToQuestionCarousel().then(shouldAutoReply => {
+		void this._autoReply.shouldAutoReply().then(shouldAutoReply => {
 			if (!shouldAutoReply) {
 				// Roll back the in-progress mark if auto-reply is not enabled.
 				if (stableKey) {
@@ -2337,168 +2318,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				cts.dispose();
 			}));
 
-			this.autoReplyToQuestionCarousel(carousel, submit, modelName, requestMessageText, cts.token).catch(err => {
+			this._autoReply.autoReply(carousel, submit, modelName, requestMessageText, cts.token).catch(err => {
 				this.logService.debug('#ChatQuestionCarousel: Auto reply failed', toErrorMessage(err));
 			});
 		});
 	}
 
-	private async shouldAutoReplyToQuestionCarousel(): Promise<boolean> {
-		if (!this.configService.getValue<boolean>(ChatConfiguration.AutoReply)) {
-			return false;
-		}
-		return this.checkAutoReplyOptIn();
-	}
-
-	private async checkAutoReplyOptIn(): Promise<boolean> {
-		const optedIn = this.storageService.getBoolean(AutoReplyStorageKeys.AutoReplyOptIn, StorageScope.APPLICATION, false);
-		if (optedIn) {
-			return true;
-		}
-
-		const promptResult = await this.dialogService.prompt({
-			type: Severity.Warning,
-			message: localize('chat.autoReply.enable.title', 'Enable chat auto reply?'),
-			buttons: [
-				{
-					label: localize('chat.autoReply.enable', 'Enable'),
-					run: () => true
-				},
-				{
-					label: localize('chat.autoReply.disable', 'Disable'),
-					run: () => false
-				},
-			],
-			custom: {
-				icon: Codicon.warning,
-				disableCloseAction: true,
-				markdownDetails: [{
-					markdown: new MarkdownString(localize('chat.autoReply.enable.details', 'Chat auto reply answers question carousels using the current model and may make unintended choices. Review your settings and outputs carefully.')),
-				}],
-			}
-		});
-
-		if (promptResult.result !== true) {
-			await this.configService.updateValue(ChatConfiguration.AutoReply, false);
-			return false;
-		}
-
-		this.storageService.store(AutoReplyStorageKeys.AutoReplyOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
-		return true;
-	}
-
-	private async autoReplyToQuestionCarousel(
-		carousel: IChatQuestionCarousel,
-		submit: (answers: Map<string, unknown> | undefined) => Promise<void>,
-		modelName: string | undefined,
-		requestMessageText: string | undefined,
-		token: CancellationToken,
-	): Promise<void> {
-		if (token.isCancellationRequested || carousel.isUsed || carousel.questions.length === 0) {
-			return;
-		}
-
-		const fallbackAnswers = this.buildFallbackCarouselAnswers(carousel, requestMessageText);
-		let resolvedAnswers = fallbackAnswers;
-
-		const modelId = await this.getAutoReplyModelId(modelName);
-		if (modelId && !token.isCancellationRequested) {
-			try {
-				const parsedAnswers = await this.requestAutoReplyAnswers(modelId, carousel, requestMessageText, token);
-				if (parsedAnswers.size > 0) {
-					resolvedAnswers = this.mergeAutoReplyAnswers(carousel, parsedAnswers, fallbackAnswers);
-				}
-			} catch (err) {
-				this.logService.debug('#ChatQuestionCarousel: Failed to resolve auto reply', toErrorMessage(err));
-			}
-		}
-
-		if (token.isCancellationRequested || carousel.isUsed) {
-			return;
-		}
-
-		await submit(resolvedAnswers);
-	}
-
-	private async getAutoReplyModelId(modelName: string | undefined): Promise<string | undefined> {
-		if (!modelName) {
-			return undefined;
-		}
-
-		let models = await this.languageModelsService.selectLanguageModels({ id: modelName });
-		if (models.length > 0) {
-			return models[0];
-		}
-
-		if (modelName.startsWith('copilot/')) {
-			models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', family: modelName.replace(/^copilot\//, '') });
-			return models[0];
-		}
-
-		return undefined;
-	}
-
-	private buildAutoReplyPrompt(carousel: IChatQuestionCarousel, requestMessageText: string | undefined, strict: boolean): string {
-		const questions = carousel.questions.map(question => ({
-			id: question.id,
-			type: question.type,
-			title: question.title,
-			message: typeof question.message === 'string' ? question.message : question.message?.value,
-			options: question.options?.map(option => ({ id: option.id, label: option.label })) ?? [],
-			allowFreeformInput: question.allowFreeformInput ?? false,
-		}));
-
-		const contextLines: string[] = [];
-		if (requestMessageText) {
-			contextLines.push(`Original user request: ${JSON.stringify(requestMessageText)}`);
-		}
-
-		return [
-			'Choose default answers for the following questions.',
-			'Return a JSON object keyed by question id.',
-			'For text questions, the value should be a string.',
-			'For singleSelect questions, the value should be { "selectedId": string } or { "freeform": string }.',
-			'For multiSelect questions, the value should be { "selectedIds": string[] } and may include { "freeform": string }.',
-			'If a question allows freeform input and has no options, return a freeform answer based on the user request when possible.',
-			'Use option ids from the provided options.',
-			...contextLines,
-			'Questions:',
-			JSON.stringify(questions),
-			strict ? 'Return ONLY valid JSON. Do not include markdown or explanations.' : undefined,
-		].filter(Boolean).join('\n');
-	}
-
-	private async requestAutoReplyAnswers(
-		modelId: string,
-		carousel: IChatQuestionCarousel,
-		requestMessageText: string | undefined,
-		token: CancellationToken,
-	): Promise<Map<string, unknown>> {
-		const prompt = this.buildAutoReplyPrompt(carousel, requestMessageText, false);
-		const response = await this.languageModelsService.sendChatRequest(
-			modelId,
-			new ExtensionIdentifier('core'),
-			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
-			{},
-			token,
-		);
-		const responseText = await getTextResponseFromStream(response);
-		const parsedAnswers = this.parseAutoReplyAnswers(responseText, carousel);
-		if (parsedAnswers.size > 0 || token.isCancellationRequested) {
-			return parsedAnswers;
-		}
-
-		const retryPrompt = this.buildAutoReplyPrompt(carousel, requestMessageText, true);
-		const retryResponse = await this.languageModelsService.sendChatRequest(
-			modelId,
-			new ExtensionIdentifier('core'),
-			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: retryPrompt }] }],
-			{},
-			token,
-		);
-		const retryText = await getTextResponseFromStream(retryResponse);
-		return this.parseAutoReplyAnswers(retryText, carousel);
-	}
 
 	private getRequestMessageText(response: IChatResponseViewModel): string | undefined {
 		const requestId = response.requestId;
@@ -2507,230 +2332,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return request?.messageText;
 	}
 
-	private parseAutoReplyAnswers(responseText: string, carousel: IChatQuestionCarousel): Map<string, unknown> {
-		const parsed = this.tryParseJsonObject(responseText);
-		if (!parsed) {
-			return new Map();
-		}
-
-		const answers = new Map<string, unknown>();
-		for (const question of carousel.questions) {
-			const rawAnswer = parsed[question.id];
-			const resolved = this.resolveAnswerFromRaw(question, rawAnswer);
-			if (resolved !== undefined) {
-				answers.set(question.id, resolved);
-			}
-		}
-		return answers;
-	}
-
-	private mergeAutoReplyAnswers(
-		carousel: IChatQuestionCarousel,
-		resolvedAnswers: Map<string, unknown>,
-		fallbackAnswers: Map<string, unknown>,
-	): Map<string, unknown> {
-		const merged = new Map<string, unknown>();
-		for (const question of carousel.questions) {
-			const fallback = fallbackAnswers.get(question.id);
-			if (this.hasDefaultValue(question) && fallback !== undefined) {
-				merged.set(question.id, fallback);
-				continue;
-			}
-			if (resolvedAnswers.has(question.id)) {
-				merged.set(question.id, resolvedAnswers.get(question.id)!);
-				continue;
-			}
-			if (fallback !== undefined) {
-				merged.set(question.id, fallback);
-			}
-		}
-		return merged;
-	}
-
-	private hasDefaultValue(question: IChatQuestion): boolean {
-		switch (question.type) {
-			case 'text':
-				return question.defaultValue !== undefined;
-			case 'singleSelect':
-				return typeof question.defaultValue === 'string';
-			case 'multiSelect':
-				return Array.isArray(question.defaultValue)
-					? question.defaultValue.length > 0
-					: typeof question.defaultValue === 'string';
-		}
-	}
-
-	private resolveAnswerFromRaw(question: IChatQuestion, raw: unknown): unknown | undefined {
-		switch (question.type) {
-			case 'text': {
-				if (typeof raw === 'string') {
-					const value = raw.trim();
-					return value.length > 0 ? value : undefined;
-				}
-				if (raw && typeof raw === 'object' && hasKey(raw, { value: true }) && typeof (raw as { value: unknown }).value === 'string') {
-					const value = (raw as { value: string }).value.trim();
-					return value.length > 0 ? value : undefined;
-				}
-				return undefined;
-			}
-			case 'singleSelect': {
-				let selectedInput: string | undefined;
-				let freeformInput: string | undefined;
-				if (typeof raw === 'string') {
-					selectedInput = raw;
-				} else if (raw && typeof raw === 'object') {
-					if (hasKey(raw, { selectedId: true }) && typeof (raw as { selectedId: unknown }).selectedId === 'string') {
-						selectedInput = (raw as { selectedId: string }).selectedId;
-					} else if (hasKey(raw, { selectedLabel: true }) && typeof (raw as { selectedLabel: unknown }).selectedLabel === 'string') {
-						selectedInput = (raw as { selectedLabel: string }).selectedLabel;
-					}
-					if (hasKey(raw, { freeform: true }) && typeof (raw as { freeform: unknown }).freeform === 'string') {
-						freeformInput = (raw as { freeform: string }).freeform;
-					}
-				}
-
-				if (freeformInput && freeformInput.trim().length > 0) {
-					return { selectedValue: undefined, freeformValue: freeformInput.trim() };
-				}
-
-				const match = selectedInput ? this.matchQuestionOption(question, selectedInput) : undefined;
-				if (match) {
-					return { selectedValue: match.value, freeformValue: undefined };
-				}
-				return undefined;
-			}
-			case 'multiSelect': {
-				let selectedInputs: string[] = [];
-				let freeformInput: string | undefined;
-				if (Array.isArray(raw)) {
-					selectedInputs = raw.filter(item => typeof item === 'string') as string[];
-				} else if (typeof raw === 'string') {
-					selectedInputs = raw.split(',').map(item => item.trim()).filter(item => item.length > 0);
-				} else if (raw && typeof raw === 'object') {
-					if (hasKey(raw, { selectedIds: true })) {
-						const selectedIdsValue = (raw as { selectedIds?: unknown }).selectedIds;
-						if (Array.isArray(selectedIdsValue)) {
-							selectedInputs = selectedIdsValue.filter((item: unknown): item is string => typeof item === 'string');
-						}
-					}
-					if (hasKey(raw, { freeform: true }) && typeof (raw as { freeform?: unknown }).freeform === 'string') {
-						freeformInput = (raw as { freeform: string }).freeform;
-					}
-				}
-
-				const selectedValues = selectedInputs
-					.map(input => this.matchQuestionOption(question, input)?.value)
-					.filter(value => value !== undefined);
-				const freeformValue = freeformInput?.trim();
-
-				if (selectedValues.length > 0 || (freeformValue && freeformValue.length > 0)) {
-					return { selectedValues, freeformValue };
-				}
-				return undefined;
-			}
-		}
-	}
-
-	private matchQuestionOption(question: IChatQuestion, rawInput: string): { id: string; value: unknown } | undefined {
-		const options = question.options ?? [];
-		if (!options.length) {
-			return undefined;
-		}
-
-		const normalized = rawInput.trim().toLowerCase();
-		const numeric = Number.parseInt(normalized, 10);
-		if (!Number.isNaN(numeric) && numeric > 0 && numeric <= options.length) {
-			const option = options[numeric - 1];
-			return { id: option.id, value: option.value };
-		}
-
-		const exactId = options.find(option => option.id.toLowerCase() === normalized);
-		if (exactId) {
-			return { id: exactId.id, value: exactId.value };
-		}
-		const exactLabel = options.find(option => option.label.toLowerCase() === normalized);
-		if (exactLabel) {
-			return { id: exactLabel.id, value: exactLabel.value };
-		}
-		const partialLabel = options.find(option => option.label.toLowerCase().includes(normalized));
-		if (partialLabel) {
-			return { id: partialLabel.id, value: partialLabel.value };
-		}
-
-		return undefined;
-	}
-
-	private buildFallbackCarouselAnswers(carousel: IChatQuestionCarousel, requestMessageText: string | undefined): Map<string, unknown> {
-		const answers = new Map<string, unknown>();
-		for (const question of carousel.questions) {
-			const answer = this.getFallbackAnswerForQuestion(question, requestMessageText);
-			if (answer !== undefined) {
-				answers.set(question.id, answer);
-			}
-		}
-		return answers;
-	}
-
-	private getFallbackAnswerForQuestion(question: IChatQuestion, requestMessageText: string | undefined): unknown {
-		const fallbackFreeform = requestMessageText?.trim() || localize('chat.questionCarousel.autoReplyFallback', 'OK');
-
-		switch (question.type) {
-			case 'text':
-				return question.defaultValue ?? fallbackFreeform;
-			case 'singleSelect': {
-				const defaultOptionId = typeof question.defaultValue === 'string' ? question.defaultValue : undefined;
-				const defaultOption = defaultOptionId ? question.options?.find(opt => opt.id === defaultOptionId) : undefined;
-				if (defaultOption) {
-					return { selectedValue: defaultOption.value, freeformValue: undefined };
-				}
-				if (question.options && question.options.length > 0) {
-					return { selectedValue: question.options[0].value, freeformValue: undefined };
-				}
-				if (question.allowFreeformInput) {
-					return { selectedValue: undefined, freeformValue: fallbackFreeform };
-				}
-				return undefined;
-			}
-			case 'multiSelect': {
-				const defaultIds = Array.isArray(question.defaultValue)
-					? question.defaultValue
-					: (typeof question.defaultValue === 'string' ? [question.defaultValue] : []);
-				const selectedValues = question.options
-					?.filter(opt => defaultIds.includes(opt.id))
-					.map(opt => opt.value)
-					.filter(value => value !== undefined) ?? [];
-				if (selectedValues.length > 0) {
-					return { selectedValues, freeformValue: undefined };
-				}
-				if (question.options && question.options.length > 0) {
-					return { selectedValues: [question.options[0].value], freeformValue: undefined };
-				}
-				if (question.allowFreeformInput) {
-					return { selectedValues: [], freeformValue: fallbackFreeform };
-				}
-				return undefined;
-			}
-		}
-	}
-
-	private tryParseJsonObject(text: string): Record<string, unknown> | undefined {
-		const trimmed = text.trim();
-		if (!trimmed) {
-			return undefined;
-		}
-		const start = trimmed.indexOf('{');
-		const end = trimmed.lastIndexOf('}');
-		const candidate = start >= 0 && end > start ? trimmed.slice(start, end + 1) : trimmed;
-		try {
-			const parsed = JSON.parse(candidate) as unknown;
-			if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-				return parsed as Record<string, unknown>;
-			}
-		} catch {
-			return undefined;
-		}
-		return undefined;
-	}
 
 
 	private removeCarouselFromTracking(context: IChatContentPartRenderContext, part: ChatQuestionCarouselPart): void {
