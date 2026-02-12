@@ -930,7 +930,12 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 		// 8. Render the start state
 		this.layoutViews();
-		try { this.viewItems[index].view.layout(viewTargetSize, 0, this.layoutContext); } catch { /* ignore */ }
+		try {
+			this.viewItems[index].view.layout(viewTargetSize, 0, this.layoutContext);
+		} catch (e) {
+			console.error('Splitview: Failed to layout view during animation');
+			console.error(e);
+		}
 
 		// 9. Easing curve is pre-parsed - ready for JS evaluation
 
@@ -1005,7 +1010,12 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			// Re-layout the animating view at its full target size so its
 			// content does not reflow at intermediate sizes. The container
 			// is already at the interpolated size with overflow:hidden.
-			try { this.viewItems[index].view.layout(viewTargetSize, 0, this.layoutContext); } catch { /* ignore */ }
+			try {
+				this.viewItems[index].view.layout(viewTargetSize, 0, this.layoutContext);
+			} catch (e) {
+				console.error('Splitview: Failed to layout view during animation');
+				console.error(e);
+			}
 
 			if (t < 1) {
 				rafId = window.requestAnimationFrame(animate);
