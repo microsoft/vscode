@@ -808,16 +808,17 @@ export class QuickInputController extends Disposable {
 			// Animate exit: fade out + slide up (faster than open)
 			if (!isMotionReduced(container)) {
 				container.classList.add('animating-exit');
+				const cleanupAnimation = () => {
+					container.classList.remove('animating-exit');
+					container.removeEventListener('animationend', onAnimationEnd);
+					this._cancelExitAnimation = undefined;
+				};
 				const onAnimationEnd = () => {
 					// Set display after animation completes to actually hide the element
 					container.style.display = 'none';
-					container.classList.remove('animating-exit');
-					container.removeEventListener('animationend', onAnimationEnd);
+					cleanupAnimation();
 				};
-				this._cancelExitAnimation = () => {
-					container.classList.remove('animating-exit');
-					container.removeEventListener('animationend', onAnimationEnd);
-				};
+				this._cancelExitAnimation = cleanupAnimation;
 				container.addEventListener('animationend', onAnimationEnd);
 			} else {
 				container.style.display = 'none';
