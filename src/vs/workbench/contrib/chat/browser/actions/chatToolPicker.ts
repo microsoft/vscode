@@ -224,20 +224,18 @@ export async function showToolsPicker(
 	}
 
 	// Helper function to send telemetry for MCP server toggles
-	const sendMcpServerTelemetry = (serverId: string, serverLabel: string, enabled: boolean, virtualMode: boolean) => {
+	const sendMcpServerTelemetry = (serverId: string, enabled: boolean, virtualMode: boolean) => {
 		telemetryService.publicLog2<McpServerToggleData, McpServerToggleClassification>('chat.toolPicker.mcpServerToggle', {
 			serverId,
-			serverLabel,
 			enabled,
 			virtualMode
 		});
 	};
 
 	// Helper function to send telemetry for tool toggles
-	const sendToolTelemetry = (toolId: string, toolName: string, toolSource: string, enabled: boolean, virtualMode: boolean) => {
+	const sendToolTelemetry = (toolId: string, toolSource: string, enabled: boolean, virtualMode: boolean) => {
 		telemetryService.publicLog2<ToolToggleData, ToolToggleClassification>('chat.toolPicker.toolToggle', {
 			toolId,
-			toolName,
 			toolSource,
 			enabled,
 			virtualMode
@@ -620,7 +618,6 @@ export async function showToolsPicker(
 					if (item.source.type === 'mcp') {
 						sendMcpServerTelemetry(
 							item.id,
-							item.referenceName,
 							currentEnabled,
 							virtualMode
 						);
@@ -628,7 +625,6 @@ export async function showToolsPicker(
 						// Non-MCP tool set (user-defined, etc.)
 						telemetryService.publicLog2<ToolSetToggleData, ToolSetToggleClassification>('chat.toolPicker.toolSetToggle', {
 							toolSetId: item.id,
-							toolSetName: item.referenceName,
 							toolSetSource: item.source.type,
 							enabled: currentEnabled,
 							virtualMode
@@ -639,7 +635,6 @@ export async function showToolsPicker(
 					const toolSource = item.source.type;
 					sendToolTelemetry(
 						item.id,
-						item.displayName,
 						toolSource,
 						currentEnabled,
 						virtualMode
@@ -769,7 +764,6 @@ function sendDidChangeEvent(source: string, telemetryService: ITelemetryService,
 // Telemetry event definitions
 type McpServerToggleData = {
 	serverId: string;
-	serverLabel: string;
 	enabled: boolean;
 	virtualMode: boolean;
 };
@@ -777,14 +771,12 @@ type McpServerToggleClassification = {
 	owner: 'digitarald';
 	comment: 'Tracks when MCP servers are enabled/disabled in tool picker';
 	serverId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed MCP server ID' };
-	serverLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'MCP server display label' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server was enabled or disabled' };
 	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
 };
 
 type ToolToggleData = {
 	toolId: string;
-	toolName: string;
 	toolSource: string;
 	enabled: boolean;
 	virtualMode: boolean;
@@ -793,7 +785,6 @@ type ToolToggleClassification = {
 	owner: 'digitarald';
 	comment: 'Tracks when individual tools are enabled/disabled in tool picker';
 	toolId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Hashed tool ID' };
-	toolName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool display name' };
 	toolSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source type of the tool (mcp, extension, internal, user)' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool was enabled or disabled' };
 	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
@@ -801,7 +792,6 @@ type ToolToggleClassification = {
 
 type ToolSetToggleData = {
 	toolSetId: string;
-	toolSetName: string;
 	toolSetSource: string;
 	enabled: boolean;
 	virtualMode: boolean;
@@ -810,7 +800,6 @@ type ToolSetToggleClassification = {
 	owner: 'digitarald';
 	comment: 'Tracks when non-MCP tool sets are enabled/disabled in tool picker';
 	toolSetId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool set ID' };
-	toolSetName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Tool set display name' };
 	toolSetSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source type of the tool set (user, internal, extension)' };
 	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the tool set was enabled or disabled' };
 	virtualMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether virtual mode was active during toggling' };
