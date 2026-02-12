@@ -150,7 +150,7 @@ async function addHookToFile(
 	// Determine the new hook index (append if hook type already exists)
 	const newHookEntry = buildNewHookEntry(sourceFormat);
 	const existingHooks = hooksContent.hooks[keyToUse];
-	const newHookIndex = existingHooks ? existingHooks.length : 0;
+	const newHookIndex = Array.isArray(existingHooks) ? existingHooks.length : 0;
 
 	// Generate the new JSON content using setProperty to preserve comments
 	let jsonContent: string;
