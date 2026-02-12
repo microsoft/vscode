@@ -38,7 +38,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -558,28 +558,6 @@ export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 
 export function registerChatActions() {
 	registerAction2(PrimaryOpenChatGlobalAction);
-	registerAction2(class AutoReplyTestOpenChatAction extends Action2 {
-		constructor() {
-			super({
-				id: CHAT_OPEN_AUTO_REPLY_TEST_ACTION_ID,
-				title: localize2('openChatAutoReplyTest', "Open Chat (Auto Reply Test)"),
-				category: CHAT_CATEGORY,
-				f1: true,
-			});
-		}
-
-		override async run(accessor: ServicesAccessor, _opts?: string | IChatViewOpenOptions): Promise<IChatAgentResult & { type?: 'confirmation' } | undefined> {
-			const commandService = accessor.get(ICommandService);
-			const editorService = accessor.get(IEditorService);
-			const options: IChatViewOpenOptions = {
-				query: 'use ask_questions tool to see if I want to run with sleep 30s or sleep 60s, then run the sleep command',
-				blockOnResponse: true,
-			};
-			const result = await commandService.executeCommand<IChatAgentResult & { type?: 'confirmation' } | undefined>(CHAT_OPEN_ACTION_ID, options);
-			await editorService.openEditor({ contents: JSON.stringify(result, null, 2), languageId: 'json', resource: undefined });
-			return result;
-		}
-	});
 	registerAction2(class extends ModeOpenChatGlobalAction {
 		constructor() { super(ChatMode.Ask); }
 	});
