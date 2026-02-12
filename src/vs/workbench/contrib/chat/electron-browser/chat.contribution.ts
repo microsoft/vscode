@@ -36,6 +36,7 @@ import { registerChatExportZipAction } from './actions/chatExportZip.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
 import { OpenAgentSessionsWindowAction, SwitchToAgentSessionsModeAction, SwitchToNormalModeAction } from './agentSessions/agentSessionsActions.js';
+import { AgentSessionNativeStatusContribution } from '../browser/agentSessions/experiments/agentSessionNativeStatusContribution.js';
 
 class ChatCommandLineHandler extends Disposable {
 
@@ -216,6 +217,7 @@ registerChatExportZipAction();
 
 registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentSessionNativeStatusContribution.ID, AgentSessionNativeStatusContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);

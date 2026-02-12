@@ -131,6 +131,9 @@ import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js'
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { IAgentSessionStatusMainService } from '../../platform/agentSession/common/agentSession.js';
+import { AgentSessionStatusMainService } from '../../platform/agentSession/electron-main/agentSessionStatusMainService.js';
+import { AgentSessionStatusMainChannel } from '../../platform/agentSession/common/agentSessionIpc.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1132,6 +1135,8 @@ export class CodeApplication extends Disposable {
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
+		// Agent Session Status (requires telemetry service, so it's instantiated after telemetry)
+		services.set(IAgentSessionStatusMainService, new SyncDescriptor(AgentSessionStatusMainService, undefined, false /* proxied to other processes */));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1220,6 +1225,10 @@ export class CodeApplication extends Disposable {
 		// Web Content Extractor
 		const webContentExtractorChannel = ProxyChannel.fromService(accessor.get(IWebContentExtractorService), disposables);
 		mainProcessElectronServer.registerChannel('webContentExtractor', webContentExtractorChannel);
+
+		// Agent Session Status
+		const agentSessionStatusChannel = new AgentSessionStatusMainChannel(accessor.get(IAgentSessionStatusMainService));
+		mainProcessElectronServer.registerChannel('agentSessionStatus', agentSessionStatusChannel);
 
 		// Workspaces
 		const workspacesChannel = ProxyChannel.fromService(accessor.get(IWorkspacesService), disposables);
