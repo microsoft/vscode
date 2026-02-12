@@ -273,7 +273,8 @@ export type PromptFileSkipReason =
 	| 'name-mismatch'
 	| 'duplicate-name'
 	| 'parse-error'
-	| 'disabled';
+	| 'disabled'
+	| 'all-hooks-disabled';
 
 /**
  * Result of discovering a single prompt file.

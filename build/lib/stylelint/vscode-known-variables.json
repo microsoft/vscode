@@ -903,6 +903,9 @@
 		"--vscode-window-inactiveBorder"
 	],
 	"others": [
+		"--activity-bar-action-height",
+		"--activity-bar-icon-size",
+		"--activity-bar-width",
 		"--editor-font-size",
 		"--background-dark",
 		"--background-light",

@@ -18,7 +18,7 @@ import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
 import type { Unicode11Addon as XtermUnicode11Addon } from '@xterm/addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from '../common/terminalProcess.js';
-import { getWindowsBuildNumber } from './terminalEnvironment.js';
+import { getWindowsBuildNumber, sanitizeEnvForLogging } from './terminalEnvironment.js';
 import { TerminalProcess } from './terminalProcess.js';
 import { localize } from '../../../nls.js';
 import { ignoreProcessNames } from './childProcessMonitor.js';
@@ -37,6 +37,24 @@ import { hasKey, isFunction, isNumber, isString } from '../../../base/common/typ
 type XtermTerminal = pkg.Terminal;
 const { Terminal: XtermTerminal } = pkg;
 
+/**
+ * Sanitizes arguments for logging, specifically handling env objects in createProcess calls.
+ */
+function sanitizeArgsForLogging(fnName: string, args: unknown[]): unknown[] {
+	// createProcess signature: shellLaunchConfig, cwd, cols, rows, unicodeVersion, env (index 5), executableEnv (index 6), ...
+	if (fnName === 'createProcess' && args.length > 5) {
+		const sanitizedArgs = [...args];
+		if (args[5] && typeof args[5] === 'object') {
+			sanitizedArgs[5] = sanitizeEnvForLogging(args[5] as IProcessEnvironment);
+		}
+		if (args[6] && typeof args[6] === 'object') {
+			sanitizedArgs[6] = sanitizeEnvForLogging(args[6] as IProcessEnvironment);
+		}
+		return sanitizedArgs;
+	}
+	return args;
+}
+
 interface ITraceRpcArgs {
 	logService: ILogService;
 	simulatedLatency: number;
@@ -50,7 +68,8 @@ export function traceRpc(_target: Object, key: string, descriptor: PropertyDescr
 	const fn = descriptor.value;
 	descriptor[fnKey] = async function <TThis extends { traceRpcArgs: ITraceRpcArgs }>(this: TThis, ...args: unknown[]) {
 		if (this.traceRpcArgs.logService.getLevel() === LogLevel.Trace) {
-			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${args.map(e => JSON.stringify(e)).join(', ')})`);
+			const sanitizedArgs = sanitizeArgsForLogging(fn.name, args);
+			this.traceRpcArgs.logService.trace(`[RPC Request] PtyService#${fn.name}(${sanitizedArgs.map(e => JSON.stringify(e)).join(', ')})`);
 		}
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);

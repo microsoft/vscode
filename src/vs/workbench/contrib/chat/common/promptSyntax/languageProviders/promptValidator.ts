@@ -23,10 +23,11 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService, Target } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { dirname } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -42,7 +43,7 @@ export class PromptValidator {
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
 		promptAST.header?.errors.forEach(error => report(toMarker(error.message, error.range, MarkerSeverity.Error)));
-		const target = getTarget(promptType, promptAST.header);
+		const target = getTarget(promptType, promptAST.header ?? promptAST.uri);
 		await this.validateHeader(promptAST, promptType, target, report);
 		await this.validateBody(promptAST, target, report);
 		await this.validateFileName(promptAST, promptType, report);
@@ -174,7 +175,11 @@ export class PromptValidator {
 				break;
 			}
 			case PromptsType.instructions:
-				this.validateApplyTo(attributes, report);
+				if (target === Target.Claude) {
+					this.validatePaths(attributes, report);
+				} else {
+					this.validateApplyTo(attributes, report);
+				}
 				this.validateExcludeAgent(attributes, report);
 				break;
 
@@ -225,7 +230,11 @@ export class PromptValidator {
 						}
 						break;
 					case PromptsType.instructions:
-						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						if (target === Target.Claude) {
+							report(toMarker(localize('promptValidator.unknownAttribute.rules', "Attribute '{0}' is not supported in rules files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						} else {
+							report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
+						}
 						break;
 					case PromptsType.skill:
 						report(toMarker(localize('promptValidator.unknownAttribute.skill', "Attribute '{0}' is not supported in skill files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
@@ -489,6 +498,36 @@ export class PromptValidator {
 		}
 	}
 
+	private validatePaths(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.paths);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'array') {
+			report(toMarker(localize('promptValidator.pathsMustBeArray', "The 'paths' attribute must be an array of glob patterns."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+		for (const item of attribute.value.items) {
+			if (item.type !== 'string') {
+				report(toMarker(localize('promptValidator.eachPathMustBeString', "Each entry in the 'paths' attribute must be a string."), item.range, MarkerSeverity.Error));
+				continue;
+			}
+			const pattern = item.value.trim();
+			if (pattern.length === 0) {
+				report(toMarker(localize('promptValidator.pathMustBeNonEmpty', "Path entries must be non-empty glob patterns."), item.range, MarkerSeverity.Error));
+				continue;
+			}
+			try {
+				const globPattern = parse(pattern);
+				if (isEmptyPattern(globPattern)) {
+					report(toMarker(localize('promptValidator.pathMustBeValidGlob', "'{0}' is not a valid glob pattern.", pattern), item.range, MarkerSeverity.Error));
+				}
+			} catch (_error) {
+				report(toMarker(localize('promptValidator.pathMustBeValidGlob', "'{0}' is not a valid glob pattern.", pattern), item.range, MarkerSeverity.Error));
+			}
+		}
+	}
+
 	private validateExcludeAgent(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.excludeAgent);
 		if (!attribute) {
@@ -666,6 +705,9 @@ const recommendedAttributeNames: Record<PromptsType, string[]> = {
 
 export function getValidAttributeNames(promptType: PromptsType, includeNonRecommended: boolean, target: Target): string[] {
 	if (target === Target.Claude) {
+		if (promptType === PromptsType.instructions) {
+			return Object.keys(claudeRulesAttributes);
+		}
 		return Object.keys(claudeAgentAttributes);
 	} else if (target === Target.GitHubCopilot) {
 		if (promptType === PromptsType.agent) {
@@ -681,7 +723,12 @@ export function isNonRecommendedAttribute(attributeName: string): boolean {
 
 export function getAttributeDescription(attributeName: string, promptType: PromptsType, target: Target): string | undefined {
 	if (target === Target.Claude) {
-		return claudeAgentAttributes[attributeName]?.description;
+		if (promptType === PromptsType.agent) {
+			return claudeAgentAttributes[attributeName]?.description;
+		}
+		if (promptType === PromptsType.instructions) {
+			return claudeRulesAttributes[attributeName]?.description;
+		}
 	}
 	switch (promptType) {
 		case PromptsType.instructions:
@@ -882,19 +929,42 @@ export const claudeAgentAttributes: Record<string, { type: string; description: 
 	}
 };
 
+/**
+ * Attributes supported in Claude rules files (`.claude/rules/*.md`).
+ * Claude rules use `paths` instead of `applyTo` for glob patterns.
+ */
+export const claudeRulesAttributes: Record<string, { type: string; description: string; defaults?: string[]; items?: IValueEntry[]; enums?: IValueEntry[] }> = {
+	'description': {
+		type: 'string',
+		description: localize('attribute.rules.description', "A description of what this rule covers, used to provide context about when it applies."),
+	},
+	'paths': {
+		type: 'array',
+		description: localize('attribute.rules.paths', "Array of glob patterns that describe for which files the rule applies. Based on these patterns, the file is automatically included in the prompt when the context contains a file that matches.\nExample: `['src/**/*.ts', 'test/**']`"),
+	},
+};
+
 export function isVSCodeOrDefaultTarget(target: Target): boolean {
 	return target === Target.VSCode || target === Target.Undefined;
 }
 
-export function getTarget(promptType: PromptsType, header: PromptHeader | undefined): Target {
-	if (header && promptType === PromptsType.agent) {
-		const parentDir = dirname(header.uri);
+export function getTarget(promptType: PromptsType, header: PromptHeader | URI): Target {
+	const uri = header instanceof URI ? header : header.uri;
+	if (promptType === PromptsType.agent) {
+		const parentDir = dirname(uri);
 		if (parentDir.path.endsWith(`/${CLAUDE_AGENTS_SOURCE_FOLDER}`)) {
 			return Target.Claude;
 		}
-		const target = header.target;
-		if (target === Target.GitHubCopilot || target === Target.VSCode) {
-			return target;
+		if (!(header instanceof URI)) {
+			const target = header.target;
+			if (target === Target.GitHubCopilot || target === Target.VSCode) {
+				return target;
+			}
+		}
+		return Target.Undefined;
+	} else if (promptType === PromptsType.instructions) {
+		if (isInClaudeRulesFolder(uri)) {
+			return Target.Claude;
 		}
 	}
 	return Target.Undefined;

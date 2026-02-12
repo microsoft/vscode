@@ -38,8 +38,8 @@ class ManageInstructionsFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_INSTRUCTIONS_ACTION_ID,
-			title: localize2('configure-instructions', "Configure Instructions..."),
-			shortTitle: localize2('configure-instructions.short', "Chat Instructions"),
+			title: localize2('configure-instructions', "Configure Instructions & Rules..."),
+			shortTitle: localize2('configure-instructions.short', "Instructions & Rules"),
 			icon: Codicon.bookmark,
 			f1: true,
 			precondition: ChatContextKeys.enabled,

@@ -16,6 +16,7 @@ import { EditorOption } from '../../common/config/editorOptions.js';
 import * as platform from '../../../base/common/platform.js';
 import { StandardTokenType } from '../../common/encodedTokenAttributes.js';
 import { ITextModel } from '../../common/model.js';
+import { containsRTL } from '../../../base/common/strings.js';
 
 export interface IMouseDispatchData {
 	position: Position;
@@ -181,15 +182,30 @@ export class ViewController {
 			return undefined;
 		}
 
-		// Get 1-based boundaries of the string content (excluding quotes).
-		const start = lineTokens.getStartOffset(index) + 2;
-		const end = lineTokens.getEndOffset(index);
-
-		if (column !== start && column !== end) {
+		// Verify the click is after starting or before closing quote.
+		const tokenStart = lineTokens.getStartOffset(index);
+		const tokenEnd = lineTokens.getEndOffset(index);
+		if (column !== tokenStart + 2 && column !== tokenEnd) {
 			return undefined;
 		}
 
-		return new Selection(lineNumber, start, lineNumber, end);
+		// Verify the token looks like a complete quoted string (quote ... quote).
+		const lineContent = model.getLineContent(lineNumber);
+		const firstChar = lineContent.charAt(tokenStart);
+		if (firstChar !== '"' && firstChar !== '\'' && firstChar !== '`') {
+			return undefined;
+		}
+		if (lineContent.charAt(tokenEnd - 1) !== firstChar) {
+			return undefined;
+		}
+
+		// Skip if string contains RTL characters.
+		const content = lineContent.substring(tokenStart + 1, tokenEnd - 1);
+		if (containsRTL(content)) {
+			return undefined;
+		}
+
+		return new Selection(lineNumber, tokenStart + 2, lineNumber, tokenEnd);
 	}
 
 	public dispatchMouse(data: IMouseDispatchData): void {

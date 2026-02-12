@@ -379,14 +379,14 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const actual = await getCompletions(content, PromptsType.agent, claudeAgentUri);
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
-				{ label: 'disallowedTools', result: 'disallowedTools: $0' },
+				{ label: 'disallowedTools', result: 'disallowedTools: ${0:Write, Edit, Bash}' },
 				{ label: 'hooks', result: 'hooks: $0' },
 				{ label: 'mcpServers', result: 'mcpServers: $0' },
 				{ label: 'memory', result: 'memory: ${0:user}' },
 				{ label: 'model', result: 'model: ${0:sonnet}' },
 				{ label: 'permissionMode', result: 'permissionMode: ${0:default}' },
 				{ label: 'skills', result: 'skills: $0' },
-				{ label: 'tools', result: 'tools: $0' },
+				{ label: 'tools', result: 'tools: ${0:Read, Edit, Bash}' },
 			].sort(sortByLabel));
 		});
 

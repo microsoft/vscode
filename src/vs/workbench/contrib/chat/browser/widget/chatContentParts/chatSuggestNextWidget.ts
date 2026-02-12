@@ -132,7 +132,7 @@ export class ChatSuggestNextWidget extends Disposable {
 				return false;
 			}
 			const provider = getAgentSessionProvider(c.type);
-			return provider !== undefined && getAgentCanContinueIn(provider);
+			return provider !== undefined && getAgentCanContinueIn(provider, c);
 		});
 
 		if (showContinueOn && availableContributions.length > 0) {

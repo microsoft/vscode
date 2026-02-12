@@ -16,7 +16,7 @@ import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService, Target } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { ClaudeHeaderAttributes, IArrayValue, IValue, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { getAttributeDescription, getTarget, getValidAttributeNames, claudeAgentAttributes, knownClaudeTools, knownGithubCopilotTools, IValueEntry } from './promptValidator.js';
+import { getAttributeDescription, getTarget, getValidAttributeNames, claudeAgentAttributes, claudeRulesAttributes, knownClaudeTools, knownGithubCopilotTools, IValueEntry } from './promptValidator.js';
 import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
 
@@ -233,9 +233,17 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		return { suggestions };
 	}
 
-	private getValueSuggestions(promptType: string, attribute: string, target: Target): IValueEntry[] {
+	private getValueSuggestions(promptType: PromptsType, attribute: string, target: Target): IValueEntry[] {
 		if (target === Target.Claude) {
-			return claudeAgentAttributes[attribute]?.enums ?? [];
+			const attributeDesc = promptType === PromptsType.instructions ? claudeRulesAttributes[attribute] : claudeAgentAttributes[attribute];
+			if (attributeDesc) {
+				if (attributeDesc.enums) {
+					return attributeDesc.enums;
+				} else if (attributeDesc.defaults) {
+					return attributeDesc.defaults.map(value => ({ name: value }));
+				}
+			}
+			return [];
 		}
 		switch (attribute) {
 			case PromptHeaderAttributes.applyTo:

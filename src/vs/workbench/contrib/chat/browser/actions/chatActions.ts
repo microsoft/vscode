@@ -51,7 +51,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { IChatService } from '../../common/chatService/chatService.js';
+import { ElicitationState, IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
@@ -212,6 +212,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const languageModelService = accessor.get(ILanguageModelsService);
 		const scmService = accessor.get(ISCMService);
 		const logService = accessor.get(ILogService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -388,16 +389,38 @@ abstract class OpenChatGlobalAction extends Action2 {
 		if (opts?.blockOnResponse) {
 			const response = await resp;
 			if (response) {
+				const autoReplyEnabled = configurationService.getValue<boolean>(ChatConfiguration.AutoReply);
 				await new Promise<void>(resolve => {
 					const d = response.onDidChange(async () => {
-						if (response.isComplete || response.isPendingConfirmation.get()) {
+						if (response.isComplete) {
+							d.dispose();
+							resolve();
+							return;
+						}
+
+						const pendingConfirmation = response.isPendingConfirmation.get();
+						if (pendingConfirmation) {
+							// Check if the pending confirmation is a question carousel that will be auto-replied.
+							// Only question carousels are auto-replied; other confirmation types (tool approvals,
+							// elicitations, etc.) should cause us to resolve immediately.
+							const hasPendingQuestionCarousel = response.response.value.some(
+								part => part.kind === 'questionCarousel' && !part.isUsed
+							);
+							if (autoReplyEnabled && hasPendingQuestionCarousel) {
+								// Auto-reply will handle this question carousel, keep waiting
+								return;
+							}
 							d.dispose();
 							resolve();
 						}
 					});
 				});
 
-				return { ...response.result, type: response.isPendingConfirmation.get() ? 'confirmation' : undefined };
+				const confirmationInfo = getPendingConfirmationInfo(response);
+				if (confirmationInfo) {
+					return { ...response.result, ...confirmationInfo };
+				}
+				return { ...response.result };
 			}
 		}
 
@@ -435,6 +458,66 @@ async function waitForDefaultAgent(chatAgentService: IChatAgentService, mode: Ch
 		})),
 		timeout(60_000).then(() => { throw new Error('Timed out waiting for default agent'); })
 	]);
+}
+
+/**
+ * Information about a pending confirmation in a chat response.
+ */
+export type IChatPendingConfirmationInfo =
+	| { type: 'confirmation'; kind: 'toolInvocation'; toolId: string }
+	| { type: 'confirmation'; kind: 'toolPostApproval'; toolId: string }
+	| { type: 'confirmation'; kind: 'confirmation'; title: string; data: unknown }
+	| { type: 'confirmation'; kind: 'questionCarousel'; questions: unknown[] }
+	| { type: 'confirmation'; kind: 'elicitation'; title: string };
+
+/**
+ * Extracts detailed information about the pending confirmation from a chat response.
+ * Returns undefined if there is no pending confirmation.
+ */
+function getPendingConfirmationInfo(response: IChatResponseModel): IChatPendingConfirmationInfo | undefined {
+	for (const part of response.response.value) {
+		if (part.kind === 'toolInvocation') {
+			const state = part.state.get();
+			if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				return {
+					type: 'confirmation',
+					kind: 'toolInvocation',
+					toolId: part.toolId,
+				};
+			}
+			if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				return {
+					type: 'confirmation',
+					kind: 'toolPostApproval',
+					toolId: part.toolId,
+				};
+			}
+		}
+		if (part.kind === 'confirmation' && !part.isUsed) {
+			return {
+				type: 'confirmation',
+				kind: 'confirmation',
+				title: part.title,
+				data: part.data,
+			};
+		}
+		if (part.kind === 'questionCarousel' && !part.isUsed) {
+			return {
+				type: 'confirmation',
+				kind: 'questionCarousel',
+				questions: part.questions,
+			};
+		}
+		if (part.kind === 'elicitation2' && part.state.get() === ElicitationState.Pending) {
+			const title = part.title;
+			return {
+				type: 'confirmation',
+				kind: 'elicitation',
+				title: typeof title === 'string' ? title : title.value,
+			};
+		}
+	}
+	return undefined;
 }
 
 class PrimaryOpenChatGlobalAction extends OpenChatGlobalAction {
@@ -793,7 +876,7 @@ export function registerChatActions() {
 				precondition: ChatContextKeys.inChatSession,
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
-					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyH,
 					when: ChatContextKeys.inChatSession,
 				}]
 			});
@@ -806,6 +889,55 @@ export function registerChatActions() {
 			if (!widget || !widget.toggleQuestionCarouselFocus()) {
 				alert(localize('chat.questionCarousel.focusUnavailable', "No chat question to focus right now."));
 			}
+		}
+	});
+
+	registerAction2(class FocusTipAction extends Action2 {
+		static readonly ID = 'workbench.action.chat.focusTip';
+
+		constructor() {
+			super({
+				id: FocusTipAction.ID,
+				title: localize2('interactiveSession.focusTip.label', "Chat: Toggle Focus Between Tip and Input"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ChatContextKeys.inChatSession,
+				keybinding: [{
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Slash,
+					when: ContextKeyExpr.or(
+						ChatContextKeys.inChatSession,
+						ChatContextKeys.inChatTip
+					),
+				}]
+			});
+		}
+
+		run(accessor: ServicesAccessor): void {
+			const widgetService = accessor.get(IChatWidgetService);
+			const widget = widgetService.lastFocusedWidget;
+
+			if (!widget || !widget.toggleTipFocus()) {
+				alert(localize('chat.tip.focusUnavailable', "No chat tip."));
+			}
+		}
+	});
+
+	registerAction2(class ShowContextUsageAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.showContextUsage',
+				title: localize2('interactiveSession.showContextUsage.label', "Show Context Window Usage"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ChatContextKeys.enabled,
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const widgetService = accessor.get(IChatWidgetService);
+			const widget = widgetService.lastFocusedWidget ?? (await widgetService.revealWidget());
+			widget?.input.showContextUsageDetails();
 		}
 	});
 
@@ -971,13 +1103,7 @@ export function registerChatActions() {
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
-				precondition: ChatContextKeys.enabled,
-				menu: {
-					id: CHAT_CONFIG_MENU_ID,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-					order: 11,
-					group: '1_level'
-				}
+				precondition: ChatContextKeys.enabled
 			});
 		}
 

@@ -325,8 +325,13 @@ async function collectHooksStatus(
 	const discoveryInfo = await promptsService.getPromptDiscoveryInfo(type, token);
 	const files = discoveryInfo.files.map(convertDiscoveryResultToFileStatus);
 
+	// Collect URIs of files skipped due to disableAllHooks so we can show their hidden hooks
+	const disabledFileUris = discoveryInfo.files
+		.filter(f => f.status === 'skipped' && f.skipReason === 'all-hooks-disabled')
+		.map(f => f.uri);
+
 	// Parse hook files to extract individual hooks grouped by lifecycle
-	const parsedHooks = await parseHookFiles(promptsService, fileService, labelService, pathService, workspaceContextService, remoteAgentService, token);
+	const parsedHooks = await parseHookFiles(promptsService, fileService, labelService, pathService, workspaceContextService, remoteAgentService, token, disabledFileUris);
 
 	return { type, paths, files, enabled, parsedHooks };
 }
@@ -341,7 +346,8 @@ async function parseHookFiles(
 	pathService: IPathService,
 	workspaceContextService: IWorkspaceContextService,
 	remoteAgentService: IRemoteAgentService,
-	token: CancellationToken
+	token: CancellationToken,
+	additionalDisabledFileUris?: URI[]
 ): Promise<IParsedHook[]> {
 	// Get workspace root and user home for path resolution
 	const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
@@ -354,7 +360,7 @@ async function parseHookFiles(
 	const targetOS = remoteEnv?.os ?? OS;
 
 	// Use the shared helper
-	return parseAllHookFiles(promptsService, fileService, labelService, workspaceRootUri, userHome, targetOS, token);
+	return parseAllHookFiles(promptsService, fileService, labelService, workspaceRootUri, userHome, targetOS, token, { additionalDisabledFileUris });
 }
 
 /**
@@ -442,6 +448,8 @@ function getSkipReasonMessage(skipReason: PromptFileSkipReason | undefined, erro
 			return errorMessage ?? nls.localize('status.parseError', 'Parse error');
 		case 'disabled':
 			return nls.localize('status.typeDisabled', 'Disabled');
+		case 'all-hooks-disabled':
+			return nls.localize('status.allHooksDisabled', 'All hooks disabled via disableAllHooks');
 		default:
 			return errorMessage ?? nls.localize('status.unknownError', 'Unknown error');
 	}
@@ -735,16 +743,22 @@ export function formatStatusOutput(
 				const fileHooks = hooksByFile.get(fileKey)!;
 				const firstHook = fileHooks[0];
 				const filePath = getRelativePath(firstHook.fileUri, workspaceFolders);
+				const fileDisabled = fileHooks[0].disabled;
 
-				// File as clickable link
-				lines.push(`[${firstHook.filePath}](${filePath})<br>`);
+				// File as clickable link, with note if hooks are disabled via flag
+				if (fileDisabled) {
+					lines.push(`[${firstHook.filePath}](${filePath}) - *${nls.localize('status.allHooksDisabledLabel', 'all hooks disabled via disableAllHooks')}*<br>`);
+				} else {
+					lines.push(`[${firstHook.filePath}](${filePath})<br>`);
+				}
 
 				// Flatten hooks with their lifecycle label
 				for (let i = 0; i < fileHooks.length; i++) {
 					const hook = fileHooks[i];
 					const isLast = i === fileHooks.length - 1;
 					const prefix = isLast ? TREE_END : TREE_BRANCH;
-					lines.push(`${prefix} ${hook.hookTypeLabel}: \`${hook.commandLabel}\`<br>`);
+					const disabledPrefix = hook.disabled ? `${ICON_ERROR} ` : '';
+					lines.push(`${prefix} ${disabledPrefix}${hook.hookTypeLabel}: \`${hook.commandLabel}\`<br>`);
 				}
 			}
 			hasContent = true;

@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Target } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
@@ -41,7 +41,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private readonly _onRequestNotifyExtension = new AsyncEmitter<IChatSessionOptionsWillNotifyExtensionEvent>();
 	readonly onRequestNotifyExtension = this._onRequestNotifyExtension.event;
 
-	private sessionItemProviders = new Map<string, IChatSessionItemProvider>();
+	private sessionItemControllers = new Map<string, { readonly controller: IChatSessionItemController; readonly initialRefresh: Promise<void> }>();
 	private contentProviders = new Map<string, IChatSessionContentProvider>();
 	private contributions: IChatSessionsExtensionPoint[] = [];
 	private optionGroups = new Map<string, IChatSessionProviderOptionGroup[]>();
@@ -50,8 +50,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private onChange = () => { };
 
 	// For testing: allow triggering events
-	fireDidChangeItemsProviders(provider: IChatSessionItemProvider): void {
-		this._onDidChangeItemsProviders.fire(provider);
+	fireDidChangeItemsProviders(event: { chatSessionType: string }): void {
+		this._onDidChangeItemsProviders.fire(event);
 	}
 
 	fireDidChangeSessionItems(chatSessionType: string): void {
@@ -66,11 +66,11 @@ export class MockChatSessionsService implements IChatSessionsService {
 		this._onDidChangeInProgress.fire();
 	}
 
-	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable {
-		this.sessionItemProviders.set(provider.chatSessionType, provider);
+	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable {
+		this.sessionItemControllers.set(chatSessionType, { controller, initialRefresh: controller.refresh(CancellationToken.None) });
 		return {
 			dispose: () => {
-				this.sessionItemProviders.delete(provider.chatSessionType);
+				this.sessionItemControllers.delete(chatSessionType);
 			}
 		};
 	}
@@ -108,13 +108,26 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.inputPlaceholder;
 	}
 
-	getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>> {
-		return Promise.all(Array.from(this.sessionItemProviders.values())
-			.filter(provider => !providersToResolve || providersToResolve.includes(provider.chatSessionType))
-			.map(async provider => ({
-				chatSessionType: provider.chatSessionType,
-				items: await provider.provideChatSessionItems(token),
-			})));
+	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>> {
+		return Promise.all(
+			Array.from(this.sessionItemControllers.entries())
+				.filter(([chatSessionType]) => !providerTypeFilter || providerTypeFilter.includes(chatSessionType))
+				.map(async ([chatSessionType, controllerEntry]) => {
+					await controllerEntry.initialRefresh; // ensure initial refresh is done
+					return ({
+						chatSessionType: chatSessionType,
+						items: controllerEntry.controller.items
+					});
+				}));
+	}
+
+	async refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<void> {
+		await Promise.all(
+			Array.from(this.sessionItemControllers.entries())
+				.filter(([chatSessionType]) => !providerTypeFilter || providerTypeFilter.includes(chatSessionType))
+				.map(async ([_chatSessionType, controllerEntry]) => {
+					await controllerEntry.controller.refresh(token);
+				}));
 	}
 
 	reportInProgress(chatSessionType: string, count: number): void {

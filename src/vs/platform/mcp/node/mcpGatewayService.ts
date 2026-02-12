@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
+import type * as http from 'http';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
@@ -124,9 +124,10 @@ export class McpGatewayService extends Disposable implements IMcpGatewayService 
 	}
 
 	private async _startServer(): Promise<void> {
+		const { createServer } = await import('http'); // Lazy due to https://github.com/nodejs/node/issues/59686
 		const deferredPromise = new DeferredPromise<void>();
 
-		this._server = http.createServer((req, res) => {
+		this._server = createServer((req, res) => {
 			this._handleRequest(req, res);
 		});
 

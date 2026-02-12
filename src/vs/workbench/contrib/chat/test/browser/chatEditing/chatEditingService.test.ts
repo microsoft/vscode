@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -25,6 +26,7 @@ import { IWorkbenchAssignmentService } from '../../../../../services/assignment/
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
@@ -45,7 +47,6 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { IHooksExecutionService } from '../../../common/hooks/hooksExecutionService.js';
 import { NullLanguageModelsService } from '../../common/languageModels.js';
 import { MockChatVariablesService } from '../../common/mockChatVariables.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
@@ -88,13 +89,13 @@ suite('ChatEditingService', function () {
 		collection.set(IMcpService, new TestMcpService());
 		collection.set(IPromptsService, new MockPromptsService());
 		collection.set(ILanguageModelsService, new SyncDescriptor(NullLanguageModelsService));
-		collection.set(IHooksExecutionService, new class extends mock<IHooksExecutionService>() {
-			override registerHooks() { return Disposable.None; }
-		});
 		collection.set(IMultiDiffSourceResolverService, new class extends mock<IMultiDiffSourceResolverService>() {
 			override registerResolver(_resolver: IMultiDiffSourceResolver): IDisposable {
 				return Disposable.None;
 			}
+		});
+		collection.set(IWorkspaceEditingService, new class extends mock<IWorkspaceEditingService>() {
+			override readonly onDidEnterWorkspace = Event.None;
 		});
 		collection.set(INotebookService, new class extends mock<INotebookService>() {
 			override getNotebookTextModel(_uri: URI): NotebookTextModel | undefined {

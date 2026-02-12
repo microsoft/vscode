@@ -244,9 +244,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			scrollOnEraseInDisplay: true,
 			wordSeparator: config.wordSeparators,
-			overviewRuler: options.disableOverviewRuler ? { width: 0 } : {
+			scrollbar: options.disableOverviewRuler ? undefined : {
 				width: 14,
-				showTopBorder: true,
+				overviewRuler: {
+					showTopBorder: true,
+				},
 			},
 			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode,
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,

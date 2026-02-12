@@ -30,6 +30,7 @@ const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 		name: 'GitHub',
 		enterprise: false,
 	},
+	accountName: 'testuser',
 	enterprise: false,
 	sessionId: 'abc123',
 };

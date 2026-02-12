@@ -20,6 +20,24 @@ import { DeepPartial } from '../../../../base/common/types.js';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
+export const enum GroupActivationReason {
+
+	/**
+	 * Group was activated explicitly by user or programmatic action.
+	 */
+	DEFAULT = 0,
+
+	/**
+	 * Group was activated because a modal or auxiliary editor part was closing.
+	 */
+	PART_CLOSE = 1
+}
+
+export interface IEditorGroupActivationEvent {
+	readonly group: IEditorGroup;
+	readonly reason: GroupActivationReason;
+}
+
 export const enum GroupDirection {
 	UP,
 	DOWN,
@@ -212,7 +230,7 @@ export interface IEditorGroupsContainer {
 	/**
 	 * An event for when a group gets activated.
 	 */
-	readonly onDidActivateGroup: Event<IEditorGroup>;
+	readonly onDidActivateGroup: Event<IEditorGroupActivationEvent>;
 
 	/**
 	 * An event for when the index of a group changes.
@@ -511,6 +529,21 @@ export interface IModalEditorPart extends IEditorPart {
 	readonly onWillClose: Event<void>;
 
 	/**
+	 * Whether the modal editor part is currently maximized.
+	 */
+	readonly maximized: boolean;
+
+	/**
+	 * Fired when the maximized state changes.
+	 */
+	readonly onDidChangeMaximized: Event<boolean>;
+
+	/**
+	 * Toggle between default and maximized size.
+	 */
+	toggleMaximized(): void;
+
+	/**
 	 * Close this modal editor part after moving all
 	 * editors of all groups back to the main editor part
 	 * if the related option is set. Dirty editors are
@@ -594,6 +627,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * instead of creating a new one.
 	 */
 	createModalEditorPart(): Promise<IModalEditorPart>;
+
+	/**
+	 * The currently active modal editor part, if any.
+	 */
+	readonly activeModalEditorPart: IModalEditorPart | undefined;
 
 	/**
 	 * Returns the instantiation service that is scoped to the

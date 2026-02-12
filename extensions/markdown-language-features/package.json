@@ -757,14 +757,20 @@
     ]
   },
   "scripts": {
-    "compile": "gulp compile-extension:markdown-language-features-languageService && gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
-    "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService",
-    "vscode:prepublish": "npm run build-ext && npm run build-preview",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:markdown-language-features ./tsconfig.json",
-    "build-notebook": "node ./esbuild-notebook.mjs",
-    "build-preview": "node ./esbuild-preview.mjs",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch"
+    "compile": "npm-run-all2 -lp build-ext build-webview build-notebook",
+    "watch": "npm-run-all2 -lp watch-ext watch-webview watch-notebook",
+    "build-ext": "gulp compile-extension:markdown-language-features",
+    "watch-ext": "gulp watch-extension:markdown-language-features",
+    "build-notebook": "node ./esbuild.notebook.mts",
+    "watch-notebook": "node ./esbuild.notebook.mts --watch",
+    "build-webview": "node ./esbuild.webview.mts",
+    "watch-webview": "node ./esbuild.webview.mts --watch",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",

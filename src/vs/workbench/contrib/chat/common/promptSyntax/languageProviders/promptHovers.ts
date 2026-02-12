@@ -48,7 +48,7 @@ export class PromptHoverProvider implements HoverProvider {
 		}
 
 		const promptAST = this.promptsService.getParsedPromptFile(model);
-		const target = getTarget(promptType, promptAST.header);
+		const target = getTarget(promptType, promptAST.header ?? model.uri);
 
 		if (promptAST.header?.range.containsPosition(position)) {
 			return this.provideHeaderHover(position, promptType, promptAST.header, target);

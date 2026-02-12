@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, ITestInstantiationService, workbenchTeardown, createEditorParts, TestEditorParts } from '../../../../test/browser/workbenchTestServices.js';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider } from '../../common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement, IEditorGroupContextKeyProvider, GroupActivationReason, IEditorGroupActivationEvent } from '../../common/editorGroupsService.js';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor, IEditorFactoryRegistry, EditorExtensions } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -2195,6 +2195,37 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group1ContextKeyValue, input2.resource.toString());
 
 		disposables.dispose();
+	});
+
+	test('onDidActivateGroup carries activation reason', async function () {
+		const [part] = await createPart();
+
+		const activationEvents: IEditorGroupActivationEvent[] = [];
+		disposables.add(part.onDidActivateGroup(e => activationEvents.push(e)));
+
+		const rootGroup = part.groups[0];
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		// Activate a group explicitly - should carry DEFAULT reason
+		activationEvents.length = 0;
+		part.activateGroup(rightGroup);
+		assert.strictEqual(activationEvents.length, 1);
+		assert.strictEqual(activationEvents[0].group, rightGroup);
+		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
+
+		// Activate the same group again - should still fire with DEFAULT reason
+		activationEvents.length = 0;
+		part.activateGroup(rightGroup);
+		assert.strictEqual(activationEvents.length, 1);
+		assert.strictEqual(activationEvents[0].group, rightGroup);
+		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
+
+		// Activate root group back
+		activationEvents.length = 0;
+		part.activateGroup(rootGroup);
+		assert.strictEqual(activationEvents.length, 1);
+		assert.strictEqual(activationEvents[0].group, rootGroup);
+		assert.strictEqual(activationEvents[0].reason, GroupActivationReason.DEFAULT);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

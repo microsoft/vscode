@@ -1854,6 +1854,118 @@ suite('PromptValidator', () => {
 
 	});
 
+	suite('claude rules', () => {
+
+		// Helper URI for Claude rules — file must be under .claude/rules/ for target detection
+		const claudeRulesUri = URI.parse('myFs://test/.claude/rules/my-rule.md');
+
+		test('valid claude rules with paths attribute', async () => {
+			const content = [
+				'---',
+				'description: "TypeScript rules"',
+				`paths: ['**/*.ts', '**/*.tsx']`,
+				'---',
+				'Always use strict mode.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('valid claude rules without paths attribute', async () => {
+			const content = [
+				'---',
+				'description: "General rules"',
+				'---',
+				'Follow coding guidelines.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('claude rules paths must be an array', async () => {
+			const content = [
+				'---',
+				'description: "Rules"',
+				'paths: "**/*.ts"',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `The 'paths' attribute must be an array of glob patterns.`);
+		});
+
+		test('claude rules paths entries must be strings', async () => {
+			const content = [
+				'---',
+				'description: "Rules"',
+				`paths: [123, '**/*.ts']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `Each entry in the 'paths' attribute must be a string.`);
+		});
+
+		test('claude rules paths entries must be non-empty', async () => {
+			const content = [
+				'---',
+				'description: "Rules"',
+				`paths: ['']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, `Path entries must be non-empty glob patterns.`);
+		});
+
+		test('claude rules with unknown attribute shows warning', async () => {
+			const content = [
+				'---',
+				'description: "Rules"',
+				'applyTo: "**/*.ts"',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes(`Attribute 'applyTo' is not supported in rules files.`));
+		});
+
+		test('claude rules with multiple validation errors', async () => {
+			const content = [
+				'---',
+				'description: ""',
+				`paths: ['', 123]`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'description' attribute should not be empty.` },
+					{ severity: MarkerSeverity.Error, message: `Path entries must be non-empty glob patterns.` },
+					{ severity: MarkerSeverity.Error, message: `Each entry in the 'paths' attribute must be a string.` },
+				]
+			);
+		});
+
+		test('claude rules in subdirectory', async () => {
+			const subDirUri = URI.parse('myFs://test/.claude/rules/sub/deep-rule.md');
+			const content = [
+				'---',
+				'description: "Nested rules"',
+				`paths: ['src/**/*.ts']`,
+				'---',
+				'Nested rule content.',
+			].join('\n');
+			const markers = await validate(content, PromptsType.instructions, subDirUri);
+			assert.deepStrictEqual(markers, []);
+		});
+	});
+
 	suite('claude agents', () => {
 
 		// Helper URI for Claude agents — file must be under .claude/agents/ for target detection

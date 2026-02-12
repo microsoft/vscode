@@ -5,9 +5,10 @@
 
 import { createLogger, defineConfig, Plugin } from 'vite';
 import path, { join } from 'path';
-import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
+import { componentExplorer } from '@vscode/component-explorer-vite-plugin';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
+import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
 
 function injectBuiltinExtensionsPlugin(): Plugin {
 	let builtinExtensionsCache: unknown[] | null = null;
@@ -166,9 +167,18 @@ export default defineConfig({
 	plugins: [
 		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
-		createHotClassSupport()
+		createHotClassSupport(),
+		componentExplorer({
+			logLevel: 'verbose',
+			include: 'build/vite/**/*.fixture.ts',
+		}),
 	],
 	customLogger: logger,
+	resolve: {
+		alias: {
+			'~@vscode/codicons': '/node_modules/@vscode/codicons',
+		}
+	},
 	esbuild: {
 		tsconfigRaw: {
 			compilerOptions: {

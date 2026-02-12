@@ -168,31 +168,31 @@
  * Each pair forms a visual row.
  * Left column items need to move up by floor((index-1)/2) rows
  * Right column items need to move right and up by (index/2) rows
- * Row height is 52px.
+ * Row height is 44px.
  */
 
 /* Left column items (odd positions): move up to form 2-column layout */
 /* Item 3: move up 1 row */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(3) {
-	transform: translateY(-52px);
+	transform: translateY(-44px);
 }
 /* Item 5: move up 2 rows */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(5) {
-	transform: translateY(-104px);
+	transform: translateY(-88px);
 }
 
 /* Right column items (even positions): move right and up */
 /* Item 2: move right, up 1 row */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(2) {
-	transform: translateX(100%) translateY(-52px);
+	transform: translateX(100%) translateY(-44px);
 }
 /* Item 4: move right, up 2 rows */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(4) {
-	transform: translateX(100%) translateY(-104px);
+	transform: translateX(100%) translateY(-88px);
 }
 /* Item 6: move right, up 3 rows */
 .agentSessionsWelcome-sessionsGrid .monaco-list-row:nth-child(6) {
-	transform: translateX(100%) translateY(-156px);
+	transform: translateX(100%) translateY(-132px);
 }
 
 /* Style individual session items in the welcome page */
@@ -482,7 +482,7 @@
 	gap: 12px;
 	padding: 8px 12px 8px 8px;
 	border-radius: 4px;
-	height: 52px;
+	height: 44px;
 	box-sizing: border-box;
 }
 

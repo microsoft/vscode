@@ -186,18 +186,6 @@ export interface IChatAgentResultTimings {
 	totalElapsed: number;
 }
 
-export interface IChatAgentPromptTokenDetail {
-	category: string;
-	label: string;
-	percentageOfPrompt: number;
-}
-
-export interface IChatAgentResultUsage {
-	promptTokens: number;
-	completionTokens: number;
-	promptTokenDetails?: readonly IChatAgentPromptTokenDetail[];
-}
-
 export interface IChatAgentResult {
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: IChatAgentResultTimings;
