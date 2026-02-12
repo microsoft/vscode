@@ -10,7 +10,7 @@ import * as UUID from '../../../../../base/common/uuid.js';
 import * as Types from '../../../../../base/common/types.js';
 import * as Platform from '../../../../../base/common/platform.js';
 import { ValidationStatus } from '../../../../../base/common/parsers.js';
-import { ProblemMatcher, FileLocationKind, IProblemPattern, ApplyToKind, INamedProblemMatcher } from '../../common/problemMatcher.js';
+import { ProblemMatcher, FileLocationKind, IProblemPattern, INamedProblemMatcher } from '../../common/problemMatcher.js';
 import { WorkspaceFolder, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 
 import * as Tasks from '../../common/tasks.js';
@@ -261,7 +261,6 @@ class ProblemMatcherBuilder {
 	constructor(public parent: CustomTaskBuilder) {
 		this.result = {
 			owner: ProblemMatcherBuilder.DEFAULT_UUID,
-			applyTo: ApplyToKind.allDocuments,
 			severity: undefined,
 			fileLocation: FileLocationKind.Relative,
 			filePrefix: '${workspaceFolder}',
@@ -271,11 +270,6 @@ class ProblemMatcherBuilder {
 
 	public owner(value: string): ProblemMatcherBuilder {
 		this.result.owner = value;
-		return this;
-	}
-
-	public applyTo(value: ApplyToKind): ProblemMatcherBuilder {
-		this.result.applyTo = value;
 		return this;
 	}
 
@@ -557,7 +551,6 @@ function assertProblemMatcher(actual: string | ProblemMatcher, expected: string 
 		} else {
 			assert.strictEqual(actual.owner, expected.owner);
 		}
-		assert.strictEqual(actual.applyTo, expected.applyTo);
 		assert.strictEqual(actual.severity, expected.severity);
 		assert.strictEqual(actual.fileLocation, expected.fileLocation);
 		assert.strictEqual(actual.filePrefix, expected.filePrefix);
@@ -1091,7 +1084,6 @@ suite('Tasks version 0.1.0', () => {
 					taskName: 'taskName',
 					problemMatcher: {
 						owner: 'myOwner',
-						applyTo: 'closedDocuments',
 						severity: 'warning',
 						fileLocation: 'absolute',
 						pattern: {
@@ -1106,7 +1098,6 @@ suite('Tasks version 0.1.0', () => {
 			command().args(['$name']).parent.
 			problemMatcher().
 			owner('myOwner').
-			applyTo(ApplyToKind.closedDocuments).
 			severity(Severity.Warning).
 			fileLocation(FileLocationKind.Absolute).
 			filePrefix(undefined!).
@@ -1826,10 +1817,9 @@ suite('Task configuration conversions', () => {
 			assert.deepEqual(result.value, [{ 'label': 'real label' }]);
 		});
 		test('returns config for a known problem matcher including applyTo', () => {
-			namedProblemMatcher.applyTo = ApplyToKind.closedDocuments;
 			const result = (ProblemMatcherConverter.from('$real', parseContext));
 			assert.strictEqual(result.errors?.length, 0);
-			assert.deepEqual(result.value, [{ 'label': 'real label', 'applyTo': ApplyToKind.closedDocuments }]);
+			assert.deepEqual(result.value, [{ 'label': 'real label' }]);
 		});
 	});
 	suite('TaskParser.from', () => {

@@ -111,31 +111,9 @@ export interface IWatchingMatcher {
 	endsPattern: IWatchingPattern;
 }
 
-export enum ApplyToKind {
-	allDocuments,
-	openDocuments,
-	closedDocuments
-}
-
-export namespace ApplyToKind {
-	export function fromString(value: string): ApplyToKind | undefined {
-		value = value.toLowerCase();
-		if (value === 'alldocuments') {
-			return ApplyToKind.allDocuments;
-		} else if (value === 'opendocuments') {
-			return ApplyToKind.openDocuments;
-		} else if (value === 'closeddocuments') {
-			return ApplyToKind.closedDocuments;
-		} else {
-			return undefined;
-		}
-	}
-}
-
 export interface ProblemMatcher {
 	owner: string;
 	source?: string;
-	applyTo: ApplyToKind;
 	fileLocation: FileLocationKind;
 	filePrefix?: string | Config.SearchFileLocationArgs;
 	pattern: Types.SingleOrMany<IProblemPattern>;
@@ -828,18 +806,6 @@ export namespace Config {
 		source?: string;
 
 		/**
-		* Specifies to which kind of documents the problems found by this
-		* matcher are applied. Valid values are:
-		*
-		*   "allDocuments": problems found in all documents are applied.
-		*   "openDocuments": problems found in documents that are open
-		*   are applied.
-		*   "closedDocuments": problems found in closed documents are
-		*   applied.
-		*/
-		applyTo?: string;
-
-		/**
 		* The severity of the VSCode problem produced by this problem matcher.
 		*
 		* Valid values are:
@@ -1255,11 +1221,6 @@ export namespace Schemas {
 				enum: ['error', 'warning', 'info'],
 				description: localize('ProblemMatcherSchema.severity', 'The default severity for captures problems. Is used if the pattern doesn\'t define a match group for severity.')
 			},
-			applyTo: {
-				type: 'string',
-				enum: ['allDocuments', 'openDocuments', 'closedDocuments'],
-				description: localize('ProblemMatcherSchema.applyTo', 'Controls if a problem reported on a text document is applied only to open, closed or all documents.')
-			},
 			pattern: PatternType,
 			fileLocation: {
 				oneOf: [
@@ -1657,10 +1618,6 @@ export class ProblemMatcherParser extends Parser {
 
 		const owner = Types.isString(description.owner) ? description.owner : UUID.generateUuid();
 		const source = Types.isString(description.source) ? description.source : undefined;
-		let applyTo = Types.isString(description.applyTo) ? ApplyToKind.fromString(description.applyTo) : ApplyToKind.allDocuments;
-		if (!applyTo) {
-			applyTo = ApplyToKind.allDocuments;
-		}
 		let fileLocation: FileLocationKind | undefined = undefined;
 		let filePrefix: string | Config.SearchFileLocationArgs | undefined = undefined;
 
@@ -1727,15 +1684,11 @@ export class ProblemMatcherParser extends Parser {
 					if (description.severity !== undefined && severity !== undefined) {
 						result.severity = severity;
 					}
-					if (description.applyTo !== undefined && applyTo !== undefined) {
-						result.applyTo = applyTo;
-					}
 				}
 			}
 		} else if (fileLocation && pattern) {
 			result = {
 				owner: owner,
-				applyTo: applyTo,
 				fileLocation: fileLocation,
 				pattern: pattern,
 			};
@@ -1933,7 +1886,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			label: localize('msCompile', 'Microsoft compiler problems'),
 			owner: 'msCompile',
 			source: 'cpp',
-			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('msCompile')
 		});
@@ -1944,7 +1896,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			deprecated: true,
 			owner: 'lessCompile',
 			source: 'less',
-			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('lessCompile'),
 			severity: Severity.Error
@@ -1955,7 +1906,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			label: localize('gulp-tsc', 'Gulp TSC Problems'),
 			owner: 'typescript',
 			source: 'ts',
-			applyTo: ApplyToKind.closedDocuments,
 			fileLocation: FileLocationKind.Relative,
 			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('gulp-tsc')
@@ -1966,7 +1916,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			label: localize('jshint', 'JSHint problems'),
 			owner: 'jshint',
 			source: 'jshint',
-			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('jshint')
 		});
@@ -1976,7 +1925,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			label: localize('jshint-stylish', 'JSHint stylish problems'),
 			owner: 'jshint',
 			source: 'jshint',
-			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('jshint-stylish')
 		});
@@ -1986,7 +1934,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			label: localize('eslint-compact', 'ESLint compact problems'),
 			owner: 'eslint',
 			source: 'eslint',
-			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('eslint-compact')
@@ -1997,7 +1944,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			label: localize('eslint-stylish', 'ESLint stylish problems'),
 			owner: 'eslint',
 			source: 'eslint',
-			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Absolute,
 			pattern: ProblemPatternRegistry.get('eslint-stylish')
 		});
@@ -2007,7 +1953,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			label: localize('go', 'Go problems'),
 			owner: 'go',
 			source: 'go',
-			applyTo: ApplyToKind.allDocuments,
 			fileLocation: FileLocationKind.Relative,
 			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('go')
