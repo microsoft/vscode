@@ -5,10 +5,10 @@
 
 /* Motion custom properties -- only active when motion is enabled */
 .monaco-workbench.monaco-enable-motion {
-	--vscode-motion-panel-open-duration: 150ms;
-	--vscode-motion-panel-close-duration: 50ms;
-	--vscode-motion-quick-input-open-duration: 150ms;
-	--vscode-motion-quick-input-close-duration: 50ms;
+	--vscode-motion-panel-open-duration: 175ms;
+	--vscode-motion-panel-close-duration: 75ms;
+	--vscode-motion-quick-input-open-duration: 175ms;
+	--vscode-motion-quick-input-close-duration: 75ms;
 	--vscode-motion-ease-out: cubic-bezier(0.1, 0.9, 0.2, 1);
 	--vscode-motion-ease-in: cubic-bezier(0.9, 0.1, 1, 0.2);
 }
