@@ -2437,11 +2437,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.bodyDimension = new dom.Dimension(width, height);
 
-		// Ensure the container's rendered height matches the JS-calculated
-		// layout height so that absolutely-positioned children (e.g. the
-		// getting-started tip) are correctly placed relative to the container.
-		this.container.style.height = `${height}px`;
-
 		if (this.viewModel?.editing) {
 			this.inlineInputPart?.layout(width);
 		}
