@@ -24,7 +24,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { PaneCompositeDescriptor, PaneCompositeRegistry, PaneComposite } from '../../../browser/panecomposite.js';
-import { isMultiWindowPart, IWorkbenchLayoutService, Parts } from '../../layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../layout/browser/layoutService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -149,10 +149,8 @@ export class ViewsService extends Disposable implements IViewsService {
 		this.registerPaneComposite(viewContainer, to);
 
 		// Open view container if part is visible and there is only one view container in location
-		const partId = this.paneCompositeService.getPartId(to);
 		if (
-			!isMultiWindowPart(partId) &&
-			this.layoutService.isVisible(partId) &&
+			this.layoutService.isVisible(this.paneCompositeService.getPartId(to)) &&
 			this.viewDescriptorService.getViewContainersByLocation(to).filter(vc => this.isViewContainerActive(vc.id)).length === 1
 		) {
 			this.openViewContainer(viewContainer.id);

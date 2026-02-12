@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -48,7 +48,7 @@ export enum CompositeBarPosition {
 
 export interface IPaneCompositePart extends IView {
 
-	readonly partId: Parts;
+	readonly partId: SINGLE_WINDOW_PARTS;
 	readonly registryId: string;
 
 	readonly onDidPaneCompositeOpen: Event<IPaneComposite>;
@@ -133,7 +133,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected contentDimension: Dimension | undefined;
 
 	constructor(
-		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,
+		readonly partId: SINGLE_WINDOW_PARTS,
 		partOptions: ICompositePartOptions,
 		activePaneCompositeSettingsKey: string,
 		private readonly activePaneContextKey: IContextKey<string>,

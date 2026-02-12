@@ -17,7 +17,7 @@ import { ViewContainerLocation } from '../../common/views.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
-import { Parts } from '../../services/layout/browser/layoutService.js';
+import { SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 
 export class PaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -52,7 +52,7 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 		return this.getPartByLocation(viewContainerLocation).registryId;
 	}
 
-	getPartId(viewContainerLocation: ViewContainerLocation): Parts {
+	getPartId(viewContainerLocation: ViewContainerLocation): SINGLE_WINDOW_PARTS {
 		return this.getPartByLocation(viewContainerLocation).partId;
 	}
 
