@@ -733,34 +733,11 @@ export class QuickInputController extends Disposable {
 		// Animate entrance: fade in + slide down (only when first appearing)
 		if (!wasVisible && !isMotionReduced(ui.container)) {
 			ui.container.classList.add('animating-entrance');
-			// Trigger reflow so the browser registers the initial state
-			void ui.container.offsetHeight;
-			// Now add the target class to trigger the transition
-			ui.container.classList.add('animating-entrance-target');
-			let entranceCleanedUp = false;
-			const window = dom.getWindow(ui.container);
-			let entranceCleanupTimeout: number | undefined;
-			const cleanupEntranceTransition = () => {
-				if (entranceCleanedUp) {
-					return;
-				}
-				entranceCleanedUp = true;
-				ui.container.classList.remove('animating-entrance', 'animating-entrance-target');
-				ui.container.removeEventListener('transitionend', onTransitionEnd);
-				if (entranceCleanupTimeout !== undefined) {
-					clearTimeout(entranceCleanupTimeout);
-					entranceCleanupTimeout = undefined;
-				}
+			const onAnimationEnd = () => {
+				ui.container.classList.remove('animating-entrance');
+				ui.container.removeEventListener('animationend', onAnimationEnd);
 			};
-			const onTransitionEnd = (e: TransitionEvent) => {
-				if (e.target !== ui.container) {
-					return; // Ignore transitions from descendant elements
-				}
-				cleanupEntranceTransition();
-			};
-			ui.container.addEventListener('transitionend', onTransitionEnd);
-			// Safety timeout in case transitionend doesn't fire
-			entranceCleanupTimeout = window.setTimeout(cleanupEntranceTransition, QUICK_INPUT_OPEN_DURATION + 50);
+			ui.container.addEventListener('animationend', onAnimationEnd);
 		}
 	}
 
@@ -830,42 +807,18 @@ export class QuickInputController extends Disposable {
 		if (container) {
 			// Animate exit: fade out + slide up (faster than open)
 			if (!isMotionReduced(container)) {
-				let exitCancelled = false;
-				const window = dom.getWindow(container);
-				let exitCleanupTimeout: number | undefined;
 				container.classList.add('animating-exit');
-				const onDone = () => {
-					if (exitCancelled) {
-						return;
-					}
-					exitCancelled = true;
+				const onAnimationEnd = () => {
 					// Set display after animation completes to actually hide the element
 					container.style.display = 'none';
 					container.classList.remove('animating-exit');
-					container.removeEventListener('transitionend', onTransitionEnd);
-					if (exitCleanupTimeout !== undefined) {
-						clearTimeout(exitCleanupTimeout);
-						exitCleanupTimeout = undefined;
-					}
-				};
-				const onTransitionEnd = (e: TransitionEvent) => {
-					if (e.target !== container) {
-						return; // Ignore transitions from descendant elements
-					}
-					onDone();
+					container.removeEventListener('animationend', onAnimationEnd);
 				};
 				this._cancelExitAnimation = () => {
-					exitCancelled = true;
 					container.classList.remove('animating-exit');
-					container.removeEventListener('transitionend', onTransitionEnd);
-					if (exitCleanupTimeout !== undefined) {
-						clearTimeout(exitCleanupTimeout);
-						exitCleanupTimeout = undefined;
-					}
+					container.removeEventListener('animationend', onAnimationEnd);
 				};
-				container.addEventListener('transitionend', onTransitionEnd);
-				// Safety timeout in case transitionend doesn't fire
-				exitCleanupTimeout = window.setTimeout(onDone, QUICK_INPUT_CLOSE_DURATION + 50);
+				container.addEventListener('animationend', onAnimationEnd);
 			} else {
 				container.style.display = 'none';
 			}
