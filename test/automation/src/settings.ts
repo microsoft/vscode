@@ -73,10 +73,10 @@ export class SettingsEditor {
 		await this.code.waitAndClick(this._editContextSelector());
 		await this.code.dispatchKeybinding(process.platform === 'darwin' ? 'cmd+a' : 'ctrl+a', async () => { });
 		await this.code.dispatchKeybinding('Delete', async () => {
-			await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => !results || (results?.length === 1 && !results[0].textContent));
+			await this.code.waitForElements('.settings-editor:not(.search-mode)', false, results => !!results && results.length > 0);
 		});
 		await this.code.waitForTypeInEditor(this._editContextSelector(), query);
-		await this.code.waitForElements('.settings-editor .settings-count-widget', false, results => results?.length === 1 && results[0].textContent.includes('Found'));
+		await this.code.waitForElements('.settings-editor .settings-tree-container .monaco-list-row', false, results => !!results && results.length > 0);
 	}
 
 	private _editContextSelector() {

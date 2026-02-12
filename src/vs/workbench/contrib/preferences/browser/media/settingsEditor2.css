@@ -30,15 +30,34 @@
 	max-width: 1200px;
 }
 
-.settings-editor > .settings-header > .search-container {
-	position: relative;
+.settings-editor > .settings-header > .search-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
 }
 
-.monaco-workbench.vs .settings-editor > .settings-header > .search-container > .suggest-input-container {
+.settings-editor > .settings-header > .search-row > .search-container {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+}
+
+.settings-editor > .settings-header > .search-row > .open-settings-json {
+	flex-shrink: 0;
+	margin-left: auto;
+	display: flex;
+	align-items: flex-start;
+}
+
+.settings-editor > .settings-header > .search-row > .open-settings-json .monaco-button {
+	white-space: nowrap;
+}
+
+.monaco-workbench.vs .settings-editor > .settings-header > .search-row > .search-container > .suggest-input-container {
 	border: 1px solid #ddd;
 }
 
-.settings-editor > .settings-header > .search-container > .search-container-widgets {
+.settings-editor > .settings-header > .search-row > .search-container > .search-container-widgets {
 	display: flex;
 	align-items: center;
 	position: absolute;
@@ -48,41 +67,32 @@
 	margin-right: 1px;
 }
 
-.settings-editor > .settings-header > .search-container > .search-container-widgets .action-label {
+.settings-editor > .settings-header > .search-row > .search-container > .search-container-widgets .action-label {
 	padding: 3px;
 	margin-left: 0px;
 	box-sizing: content-box;
 }
 
-.settings-editor > .settings-header > .search-container > .search-container-widgets .action-label.monaco-custom-toggle {
+.settings-editor > .settings-header > .search-row > .search-container > .search-container-widgets .action-label.monaco-custom-toggle {
 	/* To offset the border width. */
 	padding: 2.3px;
 }
 
-.settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
-	margin-right: 3px;
-	padding-bottom: 3px;
-}
-
-.settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget:empty {
-	visibility: hidden;
-}
-
 .settings-editor > .settings-header > .settings-header-controls {
 	display: flex;
-	flex-wrap: wrap;
-	border-bottom: solid 1px;
-	margin-top: 10px;
+	align-items: center;
+	box-sizing: border-box;
+	margin-top: 4px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-suggestions {
+.settings-editor .settings-header-controls .settings-suggestions {
 	flex: 0 0 100%;
 	width: 100%;
 	min-height: 20px;
 	margin-bottom: 9px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-suggestions a {
+.settings-editor .settings-header-controls .settings-suggestions a {
 	color: var(--vscode-badge-foreground);
 	background: var(--vscode-badge-background);
 	cursor: pointer;
@@ -91,24 +101,24 @@
 	border-radius: 4px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-target-container {
+.settings-editor .settings-header-controls .settings-target-container {
 	flex: auto;
 }
 
-.settings-editor > .settings-header > .settings-header-controls > .settings-right-controls {
+.settings-editor .settings-header-controls > .settings-right-controls {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	padding-bottom: 4px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
+.settings-editor .settings-header-controls .settings-tabs-widget .action-label {
 	opacity: 0.9;
 	border-radius: 0;
 	color: var(--vscode-foreground);
 }
 
-.settings-editor > .settings-header > .settings-header-controls .last-synced-label {
+.settings-editor .settings-header-controls .last-synced-label {
 	padding-top: 7px;
 	opacity: 0.9;
 }
@@ -117,34 +127,34 @@
 	opacity: 0.9;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label:hover {
+.settings-editor .settings-header-controls .settings-tabs-widget .action-label:hover {
 	opacity: 1;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked {
+.settings-editor .settings-header-controls .settings-tabs-widget .action-label.checked {
 	opacity: 1;
 	color: var(--vscode-settings-headerForeground);
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label.checked:not(:focus) {
+.settings-editor .settings-header-controls .settings-tabs-widget .action-label.checked:not(:focus) {
 	border-bottom-color: var(--vscode-settings-headerForeground);
 }
 
-.settings-editor > .settings-header .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+.settings-editor .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	margin-right: 0px;
 }
 
-.settings-editor > .settings-header .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
+.settings-editor .settings-header-controls .settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
 	/** The tab widget container height is shorter than elsewhere, need to tweak this */
 	padding-top: 3px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
+.settings-editor .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item {
 	padding: 0px;
 	/* padding must be on action-label because it has the bottom-border, because that's where the .checked class is */
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+.settings-editor .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label {
 	text-transform: none;
 	font-size: 13px;
 	padding-bottom: 6.5px;
@@ -153,11 +163,11 @@
 	padding-right: 8px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label .dropdown-icon {
+.settings-editor .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label .dropdown-icon {
 	padding-top: 2px;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):not(:focus) {
+.settings-editor .settings-header-controls .settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):not(:focus) {
 	/* Still maintain a border for alignment, but keep it transparent */
 	border-bottom: 1px solid transparent;
 }
@@ -177,7 +187,7 @@
 }
 
 .settings-editor > .settings-body > .monaco-split-view2 {
-	margin-top: 14px;
+	margin-top: 0px;
 }
 
 .settings-editor > .settings-body > .monaco-split-view2.separator-border .split-view-view:not(:first-child):before {
@@ -354,6 +364,7 @@
 
 .settings-editor > .settings-body .settings-toc-wrapper {
 	padding-left: 24px;
+	padding-top: 12px;
 }
 
 .settings-editor > .settings-body .settings-toc-wrapper {
@@ -743,6 +754,7 @@
 	box-sizing: border-box;
 	padding: 10px;
 	padding-left: 15px;
+	padding-top: 0px;
 	width: 100%;
 	position: relative;
 	overflow: hidden;
