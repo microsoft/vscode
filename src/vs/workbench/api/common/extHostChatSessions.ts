@@ -575,6 +575,26 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 	}
 
+	async $handleRestoreCheckpoint(handle: number, sessionResourceComponents: UriComponents, requestId: string, token: CancellationToken): Promise<void> {
+		const sessionResource = URI.revive(sessionResourceComponents);
+		const provider = this._chatSessionContentProviders.get(handle);
+		if (!provider) {
+			this._logService.warn(`No provider for handle ${handle}`);
+			return;
+		}
+
+		if (!provider.provider.handleRestoreCheckpoint) {
+			this._logService.debug(`Provider for handle ${handle} does not implement handleRestoreCheckpoint`);
+			return;
+		}
+
+		try {
+			await provider.provider.handleRestoreCheckpoint(sessionResource, requestId, token);
+		} catch (error) {
+			this._logService.error(`Error calling handleRestoreCheckpoint for handle ${handle}, sessionResource ${sessionResource}, requestId ${requestId}:`, error);
+		}
+	}
+
 	async $provideChatSessionProviderOptions(handle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined> {
 		const entry = this._chatSessionContentProviders.get(handle);
 		if (!entry) {

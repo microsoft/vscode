@@ -26,6 +26,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -33,6 +34,7 @@ import { isChatViewTitleActionContext } from '../../common/actions/chatActions.j
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
@@ -488,7 +490,25 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 
 	// Restore the snapshot to what it was before the request(s) that we deleted
 	const snapshotRequestId = chatRequests[itemIndex].id;
-	await session.restoreSnapshot(snapshotRequestId, undefined);
+
+	// Check if the content provider has a custom checkpoint handler
+	const chatSessionsService = accessor.get(IChatSessionsService);
+	const contentProvider = chatSessionsService.getContentProvider(sessionResource);
+	
+	if (contentProvider?.handleRestoreCheckpoint) {
+		// Let the content provider handle the checkpoint restoration
+		try {
+			await contentProvider.handleRestoreCheckpoint(sessionResource, snapshotRequestId, CancellationToken.None);
+		} catch (error) {
+			// If the provider fails, fall back to default behavior
+			const logService = accessor.get(ILogService);
+			logService.error('Content provider handleRestoreCheckpoint failed, falling back to default behavior:', error);
+			await session.restoreSnapshot(snapshotRequestId, undefined);
+		}
+	} else {
+		// Default behavior: restore the snapshot
+		await session.restoreSnapshot(snapshotRequestId, undefined);
+	}
 }
 
 async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {

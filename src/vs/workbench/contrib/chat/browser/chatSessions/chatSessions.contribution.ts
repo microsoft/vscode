@@ -1015,6 +1015,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return session;
 	}
 
+	public getContentProvider(sessionResource: URI): IChatSessionContentProvider | undefined {
+		const resolvedType = this._resolveToPrimaryType(sessionResource.scheme) || sessionResource.scheme;
+		return this._contentProviders.get(resolvedType);
+	}
+
 	public hasAnySessionOptions(sessionResource: URI): boolean {
 		const session = this._sessions.get(sessionResource);
 		return !!session && !!session.options && Object.keys(session.options).length > 0;

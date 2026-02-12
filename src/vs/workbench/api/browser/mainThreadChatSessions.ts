@@ -645,7 +645,10 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void {
 		const provider: IChatSessionContentProvider = {
-			provideChatSessionContent: (resource, token) => this._provideChatSessionContent(handle, resource, token)
+			provideChatSessionContent: (resource, token) => this._provideChatSessionContent(handle, resource, token),
+			handleRestoreCheckpoint: async (resource, requestId, token) => {
+				await this._proxy.$handleRestoreCheckpoint(handle, resource, requestId, token);
+			}
 		};
 
 		this._sessionTypeToHandle.set(chatSessionScheme, handle);

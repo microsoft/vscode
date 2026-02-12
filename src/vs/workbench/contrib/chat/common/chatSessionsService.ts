@@ -187,6 +187,12 @@ export interface IChatSession extends IDisposable {
 
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+
+	/**
+	 * Called when a checkpoint restoration is requested for a chat session.
+	 * This allows the provider to handle restoring the session state to a specific request.
+	 */
+	handleRestoreCheckpoint?(sessionResource: URI, requestId: string, token: CancellationToken): Promise<void>;
 }
 
 export interface IChatSessionItemController {
@@ -252,6 +258,11 @@ export interface IChatSessionsService {
 	registerChatSessionContentProvider(scheme: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveChatSession(sessionResource: URI): Promise<boolean>;
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
+
+	/**
+	 * Get the content provider for a specific session resource
+	 */
+	getContentProvider(sessionResource: URI): IChatSessionContentProvider | undefined;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
 	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;

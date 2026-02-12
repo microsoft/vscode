@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
+// version: 4
 
 declare module 'vscode' {
 	/**
@@ -403,6 +403,20 @@ declare module 'vscode' {
 		 * @param token
 		 */
 		provideChatSessionProviderOptions?(token: CancellationToken): Thenable<ChatSessionProviderOptions | ChatSessionProviderOptions>;
+
+		/**
+		 * Called when a checkpoint restoration is requested for a chat session.
+		 * This allows the provider to handle restoring the session state to a specific request.
+		 * 
+		 * For example, agents that manage their own history (like Claude SDK using user message IDs)
+		 * can use this to restore their internal state rather than relying on the default
+		 * full-history restoration.
+		 * 
+		 * @param resource The URI of the chat session.
+		 * @param requestId The ID of the request to restore to.
+		 * @param token A cancellation token.
+		 */
+		handleRestoreCheckpoint?(resource: Uri, requestId: string, token: CancellationToken): Thenable<void>;
 	}
 
 	export interface ChatSessionOptionUpdate {
