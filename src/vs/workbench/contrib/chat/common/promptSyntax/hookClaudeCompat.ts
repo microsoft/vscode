@@ -170,6 +170,9 @@ export function extractHookCommandsFromItem(
 	const nestedHooks = itemObj.hooks;
 	if (nestedHooks !== undefined && Array.isArray(nestedHooks)) {
 		for (const nestedHook of nestedHooks) {
+			if (!nestedHook || typeof nestedHook !== 'object') {
+				continue;
+			}
 			const normalized = normalizeForResolve(nestedHook as Record<string, unknown>);
 			const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
 			if (resolved) {
