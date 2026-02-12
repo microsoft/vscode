@@ -526,24 +526,39 @@
 	outline-offset: -1px;
 }
 
-/* Entrance animation */
-/* Duration matches QUICK_INPUT_OPEN_DURATION constant (150ms) in quickInputController.ts */
-.quick-input-widget.animating-entrance {
-	opacity: 0;
-	transform: translateY(-8px);
-	transition: opacity 150ms cubic-bezier(0.1, 0.9, 0.2, 1), transform 150ms cubic-bezier(0.1, 0.9, 0.2, 1);
-	will-change: opacity, transform;
-}
+/* Panel show / hide animation -------------------------------------------- */
+/* Uses @starting-style + allow-discrete so no JS animation logic is needed. */
+/* Duration constants: open = 100ms, close = 75ms.                          */
 
-.quick-input-widget.animating-entrance.animating-entrance-target {
+.quick-input-widget {
 	opacity: 1;
 	transform: translateY(0);
+	transition:
+		opacity 100ms cubic-bezier(0.1, 0.9, 0.2, 1),
+		transform 100ms cubic-bezier(0.1, 0.9, 0.2, 1),
+		display 100ms allow-discrete;
+
+	@starting-style {
+		opacity: 0;
+		transform: translateY(-8px);
+	}
 }
 
-/* Exit animation */
-/* Duration matches QUICK_INPUT_CLOSE_DURATION constant (50ms) in quickInputController.ts */
-.quick-input-widget.animating-exit {
+.quick-input-widget.hidden {
+	display: none;
 	opacity: 0;
 	transform: translateY(-8px);
-	transition: opacity 50ms cubic-bezier(0.9, 0.1, 1, 0.2), transform 50ms cubic-bezier(0.9, 0.1, 1, 0.2);
+	transition:
+		opacity 75ms cubic-bezier(0.9, 0.1, 1, 0.2),
+		transform 75ms cubic-bezier(0.9, 0.1, 1, 0.2),
+		display 75ms allow-discrete;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.quick-input-widget {
+		transition: none;
+	}
+	.quick-input-widget.hidden {
+		transition: none;
+	}
 }
