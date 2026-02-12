@@ -220,12 +220,12 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 						}
 					}
 
-					this.markerService.changeOne(markerOwner, model.uri, newMarker);
+					this.markerService.changeOne(undefined, markerOwner, model.uri, newMarker);
 				}, 500);
 
 				validator.schedule();
 				this._register(model.onDidChangeContent(() => validator.schedule()));
-				this._register(toDisposable(() => this.markerService.remove(markerOwner, [model.uri])));
+				this._register(toDisposable(() => this.markerService.removeOriginForOwnerResources(undefined, markerOwner, [model.uri])));
 				this._register(validator);
 
 				const editor = this._register(this.editorPool.get());

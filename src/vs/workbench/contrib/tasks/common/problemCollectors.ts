@@ -229,7 +229,7 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 
 	private _cleanMarkers(owner: string, toClean: Map<string, URI>): void {
 		const uris = Array.from(toClean.values());
-		this.markerService.remove(owner, uris);
+		this.markerService.removeOriginForOwnerResources(undefined, owner, uris);
 	}
 
 	protected recordMarker(marker: IMarkerData, owner: string, resourceAsString: string): void {
@@ -280,7 +280,7 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		if (markers.size !== reported.get(resource)) {
 			const toSet: IMarkerData[] = [];
 			markers.forEach(value => toSet.push(value));
-			this.markerService.changeOne(owner, URI.parse(resource), toSet);
+			this.markerService.changeOne(undefined, owner, URI.parse(resource), toSet);
 			reported.set(resource, markers.size);
 		}
 	}

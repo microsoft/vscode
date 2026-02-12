@@ -517,9 +517,9 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		this.codeActions.clear();
 		const markerData: IMarkerData[] = this.generateMarkerData();
 		if (markerData.length) {
-			this.markerService.changeOne('UnsupportedSettingsRenderer', this.settingsEditorModel.uri, markerData);
+			this.markerService.changeOne(undefined, 'UnsupportedSettingsRenderer', this.settingsEditorModel.uri, markerData);
 		} else {
-			this.markerService.remove('UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
+			this.markerService.removeOriginForOwnerResources(undefined, 'UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
 		}
 	}
 
@@ -782,7 +782,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 	}
 
 	public override dispose(): void {
-		this.markerService.remove('UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
+		this.markerService.removeOriginForOwnerResources(undefined, 'UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
 		this.codeActions.clear();
 		super.dispose();
 	}
@@ -814,9 +814,9 @@ class McpSettingsRenderer extends Disposable implements languages.CodeActionProv
 		this.codeActions.clear();
 		const markerData: IMarkerData[] = this.generateMarkerData();
 		if (markerData.length) {
-			this.markerService.changeOne('McpSettingsRenderer', this.settingsEditorModel.uri, markerData);
+			this.markerService.changeOne(undefined, 'McpSettingsRenderer', this.settingsEditorModel.uri, markerData);
 		} else {
-			this.markerService.remove('McpSettingsRenderer', [this.settingsEditorModel.uri]);
+			this.markerService.removeOriginForOwnerResources(undefined, 'McpSettingsRenderer', [this.settingsEditorModel.uri]);
 		}
 	}
 
@@ -902,7 +902,7 @@ class McpSettingsRenderer extends Disposable implements languages.CodeActionProv
 	}
 
 	public override dispose(): void {
-		this.markerService.remove('McpSettingsRenderer', [this.settingsEditorModel.uri]);
+		this.markerService.removeOriginForOwnerResources(undefined, 'McpSettingsRenderer', [this.settingsEditorModel.uri]);
 		this.codeActions.clear();
 		super.dispose();
 	}
@@ -945,9 +945,9 @@ class WorkspaceConfigurationRenderer extends Disposable {
 			this.decorations.set(ranges.map(range => this.createDecoration(range)));
 		}
 		if (markerData.length) {
-			this.markerService.changeOne('WorkspaceConfigurationRenderer', this.workspaceSettingsEditorModel.uri, markerData);
+			this.markerService.changeOne(undefined, 'WorkspaceConfigurationRenderer', this.workspaceSettingsEditorModel.uri, markerData);
 		} else {
-			this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
+			this.markerService.removeOriginForOwnerResources(undefined, 'WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
 		}
 	}
 
@@ -965,7 +965,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	override dispose(): void {
-		this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
+		this.markerService.removeOriginForOwnerResources(undefined, 'WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
 		this.decorations.clear();
 		super.dispose();
 	}

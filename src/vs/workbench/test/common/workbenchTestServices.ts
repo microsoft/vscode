@@ -22,6 +22,7 @@ import { IResourceEditorInput } from '../../../platform/editor/common/editor.js'
 import { FileChangesEvent, FileOperationEvent, FileSystemProviderCapabilities, IBaseFileStat, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatResult, IFileStatWithMetadata, IFileStatWithPartialMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemWatcher, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IResolveMetadataFileOptions, IWatchOptions, IWatchOptionsWithCorrelation, IWriteFileOptions } from '../../../platform/files/common/files.js';
 import { AbstractLoggerService, ILogger, LogLevel, NullLogger } from '../../../platform/log/common/log.js';
 import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerStatistics } from '../../../platform/markers/common/markers.js';
+import { IMarkerOrigin } from '../../../platform/markers/common/markerOrigin.js';
 import product from '../../../platform/product/common/product.js';
 import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
@@ -508,9 +509,10 @@ export class TestMarkerService implements IMarkerService {
 	onMarkerChanged = Event.None;
 
 	getStatistics(): MarkerStatistics { throw new Error('Method not implemented.'); }
-	changeOne(owner: string, resource: URI, markers: IMarkerData[]): void { }
-	changeAll(owner: string, data: IResourceMarker[]): void { }
-	remove(owner: string, resources: URI[]): void { }
+	removeOriginForOwner(origin: IMarkerOrigin, owner: string): void { }
+	changeOne(origin: IMarkerOrigin, owner: string, resource: URI, markers: IMarkerData[]): void { }
+	changeAll(origin: IMarkerOrigin, owner: string, data: IResourceMarker[]): void { }
+	removeOriginForOwnerResources(origin: IMarkerOrigin, owner: string, resources: URI[]): void { }
 	read(filter?: { owner?: string | undefined; resource?: URI | undefined; severities?: number | undefined; take?: number | undefined } | undefined): IMarker[] { return []; }
 	installResourceFilter(resource: URI, reason: string): IDisposable {
 		return { dispose: () => { /* TODO: Implement cleanup logic */ } };

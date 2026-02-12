@@ -1471,7 +1471,6 @@ declare namespace monaco.editor {
 		modelVersionId?: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
-		origin?: string | undefined;
 	}
 
 	/**
@@ -1492,7 +1491,6 @@ declare namespace monaco.editor {
 		modelVersionId?: number;
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
-		origin?: string | undefined;
 	}
 
 	/**

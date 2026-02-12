@@ -1063,12 +1063,12 @@ class ModelTracker extends Disposable {
 			const markers: IMarkerData[] = [];
 			const ast = this.promptsService.getParsedPromptFile(this.textModel);
 			await this.validator.validate(ast, this.promptType, m => markers.push(m));
-			this.markerService.changeOne(MARKERS_OWNER_ID, this.textModel.uri, markers);
+			this.markerService.changeOne(undefined, MARKERS_OWNER_ID, this.textModel.uri, markers);
 		});
 	}
 
 	public override dispose() {
-		this.markerService.remove(MARKERS_OWNER_ID, [this.textModel.uri]);
+		this.markerService.removeOriginForOwnerResources(undefined, MARKERS_OWNER_ID, [this.textModel.uri]);
 		super.dispose();
 	}
 }

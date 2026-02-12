@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkerService, IMarkerData, type IMarker } from '../../../platform/markers/common/markers.js';
+import { IMarkerService, IMarkerData } from '../../../platform/markers/common/markers.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MainThreadDiagnosticsShape, MainContext, ExtHostDiagnosticsShape, ExtHostContext } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { ResourceMap } from '../../../base/common/map.js';
 
 @extHostNamedCustomer(MainContext.MainThreadDiagnostics)
 export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
@@ -36,20 +35,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 	dispose(): void {
 		this._markerListener.dispose();
 		for (const owner of this._activeOwners) {
-			const markersData: ResourceMap<IMarker[]> = new ResourceMap<IMarker[]>();
-			for (const marker of this._markerService.read({ owner })) {
-				let data = markersData.get(marker.resource);
-				if (data === undefined) {
-					data = [];
-					markersData.set(marker.resource, data);
-				}
-				if (marker.origin !== this.extHostId) {
-					data.push(marker);
-				}
-			}
-			for (const [resource, local] of markersData.entries()) {
-				this._markerService.changeOne(owner, resource, local);
-			}
+			this._markerService.removeOriginForOwner(owner, this.extHostId);
 		}
 		this._activeOwners.clear();
 	}
@@ -58,14 +44,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 		const data: [UriComponents, IMarkerData[]][] = [];
 		for (const resource of resources) {
 			const allMarkerData = this._markerService.read({ resource, ignoreResourceFilters: true });
-			if (allMarkerData.length === 0) {
-				data.push([resource, []]);
-			} else {
-				const foreignMarkerData = allMarkerData.filter(marker => marker?.origin !== this.extHostId);
-				if (foreignMarkerData.length > 0) {
-					data.push([resource, foreignMarkerData]);
-				}
-			}
+			data.push([resource, allMarkerData]);
 		}
 		if (data.length > 0) {
 			this._proxy.$acceptMarkersChange(data);
@@ -85,18 +64,15 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 					if (marker.code && typeof marker.code !== 'string') {
 						marker.code.target = URI.revive(marker.code.target);
 					}
-					if (marker.origin === undefined) {
-						marker.origin = this.extHostId;
-					}
 				}
 			}
-			this._markerService.changeOne(owner, this._uriIdentService.asCanonicalUri(URI.revive(uri)), markers);
+			this._markerService.changeOne(this.extHostId, owner, this._uriIdentService.asCanonicalUri(URI.revive(uri)), markers);
 		}
 		this._activeOwners.add(owner);
 	}
 
 	$clear(owner: string): void {
-		this._markerService.changeAll(owner, []);
+		this._markerService.removeOriginForOwner(this.extHostId, owner);
 		this._activeOwners.delete(owner);
 	}
 }
