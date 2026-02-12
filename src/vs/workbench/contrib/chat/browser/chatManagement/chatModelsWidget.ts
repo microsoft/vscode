@@ -610,7 +610,6 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 		if (modelEntry.metadata.maxInputTokens || modelEntry.metadata.maxOutputTokens) {
 			const totalTokens = (modelEntry.metadata.maxInputTokens ?? 0) + (modelEntry.metadata.maxOutputTokens ?? 0);
 			const tokenDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
-			DOM.append(tokenDiv, $('span.codicon.codicon-arrow-swap-vertical'));
 			const tokenText = DOM.append(tokenDiv, $('span'));
 			tokenText.textContent = formatTokenCount(totalTokens);
 
