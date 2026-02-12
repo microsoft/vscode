@@ -3,37 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import ansiColors from 'ansi-colors';
 import * as cp from 'child_process';
 import es from 'event-stream';
+import fancyLog from 'fancy-log';
 import * as path from 'path';
-import { createReporter } from './reporter.ts';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 
-export function spawnTsgo(projectPath: string, config: { reporterId: string }, onComplete?: () => Promise<void> | void): Promise<void> {
-	const reporter = createReporter(config.reporterId);
-	let report: NodeJS.ReadWriteStream | undefined;
-
-	const beginReport = (emitError: boolean) => {
-		if (report) {
-			report.end();
+export function spawnTsgo(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): Promise<void> {
+	function reporter(stdError: string) {
+		const matches = (stdError || '').match(/^error \w+: (.+)?/g);
+		fancyLog(`Finished ${ansiColors.green(config.taskName)} ${projectPath} with ${matches ? matches.length : 0} errors.`);
+		for (const match of matches || []) {
+			fancyLog.error(match);
 		}
-		report = reporter.end(emitError);
-	};
+	}
 
-	const endReport = () => {
-		if (!report) {
-			return;
-		}
-		report.end();
-		report = undefined;
-	};
-
-	beginReport(false);
-
-	const args = ['tsgo', '--project', projectPath, '--pretty', 'false', '--sourceMap', '--inlineSources'];
+	const args = ['tsgo', '--project', projectPath, '--pretty', 'false'];
+	if (config.noEmit) {
+		args.push('--noEmit');
+	} else {
+		args.push('--sourceMap', '--inlineSources');
+	}
 	const child = cp.spawn(npx, args, {
 		cwd: root,
 		stdio: ['ignore', 'pipe', 'pipe'],
@@ -47,23 +41,13 @@ export function spawnTsgo(projectPath: string, config: { reporterId: string }, o
 			return;
 		}
 		if (/Starting compilation|File change detected/i.test(trimmed)) {
-			beginReport(false);
 			return;
 		}
 		if (/Compilation complete/i.test(trimmed)) {
-			endReport();
 			return;
 		}
 
-		const match = /(.*\(\d+,\d+\): )(.*: )(.*)/.exec(trimmed);
-
-		if (match) {
-			const fullpath = path.isAbsolute(match[1]) ? match[1] : path.join(root, match[1]);
-			const message = match[3];
-			reporter(fullpath + message);
-		} else {
-			reporter(trimmed);
-		}
+		reporter(trimmed);
 	};
 
 	const handleData = (data: Buffer) => {
@@ -84,7 +68,7 @@ export function spawnTsgo(projectPath: string, config: { reporterId: string }, o
 				handleLine(buffer);
 				buffer = '';
 			}
-			endReport();
+
 			if (code === 0) {
 				Promise.resolve(onComplete?.()).then(() => resolve(), reject);
 			} else {
@@ -93,15 +77,13 @@ export function spawnTsgo(projectPath: string, config: { reporterId: string }, o
 		});
 
 		child.on('error', err => {
-			endReport();
 			reject(err);
 		});
 	});
 }
 
-export function createTsgoStream(projectPath: string, config: { reporterId: string }, onComplete?: () => Promise<void> | void): NodeJS.ReadWriteStream {
+export function createTsgoStream(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): NodeJS.ReadWriteStream {
 	const stream = es.through();
-
 	spawnTsgo(projectPath, config, onComplete).then(() => {
 		stream.emit('end');
 	}).catch(() => {

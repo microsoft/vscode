@@ -44,7 +44,7 @@
 	"scripts": {
 		"compile": "npx gulp compile-extension:notebook-renderers && npm run build-notebook",
 		"watch": "npx gulp compile-watch:notebook-renderers",
-		"build-notebook": "node ./esbuild.mjs"
+		"build-notebook": "node ./esbuild.notebook.mts"
 	},
 	"devDependencies": {
 		"@types/jsdom": "^21.1.0",

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/modalEditorPart.css';
-import { $, addDisposableListener, append, EventHelper, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -20,12 +20,12 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart } from './editorPart.js';
-import { GroupDirection, GroupsOrder, IModalEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext } from '../../../common/contextkeys.js';
 import { Verbosity } from '../../../common/editor.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
 
@@ -208,6 +208,8 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 
 	private readonly optionsDisposable = this._register(new MutableDisposable());
 
+	private previousMainWindowActiveElement: Element | null = null;
+
 	constructor(
 		windowId: number,
 		editorPartsView: IEditorPartsView,
@@ -224,6 +226,12 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		super(editorPartsView, `workbench.parts.modalEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 
 		this.enforceModalPartOptions();
+	}
+
+	override create(parent: HTMLElement, options?: object): void {
+		this.previousMainWindowActiveElement = mainWindow.document.activeElement;
+
+		super.create(parent, options);
 	}
 
 	private enforceModalPartOptions(): void {
@@ -264,7 +272,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		// Close modal when last group removed
 		const groupView = this.assertGroupView(group);
 		if (this.count === 1 && this.activeGroup === groupView) {
-			this.doRemoveLastGroup(preserveFocus);
+			this.doRemoveLastGroup();
 		}
 
 		// Otherwise delegate to parent implementation
@@ -273,18 +281,26 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		}
 	}
 
-	private doRemoveLastGroup(preserveFocus?: boolean): void {
-		const restoreFocus = !preserveFocus && this.shouldRestoreFocus(this.container);
+	private doRemoveLastGroup(): void {
 
-		// Activate next group
-		const mostRecentlyActiveGroups = this.editorPartsView.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-		const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
-		if (nextActiveGroup) {
-			nextActiveGroup.groupsView.activateGroup(nextActiveGroup);
+		// Activate main editor group when closing
+		const activeMainGroup = this.editorPartsView.mainPart.activeGroup;
+		this.editorPartsView.mainPart.activateGroup(activeMainGroup, undefined, GroupActivationReason.PART_CLOSE);
 
-			if (restoreFocus) {
-				nextActiveGroup.focus();
-			}
+		// Deal with focus: removing the last modal group
+		// means we return back to the main editor part.
+		// But we only want to focus that if it was focused
+		// before to prevent revealing the editor part if
+		// it was maybe hidden before.
+		const mainEditorPartContainer = this.layoutService.getContainer(mainWindow, Parts.EDITOR_PART);
+		if (
+			!isHTMLElement(this.previousMainWindowActiveElement) ||					// invalid previous element
+			!this.previousMainWindowActiveElement.isConnected ||					// previous element no longer in the DOM
+			mainEditorPartContainer?.contains(this.previousMainWindowActiveElement)	// previous element is inside main editor part
+		) {
+			activeMainGroup.focus();
+		} else {
+			this.previousMainWindowActiveElement.focus();
 		}
 
 		this.doClose({ mergeConfirmingEditorsToMainPart: false });

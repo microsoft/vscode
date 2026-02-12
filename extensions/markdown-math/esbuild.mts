@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as path from 'node:path';
-import { run } from '../esbuild-extension-common.ts';
+import { run } from '../esbuild-extension-common.mts';
 
 const srcDir = path.join(import.meta.dirname, 'src');
 const outDir = path.join(import.meta.dirname, 'dist');

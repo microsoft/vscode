@@ -2,17 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// @ts-check
-import path from 'node:path';
-import { run } from '../esbuild-webview-common.mjs';
+import * as path from 'node:path';
+import { run } from '../esbuild-extension-common.mts';
 
-const srcDir = path.join(import.meta.dirname, 'notebook-src');
-const outDir = path.join(import.meta.dirname, 'notebook-out');
+const srcDir = path.join(import.meta.dirname, 'src');
+const outDir = path.join(import.meta.dirname, 'dist');
 
 run({
-	entryPoints: [
-		path.join(srcDir, 'cellAttachmentRenderer.ts'),
-	],
+	entryPoints: {
+		'extension': path.join(srcDir, 'extension.ts'),
+	},
 	srcDir,
 	outdir: outDir,
 }, process.argv);

@@ -19,12 +19,11 @@ import { ChatElicitationRequestPart } from '../../../../../chat/common/model/cha
 import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
+import { ChatMessageRole, getTextResponseFromStream, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/tools/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './types.js';
-import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
@@ -61,7 +60,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return '<empty>';
 		}
 		// Avoid logging potentially sensitive values from common secret prompts.
-		if (/(password|passphrase|token|api\s*key|secret)/i.test(lastLine)) {
+		if (this._isSensitivePrompt(lastLine)) {
 			return '<redacted>';
 		}
 		// Keep logs bounded.
@@ -238,7 +237,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		// Check for generic "press any key" prompts from scripts.
-		// These should be treated as free-form input to let the user press a key.
 		if ((!isTask || !isTaskInactive) && detectsGenericPressAnyKeyPattern(output)) {
 			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected, requesting free-form input');
 			// Register a marker to track this prompt position so we don't re-detect it
@@ -288,6 +286,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._logService.trace('OutputMonitor: User input arrived before showing free-form prompt; continuing polling');
 				this._cleanupIdleInputListener();
 				return { shouldContinuePollling: true };
+			}
+			const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts);
+			if (autoReply && !this._isSensitivePrompt(confirmationPrompt.prompt)) {
+				const explicitInput = confirmationPrompt.suggestedInput ?? this._extractExplicitInputFromPrompt(confirmationPrompt.prompt);
+				const normalizedInput = this._normalizeAutoReplyInput(explicitInput);
+				if (normalizedInput !== undefined) {
+					this._logService.trace('OutputMonitor: Auto-replying to free-form prompt');
+					await this._execution.instance.sendText(normalizedInput, true);
+					this._outputMonitorTelemetryCounters.inputToolAutoAcceptCount++;
+					this._outputMonitorTelemetryCounters.inputToolAutoChars += normalizedInput.length;
+					return { shouldContinuePollling: true };
+				}
 			}
 			// Clean up the input listener now - the prompt will set up its own
 			this._cleanupIdleInputListener();
@@ -470,9 +480,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		);
 
 		try {
-			const responseFromStream = getTextResponseFromStream(response);
-			await Promise.all([response.result, responseFromStream]);
-			return await responseFromStream;
+			return await getTextResponseFromStream(response);
 		} catch (err) {
 			return 'Error occurred ' + err;
 		}
@@ -496,7 +504,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) that appears at the VERY END of the output and has NOT already been answered (i.e., there is no user response or subsequent output after the prompt), extract the prompt text. IMPORTANT: Only detect prompts that are at the end of the output with no content following them - if there is any output after the prompt, the prompt has already been answered and you should return null. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null. If the option is ambiguous, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) that appears at the VERY END of the output and has NOT already been answered (i.e., there is no user response or subsequent output after the prompt), extract the prompt text. IMPORTANT: Only detect prompts that are at the end of the output with no content following them - if there is any output after the prompt, the prompt has already been answered and you should return null. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, return a JSON object with keys 'prompt', 'options', 'freeFormInput': true, and 'input'. The 'input' field should be the exact text to type only when the output explicitly states what to type (for example, Type "exit" to quit). If there is no explicit input, set 'input' to null. For Enter, set 'input' to "\\r". If the option is ambiguous, return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
@@ -517,7 +525,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				Response: {"prompt": "Continue", "options": ["y", "N"], "freeFormInput": false}
 
 			7. Output: "Password:"
-				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
+				Response: {"prompt": "Password:", "freeFormInput": true, "options": [], "input": null}
 			8. Output: "press ctrl-c to detach, ctrl-d to kill"
 				Response: null
 			9. Output: "Continue (y/n)? y"
@@ -527,11 +535,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			Alternatively, the prompt may request free form input, for example:
 			1. Output: "Enter your username:"
-				Response: {"prompt": "Enter your username:", "freeFormInput": true, "options": []}
+				Response: {"prompt": "Enter your username:", "freeFormInput": true, "options": [], "input": null}
 			2. Output: "Password:"
-				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
+				Response: {"prompt": "Password:", "freeFormInput": true, "options": [], "input": null}
 			3. Output: "Press any key to continue..."
-				Response: {"prompt": "Press any key to continue...", "freeFormInput": true, "options": []}
+				Response: {"prompt": "Press any key to continue...", "freeFormInput": true, "options": [], "input": "\\r"}
+			4. Output: "Type 'exit' to quit the game."
+				Response: {"prompt": "Type 'exit' to quit the game.", "freeFormInput": true, "options": [], "input": "exit"}
 			Now, analyze this output:
 			${lastLines}
 			`;
@@ -548,13 +558,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					Object.hasOwn(parsed, 'options') &&
 					Object.hasOwn(parsed, 'freeFormInput') && typeof (parsed as Record<string, unknown>).freeFormInput === 'boolean'
 				) {
-					const obj = parsed as { prompt: string; options: unknown; freeFormInput: boolean };
+					const obj = parsed as { prompt: string; options: unknown; freeFormInput: boolean; input?: unknown };
 					if (this._lastPrompt === obj.prompt) {
 						this._logService.trace('OutputMonitor: determineUserInputOptions ignoring duplicate prompt');
 						return;
 					}
 					if (obj.freeFormInput === true) {
-						return { prompt: obj.prompt, options: [], detectedRequestForFreeFormInput: true };
+						const suggestedInput = isString(obj.input) && obj.input.trim().length ? obj.input.trim() : undefined;
+						return { prompt: obj.prompt, options: [], detectedRequestForFreeFormInput: true, suggestedInput };
 					}
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
 						return { prompt: obj.prompt, options: obj.options, detectedRequestForFreeFormInput: obj.freeFormInput };
@@ -570,6 +581,41 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 		} catch (err) {
 			this._logService.trace('OutputMonitor: Failed to parse confirmation prompt from language model response', err);
+		}
+		return undefined;
+	}
+
+	private _isSensitivePrompt(prompt: string): boolean {
+		return /(password|passphrase|token|api\s*key|secret)/i.test(prompt);
+	}
+
+	private _normalizeAutoReplyInput(input: string | undefined): string | undefined {
+		if (!input) {
+			return undefined;
+		}
+		const trimmed = input.trim();
+		if (!trimmed) {
+			return undefined;
+		}
+		const lowered = trimmed.toLowerCase();
+		if (lowered === '\\r' || lowered === '\\n' || lowered === 'enter' || lowered === 'return') {
+			return '';
+		}
+		return trimmed;
+	}
+
+	private _extractExplicitInputFromPrompt(prompt: string): string | undefined {
+		const normalizedPrompt = prompt.trim();
+		if (!normalizedPrompt) {
+			return undefined;
+		}
+		const directCommandMatch = normalizedPrompt.match(/\b(?:type|enter|input)\s+["'`]([^"'`]+)["'`]/i);
+		if (directCommandMatch?.[1]) {
+			return directCommandMatch[1];
+		}
+		const bareCommandMatch = normalizedPrompt.match(/\b(?:type|enter|input)\s+([\w.-]+)\b/i);
+		if (bareCommandMatch?.[1]) {
+			return bareCommandMatch[1];
 		}
 		return undefined;
 	}

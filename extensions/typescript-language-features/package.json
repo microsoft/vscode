@@ -1296,7 +1296,7 @@
         "title": "%configuration.inlayHints%",
         "order": 24,
         "properties": {
-          "typescript.inlayHints.parameterNames.enabled": {
+          "js/ts.inlayHints.parameterNames.enabled": {
             "type": "string",
             "enum": [
               "none",
@@ -1310,49 +1310,11 @@
             ],
             "default": "none",
             "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.parameterTypes.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.variableTypes.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.propertyDeclarationTypes.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.functionLikeReturnTypes.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.enumMemberValues.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
-            "scope": "resource"
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.parameterNames.enabled": {
             "type": "string",
@@ -1368,42 +1330,184 @@
             ],
             "default": "none",
             "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterNames.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.parameterNames.enabled": {
+            "type": "string",
+            "enum": [
+              "none",
+              "literals",
+              "all"
+            ],
+            "enumDescriptions": [
+              "%inlayHints.parameterNames.none%",
+              "%inlayHints.parameterNames.literals%",
+              "%inlayHints.parameterNames.all%"
+            ],
+            "default": "none",
+            "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterNames.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.parameterTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.parameterTypes.enabled": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterTypes.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.parameterTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.variableTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.variableTypes.enabled": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.variableTypes.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.variableTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.variableTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.propertyDeclarationTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.propertyDeclarationTypes.enabled": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.propertyDeclarationTypes.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.propertyDeclarationTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.propertyDeclarationTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.functionLikeReturnTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.functionLikeReturnTypes.enabled": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.functionLikeReturnTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "typescript.inlayHints.functionLikeReturnTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.functionLikeReturnTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.enumMemberValues.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "TypeScript"
+            ]
+          },
+          "typescript.inlayHints.enumMemberValues.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.enumMemberValues.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
           }
         }

@@ -26,8 +26,10 @@ class MockWebContents {
 
 	public session = {
 		webRequest: {
-			onBeforeSendHeaders: sinon.stub()
-		}
+			onBeforeSendHeaders: sinon.stub(),
+			onHeadersReceived: sinon.stub()
+		},
+		on: sinon.stub()
 	};
 
 	constructor() {
@@ -880,6 +882,152 @@ suite('WebPageLoader', () => {
 		assert.strictEqual(modifiedHeaders['DNT'], '1');
 		assert.strictEqual(modifiedHeaders['Sec-GPC'], '1');
 		assert.strictEqual(modifiedHeaders['TestHeader'], 'TestValue');
+	});
+
+	//#endregion
+
+	//#region Download Prevention Tests
+
+	test('onHeadersReceived replaces Content-Disposition attachment with inline for text content', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		// Get the callback passed to onHeadersReceived
+		assert.ok(window.webContents.session.webRequest.onHeadersReceived.called);
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		for (const contentType of ['application/xml', 'text/html', 'text/plain', 'application/json', 'application/xhtml+xml', 'application/rss+xml', 'application/vnd.custom+json']) {
+			let response: { responseHeaders?: Record<string, string[]>; cancel?: boolean } | undefined;
+			const mockCallback = (result: { responseHeaders?: Record<string, string[]>; cancel?: boolean }) => {
+				response = result;
+			};
+
+			listener(
+				{
+					url: 'https://example.com/file',
+					responseHeaders: {
+						'Content-Disposition': ['attachment; filename="file.xml"'],
+						'Content-Type': [contentType]
+					}
+				},
+				mockCallback
+			);
+
+			assert.ok(response, `Expected response for ${contentType}`);
+			assert.deepStrictEqual(response!.responseHeaders!['Content-Disposition'], ['inline'], `Expected inline for ${contentType}`);
+			assert.strictEqual(response!.cancel, false, `Should not cancel for ${contentType}`);
+		}
+	});
+
+	test('onHeadersReceived cancels Content-Disposition attachment for binary content', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		for (const contentType of ['application/octet-stream', 'application/zip', 'application/pdf', 'image/png', 'video/mp4']) {
+			let response: { cancel?: boolean } | undefined;
+			const mockCallback = (result: { cancel?: boolean }) => {
+				response = result;
+			};
+
+			listener(
+				{
+					url: 'https://example.com/file.bin',
+					responseHeaders: {
+						'Content-Disposition': ['attachment; filename="file.bin"'],
+						'Content-Type': [contentType]
+					}
+				},
+				mockCallback
+			);
+
+			assert.ok(response, `Expected response for ${contentType}`);
+			assert.strictEqual(response!.cancel, true, `Expected cancel for ${contentType}`);
+		}
+	});
+
+	test('onHeadersReceived cancels Content-Disposition attachment when content type is missing', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		let response: { cancel?: boolean } | undefined;
+		const mockCallback = (result: { cancel?: boolean }) => {
+			response = result;
+		};
+
+		listener(
+			{
+				url: 'https://example.com/file',
+				responseHeaders: {
+					'Content-Disposition': ['attachment; filename="file"']
+				}
+			},
+			mockCallback
+		);
+
+		assert.ok(response);
+		assert.strictEqual(response!.cancel, true);
+	});
+
+	test('onHeadersReceived allows normal responses without Content-Disposition attachment', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		const listener = window.webContents.session.webRequest.onHeadersReceived.getCall(0).args[0];
+
+		let response: { responseHeaders?: Record<string, string[]> } | undefined;
+		const mockCallback = (result: { responseHeaders?: Record<string, string[]> }) => {
+			response = result;
+		};
+
+		// Simulate a normal HTML response
+		listener(
+			{
+				url: 'https://example.com/page',
+				responseHeaders: {
+					'Content-Type': ['text/html'],
+					'Content-Disposition': ['inline']
+				}
+			},
+			mockCallback
+		);
+
+		assert.ok(response);
+		assert.strictEqual(response!.responseHeaders, undefined);
+	});
+
+	test('will-download handler cancels download and returns error', async () => {
+		const uri = URI.parse('https://dl.google.com/linux/chrome/rpm/stable/x86_64/repodata/repomd.xml');
+
+		const loader = createWebPageLoader(uri);
+		setupDebuggerMock();
+
+		// Get the will-download handler
+		assert.ok(window.webContents.session.on.called);
+		const willDownloadCall = window.webContents.session.on.getCalls()
+			.find(call => call.args[0] === 'will-download');
+		assert.ok(willDownloadCall);
+		const willDownloadHandler = willDownloadCall!.args[1];
+
+		const loadPromise = loader.load();
+
+		// Simulate a download being triggered
+		const mockItem = {
+			cancel: sinon.stub(),
+			getFilename: sinon.stub().returns('repomd.xml')
+		};
+		willDownloadHandler({}, mockItem);
+
+		const result = await loadPromise;
+
+		// Verify download was cancelled
+		assert.ok(mockItem.cancel.called);
+
+		// Verify error result
+		assert.strictEqual(result.status, 'error');
+		if (result.status === 'error') {
+			assert.ok(result.error.includes('Download not allowed'));
+			assert.ok(result.error.includes('repomd.xml'));
+		}
 	});
 
 	//#endregion

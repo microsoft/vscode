@@ -6,12 +6,97 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { HookType } from '../../../common/promptSyntax/hookSchema.js';
-import { parseClaudeHooks, resolveClaudeHookType, getClaudeHookTypeName } from '../../../common/promptSyntax/hookClaudeCompat.js';
+import { parseClaudeHooks, resolveClaudeHookType, getClaudeHookTypeName, extractHookCommandsFromItem } from '../../../common/promptSyntax/hookClaudeCompat.js';
 import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../../common/promptSyntax/hookCompatibility.js';
 import { URI } from '../../../../../../base/common/uri.js';
 
 suite('HookClaudeCompat', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('extractHookCommandsFromItem', () => {
+		const workspaceRoot = URI.file('/workspace');
+		const userHome = '/home/user';
+
+		test('extracts direct command object', () => {
+			const item = { type: 'command', command: 'echo "test"' };
+
+			const result = extractHookCommandsFromItem(item, workspaceRoot, userHome);
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].command, 'echo "test"');
+		});
+
+		test('extracts from nested matcher structure', () => {
+			const item = {
+				matcher: 'Bash',
+				hooks: [
+					{ type: 'command', command: 'echo "nested"' }
+				]
+			};
+
+			const result = extractHookCommandsFromItem(item, workspaceRoot, userHome);
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].command, 'echo "nested"');
+		});
+
+		test('extracts multiple hooks from matcher structure', () => {
+			const item = {
+				matcher: 'Write',
+				hooks: [
+					{ type: 'command', command: 'echo "first"' },
+					{ type: 'command', command: 'echo "second"' }
+				]
+			};
+
+			const result = extractHookCommandsFromItem(item, workspaceRoot, userHome);
+
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].command, 'echo "first"');
+			assert.strictEqual(result[1].command, 'echo "second"');
+		});
+
+		test('handles command without type field (Claude format)', () => {
+			const item = { command: 'echo "no type"' };
+
+			const result = extractHookCommandsFromItem(item, workspaceRoot, userHome);
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].command, 'echo "no type"');
+		});
+
+		test('handles nested command without type field', () => {
+			const item = {
+				matcher: 'Bash',
+				hooks: [
+					{ command: 'echo "no type nested"' }
+				]
+			};
+
+			const result = extractHookCommandsFromItem(item, workspaceRoot, userHome);
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].command, 'echo "no type nested"');
+		});
+
+		test('returns empty array for null item', () => {
+			const result = extractHookCommandsFromItem(null, workspaceRoot, userHome);
+			assert.strictEqual(result.length, 0);
+		});
+
+		test('returns empty array for undefined item', () => {
+			const result = extractHookCommandsFromItem(undefined, workspaceRoot, userHome);
+			assert.strictEqual(result.length, 0);
+		});
+
+		test('returns empty array for invalid type', () => {
+			const item = { type: 'script', command: 'echo "wrong type"' };
+
+			const result = extractHookCommandsFromItem(item, workspaceRoot, userHome);
+
+			assert.strictEqual(result.length, 0);
+		});
+	});
 
 	suite('resolveClaudeHookType', () => {
 		test('resolves PreToolUse', () => {

@@ -19,7 +19,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
-import { isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
+import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
 import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
@@ -33,9 +33,12 @@ export type InstructionsCollectionEvent = {
 	agentInstructionsCount: number;
 	listedInstructionsCount: number;
 	totalInstructionsCount: number;
+	claudeRulesCount: number;
+	claudeMdCount: number;
+	claudeAgentsCount: number;
 };
 export function newInstructionsCollectionEvent(): InstructionsCollectionEvent {
-	return { applyingInstructionsCount: 0, referencedInstructionsCount: 0, agentInstructionsCount: 0, listedInstructionsCount: 0, totalInstructionsCount: 0 };
+	return { applyingInstructionsCount: 0, referencedInstructionsCount: 0, agentInstructionsCount: 0, listedInstructionsCount: 0, totalInstructionsCount: 0, claudeRulesCount: 0, claudeMdCount: 0, claudeAgentsCount: 0 };
 }
 
 type InstructionsCollectionClassification = {
@@ -44,6 +47,9 @@ type InstructionsCollectionClassification = {
 	agentInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of agent instructions added (copilot-instructions.md and agents.md).' };
 	listedInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instruction patterns added.' };
 	totalInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of instruction entries added to variables.' };
+	claudeRulesCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Claude rules files (.claude/rules/) added via pattern matching.' };
+	claudeMdCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of CLAUDE.md agent instruction files added.' };
+	claudeAgentsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of Claude agent files (.claude/agents/) listed as subagents.' };
 	owner: 'digitarald';
 	comment: 'Tracks automatic instruction collection usage in chat prompt system.';
 };
@@ -100,7 +106,7 @@ export class ComputeAutomaticInstructions {
 		// get copilot instructions
 		await this._addAgentInstructions(variables, telemetryEvent, token);
 
-		const instructionsListVariable = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
+		const instructionsListVariable = await this._getInstructionsWithPatternsList(instructionFiles, variables, telemetryEvent, token);
 		if (instructionsListVariable) {
 			variables.add(instructionsListVariable);
 			telemetryEvent.listedInstructionsCount++;
@@ -159,6 +165,9 @@ export class ComputeAutomaticInstructions {
 
 				variables.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason, true));
 				telemetryEvent.applyingInstructionsCount++;
+				if (isClaudeRules) {
+					telemetryEvent.claudeRulesCount++;
+				}
 			} else {
 				this._logService.trace(`[InstructionsContextComputer] No match for ${uri} with ${pattern}`);
 			}
@@ -199,6 +208,9 @@ export class ComputeAutomaticInstructions {
 			}
 
 			telemetryEvent.agentInstructionsCount++;
+			if (type === AgentFileType.claudeMd) {
+				telemetryEvent.claudeMdCount++;
+			}
 			logger.logInfo(`Agent instruction file added: ${uri.toString()}`);
 		}
 
@@ -278,7 +290,7 @@ export class ComputeAutomaticInstructions {
 		return undefined;
 	}
 
-	private async _getInstructionsWithPatternsList(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
+	private async _getInstructionsWithPatternsList(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
 		const readTool = this._getTool('readFile');
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
 
@@ -398,6 +410,9 @@ export class ComputeAutomaticInstructions {
 							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
 						}
 						entries.push('</agent>');
+						if (isInClaudeAgentsFolder(agent.uri)) {
+							telemetryEvent.claudeAgentsCount++;
+						}
 					}
 				}
 				entries.push('</agents>', '', ''); // add trailing newline

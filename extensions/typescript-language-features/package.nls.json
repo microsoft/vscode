@@ -103,38 +103,46 @@
 			"The text inside the ``` block is code and should not be localized."
 		]
 	},
+	"configuration.inlayHints.parameterNames.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.inlayHints.parameterNames.enabled#` instead.",
 	"configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName": "Suppress parameter name hints on arguments whose text is identical to the parameter name.",
+	"configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.inlayHints.parameterNames.suppressWhenArgumentMatchesName#` instead.",
 	"configuration.inlayHints.parameterTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit parameter types:\n```typescript\n\nel.addEventListener('click', e /* :MouseEvent */ => ...)\n \n```",
 		"comment": [
 			"The text inside the ``` block is code and should not be localized."
 		]
 	},
+	"configuration.inlayHints.parameterTypes.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.inlayHints.parameterTypes.enabled#` instead.",
 	"configuration.inlayHints.variableTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit variable types:\n```typescript\n\nconst foo /* :number */ = Date.now();\n \n```",
 		"comment": [
 			"The text inside the ``` block is code and should not be localized."
 		]
 	},
+	"configuration.inlayHints.variableTypes.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.inlayHints.variableTypes.enabled#` instead.",
 	"configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName": "Suppress type hints on variables whose name is identical to the type name.",
+	"configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.inlayHints.variableTypes.suppressWhenTypeMatchesName#` instead.",
 	"configuration.inlayHints.propertyDeclarationTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit types on property declarations:\n```typescript\n\nclass Foo {\n\tprop /* :number */ = Date.now();\n}\n \n```",
 		"comment": [
 			"The text inside the ``` block is code and should not be localized."
 		]
 	},
+	"configuration.inlayHints.propertyDeclarationTypes.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.inlayHints.propertyDeclarationTypes.enabled#` instead.",
 	"configuration.inlayHints.functionLikeReturnTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit return types on function signatures:\n```typescript\n\nfunction foo() /* :number */ {\n\treturn Date.now();\n} \n \n```",
 		"comment": [
 			"The text inside the ``` block is code and should not be localized."
 		]
 	},
+	"configuration.inlayHints.functionLikeReturnTypes.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.inlayHints.functionLikeReturnTypes.enabled#` instead.",
 	"configuration.inlayHints.enumMemberValues.enabled": {
 		"message": "Enable/disable inlay hints for member values in enum declarations:\n```typescript\n\nenum MyValue {\n\tA /* = 0 */;\n\tB /* = 1 */;\n}\n \n```",
 		"comment": [
 			"The text inside the ``` block is code and should not be localized."
 		]
 	},
+	"configuration.inlayHints.enumMemberValues.enabled.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.inlayHints.enumMemberValues.enabled#` instead.",
 	"taskDefinition.tsconfig.description": "The tsconfig file that defines the TS build.",
 	"javascript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for JavaScript files in the editor.",
 	"typescript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for TypeScript files in the editor.",

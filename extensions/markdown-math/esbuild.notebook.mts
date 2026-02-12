@@ -2,18 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-//@ts-check
-
-import path from 'path';
 import fse from 'fs-extra';
-import { run } from '../esbuild-webview-common.mjs';
-
-const args = process.argv.slice(2);
+import path from 'path';
+import { run } from '../esbuild-webview-common.mts';
 
 const srcDir = path.join(import.meta.dirname, 'notebook');
 const outDir = path.join(import.meta.dirname, 'notebook-out');
 
-function postBuild(outDir) {
+function postBuild(outDir: string) {
 	fse.copySync(
 		path.join(import.meta.dirname, 'node_modules', 'katex', 'dist', 'katex.min.css'),
 		path.join(outDir, 'katex.min.css'));

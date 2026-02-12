@@ -205,6 +205,14 @@ function isInAgentsFolder(fileUri: URI): boolean {
 }
 
 /**
+ * Helper function to check if a file is directly in the .claude/agents/ folder.
+ */
+export function isInClaudeAgentsFolder(fileUri: URI): boolean {
+	const dir = dirname(fileUri.path);
+	return dir.endsWith('/' + CLAUDE_AGENTS_SOURCE_FOLDER);
+}
+
+/**
  * Helper function to check if a file is inside the .claude/rules/ folder (including subfolders).
  * Claude rules files (.md) in this folder are treated as instruction files.
  */

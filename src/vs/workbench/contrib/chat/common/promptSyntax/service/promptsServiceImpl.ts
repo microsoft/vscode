@@ -177,7 +177,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this.cachedHooks = this._register(new CachedPromise(
 			(token) => this.computeHooks(token),
-			() => this.getFileLocatorEvent(PromptsType.hook)
+			() => Event.any(
+				this.getFileLocatorEvent(PromptsType.hook),
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CHAT_HOOKS)),
+			)
 		));
 
 		// Hack: Subscribe to activate caching (CachedPromise only caches when onDidChange has listeners)
@@ -1000,6 +1003,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async computeHooks(token: CancellationToken): Promise<IChatRequestHooks | undefined> {
+		const useChatHooks = this.configurationService.getValue(PromptsConfig.USE_CHAT_HOOKS);
+		if (!useChatHooks) {
+			return undefined;
+		}
+
 		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
 
 		if (hookFiles.length === 0) {

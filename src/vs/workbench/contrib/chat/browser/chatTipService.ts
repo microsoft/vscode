@@ -26,6 +26,7 @@ export const IChatTipService = createDecorator<IChatTipService>('chatTipService'
 export interface IChatTip {
 	readonly id: string;
 	readonly content: MarkdownString;
+	readonly enabledCommands?: readonly string[];
 }
 
 export interface IChatTipService {
@@ -67,7 +68,7 @@ export interface IChatTipService {
 
 	/**
 	 * Dismisses the current tip and allows a new one to be picked for the same request.
-	 * The dismissed tip will not be shown again in this workspace.
+	 * The dismissed tip will not be shown again in this profile.
 	 */
 	dismissTip(): void;
 
@@ -128,31 +129,31 @@ export interface ITipDefinition {
 const TIP_CATALOG: ITipDefinition[] = [
 	{
 		id: 'tip.agentMode',
-		message: localize('tip.agentMode', "Tip: Try [Agent mode](command:workbench.action.chat.openEditSession) for multi-file edits and running commands."),
+		message: localize('tip.agentMode', "Tip: Try [Agents](command:workbench.action.chat.openEditSession) to make edits across your project and run commands."),
 		when: ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Agent),
 		enabledCommands: ['workbench.action.chat.openEditSession'],
 		excludeWhenModesUsed: [ChatModeKind.Agent],
 	},
 	{
 		id: 'tip.planMode',
-		message: localize('tip.planMode', "Tip: Try [Plan mode](command:workbench.action.chat.openPlan) to let the agent perform deep analysis and planning before implementing changes."),
+		message: localize('tip.planMode', "Tip: Try the [Plan agent](command:workbench.action.chat.openPlan) to research and plan before implementing changes."),
 		when: ChatContextKeys.chatModeName.notEqualsTo('Plan'),
 		enabledCommands: ['workbench.action.chat.openPlan'],
 		excludeWhenModesUsed: ['Plan'],
 	},
 	{
 		id: 'tip.attachFiles',
-		message: localize('tip.attachFiles', "Tip: Attach files or folders with # to give Copilot more context."),
+		message: localize('tip.attachFiles', "Tip: Reference files or folders with # to give the agent more context about the task."),
 		excludeWhenCommandsExecuted: ['workbench.action.chat.attachContext', 'workbench.action.chat.attachFile', 'workbench.action.chat.attachFolder', 'workbench.action.chat.attachSelection'],
 	},
 	{
 		id: 'tip.codeActions',
-		message: localize('tip.codeActions', "Tip: Select code and right-click for Copilot actions in the context menu."),
+		message: localize('tip.codeActions', "Tip: Select a code block in the editor and right-click to access more AI actions."),
 		excludeWhenCommandsExecuted: ['inlineChat.start'],
 	},
 	{
 		id: 'tip.undoChanges',
-		message: localize('tip.undoChanges', "Tip: You can undo chat's changes to any point by clicking Restore Checkpoint."),
+		message: localize('tip.undoChanges', "Tip: Select Restore Checkpoint to undo changes until that point in the chat conversation."),
 		when: ContextKeyExpr.or(
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
@@ -161,7 +162,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.customInstructions',
-		message: localize('tip.customInstructions', "Tip: [Generate workspace instructions](command:workbench.action.chat.generateInstructions) so chat always has the context it needs when starting a task."),
+		message: localize('tip.customInstructions', "Tip: [Generate workspace instructions](command:workbench.action.chat.generateInstructions) to give the agent relevant project-specific context when starting a task."),
 		enabledCommands: ['workbench.action.chat.generateInstructions'],
 		excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
 	},
@@ -175,7 +176,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.skill',
-		message: localize('tip.skill', "Tip: [Create a skill](command:workbench.command.new.skill) so agents can perform domain-specific tasks with reusable prompts and tools."),
+		message: localize('tip.skill', "Tip: [Create a skill](command:workbench.command.new.skill) to apply domain-specific workflows and instructions, only when needed."),
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		enabledCommands: ['workbench.command.new.skill'],
 		excludeWhenCommandsExecuted: ['workbench.command.new.skill'],
@@ -183,13 +184,13 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.messageQueueing',
-		message: localize('tip.messageQueueing', "Tip: You can send follow-up and steering messages while the agent is working. They'll be queued and processed in order."),
+		message: localize('tip.messageQueueing', "Tip: Send follow-up and steering messages while the agent is working. They'll be queued and processed in order."),
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		excludeWhenCommandsExecuted: ['workbench.action.chat.queueMessage', 'workbench.action.chat.steerWithMessage'],
 	},
 	{
 		id: 'tip.yoloMode',
-		message: localize('tip.yoloMode', "Tip: Enable [auto approve](command:workbench.action.openSettings?%5B%22chat.tools.global.autoApprove%22%5D) to let the agent run tools without manual confirmation."),
+		message: localize('tip.yoloMode', "Tip: Enable [auto approve](command:workbench.action.openSettings?%5B%22chat.tools.global.autoApprove%22%5D) to give the agent full control without manual confirmation."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			ContextKeyExpr.notEquals('config.chat.tools.global.autoApprove', true),
@@ -204,7 +205,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.githubRepo',
-		message: localize('tip.githubRepo', "Tip: Mention a GitHub repository (e.g. @owner/repo) in your prompt to let the agent search code, browse issues, and explore pull requests from that repo."),
+		message: localize('tip.githubRepo', "Tip: Mention a GitHub repository (@owner/repo) in your prompt to let the agent search code, browse issues, and explore pull requests from that repo."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			ContextKeyExpr.notEquals('gitOpenRepositoryCount', '0'),
@@ -214,13 +215,13 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.subagents',
-		message: localize('tip.subagents', "Tip: For large tasks, ask the agent to work in parallel. It can split the work across subagents to finish faster."),
+		message: localize('tip.subagents', "Tip: Ask the agent to work in parallel to complete large tasks faster."),
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		excludeWhenToolsInvoked: ['runSubagent'],
 	},
 	{
 		id: 'tip.contextUsage',
-		message: localize('tip.contextUsage', "Tip: [View your context window usage](command:workbench.action.chat.showContextUsage) to see how many tokens are being used and what's consuming them."),
+		message: localize('tip.contextUsage', "Tip: [View your context window usage](command:workbench.action.chat.showContextUsage) to see how many tokens are used and what's consuming them."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 			ChatContextKeys.contextUsageHasBeenOpened.negate(),
@@ -231,7 +232,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.sendToNewChat',
-		message: localize('tip.sendToNewChat', "Tip: Use [Send to New Chat](command:workbench.action.chat.sendToNewChat) to start a fresh conversation with a clean context window."),
+		message: localize('tip.sendToNewChat', "Tip: Use [Send to New Chat](command:workbench.action.chat.sendToNewChat) to start a new conversation with a clean context window."),
 		when: ChatContextKeys.chatSessionIsEmpty.negate(),
 		enabledCommands: ['workbench.action.chat.sendToNewChat'],
 		excludeWhenCommandsExecuted: ['workbench.action.chat.sendToNewChat'],
@@ -543,7 +544,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		if (this._shownTip) {
 			const dismissed = this._getDismissedTipIds();
 			dismissed.push(this._shownTip.id);
-			this._storageService.store(ChatTipService._DISMISSED_TIP_KEY, JSON.stringify(dismissed), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this._storageService.store(ChatTipService._DISMISSED_TIP_KEY, JSON.stringify(dismissed), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
 		this._hasShownRequestTip = false;
 		this._shownTip = undefined;
@@ -552,7 +553,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	private _getDismissedTipIds(): string[] {
-		const raw = this._storageService.get(ChatTipService._DISMISSED_TIP_KEY, StorageScope.WORKSPACE);
+		const raw = this._storageService.get(ChatTipService._DISMISSED_TIP_KEY, StorageScope.PROFILE);
 		if (!raw) {
 			return [];
 		}
@@ -600,6 +601,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return this._createTip(this._shownTip);
 		}
 
+		// A new request arrived while we already showed a tip, hide the old one
+		if (this._hasShownRequestTip && this._tipRequestId && this._tipRequestId !== requestId) {
+			this._shownTip = undefined;
+			this._tipRequestId = undefined;
+			this._onDidDismissTip.fire();
+			return undefined;
+		}
+
 		// Only show one tip per session
 		if (this._hasShownRequestTip) {
 			return undefined;
@@ -643,7 +652,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		let selectedTip: ITipDefinition | undefined;
 
 		// Determine where to start in the catalog based on the last-shown tip.
-		const lastTipId = this._storageService.get(ChatTipService._LAST_TIP_ID_KEY, StorageScope.WORKSPACE);
+		const lastTipId = this._storageService.get(ChatTipService._LAST_TIP_ID_KEY, StorageScope.PROFILE);
 		const lastCatalogIndex = lastTipId ? TIP_CATALOG.findIndex(tip => tip.id === lastTipId) : -1;
 		const startIndex = lastCatalogIndex === -1 ? 0 : (lastCatalogIndex + 1) % TIP_CATALOG.length;
 
@@ -679,7 +688,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		// Persist the selected tip id so the next use advances to the following one.
-		this._storageService.store(ChatTipService._LAST_TIP_ID_KEY, selectedTip.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._storageService.store(ChatTipService._LAST_TIP_ID_KEY, selectedTip.id, StorageScope.PROFILE, StorageTarget.USER);
 
 		// Record that we've shown a tip this session
 		this._hasShownRequestTip = sourceId !== 'welcome';
@@ -713,6 +722,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		return {
 			id: tipDef.id,
 			content: markdown,
+			enabledCommands: tipDef.enabledCommands,
 		};
 	}
 }

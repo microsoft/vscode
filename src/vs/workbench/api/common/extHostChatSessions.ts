@@ -176,12 +176,17 @@ class ChatSessionItemImpl implements vscode.ChatSessionItem {
 	}
 }
 
+interface SessionCollectionListeners {
+	onItemsChanged(): void;
+	onItemAddedOrUpdated(item: vscode.ChatSessionItem): void;
+}
+
 class ChatSessionItemCollectionImpl implements vscode.ChatSessionItemCollection {
 	readonly #items = new ResourceMap<vscode.ChatSessionItem>();
-	#onItemsChanged: () => void;
+	readonly #callbacks: SessionCollectionListeners;
 
-	constructor(onItemsChanged: () => void) {
-		this.#onItemsChanged = onItemsChanged;
+	constructor(callbacks: SessionCollectionListeners) {
+		this.#callbacks = callbacks;
 	}
 
 	get size(): number {
@@ -197,7 +202,7 @@ class ChatSessionItemCollectionImpl implements vscode.ChatSessionItemCollection 
 		for (const item of items) {
 			this.#items.set(item.resource, item);
 		}
-		this.#onItemsChanged();
+		this.#callbacks.onItemsChanged();
 	}
 
 	forEach(callback: (item: vscode.ChatSessionItem, collection: vscode.ChatSessionItemCollection) => unknown, thisArg?: any): void {
@@ -207,13 +212,20 @@ class ChatSessionItemCollectionImpl implements vscode.ChatSessionItemCollection 
 	}
 
 	add(item: vscode.ChatSessionItem): void {
+		const existing = this.#items.get(item.resource);
+		if (existing && existing === item) {
+			// We're adding the same item again
+			return;
+		}
+
 		this.#items.set(item.resource, item);
-		this.#onItemsChanged();
+		this.#callbacks.onItemAddedOrUpdated(item);
 	}
 
 	delete(resource: vscode.Uri): void {
-		this.#items.delete(resource);
-		this.#onItemsChanged();
+		if (this.#items.delete(resource)) {
+			this.#callbacks.onItemsChanged();
+		}
 	}
 
 	get(resource: vscode.Uri): vscode.ChatSessionItem | undefined {
@@ -324,8 +336,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 		const onDidChangeChatSessionItemStateEmitter = disposables.add(new Emitter<vscode.ChatSessionItem>());
 
-		const collection = new ChatSessionItemCollectionImpl(() => {
+		const collection = new ChatSessionItemCollectionImpl({
 			// Noop for providers
+			onItemsChanged: () => { },
+			onItemAddedOrUpdated: () => { }
 		});
 
 		// Helper to push items to main thread
@@ -400,7 +414,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			void this._proxy.$setChatSessionItems(controllerHandle, items);
 		};
 
-		const collection = new ChatSessionItemCollectionImpl(onItemsChanged);
+		const collection = new ChatSessionItemCollectionImpl({
+			onItemsChanged,
+			onItemAddedOrUpdated: (item: vscode.ChatSessionItem) => {
+				void this._proxy.$addOrUpdateChatSessionItem(controllerHandle, typeConvert.ChatSessionItem.from(item));
+			}
+		});
 
 		const controller = Object.freeze<vscode.ChatSessionItemController>({
 			id,
@@ -420,7 +439,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				}
 
 				const item = new ChatSessionItemImpl(resource, label, () => {
-					void this._proxy.$updateChatSessionItem(controllerHandle, typeConvert.ChatSessionItem.from(item));
+					// Make sure the item really is in the collection. If not we don't need to transmit it to the main thread yet
+					if (collection.get(resource) === item) {
+						void this._proxy.$addOrUpdateChatSessionItem(controllerHandle, typeConvert.ChatSessionItem.from(item));
+					}
 				});
 				return item;
 			},

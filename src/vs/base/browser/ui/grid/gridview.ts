@@ -5,7 +5,7 @@
 
 import { $ } from '../../dom.js';
 import { IBoundarySashes, Orientation, Sash } from '../sash/sash.js';
-import { DistributeSizing, ISplitViewStyles, IView as ISplitView, LayoutPriority, Sizing, AutoSizing, SplitView } from '../splitview/splitview.js';
+import { DistributeSizing, ISplitViewStyles, IView as ISplitView, IViewVisibilityAnimationOptions, LayoutPriority, Sizing, AutoSizing, SplitView } from '../splitview/splitview.js';
 import { equals as arrayEquals, tail } from '../../../common/arrays.js';
 import { Color } from '../../../common/color.js';
 import { Emitter, Event, Relay } from '../../../common/event.js';
@@ -615,7 +615,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		return this.splitview.isViewVisible(index);
 	}
 
-	setChildVisible(index: number, visible: boolean): void {
+	setChildVisible(index: number, visible: boolean, animation?: IViewVisibilityAnimationOptions): void {
 		index = validateIndex(index, this.children.length);
 
 		if (this.splitview.isViewVisible(index) === visible) {
@@ -623,7 +623,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		}
 
 		const wereAllChildrenHidden = this.splitview.contentSize === 0;
-		this.splitview.setViewVisible(index, visible);
+		this.splitview.setViewVisible(index, visible, animation);
 		const areAllChildrenHidden = this.splitview.contentSize === 0;
 
 		// If all children are hidden then the parent should hide the entire splitview
@@ -1537,7 +1537,7 @@ export class GridView implements IDisposable {
 		return true;
 	}
 
-	maximizeView(location: GridLocation) {
+	maximizeView(location: GridLocation, excludeViews: readonly IView[] = []) {
 		const [, nodeToMaximize] = this.getNode(location);
 		if (!(nodeToMaximize instanceof LeafNode)) {
 			throw new Error('Location is not a LeafNode');
@@ -1551,11 +1551,13 @@ export class GridView implements IDisposable {
 			this.exitMaximizedView();
 		}
 
+		const excludeViewSet = new Set(excludeViews);
+
 		function hideAllViewsBut(parent: BranchNode, exclude: LeafNode): void {
 			for (let i = 0; i < parent.children.length; i++) {
 				const child = parent.children[i];
 				if (child instanceof LeafNode) {
-					if (child !== exclude) {
+					if (child !== exclude && !excludeViewSet.has(child.view)) {
 						parent.setChildVisible(i, false);
 					}
 				} else {
@@ -1661,7 +1663,7 @@ export class GridView implements IDisposable {
 	 *
 	 * @param location The {@link GridLocation location} of the view.
 	 */
-	setViewVisible(location: GridLocation, visible: boolean): void {
+	setViewVisible(location: GridLocation, visible: boolean, animation?: IViewVisibilityAnimationOptions): void {
 		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 			return;
@@ -1674,7 +1676,7 @@ export class GridView implements IDisposable {
 			throw new Error('Invalid from location');
 		}
 
-		parent.setChildVisible(index, visible);
+		parent.setChildVisible(index, visible, animation);
 	}
 
 	/**

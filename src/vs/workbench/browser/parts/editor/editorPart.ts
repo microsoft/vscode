@@ -8,7 +8,7 @@ import { Part } from '../../part.js';
 import { Dimension, $, EventHelper, addDisposableGenericMouseDownListener, getWindow, isAncestorOfActiveElement, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { Event, Emitter, Relay, PauseableEmitter } from '../../../../base/common/event.js';
 import { contrastBorder, editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IEditorPart, GroupActivationReason, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from '../../../../base/browser/ui/grid/grid.js';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from '../../../common/editor.js';
@@ -116,7 +116,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private readonly _onDidChangeGroupMaximized = this._register(new Emitter<boolean>());
 	readonly onDidChangeGroupMaximized = this._onDidChangeGroupMaximized.event;
 
-	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
+	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupActivationEvent>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
 	private readonly _onDidAddGroup = this._register(new PauseableEmitter<IEditorGroupView>());
@@ -365,9 +365,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		}
 	}
 
-	activateGroup(group: IEditorGroupView | GroupIdentifier, preserveWindowOrder?: boolean): IEditorGroupView {
+	activateGroup(group: IEditorGroupView | GroupIdentifier, preserveWindowOrder?: boolean, reason?: GroupActivationReason): IEditorGroupView {
 		const groupView = this.assertGroupView(group);
-		this.doSetGroupActive(groupView);
+		this.doSetGroupActive(groupView, reason);
 
 		// Ensure window on top unless disabled
 		if (!preserveWindowOrder) {
@@ -684,7 +684,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		return groupView;
 	}
 
-	private doSetGroupActive(group: IEditorGroupView): void {
+	private doSetGroupActive(group: IEditorGroupView, reason = GroupActivationReason.DEFAULT): void {
 		if (this._activeGroup !== group) {
 			const previousActiveGroup = this._activeGroup;
 			this._activeGroup = group;
@@ -710,7 +710,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		// Always fire the event that a group has been activated
 		// even if its the same group that is already active to
 		// signal the intent even when nothing has changed.
-		this._onDidActivateGroup.fire(group);
+		this._onDidActivateGroup.fire({ group, reason });
 	}
 
 	private doRestoreGroup(group: IEditorGroupView): void {

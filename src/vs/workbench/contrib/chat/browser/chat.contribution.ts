@@ -287,11 +287,7 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.confettiOnThumbsUp': {
-			type: 'boolean',
-			description: nls.localize('chat.confettiOnThumbsUp', "Controls whether a confetti animation is shown when clicking the thumbs up button on a chat response."),
-			default: false,
-		},
+
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
 			deprecationMessage: nls.localize('chat.experimental.detectParticipant.enabled.deprecated', "This setting is deprecated. Please use `chat.detectParticipant.enabled` instead."),
@@ -326,6 +322,13 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should present the user with an OS notification when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
 			default: true,
+		},
+		[ChatConfiguration.AutoReply]: {
+			default: false,
+			markdownDescription: nls.localize('chat.autoReply.description', "Automatically answer chat question carousels using the current model. This is an advanced setting and can lead to unintended choices or actions based on incomplete context."),
+			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION_MACHINE,
+			tags: ['experimental', 'advanced'],
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
@@ -962,7 +965,7 @@ configurationRegistry.registerConfiguration({
 				patternErrorMessage: nls.localize('chat.hookFilesLocations.invalidPath', "Paths must be relative or start with '~/'. Absolute paths and '\\' separators are not supported."),
 			},
 			restricted: true,
-			tags: ['prompts', 'hooks', 'agent'],
+			tags: ['preview', 'prompts', 'hooks', 'agent'],
 			examples: [
 				{
 					[DEFAULT_HOOK_FILE_PATHS[0].path]: true,
@@ -975,12 +978,24 @@ configurationRegistry.registerConfiguration({
 		},
 		[PromptsConfig.USE_CHAT_HOOKS]: {
 			type: 'boolean',
-			title: nls.localize('chat.useChatHooks.title', "Use Chat Hooks",),
-			markdownDescription: nls.localize('chat.useChatHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`.",),
+			title: nls.localize('chat.useHooks.title', "Use Chat Hooks",),
+			markdownDescription: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`.",),
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
-			tags: ['prompts', 'hooks', 'agent']
+			tags: ['preview', 'prompts', 'hooks', 'agent'],
+			policy: {
+				name: 'ChatHooks',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.109',
+				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'chat.useHooks.description',
+						value: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`.",)
+					}
+				},
+			}
 		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',

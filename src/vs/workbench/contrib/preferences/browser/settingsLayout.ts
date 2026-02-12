@@ -209,8 +209,7 @@ export const tocData: ITOCEntry<string> = {
 						'chat.notifyWindow*',
 						'chat.statusWidget.*',
 						'chat.tips.*',
-						'chat.unifiedAgentsBar.*',
-						'chat.confettiOnThumbsUp'
+						'chat.unifiedAgentsBar.*'
 					]
 				},
 				{
@@ -258,7 +257,7 @@ export const tocData: ITOCEntry<string> = {
 						'chat.useNestedAgentsMdFiles',
 						'chat.useAgentSkills',
 						'chat.experimental.useSkillAdherencePrompt',
-						'chat.useChatHooks',
+						'chat.useHooks',
 						'chat.includeApplyingInstructions',
 						'chat.includeReferencedInstructions',
 						'chat.sendElementsToChat.*',

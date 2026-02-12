@@ -7,7 +7,7 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Downloading, StateType } from '../../../../../platform/update/common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, formatBytes, formatDate, formatTimeRemaining, tryParseDate } from '../../browser/updateStatusBarEntry.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, formatBytes, formatDate, formatTimeRemaining, getProgressPercent, tryParseDate } from '../../browser/updateStatusBarEntry.js';
 
 suite('UpdateStatusBarEntry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,6 +25,29 @@ suite('UpdateStatusBarEntry', () => {
 	function createDownloadingState(downloadedBytes?: number, totalBytes?: number, startTime?: number): Downloading {
 		return { type: StateType.Downloading, explicit: true, overwrite: false, downloadedBytes, totalBytes, startTime };
 	}
+
+	suite('getProgressPercent', () => {
+		test('handles invalid values', () => {
+			assert.strictEqual(getProgressPercent(undefined, 100), undefined);
+			assert.strictEqual(getProgressPercent(50, undefined), undefined);
+			assert.strictEqual(getProgressPercent(undefined, undefined), undefined);
+			assert.strictEqual(getProgressPercent(50, 0), undefined);
+			assert.strictEqual(getProgressPercent(50, -10), undefined);
+		});
+
+		test('computes correct percentage', () => {
+			assert.strictEqual(getProgressPercent(0, 100), 0);
+			assert.strictEqual(getProgressPercent(50, 100), 50);
+			assert.strictEqual(getProgressPercent(100, 100), 100);
+			assert.strictEqual(getProgressPercent(1, 3), 33);
+			assert.strictEqual(getProgressPercent(2, 3), 67);
+		});
+
+		test('clamps to 0-100 range', () => {
+			assert.strictEqual(getProgressPercent(-10, 100), 0);
+			assert.strictEqual(getProgressPercent(200, 100), 100);
+		});
+	});
 
 	suite('computeDownloadTimeRemaining', () => {
 		test('returns undefined for invalid or incomplete input', () => {

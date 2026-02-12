@@ -10,11 +10,13 @@
 	margin-bottom: 8px;
 	padding: 6px 10px;
 	border-radius: 4px;
-	border: 1px solid var(--vscode-focusBorder);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
 	background-color: var(--vscode-editorWidget-background);
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);
+	position: relative;
+	overflow: hidden;
 }
 
 .interactive-item-container .chat-tip-widget .codicon-lightbulb {
@@ -59,10 +61,13 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);
+	position: relative;
+	overflow: hidden;
 }
 
 .chat-getting-started-tip-container .chat-tip-widget .codicon-lightbulb {
-	display: none;
+	font-size: 12px;
+	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
 .chat-getting-started-tip-container .chat-tip-widget .rendered-markdown p {

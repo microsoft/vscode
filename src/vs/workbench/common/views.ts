@@ -609,6 +609,8 @@ export interface IViewDescriptorService {
 	getDefaultContainerById(id: string): ViewContainer | null;
 	getViewLocationById(id: string): ViewContainerLocation | null;
 
+	canMoveViews(): boolean;
+
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>;
 	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState, reason?: string): void;
 

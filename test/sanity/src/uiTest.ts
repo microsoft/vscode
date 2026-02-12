@@ -125,7 +125,7 @@ export class UITest {
 
 		this.context.log('Typing extension name to search for');
 		await page.getByText('Search Extensions in Marketplace').focus();
-		await page.keyboard.type('GitHub Pull Requests');
+		await page.keyboard.insertText('GitHub Pull Requests');
 
 		this.context.log('Clicking Install on the first extension in the list');
 		await page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/).waitFor();

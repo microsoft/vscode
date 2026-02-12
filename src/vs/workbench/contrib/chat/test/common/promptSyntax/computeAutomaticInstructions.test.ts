@@ -27,7 +27,7 @@ import { testWorkspace } from '../../../../../../platform/workspace/test/common/
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { TestContextService, TestUserDataProfileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, isPromptTextVariableEntry, toFileVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
-import { ComputeAutomaticInstructions } from '../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { ComputeAutomaticInstructions, InstructionsCollectionEvent } from '../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_RULES_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID } from '../../../common/promptSyntax/promptTypes.js';
@@ -871,12 +871,8 @@ suite('ComputeAutomaticInstructions', () => {
 						'---',
 						'applyTo: "**/*.ts"',
 						'---',
-						'TS instructions [](./referenced.instructions.md)',
+						'TS instructions',
 					]
-				},
-				{
-					path: `${rootFolder}/.github/instructions/referenced.instructions.md`,
-					contents: ['Referenced content'],
 				},
 				{
 					path: `${rootFolder}/.github/copilot-instructions.md`,
@@ -908,16 +904,174 @@ suite('ComputeAutomaticInstructions', () => {
 
 			const telemetryEvent = telemetryEvents.find(e => e.eventName === 'instructionsCollected');
 			assert.ok(telemetryEvent, 'Should emit telemetry event');
-			const data = telemetryEvent.data as {
-				applyingInstructionsCount: number;
-				referencedInstructionsCount: number;
-				agentInstructionsCount: number;
-				totalInstructionsCount: number;
-			};
-			assert.ok(data.applyingInstructionsCount >= 0, 'Should have applying count');
-			assert.ok(data.referencedInstructionsCount >= 0, 'Should have referenced count');
-			assert.ok(data.agentInstructionsCount >= 0, 'Should have agent count');
-			assert.ok(data.totalInstructionsCount >= 0, 'Should have total count');
+			const data = telemetryEvent.data as InstructionsCollectionEvent;
+			assert.deepStrictEqual(data, {
+				applyingInstructionsCount: 1,
+				referencedInstructionsCount: 0,
+				agentInstructionsCount: 2,
+				listedInstructionsCount: 0,
+				totalInstructionsCount: 3,
+				claudeRulesCount: 0,
+				claudeMdCount: 0,
+				claudeAgentsCount: 0,
+			});
+		});
+
+		test('should track Claude rules in telemetry', async () => {
+			const rootFolderName = 'telemetry-claude-rules-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/rules/code-style.md`,
+					contents: ['Code style guidelines'],
+				},
+				{
+					path: `${rootFolder}/.claude/rules/testing.md`,
+					contents: [
+						'---',
+						'paths:',
+						'  - "**/*.test.ts"',
+						'---',
+						'Testing guidelines',
+					],
+				},
+				{
+					path: `${rootFolder}/src/file.ts`,
+					contents: ['code'],
+				},
+			]);
+
+			const telemetryEvents: { eventName: string; data: unknown }[] = [];
+			const mockTelemetryService = {
+				publicLog2: (eventName: string, data: unknown) => {
+					telemetryEvents.push({ eventName, data });
+				}
+			} as unknown as ITelemetryService;
+			instaService.stub(ITelemetryService, mockTelemetryService);
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const variables = new ChatRequestVariableSet();
+			variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const telemetryEvent = telemetryEvents.find(e => e.eventName === 'instructionsCollected');
+			assert.ok(telemetryEvent, 'Should emit telemetry event');
+			const data = telemetryEvent.data as InstructionsCollectionEvent;
+			// code-style.md defaults to ** so should match; testing.md only matches *.test.ts so should not match
+			assert.strictEqual(data.claudeRulesCount, 1, 'Should count 1 Claude rules file (code-style.md matches **)');
+			assert.strictEqual(data.applyingInstructionsCount, 1, 'Claude rules count as applying instructions');
+			assert.strictEqual(data.claudeMdCount, 0, 'Should have no CLAUDE.md count');
+		});
+
+		test('should track CLAUDE.md in telemetry', async () => {
+			const rootFolderName = 'telemetry-claudemd-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_MD, true);
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/CLAUDE.md`,
+					contents: ['Claude guidelines'],
+				},
+				{
+					path: `${rootFolder}/.claude/CLAUDE.md`,
+					contents: ['More Claude guidelines'],
+				},
+				{
+					path: `${rootFolder}/src/file.ts`,
+					contents: ['code'],
+				},
+			]);
+
+			const telemetryEvents: { eventName: string; data: unknown }[] = [];
+			const mockTelemetryService = {
+				publicLog2: (eventName: string, data: unknown) => {
+					telemetryEvents.push({ eventName, data });
+				}
+			} as unknown as ITelemetryService;
+			instaService.stub(ITelemetryService, mockTelemetryService);
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const variables = new ChatRequestVariableSet();
+			variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const telemetryEvent = telemetryEvents.find(e => e.eventName === 'instructionsCollected');
+			assert.ok(telemetryEvent, 'Should emit telemetry event');
+			const data = telemetryEvent.data as InstructionsCollectionEvent;
+			assert.strictEqual(data.claudeMdCount, 2, 'Should count both CLAUDE.md files');
+			assert.strictEqual(data.claudeRulesCount, 0, 'Should have no Claude rules count');
+		});
+
+		test('should track Claude agents in telemetry', async () => {
+			const rootFolderName = 'telemetry-claude-agents-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+			testConfigService.setUserConfiguration('chat.customAgentInSubagent.enabled', true);
+			testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, {
+				[AGENTS_SOURCE_FOLDER]: true,
+				'.claude/agents': true,
+			});
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/agents/claude-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'A Claude agent\'',
+						'---',
+						'Claude agent content',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/gh-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'A GitHub agent\'',
+						'---',
+						'GitHub agent content',
+					]
+				},
+				{
+					path: `${rootFolder}/src/file.ts`,
+					contents: ['code'],
+				},
+			]);
+
+			const telemetryEvents: { eventName: string; data: unknown }[] = [];
+			const mockTelemetryService = {
+				publicLog2: (eventName: string, data: unknown) => {
+					telemetryEvents.push({ eventName, data });
+				}
+			} as unknown as ITelemetryService;
+			instaService.stub(ITelemetryService, mockTelemetryService);
+
+			const contextComputer = instaService.createInstance(
+				ComputeAutomaticInstructions,
+				ChatModeKind.Agent,
+				{ 'vscode_runSubagent': true },
+				['*']
+			);
+			const variables = new ChatRequestVariableSet();
+			variables.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'src/file.ts')));
+
+			await contextComputer.collect(variables, CancellationToken.None);
+
+			const telemetryEvent = telemetryEvents.find(e => e.eventName === 'instructionsCollected');
+			assert.ok(telemetryEvent, 'Should emit telemetry event');
+			const data = telemetryEvent.data as InstructionsCollectionEvent;
+			assert.strictEqual(data.claudeAgentsCount, 1, 'Should count 1 Claude agent');
 		});
 	});
 

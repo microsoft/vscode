@@ -92,6 +92,7 @@ export default tseslint.config(
 			'local/code-no-localized-model-description': 'warn',
 			'local/code-policy-localization-key-match': 'warn',
 			'local/code-no-localization-template-literals': 'error',
+			'local/code-no-http-import': ['warn', { target: 'src/vs/**' }],
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',

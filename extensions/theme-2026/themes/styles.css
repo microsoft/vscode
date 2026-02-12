@@ -559,10 +559,6 @@
 }
 
 /* Minimap */
-.monaco-workbench .monaco-editor .minimap {
-	backdrop-filter: var(--backdrop-blur-lg) !important;
-	-webkit-backdrop-filter: var(--backdrop-blur-lg) !important;
-}
 
 .monaco-workbench .monaco-editor .minimap canvas {
 	opacity: 0.85;

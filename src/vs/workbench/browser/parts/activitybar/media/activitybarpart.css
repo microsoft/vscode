@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .part.activitybar {
-	width: 36px;
+	width: var(--activity-bar-width, 48px);
 	height: 100%;
 }
 

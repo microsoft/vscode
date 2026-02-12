@@ -371,7 +371,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		let productJsonContents: string;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor({ commit, date: readISODate('out-build'), checksums, version }))
+			.pipe(jsonEditor({ commit, date: readISODate(out), checksums, version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -383,8 +383,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const api = gulp.src('src/vscode-dts/vscode.d.ts').pipe(rename('out/vscode-dts/vscode.d.ts'));
 
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
-
-		const workbenchModes = gulp.src('resources/workbenchModes/**', { base: '.', dot: true });
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
 		const root = path.resolve(path.join(import.meta.dirname, '..'));
@@ -420,7 +418,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			license,
 			api,
 			telemetry,
-			workbenchModes,
 			sources,
 			deps
 		);
