@@ -193,11 +193,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
-	private readonly _autoRepliedQuestionCarousels = new WeakSet<IChatQuestionCarousel>();
+	private readonly _autoRepliedQuestionCarousels = new Set<string>();
 
 	private _activeTipPart: ChatTipContentPart | undefined;
 
-	private readonly _notifiedQuestionCarousels = new WeakSet<IChatQuestionCarousel>();
+	private readonly _notifiedQuestionCarousels = new Set<string>();
 	private readonly _questionCarouselToast = this._register(new DisposableStore());
 
 	private readonly chatContentMarkdownRenderer: IMarkdownRenderer;
@@ -2166,11 +2166,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				shouldAutoFocus,
 				onSubmit: async (answers) => handleSubmit(answers, fallbackPart)
 			});
-			this.maybeAutoReplyToQuestionCarousel(carousel, fallbackPart, answers => handleSubmit(answers, fallbackPart), modelName, requestMessageText);
+			this.maybeAutoReplyToQuestionCarousel(context, carousel, fallbackPart, answers => handleSubmit(answers, fallbackPart), modelName, requestMessageText);
 			return fallbackPart;
 		}
 
-		this.maybeAutoReplyToQuestionCarousel(carousel, part, answers => handleSubmit(answers, part), modelName, requestMessageText);
+		this.maybeAutoReplyToQuestionCarousel(context, carousel, part, answers => handleSubmit(answers, part), modelName, requestMessageText);
 
 		// Track the carousel for auto-skip when user submits a new message
 		// Only add tracking if not already tracked (prevents duplicate tracking on re-render)
@@ -2209,13 +2209,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 	}
 
+	private _getCarouselStableKey(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel): string | undefined {
+		const requestId = isResponseVM(context.element) ? context.element.requestId : undefined;
+		if (!requestId || !carousel.resolveId) {
+			return undefined;
+		}
+		return `${requestId}::${carousel.resolveId}`;
+	}
+
 	private _notifyOnQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel): void {
 		if (carousel.isUsed) {
 			return;
 		}
 
-		// Only notify once per carousel instance to avoid duplicate toasts on rerender.
-		if (this._notifiedQuestionCarousels.has(carousel)) {
+		// Only notify once per carousel to avoid duplicate toasts on rerender.
+		// Use a stable key based on requestId + resolveId instead of object identity.
+		const stableKey = this._getCarouselStableKey(context, carousel);
+		if (stableKey ? this._notifiedQuestionCarousels.has(stableKey) : false) {
 			return;
 		}
 		// Alert screen readers with the question
@@ -2226,7 +2236,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			? localize('chat.questionCarouselAlertOne', "Chat input required (1 question): {0}", stringQuestion)
 			: localize('chat.questionCarouselAlertMany', "Chat input required ({0} questions): {1}", questionCount, stringQuestion);
 		this.accessibilityService.alert(alertMessage);
-		this._notifiedQuestionCarousels.add(carousel);
+		if (stableKey) {
+			this._notifiedQuestionCarousels.add(stableKey);
+		}
 
 		// Reuse the existing confirmation notification setting.
 		if (!this.configService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
@@ -2285,6 +2297,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private maybeAutoReplyToQuestionCarousel(
+		context: IChatContentPartRenderContext,
 		carousel: IChatQuestionCarousel,
 		part: ChatQuestionCarouselPart,
 		submit: (answers: Map<string, unknown> | undefined) => Promise<void>,
@@ -2294,11 +2307,27 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (carousel.isUsed) {
 			return;
 		}
-		void this.shouldAutoReplyToQuestionCarousel().then(shouldAutoReply => {
-			if (!shouldAutoReply || this._autoRepliedQuestionCarousels.has(carousel)) {
+
+		// Use a stable key based on requestId + resolveId to prevent duplicate
+		// auto-replies across re-renders of the same logical carousel.
+		const stableKey = this._getCarouselStableKey(context, carousel);
+		if (stableKey) {
+			if (this._autoRepliedQuestionCarousels.has(stableKey)) {
 				return;
 			}
-			this._autoRepliedQuestionCarousels.add(carousel);
+			// Mark as in-progress before the async opt-in check to prevent
+			// duplicate prompts/requests from concurrent re-renders.
+			this._autoRepliedQuestionCarousels.add(stableKey);
+		}
+
+		void this.shouldAutoReplyToQuestionCarousel().then(shouldAutoReply => {
+			if (!shouldAutoReply) {
+				// Roll back the in-progress mark if auto-reply is not enabled.
+				if (stableKey) {
+					this._autoRepliedQuestionCarousels.delete(stableKey);
+				}
+				return;
+			}
 
 			const cts = new CancellationTokenSource();
 			part.addDisposable(toDisposable(() => {
