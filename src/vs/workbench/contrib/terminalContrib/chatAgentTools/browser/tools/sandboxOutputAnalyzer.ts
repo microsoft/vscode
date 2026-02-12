@@ -39,7 +39,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 			if (sandboxedDomains.length === 0) {
 				return localize(
 					'runInTerminalTool.sandboxCommandFailed.unlistedDomains',
-					"Command failed due to sandbox restrictions. The domains used in the command are not listed in the sandbox network settings. Add {0} to sandbox network settings {1}. Do not try alternate approaches until the domains are added to the allow list.",
+					"Command failed due to sandbox restrictions. The domains used in the command are not listed in the sandbox network settings. Use the ask_questions tool to ask the user if they want to add {0} to the sandbox allow list in setting {1}. Do not try alternate approaches until the domains are added to the allow list.",
 					domains.join(', '),
 					TerminalChatAgentToolsSettingId.TerminalSandboxNetwork
 				);
@@ -47,7 +47,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 			} else if (sandboxChecks.filter(check => check.isInDeniedList === true).length > 0) {
 				return localize(
 					'runInTerminalTool.sandboxCommandFailed.deniedDomains',
-					"Command failed due to sandbox restrictions. These domains are in the sandbox denied list: {0}. Update sandbox network settings {1}. Do not try alternate approaches until the domains are removed from the denied list.",
+					"Command failed due to sandbox restrictions. These domains are in the sandbox denied list: {0}. Use the ask_questions tool to ask the user if they want to remove {0} from the sandbox denied list in setting {1}. Do not try alternate approaches until the domains are removed from the denied list.",
 					sandboxedDomains.join(', '),
 					TerminalChatAgentToolsSettingId.TerminalSandboxNetwork
 				);
@@ -55,7 +55,7 @@ export class SandboxOutputAnalyzer extends Disposable implements IOutputAnalyzer
 				//check for redirects
 				return localize(
 					'runInTerminalTool.sandboxCommandFailed.possibleRedirects',
-					"Command failed due to sandbox restrictions. These domains are in the sandbox allowed list: {0}. These domains may redirect to another domain thats not added to the sandbox network settings {2}. Try `curl -IL https://{1}` to inspect redirects. Do not try alternate approaches until the redirect domains are added to the allow list.",
+					"Command failed due to sandbox restrictions. These domains are in the sandbox allowed list: {0}. These domains may redirect to another domain thats not added to the sandbox network settings {2}. Try `curl -IL https://{1}` to inspect redirects. Once redirect domains are identified, use the ask_questions tool to ask the user if they want to add the redirect domains to the sandbox allow list in setting {2}. Do not try alternate approaches until the redirect domains are added to the allow list.",
 					sandboxedDomains.join(', '),
 					sandboxedDomains[0],
 					TerminalChatAgentToolsSettingId.TerminalSandboxNetwork

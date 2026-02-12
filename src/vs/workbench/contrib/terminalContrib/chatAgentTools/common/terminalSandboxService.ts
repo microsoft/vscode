@@ -32,6 +32,7 @@ export interface ITerminalSandboxService {
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
 	checkIfDomainsAreSandboxed(domains: string[]): SandboxedDomainCheckResult[];
+	addDomainsToAllowList(domains: string[]): Promise<void>;
 }
 
 export interface SandboxedDomainCheckResult {
@@ -228,8 +229,20 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 	}
 
+	public async addDomainsToAllowList(domains: string[]): Promise<void> {
+		const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+		const existingDomains = new Set(networkSetting.allowedDomains ?? []);
+		for (const domain of domains) {
+			existingDomains.add(domain.toLowerCase());
+		}
+		await this._configurationService.updateValue(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
+			...networkSetting,
+			allowedDomains: Array.from(existingDomains),
+		});
+	}
+
 	private _setSandboxedDomains(): void {
-		const networkSettings = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+		const networkSettings = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
 		const allowedDomains = networkSettings.allowedDomains ?? [];
 		const deniedDomains = networkSettings.deniedDomains ?? [];
 		this._allowedDomains.clear();

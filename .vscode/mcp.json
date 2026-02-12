@@ -4,8 +4,41 @@
 			"type": "stdio",
 			"command": "npm",
 			// Look at the [README](../test/mcp/README.md) to see what arguments are supported
-			"args": ["run", "start-stdio"],
-			"cwd": "${workspaceFolder}/test/mcp"
+			"args": [
+				"run",
+				"start-stdio"
+			],
+			"cwd": "${workspaceFolder}/test/mcp",
+			"sandboxEnabled": true,
+			"env": {
+				"TMPDIR": "/tmp"
+			}
+
+
+		},
+		"everything": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@modelcontextprotocol/server-everything"
+			],
+			"sandboxEnabled": true,
+		},
+	},
+	  "sandbox": {
+		"network": {
+			"allowedDomains": [ "*.openai.com", "*.google.com", "*.microsoft.com", "registry.npmjs.org"
+			],
+			"deniedDomains": []
+		},
+		"filesystem": {
+			"allowWrite": [
+				".",
+				"~/.npm",
+				"/home/dileepy/vscode"
+			],
+			"denyWrite": [],
+			"denyRead": []
 		}
 	},
 	"inputs": []

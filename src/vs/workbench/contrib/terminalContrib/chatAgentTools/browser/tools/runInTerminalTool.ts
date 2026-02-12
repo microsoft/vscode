@@ -1014,7 +1014,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const outputAnalyzerMessages: string[] = [];
 		for (const analyzer of this._outputAnalyzers) {
 			const message = await analyzer.analyze({ exitCode, exitResult: terminalResult, commandLine: command });
-			if (message !== undefined) {
+			if (message) {
 				outputAnalyzerMessages.push(message);
 				break;
 			}
