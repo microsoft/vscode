@@ -102,7 +102,7 @@ declare module 'vscode' {
 		 *
 		 * This is also called on first load to get the initial set of items.
 		 */
-		refreshHandler: (token: CancellationToken) => Thenable<void>;
+		readonly refreshHandler: (token: CancellationToken) => Thenable<void>;
 
 		/**
 		 * Fired when an item's archived state changes.
@@ -204,33 +204,33 @@ declare module 'vscode' {
 			/**
 			 * Timestamp when the session was created in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 			 */
-			created: number;
+			readonly created: number;
 
 			/**
 			 * Timestamp when the most recent request started in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 			 *
 			 * Should be undefined if no requests have been made yet.
 			 */
-			lastRequestStarted?: number;
+			readonly lastRequestStarted?: number;
 
 			/**
 			 * Timestamp when the most recent request completed in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 			 *
 			 * Should be undefined if the most recent request is still in progress or if no requests have been made yet.
 			 */
-			lastRequestEnded?: number;
+			readonly lastRequestEnded?: number;
 
 			/**
 			 * Session start timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 			 * @deprecated Use `created` and `lastRequestStarted` instead.
 			 */
-			startTime?: number;
+			readonly startTime?: number;
 
 			/**
 			 * Session end timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 			 * @deprecated Use `lastRequestEnded` instead.
 			 */
-			endTime?: number;
+			readonly endTime?: number;
 		};
 
 		/**

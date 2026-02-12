@@ -361,7 +361,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		if (provider.onDidChangeChatSessionItems) {
 			disposables.add(provider.onDidChangeChatSessionItems(() => {
 				this._logService.trace(`ExtHostChatSessions. Provider items changed for ${chatSessionType}`);
-				this._proxy.$onDidChangeChatSessionItems(handle);
+				// When a provider fires this, we treat it the same as triggering a refresh in the new controller based model.
+				// This is because with providers, firing this event would signal that `provide` should be called again.
+				// With controllers, it instead signals that you should read the current items again.
+				controller.refreshHandler(CancellationToken.None);
 			}));
 		}
 

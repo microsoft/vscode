@@ -244,7 +244,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return undefined;
 		} catch (err) {
 			this._logService.trace('node-pty.node-pty.IPty#spawn native exception', err);
-			return { message: `A native exception occurred during launch (${err.message})` };
+			const errorMessage = err.message;
+			if (errorMessage?.includes('Cannot launch conpty')) {
+				return { message: localize('conptyLaunchFailed', "A native exception occurred during launch (Cannot launch conpty). Winpty has been removed, see {0} for more details. You can also try enabling the `{1}` setting.", 'https://code.visualstudio.com/updates/v1_109#_removal-of-winpty-support', 'terminal.integrated.windowsUseConptyDll') };
+			}
+			return { message: `A native exception occurred during launch (${errorMessage})` };
 		}
 	}
 

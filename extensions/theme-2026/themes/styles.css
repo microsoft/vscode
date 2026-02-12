@@ -283,16 +283,18 @@
 
 /* Context Menus */
 .monaco-workbench .monaco-menu .monaco-action-bar.vertical {
-	box-shadow: var(--shadow-lg);
 	border-radius: var(--radius-lg);
-	backdrop-filter: var(--backdrop-blur-md);
-	-webkit-backdrop-filter: var(--backdrop-blur-md);
 }
 
 .monaco-workbench .context-view .monaco-menu {
 	box-shadow: var(--shadow-lg);
 	border: none;
 	border-radius: var(--radius-lg);
+}
+
+.monaco-workbench .monaco-menu-container > .monaco-scrollable-element {
+	border-radius: var(--radius-lg) !important;
+	box-shadow: var(--shadow-lg) !important;
 }
 
 .monaco-workbench .action-widget {

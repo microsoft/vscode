@@ -15,7 +15,7 @@ import electron from '@vscode/gulp-electron';
 import jsonEditor from 'gulp-json-editor';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
-import { readISODate } from './lib/date.ts';
+import { readISODate, writeISODate } from './lib/date.ts';
 import * as task from './lib/task.ts';
 import buildfile from './buildfile.ts';
 import * as optimize from './lib/optimize.ts';
@@ -30,9 +30,12 @@ import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
+import { copyCodiconsTask } from './lib/compilation.ts';
+import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
+import * as cp from 'child_process';
 
 
 const glob = promisify(globCallback);
@@ -152,6 +155,81 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 ));
 gulp.task(bundleVSCodeTask);
 
+// esbuild-based bundle tasks (drop-in replacement for bundle-vscode / minify-vscode)
+function runEsbuildTranspile(outDir: string, excludeTests: boolean): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const scriptPath = path.join(root, 'build/next/index.ts');
+		const args = [scriptPath, 'transpile', '--out', outDir];
+		if (excludeTests) {
+			args.push('--exclude-tests');
+		}
+
+		const proc = cp.spawn(process.execPath, args, {
+			cwd: root,
+			stdio: 'inherit'
+		});
+
+		proc.on('error', reject);
+		proc.on('close', code => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`esbuild transpile failed with exit code ${code} (outDir: ${outDir})`));
+			}
+		});
+	});
+}
+
+function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, target: 'desktop' | 'server' | 'server-web' = 'desktop', sourceMapBaseUrl?: string): Promise<void> {
+	return new Promise((resolve, reject) => {
+		// const tsxPath = path.join(root, 'build/node_modules/tsx/dist/cli.mjs');
+		const scriptPath = path.join(root, 'build/next/index.ts');
+		const args = [scriptPath, 'bundle', '--out', outDir, '--target', target];
+		if (minify) {
+			args.push('--minify');
+		}
+		if (nls) {
+			args.push('--nls');
+		}
+		if (sourceMapBaseUrl) {
+			args.push('--source-map-base-url', sourceMapBaseUrl);
+		}
+
+		const proc = cp.spawn(process.execPath, args, {
+			cwd: root,
+			stdio: 'inherit'
+		});
+
+		proc.on('error', reject);
+		proc.on('close', code => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`esbuild bundle failed with exit code ${code} (outDir: ${outDir}, minify: ${minify}, nls: ${nls}, target: ${target})`));
+			}
+		});
+	});
+}
+
+function runTsGoTypeCheck(): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const proc = cp.spawn('tsgo', ['--project', 'src/tsconfig.json', '--noEmit', '--skipLibCheck'], {
+			cwd: root,
+			stdio: 'inherit',
+			shell: true
+		});
+
+		proc.on('error', reject);
+		proc.on('close', code => {
+			if (code === 0) {
+				resolve();
+			} else {
+				reject(new Error(`tsgo typecheck failed with exit code ${code}`));
+			}
+		});
+	});
+}
+
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	bundleVSCodeTask,
@@ -160,7 +238,7 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 ));
 gulp.task(minifyVSCodeTask);
 
-const coreCI = task.define('core-ci', task.series(
+const coreCIOld = task.define('core-ci-old', task.series(
 	gulp.task('compile-build-with-mangling') as task.Task,
 	task.parallel(
 		gulp.task('minify-vscode') as task.Task,
@@ -168,7 +246,28 @@ const coreCI = task.define('core-ci', task.series(
 		gulp.task('minify-vscode-reh-web') as task.Task,
 	)
 ));
-gulp.task(coreCI);
+gulp.task(coreCIOld);
+
+const coreCIEsbuild = task.define('core-ci-esbuild', task.series(
+	copyCodiconsTask,
+	cleanExtensionsBuildTask,
+	compileNonNativeExtensionsBuildTask,
+	compileExtensionMediaBuildTask,
+	writeISODate('out-build'),
+	// Type-check with tsgo (no emit)
+	task.define('tsgo-typecheck', () => runTsGoTypeCheck()),
+	// Transpile individual files to out-build first (for unit tests)
+	task.define('esbuild-out-build', () => runEsbuildTranspile('out-build', false)),
+	// Then bundle for shipping (bundles also write NLS files to out-build)
+	task.parallel(
+		task.define('esbuild-vscode-min', () => runEsbuildBundle('out-vscode-min', true, true, 'desktop', `${sourceMappingURLBase}/core`)),
+		task.define('esbuild-vscode-reh-min', () => runEsbuildBundle('out-vscode-reh-min', true, true, 'server', `${sourceMappingURLBase}/core`)),
+		task.define('esbuild-vscode-reh-web-min', () => runEsbuildBundle('out-vscode-reh-web-min', true, true, 'server-web', `${sourceMappingURLBase}/core`)),
+	)
+));
+gulp.task(coreCIEsbuild);
+
+gulp.task(task.define('core-ci', useEsbuildTranspile ? coreCIEsbuild : coreCIOld));
 
 const coreCIPR = task.define('core-ci-pr', task.series(
 	gulp.task('compile-build-without-mangling') as task.Task,
@@ -516,27 +615,44 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const sourceFolderName = `out-vscode${dashed(minified)}`;
 		const destinationFolderName = `VSCode${dashed(platform)}${dashed(arch)}`;
 
-		const tasks = [
+		const packageTasks: task.Task[] = [
 			compileNativeExtensionsBuildTask,
 			util.rimraf(path.join(buildRoot, destinationFolderName)),
 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts)
 		];
 
 		if (platform === 'win32') {
-			tasks.push(patchWin32DependenciesTask(destinationFolderName));
+			packageTasks.push(patchWin32DependenciesTask(destinationFolderName));
 		}
 
-		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...tasks));
+		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 		gulp.task(vscodeTaskCI);
 
-		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
-			cleanExtensionsBuildTask,
-			compileNonNativeExtensionsBuildTask,
-			compileExtensionMediaBuildTask,
-			minified ? minifyVSCodeTask : bundleVSCodeTask,
-			vscodeTaskCI
-		));
+		let vscodeTask: task.Task;
+		if (useEsbuildTranspile) {
+			const esbuildBundleTask = task.define(
+				`esbuild-bundle${dashed(platform)}${dashed(arch)}${dashed(minified)}`,
+				() => runEsbuildBundle(sourceFolderName, !!minified, true, 'desktop', minified ? `${sourceMappingURLBase}/core` : undefined)
+			);
+			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				copyCodiconsTask,
+				cleanExtensionsBuildTask,
+				compileNonNativeExtensionsBuildTask,
+				compileExtensionMediaBuildTask,
+				writeISODate('out-build'),
+				esbuildBundleTask,
+				vscodeTaskCI
+			));
+		} else {
+			vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
+				cleanExtensionsBuildTask,
+				compileNonNativeExtensionsBuildTask,
+				compileExtensionMediaBuildTask,
+				minified ? minifyVSCodeTask : bundleVSCodeTask,
+				vscodeTaskCI
+			));
+		}
 		gulp.task(vscodeTask);
 
 		return vscodeTask;
@@ -568,7 +684,7 @@ const innoSetupConfig: Record<string, { codePage: string; defaultInfo?: { name: 
 gulp.task(task.define(
 	'vscode-translations-export',
 	task.series(
-		coreCI,
+		gulp.task('core-ci') as task.Task,
 		compileAllExtensionsBuildTask,
 		function () {
 			const pathToMetadata = './out-build/nls.metadata.json';
