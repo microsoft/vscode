@@ -377,6 +377,8 @@ export class TipEligibilityTracker extends Disposable {
 							for (const tool of toolSet.getTools()) {
 								if (tool.id === e.toolId) {
 									this._invokedTools.add(e.toolId);
+									// Remove set name from monitoring since ANY tool from the set excludes the tip.
+									// The tip remains excluded via _invokedTools even after we stop monitoring.
 									this._monitoredToolSets.delete(setName);
 									changed = true;
 									break;
