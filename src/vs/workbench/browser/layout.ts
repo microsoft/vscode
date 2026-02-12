@@ -102,7 +102,8 @@ enum LayoutClasses {
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
-	WINDOW_BORDER = 'border'
+	WINDOW_BORDER = 'border',
+	TERMINAL_MODE = 'terminal-mode'
 }
 
 interface IPathToOpen extends IPath {
@@ -740,8 +741,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			runtime: layoutRuntimeState,
 		};
 
+		// Terminal Mode: --terminal flag opens a terminal-only window
+		if (this.environmentService.terminal) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, true);
+			this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, true);
+			this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
+			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, false);
+			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, true);
+			this.state.initialization.views.containerToRestore.panel = 'terminal';
+		}
+
 		// Sidebar View Container To Restore
-		if (this.isVisible(Parts.SIDEBAR_PART)) {
+		if (!this.environmentService.terminal && this.isVisible(Parts.SIDEBAR_PART)) {
 			let viewContainerToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
 			if (
 				!this.environmentService.isBuilt ||
@@ -828,6 +839,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	protected willRestoreEditors(): boolean {
+		if (this.environmentService.terminal) {
+			return false;
+		}
+
 		return this.state.initialization.editor.restoreEditors;
 	}
 
@@ -1156,6 +1171,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// or auxiliary bar are maximized.
 			if (getActiveElement() === mainWindow.document.body && (this.isPanelMaximized() || this.isAuxiliaryBarMaximized())) {
 				this.focus();
+			}
+
+			// Focus the panel when in terminal mode
+			if (this.environmentService.terminal && getActiveElement() === mainWindow.document.body) {
+				this.focusPart(Parts.PANEL_PART);
 			}
 
 			this.whenReadyPromise.complete();
@@ -1859,7 +1879,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
-			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined
+			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
+			this.environmentService.terminal ? LayoutClasses.TERMINAL_MODE : undefined
 		]);
 	}
 
@@ -2004,6 +2025,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setPanelHidden(hidden: boolean, skipLayout?: boolean): void {
+		// Block hiding the panel in terminal mode
+		if (hidden && this.environmentService.terminal) {
+			return;
+		}
+
 		if (!this.workbenchGrid) {
 			return; // Return if not initialized fully (https://github.com/microsoft/vscode/issues/105480)
 		}
@@ -2217,6 +2243,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
+		// Block showing the auxiliary bar in terminal mode
+		if (!hidden && this.environmentService.terminal) {
+			return;
+		}
+
 		if (hidden && this.setAuxiliaryBarMaximized(false) && !this.isVisible(Parts.AUXILIARYBAR_PART)) {
 			return; // return: leaving maximised auxiliary bar made this part hidden
 		}

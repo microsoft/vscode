@@ -98,3 +98,9 @@
 	display: inline-block;
 	transform: rotate(180deg);
 }
+
+/* Terminal mode: hide per-composite toolbar and global actions in panel */
+.monaco-workbench.terminal-mode .part.panel > .composite.title > .title-actions,
+.monaco-workbench.terminal-mode .part.panel > .composite.title > .global-actions {
+	display: none !important;
+}

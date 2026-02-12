@@ -43,6 +43,8 @@ export const EmbedderIdentifierContext = new RawContextKey<string | undefined>('
 
 export const InAutomationContext = new RawContextKey<boolean>('inAutomation', false, localize('inAutomation', "Whether VS Code is running under automation/smoke test"));
 
+export const TerminalModeContext = new RawContextKey<boolean>('isTerminalMode', false, localize('isTerminalMode', "Whether VS Code is running in terminal-only mode"));
+
 //#endregion
 
 //#region < --- Window --- >

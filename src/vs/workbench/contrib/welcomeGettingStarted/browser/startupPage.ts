@@ -232,6 +232,10 @@ function isStartupPageEnabled(configurationService: IConfigurationService, conte
 		return false;
 	}
 
+	if (environmentService.terminal) {
+		return false;
+	}
+
 	const startupEditor = configurationService.inspect<string>(configurationKey);
 	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
