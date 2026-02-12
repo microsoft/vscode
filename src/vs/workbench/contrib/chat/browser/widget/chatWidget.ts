@@ -236,7 +236,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
-	private gettingStartedTipContainer: HTMLElement | undefined;
 	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
@@ -629,7 +628,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 			dom.append(this.container, this.chatSuggestNextWidget.domNode);
-			this.gettingStartedTipContainer = dom.append(this.container, $('.chat-getting-started-tip-container', { style: 'display: none' }));
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 		}
 
@@ -855,24 +853,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// Show/hide the getting-started tip container based on empty state.
 			// Only use this in the standard chat layout where the welcome view is shown.
-			if (isStandardLayout && this.gettingStartedTipContainer) {
+			if (isStandardLayout && this.inputPart) {
+				const tipContainer = this.inputPart.gettingStartedTipContainerElement;
 				if (numItems === 0) {
 					this.renderGettingStartedTipIfNeeded();
-					this.container.classList.toggle('chat-has-getting-started-tip', !!this._gettingStartedTipPart.value);
 				} else {
 					// Dispose the cached tip part so the next empty state picks a
 					// fresh (rotated) tip instead of re-showing the stale one.
 					this._gettingStartedTipPart.clear();
-					dom.clearNode(this.gettingStartedTipContainer);
-					// Reset inline positioning from layoutGettingStartedTipPosition
-					// so the next render starts from the CSS defaults.
-					this.gettingStartedTipContainer.style.top = '';
-					this.gettingStartedTipContainer.style.bottom = '';
-					this.gettingStartedTipContainer.style.left = '';
-					this.gettingStartedTipContainer.style.right = '';
-					this.gettingStartedTipContainer.style.width = '';
-					dom.setVisibility(false, this.gettingStartedTipContainer);
-					this.container.classList.toggle('chat-has-getting-started-tip', false);
+					dom.clearNode(tipContainer);
+					dom.setVisibility(false, tipContainer);
 				}
 			}
 		}
@@ -937,10 +927,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private renderGettingStartedTipIfNeeded(): void {
-		const tipContainer = this.gettingStartedTipContainer;
-		if (!tipContainer) {
+		if (!this.inputPart) {
 			return;
 		}
+
+		const tipContainer = this.inputPart.gettingStartedTipContainerElement;
 
 		// Already showing a tip
 		if (this._gettingStartedTipPart.value) {
@@ -967,51 +958,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			tipPart.domNode.remove();
 			this._gettingStartedTipPart.clear();
 			dom.setVisibility(false, tipContainer);
-			this.container.classList.toggle('chat-has-getting-started-tip', false);
 		}));
 
 		this._gettingStartedTipPart.value = store;
 		dom.setVisibility(true, tipContainer);
-
-		// Best-effort synchronous position (works when layout is already settled,
-		// e.g. the very first render after page load).
-		this.layoutGettingStartedTipPosition();
-
-		// Also schedule a deferred correction for cases where the browser
-		// hasn't finished layout yet (e.g. returning to the welcome view
-		// after a conversation).
-		store.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(tipContainer), () => {
-			this.layoutGettingStartedTipPosition();
-		}));
-	}
-
-	private layoutGettingStartedTipPosition(): void {
-		if (!this.container || !this.gettingStartedTipContainer || !this.inputPart) {
-			return;
-		}
-
-		const inputContainer = this.inputPart.inputContainerElement;
-		if (!inputContainer) {
-			return;
-		}
-
-		const containerRect = this.container.getBoundingClientRect();
-		const inputRect = inputContainer.getBoundingClientRect();
-		const tipRect = this.gettingStartedTipContainer.getBoundingClientRect();
-
-		// Align the tip horizontally with the input container.
-		const left = inputRect.left - containerRect.left;
-		this.gettingStartedTipContainer.style.left = `${left}px`;
-		this.gettingStartedTipContainer.style.right = 'auto';
-		this.gettingStartedTipContainer.style.width = `${inputRect.width}px`;
-
-		// Position the tip so its bottom edge sits flush against the input's
-		// top edge for a seamless visual connection.
-		const topOffset = inputRect.top - containerRect.top - tipRect.height;
-		if (topOffset > 0) {
-			this.gettingStartedTipContainer.style.top = `${topOffset}px`;
-			this.gettingStartedTipContainer.style.bottom = 'auto';
-		}
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
@@ -1852,9 +1802,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (this.bodyDimension) {
 					this.layout(this.bodyDimension.height, this.bodyDimension.width);
 				}
-
-				// Keep getting-started tip aligned with the top of the input
-				this.layoutGettingStartedTipPosition();
 
 				this._onDidChangeContentHeight.fire();
 			}));

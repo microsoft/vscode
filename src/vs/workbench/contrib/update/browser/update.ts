@@ -72,6 +72,81 @@ async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
 	}
 }
 
+/**
+ * Appends update-related menu items to the given menu. This registers menu items
+ * for all update states (idle, checking, downloading, etc.) that show the current
+ * update status. The underlying commands (`update.check`, `update.restart`, etc.)
+ * must be registered separately.
+ */
+export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.check',
+			title: nls.localize('checkForUpdates', "Check for Updates...")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.checking',
+			title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloadNow',
+			title: nls.localize('download update_1', "Download Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloading',
+			title: nls.localize('DownloadingUpdate', "Downloading Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.install',
+			title: nls.localize('installUpdate...', "Install Update... (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.updating',
+			title: nls.localize('installingUpdate', "Installing Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		order: 2,
+		command: {
+			id: 'update.restart',
+			title: nls.localize('restartToUpdate', "Restart to Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+	});
+}
+
 interface IVersion {
 	major: number;
 	minor: number;
@@ -455,67 +530,17 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private registerGlobalActivityActions(): void {
 		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(true));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.check',
-				title: nls.localize('checkForUpdates', "Check for Updates...")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
-		});
-
 		CommandsRegistry.registerCommand('update.checking', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.checking',
-				title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
-		});
-
 		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate(true));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.downloadNow',
-				title: nls.localize('download update_1', "Download Update (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
-		});
-
 		CommandsRegistry.registerCommand('update.downloading', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.downloading',
-				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
-		});
-
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.install',
-				title: nls.localize('installUpdate...', "Install Update... (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+		CommandsRegistry.registerCommand('update.updating', () => { });
+		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
+		CommandsRegistry.registerCommand('_update.state', () => {
+			return this.state;
 		});
 
-		CommandsRegistry.registerCommand('update.updating', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.updating',
-				title: nls.localize('installingUpdate', "Installing Update..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
-		});
+		appendUpdateMenuItems(MenuId.GlobalActivity, '7_update');
 
 		if (this.productService.quality === 'stable') {
 			CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
@@ -539,21 +564,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				when: ContextKeyExpr.and(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready), MAJOR_MINOR_UPDATE_AVAILABLE)
 			});
 		}
-
-		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			order: 2,
-			command: {
-				id: 'update.restart',
-				title: nls.localize('restartToUpdate', "Restart to Update (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
-		});
-
-		CommandsRegistry.registerCommand('_update.state', () => {
-			return this.state;
-		});
 	}
 }
 

@@ -24,45 +24,49 @@
 	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
+.interactive-item-container .chat-tip-widget a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.interactive-item-container .chat-tip-widget a:hover,
+.interactive-item-container .chat-tip-widget a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .interactive-item-container .chat-tip-widget .rendered-markdown p {
 	margin: 0;
 }
 
 .chat-getting-started-tip-container {
-	position: absolute;
-	left: 12px;
-	right: 12px;
-	/* Initial vertical position; updated dynamically to align with input top */
-	bottom: 96px;
-	display: flex;
-	justify-content: center;
-	/* No horizontal padding so width exactly matches input */
-	padding: 0;
-	pointer-events: none;
-	z-index: 2;
+	margin-bottom: -4px; /* Counter the flex gap */
+	width: 100%;
 }
 
 .chat-getting-started-tip-container .chat-tip-widget {
-	pointer-events: auto;
 	display: flex;
 	align-items: center;
 	gap: 4px;
 	width: 100%;
 	max-width: 100%;
 	box-sizing: border-box;
-	/* Match input inner padding (6px per side) so content edges align */
 	padding: 6px;
-	/* Darker background for welcome-state tip, distinct from input */
 	background-color: var(--vscode-editorWidget-background);
 	border-radius: 4px 4px 0 0;
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
 	border-bottom: none; /* Seamless attachment to input below */
-	box-shadow: none;
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);
-	position: relative;
 	overflow: hidden;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.chat-getting-started-tip-container .chat-tip-widget a:hover,
+.chat-getting-started-tip-container .chat-tip-widget a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .chat-getting-started-tip-container .chat-tip-widget .codicon-lightbulb {

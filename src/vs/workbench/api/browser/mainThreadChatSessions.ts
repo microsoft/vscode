@@ -33,7 +33,7 @@ import { IEditorGroupsService } from '../../services/editor/common/editorGroupsS
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 export class ObservableChatSession extends Disposable implements IChatSession {
 
@@ -346,10 +346,12 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		return this._proxy.$refreshChatSessionItems(this._handle, token);
 	}
 
-	setItems(items: readonly IChatSessionItem[]): void {
-		this._items.clear();
-		for (const item of items) {
+	acceptChange(change: { readonly addedOrUpdated: readonly IChatSessionItem[]; readonly removed: readonly URI[] }): void {
+		for (const item of change.addedOrUpdated) {
 			this._items.set(item.resource, item);
+		}
+		for (const uri of change.removed) {
+			this._items.delete(uri);
 		}
 		this._onDidChangeChatSessionItems.fire();
 	}
@@ -479,10 +481,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		};
 	}
 
-	async $setChatSessionItems(controllerHandle: number, items: Dto<IChatSessionItem>[]): Promise<void> {
+	async $updateChatSessionItems(controllerHandle: number, change: IChatSessionItemsChange): Promise<void> {
 		const controller = this.getController(controllerHandle);
-		const resolvedItems = await Promise.all(items.map(item => this._resolveSessionItem(item)));
-		controller.setItems(resolvedItems);
+		const resolvedItems = await Promise.all(change.addedOrUpdated.map(item => this._resolveSessionItem(item)));
+		controller.acceptChange({
+			addedOrUpdated: resolvedItems,
+			removed: change.removed.map(uri => URI.revive(uri))
+		});
 	}
 
 	async $addOrUpdateChatSessionItem(controllerHandle: number, item: Dto<IChatSessionItem>): Promise<void> {
