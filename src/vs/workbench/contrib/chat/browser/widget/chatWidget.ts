@@ -847,36 +847,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * Updates the DOM visibility of welcome view and chat list immediately
 	 */
 	private updateChatViewVisibility(): void {
-		const isStandardLayout = this.viewOptions.renderStyle !== 'compact' && this.viewOptions.renderStyle !== 'minimal';
-		const numItems = this.viewModel?.getItems().length ?? 0;
-
 		if (this.viewModel) {
+			const isStandardLayout = this.viewOptions.renderStyle !== 'compact' && this.viewOptions.renderStyle !== 'minimal';
+			const numItems = this.viewModel.getItems().length;
 			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
 			dom.setVisibility(numItems !== 0, this.listContainer);
-		}
 
-		// Show/hide the getting-started tip container based on empty state.
-		// Only use this in the standard chat layout where the welcome view is shown.
-		// This is outside the viewModel guard so the tip renders even before the
-		// model is set (e.g. during the initial welcome render).
-		if (isStandardLayout && this.gettingStartedTipContainer) {
-			if (numItems === 0) {
-				this.renderGettingStartedTipIfNeeded();
-				this.container.classList.toggle('chat-has-getting-started-tip', !!this._gettingStartedTipPart.value);
-			} else {
-				// Dispose the cached tip part so the next empty state picks a
-				// fresh (rotated) tip instead of re-showing the stale one.
-				this._gettingStartedTipPart.clear();
-				dom.clearNode(this.gettingStartedTipContainer);
-				// Reset inline positioning from layoutGettingStartedTipPosition
-				// so the next render starts from the CSS defaults.
-				this.gettingStartedTipContainer.style.top = '';
-				this.gettingStartedTipContainer.style.bottom = '';
-				this.gettingStartedTipContainer.style.left = '';
-				this.gettingStartedTipContainer.style.right = '';
-				this.gettingStartedTipContainer.style.width = '';
-				dom.setVisibility(false, this.gettingStartedTipContainer);
-				this.container.classList.toggle('chat-has-getting-started-tip', false);
+			// Show/hide the getting-started tip container based on empty state.
+			// Only use this in the standard chat layout where the welcome view is shown.
+			if (isStandardLayout && this.gettingStartedTipContainer) {
+				if (numItems === 0) {
+					this.renderGettingStartedTipIfNeeded();
+					this.container.classList.toggle('chat-has-getting-started-tip', !!this._gettingStartedTipPart.value);
+				} else {
+					// Dispose the cached tip part so the next empty state picks a
+					// fresh (rotated) tip instead of re-showing the stale one.
+					this._gettingStartedTipPart.clear();
+					dom.clearNode(this.gettingStartedTipContainer);
+					// Reset inline positioning from layoutGettingStartedTipPosition
+					// so the next render starts from the CSS defaults.
+					this.gettingStartedTipContainer.style.top = '';
+					this.gettingStartedTipContainer.style.bottom = '';
+					this.gettingStartedTipContainer.style.left = '';
+					this.gettingStartedTipContainer.style.right = '';
+					this.gettingStartedTipContainer.style.width = '';
+					dom.setVisibility(false, this.gettingStartedTipContainer);
+					this.container.classList.toggle('chat-has-getting-started-tip', false);
+				}
 			}
 		}
 
