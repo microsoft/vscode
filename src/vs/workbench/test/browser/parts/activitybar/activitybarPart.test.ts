@@ -20,6 +20,7 @@ import { Event, Emitter } from '../../../../../base/common/event.js';
 import { IPaneComposite } from '../../../../common/panecomposite.js';
 import { PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ViewContainerLocation } from '../../../../common/views.js';
 
 class StubPaneCompositePart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
@@ -81,6 +82,7 @@ suite('ActivitybarPart', () => {
 		const stubInstantiationService = { createInstance: () => { throw new Error('not expected'); } } as unknown as IInstantiationService;
 
 		const part = disposables.add(new ActivitybarPart(
+			ViewContainerLocation.Sidebar,
 			new StubPaneCompositePart(),
 			stubInstantiationService,
 			layoutService,
