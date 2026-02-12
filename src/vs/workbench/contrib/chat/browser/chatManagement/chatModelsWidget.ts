@@ -1113,7 +1113,7 @@ export class ChatModelsWidget extends Disposable {
 						ariaLabels.push(localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
 						if (e.model.metadata.maxInputTokens || e.model.metadata.maxOutputTokens) {
 							const totalTokens = (e.model.metadata.maxInputTokens ?? 0) + (e.model.metadata.maxOutputTokens ?? 0);
-							ariaLabels.push(localize('model.contextSize', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
+							ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
 						}
 						if (e.model.metadata.capabilities) {
 							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));
