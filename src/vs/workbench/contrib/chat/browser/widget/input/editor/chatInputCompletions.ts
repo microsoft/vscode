@@ -1062,7 +1062,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 			return {
 				label: { label: basename, description: labelDescription },
-				filterText: `${typedLeader}${basename}`,
+				filterText: `${basename} ${typedLeader}${basename} ${uriLabel}`,
 				insertText: info.varWord?.endColumn === info.replace.endColumn ? `${text} ` : text,
 				range: info,
 				kind: kind === FileKind.FILE ? CompletionItemKind.File : CompletionItemKind.Folder,
@@ -1098,8 +1098,10 @@ class BuiltinDynamicCompletions extends Disposable {
 
 			if (pattern) {
 				// use pattern if available
+				const uriLabel = this.labelService.getUriLabel(resource, { relative: true }).toLowerCase();
 				const basename = this.labelService.getUriBasenameLabel(resource).toLowerCase();
-				if (!isPatternInWord(pattern, 0, pattern.length, basename, 0, basename.length)) {
+				const combined = `${basename} ${uriLabel}`;
+				if (!isPatternInWord(pattern, 0, pattern.length, combined, 0, combined.length)) {
 					continue;
 				}
 			}
@@ -1312,6 +1314,7 @@ class ToolCompletions extends Disposable {
 				}
 
 				const typedLeader = range.varWord?.word?.charAt(0) === chatAgentLeader ? chatAgentLeader : chatVariableLeader;
+				const pattern = range.varWord?.word ? range.varWord.word.toLowerCase().slice(1) : '';
 				const suggestions: CompletionItem[] = [];
 
 
@@ -1339,6 +1342,13 @@ class ToolCompletions extends Disposable {
 
 					if (usedNames.has(name)) {
 						continue;
+					}
+
+					if (pattern) {
+						const lowerName = name.toLowerCase();
+						if (!isPatternInWord(pattern, 0, pattern.length, lowerName, 0, lowerName.length)) {
+							continue;
+						}
 					}
 
 					const withLeader = `${chatVariableLeader}${name}`;
