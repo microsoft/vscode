@@ -14,9 +14,10 @@ import { ICDPTarget, CDPEvent, CDPError, CDPServerError, CDPMethodNotFoundError,
  * to the appropriate attached session by sessionId.
  */
 export class CDPBrowserProxy extends Disposable implements ICDPConnection {
+	readonly sessionId = `browser-session-${generateUuid()}`;
 
 	// Browser session state
-	readonly sessionId = `browser-session-${generateUuid()}`;
+	private _isAttachedToBrowserTarget = false;
 	private _autoAttach = false;
 	private _discover = false;
 
@@ -157,6 +158,7 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 	}
 
 	private handleTargetAttachToBrowserTarget() {
+		this._isAttachedToBrowserTarget = true;
 		return { sessionId: this.sessionId };
 	}
 
@@ -170,8 +172,8 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 			throw new CDPInvalidParamsError('This implementation only supports auto-attach with flatten=true');
 		}
 
-		this._autoAttach = autoAttach;
 		// Note: auto-attach only attaches to new targets, not to existing ones.
+		this._autoAttach = autoAttach;
 
 		return {};
 	}
@@ -260,7 +262,8 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 
 	/** Send a browser-level event to the client */
 	private sendBrowserEvent(method: string, params: unknown): void {
-		this._onEvent.fire({ method, params, sessionId: this.sessionId });
+		const sessionId = this._isAttachedToBrowserTarget ? this.sessionId : undefined;
+		this._onEvent.fire({ method, params, sessionId });
 	}
 
 	/** Attach to a target, creating a named session */
