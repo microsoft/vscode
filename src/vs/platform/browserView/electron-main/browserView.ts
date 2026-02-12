@@ -16,6 +16,8 @@ import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-mai
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 import { BrowserViewUri } from '../common/browserViewUri.js';
+import { IURLService } from '../../url/common/url.js';
+import { URI } from '../../../base/common/uri.js';
 
 /** Key combinations that are used in system-level shortcuts. */
 const nativeShortcuts = new Set([
@@ -28,6 +30,7 @@ const nativeShortcuts = new Set([
 	KeyMod.CtrlCmd | KeyCode.KeyZ,
 	KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ
 ]);
+const builtInSchemes = new Set(['http', 'https', 'file', 'data']);
 
 /**
  * Represents a single browser view instance with its WebContentsView and all associated logic.
@@ -85,7 +88,8 @@ export class BrowserView extends Disposable {
 		createChildView: (options?: Electron.WebContentsViewConstructorOptions) => BrowserView,
 		options: Electron.WebContentsViewConstructorOptions | undefined,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@IURLService private readonly urlService: IURLService
 	) {
 		super();
 
@@ -122,6 +126,11 @@ export class BrowserView extends Disposable {
 
 			if (!location || !this.consumePopupPermission(location)) {
 				// Eventually we may want to surface this. For now, just silently block it.
+				return { action: 'deny' };
+			}
+
+			// Check for external URLs first. If handled externally, cancel the popup.
+			if (this.maybeHandleExternalURL(details.url)) {
 				return { action: 'deny' };
 			}
 
@@ -312,6 +321,27 @@ export class BrowserView extends Disposable {
 				finalUpdate: result.finalUpdate
 			});
 		});
+
+		// Handle opening external URLs
+		webContents.on('will-navigate', (event, url) => {
+			if (this.maybeHandleExternalURL(url)) {
+				event.preventDefault();
+			}
+		});
+	}
+
+	/**
+	 * Check if the URL should be handled externally (and handle it).
+	 * Returns true if the URL is external and navigation should be prevented.
+	 */
+	private maybeHandleExternalURL(url: string): boolean {
+		const uri = URI.parse(url);
+		if (!(builtInSchemes.has(uri.scheme) || this.viewSession.protocol.isProtocolHandled(uri.scheme))) {
+			// Pass to URL service with trusted=false to trigger confirmation dialogs
+			this.urlService.open(uri, { trusted: false });
+			return true;
+		}
+		return false;
 	}
 
 	private consumePopupPermission(location: BrowserNewPageLocation): boolean {
