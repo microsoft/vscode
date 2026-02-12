@@ -377,6 +377,7 @@ export class TipEligibilityTracker extends Disposable {
 							for (const tool of toolSet.getTools()) {
 								if (tool.id === e.toolId) {
 									this._invokedTools.add(e.toolId);
+									this._monitoredToolSets.delete(setName);
 									changed = true;
 									break;
 								}
