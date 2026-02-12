@@ -156,7 +156,7 @@ async function addHookToFile(
 	let jsonContent: string;
 	if (fileExists) {
 		// Use setProperty to make targeted edits that preserve comments
-		const originalText = existingContent ?? (await fileService.readFile(hookFileUri)).value.toString();
+		const originalText = (await fileService.readFile(hookFileUri)).value.toString();
 		const detectedEol = originalText.includes('\r\n') ? '\r\n' : '\n';
 		const formattingOptions: FormattingOptions = { tabSize: 1, insertSpaces: false, eol: detectedEol };
 		const edits = setProperty(originalText, ['hooks', keyToUse, newHookIndex], newHookEntry, formattingOptions);
