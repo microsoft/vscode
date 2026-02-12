@@ -16,6 +16,7 @@ import { NativeParsedArgs } from '../common/argv.js';
 // the built-in `path` lib for the time being.
 // eslint-disable-next-line local/code-import-patterns
 import { resolve, isAbsolute, join } from 'path';
+import { INodeProcess } from '../../../base/common/platform.js';
 
 const cwd = process.env['VSCODE_CWD'] || process.cwd();
 
@@ -46,7 +47,11 @@ function doGetUserDataPath(cliArgs: NativeParsedArgs, productName: string): stri
 
 	// 0. Running out of sources has a fixed productName
 	if (process.env['VSCODE_DEV']) {
-		productName = 'code-oss-dev';
+		if ((process as INodeProcess).isEmbeddedApp) {
+			productName = 'sessions-oss-dev';
+		} else {
+			productName = 'code-oss-dev';
+		}
 	}
 
 	// 1. Support portable mode

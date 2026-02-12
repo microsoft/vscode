@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
-import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
+import { chmodSync, existsSync, readFileSync, readdirSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from '../../base/common/event.js';
@@ -500,7 +500,23 @@ export async function main(argv: string[]): Promise<void> {
 			//    focusing issues when the new instance only sends data to a previous instance and then closes.
 			const spawnArgs = ['-n', '-g'];
 			// -a opens the given application.
-			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
+			let appToLaunch = process.execPath;
+			if (args['sessions']) {
+				// process.execPath is e.g. /Applications/Code.app/Contents/MacOS/Electron
+				// Embedded app is at /Applications/Code.app/Contents/Applications/<EmbeddedApp>.app
+				const contentsPath = dirname(dirname(process.execPath));
+				const applicationsPath = join(contentsPath, 'Applications');
+				const embeddedApp = existsSync(applicationsPath) && readdirSync(applicationsPath).find(f => f.endsWith('.app'));
+				if (embeddedApp) {
+					appToLaunch = join(applicationsPath, embeddedApp);
+					argv = argv.filter(arg => arg !== '--sessions');
+				} else {
+					console.error(`No embedded app found in: ${applicationsPath}`);
+					console.error('The --sessions flag requires an embedded app to be installed.');
+					return;
+				}
+			}
+			spawnArgs.push('-a', appToLaunch);
 
 			if (args.verbose || args.status) {
 				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
