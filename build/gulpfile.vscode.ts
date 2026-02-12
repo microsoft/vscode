@@ -26,6 +26,7 @@ import * as crypto from 'crypto';
 import * as i18n from './lib/i18n.ts';
 import { getProductionDependencies } from './lib/dependencies.ts';
 import { config } from './lib/electron.ts';
+import plist from 'plist';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
@@ -313,6 +314,42 @@ function computeChecksum(filename: string): string {
 	return hash;
 }
 
+/**
+ * Patch the darwin Info.plist to add UTExportedTypeDeclarations and UTImportedTypeDeclarations.
+ * This ensures macOS uses the correct language-specific file icons in Finder.
+ * See https://github.com/microsoft/vscode/issues/107306
+ */
+function patchDarwinInfoPlist(): NodeJS.ReadWriteStream {
+	function mapUTType(type: { identifier: string; description: string; conformsTo: string[]; iconFiles: string[]; tagSpecification: { 'public.filename-extension': string[] } }) {
+		return {
+			UTTypeIdentifier: type.identifier,
+			UTTypeDescription: type.description,
+			UTTypeConformsTo: type.conformsTo,
+			UTTypeIconFiles: type.iconFiles,
+			UTTypeTagSpecification: type.tagSpecification,
+		};
+	}
+
+	return es.mapSync(function (f: any) {
+		// Only patch the main app's Info.plist, not nested helpers (which may be binary plists)
+		if (!/^[^/\\]+\.app[/\\]Contents[/\\]Info\.plist$/.test(f.relative)) {
+			return f;
+		}
+		const contents = f.contents.toString('utf8');
+		const infoPlist = plist.parse(contents) as Record<string, any>;
+
+		if (config.darwinBundleUTExportedTypes?.length) {
+			infoPlist['UTExportedTypeDeclarations'] = config.darwinBundleUTExportedTypes.map(mapUTType);
+		}
+		if (config.darwinBundleUTImportedTypes?.length) {
+			infoPlist['UTImportedTypeDeclarations'] = config.darwinBundleUTImportedTypes.map(mapUTType);
+		}
+
+		f.contents = Buffer.from(plist.build(infoPlist), 'utf8');
+		return f;
+	});
+}
+
 function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
@@ -474,7 +511,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
 			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: false }))
-			.pipe(filter(['**', '!LICENSE', '!version'], { dot: true }));
+			.pipe(filter(['**', '!LICENSE', '!version'], { dot: true }))
+			.pipe(platform === 'darwin' ? patchDarwinInfoPlist() : es.through());
 
 		if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })
