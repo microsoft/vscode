@@ -52,6 +52,7 @@ export interface ICommandsExecuter {
 
 export class CLIServerBase {
 	private _server: http.Server | undefined = undefined;
+	private _disposed = false;
 
 	constructor(
 		private readonly _commands: ICommandsExecuter,
@@ -68,6 +69,9 @@ export class CLIServerBase {
 	private async setup(): Promise<void> {
 		try {
 			const http = await import('http');
+			if (this._disposed) {
+				return;
+			}
 			this._server = http.createServer((req, res) => this.onRequest(req, res));
 			try {
 				this._server.listen(this.ipcHandlePath);
@@ -177,6 +181,7 @@ export class CLIServerBase {
 	}
 
 	dispose(): void {
+		this._disposed = true;
 		this._server?.close();
 
 		if (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {
