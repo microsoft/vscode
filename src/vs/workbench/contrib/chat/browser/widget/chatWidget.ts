@@ -236,7 +236,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 
-
 	private readonly _gettingStartedTipPart = this._register(new MutableDisposable<DisposableStore>());
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
