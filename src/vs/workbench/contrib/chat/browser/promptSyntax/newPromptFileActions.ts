@@ -172,6 +172,9 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 				`name: ${name ?? '${1:prompt-name}'}`,
 				`description: \${2:Describe when to use this prompt}`,
 				`---`,
+				``,
+				`<!-- Tip: Use /create-prompt in chat to generate content with agent assistance -->`,
+				``,
 				`\${3:Define the prompt content here. You can include instructions, examples, and any other relevant information to guide the AI's responses.}`,
 			].join('\n');
 		case PromptsType.instructions:
@@ -182,14 +185,20 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`paths:`,
 					`. - "src/**/*.ts"`,
 					`---`,
+					``,
+					`<!-- Tip: Use /create-instruction in chat to generate content with agent assistance -->`,
+					``,
 					`\${2:Provide coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 				].join('\n');
 			} else {
 				return [
 					`---`,
-					`description: \${1:Describe when these instructions should be loaded}`,
+					`description: \${1:Describe when these instructions should be loaded by the agent based on task context}`,
 					`# applyTo: '\${1|**,**/*.ts|}' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file`,
 					`---`,
+					``,
+					`<!-- Tip: Use /create-instruction in chat to generate content with agent assistance -->`,
+					``,
 					`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 				].join('\n');
 			}
@@ -201,6 +210,9 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`description: \${2:Describe what this custom agent does and when to use it.}`,
 					`tools: Read, Grep, Glob, Bash # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
 					`---`,
+					``,
+					`<!-- Tip: Use /create-agent in chat to generate content with agent assistance -->`,
+					``,
 					`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
 				].join('\n');
 			} else {
@@ -211,6 +223,9 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`argument-hint: \${3:The inputs this agent expects, e.g., "a task to implement" or "a question to answer".}`,
 					`# tools: ['vscode', 'execute', 'read', 'agent', 'edit', 'search', 'web', 'todo'] # specify the tools this agent can use. If not set, all enabled tools are allowed.`,
 					`---`,
+					``,
+					`<!-- Tip: Use /create-agent in chat to generate content with agent assistance -->`,
+					``,
 					`\${4:Define what this custom agent does, including its behavior, capabilities, and any specific instructions for its operation.}`,
 				].join('\n');
 			}
@@ -220,6 +235,9 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 				`name: ${name ?? '${1:skill-name}'}`,
 				`description: \${2:Describe what this skill does and when to use it. Include keywords that help agents identify relevant tasks.}`,
 				`---`,
+				``,
+				`<!-- Tip: Use /create-skill in chat to generate content with agent assistance -->`,
+				``,
 				`\${3:Define the functionality provided by this skill, including detailed instructions and examples}`,
 			].join('\n');
 		default:

@@ -227,8 +227,18 @@ export class ChatContextUsageWidget extends Disposable {
 	update(lastRequest: IChatRequestModel | undefined): void {
 		this._lastRequestDisposable.clear();
 
-		if (!lastRequest?.response || !lastRequest.modelId) {
+		if (!lastRequest) {
+			// New/empty chat session clear everything
+			this.currentData = undefined;
 			this.hide();
+			return;
+		}
+
+		if (!lastRequest.response || !lastRequest.modelId) {
+			// Pending request keep old data visible if available
+			if (!this.currentData) {
+				this.hide();
+			}
 			return;
 		}
 
@@ -251,7 +261,9 @@ export class ChatContextUsageWidget extends Disposable {
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
 		if (!usage || !maxInputTokens || maxInputTokens <= 0 || !maxOutputTokens || maxOutputTokens <= 0) {
-			this.hide();
+			if (!this.currentData) {
+				this.hide();
+			}
 			return;
 		}
 

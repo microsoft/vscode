@@ -96,7 +96,6 @@ import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatSubagentContentPart } from './chatContentParts/chatSubagentContentPart.js';
-import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
 import { ChatWorkspaceEditContentPart } from './chatContentParts/chatWorkspaceEditContentPart.js';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
@@ -105,7 +104,6 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/codeBlockPart.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { IChatTipService } from '../chatTipService.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
@@ -188,8 +186,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _autoRepliedQuestionCarousels = new Set<string>();
 	private readonly _autoReply: ChatQuestionCarouselAutoReply;
 
-	private _activeTipPart: ChatTipContentPart | undefined;
-
 	private readonly _notifiedQuestionCarousels = new Set<string>();
 	private readonly _questionCarouselToast = this._register(new DisposableStore());
 
@@ -259,7 +255,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatService private readonly chatService: IChatService,
-		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IHostService private readonly hostService: IHostService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -308,17 +303,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return Iterable.concat(this._editorPool.inUse(), this._toolEditorPool.inUse());
 	}
 
-	hasTipFocus(): boolean {
-		return this._activeTipPart?.hasFocus() ?? false;
-	}
 
-	focusTip(): boolean {
-		if (!this._activeTipPart) {
-			return false;
-		}
-		this._activeTipPart.focus();
-		return true;
-	}
 
 	private traceLayout(method: string, message: string) {
 		if (forceVerboseLayoutTracing) {
@@ -1075,32 +1060,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.value);
 		const parts: IChatContentPart[] = [];
-
-		// Render tip above the request message (if available)
-		const tip = this.chatTipService.getNextTip(element.id, element.timestamp, this.contextKeyService);
-		if (tip) {
-			const tipPart = this.instantiationService.createInstance(ChatTipContentPart,
-				tip,
-				this.chatContentMarkdownRenderer,
-				() => this.chatTipService.getNextTip(element.id, element.timestamp, this.contextKeyService),
-			);
-			templateData.value.appendChild(tipPart.domNode);
-			this._activeTipPart = tipPart;
-			templateData.elementDisposables.add(tipPart);
-			templateData.elementDisposables.add(tipPart.onDidHide(() => {
-				tipPart.domNode.remove();
-				if (this._activeTipPart === tipPart) {
-					this._activeTipPart = undefined;
-				}
-			}));
-			templateData.elementDisposables.add({
-				dispose: () => {
-					if (this._activeTipPart === tipPart) {
-						this._activeTipPart = undefined;
-					}
-				}
-			});
-		}
 
 		let inlineSlashCommandRendered = false;
 		content.forEach((data, contentIndex) => {

@@ -2108,12 +2108,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-/* Tree view: remove twistie indent for leaf (non-collapsible) file rows */
-.interactive-session .chat-editing-session-list .monaco-tl-twistie:not(.collapsible) {
-	width: 0;
-	padding-right: 0;
-}
-
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {
 	border-radius: 4px;
 }

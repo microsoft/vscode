@@ -150,7 +150,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _latestXtermParseData: number = 0;
 	private _isExiting: boolean;
 	private _hadFocusOnExit: boolean;
-	private _isVisible: boolean;
 	private _exitCode: number | undefined;
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
@@ -217,6 +216,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	set waitOnExit(value: ITerminalInstance['waitOnExit']) {
 		this._shellLaunchConfig.waitOnExit = value;
 	}
+
+	private _isVisible: boolean;
+	get isVisible(): boolean { return this._isVisible; }
 
 	private _targetRef: ImmortalReference<TerminalLocation | undefined> = new ImmortalReference(undefined);
 	get targetRef(): IReference<TerminalLocation | undefined> { return this._targetRef; }

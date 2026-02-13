@@ -8,40 +8,14 @@ import { DomEmitter } from '../../event.js';
 import { ISashEvent as IBaseSashEvent, Orientation, Sash, SashState } from '../sash/sash.js';
 import { SmoothScrollableElement } from '../scrollbar/scrollableElement.js';
 import { pushToEnd, pushToStart, range } from '../../../common/arrays.js';
-import { CancellationToken } from '../../../common/cancellation.js';
 import { Color } from '../../../common/color.js';
 import { Emitter, Event } from '../../../common/event.js';
 import { combinedDisposable, Disposable, dispose, IDisposable, toDisposable } from '../../../common/lifecycle.js';
 import { clamp } from '../../../common/numbers.js';
 import { Scrollable, ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as types from '../../../common/types.js';
-import { CubicBezierCurve, isMotionReduced, scaleDuration } from '../motion/motion.js';
 import './splitview.css';
 export { Orientation } from '../sash/sash.js';
-
-/**
- * Options for animating a view visibility change in a {@link SplitView}.
- */
-export interface IViewVisibilityAnimationOptions {
-
-	/** Transition duration in milliseconds. */
-	readonly duration: number;
-
-	/** The easing curve applied to the animation. */
-	readonly easing: CubicBezierCurve;
-
-	/**
-	 * Optional callback invoked when the animation finishes naturally.
-	 * NOT called if the animation is cancelled via the {@link token}.
-	 */
-	readonly onComplete?: () => void;
-
-	/**
-	 * A cancellation token that allows the caller to stop the animation.
-	 * When cancellation is requested the animation snaps to its final state.
-	 */
-	readonly token: CancellationToken;
-}
 
 export interface ISplitViewStyles {
 	readonly separatorBorder: Color;
@@ -828,38 +802,14 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 	/**
 	 * Set a {@link IView view}'s visibility.
 	 *
-	 * When {@link animation} is provided and motion is not reduced, the
-	 * visibility change is animated. Otherwise the change is applied
-	 * instantly. Any in-flight animation is always cancelled first.
-	 *
 	 * @param index The {@link IView view} index.
 	 * @param visible Whether the {@link IView view} should be visible.
-	 * @param animation Optional animation options. When omitted (or when
-	 *   the user prefers reduced motion) the change is instant.
 	 */
-	setViewVisible(index: number, visible: boolean, animation?: IViewVisibilityAnimationOptions): void {
+	setViewVisible(index: number, visible: boolean): void {
 		if (index < 0 || index >= this.viewItems.length) {
 			throw new Error('Index out of bounds');
 		}
 
-		// Cancel any in-flight animation before changing visibility.
-		// An animated visibility change interpolates ALL view sizes each
-		// frame, so a concurrent change on a different view would be
-		// overwritten on the next frame. Snapping first prevents that.
-		this._cleanupMotion?.();
-		this._cleanupMotion = undefined;
-
-		if (animation && !animation.token.isCancellationRequested && !isMotionReduced(this.el) && this.viewItems[index].visible !== visible) {
-			this._setViewVisibleAnimated(index, visible, animation);
-		} else {
-			this._setViewVisibleInstant(index, visible);
-		}
-	}
-
-	/**
-	 * Apply the visibility change to the model without animation.
-	 */
-	private _setViewVisibleInstant(index: number, visible: boolean): void {
 		const viewItem = this.viewItems[index];
 		viewItem.setVisible(visible);
 
@@ -867,167 +817,6 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 		this.layoutViews();
 		this.saveProportions();
 	}
-
-	/**
-	 * Animate the visibility change using `requestAnimationFrame`.
-	 *
-	 * Interpolates all view sizes on each frame, which naturally cascades
-	 * layout changes through nested splitviews in the grid hierarchy
-	 * (e.g., the bottom panel resizing when the sidebar animates).
-	 *
-	 * The animation can be cancelled via {@link IViewVisibilityAnimationOptions.token}.
-	 * {@link IViewVisibilityAnimationOptions.onComplete} is only called when the
-	 * animation finishes naturally (not on cancellation).
-	 */
-	private _setViewVisibleAnimated(index: number, visible: boolean, animation: IViewVisibilityAnimationOptions): void {
-		const { duration: baseDuration, easing, onComplete, token } = animation;
-
-		const container = this.viewContainer.children[index] as HTMLElement;
-		const window = getWindow(this.el);
-		let disposed = false;
-		let rafId: number | undefined;
-
-		// 1. Snapshot sizes BEFORE the visibility change (the animation start state)
-		const startSizes = this.viewItems.map(v => v.size);
-
-		// 2. Apply the target visibility to the model instantly.
-		//    This computes final sizes, fires events, updates sashes, etc.
-		this._setViewVisibleInstant(index, visible);
-
-		// 3. Snapshot sizes AFTER the visibility change (the animation end state)
-		const finalSizes = this.viewItems.map(v => v.size);
-
-		// 4. Restore start sizes so we can animate FROM them
-		for (let i = 0; i < this.viewItems.length; i++) {
-			this.viewItems[i].size = startSizes[i];
-		}
-
-		// 5. For hiding: the target container lost .visible class (→ display:none).
-		//    Restore it so content stays visible during the animation.
-		if (!visible) {
-			container.classList.add('visible');
-		}
-
-		// 6. Clip overflow on the animating container so that the view
-		//    content (rendered at its full target size) is revealed/hidden
-		//    smoothly as the container width animates.
-		container.style.overflow = 'hidden';
-
-		// The target size is the full (non-zero) panel size. During
-		// animation we re-layout the animating view at this fixed size
-		// after each frame so its content never reflows at intermediate
-		// widths/heights (prevents chat, extension icons, etc. from
-		// jumping around). Sibling views still receive interpolated sizes
-		// so the editor / bottom panel remain responsive.
-		const viewTargetSize = visible ? finalSizes[index] : startSizes[index];
-
-		// 6b. Set initial opacity for fade effect
-		container.style.opacity = visible ? '0' : '1';
-
-		// 7. Scale duration based on pixel distance for consistent perceived velocity
-		const pixelDistance = Math.abs(finalSizes[index] - startSizes[index]);
-		const duration = scaleDuration(baseDuration, pixelDistance);
-
-		// 8. Render the start state
-		this.layoutViews();
-		try {
-			this.viewItems[index].view.layout(viewTargetSize, 0, this.layoutContext);
-		} catch (e) {
-			console.error('Splitview: Failed to layout view during animation');
-			console.error(e);
-		}
-
-		// 9. Easing curve is pre-parsed - ready for JS evaluation
-
-		// Helper: snap all sizes to final state and clean up
-		const applyFinalState = () => {
-			for (let i = 0; i < this.viewItems.length; i++) {
-				this.viewItems[i].size = finalSizes[i];
-			}
-			container.style.opacity = '';
-			container.style.overflow = '';
-			if (!visible) {
-				container.classList.remove('visible');
-			}
-			this.layoutViews();
-			this.saveProportions();
-		};
-
-		const cleanup = (completed: boolean) => {
-			if (disposed) {
-				return;
-			}
-			disposed = true;
-			tokenListener.dispose();
-			if (rafId !== undefined) {
-				window.cancelAnimationFrame(rafId);
-				rafId = undefined;
-			}
-			applyFinalState();
-			this._cleanupMotion = undefined;
-			if (completed) {
-				onComplete?.();
-			}
-		};
-		this._cleanupMotion = () => cleanup(false);
-
-		// Listen to the cancellation token so the caller can stop the animation
-		const tokenListener = token.onCancellationRequested(() => cleanup(false));
-
-		// 10. Animate via requestAnimationFrame
-		const startTime = performance.now();
-		const totalSize = this.size;
-
-		const animate = () => {
-			if (disposed) {
-				return;
-			}
-
-			const elapsed = performance.now() - startTime;
-			const t = Math.min(elapsed / duration, 1);
-			const easedT = easing.solve(t);
-
-			// Interpolate opacity for fade effect
-			container.style.opacity = String(visible ? easedT : 1 - easedT);
-
-			// Interpolate all view sizes
-			let runningTotal = 0;
-			for (let i = 0; i < this.viewItems.length; i++) {
-				if (i === this.viewItems.length - 1) {
-					// Last item absorbs rounding errors to maintain total = this.size
-					this.viewItems[i].size = totalSize - runningTotal;
-				} else {
-					const size = Math.round(
-						startSizes[i] + (finalSizes[i] - startSizes[i]) * easedT
-					);
-					this.viewItems[i].size = size;
-					runningTotal += size;
-				}
-			}
-
-			this.layoutViews();
-
-			// Re-layout the animating view at its full target size so its
-			// content does not reflow at intermediate sizes. The container
-			// is already at the interpolated size with overflow:hidden.
-			try {
-				this.viewItems[index].view.layout(viewTargetSize, 0, this.layoutContext);
-			} catch (e) {
-				console.error('Splitview: Failed to layout view during animation');
-				console.error(e);
-			}
-
-			if (t < 1) {
-				rafId = window.requestAnimationFrame(animate);
-			} else {
-				cleanup(true);
-			}
-		};
-
-		rafId = window.requestAnimationFrame(animate);
-	}
-
-	private _cleanupMotion: (() => void) | undefined;
 
 	/**
 	 * Returns the {@link IView view}'s size previously to being hidden.

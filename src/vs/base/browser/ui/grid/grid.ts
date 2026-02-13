@@ -9,10 +9,9 @@ import { Event } from '../../../common/event.js';
 import { Disposable } from '../../../common/lifecycle.js';
 import './gridview.css';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview.js';
-import type { SplitView, AutoSizing as SplitViewAutoSizing, IViewVisibilityAnimationOptions } from '../splitview/splitview.js';
+import type { SplitView, AutoSizing as SplitViewAutoSizing } from '../splitview/splitview.js';
 
 export type { IViewSize };
-export type { IViewVisibilityAnimationOptions } from '../splitview/splitview.js';
 export { LayoutPriority, Orientation, orthogonal } from './gridview.js';
 
 export const enum Direction {
@@ -651,12 +650,10 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * Set the visibility state of a {@link IView view}.
 	 *
 	 * @param view The {@link IView view}.
-	 * @param visible Whether the view should be visible.
-	 * @param animation Optional animation options.
 	 */
-	setViewVisible(view: T, visible: boolean, animation?: IViewVisibilityAnimationOptions): void {
+	setViewVisible(view: T, visible: boolean): void {
 		const location = this.getViewLocation(view);
-		this.gridview.setViewVisible(location, visible, animation);
+		this.gridview.setViewVisible(location, visible);
 	}
 
 	/**

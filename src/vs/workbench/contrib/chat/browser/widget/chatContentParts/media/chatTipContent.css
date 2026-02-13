@@ -3,49 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.interactive-item-container .chat-tip-widget {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	margin-bottom: 8px;
-	padding: 6px 10px;
-	border-radius: 4px;
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
-	background-color: var(--vscode-editorWidget-background);
-	font-size: var(--vscode-chat-font-size-body-s);
-	font-family: var(--vscode-chat-font-family, inherit);
-	color: var(--vscode-descriptionForeground);
-	position: relative;
-}
-
-.interactive-item-container .chat-tip-widget .codicon-lightbulb {
-	font-size: 12px;
-	color: var(--vscode-notificationsWarningIcon-foreground);
-}
-
-.interactive-item-container .chat-tip-widget a {
-	color: var(--vscode-textLink-foreground);
-}
-
-.interactive-item-container .chat-tip-widget a:hover,
-.interactive-item-container .chat-tip-widget a:active {
-	color: var(--vscode-textLink-activeForeground);
-}
-
-.interactive-item-container .chat-tip-widget .rendered-markdown p {
-	margin: 0;
-}
-
-.interactive-item-container .chat-tip-widget .chat-tip-toolbar,
 .chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar {
 	opacity: 0;
 	pointer-events: none;
 }
 
-.interactive-item-container .chat-tip-widget .chat-tip-toolbar > .monaco-toolbar,
 .chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar > .monaco-toolbar {
 	position: absolute;
-	top: -15px;
+	top: -20px;
 	right: 10px;
 	height: 26px;
 	line-height: 26px;
@@ -56,27 +21,23 @@
 	transition: opacity 0.1s ease-in-out;
 }
 
-.interactive-item-container .chat-tip-widget:hover .chat-tip-toolbar,
-.interactive-item-container .chat-tip-widget:focus-within .chat-tip-toolbar,
 .chat-getting-started-tip-container .chat-tip-widget:hover .chat-tip-toolbar,
 .chat-getting-started-tip-container .chat-tip-widget:focus-within .chat-tip-toolbar {
 	opacity: 1;
 	pointer-events: auto;
 }
 
-.interactive-item-container .chat-tip-widget .chat-tip-toolbar .action-item,
 .chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item {
 	height: 24px;
 	width: 24px;
 	margin: 1px 2px;
 }
 
-.interactive-item-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label,
 .chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label {
 	color: var(--vscode-descriptionForeground);
+	padding: 4px;
 }
 
-.interactive-item-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label:hover,
 .chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
@@ -121,18 +82,4 @@
 
 .chat-getting-started-tip-container .chat-tip-widget .rendered-markdown p {
 	margin: 0;
-}
-
-/* Override bubble styling for tip widget's rendered markdown in chat editor */
-.interactive-session:not(.chat-widget > .interactive-session) {
-	.interactive-item-container.interactive-request .value .chat-tip-widget .rendered-markdown {
-		background-color: transparent;
-		border-radius: 0;
-		padding: 0;
-		max-width: none;
-		margin-left: 0;
-		width: auto;
-		margin-bottom: 0;
-		position: static;
-	}
 }

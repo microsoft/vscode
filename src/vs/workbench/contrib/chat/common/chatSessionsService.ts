@@ -85,7 +85,6 @@ export interface IChatSessionsExtensionPoint {
 	readonly capabilities?: IChatAgentAttachmentCapabilities;
 	readonly commands?: IChatSessionCommandContribution[];
 	readonly canDelegate?: boolean;
-	readonly isReadOnly?: boolean;
 	/**
 	 * When set, the chat session will show a filtered mode picker with custom agents
 	 * that have a matching `target` property. This enables contributed chat sessions

@@ -525,35 +525,3 @@
 	outline: 1px solid var(--vscode-list-focusOutline) !important;
 	outline-offset: -1px;
 }
-
-/* Entrance animation */
-@keyframes quick-input-entrance {
-	from {
-		opacity: 0;
-		transform: translateY(-8px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-.quick-input-widget.animating-entrance {
-	animation: quick-input-entrance 150ms cubic-bezier(0.1, 0.9, 0.2, 1) forwards;
-}
-
-/* Exit animation */
-@keyframes quick-input-exit {
-	from {
-		opacity: 1;
-		transform: translateY(0);
-	}
-	to {
-		opacity: 0;
-		transform: translateY(-8px);
-	}
-}
-
-.quick-input-widget.animating-exit {
-	animation: quick-input-exit 50ms cubic-bezier(0.9, 0.1, 1, 0.2) forwards;
-}
