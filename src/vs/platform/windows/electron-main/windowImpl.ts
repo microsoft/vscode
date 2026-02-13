@@ -419,33 +419,34 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.stateService.setItem((CodeWindow.windowControlHeightStateStorageKey), options.height);
 		}
 
-		// Update dimmed state if explicitly provided
-		if (options.dimmed !== undefined) {
-			this.windowControlsDimmed = options.dimmed;
-		}
+		// Windows/Linux: update window controls via setTitleBarOverlay()
+		if (!isMacintosh && useWindowControlsOverlay(this.configurationService)) {
 
-		// Remember the last colors for dimming/undimming
-		if (options.backgroundColor !== undefined || options.foregroundColor !== undefined) {
-			this.lastWindowControlColors = {
+			// Update dimmed state if explicitly provided
+			if (options.dimmed !== undefined) {
+				this.windowControlsDimmed = options.dimmed;
+			}
+
+			// Remember the last colors for dimming/undimming
+			if (options.backgroundColor !== undefined || options.foregroundColor !== undefined) {
+				this.lastWindowControlColors = {
+					backgroundColor: options.backgroundColor ?? this.lastWindowControlColors?.backgroundColor,
+					foregroundColor: options.foregroundColor ?? this.lastWindowControlColors?.foregroundColor
+				};
+			}
+
+			// Resolve colors: use provided colors or fall back to last
+			// known colors when just toggling the dimmed state
+			const resolvedColors = {
 				backgroundColor: options.backgroundColor ?? this.lastWindowControlColors?.backgroundColor,
 				foregroundColor: options.foregroundColor ?? this.lastWindowControlColors?.foregroundColor
 			};
-		}
 
-		// Resolve colors: use provided colors or fall back to last
-		// known colors when just toggling the dimmed state
-		const resolvedColors = {
-			backgroundColor: options.backgroundColor ?? this.lastWindowControlColors?.backgroundColor,
-			foregroundColor: options.foregroundColor ?? this.lastWindowControlColors?.foregroundColor
-		};
+			// Apply dimming if active
+			const effectiveColors = this.windowControlsDimmed
+				? this.applyDimming(resolvedColors)
+				: resolvedColors;
 
-		// Apply dimming if active
-		const effectiveColors = this.windowControlsDimmed
-			? this.applyDimming(resolvedColors)
-			: resolvedColors;
-
-		// Windows/Linux: update window controls via setTitleBarOverlay()
-		if (!isMacintosh && useWindowControlsOverlay(this.configurationService)) {
 			win.setTitleBarOverlay({
 				color: effectiveColors.backgroundColor?.trim() === '' ? undefined : effectiveColors.backgroundColor,
 				symbolColor: effectiveColors.foregroundColor?.trim() === '' ? undefined : effectiveColors.foregroundColor,
