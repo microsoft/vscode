@@ -24,7 +24,7 @@ import * as nls from '../../../../nls.js';
 const MAX_CHANGES = 100;
 const MAX_DIFFS_SIZE_BYTES = 900 * 1024;
 const MAX_SESSIONS_WITH_FULL_DIFFS = 5;
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB per file
+const MAX_FILE_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB per file
 /**
  * Regex to match `url = <remote-url>` lines in git config.
  */
