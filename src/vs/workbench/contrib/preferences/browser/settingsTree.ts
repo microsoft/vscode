@@ -61,7 +61,7 @@ import { hasNativeContextMenu } from '../../../../platform/window/common/window.
 import { APPLICATION_SCOPES, APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { ISetting, ISettingsGroup, SETTINGS_AUTHORITY, SettingValueType } from '../../../services/preferences/common/preferences.js';
+import { IPreferencesService, ISetting, ISettingsGroup, SETTINGS_AUTHORITY, SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { getInvalidTypeError } from '../../../services/preferences/common/preferencesValidation.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from '../common/preferences.js';
@@ -1034,9 +1034,11 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}
 
 		template.indicatorsLabel.updateScopeOverrides(element, this._onDidClickOverrideElement, this._onApplyFilter);
+		template.indicatorsLabel.updateApplicationAttributesIndicator(element);
 		template.elementDisposables.add(this._configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(APPLY_ALL_PROFILES_SETTING)) {
 				template.indicatorsLabel.updateScopeOverrides(element, this._onDidClickOverrideElement, this._onApplyFilter);
+				template.indicatorsLabel.updateApplicationAttributesIndicator(element);
 			}
 		}));
 
@@ -2236,6 +2238,7 @@ export class SettingTreeRenderers extends Disposable {
 			this._instantiationService.createInstance(CopySettingIdAction),
 			this._instantiationService.createInstance(CopySettingAsJSONAction),
 			this._instantiationService.createInstance(CopySettingAsURLAction),
+			this._instantiationService.createInstance(EditInSettingsJsonAction),
 		];
 
 		const actionFactory = (setting: ISetting, settingTarget: SettingsTarget) => this.getActionsForSetting(setting, settingTarget);
@@ -2876,4 +2879,24 @@ class ApplySettingToAllProfilesAction extends Action {
 		}
 	}
 
+}
+
+class EditInSettingsJsonAction extends Action {
+	static readonly ID = 'settings.editInSettingsJson';
+	static readonly LABEL = localize('editInSettingsJsonLabel', "Edit in settings.json");
+
+	constructor(
+		@IPreferencesService private readonly preferencesService: IPreferencesService
+	) {
+		super(EditInSettingsJsonAction.ID, EditInSettingsJsonAction.LABEL);
+	}
+
+	override async run(context: SettingsTreeSettingElement): Promise<void> {
+		if (context) {
+			await this.preferencesService.openUserSettings({
+				jsonEditor: true,
+				revealSetting: { key: context.setting.key, edit: true }
+			});
+		}
+	}
 }
