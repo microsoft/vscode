@@ -32,7 +32,7 @@ import { IApplicationStorageMainService, IStorageMainService } from '../../stora
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, dimColor } from '../../window/common/window.js';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -46,6 +46,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { errorHandler } from '../../../base/common/errors.js';
 import { FocusMode } from '../../native/common/native.js';
+import { Color } from '../../../base/common/color.js';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -471,14 +472,32 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		const result: { backgroundColor?: string; foregroundColor?: string } = {};
 
 		if (options.backgroundColor) {
-			result.backgroundColor = dimColor(options.backgroundColor);
+			result.backgroundColor = this.dimColor(options.backgroundColor);
 		}
 
 		if (options.foregroundColor) {
-			result.foregroundColor = dimColor(options.foregroundColor);
+			result.foregroundColor = this.dimColor(options.foregroundColor);
 		}
 
 		return result;
+	}
+
+	private dimColor(color: string): string {
+
+		// Blend a CSS color with black at 30% opacity to match the
+		// dimming overlay of `rgba(0, 0, 0, 0.3)` used by modals.
+
+		const parsed = Color.Format.CSS.parse(color);
+		if (!parsed) {
+			return color;
+		}
+
+		const dimFactor = 0.7; // 1 - 0.3 opacity of black overlay
+		const r = Math.round(parsed.rgba.r * dimFactor);
+		const g = Math.round(parsed.rgba.g * dimFactor);
+		const b = Math.round(parsed.rgba.b * dimFactor);
+
+		return `rgb(${r}, ${g}, ${b})`;
 	}
 
 	//#endregion

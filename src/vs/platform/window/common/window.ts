@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { Color } from '../../../base/common/color.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
 import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
@@ -479,21 +478,3 @@ export function zoomLevelToZoomFactor(zoomLevel = 0): number {
 export const DEFAULT_EMPTY_WINDOW_SIZE = { width: 1200, height: 800 } as const;
 export const DEFAULT_WORKSPACE_WINDOW_SIZE = { width: 1440, height: 900 } as const;
 export const DEFAULT_AUX_WINDOW_SIZE = { width: 1024, height: 768 } as const;
-
-/**
- * Blend a CSS color with black at 30% opacity to match the
- * dimming overlay of `rgba(0, 0, 0, 0.3)` used by modals.
- */
-export function dimColor(color: string): string {
-	const parsed = Color.Format.CSS.parse(color);
-	if (!parsed) {
-		return color;
-	}
-
-	const dimFactor = 0.7; // 1 - 0.3 opacity of black overlay
-	const r = Math.round(parsed.rgba.r * dimFactor);
-	const g = Math.round(parsed.rgba.g * dimFactor);
-	const b = Math.round(parsed.rgba.b * dimFactor);
-
-	return `rgb(${r}, ${g}, ${b})`;
-}
