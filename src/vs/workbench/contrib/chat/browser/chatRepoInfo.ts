@@ -9,7 +9,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { linesDiffComputers } from '../../../../editor/common/diff/linesDiffComputers.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { IFileService, FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
+import { detectEncodingFromBuffer } from '../../../services/textfile/common/encoding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -23,6 +24,7 @@ import * as nls from '../../../../nls.js';
 const MAX_CHANGES = 100;
 const MAX_DIFFS_SIZE_BYTES = 900 * 1024;
 const MAX_SESSIONS_WITH_FULL_DIFFS = 5;
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB per file
 /**
  * Regex to match `url = <remote-url>` lines in git config.
  */
@@ -121,9 +123,16 @@ async function generateUnifiedDiff(
 
 		if (originalUri && changeType !== 'added') {
 			try {
-				const originalFile = await fileService.readFile(originalUri);
+				const originalFile = await fileService.readFile(originalUri, { limits: { size: MAX_FILE_SIZE_BYTES } });
+				const detected = detectEncodingFromBuffer({ buffer: originalFile.value, bytesRead: originalFile.value.byteLength });
+				if (detected.seemsBinary) {
+					return undefined; // skip binary files
+				}
 				originalContent = originalFile.value.toString();
-			} catch {
+			} catch (e) {
+				if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+					return undefined; // skip files exceeding size limit
+				}
 				if (changeType === 'modified') {
 					return undefined;
 				}
@@ -132,9 +141,16 @@ async function generateUnifiedDiff(
 
 		if (changeType !== 'deleted') {
 			try {
-				const modifiedFile = await fileService.readFile(modifiedUri);
+				const modifiedFile = await fileService.readFile(modifiedUri, { limits: { size: MAX_FILE_SIZE_BYTES } });
+				const detected = detectEncodingFromBuffer({ buffer: modifiedFile.value, bytesRead: modifiedFile.value.byteLength });
+				if (detected.seemsBinary) {
+					return undefined; // skip binary files
+				}
 				modifiedContent = modifiedFile.value.toString();
-			} catch {
+			} catch (e) {
+				if (e instanceof FileOperationError && e.fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
+					return undefined; // skip files exceeding size limit
+				}
 				return undefined;
 			}
 		}
@@ -597,7 +613,7 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 				[ChatConfiguration.RepoInfoEnabled]: {
 					type: 'boolean',
 					description: nls.localize('chat.repoInfo.enabled', "Controls whether repository information (branch, commit, working tree diffs) is captured at the start of chat sessions for internal diagnostics."),
-					default: true,
+					default: false,
 				}
 			}
 		});
