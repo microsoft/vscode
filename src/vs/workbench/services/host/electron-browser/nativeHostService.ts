@@ -173,6 +173,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(targetWindow) ? { targetWindowId: targetWindow.vscodeWindowId } : undefined);
 	}
 
+	async setWindowDimmed(targetWindow: Window, dimmed: boolean): Promise<void> {
+		return this.nativeHostService.updateWindowControls({ dimmed, targetWindowId: getWindowId(targetWindow) });
+	}
+
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
 		return this.nativeHostService.getCursorScreenPoint();
 	}

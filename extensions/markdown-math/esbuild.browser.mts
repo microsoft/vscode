@@ -9,18 +9,13 @@ const srcDir = path.join(import.meta.dirname, 'src');
 const outDir = path.join(import.meta.dirname, 'dist', 'browser');
 
 run({
+	platform: 'browser',
 	entryPoints: {
 		'extension': path.join(srcDir, 'extension.ts'),
 	},
 	srcDir,
 	outdir: outDir,
 	additionalOptions: {
-		platform: 'browser',
-		format: 'cjs',
-		define: {
-			'process.platform': JSON.stringify('web'),
-			'process.env': JSON.stringify({}),
-			'process.env.BROWSER_ENV': JSON.stringify('true'),
-		},
+		tsconfig: path.join(import.meta.dirname, 'tsconfig.browser.json'),
 	},
 }, process.argv);

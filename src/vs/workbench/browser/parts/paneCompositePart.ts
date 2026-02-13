@@ -12,7 +12,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -48,7 +48,8 @@ export enum CompositeBarPosition {
 
 export interface IPaneCompositePart extends IView {
 
-	readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART;
+	readonly partId: SINGLE_WINDOW_PARTS;
+	readonly registryId: string;
 
 	readonly onDidPaneCompositeOpen: Event<IPaneComposite>;
 	readonly onDidPaneCompositeClose: Event<IPaneComposite>;
@@ -132,7 +133,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected contentDimension: Dimension | undefined;
 
 	constructor(
-		readonly partId: Parts.PANEL_PART | Parts.AUXILIARYBAR_PART | Parts.SIDEBAR_PART,
+		readonly partId: SINGLE_WINDOW_PARTS,
 		partOptions: ICompositePartOptions,
 		activePaneCompositeSettingsKey: string,
 		private readonly activePaneContextKey: IContextKey<string>,
@@ -142,8 +143,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		titleForegroundColor: string | undefined,
 		titleBorderColor: string | undefined,
 		protected readonly location: ViewContainerLocation,
-		registryId: string,
+		readonly registryId: string,
 		private readonly globalActionsMenuId: MenuId,
+		private readonly globalLeftActionsMenuId: MenuId | undefined,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -341,13 +343,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			this.onTitleAreaContextMenu(new StandardMouseEvent(getWindow(titleArea), e));
 		}));
 
-		// Global Left Actions Toolbar (optional, subclasses provide a menu ID)
-		const globalLeftActionsMenuId = this.getGlobalLeftActionsMenuId();
-		if (globalLeftActionsMenuId) {
+		if (this.globalLeftActionsMenuId) {
 			const globalLeftTitleActionsContainer = titleArea.appendChild($('.global-actions-left'));
 			this.globalLeftToolBar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar,
 				globalLeftTitleActionsContainer,
-				globalLeftActionsMenuId,
+				this.globalLeftActionsMenuId,
 				{
 					actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
 					orientation: ActionsOrientation.HORIZONTAL,
@@ -704,14 +704,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			disposables.dispose();
 			return viewsActions.length > 1 && viewsActions.some(a => a.enabled) ? new SubmenuAction('views', localize('views', "Views"), viewsActions) : undefined;
 		}
-		return undefined;
-	}
-
-	/**
-	 * Override in subclasses to provide a menu ID for a global toolbar on the left side
-	 * of the composite bar / title area. Returns `undefined` by default (no left toolbar).
-	 */
-	protected getGlobalLeftActionsMenuId(): MenuId | undefined {
 		return undefined;
 	}
 

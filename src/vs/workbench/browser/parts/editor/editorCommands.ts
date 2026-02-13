@@ -1447,7 +1447,6 @@ function registerModalEditorCommands(): void {
 				icon: Codicon.screenFull,
 				toggled: {
 					condition: EditorPartModalMaximizedContext,
-					icon: Codicon.screenNormal,
 					title: localize('restoreModalEditorSize', "Restore Modal Editor")
 				},
 				menu: {

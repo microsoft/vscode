@@ -122,7 +122,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
 						target: cachedMode.target ?? Target.Undefined,
-						visibility: cachedMode.visibility ?? { userInvokable: true, agentInvokable: cachedMode.infer !== false },
+						visibility: cachedMode.visibility ?? { userInvocable: true, agentInvocable: cachedMode.infer !== false },
 						agents: cachedMode.agents,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
 					};
@@ -154,7 +154,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			const seenUris = new Set<string>();
 
 			for (const customMode of customModes) {
-				if (!customMode.visibility.userInvokable) {
+				if (!customMode.visibility.userInvocable) {
 					continue;
 				}
 

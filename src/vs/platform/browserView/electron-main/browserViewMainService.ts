@@ -3,85 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { session } from 'electron';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IBrowserViewBounds, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions } from '../common/browserView.js';
-import { joinPath } from '../../../base/common/resources.js';
+import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget } from '../common/cdp/types.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { BrowserView } from './browserView.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { BrowserViewUri } from '../common/browserViewUri.js';
+import { IWindowsMainService } from '../../windows/electron-main/windows.js';
+import { BrowserSession } from './browserSession.js';
+import { IProductService } from '../../product/common/productService.js';
+import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
-export interface IBrowserViewMainService extends IBrowserViewService {
+export interface IBrowserViewMainService extends IBrowserViewService, ICDPBrowserTarget {
 	tryGetBrowserView(id: string): BrowserView | undefined;
 }
-
-// Same as webviews
-const allowedPermissions = new Set([
-	'pointerLock',
-	'notifications',
-	'clipboard-read',
-	'clipboard-sanitized-write'
-]);
 
 export class BrowserViewMainService extends Disposable implements IBrowserViewMainService {
 	declare readonly _serviceBrand: undefined;
 
 	/**
-	 * Check if a webContents belongs to an integrated browser view
-	*/
-	private static readonly knownSessions = new WeakSet<Electron.Session>();
+	 * Check if a webContents belongs to an integrated browser view.
+	 * Delegates to {@link BrowserSession.isBrowserViewWebContents}.
+	 */
 	static isBrowserViewWebContents(contents: Electron.WebContents): boolean {
-		return BrowserViewMainService.knownSessions.has(contents.session);
+		return BrowserSession.isBrowserViewWebContents(contents);
 	}
 
 	private readonly browserViews = this._register(new DisposableMap<string, BrowserView>());
 
+	// ICDPBrowserTarget events
+	private readonly _onTargetCreated = this._register(new Emitter<BrowserView>());
+	readonly onTargetCreated: Event<BrowserView> = this._onTargetCreated.event;
+
+	private readonly _onTargetDestroyed = this._register(new Emitter<BrowserView>());
+	readonly onTargetDestroyed: Event<BrowserView> = this._onTargetDestroyed.event;
+
 	constructor(
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 	}
 
 	/**
-	 * Get the session for a browser view based on data storage setting and workspace
+	 * Create a browser view backed by the given {@link BrowserSession}.
 	 */
-	private getSession(requestedScope: BrowserViewStorageScope, viewId?: string, workspaceId?: string): {
-		session: Electron.Session;
-		resolvedScope: BrowserViewStorageScope;
-	} {
-		switch (requestedScope) {
-			case 'global':
-				return { session: session.fromPartition('persist:vscode-browser'), resolvedScope: BrowserViewStorageScope.Global };
-			case 'workspace':
-				if (workspaceId) {
-					const storage = joinPath(this.environmentMainService.workspaceStorageHome, workspaceId, 'browserStorage');
-					return { session: session.fromPath(storage.fsPath), resolvedScope: BrowserViewStorageScope.Workspace };
-				}
-			// fallthrough
-			case 'ephemeral':
-			default:
-				return { session: session.fromPartition(`vscode-browser-${viewId ?? generateUuid()}`), resolvedScope: BrowserViewStorageScope.Ephemeral };
-		}
-	}
-
-	private configureSession(viewSession: Electron.Session): void {
-		viewSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-			return callback(allowedPermissions.has(permission));
-		});
-		viewSession.setPermissionCheckHandler((_webContents, permission, _origin) => {
-			return allowedPermissions.has(permission);
-		});
-	}
-
-	/**
-	 * Create a child browser view (used by window.open handler)
-	 */
-	private createBrowserView(id: string, session: Electron.Session, scope: BrowserViewStorageScope, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
+	private createBrowserView(id: string, browserSession: BrowserSession, options?: Electron.WebContentsViewConstructorOptions): BrowserView {
 		if (this.browserViews.has(id)) {
 			throw new Error(`Browser view with id ${id} already exists`);
 		}
@@ -89,13 +64,19 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		const view = this.instantiationService.createInstance(
 			BrowserView,
 			id,
-			session,
-			scope,
-			// Recursive factory for nested windows
-			(options) => this.createBrowserView(generateUuid(), session, scope, options),
+			browserSession,
+			// Recursive factory for nested windows (child views share the same session)
+			(childOptions) => this.createBrowserView(generateUuid(), browserSession, childOptions),
 			options
 		);
 		this.browserViews.set(id, view);
+
+		this._onTargetCreated.fire(view);
+		Event.once(view.onDidClose)(() => {
+			this._onTargetDestroyed.fire(view);
+			this.browserViews.deleteAndDispose(id);
+		});
+
 		return view;
 	}
 
@@ -107,17 +88,132 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			return view.getState();
 		}
 
-		const { session, resolvedScope } = this.getSession(scope, id, workspaceId);
-		this.configureSession(session);
-		BrowserViewMainService.knownSessions.add(session);
+		const browserSession = BrowserSession.getOrCreate(
+			id,
+			scope,
+			this.environmentMainService.workspaceStorageHome,
+			workspaceId
+		);
 
-		const view = this.createBrowserView(id, session, resolvedScope);
-
+		const view = this.createBrowserView(id, browserSession);
 		return view.getState();
 	}
 
 	tryGetBrowserView(id: string): BrowserView | undefined {
 		return this.browserViews.get(id);
+	}
+
+	// ICDPBrowserTarget implementation
+
+	getVersion(): CDPBrowserVersion {
+		return {
+			protocolVersion: '1.3',
+			product: `${this.productService.nameShort}/${this.productService.version}`,
+			revision: this.productService.commit || 'unknown',
+			userAgent: 'Electron',
+			jsVersion: process.versions.v8
+		};
+	}
+
+	getWindowForTarget(target: ICDPTarget): { windowId: number; bounds: CDPWindowBounds } {
+		if (!(target instanceof BrowserView)) {
+			throw new Error('Can only get window for targets created by this service');
+		}
+
+		const view = target.getWebContentsView();
+		const viewBounds = view.getBounds();
+		return {
+			windowId: 1,
+			bounds: {
+				left: viewBounds.x,
+				top: viewBounds.y,
+				width: viewBounds.width,
+				height: viewBounds.height,
+				windowState: 'normal'
+			}
+		};
+	}
+
+	async attach(): Promise<ICDPConnection> {
+		return new CDPBrowserProxy(this);
+	}
+
+	async getTargetInfo(): Promise<CDPTargetInfo> {
+		return {
+			targetId: 'browser',
+			type: 'browser',
+			title: this.getVersion().product,
+			url: '',
+			attached: true,
+			canAccessOpener: false
+		};
+	}
+
+	getTargets(): IterableIterator<BrowserView> {
+		return this.browserViews.values();
+	}
+
+	async createTarget(url: string, browserContextId?: string): Promise<ICDPTarget> {
+		const targetId = generateUuid();
+		const browserSession = browserContextId && BrowserSession.get(browserContextId) || BrowserSession.getOrCreateEphemeral(targetId);
+
+		// Create the browser view (fires onTargetCreated)
+		const view = this.createBrowserView(targetId, browserSession);
+
+		// Request the workbench to open the editor
+		this.windowsMainService.sendToFocused('vscode:runAction', {
+			id: 'vscode.open',
+			args: [BrowserViewUri.forUrl(url, targetId)]
+		});
+
+		return view;
+	}
+
+	async activateTarget(target: ICDPTarget): Promise<void> {
+		if (!(target instanceof BrowserView)) {
+			throw new Error('Can only activate targets created by this service');
+		}
+		// TODO@kycutler
+	}
+
+	async closeTarget(target: ICDPTarget): Promise<boolean> {
+		if (!(target instanceof BrowserView)) {
+			throw new Error('Can only close targets created by this service');
+		}
+
+		await this.destroyBrowserView(target.id);
+		return true;
+	}
+
+	// Browser context management
+
+	getBrowserContexts(): string[] {
+		return BrowserSession.getBrowserContextIds();
+	}
+
+	async createBrowserContext(): Promise<string> {
+		const browserSession = BrowserSession.getOrCreateEphemeral(generateUuid(), 'cdp-created');
+		return browserSession.id;
+	}
+
+	async disposeBrowserContext(browserContextId: string): Promise<void> {
+		if (!browserContextId.startsWith('cdp-created:')) {
+			throw new Error('Can only dispose browser contexts created via CDP');
+		}
+
+		const browserSession = BrowserSession.get(browserContextId);
+		if (!browserSession) {
+			throw new Error(`Browser context ${browserContextId} not found`);
+		}
+
+		// Close all targets in this context
+		for (const view of this.browserViews.values()) {
+			if (view.session === browserSession) {
+				await this.destroyBrowserView(view.id);
+			}
+		}
+
+		browserSession.dispose();
 	}
 
 	/**
@@ -176,7 +272,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async destroyBrowserView(id: string): Promise<void> {
-		this.browserViews.deleteAndDispose(id);
+		return this.browserViews.deleteAndDispose(id);
 	}
 
 	async layout(id: string, bounds: IBrowserViewBounds): Promise<void> {
@@ -252,18 +348,15 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	async clearGlobalStorage(): Promise<void> {
-		const { session, resolvedScope } = this.getSession(BrowserViewStorageScope.Global);
-		if (resolvedScope !== BrowserViewStorageScope.Global) {
-			throw new Error('Failed to resolve global storage session');
-		}
-		await session.clearData();
+		const browserSession = BrowserSession.getOrCreateGlobal();
+		await browserSession.electronSession.clearData();
 	}
 
 	async clearWorkspaceStorage(workspaceId: string): Promise<void> {
-		const { session, resolvedScope } = this.getSession(BrowserViewStorageScope.Workspace, undefined, workspaceId);
-		if (resolvedScope !== BrowserViewStorageScope.Workspace) {
-			throw new Error('Failed to resolve workspace storage session');
-		}
-		await session.clearData();
+		const browserSession = BrowserSession.getOrCreateWorkspace(
+			workspaceId,
+			this.environmentMainService.workspaceStorageHome
+		);
+		await browserSession.electronSession.clearData();
 	}
 }

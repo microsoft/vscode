@@ -19,6 +19,7 @@ async function copyServerWorkerMain(outDir: string): Promise<void> {
 }
 
 run({
+	platform: 'node',
 	entryPoints: {
 		'extension': path.join(srcDir, 'extension.ts'),
 	},

@@ -76,7 +76,7 @@ suite('PromptHeaderAutocompletion', () => {
 			uri: URI.parse('myFs://.github/agents/agent1.agent.md'),
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvokable: true, agentInvokable: true }
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		const parser = new PromptFileParser();
@@ -145,7 +145,7 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'name', result: 'name: $0' },
 				{ label: 'target', result: 'target: ${0:vscode}' },
 				{ label: 'tools', result: 'tools: ${0:[]}' },
-				{ label: 'user-invokable', result: 'user-invokable: ${0:true}' },
+				{ label: 'user-invocable', result: 'user-invocable: ${0:true}' },
 			].sort(sortByLabel));
 		});
 
@@ -332,18 +332,18 @@ suite('PromptHeaderAutocompletion', () => {
 			].sort(sortByLabel));
 		});
 
-		test('complete user-invokable attribute value', async () => {
+		test('complete user-invocable attribute value', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'user-invokable: |',
+				'user-invocable: |',
 				'---',
 			].join('\n');
 
 			const actual = await getCompletions(content, PromptsType.agent);
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
-				{ label: 'false', result: 'user-invokable: false' },
-				{ label: 'true', result: 'user-invokable: true' },
+				{ label: 'false', result: 'user-invocable: false' },
+				{ label: 'true', result: 'user-invocable: true' },
 			].sort(sortByLabel));
 		});
 

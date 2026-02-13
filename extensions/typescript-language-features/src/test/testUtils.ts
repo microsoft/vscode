@@ -119,7 +119,7 @@ export async function updateConfig(documentUri: vscode.Uri, newConfig: VsCodeCon
 
 export const Config = Object.freeze({
 	autoClosingBrackets: 'editor.autoClosingBrackets',
-	typescriptCompleteFunctionCalls: 'typescript.suggest.completeFunctionCalls',
+	completeFunctionCalls: 'js/ts.suggest.completeFunctionCalls',
 	insertMode: 'editor.suggest.insertMode',
 	snippetSuggestions: 'editor.snippetSuggestions',
 	suggestSelection: 'editor.suggestSelection',

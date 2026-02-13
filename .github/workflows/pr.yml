@@ -86,7 +86,7 @@ jobs:
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       job_name: CLI
-      rustup_toolchain: 1.85
+      rustup_toolchain: 1.88
 
   linux-electron-tests:
     name: Linux

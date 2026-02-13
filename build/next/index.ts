@@ -210,6 +210,10 @@ const commonResourcePatterns = [
 	// Tree-sitter queries
 	'vs/editor/common/languages/highlights/*.scm',
 	'vs/editor/common/languages/injections/*.scm',
+
+	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
+	'vs/workbench/browser/media/code-icon.svg',
+	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
 ];
 
 // Resources only needed for dev/transpile builds (these get bundled into the main

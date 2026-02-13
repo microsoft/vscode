@@ -25,7 +25,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
-import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { InlineChatConfigKeys } from '../../../inlineChat/common/inlineChat.js';
@@ -908,8 +908,13 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Collect hooks from hook .json files
 			let collectedHooks: IChatRequestHooks | undefined;
+			let hasDisabledClaudeHooks = false;
 			try {
-				collectedHooks = await this.promptsService.getHooks(token);
+				const hooksInfo = await this.promptsService.getHooks(token);
+				if (hooksInfo) {
+					collectedHooks = hooksInfo.hooks;
+					hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
+				}
 			} catch (error) {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);
 			}
@@ -1049,6 +1054,15 @@ export class ChatService extends Disposable implements IChatService {
 						pendingRequest.requestId ??= requestProps.requestId;
 					}
 					completeResponseCreated();
+
+					// Check for disabled Claude Code hooks and notify the user once per workspace
+					const disabledClaudeHooksDismissedKey = 'chat.disabledClaudeHooks.notification';
+					if (!this.storageService.getBoolean(disabledClaudeHooksDismissedKey, StorageScope.WORKSPACE)) {
+						this.storageService.store(disabledClaudeHooksDismissedKey, true, StorageScope.WORKSPACE, StorageTarget.USER);
+						if (hasDisabledClaudeHooks) {
+							progressCallback([{ kind: 'disabledClaudeHooks' }]);
+						}
+					}
 
 					// MCP autostart: only run for native VS Code sessions (sidebar, new editors) but not for extension contributed sessions that have inputType set.
 					if (model.canUseTools) {

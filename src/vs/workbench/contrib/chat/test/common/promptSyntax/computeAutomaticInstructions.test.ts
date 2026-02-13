@@ -1150,7 +1150,7 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'description: \'Test agent 1\'',
-						'user-invokable: true',
+						'user-invocable: true',
 						'disable-model-invocation: false',
 						'---',
 						'Test agent content',
@@ -1161,7 +1161,7 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'description: \'Test agent 2\'',
-						'user-invokable: true',
+						'user-invocable: true',
 						'disable-model-invocation: true',
 						'---',
 						'Test agent content',
@@ -1172,7 +1172,7 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'description: \'Test agent 3\'',
-						'user-invokable: false',
+						'user-invocable: false',
 						'disable-model-invocation: false',
 						'---',
 						'Test agent content',
@@ -1183,7 +1183,7 @@ suite('ComputeAutomaticInstructions', () => {
 					contents: [
 						'---',
 						'description: \'Test agent 4\'',
-						'user-invokable: false',
+						'user-invocable: false',
 						'disable-model-invocation: true',
 						'---',
 						'Test agent content',

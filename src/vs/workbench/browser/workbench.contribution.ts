@@ -715,6 +715,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
+			'workbench.reduceTransparency': {
+				type: 'string',
+				description: localize('workbench.reduceTransparency', "Controls whether the workbench should render with fewer transparency and blur effects for improved performance."),
+				'enumDescriptions': [
+					localize('workbench.reduceTransparency.on', "Always render without transparency and blur effects."),
+					localize('workbench.reduceTransparency.off', "Do not reduce transparency and blur effects."),
+					localize('workbench.reduceTransparency.auto', "Reduce transparency and blur effects based on OS configuration."),
+				],
+				default: 'off',
+				tags: ['accessibility'],
+				enum: ['on', 'off', 'auto']
+			},
 			'workbench.navigationControl.enabled': {
 				'type': 'boolean',
 				'default': true,

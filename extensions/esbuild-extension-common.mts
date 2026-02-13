@@ -16,17 +16,7 @@ type BuildOptions = Partial<esbuild.BuildOptions> & {
  * Build the source code once using esbuild.
  */
 async function build(options: BuildOptions, didBuild?: (outDir: string) => unknown): Promise<void> {
-	await esbuild.build({
-		bundle: true,
-		minify: true,
-		sourcemap: false,
-		format: 'cjs',
-		platform: 'node',
-		target: ['es2024'],
-		external: ['vscode'],
-		...options,
-	});
-
+	await esbuild.build(options);
 	await didBuild?.(options.outdir);
 }
 
@@ -42,10 +32,46 @@ async function tryBuild(options: BuildOptions, didBuild?: (outDir: string) => un
 }
 
 interface RunConfig {
-	srcDir: string;
-	outdir: string;
-	entryPoints: string[] | Record<string, string> | { in: string; out: string }[];
-	additionalOptions?: Partial<esbuild.BuildOptions>;
+	readonly platform: 'node' | 'browser';
+	readonly srcDir: string;
+	readonly outdir: string;
+	readonly entryPoints: string[] | Record<string, string> | { in: string; out: string }[];
+	readonly additionalOptions?: Partial<esbuild.BuildOptions>;
+}
+
+function resolveOptions(config: RunConfig, outdir: string): BuildOptions {
+	const options: BuildOptions = {
+		platform: config.platform,
+		bundle: true,
+		minify: true,
+		sourcemap: true,
+		target: ['es2024'],
+		external: ['vscode'],
+		entryPoints: config.entryPoints,
+		outdir,
+		logOverride: {
+			'import-is-undefined': 'error',
+		},
+		...(config.additionalOptions || {}),
+	};
+
+	if (config.platform === 'node') {
+		options.format = 'cjs';
+		options.mainFields = ['module', 'main'];
+	} else if (config.platform === 'browser') {
+		options.format = 'cjs';
+		options.mainFields = ['browser', 'module', 'main'];
+		options.alias = {
+			'path': 'path-browserify',
+		};
+		options.define = {
+			'process.platform': JSON.stringify('web'),
+			'process.env': JSON.stringify({}),
+			'process.env.BROWSER_ENV': JSON.stringify('true'),
+		};
+	}
+
+	return options;
 }
 
 export async function run(config: RunConfig, args: string[], didBuild?: (outDir: string) => unknown): Promise<void> {
@@ -57,14 +83,7 @@ export async function run(config: RunConfig, args: string[], didBuild?: (outDir:
 		outdir = path.join(outputRoot, outputDirName);
 	}
 
-	const resolvedOptions: BuildOptions = {
-		entryPoints: config.entryPoints,
-		outdir,
-		logOverride: {
-			'import-is-undefined': 'error',
-		},
-		...(config.additionalOptions || {}),
-	};
+	const resolvedOptions = resolveOptions(config, outdir);
 
 	const isWatch = args.indexOf('--watch') >= 0;
 	if (isWatch) {

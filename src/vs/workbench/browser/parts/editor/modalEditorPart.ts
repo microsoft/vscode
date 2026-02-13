@@ -6,6 +6,7 @@
 import './media/modalEditorPart.css';
 import { $, addDisposableListener, append, EventHelper, EventType, isHTMLElement } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -28,6 +29,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
+import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID } from './editorCommands.js';
 
 const defaultModalEditorAllowableCommands = new Set([
 	'workbench.action.quit',
@@ -36,6 +38,9 @@ const defaultModalEditorAllowableCommands = new Set([
 	'workbench.action.closeAllEditors',
 	'workbench.action.files.save',
 	'workbench.action.files.saveAll',
+	CLOSE_MODAL_EDITOR_COMMAND_ID,
+	MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
+	TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID
 ]);
 
 export interface ICreateModalEditorPartResult {
@@ -52,6 +57,7 @@ export class ModalEditorPart {
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 	}
 
@@ -60,7 +66,6 @@ export class ModalEditorPart {
 
 		// Create modal container
 		const modalElement = $('.monaco-modal-editor-block.dimmed');
-		modalElement.tabIndex = -1;
 		this.layoutService.mainContainer.appendChild(modalElement);
 		disposables.add(toDisposable(() => modalElement.remove()));
 
@@ -71,14 +76,15 @@ export class ModalEditorPart {
 		const editorPartContainer = $('.part.editor.modal-editor-part', {
 			role: 'dialog',
 			'aria-modal': 'true',
-			'aria-labelledby': titleId
+			'aria-labelledby': titleId,
+			tabIndex: -1
 		});
 		shadowElement.appendChild(editorPartContainer);
 
 		// Create header with title and close button
 		const headerElement = editorPartContainer.appendChild($('.modal-editor-header'));
 
-		// Title element (centered)
+		// Title element
 		const titleElement = append(headerElement, $('div.modal-editor-title'));
 		titleElement.id = titleId;
 		titleElement.textContent = '';
@@ -102,9 +108,10 @@ export class ModalEditorPart {
 			[IEditorService, modalEditorService]
 		)));
 
-		// Create toolbar driven by MenuId.ModalEditorTitle
+		// Create toolbar
 		disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.ModalEditorTitle, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			highlightToggledItems: true,
 			menuOptions: { shouldForwardArgs: true }
 		}));
 
@@ -118,23 +125,43 @@ export class ModalEditorPart {
 			editorPart.notifyActiveEditorChanged();
 		})));
 
-		// Handle close on click outside (on the dimmed background)
+		// Handle double-click on header to toggle maximize
+		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {
+			EventHelper.stop(e);
+
+			editorPart.toggleMaximized();
+		}));
+
+		// Guide focus back into the modal when clicking outside modal
 		disposables.add(addDisposableListener(modalElement, EventType.MOUSE_DOWN, e => {
 			if (e.target === modalElement) {
-				editorPart.close();
+				EventHelper.stop(e, true);
+
+				editorPartContainer.focus();
 			}
 		}));
 
 		// Block certain workbench commands from being dispatched while the modal is open
 		disposables.add(addDisposableListener(modalElement, EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
-			const resolved = this.keybindingService.softDispatch(event, this.layoutService.mainContainer);
-			if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
-				if (
-					resolved.commandId.startsWith('workbench.') &&
-					!defaultModalEditorAllowableCommands.has(resolved.commandId)
-				) {
-					EventHelper.stop(event, true);
+
+			// Close on Escape
+			if (event.equals(KeyCode.Escape)) {
+				EventHelper.stop(event, true);
+
+				editorPart.close();
+			}
+
+			// Prevent unsupported commands
+			else {
+				const resolved = this.keybindingService.softDispatch(event, this.layoutService.mainContainer);
+				if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
+					if (
+						resolved.commandId.startsWith('workbench.') &&
+						!defaultModalEditorAllowableCommands.has(resolved.commandId)
+					) {
+						EventHelper.stop(event, true);
+					}
 				}
 			}
 		}));
@@ -168,10 +195,6 @@ export class ModalEditorPart {
 
 			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
 
-			// Shift the modal block below the title bar
-			modalElement.style.top = `${titleBarOffset}px`;
-			modalElement.style.height = `calc(100% - ${titleBarOffset}px)`;
-
 			editorPartContainer.style.width = `${width}px`;
 			editorPartContainer.style.height = `${height}px`;
 
@@ -181,6 +204,10 @@ export class ModalEditorPart {
 		};
 		disposables.add(Event.runAndSubscribe(this.layoutService.onDidLayoutMainContainer, layoutModal));
 		disposables.add(editorPart.onDidChangeMaximized(() => layoutModal()));
+
+		// Dim window controls to match the modal overlay
+		this.hostService.setWindowDimmed(mainWindow, true);
+		disposables.add(toDisposable(() => this.hostService.setWindowDimmed(mainWindow, false)));
 
 		// Focus the modal
 		editorPartContainer.focus();

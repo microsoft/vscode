@@ -474,7 +474,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
 			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: false }))
-			.pipe(filter(['**', '!LICENSE', '!version'], { dot: true }));
+			.pipe(filter(['**', '!LICENSE', '!version', ...(platform === 'darwin' ? ['!**/Contents/Applications/**'] : [])], { dot: true }));
 
 		if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })

@@ -82,6 +82,7 @@ export namespace PromptHeaderAttributes {
 	export const metadata = 'metadata';
 	export const agents = 'agents';
 	export const userInvokable = 'user-invokable';
+	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 }
 
@@ -327,8 +328,9 @@ export class PromptHeader {
 		return this.getStringArrayAttribute(PromptHeaderAttributes.agents);
 	}
 
-	public get userInvokable(): boolean | undefined {
-		return this.getBooleanAttribute(PromptHeaderAttributes.userInvokable);
+	public get userInvocable(): boolean | undefined {
+		// TODO: user-invokable is deprecated, remove later and only keep user-invocable
+		return this.getBooleanAttribute(PromptHeaderAttributes.userInvocable) ?? this.getBooleanAttribute(PromptHeaderAttributes.userInvokable);
 	}
 
 	public get disableModelInvocation(): boolean | undefined {

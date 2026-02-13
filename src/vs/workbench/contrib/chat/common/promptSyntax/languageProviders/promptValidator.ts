@@ -186,6 +186,7 @@ export class PromptValidator {
 			case PromptsType.agent: {
 				this.validateTarget(attributes, report);
 				this.validateInfer(attributes, report);
+				this.validateUserInvocable(attributes, report);
 				this.validateUserInvokable(attributes, report);
 				this.validateDisableModelInvocation(attributes, report);
 				this.validateTools(attributes, ChatModeKind.Agent, target, report);
@@ -200,6 +201,7 @@ export class PromptValidator {
 			}
 
 			case PromptsType.skill:
+				this.validateUserInvocable(attributes, report);
 				this.validateUserInvokable(attributes, report);
 				this.validateDisableModelInvocation(attributes, report);
 				break;
@@ -604,7 +606,7 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		report(toMarker(localize('promptValidator.inferDeprecated', "The 'infer' attribute is deprecated in favour of 'user-invokable' and 'disable-model-invocation'."), attribute.value.range, MarkerSeverity.Error));
+		report(toMarker(localize('promptValidator.inferDeprecated', "The 'infer' attribute is deprecated in favour of 'user-invocable' and 'disable-model-invocation'."), attribute.value.range, MarkerSeverity.Error));
 	}
 
 	private validateTarget(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
@@ -627,15 +629,23 @@ export class PromptValidator {
 		}
 	}
 
+	private validateUserInvocable(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.userInvocable);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'boolean') {
+			report(toMarker(localize('promptValidator.userInvocableMustBeBoolean', "The 'user-invocable' attribute must be a boolean."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+	}
+
 	private validateUserInvokable(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.userInvokable);
 		if (!attribute) {
 			return;
 		}
-		if (attribute.value.type !== 'boolean') {
-			report(toMarker(localize('promptValidator.userInvokableMustBeBoolean', "The 'user-invokable' attribute must be a boolean."), attribute.value.range, MarkerSeverity.Error));
-			return;
-		}
+		report(toMarker(localize('promptValidator.userInvokableDeprecated', "The 'user-invokable' attribute is deprecated. Use 'user-invocable' instead."), attribute.range, MarkerSeverity.Warning));
 	}
 
 	private validateDisableModelInvocation(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
@@ -690,8 +700,8 @@ export class PromptValidator {
 const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
-	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
+	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
 const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers, PromptHeaderAttributes.infer];
@@ -718,7 +728,7 @@ export function getValidAttributeNames(promptType: PromptsType, includeNonRecomm
 }
 
 export function isNonRecommendedAttribute(attributeName: string): boolean {
-	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode || attributeName === PromptHeaderAttributes.infer;
+	return attributeName === PromptHeaderAttributes.advancedOptions || attributeName === PromptHeaderAttributes.excludeAgent || attributeName === PromptHeaderAttributes.mode || attributeName === PromptHeaderAttributes.infer || attributeName === PromptHeaderAttributes.userInvokable;
 }
 
 export function getAttributeDescription(attributeName: string, promptType: PromptsType, target: Target): string | undefined {
@@ -749,8 +759,8 @@ export function getAttributeDescription(attributeName: string, promptType: Promp
 					return localize('promptHeader.skill.description', 'The description of the skill. The description is added to every request and will be used by the agent to decide when to load the skill.');
 				case PromptHeaderAttributes.argumentHint:
 					return localize('promptHeader.skill.argumentHint', 'Hint shown during autocomplete to indicate expected arguments. Example: [issue-number] or [filename] [format]');
-				case PromptHeaderAttributes.userInvokable:
-					return localize('promptHeader.skill.userInvokable', 'Set to false to hide from the / menu. Use for background knowledge users should not invoke directly. Default: true.');
+				case PromptHeaderAttributes.userInvocable:
+					return localize('promptHeader.skill.userInvocable', 'Set to false to hide from the / menu. Use for background knowledge users should not invoke directly. Default: true.');
 				case PromptHeaderAttributes.disableModelInvocation:
 					return localize('promptHeader.skill.disableModelInvocation', 'Set to true to prevent the agent from automatically loading this skill. Use for workflows you want to trigger manually with /name. Default: false.');
 			}
@@ -775,8 +785,8 @@ export function getAttributeDescription(attributeName: string, promptType: Promp
 					return localize('promptHeader.agent.infer', 'Controls visibility of the agent.');
 				case PromptHeaderAttributes.agents:
 					return localize('promptHeader.agent.agents', 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
-				case PromptHeaderAttributes.userInvokable:
-					return localize('promptHeader.agent.userInvokable', 'Whether the agent can be selected and invoked by users in the UI.');
+				case PromptHeaderAttributes.userInvocable:
+					return localize('promptHeader.agent.userInvocable', 'Whether the agent can be selected and invoked by users in the UI.');
 				case PromptHeaderAttributes.disableModelInvocation:
 					return localize('promptHeader.agent.disableModelInvocation', 'If true, prevents the agent from being invoked as a subagent.');
 			}

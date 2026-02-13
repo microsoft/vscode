@@ -9,7 +9,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatSessionTiming } from '../../common/chatService/chatService.js';
-import { IChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 
@@ -37,7 +36,6 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Cloud:
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
-		case AgentSessionProviders.Growth:
 			return type;
 		default:
 			return undefined;
@@ -97,11 +95,7 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 	}
 }
 
-export function getAgentCanContinueIn(provider: AgentSessionProviders, contribution?: IChatSessionsExtensionPoint): boolean {
-	// Read-only sessions (e.g., Growth) are passive/informational and cannot be delegation targets
-	if (contribution?.isReadOnly) {
-		return false;
-	}
+export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
@@ -127,7 +121,7 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 		case AgentSessionProviders.Codex:
 			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
 		case AgentSessionProviders.Growth:
-			return localize('chat.session.providerDescription.growth', "Educational messages to help you learn Copilot features.");
+			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
 	}
 }
 

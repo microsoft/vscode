@@ -299,7 +299,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					return [{ name: '["*"]' }];
 				}
 				break;
-			case PromptHeaderAttributes.userInvokable:
+			case PromptHeaderAttributes.userInvocable:
 				if (promptType === PromptsType.agent || promptType === PromptsType.skill) {
 					return [{ name: 'true' }, { name: 'false' }];
 				}

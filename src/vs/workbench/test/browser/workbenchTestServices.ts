@@ -114,7 +114,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreationData, IWorkspacesService } from '../../../platform/workspaces/common/workspaces.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../browser/editor.js';
-import { PaneComposite, PaneCompositeDescriptor } from '../../browser/panecomposite.js';
+import { PaneComposite, PaneCompositeDescriptor, Extensions as PaneCompositeExtensions } from '../../browser/panecomposite.js';
 import { Part } from '../../browser/part.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, EditorServiceImpl, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView } from '../../browser/parts/editor/editor.js';
 import { EditorPane } from '../../browser/parts/editor/editorPane.js';
@@ -164,7 +164,7 @@ import { IHistoryService } from '../../services/history/common/history.js';
 import { IHostService, IToastOptions, IToastResult } from '../../services/host/browser/host.js';
 import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
-import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts } from '../../services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../services/path/common/pathService.js';
@@ -724,6 +724,12 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		this.onDidPaneCompositeClose = Event.any(...([ViewContainerLocation.Panel, ViewContainerLocation.Sidebar].map(loc => Event.map(this.parts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; }))));
 	}
 
+	getPartId(viewContainerLocation: ViewContainerLocation): SINGLE_WINDOW_PARTS {
+		return this.getPartByLocation(viewContainerLocation).partId;
+	}
+	getRegistryId(viewContainerLocation: ViewContainerLocation): string {
+		return this.getPartByLocation(viewContainerLocation).registryId;
+	}
 	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {
 		return this.getPartByLocation(viewContainerLocation).openPaneComposite(id, focus);
 	}
@@ -772,6 +778,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 	onDidViewletCloseEmitter = new Emitter<IPaneComposite>();
 
 	readonly partId = Parts.SIDEBAR_PART;
+	readonly registryId = PaneCompositeExtensions.Viewlets;
 	element: HTMLElement = undefined!;
 	minimumWidth = 0;
 	maximumWidth = 0;
@@ -809,6 +816,7 @@ export class TestPanelPart implements IPaneCompositePart {
 	onDidPaneCompositeOpen = new Emitter<IPaneComposite>().event;
 	onDidPaneCompositeClose = new Emitter<IPaneComposite>().event;
 	readonly partId = Parts.AUXILIARYBAR_PART;
+	readonly registryId = PaneCompositeExtensions.Auxiliary;
 
 	async openPaneComposite(id?: string, focus?: boolean): Promise<undefined> { return undefined; }
 	getPaneComposite(id: string): any { return activeViewlet; }
@@ -1370,6 +1378,8 @@ export class TestHostService implements IHostService {
 	async getNativeWindowHandle(_windowId: number): Promise<VSBuffer | undefined> { return undefined; }
 
 	async showToast(_options: IToastOptions, token: CancellationToken): Promise<IToastResult> { return { supported: false, clicked: false }; }
+
+	async setWindowDimmed(_targetWindow: Window, _dimmed: boolean): Promise<void> { }
 
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
@@ -2132,6 +2142,7 @@ export class TestChatWidgetService implements IChatWidgetService {
 
 	onDidAddWidget = Event.None;
 	onDidBackgroundSession = Event.None;
+	onDidChangeFocusedWidget = Event.None;
 
 	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> { return false; }
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }

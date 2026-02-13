@@ -122,6 +122,11 @@ export interface IChatWidgetService {
 	readonly onDidBackgroundSession: Event<URI>;
 
 	/**
+	 * Fires when the focused chat widget changes.
+	 */
+	readonly onDidChangeFocusedWidget: Event<IChatWidget | undefined>;
+
+	/**
 	 * Reveals the widget, focusing its input unless `preserveFocus` is true.
 	 */
 	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean>;

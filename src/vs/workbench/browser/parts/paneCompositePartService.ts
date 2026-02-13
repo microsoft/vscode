@@ -17,6 +17,7 @@ import { ViewContainerLocation } from '../../common/views.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
+import { SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 
 export class PaneCompositePartService extends Disposable implements IPaneCompositePartService {
 
@@ -45,6 +46,14 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 		const eventDisposables = this._register(new DisposableStore());
 		this.onDidPaneCompositeOpen = Event.any(...viewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeOpen, composite => { return { composite, viewContainerLocation: loc }; }, eventDisposables)));
 		this.onDidPaneCompositeClose = Event.any(...viewContainerLocations.map(loc => Event.map(this.paneCompositeParts.get(loc)!.onDidPaneCompositeClose, composite => { return { composite, viewContainerLocation: loc }; }, eventDisposables)));
+	}
+
+	getRegistryId(viewContainerLocation: ViewContainerLocation): string {
+		return this.getPartByLocation(viewContainerLocation).registryId;
+	}
+
+	getPartId(viewContainerLocation: ViewContainerLocation): SINGLE_WINDOW_PARTS {
+		return this.getPartByLocation(viewContainerLocation).partId;
 	}
 
 	openPaneComposite(id: string | undefined, viewContainerLocation: ViewContainerLocation, focus?: boolean): Promise<IPaneComposite | undefined> {

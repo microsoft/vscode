@@ -33,6 +33,9 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	private readonly _onDidBackgroundSession = this._register(new Emitter<URI>());
 	readonly onDidBackgroundSession = this._onDidBackgroundSession.event;
 
+	private readonly _onDidChangeFocusedWidget = this._register(new Emitter<IChatWidget | undefined>());
+	readonly onDidChangeFocusedWidget = this._onDidChangeFocusedWidget.event;
+
 	constructor(
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -218,6 +221,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		}
 
 		this._lastFocusedWidget = widget;
+		this._onDidChangeFocusedWidget.fire(widget);
 	}
 
 	register(newWidget: IChatWidget): IDisposable {

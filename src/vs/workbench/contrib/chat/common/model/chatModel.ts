@@ -29,7 +29,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImplicitVariableEntry, isStringImplicitContextValue, isStringVariableEntry } from '../attachments/chatVariableEntries.js';
 import { migrateLegacyTerminalToolSpecificData } from '../chat.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatDisabledClaudeHooksPart, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExternalToolInvocationUpdate, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatSessionTiming, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsage, IChatUsedContext, IChatWarningMessage, IChatWorkspaceEdit, ResponseModelState, isIUsedContext } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { ChatToolInvocation } from './chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource, IToolData } from '../tools/languageModelToolsService.js';
@@ -207,7 +207,8 @@ export type IChatProgressResponseContent =
 	| IChatElicitationRequestSerialized
 	| IChatClearToPreviousToolInvocation
 	| IChatMcpServersStarting
-	| IChatMcpServersStartingSerialized;
+	| IChatMcpServersStartingSerialized
+	| IChatDisabledClaudeHooksPart;
 
 export type IChatProgressResponseContentSerialized = Exclude<IChatProgressResponseContent,
 	| IChatToolInvocation
@@ -215,6 +216,7 @@ export type IChatProgressResponseContentSerialized = Exclude<IChatProgressRespon
 	| IChatTask
 	| IChatMultiDiffData
 	| IChatMcpServersStarting
+	| IChatDisabledClaudeHooksPart
 >;
 
 const nonHistoryKinds = new Set(['toolInvocation', 'toolInvocationSerialized', 'undoStop']);
@@ -502,6 +504,7 @@ class AbstractResponse implements IResponse {
 				case 'multiDiffData':
 				case 'mcpServersStarting':
 				case 'questionCarousel':
+				case 'disabledClaudeHooks':
 					// Ignore
 					continue;
 				case 'toolInvocation':
@@ -1421,7 +1424,7 @@ interface ISerializableChatResponseData {
 	timeSpentWaiting?: number;
 }
 
-export type SerializedChatResponsePart = IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart | IChatProgressResponseContentSerialized | IChatQuestionCarousel;
+export type SerializedChatResponsePart = IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability | IChatThinkingPart | IChatProgressResponseContentSerialized | IChatQuestionCarousel | IChatDisabledClaudeHooksPart;
 
 export interface ISerializableChatRequestData extends ISerializableChatResponseData {
 	requestId: string;
@@ -2306,6 +2309,17 @@ export class ChatModel extends Disposable implements IChatModel {
 			let modelState = raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: Date.now() };
 			if (modelState.value === ResponseModelState.Pending || modelState.value === ResponseModelState.NeedsInput) {
 				modelState = { value: ResponseModelState.Cancelled, completedAt: Date.now() };
+			}
+
+			// Mark question carousels as used after
+			// deserialization. After a reload, the extension is no longer listening for
+			// their responses, so they cannot be interacted with.
+			if (raw.response) {
+				for (const part of raw.response) {
+					if (hasKey(part, { kind: true }) && (part.kind === 'questionCarousel')) {
+						part.isUsed = true;
+					}
+				}
 			}
 
 			request.response = new ChatResponseModel({

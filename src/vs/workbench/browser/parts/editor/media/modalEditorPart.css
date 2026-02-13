@@ -7,9 +7,11 @@
 .monaco-modal-editor-block {
 	position: fixed;
 	width: 100%;
+	height: 100%;
+	top: 0;
 	left: 0;
-	/* z-index for modal editors: below dialogs, quick input, context views, hovers but above other things */
-	z-index: 2000;
+	/* z-index for modal editors: above titlebar (2500) but below dialogs (2575) */
+	z-index: 2550;
 	display: flex;
 	justify-content: center;
 	align-items: center;

@@ -168,6 +168,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 						supportsSymbolAttachments: {
 							description: localize('chatSessionsExtPoint.supportsSymbolAttachments', 'Whether this chat session supports attaching symbols.'),
 							type: 'boolean'
+						},
+						supportsPromptAttachments: {
+							description: localize('chatSessionsExtPoint.supportsPromptAttachments', 'Whether this chat session supports attaching prompts.'),
+							type: 'boolean'
 						}
 					}
 				},
@@ -197,11 +201,6 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				},
 				canDelegate: {
 					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Default is false. Note that enabling this is experimental and may not be respected at all times.'),
-					type: 'boolean',
-					default: false
-				},
-				isReadOnly: {
-					description: localize('chatSessionsExtPoint.isReadOnly', 'Whether this session type is for read-only agents that do not support interactive chat. This flag is incompatible with \'canDelegate\'.'),
 					type: 'boolean',
 					default: false
 				},
@@ -653,7 +652,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
-		if (contribution.isReadOnly || contribution.canDelegate) {
+		if (contribution.canDelegate) {
 			disposableStore.add(this._registerAgent(contribution, ext));
 			disposableStore.add(this._registerCommands(contribution));
 		}

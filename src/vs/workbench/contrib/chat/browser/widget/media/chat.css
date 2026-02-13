@@ -805,12 +805,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
-/* When a getting-started tip is shown, visually attach it to the input */
-.interactive-session.chat-has-getting-started-tip .chat-input-container {
-	border-top-left-radius: 0;
-	border-top-right-radius: 0;
-}
-
 /* Context usage widget container - positioned at top right of chat input */
 .interactive-session .chat-input-container .chat-context-usage-container {
 	position: absolute;
@@ -826,7 +820,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
-.interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container {
+.interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container,
+.interactive-input-part:has(.chat-getting-started-tip-container > .chat-tip-widget) .chat-input-container {
 	/* Remove top border radius when editing session, todo list, or status widget is present */
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
@@ -1080,23 +1075,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-bottom: -4px;
 	width: 100%;
 	position: relative;
-}
-
-/* question carousel - this is above edits and todos */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container {
-	width: 100%;
-	position: relative;
-}
-
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container:empty {
-	display: none;
-}
-
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container {
-	margin: 0px;
-	border: 1px solid var(--vscode-input-border, transparent);
-	background-color: var(--vscode-editor-background);
-	border-radius: 4px;
 }
 
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */
@@ -2128,12 +2106,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session-list.collapsed {
 	display: none;
-}
-
-/* Tree view: remove twistie indent for leaf (non-collapsible) file rows */
-.interactive-session .chat-editing-session-list .monaco-tl-twistie:not(.collapsible) {
-	width: 0;
-	padding-right: 0;
 }
 
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {

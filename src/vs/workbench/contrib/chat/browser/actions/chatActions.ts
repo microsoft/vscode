@@ -76,6 +76,12 @@ export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 export const CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID = 'workbench.action.chat.triggerSetupSupportAnonymousAction';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 
+export const GENERATE_INSTRUCTIONS_COMMAND_ID = 'workbench.action.chat.generateInstructions';
+export const GENERATE_INSTRUCTION_COMMAND_ID = 'workbench.action.chat.generateInstruction';
+export const GENERATE_PROMPT_COMMAND_ID = 'workbench.action.chat.generatePrompt';
+export const GENERATE_SKILL_COMMAND_ID = 'workbench.action.chat.generateSkill';
+export const GENERATE_AGENT_COMMAND_ID = 'workbench.action.chat.generateAgent';
+
 const defaultChat = {
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
 	provider: product.defaultChatAgent?.provider ?? { enterprise: { id: '' } },
@@ -839,16 +845,16 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: FocusTodosViewAction.ID,
-				title: localize2('interactiveSession.focusTodosView.label', "Agent TODOs: Toggle Focus Between TODOs and Input"),
+				title: localize2('interactiveSession.focusTodosView.label', "Toggle Focus Between TODOs and Input"),
 				category: CHAT_CATEGORY,
 				f1: true,
-				precondition: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)),
+				precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 				keybinding: [{
-					weight: KeybindingWeight.WorkbenchContrib,
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyT,
 					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)),
-						ChatContextKeys.inChatTodoList
+						ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent)),
+						ContextKeyExpr.and(ChatContextKeys.inChatTodoList, ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent))
 					),
 				}]
 			});
@@ -877,7 +883,7 @@ export function registerChatActions() {
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyH,
-					when: ChatContextKeys.inChatSession,
+					when: ChatContextKeys.inChatInput,
 				}]
 			});
 		}
@@ -1094,12 +1100,12 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class UpdateInstructionsAction extends Action2 {
+	registerAction2(class GenerateInstructionsAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.generateInstructions',
-				title: localize2('generateInstructions', "Generate Workspace Instructions File"),
-				shortTitle: localize2('generateInstructions.short', "Generate Chat Instructions"),
+				id: GENERATE_INSTRUCTIONS_COMMAND_ID,
+				title: localize2('generateInstructions', "Generate Workspace Instructions with Agent"),
+				shortTitle: localize2('generateInstructions.short', "Generate Instructions with Agent"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1109,31 +1115,102 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
-
-			// Use chat command to open and send the query
-			const query = `Analyze this codebase to generate or update \`.github/copilot-instructions.md\` for guiding AI coding agents.
-
-Focus on discovering the essential knowledge that would help an AI agents be immediately productive in this codebase. Consider aspects like:
-- The "big picture" architecture that requires reading multiple files to understand - major components, service boundaries, data flows, and the "why" behind structural decisions
-- Critical developer workflows (builds, tests, debugging) especially commands that aren't obvious from file inspection alone
-- Project-specific conventions and patterns that differ from common practices
-- Integration points, external dependencies, and cross-component communication patterns
-
-Source existing AI conventions from \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\` (do one glob search).
-
-Guidelines (read more at https://aka.ms/vscode-instructions-docs):
-- If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
-- Write concise, actionable instructions (~20-50 lines) using markdown structure
-- Include specific examples from the codebase when describing patterns
-- Avoid generic advice ("write tests", "handle errors") - focus on THIS project's specific approaches
-- Document only discoverable patterns, not aspirational practices
-- Reference key files/directories that exemplify important patterns
-
-Update \`.github/copilot-instructions.md\` for the user, then ask for feedback on any unclear or incomplete sections to iterate.`;
-
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
-				query: query,
+				query: '/init',
+				isPartialQuery: false,
+			});
+		}
+	});
+
+	registerAction2(class GenerateInstructionAction extends Action2 {
+		constructor() {
+			super({
+				id: GENERATE_INSTRUCTION_COMMAND_ID,
+				title: localize2('generateInstruction', "Generate On-demand Instruction with Agent"),
+				shortTitle: localize2('generateInstruction.short', "Generate Instruction with Agent"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.sparkle,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				mode: 'agent',
+				query: '/create-instruction ',
+				isPartialQuery: true,
+			});
+		}
+	});
+
+	registerAction2(class GeneratePromptAction extends Action2 {
+		constructor() {
+			super({
+				id: GENERATE_PROMPT_COMMAND_ID,
+				title: localize2('generatePrompt', "Generate Prompt File with Agent"),
+				shortTitle: localize2('generatePrompt.short', "Generate Prompt with Agent"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.sparkle,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				mode: 'agent',
+				query: '/create-prompt ',
+				isPartialQuery: true,
+			});
+		}
+	});
+
+	registerAction2(class GenerateSkillAction extends Action2 {
+		constructor() {
+			super({
+				id: GENERATE_SKILL_COMMAND_ID,
+				title: localize2('generateSkill', "Generate Skill with Agent"),
+				shortTitle: localize2('generateSkill.short', "Generate Skill with Agent"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.sparkle,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				mode: 'agent',
+				query: '/create-skill ',
+				isPartialQuery: true,
+			});
+		}
+	});
+
+	registerAction2(class GenerateAgentAction extends Action2 {
+		constructor() {
+			super({
+				id: GENERATE_AGENT_COMMAND_ID,
+				title: localize2('generateAgent', "Generate Custom Agent with Agent"),
+				shortTitle: localize2('generateAgent.short', "Generate Agent with Agent"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.sparkle,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				mode: 'agent',
+				query: '/create-agent ',
+				isPartialQuery: true,
 			});
 		}
 	});

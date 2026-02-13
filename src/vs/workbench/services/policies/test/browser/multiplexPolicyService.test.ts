@@ -56,6 +56,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	async signIn(): Promise<IDefaultAccount | null> {
 		return null;
 	}
+
+	async signOut(): Promise<void> { }
 }
 
 suite('MultiplexPolicyService', () => {

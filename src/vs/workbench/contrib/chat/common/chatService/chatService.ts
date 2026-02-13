@@ -909,6 +909,10 @@ export interface IChatMcpServersStartingSerialized {
 	didStartServerIds?: string[];
 }
 
+export interface IChatDisabledClaudeHooksPart {
+	readonly kind: 'disabledClaudeHooks';
+}
+
 export class ChatMcpServersStarting implements IChatMcpServersStarting {
 	public readonly kind = 'mcpServersStarting';
 
@@ -973,7 +977,8 @@ export type IChatProgress =
 	| IChatMcpServersStarting
 	| IChatMcpServersStartingSerialized
 	| IChatHookPart
-	| IChatExternalToolInvocationUpdate;
+	| IChatExternalToolInvocationUpdate
+	| IChatDisabledClaudeHooksPart;
 
 export interface IChatFollowup {
 	kind: 'reply';

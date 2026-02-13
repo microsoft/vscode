@@ -71,18 +71,9 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 	}
 
 	if (model.metadata.maxInputTokens || model.metadata.maxOutputTokens) {
+		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
 		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-		let addSeparator = false;
-		if (model.metadata.maxInputTokens) {
-			markdown.appendMarkdown(`$(arrow-down) ${formatTokenCount(model.metadata.maxInputTokens)} (${localize('models.input', 'Input')})`);
-			addSeparator = true;
-		}
-		if (model.metadata.maxOutputTokens) {
-			if (addSeparator) {
-				markdown.appendText(`  |  `);
-			}
-			markdown.appendMarkdown(`$(arrow-up) ${formatTokenCount(model.metadata.maxOutputTokens)} (${localize('models.output', 'Output')})`);
-		}
+		markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
 		markdown.appendText(`\n`);
 	}
 
@@ -617,27 +608,13 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 		const { model: modelEntry } = entry;
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		if (modelEntry.metadata.maxInputTokens || modelEntry.metadata.maxOutputTokens) {
-			let addSeparator = false;
-			markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
-			if (modelEntry.metadata.maxInputTokens) {
-				const inputDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
-				DOM.append(inputDiv, $('span.codicon.codicon-arrow-down'));
-				const inputText = DOM.append(inputDiv, $('span'));
-				inputText.textContent = formatTokenCount(modelEntry.metadata.maxInputTokens);
+			const totalTokens = (modelEntry.metadata.maxInputTokens ?? 0) + (modelEntry.metadata.maxOutputTokens ?? 0);
+			const tokenDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
+			const tokenText = DOM.append(tokenDiv, $('span'));
+			tokenText.textContent = formatTokenCount(totalTokens);
 
-				markdown.appendMarkdown(`$(arrow-down) ${modelEntry.metadata.maxInputTokens} (${localize('models.input', 'Input')})`);
-				addSeparator = true;
-			}
-			if (modelEntry.metadata.maxOutputTokens) {
-				const outputDiv = DOM.append(templateData.tokenLimitsElement, $('.token-limit-item'));
-				DOM.append(outputDiv, $('span.codicon.codicon-arrow-up'));
-				const outputText = DOM.append(outputDiv, $('span'));
-				outputText.textContent = formatTokenCount(modelEntry.metadata.maxOutputTokens);
-				if (addSeparator) {
-					markdown.appendText(`  |  `);
-				}
-				markdown.appendMarkdown(`$(arrow-up) ${modelEntry.metadata.maxOutputTokens} (${localize('models.output', 'Output')})`);
-			}
+			markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
+			markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
 		}
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
@@ -1133,8 +1110,9 @@ export class ChatModelsWidget extends Disposable {
 						}
 						const ariaLabels = [];
 						ariaLabels.push(localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
-						if (e.model.metadata.maxInputTokens && e.model.metadata.maxOutputTokens) {
-							ariaLabels.push(localize('model.contextSize', 'Context size: {0} input tokens and {1} output tokens', formatTokenCount(e.model.metadata.maxInputTokens), formatTokenCount(e.model.metadata.maxOutputTokens)));
+						if (e.model.metadata.maxInputTokens || e.model.metadata.maxOutputTokens) {
+							const totalTokens = (e.model.metadata.maxInputTokens ?? 0) + (e.model.metadata.maxOutputTokens ?? 0);
+							ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
 						}
 						if (e.model.metadata.capabilities) {
 							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));

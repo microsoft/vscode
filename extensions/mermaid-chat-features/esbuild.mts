@@ -9,6 +9,7 @@ const srcDir = path.join(import.meta.dirname, 'src');
 const outDir = path.join(import.meta.dirname, 'dist');
 
 run({
+	platform: 'node',
 	entryPoints: {
 		'extension': path.join(srcDir, 'extension.ts'),
 	},

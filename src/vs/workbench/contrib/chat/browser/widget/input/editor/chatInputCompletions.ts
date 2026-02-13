@@ -197,18 +197,18 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				if (widget.lockedAgentId) {
+				if (widget.lockedAgentId && !widget.attachmentCapabilities.supportsPromptAttachments) {
 					return null;
 				}
 
-				// Filter out commands that are not user-invokable (hidden from / menu)
-				const userInvokableCommands = promptCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
-				if (userInvokableCommands.length === 0) {
+				// Filter out commands that are not user-invocable (hidden from / menu)
+				const userInvocableCommands = promptCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
+				if (userInvocableCommands.length === 0) {
 					return null;
 				}
 
 				return {
-					suggestions: userInvokableCommands.map((c, i): CompletionItem => {
+					suggestions: userInvocableCommands.map((c, i): CompletionItem => {
 						const label = `/${c.name}`;
 						const description = c.description;
 						return {

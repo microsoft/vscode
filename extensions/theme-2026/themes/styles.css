@@ -7,28 +7,22 @@
 	--radius-sm: 4px;
 	--radius-md: 6px;
 	--radius-lg: 8px;
-	/* --radius-lg: 12px; */
 
-	--shadow-xs: 0 0 2px rgba(0, 0, 0, 0.06);
 	--shadow-sm: 0 0 4px rgba(0, 0, 0, 0.08);
 	--shadow-md: 0 0 6px rgba(0, 0, 0, 0.08);
 	--shadow-lg: 0 0 12px rgba(0, 0, 0, 0.14);
 	--shadow-xl: 0 0 20px rgba(0, 0, 0, 0.15);
-	--shadow-2xl: 0 0 20px rgba(0, 0, 0, 0.18);
 	--shadow-hover: 0 0 8px rgba(0, 0, 0, 0.12);
 	--shadow-sm-strong: 0 0 4px rgba(0, 0, 0, 0.18);
 	--shadow-button-active: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-	--shadow-inset-white: inset 0 0 4px rgba(255, 255, 255, 0.1);
 	--shadow-active-tab: 0 8px 12px rgba(0, 0, 0, 0.02);
 
-	--backdrop-blur-sm: blur(12px);
 	--backdrop-blur-md: blur(20px) saturate(180%);
 	--backdrop-blur-lg: blur(40px) saturate(180%);
 }
 
 /* Dark theme: add brightness reduction for contrast-safe luminosity blending over bright backgrounds */
 .monaco-workbench.vs-dark {
-	--backdrop-blur-sm: blur(12px) brightness(0.55);
 	--backdrop-blur-md: blur(20px) saturate(180%) brightness(0.55);
 	--backdrop-blur-lg: blur(40px) saturate(180%) brightness(0.55);
 }
@@ -131,7 +125,6 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
 	box-shadow: inset var(--shadow-active-tab);
-	/* background: var(--vs) */
 	position: relative;
 	z-index: 5;
 	border-radius: 0;
@@ -194,13 +187,25 @@
 .monaco-workbench .quick-input-widget .quick-input-action,
 .monaco-workbench .quick-input-widget .quick-input-message,
 .monaco-workbench .quick-input-widget .monaco-list,
-.monaco-workbench .quick-input-widget .monaco-list-row {
+.monaco-workbench .quick-input-widget .monaco-list-row:not(:has(.quick-input-list-separator-border)) {
 	border-color: transparent !important;
 	outline: none !important;
 }
 
+.monaco-workbench .quick-input-widget .quick-input-list .monaco-list-rows {
+	background: transparent !important;
+}
+
+.monaco-workbench.vs .quick-input-widget .quick-input-list .monaco-list-row:hover:not(.selected):not(.focused) {
+	background-color: color-mix(in srgb, var(--vscode-list-hoverBackground) 95%, black) !important;
+}
+
 .monaco-workbench .monaco-editor .suggest-widget .monaco-list {
 	border-radius: var(--radius-lg);
+}
+
+.monaco-workbench .quick-input-widget .monaco-list-rows {
+	background: transparent !important;
 }
 
 .monaco-workbench .quick-input-widget .monaco-inputbox {
@@ -339,7 +344,7 @@
 
 /* Dialog */
 .monaco-workbench .monaco-dialog-box {
-	box-shadow: var(--shadow-2xl);
+	box-shadow: var(--shadow-xl);
 	border-radius: var(--radius-lg);
 	backdrop-filter: var(--backdrop-blur-lg);
 	-webkit-backdrop-filter: var(--backdrop-blur-lg);
@@ -354,8 +359,8 @@
 .monaco-workbench .monaco-editor .peekview-widget {
 	box-shadow: var(--shadow-hover);
 	background: color-mix(in srgb, var(--vscode-peekViewEditor-background) 60%, transparent) !important;
-	backdrop-filter: var(--backdrop-blur-sm);
-	-webkit-backdrop-filter: var(--backdrop-blur-sm);
+	backdrop-filter: var(--backdrop-blur-md);
+	-webkit-backdrop-filter: var(--backdrop-blur-md);
 }
 
 .monaco-workbench.vs-dark .monaco-editor .peekview-widget {
@@ -467,13 +472,6 @@
 }
 
 /* Buttons */
-.monaco-workbench .monaco-button {
-	box-shadow: var(--shadow-xs);
-}
-
-.monaco-workbench .monaco-button:hover {
-	box-shadow: var(--shadow-sm);
-}
 
 .monaco-workbench .monaco-button:active {
 	box-shadow: var(--shadow-button-active);
@@ -506,11 +504,6 @@
 .monaco-workbench .monaco-dropdown .dropdown-menu {
 	box-shadow: var(--shadow-lg);
 	border-radius: var(--radius-lg);
-}
-
-/* Terminal */
-.monaco-workbench.vs .pane-body.integrated-terminal {
-	box-shadow: var(--shadow-inset-white);
 }
 
 /* SCM */
@@ -673,12 +666,172 @@
 	background: transparent;
 }
 
-.monaco-workbench .quick-input-list .quick-input-list-entry.quick-input-list-separator-border {
-	border-top-width: 0;
-}
-
 /* Quick Input List - use descriptionForeground color for descriptions */
 .monaco-workbench .quick-input-list .monaco-icon-label .label-description {
 	opacity: 1;
 	color: var(--vscode-descriptionForeground);
+}
+
+/* ============================================================================================
+ * Reduced Transparency - disable backdrop-filter blur and color-mix transparency effects
+ * for improved rendering performance. Controlled by workbench.reduceTransparency setting.
+ * ============================================================================================ */
+
+/* Reset blur variables to none */
+.monaco-workbench.monaco-reduce-transparency {
+	--backdrop-blur-sm: none;
+	--backdrop-blur-md: none;
+	--backdrop-blur-lg: none;
+}
+
+/* Quick Input (Command Palette) */
+.monaco-workbench.monaco-reduce-transparency .quick-input-widget {
+	background-color: var(--vscode-quickInput-background) !important;
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+/* Notifications */
+.monaco-workbench.monaco-reduce-transparency .notification-toast-container {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: var(--vscode-notifications-background) !important;
+}
+
+.monaco-workbench.monaco-reduce-transparency .notifications-center {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: var(--vscode-notifications-background) !important;
+}
+
+/* Context Menu / Action Widget */
+.monaco-workbench.monaco-reduce-transparency .action-widget {
+	background: var(--vscode-menu-background) !important;
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+/* Suggest Widget */
+.monaco-workbench.monaco-reduce-transparency .monaco-editor .suggest-widget {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: var(--vscode-editorSuggestWidget-background) !important;
+}
+
+/* Find Widget */
+.monaco-workbench.monaco-reduce-transparency .monaco-editor .find-widget {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+.monaco-workbench.monaco-reduce-transparency .inline-chat-gutter-menu {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+/* Dialog */
+.monaco-workbench.monaco-reduce-transparency .monaco-dialog-box {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: var(--vscode-editor-background) !important;
+}
+
+/* Peek View */
+.monaco-workbench.monaco-reduce-transparency .monaco-editor .peekview-widget {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: var(--vscode-peekViewEditor-background) !important;
+}
+
+/* Hover */
+.monaco-reduce-transparency .monaco-hover {
+	background-color: var(--vscode-editorHoverWidget-background) !important;
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+.monaco-reduce-transparency .monaco-hover.workbench-hover,
+.monaco-reduce-transparency .workbench-hover {
+	background-color: var(--vscode-editorHoverWidget-background) !important;
+	-webkit-backdrop-filter: none !important;
+	backdrop-filter: none !important;
+}
+
+/* Keybinding Widget */
+.monaco-workbench.monaco-reduce-transparency .defineKeybindingWidget {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+/* Chat Editor Overlay */
+.monaco-workbench.monaco-reduce-transparency .chat-editor-overlay-widget,
+.monaco-workbench.monaco-reduce-transparency .chat-diff-change-content-widget {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+/* Debug Toolbar */
+.monaco-workbench.monaco-reduce-transparency .debug-toolbar {
+	-webkit-backdrop-filter: none !important;
+	backdrop-filter: none !important;
+}
+
+.monaco-workbench.monaco-reduce-transparency .debug-hover-widget {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+/* Parameter Hints */
+.monaco-workbench.monaco-reduce-transparency .monaco-editor .parameter-hints-widget {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: var(--vscode-editorWidget-background) !important;
+}
+
+/* Sticky Scroll */
+.monaco-workbench.monaco-reduce-transparency .monaco-editor .sticky-widget {
+	-webkit-backdrop-filter: none !important;
+	backdrop-filter: none !important;
+	background: var(--vscode-editor-background) !important;
+}
+
+.monaco-workbench.monaco-reduce-transparency .monaco-editor .sticky-widget .sticky-widget-lines {
+	-webkit-backdrop-filter: none !important;
+	backdrop-filter: none !important;
+	background: var(--vscode-editor-background) !important;
+}
+
+/* Rename Box */
+.monaco-reduce-transparency .monaco-editor .rename-box.preview {
+	-webkit-backdrop-filter: none !important;
+	backdrop-filter: none !important;
+}
+
+/* Notebook */
+.monaco-workbench.monaco-reduce-transparency .notebookOverlay .monaco-list-row .cell-title-toolbar {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+/* Command Center */
+.monaco-workbench.monaco-reduce-transparency .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
+	background: var(--vscode-commandCenter-background) !important;
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+.monaco-workbench.monaco-reduce-transparency .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
+	background: var(--vscode-commandCenter-activeBackground) !important;
+}
+
+/* Breadcrumbs */
+.monaco-workbench.monaco-reduce-transparency .breadcrumbs-picker-widget {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: var(--vscode-breadcrumbPicker-background) !important;
+}
+
+/* Quick Input filter input */
+.monaco-workbench.monaco-reduce-transparency .quick-input-widget .quick-input-filter .monaco-inputbox {
+	background: var(--vscode-input-background) !important;
 }

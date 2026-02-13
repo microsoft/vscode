@@ -1508,7 +1508,7 @@ var
 begin
   // Check if the user has forced Windows 10 style context menus on Windows 11
   SubKey := 'Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32';
-  Result := RegKeyExists(HKEY_CURRENT_USER, SubKey) or RegKeyExists(HKEY_LOCAL_MACHINE, SubKey);
+  Result := RegKeyExists(HKEY_CURRENT_USER, SubKey);
 end;
 
 function ShouldUseWindows11ContextMenu(): Boolean;
@@ -1675,6 +1675,12 @@ begin
   if CurStep = ssPostInstall then
   begin
 #ifdef AppxPackageName
+    // Remove the appx package when user has forced Windows 10 context menus via
+    // registry. This handles the case where the user previously had the appx
+    // installed but now wants the classic context menu style.
+    if IsWindows10ContextMenuForced() then begin
+      RemoveAppxPackage();
+    end;
     // Remove the old context menu registry keys
     if ShouldUseWindows11ContextMenu() then begin
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');

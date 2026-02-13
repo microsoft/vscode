@@ -29,6 +29,7 @@ import { equals } from '../../../../base/common/objects.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -177,6 +178,11 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		return this.defaultAccountProvider?.signIn(options) ?? null;
 	}
 
+	async signOut(): Promise<void> {
+		await this.initBarrier.wait();
+		await this.defaultAccountProvider?.signOut();
+	}
+
 	private setDefaultAccount(account: IDefaultAccount | null): void {
 		if (equals(this.defaultAccount, account)) {
 			return;
@@ -244,6 +250,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IHostService private readonly hostService: IHostService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
@@ -820,6 +827,13 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 		await this.updateDefaultAccount();
 		return this.defaultAccount;
+	}
+
+	async signOut(): Promise<void> {
+		if (!this.defaultAccount) {
+			return;
+		}
+		this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
 	}
 
 }

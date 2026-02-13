@@ -182,6 +182,8 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document);
 
+		const fallbackSection = isTypeScriptDocument(document) ? 'typescript' : 'javascript';
+
 		const preferences: Proto.UserPreferences = {
 			...config.get('unstable'),
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
@@ -191,13 +193,13 @@ export default class FileConfigurationManager extends Disposable {
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
 			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('useAliasesForRenames', true),
 			allowRenameOfImportPath: true,
-			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
+			includeAutomaticOptionalChainCompletions: readUnifiedConfig<boolean>('suggest.includeAutomaticOptionalChainCompletions', true, { scope: document, fallbackSection }),
 			provideRefactorNotApplicableReason: true,
-			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
-			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
+			generateReturnInDocTemplate: readUnifiedConfig<boolean>('suggest.jsdoc.generateReturns', true, { scope: document, fallbackSection }),
+			includeCompletionsForImportStatements: readUnifiedConfig<boolean>('suggest.includeCompletionsForImportStatements', true, { scope: document, fallbackSection }),
 			includeCompletionsWithSnippetText: true,
-			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
-			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
+			includeCompletionsWithClassMemberSnippets: readUnifiedConfig<boolean>('suggest.classMemberSnippets.enabled', true, { scope: document, fallbackSection }),
+			includeCompletionsWithObjectLiteralMethodSnippets: readUnifiedConfig<boolean>('suggest.objectLiteralMethodSnippets.enabled', true, { scope: document, fallbackSection }),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
 			autoImportSpecifierExcludeRegexes: preferencesConfig.get<string[]>('autoImportSpecifierExcludeRegexes'),
 			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
@@ -206,8 +208,8 @@ export default class FileConfigurationManager extends Disposable {
 			displayPartsForJSDoc: true,
 			disableLineTextInReferences: true,
 			interactiveInlayHints: true,
-			includeCompletionsForModuleExports: config.get<boolean>('suggest.autoImports'),
-			...getInlayHintsPreferences(document, isTypeScriptDocument(document) ? 'typescript' : 'javascript'),
+			includeCompletionsForModuleExports: readUnifiedConfig<boolean>('suggest.autoImports', true, { scope: document, fallbackSection }),
+			...getInlayHintsPreferences(document, fallbackSection),
 			...this.getOrganizeImportsPreferences(preferencesConfig),
 			maximumHoverLength: this.getMaximumHoverLength(document),
 		};
