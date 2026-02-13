@@ -13,7 +13,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker, tryAutoExitVim } from './strategyHelpers.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -133,12 +133,14 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 				throw new Error('The terminal was closed');
 			}
 			if (onDoneResult && onDoneResult.type === 'alternateBuffer') {
+				const attemptedAutoExitVim = await tryAutoExitVim(this._instance, commandLine, this._log.bind(this));
 				this._log('Detected alternate buffer entry, skipping output capture');
 				return {
 					output: undefined,
 					exitCode: undefined,
 					error: 'alternateBuffer',
-					didEnterAltBuffer: true
+					didEnterAltBuffer: true,
+					attemptedAutoExitVim,
 				};
 			}
 			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;

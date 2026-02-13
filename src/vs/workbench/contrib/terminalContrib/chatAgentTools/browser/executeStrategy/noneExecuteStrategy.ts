@@ -11,7 +11,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker, tryAutoExitVim } from './strategyHelpers.js';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -86,6 +86,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				alternateBufferPromise.then(() => 'alternateBuffer' as const)
 			]);
 			if (promptResultOrAltBuffer === 'alternateBuffer') {
+				const attemptedAutoExitVim = await tryAutoExitVim(this._instance, commandLine, this._log.bind(this));
 				this._log('Detected alternate buffer entry, skipping output capture');
 				return {
 					output: undefined,
@@ -93,6 +94,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 					exitCode: undefined,
 					error: 'alternateBuffer',
 					didEnterAltBuffer: true,
+					attemptedAutoExitVim,
 				};
 			}
 			const promptResult = promptResultOrAltBuffer;

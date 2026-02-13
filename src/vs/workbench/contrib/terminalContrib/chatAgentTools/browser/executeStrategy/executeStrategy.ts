@@ -30,6 +30,7 @@ export interface ITerminalExecuteStrategyResult {
 	exitCode?: number;
 	error?: string;
 	didEnterAltBuffer?: boolean;
+	attemptedAutoExitVim?: boolean;
 }
 
 export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number): Promise<void> {

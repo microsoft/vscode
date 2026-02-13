@@ -7,6 +7,12 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
+interface IVimTerminalLike {
+	readonly processName?: string;
+	readonly title?: string;
+	sendText(text: string, addNewLine: boolean): Promise<void> | void;
+}
+
 /**
  * Sets up a recreating start marker which is resilient to prompts that clear/re-render (eg. transient
  * or powerlevel10k style prompts). The marker is recreated at the cursor position whenever the
@@ -69,4 +75,30 @@ export function createAltBufferPromise(
 	}
 
 	return deferred.p;
+}
+
+function _containsVimToken(value: string | undefined): boolean {
+	if (!value) {
+		return false;
+	}
+	return /(?:^|[^a-z0-9_])(n?vim|vi|view)(?:\.exe)?(?:$|[^a-z0-9_])/i.test(value);
+}
+
+export function shouldAutoExitVim(instance: IVimTerminalLike, commandLine: string): boolean {
+	return _containsVimToken(instance.processName) || _containsVimToken(instance.title) || _containsVimToken(commandLine);
+}
+
+export async function tryAutoExitVim(instance: IVimTerminalLike, commandLine: string, log?: (message: string) => void): Promise<boolean> {
+	if (!shouldAutoExitVim(instance, commandLine)) {
+		return false;
+	}
+
+	try {
+		log?.('Likely Vim state detected, sending "Esc :q Enter"');
+		await Promise.resolve(instance.sendText('\x1b:q\r', false));
+		return true;
+	} catch (error) {
+		log?.('Failed to send Vim exit sequence');
+		return false;
+	}
 }

@@ -876,7 +876,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						const state = toolSpecificData.terminalCommandState ?? {};
 						state.timestamp = state.timestamp ?? timingStart;
 						toolSpecificData.terminalCommandState = state;
-						toolResultMessage = altBufferMessage;
+						toolResultMessage = executeResult.attemptedAutoExitVim
+							? altBufferMessage + '\n' + localize('runInTerminalTool.altBufferMessage.autoExitVim', "Detected Vim and sent ':q' to exit.")
+							: altBufferMessage;
 						outputLineCount = 0;
 						error = executeResult.error ?? 'alternateBuffer';
 						altBufferResult = {
@@ -886,7 +888,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							},
 							content: [{
 								kind: 'text',
-								value: altBufferMessage,
+								value: toolResultMessage,
 							}]
 						};
 					} else {
