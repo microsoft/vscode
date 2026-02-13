@@ -18,7 +18,7 @@ import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../
 import { ICommandService, ICommandHandler, CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { Event } from '../../../../base/common/event.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { Disposable, toDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { toDisposable, dispose, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
@@ -320,8 +320,8 @@ class PrivacyColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 }
 
 interface IActionBarTemplateData {
-	elementDisposables: DisposableStore;
-	templateDisposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 	container: HTMLElement;
 	label: IconLabel;
 	button?: Button;
@@ -364,9 +364,9 @@ class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTempl
 	renderTemplate(container: HTMLElement): IActionBarTemplateData {
 		const cell = dom.append(container, dom.$('.ports-view-actionbar-cell'));
 		const icon = dom.append(cell, dom.$('.ports-view-actionbar-cell-icon'));
-		const templateDisposables = new DisposableStore()
+		const templateDisposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
-		templateDisposables.add(elementDisposables)
+		templateDisposables.add(elementDisposables);
 		const label = templateDisposables.add(new IconLabel(cell,
 			{
 				supportHighlights: true,
@@ -382,7 +382,6 @@ class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTempl
 
 	renderElement(element: ActionBarCell, index: number, templateData: IActionBarTemplateData): void {
 		// reset
-		templateData.elementDisposables.clear();
 		templateData.actionBar.clear();
 		templateData.icon.className = 'ports-view-actionbar-cell-icon';
 		templateData.icon.style.display = 'none';
@@ -394,13 +393,16 @@ class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTempl
 		}
 		templateData.container.style.paddingLeft = '0px';
 
+		templateData.elementDisposables.clear();
+
+
 		let editableData: IEditableData | undefined;
 		if (element.editId === TunnelEditId.New && (editableData = this.remoteExplorerService.getEditableData(undefined))) {
-			this.renderInputBox(templateData, editableData)
+			this.renderInputBox(templateData, editableData);
 		} else {
 			editableData = this.remoteExplorerService.getEditableData(element.tunnel, element.editId);
 			if (editableData) {
-				this.renderInputBox(templateData, editableData)
+				this.renderInputBox(templateData, editableData);
 			} else if ((element.tunnel.tunnelType === TunnelType.Add) && (element.menuId === MenuId.TunnelPortInline)) {
 				this.renderButton(element, templateData);
 			} else {
@@ -494,7 +496,7 @@ class ActionBarRenderer implements ITableRenderer<ActionBarCell, IActionBarTempl
 			this.inputDone(false, false);
 			this.inputDone = undefined;
 		}
-		const { container } = templateData
+		const { container } = templateData;
 		container.style.paddingLeft = '5px';
 		const value = editableData.startingValue || '';
 		const inputBox = new InputBox(container, this.contextViewService, {
