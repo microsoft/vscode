@@ -23,7 +23,7 @@ steps:
   - task: Cache@2
     displayName: Restore sccache cache
     inputs:
-      key: 'sccache | "$(Agent.OS)" | "${{ parameters.VSCODE_CLI_TARGET }}" | $(Build.SourcesDirectory)/cli/Cargo.toml | $(Build.SourcesDirectory)/build/.cachesalt'
+      key: 'sccache | "$(Agent.OS)" | "${{ parameters.VSCODE_CLI_TARGET }}" | "${{ parameters.VSCODE_CHECK_ONLY }}" | $(Build.SourcesDirectory)/cli/Cargo.toml | $(Build.SourcesDirectory)/build/.cachesalt'
       path: $(Pipeline.Workspace)/sccache
 
   - ${{ if contains(parameters.VSCODE_CLI_TARGET, '-windows-') }}:
