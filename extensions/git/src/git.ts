@@ -1418,6 +1418,7 @@ export class Repository {
 
 		if (options?.shortStats) {
 			args.push('--shortstat');
+			args.push('--no-ext-diff');
 
 			if (this._git.compareGitVersionTo('2.31') !== -1) {
 				args.push('--diff-merges=first-parent');
@@ -1498,6 +1499,7 @@ export class Repository {
 
 		if (options?.shortStats) {
 			args.push('--shortstat');
+			args.push('--no-ext-diff');
 		}
 
 		if (options?.sortByAuthorDate) {
@@ -1706,7 +1708,7 @@ export class Repository {
 	}
 
 	async diff(cached = false): Promise<string> {
-		const args = ['diff'];
+		const args = ['diff', '--no-ext-diff'];
 
 		if (cached) {
 			args.push('--cached');
@@ -1724,7 +1726,7 @@ export class Repository {
 			return await this.diffFiles(undefined, { cached: false });
 		}
 
-		const args = ['diff', '--', this.sanitizeRelativePath(path)];
+		const args = ['diff', '--no-ext-diff', '--', this.sanitizeRelativePath(path)];
 		const result = await this.exec(args);
 		return result.stdout;
 	}
@@ -1741,7 +1743,7 @@ export class Repository {
 			return await this.diffFiles(ref, { cached: false });
 		}
 
-		const args = ['diff', ref, '--', this.sanitizeRelativePath(path)];
+		const args = ['diff', '--no-ext-diff', ref, '--', this.sanitizeRelativePath(path)];
 		const result = await this.exec(args);
 		return result.stdout;
 	}
@@ -1754,7 +1756,7 @@ export class Repository {
 			return await this.diffFiles(undefined, { cached: true });
 		}
 
-		const args = ['diff', '--cached', '--', this.sanitizeRelativePath(path)];
+		const args = ['diff', '--no-ext-diff', '--cached', '--', this.sanitizeRelativePath(path)];
 		const result = await this.exec(args);
 		return result.stdout;
 	}
@@ -1771,13 +1773,13 @@ export class Repository {
 			return await this.diffFiles(ref, { cached: true });
 		}
 
-		const args = ['diff', '--cached', ref, '--', this.sanitizeRelativePath(path)];
+		const args = ['diff', '--no-ext-diff', '--cached', ref, '--', this.sanitizeRelativePath(path)];
 		const result = await this.exec(args);
 		return result.stdout;
 	}
 
 	async diffBlobs(object1: string, object2: string): Promise<string> {
-		const args = ['diff', object1, object2];
+		const args = ['diff', '--no-ext-diff', object1, object2];
 		const result = await this.exec(args);
 		return result.stdout;
 	}
@@ -1791,14 +1793,14 @@ export class Repository {
 			return await this.diffFiles(range, { cached: false });
 		}
 
-		const args = ['diff', range, '--', this.sanitizeRelativePath(path)];
+		const args = ['diff', '--no-ext-diff', range, '--', this.sanitizeRelativePath(path)];
 		const result = await this.exec(args);
 
 		return result.stdout.trim();
 	}
 
 	async diffBetweenPatch(ref: string, options: { path?: string }): Promise<string> {
-		const args = ['diff', ref, '--'];
+		const args = ['diff', '--no-ext-diff', ref, '--'];
 
 		if (options.path) {
 			args.push(this.sanitizeRelativePath(options.path));
@@ -1809,7 +1811,7 @@ export class Repository {
 	}
 
 	async diffBetweenWithStats(ref: string, options: { path?: string; similarityThreshold?: number }): Promise<DiffChange[]> {
-		const args = ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z',];
+		const args = ['diff', '--no-ext-diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z',];
 
 		if (options.similarityThreshold) {
 			args.push(`--find-renames=${options.similarityThreshold}%`);
@@ -1829,7 +1831,7 @@ export class Repository {
 	}
 
 	private async diffFiles(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number }): Promise<Change[]> {
-		const args = ['diff', '--name-status', '-z', '--diff-filter=ADMR'];
+		const args = ['diff', '--no-ext-diff', '--name-status', '-z', '--diff-filter=ADMR'];
 
 		if (options.cached) {
 			args.push('--cached');
@@ -1854,7 +1856,7 @@ export class Repository {
 	}
 
 	private async diffFilesShortStat(ref: string | undefined, options: { cached: boolean; path?: string }): Promise<CommitShortStat> {
-		const args = ['diff', '--shortstat'];
+		const args = ['diff', '--no-ext-diff', '--shortstat'];
 
 		if (options.cached) {
 			args.push('--cached');
@@ -1880,7 +1882,7 @@ export class Repository {
 
 
 	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<DiffChange[]> {
-		const args = ['diff-tree', '-r', '--raw', '--numstat', '--diff-filter=ADMR', '-z'];
+		const args = ['diff-tree', '--no-ext-diff', '-r', '--raw', '--numstat', '--diff-filter=ADMR', '-z'];
 
 		if (options?.similarityThreshold) {
 			args.push(`--find-renames=${options.similarityThreshold}%`);
@@ -3259,7 +3261,7 @@ export class Repository {
 
 	async showChanges(ref: string): Promise<string> {
 		try {
-			const result = await this.exec(['log', '-p', '-n1', ref, '--']);
+			const result = await this.exec(['log', '--no-ext-diff', '-p', '-n1', ref, '--']);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
@@ -3272,7 +3274,7 @@ export class Repository {
 
 	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
 		try {
-			const args = ['log', '-p', `${ref1}..${ref2}`, '--'];
+			const args = ['log', '--no-ext-diff', '-p', `${ref1}..${ref2}`, '--'];
 			if (path) {
 				args.push(this.sanitizeRelativePath(path));
 			}
