@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { asArray } from '../../../../../base/common/arrays.js';
 import { DeferredPromise, isThenable } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -41,13 +42,13 @@ import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQui
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatRequestVariableEntry, OmittedState } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
-import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
-import { isQuickChat } from '../chatWidget.js';
-import { resizeImage } from '../imageUtils.js';
+import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../attachments/chatContextPickService.js';
+import { isQuickChat } from '../widget/chatWidget.js';
+import { resizeImage } from '../chatImageUtils.js';
 import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -57,6 +58,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachFolderToChatAction);
 	registerAction2(AttachSelectionToChatAction);
 	registerAction2(AttachSearchResultAction);
+	registerAction2(AttachPinnedEditorsToChatAction);
 	registerPromptActions();
 }
 
@@ -170,6 +172,11 @@ class AttachFileToChatAction extends AttachResourceAction {
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
 					)
 				)
+			}, {
+				id: MenuId.ChatEditorInlineGutter,
+				group: '2_chat',
+				order: 2,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection.negate())
 			}]
 		});
 	}
@@ -228,6 +235,52 @@ class AttachFolderToChatAction extends AttachResourceAction {
 	}
 }
 
+class AttachPinnedEditorsToChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.attachPinnedEditors';
+
+	constructor() {
+		super({
+			id: AttachPinnedEditorsToChatAction.ID,
+			title: localize2('workbench.action.chat.attachPinnedEditors.label', "Add Pinned Editors to Chat"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const instaService = accessor.get(IInstantiationService);
+
+		const widget = await instaService.invokeFunction(withChatView);
+		if (!widget) {
+			return;
+		}
+
+		const files: URI[] = [];
+		for (const group of editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				if (group.isPinned(editor)) {
+					const uri = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+					if (uri && [Schemas.file, Schemas.vscodeRemote, Schemas.untitled].includes(uri.scheme)) {
+						files.push(uri);
+					}
+				}
+			}
+		}
+
+		if (!files.length) {
+			return;
+		}
+
+		widget.focusInput();
+		for (const file of files) {
+			widget.attachmentModel.addFile(file);
+		}
+	}
+}
+
 class AttachSelectionToChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.attachSelection';
@@ -239,7 +292,7 @@ class AttachSelectionToChatAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: true,
 			precondition: ChatContextKeys.enabled,
-			menu: {
+			menu: [{
 				id: MenuId.EditorContext,
 				group: '1_chat',
 				order: 1,
@@ -253,10 +306,16 @@ class AttachSelectionToChatAction extends Action2 {
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData)
 					)
 				)
-			}
+			}, {
+				id: MenuId.ChatEditorInlineGutter,
+				group: '2_chat',
+				order: 1,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorContextKeys.hasNonEmptySelection)
+			}]
 		});
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
@@ -648,11 +707,11 @@ export class AttachContextAction extends Action2 {
 				if (isThenable(attachment)) {
 					addPromises.push(attachment.then(v => {
 						if (v !== noop) {
-							widget.attachmentModel.addContext(v);
+							widget.attachmentModel.addContext(...asArray(v));
 						}
 					}));
 				} else {
-					widget.attachmentModel.addContext(attachment);
+					widget.attachmentModel.addContext(...asArray(attachment));
 				}
 			}
 			if (selected === goBackItem) {

@@ -65,6 +65,7 @@ import { StatusBarColorProvider } from './statusbarColorProvider.js';
 import { SET_VARIABLE_ID, VIEW_MEMORY_ID, VariablesView } from './variablesView.js';
 import { ADD_WATCH_ID, ADD_WATCH_LABEL, REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, REMOVE_WATCH_EXPRESSIONS_LABEL, WatchExpressionsView } from './watchExpressionsView.js';
 import { WelcomeView } from './welcomeView.js';
+import { DebugChatContextContribution } from './debugChatIntegration.js';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -82,6 +83,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider, LifecyclePhase.Eventually);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DisassemblyViewContribution, LifecyclePhase.Eventually);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugLifecycle, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(DebugChatContextContribution.ID, DebugChatContextContribution, WorkbenchPhase.AfterRestored);
 
 // Register Quick Access
 Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
@@ -635,6 +637,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showBreakpointsInOverviewRuler' }, "Controls whether breakpoints should be shown in the overview ruler."),
 			default: false
+		},
+		'debug.breakpointsView.presentation': {
+			type: 'string',
+			description: nls.localize('debug.breakpointsView.presentation', "Controls whether breakpoints are displayed in a tree view grouped by file, or as a flat list."),
+			enum: ['tree', 'list'],
+			default: 'list'
 		},
 		'debug.showInlineBreakpointCandidates': {
 			type: 'boolean',

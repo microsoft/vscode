@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder, ThemeIcon } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder, ThemeIcon, ResourceTrustRequestOptions } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -290,6 +290,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this._unsafeRepositoriesManager = new UnsafeRepositoriesManager();
 
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
+		workspace.onDidChangeWorkspaceTrustedFolders(this.onDidChangeWorkspaceTrustedFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -457,7 +458,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	@debounce(500)
 	private eventuallyScanPossibleGitRepositories(): void {
 		for (const path of this.possibleGitRepositoryPaths) {
-			this.openRepository(path, false, true);
+			this.openRepository(path);
 		}
 
 		this.possibleGitRepositoryPaths.clear();
@@ -485,6 +486,27 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 		catch (err) {
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error: ${err}`);
+		}
+	}
+
+	private async onDidChangeWorkspaceTrustedFolders(): Promise<void> {
+		try {
+			const openRepositoriesToDispose: OpenRepository[] = [];
+
+			for (const openRepository of this.openRepositories) {
+				const dotGitPath = openRepository.repository.dotGit.commonPath ?? openRepository.repository.dotGit.path;
+				const isTrusted = await workspace.isResourceTrusted(Uri.file(path.dirname(dotGitPath)));
+
+				if (!isTrusted) {
+					openRepositoriesToDispose.push(openRepository);
+					this.logger.trace(`[Model][onDidChangeWorkspaceTrustedFolders] Repository is no longer trusted: ${openRepository.repository.root}`);
+				}
+			}
+
+			openRepositoriesToDispose.forEach(r => r.dispose());
+		}
+		catch (err) {
+			this.logger.warn(`[Model][onDidChangeWorkspaceTrustedFolders] Error: ${err}`);
 		}
 	}
 
@@ -588,20 +610,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return;
 		}
 
-		if (!workspace.isTrusted) {
-			// Check if the folder is a bare repo: if it has a file named HEAD && `rev-parse --show -cdup` is empty
-			try {
-				fs.accessSync(path.join(repoPath, 'HEAD'), fs.constants.F_OK);
-				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup']);
-				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
-					this.logger.trace(`[Model][openRepository] Bare repository: ${repoPath}`);
-					return;
-				}
-			} catch {
-				// If this throw, we should be good to open the repo (e.g. HEAD doesn't exist)
-			}
-		}
-
 		try {
 			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
 			this.logger.trace(`[Model][openRepository] Repository root for path ${repoPath} is: ${repositoryRoot}`);
@@ -657,8 +665,22 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return;
 			}
 
-			// Open repository
+			// Get .git path and real path
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
+
+			// Check that the folder containing the .git folder is trusted
+			const dotGitPath = dotGit.commonPath ?? dotGit.path;
+			const result = await workspace.requestResourceTrust({
+				message: l10n.t('You are opening a repository from a location that is not trusted. Do you trust the authors of the files in the repository you are opening?'),
+				uri: Uri.file(path.dirname(dotGitPath)),
+			} satisfies ResourceTrustRequestOptions);
+
+			if (!result) {
+				this.logger.trace(`[Model][openRepository] Repository folder is not trusted: ${path.dirname(dotGitPath)}`);
+				return;
+			}
+
+			// Open repository
 			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
 			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter, this._repositoryCache);
 
@@ -877,7 +899,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		}
 
 		const repositories = this.openRepositories
-			.filter(r => !repositoryFilter || repositoryFilter.includes(r.repository.kind));
+			.filter(r => !r.repository.isHidden &&
+				(!repositoryFilter || repositoryFilter.includes(r.repository.kind)));
 
 		if (repositories.length === 0) {
 			throw new Error(l10n.t('There are no available repositories matching the filter'));
@@ -1087,11 +1110,29 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	private async isRepositoryOutsideWorkspace(repositoryPath: string): Promise<boolean> {
-		const workspaceFolders = (workspace.workspaceFolders || [])
+		// Allow opening repositories in the empty workspace
+		if (workspace.workspaceFolders === undefined) {
+			return false;
+		}
+
+		// Allow opening repositories in the agent session workspace
+		if (workspace.isAgentSessionsWorkspace) {
+			return false;
+		}
+
+		const workspaceFolders = workspace.workspaceFolders
 			.filter(folder => folder.uri.scheme === 'file');
 
 		if (workspaceFolders.length === 0) {
 			return true;
+		}
+
+		// The repository path may be a worktree (usually stored outside the workspace) so we have
+		// to check the repository path against all the worktree paths of the repositories that have
+		// already been opened.
+		const worktreePaths = this.repositories.map(r => r.worktrees.map(w => w.path)).flat();
+		if (worktreePaths.some(p => pathEquals(p, repositoryPath))) {
+			return false;
 		}
 
 		// The repository path may be a canonical path or it may contain a symbolic link so we have

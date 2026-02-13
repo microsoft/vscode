@@ -51,7 +51,7 @@ import { McpCommandIds } from '../../mcp/common/mcpCommandIds.js';
 
 export interface IPreferencesRenderer extends IDisposable {
 	render(): void;
-	updatePreference(key: string, value: any, source: ISetting): void;
+	updatePreference(key: string, value: unknown, source: ISetting): void;
 	focusPreference(setting: ISetting): void;
 	clearFocus(setting: ISetting): void;
 	editPreference(setting: ISetting): boolean;
@@ -61,7 +61,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 	private settingHighlighter: SettingHighlighter;
 	private editSettingActionRenderer: EditSettingRenderer;
-	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
+	private modelChangeDelayer = this._register(new Delayer<void>(200));
 	private associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 
 	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
@@ -87,7 +87,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.mcpSettingsRenderer.render();
 	}
 
-	updatePreference(key: string, value: any, source: IIndexedSetting): void {
+	updatePreference(key: string, value: unknown, source: IIndexedSetting): void {
 		const overrideIdentifiers = source.overrideOf ? overrideIdentifiersFromKey(source.overrideOf.key) : null;
 		const resource = this.preferencesModel.uri;
 		this.configurationService.updateValue(key, value, { overrideIdentifiers, resource }, this.preferencesModel.configurationTarget)
@@ -181,8 +181,8 @@ class EditSettingRenderer extends Disposable {
 	associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private readonly _onUpdateSetting: Emitter<{ key: string; value: any; source: IIndexedSetting }> = this._register(new Emitter<{ key: string; value: any; source: IIndexedSetting }>());
-	readonly onUpdateSetting: Event<{ key: string; value: any; source: IIndexedSetting }> = this._onUpdateSetting.event;
+	private readonly _onUpdateSetting: Emitter<{ key: string; value: unknown; source: IIndexedSetting }> = this._register(new Emitter<{ key: string; value: unknown; source: IIndexedSetting }>());
+	readonly onUpdateSetting: Event<{ key: string; value: unknown; source: IIndexedSetting }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private primarySettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
@@ -194,7 +194,7 @@ class EditSettingRenderer extends Disposable {
 
 		this.editPreferenceWidgetForCursorPosition = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
 		this.editPreferenceWidgetForMouseMove = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
-		this.toggleEditPreferencesForMouseMoveDelayer = new Delayer<void>(75);
+		this.toggleEditPreferencesForMouseMoveDelayer = this._register(new Delayer<void>(75));
 
 		this._register(this.editPreferenceWidgetForCursorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCursorPosition, e)));
 		this._register(this.editPreferenceWidgetForMouseMove.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForMouseMove, e)));
@@ -447,7 +447,7 @@ class EditSettingRenderer extends Disposable {
 		return [];
 	}
 
-	private updateSetting(key: string, value: any, source: IIndexedSetting): void {
+	private updateSetting(key: string, value: unknown, source: IIndexedSetting): void {
 		this._onUpdateSetting.fire({ key, value, source });
 	}
 }
@@ -486,7 +486,7 @@ class SettingHighlighter extends Disposable {
 
 class UnsupportedSettingsRenderer extends Disposable implements languages.CodeActionProvider {
 
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+	private renderingDelayer = this._register(new Delayer<void>(200));
 
 	private readonly codeActions = new ResourceMap<[Range, languages.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
@@ -791,7 +791,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 
 class McpSettingsRenderer extends Disposable implements languages.CodeActionProvider {
 
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+	private renderingDelayer = this._register(new Delayer<void>(200));
 	private readonly codeActions = new ResourceMap<[Range, languages.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
 	constructor(
@@ -913,7 +913,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	private static readonly supportedKeys = ['folders', 'tasks', 'launch', 'extensions', 'settings', 'remoteAuthority', 'transient'];
 
 	private readonly decorations: editorCommon.IEditorDecorationsCollection;
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+	private renderingDelayer = this._register(new Delayer<void>(200));
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,

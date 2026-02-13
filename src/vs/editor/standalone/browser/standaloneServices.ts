@@ -21,6 +21,7 @@ import { IDisposable, IReference, ImmortalReference, toDisposable, DisposableSto
 import { OS, isLinux, isMacintosh } from '../../../base/common/platform.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
+import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../browser/services/renameSymbolTrackerService.js';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService, ResourceEdit, ResourceTextEdit } from '../../browser/services/bulkEditService.js';
 import { isDiffEditorConfigurationKey, isEditorConfigurationKey } from '../../common/config/editorConfigurationSchema.js';
 import { EditOperation, ISingleEditOperation } from '../../common/core/editOperation.js';
@@ -98,6 +99,10 @@ import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibrar
 import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
 import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
 import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
+import { IUserInteractionService } from '../../../platform/userInteraction/browser/userInteractionService.js';
+import { UserInteractionService } from '../../../platform/userInteraction/browser/userInteractionServiceImpl.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -715,11 +720,11 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	}
 }
 
-class StandaloneResourceConfigurationService implements ITextResourceConfigurationService {
+class StandaloneResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeConfiguration = new Emitter<ITextResourceConfigurationChangeEvent>();
+	private readonly _onDidChangeConfiguration = this._register(new Emitter<ITextResourceConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(
@@ -727,9 +732,10 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService
 	) {
-		this.configurationService.onDidChangeConfiguration((e) => {
+		super();
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			this._onDidChangeConfiguration.fire({ affectedKeys: e.affectedKeys, affectsConfiguration: (resource: URI, configuration: string) => e.affectsConfiguration(configuration) });
-		});
+		}));
 	}
 
 	getValue<T>(resource: URI, section?: string): T;
@@ -1107,6 +1113,38 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	}
 }
 
+class StandaloneDefaultAccountService implements IDefaultAccountService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null> = Event.None;
+	readonly onDidChangePolicyData: Event<IPolicyData | null> = Event.None;
+	readonly policyData: IPolicyData | null = null;
+
+	async getDefaultAccount(): Promise<IDefaultAccount | null> {
+		return null;
+	}
+
+	setDefaultAccountProvider(): void {
+		// no-op
+	}
+
+	async refresh(): Promise<IDefaultAccount | null> {
+		return null;
+	}
+
+	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
+		return { id: 'default', name: 'Default', enterprise: false };
+	}
+
+	async signIn(): Promise<IDefaultAccount | null> {
+		return null;
+	}
+
+	async signOut(): Promise<void> {
+		// no-op
+	}
+}
+
 export interface IEditorOverrideServices {
 	[index: string]: unknown;
 }
@@ -1149,12 +1187,15 @@ registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalServi
 registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService, InstantiationType.Eager);
 registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
 registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
+registerSingleton(IDefaultAccountService, StandaloneDefaultAccountService, InstantiationType.Eager);
+registerSingleton(IRenameSymbolTrackerService, NullRenameSymbolTrackerService, InstantiationType.Eager);
+registerSingleton(IUserInteractionService, UserInteractionService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance
  * to override services when they create the first editor.
  */
-export module StandaloneServices {
+export namespace StandaloneServices {
 
 	const serviceCollection = new ServiceCollection();
 	for (const [id, descriptor] of getSingletonServiceDescriptors()) {

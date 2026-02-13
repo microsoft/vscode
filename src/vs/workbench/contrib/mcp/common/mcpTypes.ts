@@ -28,7 +28,7 @@ import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { ToolProgress } from '../../chat/common/languageModelToolsService.js';
+import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { IMcpServerSamplingConfiguration } from './mcpConfiguration.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { MCP } from './modelContextProtocol.js';
@@ -438,6 +438,30 @@ export interface IMcpToolCallContext {
 	chatRequestId?: string;
 }
 
+/**
+ * Visibility of an MCP tool, based on the MCP Apps `_meta.ui.visibility` field.
+ * @see https://github.com/anthropics/mcp/blob/main/apps.md
+ */
+export const enum McpToolVisibility {
+	/** Tool is visible to and callable by the language model */
+	Model = 1 << 0,
+	/** Tool is callable by the MCP App UI */
+	App = 1 << 1,
+}
+
+/**
+ * Serializable data for MCP App UI rendering.
+ * This contains all the information needed to render an MCP App webview.
+ */
+export interface IMcpToolCallUIData {
+	/** URI of the UI resource for rendering (e.g., "ui://weather-server/dashboard") */
+	readonly resourceUri: string;
+	/** Reference to the server definition for reconnection */
+	readonly serverDefinitionId: string;
+	/** Reference to the collection containing the server */
+	readonly collectionId: string;
+}
+
 export interface IMcpTool {
 
 	readonly id: string;
@@ -445,6 +469,10 @@ export interface IMcpTool {
 	readonly referenceName: string;
 	readonly icons: IMcpIcons;
 	readonly definition: MCP.Tool;
+	/** Visibility of the tool (Model, App, or both). Defaults to Model | App. */
+	readonly visibility: McpToolVisibility;
+	/** Optional UI resource URI for MCP App rendering */
+	readonly uiResourceUri?: string;
 
 	/**
 	 * Calls a tool

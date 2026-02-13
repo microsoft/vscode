@@ -74,7 +74,7 @@
             "localization": {
                 "description": {
                     "key": "extensions.allowed.policy",
-                    "value": "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"
+                    "value": "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://aka.ms/vscode/enterprise/extensions/allowed"
                 }
             },
             "type": "object",
@@ -163,7 +163,21 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.enabled.description",
-                    "value": "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."
+                    "value": "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."
+                }
+            },
+            "type": "boolean",
+            "default": true
+        },
+        {
+            "key": "chat.useHooks",
+            "name": "ChatHooks",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.109",
+            "localization": {
+                "description": {
+                    "key": "chat.useHooks.description",
+                    "value": "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`."
                 }
             },
             "type": "boolean",

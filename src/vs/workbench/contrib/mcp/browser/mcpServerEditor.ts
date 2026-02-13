@@ -622,7 +622,7 @@ export class McpServerEditor extends EditorPane {
 
 	private async openDetails(extension: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const details = append(template.content, $('.details'));
-		const readmeContainer = append(details, $('.readme-container'));
+		const readmeContainer = append(details, $('.content-container'));
 		const additionalDetailsContainer = append(details, $('.additional-details-container'));
 
 		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
@@ -652,7 +652,7 @@ export class McpServerEditor extends EditorPane {
 	private async openManifestWithAdditionalDetails(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		const details = append(template.content, $('.details'));
 
-		const readmeContainer = append(details, $('.readme-container'));
+		const readmeContainer = append(details, $('.content-container'));
 		const additionalDetailsContainer = append(details, $('.additional-details-container'));
 
 		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);

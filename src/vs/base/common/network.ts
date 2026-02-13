@@ -101,6 +101,11 @@ export namespace Schemas {
 	export const vscodeWebview = 'vscode-webview';
 
 	/**
+	 * Scheme used for integrated browser tabs using WebContentsView.
+	 */
+	export const vscodeBrowser = 'vscode-browser';
+
+	/**
 	 * Scheme used for extension pages
 	 */
 	export const extension = 'extension';

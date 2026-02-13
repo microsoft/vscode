@@ -32,7 +32,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark  {
 	display: flex;
 	height: 100%;
-	max-width: 256px;
+	max-width: 272px;
 	margin: auto;
 	flex-direction: column;
 	align-items: center;
@@ -101,7 +101,7 @@
 	justify-content: space-between;
 	margin: 4px 0;
 	cursor: default;
-	color: var(--vscode-editorWatermark-foreground);
+	color: var(--vscode-descriptionForeground);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl:first-of-type {
@@ -118,6 +118,7 @@
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dd {
 	text-align: left;
+	margin-inline-start: 24px;
 }
 
 /* Title */

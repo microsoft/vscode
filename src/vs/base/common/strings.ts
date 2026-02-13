@@ -730,12 +730,14 @@ export function isFullWidthCharacter(charCode: number): boolean {
 	//          FF00 - FFEF   Halfwidth and Fullwidth Forms
 	//               [https://en.wikipedia.org/wiki/Halfwidth_and_fullwidth_forms]
 	//               of which FF01 - FF5E fullwidth ASCII of 21 to 7E
+	//               and FFE0 - FFE6 fullwidth symbol variants
 	// [IGNORE]    and FF65 - FFDC halfwidth of Katakana and Hangul
 	// [IGNORE] FFF0 - FFFF   Specials
 	return (
 		(charCode >= 0x2E80 && charCode <= 0xD7AF)
 		|| (charCode >= 0xF900 && charCode <= 0xFAFF)
 		|| (charCode >= 0xFF01 && charCode <= 0xFF5E)
+		|| (charCode >= 0xFFE0 && charCode <= 0xFFE6)
 	);
 }
 
@@ -781,6 +783,53 @@ export function lcut(text: string, n: number, prefix = ''): string {
 	}
 
 	return prefix + trimmed.substring(i).trimStart();
+}
+
+/**
+ * Given a string and a max length returns a shortened version keeping the beginning.
+ * Shortening happens at favorable positions - such as whitespace or punctuation characters.
+ * Trailing whitespace is always trimmed.
+ */
+export function rcut(text: string, n: number, suffix = ''): string {
+	const trimmed = text.trimEnd();
+
+	if (trimmed.length <= n) {
+		return trimmed;
+	}
+
+	const re = /\b/g;
+	let lastGoodBreak = 0;
+	let foundBoundaryAfterN = false;
+	while (re.test(trimmed)) {
+		if (re.lastIndex > n) {
+			foundBoundaryAfterN = true;
+			break;
+		}
+		lastGoodBreak = re.lastIndex;
+		re.lastIndex += 1;
+	}
+
+	// If no boundary was found after n, return the full trimmed string
+	// (there's no good place to cut)
+	if (!foundBoundaryAfterN) {
+		return trimmed;
+	}
+
+	// If the only boundary <= n is at position 0 (start of string),
+	// cutting there gives empty string, so just return the suffix
+	if (lastGoodBreak === 0) {
+		return suffix;
+	}
+
+	const result = trimmed.substring(0, lastGoodBreak).trimEnd();
+
+	// If trimEnd removed more than half of what we cut (meaning we cut
+	// mostly through whitespace), return the full string instead
+	if (result.length < lastGoodBreak / 2) {
+		return trimmed;
+	}
+
+	return result + suffix;
 }
 
 // Defacto standard: https://invisible-island.net/xterm/ctlseqs/ctlseqs.html

@@ -108,9 +108,10 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		});
 	}
 
-	sendTelemetryClientAuthErrorEvent(error: ClientAuthError): void {
+	sendTelemetryClientAuthErrorEvent(error: AuthError): void {
 		const errorCode = error.errorCode;
 		const correlationId = error.correlationId;
+		const errorName = error.name;
 		let brokerErrorCode: string | undefined;
 		let brokerStatusCode: string | undefined;
 		let brokerTag: string | undefined;
@@ -126,6 +127,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 			"msalClientAuthError" : {
 				"owner": "TylerLeonhardt",
 				"comment": "Used to determine how often users run into client auth errors during the login flow.",
+				"errorName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the client auth error." },
 				"errorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The client auth error code." },
 				"correlationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The client auth error correlation id." },
 				"brokerErrorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The broker error code." },
@@ -134,6 +136,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 			}
 		*/
 		this._telemetryReporter.sendTelemetryErrorEvent('msalClientAuthError', {
+			errorName,
 			errorCode,
 			correlationId,
 			brokerErrorCode,

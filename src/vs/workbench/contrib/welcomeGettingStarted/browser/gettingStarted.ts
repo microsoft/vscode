@@ -5,6 +5,7 @@
 
 import { $, Dimension, addDisposableListener, append, clearNode, reset } from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -140,7 +141,7 @@ export class GettingStartedPage extends EditorPane {
 
 	private detailsScrollbar: DomScrollableElement | undefined;
 
-	private buildSlideThrottle: Throttler = new Throttler();
+	private buildSlideThrottle = this._register(new Throttler());
 
 	private container: HTMLElement;
 
@@ -216,7 +217,6 @@ export class GettingStartedPage extends EditorPane {
 		this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 
 		this._register(this.dispatchListeners);
-		this.buildSlideThrottle = new Throttler();
 
 		const rerender = () => {
 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
@@ -240,7 +240,7 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpened = this.workspacesService.getRecentlyOpened();
 		this._register(workspacesService.onDidChangeRecentlyOpened(() => {
 			this.recentlyOpened = workspacesService.getRecentlyOpened();
-			rerender();
+			this.refreshRecentlyOpened();
 		}));
 
 		this._register(this.gettingStartedService.onDidChangeWalkthrough(category => {
@@ -285,16 +285,19 @@ export class GettingStartedPage extends EditorPane {
 						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
 						badgeelement.classList.remove(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
 						badgeelement.classList.add('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
-						badgeelement.setAttribute('aria-label', localize('stepDone', "Checkbox for Step {0}: Completed", step.title));
+						badgeelement.setAttribute('aria-label', localize('stepDone', "{0}: Completed", step.title));
 					}
 					else {
 						badgeelement.setAttribute('aria-checked', 'false');
 						badgeelement.parentElement?.setAttribute('aria-checked', 'false');
 						badgeelement.classList.remove('complete', ...ThemeIcon.asClassNameArray(gettingStartedCheckedCodicon));
 						badgeelement.classList.add(...ThemeIcon.asClassNameArray(gettingStartedUncheckedCodicon));
-						badgeelement.setAttribute('aria-label', localize('stepNotDone', "Checkbox for Step {0}: Not completed", step.title));
+						badgeelement.setAttribute('aria-label', localize('stepNotDone', "{0}: Not completed", step.title));
 					}
 				});
+				if (step.done) {
+					status(localize('stepAutoCompleted', "Step {0} completed", step.title));
+				}
 			}
 			this.updateCategoryProgress();
 		}));
@@ -373,9 +376,10 @@ export class GettingStartedPage extends EditorPane {
 		this.editorInput.showTelemetryNotice = options?.showTelemetryNotice ?? true;
 		this.editorInput.selectedCategory = options?.selectedCategory;
 		this.editorInput.selectedStep = options?.selectedStep;
+		this.editorInput.returnToCommand = options?.returnToCommand;
 
 		this.container.classList.remove('animatable');
-		await this.buildCategoriesSlide();
+		await this.buildCategoriesSlide(options?.preserveFocus);
 		if (this.shouldAnimate()) {
 			setTimeout(() => this.container.classList.add('animatable'), 0);
 		}
@@ -445,6 +449,7 @@ export class GettingStartedPage extends EditorPane {
 				break;
 			}
 			case 'selectCategory': {
+				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectCategory', argument, walkthroughId: this.currentWalkthrough?.id });
 				this.scrollToCategory(argument);
 				this.gettingStartedService.markWalkthroughOpened(argument);
 				break;
@@ -452,6 +457,7 @@ export class GettingStartedPage extends EditorPane {
 			case 'selectStartEntry': {
 				const selected = startEntries.find(e => e.id === argument);
 				if (selected) {
+					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'selectStartEntry', argument, walkthroughId: this.currentWalkthrough?.id });
 					this.runStepCommand(selected.content.command);
 				} else {
 					throw Error('could not find start entry with id: ' + argument);
@@ -796,7 +802,7 @@ export class GettingStartedPage extends EditorPane {
 		return '';
 	}
 
-	private async selectStep(id: string | undefined, delayFocus = true) {
+	private async selectStep(id: string | undefined, delayFocus = true, preserveFocus?: boolean) {
 		if (!this.editorInput) {
 			return;
 		}
@@ -825,7 +831,9 @@ export class GettingStartedPage extends EditorPane {
 					}
 				}
 			});
-			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus && this.shouldAnimate() ? SLIDE_TRANSITION_TIME_MS : 0);
+			if (!preserveFocus) {
+				setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus && this.shouldAnimate() ? SLIDE_TRANSITION_TIME_MS : 0);
+			}
 
 			this.editorInput.selectedStep = id;
 
@@ -881,7 +889,7 @@ export class GettingStartedPage extends EditorPane {
 		parent.appendChild(this.container);
 	}
 
-	private async buildCategoriesSlide() {
+	private async buildCategoriesSlide(preserveFocus?: boolean) {
 
 		this.categoriesSlideDisposables.clear();
 		const showOnStartupCheckbox = new Toggle({
@@ -970,13 +978,13 @@ export class GettingStartedPage extends EditorPane {
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === editorInput.selectedCategory);
 				if (this.currentWalkthrough) {
-					this.buildCategorySlide(editorInput.selectedCategory, editorInput.selectedStep);
+					this.buildCategorySlide(editorInput.selectedCategory, editorInput.selectedStep, preserveFocus);
 					this.setSlide('details');
 					return;
 				}
 			}
 			else {
-				this.buildCategorySlide(editorInput.selectedCategory, editorInput.selectedStep);
+				this.buildCategorySlide(editorInput.selectedCategory, editorInput.selectedStep, preserveFocus);
 				this.setSlide('details');
 				return;
 			}
@@ -997,7 +1005,7 @@ export class GettingStartedPage extends EditorPane {
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
 					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
-					this.buildCategorySlide(this.editorInput.selectedCategory, undefined);
+					this.buildCategorySlide(this.editorInput.selectedCategory, undefined, preserveFocus);
 					this.setSlide('details', true /* firstLaunch */);
 					return;
 				}
@@ -1011,12 +1019,15 @@ export class GettingStartedPage extends EditorPane {
 		const renderRecent = (recent: RecentEntry) => {
 			let fullPath: string;
 			let windowOpenable: IWindowOpenable;
+			let resourceUri: URI;
 			if (isRecentFolder(recent)) {
 				windowOpenable = { folderUri: recent.folderUri };
 				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.folderUri, { verbose: Verbosity.LONG });
+				resourceUri = recent.folderUri;
 			} else {
 				fullPath = recent.label || this.labelService.getWorkspaceLabel(recent.workspace, { verbose: Verbosity.LONG });
 				windowOpenable = { workspaceUri: recent.workspace.configPath };
+				resourceUri = recent.workspace.configPath;
 			}
 
 			const { name, parentPath } = splitRecentLabel(fullPath);
@@ -1045,6 +1056,26 @@ export class GettingStartedPage extends EditorPane {
 			span.title = fullPath;
 			li.appendChild(span);
 
+			const deleteButton = $('a.codicon.codicon-close.hide-category-button.recently-opened-delete-button', {
+				'tabindex': 0,
+				'role': 'button',
+				'title': localize('welcomePage.removeRecent', "Remove from Recently Opened"),
+				'aria-label': localize('welcomePage.removeRecentAriaLabel', "Remove {0} from Recently Opened", name),
+			});
+			const handleDelete = async (e: Event) => {
+				e.preventDefault();
+				e.stopPropagation();
+				await this.workspacesService.removeRecentlyOpened([resourceUri]);
+			};
+			deleteButton.addEventListener('click', handleDelete);
+			deleteButton.addEventListener('keydown', async e => {
+				const event = new StandardKeyboardEvent(e);
+				if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+					await handleDelete(e);
+				}
+			});
+			li.appendChild(deleteButton);
+
 			return li;
 		};
 
@@ -1072,10 +1103,7 @@ export class GettingStartedPage extends EditorPane {
 
 		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
 		this.recentlyOpened.then(({ workspaces }) => {
-			// Filter out the current workspace
-			const workspacesWithID = workspaces
-				.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
-				.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
+			const workspacesWithID = this.filterRecentlyOpened(workspaces);
 
 			const updateEntries = () => {
 				recentlyOpenedList.setEntries(workspacesWithID);
@@ -1086,6 +1114,23 @@ export class GettingStartedPage extends EditorPane {
 		}).catch(onUnexpectedError);
 
 		return recentlyOpenedList;
+	}
+
+	private filterRecentlyOpened(workspaces: (IRecentFolder | IRecentWorkspace)[]): RecentEntry[] {
+		return workspaces
+			.filter(recent => !this.workspaceContextService.isCurrentWorkspace(isRecentWorkspace(recent) ? recent.workspace : recent.folderUri))
+			.map(recent => ({ ...recent, id: isRecentWorkspace(recent) ? recent.workspace.id : recent.folderUri.toString() }));
+	}
+
+	private refreshRecentlyOpened(): void {
+		if (!this.recentlyOpenedList) {
+			return;
+		}
+
+		this.recentlyOpened.then(({ workspaces }) => {
+			const workspacesWithID = this.filterRecentlyOpened(workspaces);
+			this.recentlyOpenedList?.setEntries(workspacesWithID);
+		}).catch(onUnexpectedError);
 	}
 
 	private buildStartList(): GettingStartedIndexList<IWelcomePageStartEntry> {
@@ -1319,7 +1364,7 @@ export class GettingStartedPage extends EditorPane {
 			const commandURI = URI.parse(command);
 
 			// execute as command
-			let args: any = [];
+			let args = [];
 			try {
 				args = parse(decodeURIComponent(commandURI.query));
 			} catch {
@@ -1355,8 +1400,8 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}
 
-			this.commandService.executeCommand<any>(commandURI.path, ...args).then(result => {
-				const toOpen: URI = result?.openFolder;
+			this.commandService.executeCommand(commandURI.path, ...args).then(result => {
+				const toOpen = (result as { openFolder?: URI })?.openFolder;
 				if (toOpen) {
 					if (!URI.isUri(toOpen)) {
 						console.warn('Warn: Running walkthrough command', href, 'yielded non-URI `openFolder` result', toOpen, '. It will be disregarded.');
@@ -1438,7 +1483,7 @@ export class GettingStartedPage extends EditorPane {
 		super.clearInput();
 	}
 
-	private buildCategorySlide(categoryID: string, selectedStep?: string) {
+	private buildCategorySlide(categoryID: string, selectedStep?: string, preserveFocus?: boolean) {
 		if (!this.editorInput) {
 			return;
 		}
@@ -1513,8 +1558,8 @@ export class GettingStartedPage extends EditorPane {
 							'role': 'checkbox',
 							'aria-checked': step.done ? 'true' : 'false',
 							'aria-label': step.done
-								? localize('stepDone', "Checkbox for Step {0}: Completed", step.title)
-								: localize('stepNotDone', "Checkbox for Step {0}: Not completed", step.title),
+								? localize('stepDone', "{0}: Completed", step.title)
+								: localize('stepNotDone', "{0}: Not completed", step.title),
 						});
 
 					const container = $('.step-description-container', { 'x-step-description-for': step.id });
@@ -1584,7 +1629,7 @@ export class GettingStartedPage extends EditorPane {
 		reset(this.stepsContent, categoryDescriptorComponent, stepListComponent, this.stepMediaComponent, categoryFooter);
 
 		const toExpand = category.steps.find(step => this.contextService.contextMatchesRules(step.when) && !step.done) ?? category.steps[0];
-		this.selectStep(selectedStep ?? toExpand.id, !selectedStep);
+		this.selectStep(selectedStep ?? toExpand.id, !selectedStep, preserveFocus);
 
 		this.detailsScrollbar.scanDomNode();
 		this.detailsPageScrollbar?.scanDomNode();
@@ -1626,6 +1671,9 @@ export class GettingStartedPage extends EditorPane {
 				this.currentWalkthrough = this.prevWalkthrough;
 				this.prevWalkthrough = undefined;
 				this.makeCategoryVisibleWhenAvailable(this.currentWalkthrough.id);
+			} else if (this.editorInput?.returnToCommand) {
+				// Execute the specified command to return to the origin page
+				this.commandService.executeCommand(this.editorInput.returnToCommand);
 			} else {
 				this.currentWalkthrough = undefined;
 				if (this.editorInput) {
@@ -1679,7 +1727,7 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.remove('showCategories');
 			// eslint-disable-next-line no-restricted-syntax
 			const prevButton = this.container.querySelector<HTMLButtonElement>('.prev-button.button-link');
-			prevButton!.style.display = this.editorInput?.showWelcome || this.prevWalkthrough ? 'block' : 'none';
+			prevButton!.style.display = this.editorInput?.showWelcome || this.editorInput?.returnToCommand || this.prevWalkthrough ? 'block' : 'none';
 			// eslint-disable-next-line no-restricted-syntax
 			const moreTextElement = prevButton!.querySelector('.moreText');
 			moreTextElement!.textContent = firstLaunch ? localize('welcome', "Welcome") : localize('goBack', "Go Back");

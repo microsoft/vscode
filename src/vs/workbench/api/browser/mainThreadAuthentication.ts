@@ -473,11 +473,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			return session;
 		}
 
-		// For the silent flows, if we have a session but we don't have a session preference, we'll return the first one that is valid.
-		if (!matchingAccountPreferenceSession && !this.authenticationExtensionsService.getAccountPreference(extensionId, providerId)) {
-			const validSession = sessions.find(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
-			if (validSession) {
-				return validSession;
+		// For the silent flows, if we don't have a session that matches the account preference, we can return any valid session if there is only one to choose from.
+		if (!matchingAccountPreferenceSession) {
+			const validSessions = sessions.filter(session => this.authenticationAccessService.isAccessAllowed(providerId, session.account.label, extensionId));
+			if (validSessions.length === 1) {
+				return validSessions[0];
 			}
 		}
 

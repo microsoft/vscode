@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { asyncTransaction, transaction } from '../../../../../base/common/observable.js';
 import { splitLines } from '../../../../../base/common/strings.js';
-import { vBoolean, vObj, vOptionalProp, vString, vUndefined, vUnion, vWithJsonSchemaRef } from '../../../../../base/common/validation.js';
+import { vBoolean, vObj, vOptionalProp, vString, vUnchecked, vUndefined, vUnion, vWithJsonSchemaRef } from '../../../../../base/common/validation.js';
 import * as nls from '../../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -21,7 +21,7 @@ import { EditorContextKeys } from '../../../../common/editorContextKeys.js';
 import { InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { Context as SuggestContext } from '../../../suggest/browser/suggest.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, toggleShowCollapsedId } from './commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitAlternativeActionId, inlineSuggestCommitId, jumpToNextInlineEditId, showNextInlineSuggestionActionId, showPreviousInlineSuggestionActionId, toggleShowCollapsedId } from './commandIds.js';
 import { InlineCompletionContextKeys } from './inlineCompletionContextKeys.js';
 import { InlineCompletionsController } from './inlineCompletionsController.js';
 
@@ -80,6 +80,7 @@ const argsValidator = vUnion(vObj({
 	showNoResultNotification: vOptionalProp(vBoolean()),
 	providerId: vOptionalProp(vWithJsonSchemaRef(providerIdSchemaUri, vString())),
 	explicit: vOptionalProp(vBoolean()),
+	changeHintData: vOptionalProp(vUnchecked()),
 }), vUndefined());
 
 export class TriggerInlineSuggestionAction extends EditorAction {
@@ -118,6 +119,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 			await controller?.model.get()?.trigger(tx, {
 				provider: provider,
 				explicit: validatedArgs?.explicit ?? true,
+				changeHint: validatedArgs?.changeHintData ? { data: validatedArgs.changeHintData } : undefined,
 			});
 			controller?.playAccessibilitySignal(tx);
 		});
@@ -240,6 +242,37 @@ KeybindingsRegistry.registerKeybindingRule({
 	id: inlineSuggestCommitId,
 	weight: 202, // greater than jump
 	primary: KeyCode.Tab,
+	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
+});
+
+export class AcceptInlineCompletionAlternativeAction extends EditorAction {
+	constructor() {
+		super({
+			id: inlineSuggestCommitAlternativeActionId,
+			label: nls.localize2('action.inlineSuggest.acceptAlternativeAction', "Accept Inline Suggestion Alternative Action"),
+			precondition: ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionAlternativeActionVisible, InlineCompletionContextKeys.inlineEditVisible),
+			menuOpts: [],
+			kbOpts: [
+				{
+					primary: KeyMod.Shift | KeyCode.Tab,
+					weight: 203,
+				}
+			],
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const controller = InlineCompletionsController.getInFocusedEditorOrParent(accessor);
+		if (controller) {
+			controller.model.get()?.accept(controller.editor, true);
+			controller.editor.focus();
+		}
+	}
+}
+KeybindingsRegistry.registerKeybindingRule({
+	id: inlineSuggestCommitAlternativeActionId,
+	weight: 203,
+	primary: KeyMod.Shift | KeyCode.Tab,
 	when: ContextKeyExpr.and(InlineCompletionContextKeys.inInlineEditsPreviewEditor)
 });
 

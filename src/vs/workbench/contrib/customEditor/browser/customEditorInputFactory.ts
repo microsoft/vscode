@@ -14,18 +14,19 @@ import { CustomEditorInput } from './customEditorInput.js';
 import { ICustomEditorService } from '../common/customEditor.js';
 import { NotebookEditorInput } from '../../notebook/common/notebookEditorInput.js';
 import { IWebviewService, WebviewContentOptions, WebviewContentPurpose, WebviewExtensionDescription, WebviewOptions } from '../../webview/browser/webview.js';
-import { DeserializedWebview, restoreWebviewContentOptions, restoreWebviewOptions, reviveWebviewExtensionDescription, SerializedWebview, SerializedWebviewOptions, WebviewEditorInputSerializer } from '../../webviewPanel/browser/webviewEditorInputSerializer.js';
+import { DeserializedWebview, restoreWebviewContentOptions, restoreWebviewOptions, reviveWebviewExtensionDescription, reviveWebviewIconPath, SerializedWebview, SerializedWebviewOptions, WebviewEditorInputSerializer } from '../../webviewPanel/browser/webviewEditorInputSerializer.js';
 import { IWebviewWorkbenchService } from '../../webviewPanel/browser/webviewWorkbenchService.js';
 import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from '../../../services/workingCopy/common/workingCopy.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export interface CustomDocumentBackupData extends IWorkingCopyBackupMeta {
 	readonly viewType: string;
 	readonly editorResource: UriComponents;
 
 	readonly customTitle: string | undefined;
-	readonly iconPath: { dark: UriComponents; light: UriComponents } | undefined;
+	readonly iconPath: { dark: UriComponents; light: UriComponents } | ThemeIcon | undefined;
 
 	backupId: string;
 
@@ -201,12 +202,9 @@ export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements
 			resource: URI.revive(backupData.editorResource),
 			viewType: backupData.viewType,
 			webviewTitle: backupData.customTitle,
-			iconPath: backupData.iconPath
-				? { dark: URI.revive(backupData.iconPath.dark), light: URI.revive(backupData.iconPath.light) }
-				: undefined
+			iconPath: reviveWebviewIconPath(backupData.iconPath)
 		}, webview, { backupId: backupData.backupId });
 		editor.updateGroup(0);
 		return editor;
 	}
 }
-

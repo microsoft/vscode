@@ -400,12 +400,8 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			extensions = this.filterRecentlyUpdatedExtensions(local, query, options);
 		}
 
-		else if (/@feature:/i.test(query.value)) {
-			const result = this.filterExtensionsByFeature(local, query);
-			if (result) {
-				extensions = result.extensions;
-				description = result.description;
-			}
+		else if (/@contribute:/i.test(query.value)) {
+			extensions = this.filterExtensionsByFeature(local, query);
 		}
 
 		else if (includeBuiltin) {
@@ -665,12 +661,12 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterExtensionsByFeature(local: IExtension[], query: Query): { extensions: IExtension[]; description: string } | undefined {
-		const value = query.value.replace(/@feature:/g, '').trim();
+	private filterExtensionsByFeature(local: IExtension[], query: Query): IExtension[] {
+		const value = query.value.replace(/@contribute:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
-			return undefined;
+			return [];
 		}
 		if (this.extensionsViewState) {
 			this.extensionsViewState.filters.featureId = featureId;
@@ -688,10 +684,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 					result.push([e, accessData?.accessTimes.length ?? 0]);
 				}
 			}
-			return {
-				extensions: result.sort(([, a], [, b]) => b - a).map(([e]) => e),
-				description: localize('showingExtensionsForFeature', "Extensions using {0} in the last 30 days", feature.label)
-			};
+			return result.sort(([, a], [, b]) => b - a).map(([e]) => e);
 		} finally {
 			renderer?.dispose();
 		}
@@ -1262,7 +1255,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 	}
 
 	static isFeatureExtensionsQuery(query: string): boolean {
-		return /@feature:/i.test(query);
+		return /@contribute:/i.test(query);
 	}
 
 	override focus(): void {

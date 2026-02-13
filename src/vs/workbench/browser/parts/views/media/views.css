@@ -160,10 +160,6 @@
 	flex-wrap: nowrap;
 }
 
-.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item.no-twisty {
-	padding-left: 3px;
-}
-
 .customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .custom-view-tree-node-item-checkbox {
 	background-color: var(--vscode-checkbox-selectBackground);
 	border: 1px solid var(--vscode-checkbox-selectBorder);
@@ -333,8 +329,13 @@
 	margin-right: 4px;
 }
 
-.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label.codicon.codicon-filter.checked {
-	border-color: var(--vscode-inputOption-activeBorder);
+.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .action-label {
+	padding: 2px;
+}
+
+.viewpane-filter > .viewpane-filter-controls .monaco-action-bar .monaco-dropdown .action-label.codicon.codicon-filter.checked {
 	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
+	border: 1px solid var(--vscode-inputOption-activeBorder);
+	padding: 1px;
 }

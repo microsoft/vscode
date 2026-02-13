@@ -1598,6 +1598,273 @@ suite('Event utils', () => {
 		});
 	});
 
+	suite('throttle', () => {
+		test('leading only', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/true, /*trailing=*/false);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// First event fires immediately
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Subsequent events during throttle period are ignored
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Wait for throttle period to end
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1], 'no trailing edge fire with trailing=false');
+
+				// After throttle period, next event fires immediately
+				emitter.fire(4);
+				assert.deepStrictEqual(calls, [1, 1]);
+			});
+		});
+
+		test('trailing only', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/false, /*trailing=*/true);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// First event does not fire immediately
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, []);
+
+				// Multiple events during throttle period
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, []);
+
+				// Wait for throttle period - should fire with accumulated value
+				await timeout(15);
+				assert.deepStrictEqual(calls, [3]);
+
+				// New events start a new throttle period
+				emitter.fire(4);
+				emitter.fire(5);
+				assert.deepStrictEqual(calls, [3]);
+
+				await timeout(15);
+				assert.deepStrictEqual(calls, [3, 2]);
+			});
+		});
+
+		test('both leading and trailing', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/true, /*trailing=*/true);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// First event fires immediately (leading)
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Events during throttle period are accumulated
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Wait for throttle period - should fire trailing edge with accumulated value
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1, 2]);
+			});
+		});
+
+		test('only leading edge if no subsequent events', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/true, /*trailing=*/true);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// Single event fires immediately (leading)
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// No more events during throttle period
+				await timeout(15);
+				// Should not fire trailing edge since there were no more events
+				assert.deepStrictEqual(calls, [1]);
+			});
+		});
+
+		test('microtask delay', function (done: () => void) {
+			const emitter = ds.add(new Emitter<number>());
+			const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, MicrotaskDelay);
+
+			const calls: number[] = [];
+			ds.add(throttled((e) => calls.push(e)));
+
+			// First event fires immediately (leading by default)
+			emitter.fire(1);
+			assert.deepStrictEqual(calls, [1]);
+
+			// Events during microtask
+			emitter.fire(2);
+			emitter.fire(3);
+			assert.deepStrictEqual(calls, [1]);
+
+			// Check after microtask
+			queueMicrotask(() => {
+				// Should have fired trailing edge
+				assert.deepStrictEqual(calls, [1, 2]);
+				done();
+			});
+		});
+
+		test('merge function accumulates values', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(
+					emitter.event,
+					(last, cur) => (last || 0) + cur,
+					10,
+					/*leading=*/true,
+					/*trailing=*/true
+				);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// First event fires immediately with value 1
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Accumulate more values: 2 + 3 = 5
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, [1]);
+
+				await timeout(15);
+				// Trailing edge fires with accumulated sum
+				assert.deepStrictEqual(calls, [1, 5]);
+			});
+		});
+
+		test('rapid consecutive throttle periods', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => e, 10, /*leading=*/true, /*trailing=*/true);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				// Period 1
+				emitter.fire(1);
+				emitter.fire(2);
+				assert.deepStrictEqual(calls, [1]);
+
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1, 2]);
+
+				// Period 2
+				emitter.fire(3);
+				emitter.fire(4);
+				assert.deepStrictEqual(calls, [1, 2, 3]);
+
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1, 2, 3, 4]);
+
+				// Period 3
+				emitter.fire(5);
+				assert.deepStrictEqual(calls, [1, 2, 3, 4, 5]);
+
+				await timeout(15);
+				// No trailing fire since only one event
+				assert.deepStrictEqual(calls, [1, 2, 3, 4, 5]);
+			});
+		});
+
+		test('default parameters', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				// Default: delay=100, leading=true, trailing=true
+				const throttled = Event.throttle(emitter.event, (l, e) => e);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1], 'should fire leading edge by default');
+
+				emitter.fire(2);
+				await timeout(110);
+				assert.deepStrictEqual(calls, [1, 2], 'should fire trailing edge by default');
+			});
+		});
+
+		test('disposal cleans up', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => e, 10);
+
+				const calls: number[] = [];
+				const listener = throttled((e) => calls.push(e));
+
+				emitter.fire(1);
+				emitter.fire(2);
+				assert.deepStrictEqual(calls, [1]);
+
+				listener.dispose();
+
+				// Events after disposal should not fire
+				await timeout(15);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, [1]);
+			});
+		});
+
+		test('no events during throttle with trailing=false', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => l ? l + 1 : 1, 10, /*leading=*/true, /*trailing=*/false);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				emitter.fire(1);
+				assert.deepStrictEqual(calls, [1]);
+
+				// No more events
+				await timeout(15);
+				assert.deepStrictEqual(calls, [1]);
+
+				// Next event after throttle period
+				emitter.fire(2);
+				assert.deepStrictEqual(calls, [1, 1]);
+			});
+		});
+
+		test('neither leading nor trailing', async function () {
+			return runWithFakedTimers({}, async function () {
+				const emitter = ds.add(new Emitter<number>());
+				const throttled = Event.throttle(emitter.event, (l, e) => e, 10, /*leading=*/false, /*trailing=*/false);
+
+				const calls: number[] = [];
+				ds.add(throttled((e) => calls.push(e)));
+
+				emitter.fire(1);
+				emitter.fire(2);
+				emitter.fire(3);
+				assert.deepStrictEqual(calls, []);
+
+				await timeout(15);
+				assert.deepStrictEqual(calls, [], 'no events should fire with both leading and trailing false');
+			});
+		});
+	});
+
 	test('issue #230401', () => {
 		let count = 0;
 		const emitter = ds.add(new Emitter<void>());

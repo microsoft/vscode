@@ -249,6 +249,7 @@ export const mcpAccessConfig = 'chat.mcp.access';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
+export const mcpAppsEnabledConfig = 'chat.mcp.apps.enabled';
 
 export interface IMcpGalleryConfig {
 	readonly serviceUrl?: string;

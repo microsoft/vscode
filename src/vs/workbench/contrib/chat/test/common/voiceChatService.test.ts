@@ -12,9 +12,9 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ISpeechProvider, ISpeechService, ISpeechToTextEvent, ISpeechToTextSession, ITextToSpeechSession, KeywordRecognitionStatus, SpeechToTextStatus } from '../../../speech/common/speechService.js';
-import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider, UserSelectedTools } from '../../common/chatAgents.js';
-import { IChatModel } from '../../common/chatModel.js';
-import { IChatFollowup, IChatProgress } from '../../common/chatService.js';
+import { IChatAgent, IChatAgentCommand, IChatAgentCompletionItem, IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, IChatAgentService, IChatParticipantDetectionProvider, UserSelectedTools } from '../../common/participants/chatAgents.js';
+import { IChatModel } from '../../common/model/chatModel.js';
+import { IChatFollowup, IChatProgress } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IVoiceChatSessionOptions, IVoiceChatTextEvent, VoiceChatService } from '../../common/voiceChatService.js';
 
@@ -49,6 +49,8 @@ suite('VoiceChat', () => {
 		}
 		setRequestTools(requestId: string, tools: UserSelectedTools): void {
 		}
+		setYieldRequested(requestId: string): void {
+		}
 		invoke(request: IChatAgentRequest, progress: (part: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error('Method not implemented.'); }
 		metadata = {};
 	}
@@ -70,6 +72,7 @@ suite('VoiceChat', () => {
 		registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable { throw new Error('Method not implemented.'); }
 		invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress[]) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> { throw new Error(); }
 		setRequestTools(agent: string, requestId: string, tools: UserSelectedTools): void { }
+		setYieldRequested(agent: string, requestId: string): void { }
 		getFollowups(id: string, request: IChatAgentRequest, result: IChatAgentResult, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatFollowup[]> { throw new Error(); }
 		getActivatedAgents(): IChatAgent[] { return agents; }
 		getAgents(): IChatAgent[] { return agents; }

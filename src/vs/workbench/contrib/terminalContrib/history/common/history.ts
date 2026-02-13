@@ -243,7 +243,8 @@ export async function fetchBashHistory(accessor: ServicesAccessor): Promise<IShe
 		return undefined;
 	}
 	const sourceLabel = '~/.bash_history';
-	const resolvedFile = await fetchFileContents(env['HOME'], '.bash_history', false, fileService, remoteAgentService);
+	const home = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
+	const resolvedFile = await fetchFileContents(home, '.bash_history', false, fileService, remoteAgentService);
 	if (resolvedFile === undefined) {
 		return undefined;
 	}
@@ -296,7 +297,8 @@ export async function fetchZshHistory(accessor: ServicesAccessor): Promise<IShel
 	}
 
 	const sourceLabel = '~/.zsh_history';
-	const resolvedFile = await fetchFileContents(env['HOME'], '.zsh_history', false, fileService, remoteAgentService);
+	const home = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
+	const resolvedFile = await fetchFileContents(home, '.zsh_history', false, fileService, remoteAgentService);
 	if (resolvedFile === undefined) {
 		return undefined;
 	}
@@ -320,9 +322,11 @@ export async function fetchZshHistory(accessor: ServicesAccessor): Promise<IShel
 export async function fetchPythonHistory(accessor: ServicesAccessor): Promise<IShellFileHistoryEntry | undefined> {
 	const fileService = accessor.get(IFileService);
 	const remoteAgentService = accessor.get(IRemoteAgentService);
+	const remoteEnvironment = await remoteAgentService.getEnvironment();
 
 	const sourceLabel = '~/.python_history';
-	const resolvedFile = await fetchFileContents(env['HOME'], '.python_history', false, fileService, remoteAgentService);
+	const home = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
+	const resolvedFile = await fetchFileContents(home, '.python_history', false, fileService, remoteAgentService);
 
 	if (resolvedFile === undefined) {
 		return undefined;
@@ -358,7 +362,7 @@ export async function fetchPwshHistory(accessor: ServicesAccessor): Promise<IShe
 		filePath = 'Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt';
 		sourceLabel = `$APPDATA\\Microsoft\\Windows\\PowerShell\\PSReadLine\\ConsoleHost_history.txt`;
 	} else {
-		folderPrefix = env['HOME'];
+		folderPrefix = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
 		filePath = '.local/share/powershell/PSReadline/ConsoleHost_history.txt';
 		sourceLabel = `~/${filePath}`;
 	}
@@ -451,7 +455,7 @@ export async function fetchFishHistory(accessor: ServicesAccessor): Promise<IShe
 		filePath = 'fish/fish_history';
 	} else {
 		sourceLabel = '~/.local/share/fish/fish_history';
-		folderPrefix = env['HOME'];
+		folderPrefix = remoteEnvironment?.userHome?.fsPath ?? env['HOME'];
 		filePath = '.local/share/fish/fish_history';
 	}
 	const resolvedFile = await fetchFileContents(folderPrefix, filePath, false, fileService, remoteAgentService);

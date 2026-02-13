@@ -385,8 +385,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				size: stat.size,
 				readonly: Boolean((stat.permissions ?? 0) & files.FilePermission.Readonly) || !this._extHostFileSystem.value.isWritableFileSystem(uri.scheme),
 				locked: Boolean((stat.permissions ?? 0) & files.FilePermission.Locked),
-				etag: files.etag({ mtime: stat.mtime, size: stat.size }),
-				children: undefined
+				executable: Boolean((stat.permissions ?? 0) & files.FilePermission.Executable),
+				etag: files.etag({ mtime: stat.mtime, size: stat.size })
 			};
 
 			this.trace(`exit saveNotebook(versionId: ${versionId}, ${uri.toString()})`);

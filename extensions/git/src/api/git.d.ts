@@ -76,6 +76,14 @@ export interface Remote {
 	readonly isReadOnly: boolean;
 }
 
+export interface Worktree {
+	readonly name: string;
+	readonly path: string;
+	readonly ref: string;
+	readonly main: boolean;
+	readonly detached: boolean;
+}
+
 export const enum Status {
 	INDEX_MODIFIED,
 	INDEX_ADDED,
@@ -113,11 +121,19 @@ export interface Change {
 	readonly status: Status;
 }
 
+export interface DiffChange extends Change {
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
+export type RepositoryKind = 'repository' | 'submodule' | 'worktree';
+
 export interface RepositoryState {
 	readonly HEAD: Branch | undefined;
 	readonly refs: Ref[];
 	readonly remotes: Remote[];
 	readonly submodules: Submodule[];
+	readonly worktrees: Worktree[];
 	readonly rebaseCommit: Commit | undefined;
 
 	readonly mergeChanges: Change[];
@@ -131,6 +147,11 @@ export interface RepositoryState {
 export interface RepositoryUIState {
 	readonly selected: boolean;
 	readonly onDidChange: Event<void>;
+}
+
+export interface RepositoryAccessDetails {
+	readonly rootUri: Uri;
+	readonly lastAccessTime: number;
 }
 
 /**
@@ -156,6 +177,11 @@ export interface CommitOptions {
 	all?: boolean | 'tracked';
 	amend?: boolean;
 	signoff?: boolean;
+	/**
+	 * true  - sign the commit
+	 * false - do not sign the commit
+	 * undefined - use the repository/global git config
+	 */
 	signCommit?: boolean;
 	empty?: boolean;
 	noVerify?: boolean;
@@ -200,7 +226,7 @@ export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
 	readonly pattern?: string | string[];
-	readonly sort?: 'alphabetically' | 'committerdate';
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
 }
 
 export interface BranchQuery extends RefQuery {
@@ -213,6 +239,7 @@ export interface Repository {
 	readonly inputBox: InputBox;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
+	readonly kind: RepositoryKind;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -234,6 +261,7 @@ export interface Repository {
 	clean(paths: string[]): Promise<void>;
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
+	apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean; }): Promise<void>;
 	diff(cached?: boolean): Promise<string>;
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
@@ -248,6 +276,8 @@ export interface Repository {
 	diffBlobs(object1: string, object2: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
+	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string>;
+	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
 
 	hashObject(data: string): Promise<string>;
 
@@ -286,6 +316,7 @@ export interface Repository {
 	merge(ref: string): Promise<void>;
 	mergeAbort(): Promise<void>;
 
+	createStash(options?: { message?: string; includeUntracked?: boolean; staged?: boolean }): Promise<void>;
 	applyStash(index?: number): Promise<void>;
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
@@ -379,6 +410,7 @@ export interface API {
 	readonly onDidPublish: Event<PublishEvent>;
 	readonly git: Git;
 	readonly repositories: Repository[];
+	readonly recentRepositories: Iterable<RepositoryAccessDetails>;
 	readonly onDidOpenRepository: Event<Repository>;
 	readonly onDidCloseRepository: Event<Repository>;
 

@@ -35,6 +35,7 @@ export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly supportIcons?: boolean;
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
+	readonly small?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly disabled?: boolean;
 }
@@ -47,6 +48,7 @@ export interface IButtonStyles {
 	readonly buttonSecondaryBackground: string | undefined;
 	readonly buttonSecondaryHoverBackground: string | undefined;
 	readonly buttonSecondaryForeground: string | undefined;
+	readonly buttonSecondaryBorder: string | undefined;
 	readonly buttonBorder: string | undefined;
 }
 
@@ -58,7 +60,8 @@ export const unthemedButtonStyles: IButtonStyles = {
 	buttonBorder: undefined,
 	buttonSecondaryBackground: undefined,
 	buttonSecondaryForeground: undefined,
-	buttonSecondaryHoverBackground: undefined
+	buttonSecondaryHoverBackground: undefined,
+	buttonSecondaryBorder: undefined
 };
 
 export interface IButton extends IDisposable {
@@ -116,11 +119,16 @@ export class Button extends Disposable implements IButton {
 		this._element.setAttribute('role', 'button');
 
 		this._element.classList.toggle('secondary', !!options.secondary);
+		this._element.classList.toggle('small', !!options.small);
 		const background = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
 		const foreground = options.secondary ? options.buttonSecondaryForeground : options.buttonForeground;
+		const border = options.secondary ? options.buttonSecondaryBorder : options.buttonBorder;
 
 		this._element.style.color = foreground || '';
 		this._element.style.backgroundColor = background || '';
+		if (border) {
+			this._element.style.border = `1px solid ${border}`;
+		}
 
 		if (options.supportShortLabel) {
 			this._labelShortElement = document.createElement('div');
@@ -176,18 +184,18 @@ export class Button extends Disposable implements IButton {
 
 		this._register(addDisposableListener(this._element, EventType.MOUSE_OVER, e => {
 			if (!this._element.classList.contains('disabled')) {
-				this.updateBackground(true);
+				this.updateStyles(true);
 			}
 		}));
 
 		this._register(addDisposableListener(this._element, EventType.MOUSE_OUT, e => {
-			this.updateBackground(false); // restore standard styles
+			this.updateStyles(false); // restore standard styles
 		}));
 
 		// Also set hover background when button is focused for feedback
 		this.focusTracker = this._register(trackFocus(this._element));
-		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.updateBackground(true); } }));
-		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.updateBackground(false); } }));
+		this._register(this.focusTracker.onDidFocus(() => { if (this.enabled) { this.updateStyles(true); } }));
+		this._register(this.focusTracker.onDidBlur(() => { if (this.enabled) { this.updateStyles(false); } }));
 	}
 
 	public override dispose(): void {
@@ -218,16 +226,23 @@ export class Button extends Disposable implements IButton {
 		return elements;
 	}
 
-	private updateBackground(hover: boolean): void {
+	private updateStyles(hover: boolean): void {
 		let background;
+		let foreground;
+		let border;
 		if (this.options.secondary) {
 			background = hover ? this.options.buttonSecondaryHoverBackground : this.options.buttonSecondaryBackground;
+			foreground = this.options.buttonSecondaryForeground;
+			border = this.options.buttonSecondaryBorder;
 		} else {
 			background = hover ? this.options.buttonHoverBackground : this.options.buttonBackground;
+			foreground = this.options.buttonForeground;
+			border = this.options.buttonBorder;
 		}
-		if (background) {
-			this._element.style.backgroundColor = background;
-		}
+
+		this._element.style.backgroundColor = background || '';
+		this._element.style.color = foreground || '';
+		this._element.style.border = border ? `1px solid ${border}` : '';
 	}
 
 	get element(): HTMLElement {
@@ -327,13 +342,19 @@ export class Button extends Disposable implements IButton {
 		return !this._element.classList.contains('disabled');
 	}
 
+	set secondary(value: boolean) {
+		this._element.classList.toggle('secondary', value);
+		(this.options as { secondary?: boolean }).secondary = value;
+		this.updateStyles(false);
+	}
+
 	set checked(value: boolean) {
 		if (value) {
 			this._element.classList.add('checked');
-			this._element.setAttribute('aria-checked', 'true');
+			this._element.setAttribute('aria-pressed', 'true');
 		} else {
 			this._element.classList.remove('checked');
-			this._element.setAttribute('aria-checked', 'false');
+			this._element.setAttribute('aria-pressed', 'false');
 		}
 	}
 
@@ -621,6 +642,8 @@ export class ButtonWithIcon extends Button {
 	private readonly _mdlabelElement: HTMLElement;
 
 	public get labelElement() { return this._mdlabelElement; }
+
+	public get iconElement() { return this._iconElement; }
 
 	constructor(container: HTMLElement, options: IButtonOptions) {
 		super(container, options);

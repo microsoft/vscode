@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize, localize2 } from '../../../../../nls.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -18,15 +19,19 @@ import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalVoiceSession } from './terminalVoice.js';
 
+const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
+
 export function registerTerminalVoiceActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.StartVoice,
 		title: localize2('workbench.action.terminal.startDictation', "Start Dictation in Terminal"),
+		category: VOICE_CATEGORY,
 		precondition: ContextKeyExpr.and(
 			SpeechToTextInProgress.toNegated(),
 			sharedWhenClause.terminalAvailable
 		),
 		f1: true,
+		icon: Codicon.mic,
 		run: async (activeInstance, c, accessor) => {
 			const contextKeyService = accessor.get(IContextKeyService);
 			const commandService = accessor.get(ICommandService);
@@ -64,6 +69,7 @@ export function registerTerminalVoiceActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.StopVoice,
 		title: localize2('workbench.action.terminal.stopDictation', "Stop Dictation in Terminal"),
+		category: VOICE_CATEGORY,
 		precondition: TerminalContextKeys.terminalDictationInProgress,
 		f1: true,
 		keybinding: {

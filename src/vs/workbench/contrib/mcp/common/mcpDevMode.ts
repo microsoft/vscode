@@ -12,7 +12,7 @@ import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { autorun, autorunDelta, derivedOpts } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IConfig, IDebugService, IDebugSessionOptions } from '../../debug/common/debug.js';
@@ -88,8 +88,9 @@ export class McpDevModeServerAttache extends Disposable {
 			const excludes = pattern.filter(p => p.startsWith('!')).map(p => p.slice(1));
 			reader.store.add(fileService.watch(wf, { includes, excludes, recursive: true }));
 
-			const includeParse = includes.map(p => glob.parse({ base: wf.fsPath, pattern: p }));
-			const excludeParse = excludes.map(p => glob.parse({ base: wf.fsPath, pattern: p }));
+			const ignoreCase = !fileService.hasCapability(wf, FileSystemProviderCapabilities.PathCaseSensitive);
+			const includeParse = includes.map(p => glob.parse({ base: wf.fsPath, pattern: p }, { ignoreCase }));
+			const excludeParse = excludes.map(p => glob.parse({ base: wf.fsPath, pattern: p }, { ignoreCase }));
 			reader.store.add(fileService.onDidFilesChange(e => {
 				for (const change of [e.rawAdded, e.rawDeleted, e.rawUpdated]) {
 					for (const uri of change) {

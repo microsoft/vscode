@@ -52,7 +52,7 @@ thiserror = "1.0.40"
 cfg-if = "1.0.0"
 pin-project = "1.1.0"
 console = "0.15.7"
-bytes = "1.4.0"
+bytes = "1.11.1"
 tar = "0.4.38"
 
 [build-dependencies]

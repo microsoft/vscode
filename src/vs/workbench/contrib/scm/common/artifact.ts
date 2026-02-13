@@ -7,6 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISCMRepository } from './scm.js';
+import { Command } from '../../../../editor/common/languages.js';
 
 export interface ISCMArtifactProvider {
 	readonly onDidChangeArtifacts: Event<string[]>;
@@ -18,6 +19,7 @@ export interface ISCMArtifactGroup {
 	readonly id: string;
 	readonly name: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	readonly supportsFolders?: boolean;
 }
 
 export interface ISCMArtifact {
@@ -25,6 +27,8 @@ export interface ISCMArtifact {
 	readonly name: string;
 	readonly description?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	readonly timestamp?: number;
+	readonly command?: Command;
 }
 
 export interface SCMArtifactGroupTreeElement {
@@ -37,5 +41,6 @@ export interface SCMArtifactTreeElement {
 	readonly repository: ISCMRepository;
 	readonly group: ISCMArtifactGroup;
 	readonly artifact: ISCMArtifact;
+	readonly hideTimestamp: boolean;
 	readonly type: 'artifact';
 }

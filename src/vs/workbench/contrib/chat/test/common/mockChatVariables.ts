@@ -5,8 +5,8 @@
 
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatVariablesService, IDynamicVariable } from '../../common/chatVariables.js';
-import { IToolAndToolSetEnablementMap } from '../../common/languageModelToolsService.js';
+import { IChatVariablesService, IDynamicVariable } from '../../common/attachments/chatVariables.js';
+import { IToolAndToolSetEnablementMap } from '../../common/tools/languageModelToolsService.js';
 
 export class MockChatVariablesService implements IChatVariablesService {
 	_serviceBrand: undefined;

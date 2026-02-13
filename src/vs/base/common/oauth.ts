@@ -1105,14 +1105,14 @@ export interface IFetchResourceMetadataOptions {
  * @param targetResource The target resource URL to compare origins with (e.g., the MCP server URL)
  * @param resourceMetadataUrl Optional URL to fetch the resource metadata from. If not provided, will try well-known URIs.
  * @param options Configuration options for the fetch operation
- * @returns Promise that resolves to the validated resource metadata
- * @throws Error if the fetch fails, returns non-200 status, or the response is invalid
+ * @returns Promise that resolves to an object containing the validated resource metadata and any errors encountered during discovery
+ * @throws Error if the fetch fails, returns non-200 status, or the response is invalid on all attempted URLs
  */
 export async function fetchResourceMetadata(
 	targetResource: string,
 	resourceMetadataUrl: string | undefined,
 	options: IFetchResourceMetadataOptions = {}
-): Promise<IAuthorizationProtectedResourceMetadata> {
+): Promise<{ metadata: IAuthorizationProtectedResourceMetadata; discoveryUrl: string; errors: Error[] }> {
 	const {
 		sameOriginHeaders = {},
 		fetch: fetchImpl = fetch
@@ -1120,73 +1120,79 @@ export async function fetchResourceMetadata(
 
 	const targetResourceUrlObj = new URL(targetResource);
 
-	// If no resourceMetadataUrl is provided, try well-known URIs as per RFC 9728
-	let urlsToTry: string[];
-	if (!resourceMetadataUrl) {
-		// Try in order: 1) with path appended, 2) at root
-		const pathComponent = targetResourceUrlObj.pathname === '/' ? undefined : targetResourceUrlObj.pathname;
-		const rootUrl = `${targetResourceUrlObj.origin}${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`;
-		if (pathComponent) {
-			// Only try both URLs if we have a path component
-			urlsToTry = [
-				`${rootUrl}${pathComponent}`,
-				rootUrl
-			];
-		} else {
-			// If target is already at root, only try the root URL once
-			urlsToTry = [rootUrl];
+	const fetchPrm = async (prmUrl: string, validateUrl: string) => {
+		// Determine if we should include same-origin headers
+		let headers: Record<string, string> = {
+			'Accept': 'application/json'
+		};
+
+		const resourceMetadataUrlObj = new URL(prmUrl);
+		if (resourceMetadataUrlObj.origin === targetResourceUrlObj.origin) {
+			headers = {
+				...headers,
+				...sameOriginHeaders
+			};
 		}
-	} else {
-		urlsToTry = [resourceMetadataUrl];
-	}
+
+		const response = await fetchImpl(prmUrl, { method: 'GET', headers });
+		if (response.status !== 200) {
+			let errorText: string;
+			try {
+				errorText = await response.text();
+			} catch {
+				errorText = response.statusText;
+			}
+			throw new Error(`Failed to fetch resource metadata from ${prmUrl}: ${response.status} ${errorText}`);
+		}
+
+		const body = await response.json();
+		if (isAuthorizationProtectedResourceMetadata(body)) {
+			// Validate that the resource matches the target resource
+			// Use URL constructor for normalization - it handles hostname case and trailing slashes
+			const prmValue = new URL(body.resource).toString();
+			const expectedResource = new URL(validateUrl).toString();
+			if (prmValue !== expectedResource) {
+				throw new Error(`Protected Resource Metadata 'resource' property value "${prmValue}" does not match expected value "${expectedResource}" for URL ${prmUrl}. Per RFC 9728, these MUST match. See https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
+			}
+			return body;
+		} else {
+			throw new Error(`Invalid resource metadata from ${prmUrl}. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
+		}
+	};
 
 	const errors: Error[] = [];
-	for (const urlToTry of urlsToTry) {
+	if (resourceMetadataUrl) {
 		try {
-			// Determine if we should include same-origin headers
-			let headers: Record<string, string> = {
-				'Accept': 'application/json'
-			};
-
-			const resourceMetadataUrlObj = new URL(urlToTry);
-			if (resourceMetadataUrlObj.origin === targetResourceUrlObj.origin) {
-				headers = {
-					...headers,
-					...sameOriginHeaders
-				};
-			}
-
-			const response = await fetchImpl(urlToTry, { method: 'GET', headers });
-			if (response.status !== 200) {
-				let errorText: string;
-				try {
-					errorText = await response.text();
-				} catch {
-					errorText = response.statusText;
-				}
-				errors.push(new Error(`Failed to fetch resource metadata from ${urlToTry}: ${response.status} ${errorText}`));
-				continue;
-			}
-
-			const body = await response.json();
-			if (isAuthorizationProtectedResourceMetadata(body)) {
-				// Use URL constructor for normalization - it handles hostname case and trailing slashes
-				const prmValue = new URL(body.resource).toString();
-				const targetValue = targetResourceUrlObj.toString();
-				if (prmValue !== targetValue) {
-					throw new Error(`Protected Resource Metadata resource property value "${prmValue}" (length: ${prmValue.length}) does not match target server url "${targetValue}" (length: ${targetValue.length}). These MUST match to follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
-				}
-				return body;
-			} else {
-				errors.push(new Error(`Invalid resource metadata from ${urlToTry}. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`));
-				continue;
-			}
+			const metadata = await fetchPrm(resourceMetadataUrl, targetResource);
+			return { metadata, discoveryUrl: resourceMetadataUrl, errors };
 		} catch (e) {
 			errors.push(e instanceof Error ? e : new Error(String(e)));
-			continue;
 		}
 	}
-	// If we've tried all URLs and none worked, throw the error(s)
+
+	// Try well-known URIs starting with path-appended, then root
+	const hasPathComponent = targetResourceUrlObj.pathname !== '/';
+	const rootUrl = `${targetResourceUrlObj.origin}${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`;
+
+	if (hasPathComponent) {
+		const pathAppendedUrl = `${rootUrl}${targetResourceUrlObj.pathname}`;
+		try {
+			const metadata = await fetchPrm(pathAppendedUrl, targetResource);
+			return { metadata, discoveryUrl: pathAppendedUrl, errors };
+		} catch (e) {
+			errors.push(e instanceof Error ? e : new Error(String(e)));
+		}
+	}
+
+	// Finally, try root discovery
+	try {
+		const metadata = await fetchPrm(rootUrl, targetResourceUrlObj.origin);
+		return { metadata, discoveryUrl: rootUrl, errors };
+	} catch (e) {
+		errors.push(e instanceof Error ? e : new Error(String(e)));
+	}
+
+	// If we've tried all methods and none worked, throw the error(s)
 	if (errors.length === 1) {
 		throw errors[0];
 	} else {
@@ -1255,7 +1261,7 @@ async function getErrText(res: CommonResponse): Promise<string> {
 export async function fetchAuthorizationServerMetadata(
 	authorizationServer: string,
 	options: IFetchAuthorizationServerMetadataOptions = {}
-): Promise<IAuthorizationServerMetadata> {
+): Promise<{ metadata: IAuthorizationServerMetadata; discoveryUrl: string; errors: Error[] }> {
 	const {
 		additionalHeaders = {},
 		fetch: fetchImpl = fetch
@@ -1295,7 +1301,7 @@ export async function fetchAuthorizationServerMetadata(
 	const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
 	let metadata = await doFetch(pathToFetch);
 	if (metadata) {
-		return metadata;
+		return { metadata, discoveryUrl: pathToFetch, errors };
 	}
 
 	// Try fetching the OpenID Connect Discovery with path insertion.
@@ -1304,7 +1310,7 @@ export async function fetchAuthorizationServerMetadata(
 	const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
 	metadata = await doFetch(openidPathInsertionUrl);
 	if (metadata) {
-		return metadata;
+		return { metadata, discoveryUrl: openidPathInsertionUrl, errors };
 	}
 
 	// Try fetching the other discovery URL. For the openid metadata discovery
@@ -1315,7 +1321,7 @@ export async function fetchAuthorizationServerMetadata(
 		: authorizationServer + OPENID_CONNECT_DISCOVERY_PATH;
 	metadata = await doFetch(openidPathAdditionUrl);
 	if (metadata) {
-		return metadata;
+		return { metadata, discoveryUrl: openidPathAdditionUrl, errors };
 	}
 
 	// If we've tried all URLs and none worked, throw the error(s)

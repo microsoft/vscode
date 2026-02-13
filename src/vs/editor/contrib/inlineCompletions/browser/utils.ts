@@ -108,3 +108,23 @@ export function wait(ms: number, cancellationToken?: CancellationToken): Promise
 		}
 	});
 }
+
+export class ErrorResult<T = void> {
+	public static message(message: string): ErrorResult {
+		return new ErrorResult(undefined, message);
+	}
+
+	constructor(public readonly error: T, public readonly message: string | undefined = undefined) { }
+
+	public static is<TOther>(obj: TOther | ErrorResult): obj is ErrorResult {
+		return obj instanceof ErrorResult;
+	}
+
+	public logError(): void {
+		if (this.message) {
+			console.error(`ErrorResult: ${this.message}`, this.error);
+		} else {
+			console.error(`ErrorResult: An unexpected error-case occurred, usually caused by invalid input.`, this.error);
+		}
+	}
+}

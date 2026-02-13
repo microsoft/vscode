@@ -25,7 +25,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build/node_modules_cache
           key: "node_modules-compile-${{ hashFiles('.build/packagelockhash') }}"
@@ -72,7 +72,7 @@ jobs:
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
@@ -104,7 +104,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build/node_modules_cache
           key: "node_modules-linux-${{ hashFiles('.build/packagelockhash') }}"
@@ -176,7 +176,7 @@ jobs:
 
       - name: Restore node_modules cache
         id: cache-node-modules
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build/node_modules_cache
           key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
@@ -239,7 +239,7 @@ jobs:
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         id: node-modules-cache
         with:
           path: .build/node_modules_cache

@@ -12,6 +12,7 @@ import { IExtensionManagementService, InstallOperation } from '../../../../../pl
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDefaultChatAgent } from '../../../../../base/common/product.js';
 import { IChatWidgetService } from '../chat.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatGettingStarted';
@@ -25,6 +26,7 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -63,8 +65,12 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 	private async onDidInstallChat() {
 
-		// Open Chat view
-		this.chatWidgetService.revealWidget();
+		// Don't reveal if user prefers the agent sessions welcome page
+		const startupEditor = this.configurationService.getValue<string>('workbench.startupEditor');
+		if (startupEditor !== 'agentSessionsWelcomePage') {
+			// Open Chat view
+			this.chatWidgetService.revealWidget();
+		}
 
 		// Only do this once
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);

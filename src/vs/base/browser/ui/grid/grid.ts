@@ -9,9 +9,10 @@ import { Event } from '../../../common/event.js';
 import { Disposable } from '../../../common/lifecycle.js';
 import './gridview.css';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview.js';
-import type { SplitView, AutoSizing as SplitViewAutoSizing } from '../splitview/splitview.js';
+import type { SplitView, AutoSizing as SplitViewAutoSizing, IViewVisibilityAnimationOptions } from '../splitview/splitview.js';
 
 export type { IViewSize };
+export type { IViewVisibilityAnimationOptions } from '../splitview/splitview.js';
 export { LayoutPriority, Orientation, orthogonal } from './gridview.js';
 
 export const enum Direction {
@@ -603,13 +604,14 @@ export class Grid<T extends IView = IView> extends Disposable {
 	/**
 	 * Maximizes the specified view and hides all other views.
 	 * @param view The view to maximize.
+	 * @param excludeViews Optional array of views to exclude from being hidden.
 	 */
-	maximizeView(view: T) {
+	maximizeView(view: T, excludeViews: readonly T[] = []) {
 		if (this.views.size < 2) {
 			throw new Error('At least two views are required to maximize a view');
 		}
 		const location = this.getViewLocation(view);
-		this.gridview.maximizeView(location);
+		this.gridview.maximizeView(location, excludeViews);
 	}
 
 	exitMaximizedView(): void {
@@ -649,10 +651,12 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * Set the visibility state of a {@link IView view}.
 	 *
 	 * @param view The {@link IView view}.
+	 * @param visible Whether the view should be visible.
+	 * @param animation Optional animation options.
 	 */
-	setViewVisible(view: T, visible: boolean): void {
+	setViewVisible(view: T, visible: boolean, animation?: IViewVisibilityAnimationOptions): void {
 		const location = this.getViewLocation(view);
-		this.gridview.setViewVisible(location, visible);
+		this.gridview.setViewVisible(location, visible, animation);
 	}
 
 	/**

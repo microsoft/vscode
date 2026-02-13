@@ -15,7 +15,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { Handler } from '../../../../common/editorCommon.js';
 import { ITextModel } from '../../../../common/model.js';
 import { TextModel } from '../../../../common/model/textModel.js';
-import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, IState, TokenizationRegistry } from '../../../../common/languages.js';
+import { CompletionItemKind, CompletionItemProvider, CompletionList, CompletionTriggerKind, EncodedTokenizationResult, InlineCompletionsProvider, IState, TokenizationRegistry } from '../../../../common/languages.js';
 import { MetadataConsts } from '../../../../common/encodedTokenAttributes.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../../common/languages/nullTokenize.js';
@@ -41,6 +41,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { getSnippetSuggestSupport, setSnippetSuggestSupport } from '../../browser/suggest.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 
 function createMockEditor(model: TextModel, languageFeaturesService: ILanguageFeaturesService): ITestCodeEditor {
@@ -110,7 +111,7 @@ suite('SuggestModel - Context', function () {
 					for (let i = 0; i < tokens.length; i++) {
 						tokens[i] = tokensArr[i];
 					}
-					return new EncodedTokenizationResult(tokens, state);
+					return new EncodedTokenizationResult(tokens, [], state);
 				}
 			}));
 		}
@@ -1226,6 +1227,144 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				assert.strictEqual(event.completionModel.items[1].textLabel, 'log');
 			});
 
+		});
+	});
+
+	test('offWhenInlineCompletions - suppresses quick suggest when inline provider exists', function () {
+
+		disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		// Register a dummy inline completions provider
+		const inlineProvider: InlineCompletionsProvider = {
+			provideInlineCompletions: () => ({ items: [] }),
+			disposeInlineCompletions: () => { }
+		};
+		disposables.add(languageFeaturesService.inlineCompletionsProvider.register({ scheme: 'test' }, inlineProvider));
+
+		return withOracle((suggestOracle, editor) => {
+			editor.updateOptions({ quickSuggestions: { comments: 'off', strings: 'off', other: 'offWhenInlineCompletions' } });
+
+			return new Promise<void>((resolve, reject) => {
+				const unexpectedSuggestSub = suggestOracle.onDidSuggest(() => {
+					unexpectedSuggestSub.dispose();
+					reject(new Error('Quick suggestions should not have been triggered'));
+				});
+
+				editor.setPosition({ lineNumber: 1, column: 4 });
+				editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+				// Wait for the quick suggest delay to pass without triggering
+				setTimeout(() => {
+					unexpectedSuggestSub.dispose();
+					resolve();
+				}, 200);
+			});
+		});
+	});
+
+	test('offWhenInlineCompletions - allows quick suggest when no inline provider exists', function () {
+
+		disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		// No inline completions provider registered for 'test' scheme
+
+		return withOracle((suggestOracle, editor) => {
+			editor.updateOptions({ quickSuggestions: { comments: 'off', strings: 'off', other: 'offWhenInlineCompletions' } });
+
+			return assertEvent(suggestOracle.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 4 });
+				editor.trigger('keyboard', Handler.Type, { text: 'd' });
+			}, suggestEvent => {
+				assert.strictEqual(suggestEvent.triggerOptions.auto, true);
+				assert.strictEqual(suggestEvent.completionModel.items.length, 1);
+			});
+		});
+	});
+
+	test('offWhenInlineCompletions - allows quick suggest when inlineSuggest is disabled', function () {
+		return runWithFakedTimers({ useFakeTimers: true }, () => {
+			disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+			// Register a dummy inline completions provider
+			const inlineProvider: InlineCompletionsProvider = {
+				provideInlineCompletions: () => ({ items: [] }),
+				disposeInlineCompletions: () => { }
+			};
+			disposables.add(languageFeaturesService.inlineCompletionsProvider.register({ scheme: 'test' }, inlineProvider));
+
+			return withOracle((suggestOracle, editor) => {
+				editor.updateOptions({
+					quickSuggestions: { comments: 'off', strings: 'off', other: 'offWhenInlineCompletions' },
+					inlineSuggest: { enabled: false }
+				});
+
+				return assertEvent(suggestOracle.onDidSuggest, () => {
+					editor.setPosition({ lineNumber: 1, column: 4 });
+					editor.trigger('keyboard', Handler.Type, { text: 'd' });
+				}, suggestEvent => {
+					assert.strictEqual(suggestEvent.triggerOptions.auto, true);
+					assert.strictEqual(suggestEvent.completionModel.items.length, 1);
+				});
+			});
+		});
+	});
+
+	test('string shorthand - "off" disables quick suggestions for all token types', function () {
+		return runWithFakedTimers({ useFakeTimers: true }, () => {
+
+			disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+			return withOracle((suggestOracle, editor) => {
+				// Use string shorthand instead of object form
+				editor.updateOptions({ quickSuggestions: 'off' });
+
+				return new Promise<void>((resolve, reject) => {
+					const sub = suggestOracle.onDidSuggest(() => {
+						sub.dispose();
+						reject(new Error('Quick suggestions should have been suppressed by string shorthand "off"'));
+					});
+
+					editor.setPosition({ lineNumber: 1, column: 4 });
+					editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+					setTimeout(() => {
+						sub.dispose();
+						resolve();
+					}, 200);
+				});
+			});
+		});
+	});
+
+	test('string shorthand - "offWhenInlineCompletions" suppresses when inline provider exists', function () {
+		return runWithFakedTimers({ useFakeTimers: true }, () => {
+			disposables.add(registry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+			const inlineProvider: InlineCompletionsProvider = {
+				provideInlineCompletions: () => ({ items: [] }),
+				disposeInlineCompletions: () => { }
+			};
+			disposables.add(languageFeaturesService.inlineCompletionsProvider.register({ scheme: 'test' }, inlineProvider));
+
+			return withOracle((suggestOracle, editor) => {
+				// Use string shorthand — applies to all token types
+				editor.updateOptions({ quickSuggestions: 'offWhenInlineCompletions' });
+
+				return new Promise<void>((resolve, reject) => {
+					const sub = suggestOracle.onDidSuggest(() => {
+						sub.dispose();
+						reject(new Error('Quick suggestions should have been suppressed by offWhenInlineCompletions shorthand'));
+					});
+
+					editor.setPosition({ lineNumber: 1, column: 4 });
+					editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+					setTimeout(() => {
+						sub.dispose();
+						resolve();
+					}, 200);
+				});
+			});
 		});
 	});
 });

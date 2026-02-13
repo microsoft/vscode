@@ -71,6 +71,7 @@ export abstract class BreadcrumbsConfig<T> {
 	static readonly FilePath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.filePath');
 	static readonly SymbolPath = BreadcrumbsConfig._stub<'on' | 'off' | 'last'>('breadcrumbs.symbolPath');
 	static readonly SymbolSortOrder = BreadcrumbsConfig._stub<'position' | 'name' | 'type'>('breadcrumbs.symbolSortOrder');
+	static readonly SymbolPathSeparator = BreadcrumbsConfig._stub<string>('breadcrumbs.symbolPathSeparator');
 	static readonly Icons = BreadcrumbsConfig._stub<boolean>('breadcrumbs.icons');
 	static readonly TitleScrollbarSizing = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarSizing']>('workbench.editor.titleScrollbarSizing');
 	static readonly TitleScrollbarVisibility = BreadcrumbsConfig._stub<IEditorPartOptions['titleScrollbarVisibility']>('workbench.editor.titleScrollbarVisibility');
@@ -164,6 +165,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('icons', "Render breadcrumb items with icons."),
 			type: 'boolean',
 			default: true
+		},
+		'breadcrumbs.symbolPathSeparator': {
+			description: localize('symbolPathSeparator', "The separator used when copying the breadcrumb symbol path."),
+			type: 'string',
+			default: '.',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'breadcrumbs.showFiles': {
 			type: 'boolean',

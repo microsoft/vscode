@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-syntax */
-
 import assert from 'assert';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
@@ -285,7 +283,7 @@ suite('MarkdownRenderer', () => {
 		});
 
 		const result: HTMLElement = store.add(renderMarkdown(md)).element;
-		assert.strictEqual(result.innerHTML, `<p><a href="" title="Run command: 'doFoo'" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
+		assert.strictEqual(result.innerHTML, `<p><a href="" title="command:doFoo" draggable="false" data-href="command:doFoo">command1</a> <a href="" data-href="command:doFoo">command2</a></p>`);
 	});
 
 	test('Should remove relative links if there is no base url', () => {

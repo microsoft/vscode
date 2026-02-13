@@ -68,7 +68,7 @@ const enum ProcessType {
  *
  * Internal definitions:
  * - Process: The process launched with the terminalProcess.ts file, or the pty as a whole
- * - Pty Process: The pseudoterminal parent process (or the conpty/winpty agent process)
+ * - Pty Process: The pseudoterminal parent process (or the conpty agent process)
  * - Shell Process: The pseudoterminal child process (ie. the shell)
  */
 export class TerminalProcessManager extends Disposable implements ITerminalProcessManager {
@@ -302,7 +302,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 							suggestEnabled: this._configurationService.getValue(TerminalContribSettingId.SuggestEnabled),
 							nonce: this.shellIntegrationNonce
 						},
-						windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,
 						windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
 						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 						workspaceFolder: this._cwdWorkspaceFolder,
@@ -371,6 +370,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 		this._processListeners = [
 			newProcess.onProcessReady((e: IProcessReadyEvent) => {
+				this._logService.debug('onProcessReady', e);
 				this._processTraits = e;
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
@@ -380,6 +380,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 				if (this._preLaunchInputQueue.length > 0 && this._process) {
 					// Send any queued data that's waiting
+					this._logService.debug('sending prelaunch input queue', this._preLaunchInputQueue);
 					newProcess.input(this._preLaunchInputQueue.join(''));
 					this._preLaunchInputQueue.length = 0;
 				}
@@ -509,7 +510,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				suggestEnabled: this._configurationService.getValue(TerminalContribSettingId.SuggestEnabled),
 				nonce: this.shellIntegrationNonce
 			},
-			windowsEnableConpty: this._terminalConfigurationService.config.windowsEnableConpty,
 			windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 			workspaceFolder: this._cwdWorkspaceFolder,
@@ -563,6 +563,9 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 					await this.relaunch(this._shellLaunchConfig, this._dimensions.cols, this._dimensions.rows, false);
 				}
 			}
+		}));
+		this._register(toDisposable(() => {
+			this.ptyProcessReady = undefined!;
 		}));
 	}
 
@@ -631,6 +634,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		} else {
 			// If the pty is not ready, queue the data received to send later
+			this._logService.debug('queueing data in prelaunch input queue', data);
 			this._preLaunchInputQueue.push(data);
 		}
 	}

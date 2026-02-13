@@ -56,7 +56,8 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 }
 
 export class PickerEditorState extends Disposable {
-	private _editorViewState: {
+
+	private editorViewState: {
 		editor: EditorInput;
 		group: IEditorGroup;
 		state: ICodeEditorViewState | IDiffEditorViewState | undefined;
@@ -72,13 +73,13 @@ export class PickerEditorState extends Disposable {
 	}
 
 	set(): void {
-		if (this._editorViewState) {
+		if (this.editorViewState) {
 			return; // return early if already done
 		}
 
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (activeEditorPane) {
-			this._editorViewState = {
+			this.editorViewState = {
 				group: activeEditorPane.group,
 				editor: activeEditorPane.input,
 				state: getIEditor(activeEditorPane.getControl())?.saveViewState() ?? undefined,
@@ -94,7 +95,7 @@ export class PickerEditorState extends Disposable {
 		editor.options = { ...editor.options, transient: true };
 
 		const editorPane = await this.editorService.openEditor(editor, group);
-		if (editorPane?.input && editorPane.input !== this._editorViewState?.editor && editorPane.group.isTransient(editorPane.input)) {
+		if (editorPane?.input && editorPane.input !== this.editorViewState?.editor && editorPane.group.isTransient(editorPane.input)) {
 			this.openedTransientEditors.add(editorPane.input);
 		}
 
@@ -102,7 +103,7 @@ export class PickerEditorState extends Disposable {
 	}
 
 	async restore(): Promise<void> {
-		if (this._editorViewState) {
+		if (this.editorViewState) {
 			for (const editor of this.openedTransientEditors) {
 				if (editor.isDirty()) {
 					continue;
@@ -115,8 +116,8 @@ export class PickerEditorState extends Disposable {
 				}
 			}
 
-			await this._editorViewState.group.openEditor(this._editorViewState.editor, {
-				viewState: this._editorViewState.state,
+			await this.editorViewState.group.openEditor(this.editorViewState.editor, {
+				viewState: this.editorViewState.state,
 				preserveFocus: true // important to not close the picker as a result
 			});
 
@@ -125,7 +126,7 @@ export class PickerEditorState extends Disposable {
 	}
 
 	reset() {
-		this._editorViewState = undefined;
+		this.editorViewState = undefined;
 		this.openedTransientEditors.clear();
 	}
 

@@ -6,6 +6,7 @@
 import { coalesce } from '../../../base/common/arrays.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { ContextKeyExpression, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import { ItemActivation, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, QuickPickItem, IQuickPickSeparator } from './quickInput.js';
 import { Registry } from '../../registry/common/platform.js';
 
@@ -194,6 +195,12 @@ export interface IQuickAccessProviderDescriptor {
 	 * picker for the provider is showing.
 	 */
 	readonly contextKey?: string;
+
+	/**
+	 * A context key expression that must evaluate to true for the
+	 * provider to be considered in the registry.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 export const Extensions = {
@@ -210,12 +217,12 @@ export interface IQuickAccessRegistry {
 	/**
 	 * Get all registered quick access providers.
 	 */
-	getQuickAccessProviders(): IQuickAccessProviderDescriptor[];
+	getQuickAccessProviders(contextKeyService: IContextKeyService): IQuickAccessProviderDescriptor[];
 
 	/**
 	 * Get a specific quick access provider for a given prefix.
 	 */
-	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined;
+	getQuickAccessProvider(prefix: string, contextKeyService: IContextKeyService): IQuickAccessProviderDescriptor | undefined;
 }
 
 export class QuickAccessRegistry implements IQuickAccessRegistry {
@@ -245,12 +252,15 @@ export class QuickAccessRegistry implements IQuickAccessRegistry {
 		});
 	}
 
-	getQuickAccessProviders(): IQuickAccessProviderDescriptor[] {
-		return coalesce([this.defaultProvider, ...this.providers]);
+	getQuickAccessProviders(contextKeyService: IContextKeyService): IQuickAccessProviderDescriptor[] {
+		return coalesce([this.defaultProvider, ...this.providers])
+			.filter(provider => !provider.when || contextKeyService.contextMatchesRules(provider.when));
 	}
 
-	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined {
-		const result = prefix ? (this.providers.find(provider => prefix.startsWith(provider.prefix)) || undefined) : undefined;
+	getQuickAccessProvider(prefix: string, contextKeyService: IContextKeyService): IQuickAccessProviderDescriptor | undefined {
+		const result = prefix
+			? this.providers.find(provider => prefix.startsWith(provider.prefix) && (!provider.when || contextKeyService.contextMatchesRules(provider.when)))
+			: undefined;
 
 		return result || this.defaultProvider;
 	}

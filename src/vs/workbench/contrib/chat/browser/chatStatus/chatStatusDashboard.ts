@@ -37,16 +37,17 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { DomWidget } from '../../../../../platform/domWidget/browser/domWidget.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
-import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
-import { AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
-import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
+import { isNewUser } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../../../../base/common/color.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatViewId } from '../chat.js';
+import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -140,7 +141,8 @@ export class ChatStatusDashboard extends DomWidget {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super();
 
@@ -166,7 +168,8 @@ export class ChatStatusDashboard extends DomWidget {
 		// Quota Indicator
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 		if (chatQuota || completionsQuota || premiumChatQuota) {
-			addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
+			const usageTitle = this.getUsageTitle();
+			addSeparator(usageTitle, toAction({
 				id: 'workbench.action.manageCopilot',
 				label: localize('quotaLabel', "Manage Chat"),
 				tooltip: localize('quotaTooltip', "Manage Chat"),
@@ -207,7 +210,6 @@ export class ChatStatusDashboard extends DomWidget {
 			})();
 		}
 
-
 		// Anonymous Indicator
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
@@ -218,42 +220,29 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Chat sessions
 		{
-			let chatSessionsElement: HTMLElement | undefined;
+			const inProgress = this.chatSessionsService.getInProgress();
+			if (inProgress.some(item => item.count > 0)) {
 
-			const updateStatus = () => {
-				const inProgress = this.chatSessionsService.getInProgress();
-				if (inProgress.some(item => item.count > 0)) {
-
-					addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
-						id: 'workbench.view.chat.status.sessions',
-						label: localize('viewChatSessionsLabel', "View Agent Sessions"),
-						tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
-						class: ThemeIcon.asClassName(Codicon.eye),
-						run: () => {
-							// TODO@bpasero remove this check once settled
-							if (this.configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
-								this.runCommandAndClose(AGENT_SESSIONS_VIEW_ID);
-							} else {
-								this.runCommandAndClose(LEGACY_AGENT_SESSIONS_VIEW_ID);
-							}
-						}
-					}));
-
-					for (const { displayName, count } of inProgress) {
-						if (count > 0) {
-							const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
-							chatSessionsElement = this.element.appendChild($('div.description'));
-							const parts = renderLabelWithIcons(text);
-							chatSessionsElement.append(...parts);
-						}
+				addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
+					id: 'workbench.view.chat.status.sessions',
+					label: localize('viewChatSessionsLabel', "View Agent Sessions"),
+					tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
+					class: ThemeIcon.asClassName(Codicon.eye),
+					run: () => {
+						this.viewService.openView(ChatViewId, true);
+						this.hoverService.hideHover(true);
 					}
-				} else {
-					chatSessionsElement?.remove();
-				}
-			};
+				}));
 
-			updateStatus();
-			this._store.add(this.chatSessionsService.onDidChangeInProgress(updateStatus));
+				for (const { displayName, count } of inProgress) {
+					if (count > 0) {
+						const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
+						const chatSessionsElement = this.element.appendChild($('div.description'));
+						const parts = renderLabelWithIcons(text);
+						chatSessionsElement.append(...parts);
+					}
+				}
+			}
 		}
 
 		// Contributions
@@ -398,6 +387,11 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		return true;
+	}
+
+	private getUsageTitle(): string {
+		const planName = getChatPlanName(this.chatEntitlementService.entitlement);
+		return localize('usageTitleWithPlan', "{0} Usage", planName);
 	}
 
 	private renderHeader(container: HTMLElement, disposables: DisposableStore, label: string, action?: IAction): void {

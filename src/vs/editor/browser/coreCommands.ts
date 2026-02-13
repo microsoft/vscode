@@ -1358,11 +1358,13 @@ export namespace CoreNavigationCommands {
 			if (args.revealCursor) {
 				// must ensure cursor is in new visible range
 				const desiredVisibleViewRange = viewModel.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
+				const paddedRange = viewModel.getViewRangeWithCursorPadding(desiredVisibleViewRange);
+
 				viewModel.setCursorStates(
 					source,
 					CursorChangeReason.Explicit,
 					[
-						CursorMoveCommands.findPositionInViewportIfOutside(viewModel, viewModel.getPrimaryCursorState(), desiredVisibleViewRange, args.select)
+						CursorMoveCommands.findPositionInViewportIfOutside(viewModel, viewModel.getPrimaryCursorState(), paddedRange, args.select)
 					]
 				);
 			}

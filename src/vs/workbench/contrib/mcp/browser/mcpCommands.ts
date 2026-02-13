@@ -50,11 +50,11 @@ import { IUserDataProfileService } from '../../../services/userDataProfile/commo
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CHAT_CONFIG_MENU_ID } from '../../chat/browser/actions/chatActions.js';
 import { ChatViewId, IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService.js';
-import { ChatModeKind } from '../../chat/common/constants.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
+import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
-import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
@@ -62,8 +62,9 @@ import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
 import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
-import { McpAddConfigurationCommand } from './mcpCommandsAddConfiguration.js';
+import { McpAddConfigurationCommand, McpInstallFromManifestCommand } from './mcpCommandsAddConfiguration.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
+import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
 import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
@@ -715,6 +716,26 @@ export class AddConfigurationAction extends Action2 {
 	}
 }
 
+export class InstallFromManifestAction extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.InstallFromManifest,
+			title: localize2('mcp.installFromManifest', "Install Server from Manifest..."),
+			metadata: {
+				description: localize2('mcp.installFromManifest.description', "Install an MCP server from a JSON manifest file"),
+			},
+			category,
+			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const instantiationService = accessor.get(IInstantiationService);
+		return instantiationService.createInstance(McpInstallFromManifestCommand).run();
+	}
+}
+
 
 export class RemoveStoredInput extends Action2 {
 	constructor() {
@@ -821,9 +842,18 @@ export class StartServer extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts) {
-		const s = accessor.get(IMcpService).servers.get().find(s => s.definition.id === serverId);
-		await s?.start({ promptType: 'all-untrusted', ...opts });
+	async run(accessor: ServicesAccessor, serverId: string, opts?: IMcpServerStartOpts & { waitForLiveTools?: boolean }) {
+		let servers = accessor.get(IMcpService).servers.get();
+		if (serverId !== '*') {
+			servers = servers.filter(s => s.definition.id === serverId);
+		}
+
+		const startOpts: IMcpServerStartOpts = { promptType: 'all-untrusted', ...opts };
+		if (opts?.waitForLiveTools) {
+			await Promise.all(servers.map(s => startServerAndWaitForLiveTools(s, startOpts)));
+		} else {
+			await Promise.all(servers.map(s => s.start(startOpts)));
+		}
 	}
 }
 
@@ -1057,7 +1087,7 @@ export class McpConfigureSamplingModels extends Action2 {
 				label: model.name,
 				description: model.tooltip,
 				id,
-				picked: existingIds.size ? existingIds.has(id) : model.isDefault,
+				picked: existingIds.size ? existingIds.has(id) : model.isDefaultForLocation[ChatAgentLocation.Chat],
 			};
 		}).filter(isDefined);
 

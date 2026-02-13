@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
@@ -30,12 +30,14 @@ import { IBackupMainService } from '../../platform/backup/electron-main/backup.j
 import { BackupMainService } from '../../platform/backup/electron-main/backupMainService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { ElectronExtensionHostDebugBroadcastChannel } from '../../platform/debug/electron-main/extensionHostDebugIpc.js';
-import { IDiagnosticsService } from '../../platform/diagnostics/common/diagnostics.js';
+import { IDiagnosticsService, IGPULogMessage } from '../../platform/diagnostics/common/diagnostics.js';
 import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/diagnostics/electron-main/diagnosticsMainService.js';
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
 import { NativeBrowserElementsMainService, INativeBrowserElementsMainService } from '../../platform/browserElements/electron-main/nativeBrowserElementsMainService.js';
+import { ipcBrowserViewChannelName } from '../../platform/browserView/common/browserView.js';
+import { BrowserViewMainService, IBrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -58,6 +60,10 @@ import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../..
 import { ILoggerService, ILogService } from '../../platform/log/common/log.js';
 import { IMenubarMainService, MenubarMainService } from '../../platform/menubar/electron-main/menubarMainService.js';
 import { INativeHostMainService, NativeHostMainService } from '../../platform/native/electron-main/nativeHostMainService.js';
+import { IMeteredConnectionService } from '../../platform/meteredConnection/common/meteredConnection.js';
+import { METERED_CONNECTION_CHANNEL } from '../../platform/meteredConnection/common/meteredConnectionIpc.js';
+import { MeteredConnectionChannel } from '../../platform/meteredConnection/electron-main/meteredConnectionChannel.js';
+import { MeteredConnectionMainService } from '../../platform/meteredConnection/electron-main/meteredConnectionMainService.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { getRemoteAuthority } from '../../platform/remote/common/remoteHosts.js';
 import { SharedProcess } from '../../platform/sharedProcess/electron-main/sharedProcess.js';
@@ -119,6 +125,9 @@ import { normalizeNFC } from '../../base/common/normalization.js';
 import { ICSSDevelopmentService, CSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
 import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
+import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/common/mcpGateway.js';
+import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
+import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
@@ -411,11 +420,15 @@ export class CodeApplication extends Disposable {
 				this.auxiliaryWindowsMainService?.registerWindow(contents);
 			}
 
-			// Block any in-page navigation
+			// Handle any in-page navigation
 			contents.on('will-navigate', event => {
+				if (BrowserViewMainService.isBrowserViewWebContents(contents)) {
+					return; // Allow navigation in integrated browser views
+				}
+
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
-				event.preventDefault();
+				event.preventDefault(); // Prevent any in-page navigation
 			});
 
 			// All Windows: only allow about:blank auxiliary windows to open
@@ -580,6 +593,11 @@ export class CodeApplication extends Disposable {
 		// Error telemetry
 		appInstantiationService.invokeFunction(accessor => this._register(new ErrorTelemetry(accessor.get(ILogService), accessor.get(ITelemetryService))));
 
+		// Metered connection telemetry
+		appInstantiationService.invokeFunction(accessor => {
+			(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService).setTelemetryService(accessor.get(ITelemetryService));
+		});
+
 		// Auth Handler
 		appInstantiationService.invokeFunction(accessor => accessor.get(IProxyAuthService));
 
@@ -605,7 +623,7 @@ export class CodeApplication extends Disposable {
 		this.lifecycleMainService.phase = LifecycleMainPhase.AfterWindowOpen;
 
 		// Post Open Windows Tasks
-		this.afterWindowOpen();
+		this.afterWindowOpen(appInstantiationService);
 
 		// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 		const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
@@ -1021,11 +1039,18 @@ export class CodeApplication extends Disposable {
 		// Browser Elements
 		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
 
+		// Browser View
+		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
+
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
 		// Native Host
 		services.set(INativeHostMainService, new SyncDescriptor(NativeHostMainService, undefined, false /* proxied to other processes */));
+
+		// Metered Connection
+		const meteredConnectionService = new MeteredConnectionMainService(this.configurationService);
+		services.set(IMeteredConnectionService, meteredConnectionService);
 
 		// Web Contents Extractor
 		services.set(IWebContentExtractorService, new SyncDescriptor(NativeWebContentExtractorService, undefined, false /* proxied to other processes */));
@@ -1105,6 +1130,7 @@ export class CodeApplication extends Disposable {
 
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
+		services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
 
 		// Dev Only: CSS service (for ESM)
@@ -1155,6 +1181,11 @@ export class CodeApplication extends Disposable {
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
+		// Metered Connection
+		const meteredConnectionChannel = new MeteredConnectionChannel(accessor.get(IMeteredConnectionService) as MeteredConnectionMainService);
+		mainProcessElectronServer.registerChannel(METERED_CONNECTION_CHANNEL, meteredConnectionChannel);
+		sharedProcessClient.then(client => client.registerChannel(METERED_CONNECTION_CHANNEL, meteredConnectionChannel));
+
 		// Process
 		const processChannel = ProxyChannel.fromService(new ProcessMainService(this.logService, accessor.get(IDiagnosticsService), accessor.get(IDiagnosticsMainService)), disposables);
 		mainProcessElectronServer.registerChannel('process', processChannel);
@@ -1167,6 +1198,10 @@ export class CodeApplication extends Disposable {
 		const browserElementsChannel = ProxyChannel.fromService(accessor.get(INativeBrowserElementsMainService), disposables);
 		mainProcessElectronServer.registerChannel('browserElements', browserElementsChannel);
 		sharedProcessClient.then(client => client.registerChannel('browserElements', browserElementsChannel));
+
+		// Browser View
+		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);
+		mainProcessElectronServer.registerChannel(ipcBrowserViewChannelName, browserViewChannel);
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);
@@ -1222,6 +1257,8 @@ export class CodeApplication extends Disposable {
 		// MCP
 		const mcpDiscoveryChannel = ProxyChannel.fromService(accessor.get(INativeMcpDiscoveryHelperService), disposables);
 		mainProcessElectronServer.registerChannel(NativeMcpDiscoveryHelperChannelName, mcpDiscoveryChannel);
+		const mcpGatewayChannel = this._register(new McpGatewayChannel(mainProcessElectronServer, accessor.get(IMcpGatewayService)));
+		mainProcessElectronServer.registerChannel(McpGatewayChannelName, mcpGatewayChannel);
 
 		// Logger
 		const loggerChannel = new LoggerChannel(accessor.get(ILoggerMainService),);
@@ -1361,7 +1398,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private afterWindowOpen(): void {
+	private afterWindowOpen(instantiationService: IInstantiationService): void {
 
 		// Windows: mutex
 		this.installMutex();
@@ -1386,6 +1423,89 @@ export class CodeApplication extends Disposable {
 		// macOS: rosetta translation warning
 		if (isMacintosh && app.runningUnderARM64Translation) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
+		}
+
+		// Power telemetry
+		instantiationService.invokeFunction(accessor => {
+			const telemetryService = accessor.get(ITelemetryService);
+
+			type PowerEvent = {
+				readonly idleState: string;
+				readonly idleTime: number;
+				readonly thermalState: string;
+				readonly onBattery: boolean;
+			};
+			type PowerEventClassification = {
+				idleState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system idle state (active, idle, locked, unknown).' };
+				idleTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The system idle time in seconds.' };
+				thermalState: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The system thermal state (unknown, nominal, fair, serious, critical).' };
+				onBattery: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the system is running on battery power.' };
+				owner: 'chrmarti';
+				comment: 'Tracks OS power suspend and resume events for reliability insights.';
+			};
+
+			const getPowerEventData = (): PowerEvent => ({
+				idleState: powerMonitor.getSystemIdleState(60),
+				idleTime: powerMonitor.getSystemIdleTime(),
+				thermalState: powerMonitor.getCurrentThermalState(),
+				onBattery: powerMonitor.isOnBatteryPower()
+			});
+
+			this._register(Event.fromNodeEventEmitter(powerMonitor, 'suspend')(() => {
+				telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.suspend', getPowerEventData());
+			}));
+
+			this._register(Event.fromNodeEventEmitter(powerMonitor, 'resume')(() => {
+				telemetryService.publicLog2<PowerEvent, PowerEventClassification>('power.resume', getPowerEventData());
+			}));
+		});
+
+		// GPU crash telemetry for skia graphite out of order recording failures
+		// Refs https://github.com/microsoft/vscode/issues/284162
+		if (isMacintosh) {
+			instantiationService.invokeFunction(accessor => {
+				const telemetryService = accessor.get(ITelemetryService);
+				type GPUFeatureStatusWithSkiaGraphite = GPUFeatureStatus & {
+					skia_graphite: string;
+				};
+				const initialGpuFeatureStatus = app.getGPUFeatureStatus() as GPUFeatureStatusWithSkiaGraphite;
+				const skiaGraphiteEnabled: string = initialGpuFeatureStatus['skia_graphite'];
+				if (skiaGraphiteEnabled === 'enabled') {
+					this._register(Event.fromNodeEventEmitter<{ details: Details }>(app, 'child-process-gone', (event, details) => ({ event, details }))(({ details }) => {
+						if (details.type === 'GPU' && details.reason === 'crashed') {
+							const currentGpuFeatureStatus = app.getGPUFeatureStatus();
+							const currentRasterizationStatus: string = currentGpuFeatureStatus['rasterization'];
+							if (currentRasterizationStatus !== 'enabled') {
+								// Get last 10 GPU log messages (only the message field)
+								let gpuLogMessages: string[] = [];
+								type AppWithGPULogMethod = typeof app & {
+									getGPULogMessages(): IGPULogMessage[];
+								};
+								const customApp = app as AppWithGPULogMethod;
+								if (typeof customApp.getGPULogMessages === 'function') {
+									gpuLogMessages = customApp.getGPULogMessages().slice(-10).map(log => log.message);
+								}
+
+								type GpuCrashEvent = {
+									readonly gpuFeatureStatus: string;
+									readonly gpuLogMessages: string;
+								};
+								type GpuCrashClassification = {
+									gpuFeatureStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Current GPU feature status.' };
+									gpuLogMessages: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Last 10 GPU log messages before crash.' };
+									owner: 'deepak1556';
+									comment: 'Tracks GPU process crashes that would result in fallback mode.';
+								};
+
+								telemetryService.publicLog2<GpuCrashEvent, GpuCrashClassification>('gpu.crash.fallback', {
+									gpuFeatureStatus: JSON.stringify(currentGpuFeatureStatus),
+									gpuLogMessages: JSON.stringify(gpuLogMessages)
+								});
+							}
+						}
+					}));
+				}
+			});
 		}
 	}
 

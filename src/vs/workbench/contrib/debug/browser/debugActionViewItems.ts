@@ -79,9 +79,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
 		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
-		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
-		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
-		const title = this.action.label + keybindingLabel;
+		const title = this.keybindingService.appendKeybinding(this.action.label, this.action.id);
 		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.start, title));
 		this.start.setAttribute('role', 'button');
 		this._setAriaLabel(title);
@@ -310,8 +308,11 @@ export class FocusSessionActionViewItem extends SelectActionViewItem<IDebugSessi
 			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
 			this.update();
 		}));
+		// Apply the same pattern to existing sessions - track listeners for cleanup
 		this.getSessions().forEach(session => {
-			this._register(session.onDidChangeName(() => this.update()));
+			const sessionListeners: IDisposable[] = [];
+			sessionListeners.push(session.onDidChangeName(() => this.update()));
+			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
 		});
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 

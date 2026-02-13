@@ -681,10 +681,10 @@ class TestingExplorerViewModel extends Disposable {
 	private filter: TestsFilter;
 	public readonly projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
-	private readonly revealTimeout = new MutableDisposable();
+	private readonly revealTimeout = this._register(new MutableDisposable());
 	private readonly _viewMode: IContextKey<TestExplorerViewMode>;
 	private readonly _viewSorting: IContextKey<TestExplorerViewSorting>;
-	private readonly welcomeVisibilityEmitter = new Emitter<WelcomeExperience>();
+	private readonly welcomeVisibilityEmitter = this._register(new Emitter<WelcomeExperience>());
 	private readonly actionRunner = this._register(new TestExplorerActionRunner(() => this.tree.getSelection().filter(isDefined)));
 	private readonly lastViewState: StoredValue<ISerializedTestTreeCollapseState>;
 	private readonly noTestForDocumentWidget: NoTestsForDocumentWidget;

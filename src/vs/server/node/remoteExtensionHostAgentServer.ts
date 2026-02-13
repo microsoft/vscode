@@ -43,7 +43,7 @@ const require = createRequire(import.meta.url);
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
-declare module vsda {
+declare namespace vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	export class signer {
@@ -395,6 +395,9 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 
 		if (msg.desiredConnectionType === ConnectionType.Management) {
 			// This should become a management connection
+			if (socket instanceof WebSocketNodeSocket) {
+				socket.setRecordInflateBytes(false);
+			}
 
 			if (isReconnection) {
 				// This is a reconnection
@@ -484,6 +487,9 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			}
 
 		} else if (msg.desiredConnectionType === ConnectionType.Tunnel) {
+			if (socket instanceof WebSocketNodeSocket) {
+				socket.setRecordInflateBytes(false);
+			}
 
 			const tunnelStartParams = <ITunnelConnectionStartParams>msg.args;
 			this._createTunnel(protocol, tunnelStartParams);

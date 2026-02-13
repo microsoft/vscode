@@ -78,28 +78,28 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 	) {
 		super(_remoteTerminalChannel, logService, _historyService, configurationResolverService, statusBarService, workspaceContextService);
 
-		this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event));
-		this._remoteTerminalChannel.onProcessReplay(e => {
+		this._register(this._remoteTerminalChannel.onProcessData(e => this._ptys.get(e.id)?.handleData(e.event)));
+		this._register(this._remoteTerminalChannel.onProcessReplay(e => {
 			this._ptys.get(e.id)?.handleReplay(e.event);
 			if (e.event.commands.commands.length > 0) {
 				this._onRestoreCommands.fire({ id: e.id, commands: e.event.commands.commands });
 			}
-		});
-		this._remoteTerminalChannel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion());
-		this._remoteTerminalChannel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e));
-		this._remoteTerminalChannel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event));
-		this._remoteTerminalChannel.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property));
-		this._remoteTerminalChannel.onProcessExit(e => {
+		}));
+		this._register(this._remoteTerminalChannel.onProcessOrphanQuestion(e => this._ptys.get(e.id)?.handleOrphanQuestion()));
+		this._register(this._remoteTerminalChannel.onDidRequestDetach(e => this._onDidRequestDetach.fire(e)));
+		this._register(this._remoteTerminalChannel.onProcessReady(e => this._ptys.get(e.id)?.handleReady(e.event)));
+		this._register(this._remoteTerminalChannel.onDidChangeProperty(e => this._ptys.get(e.id)?.handleDidChangeProperty(e.property)));
+		this._register(this._remoteTerminalChannel.onProcessExit(e => {
 			const pty = this._ptys.get(e.id);
 			if (pty) {
 				pty.handleExit(e.event);
 				pty.dispose();
 				this._ptys.delete(e.id);
 			}
-		});
+		}));
 
 		const allowedCommands = ['_remoteCLI.openExternal', '_remoteCLI.windowOpen', '_remoteCLI.getSystemStatus', '_remoteCLI.manageExtensions'];
-		this._remoteTerminalChannel.onExecuteCommand(async e => {
+		this._register(this._remoteTerminalChannel.onExecuteCommand(async e => {
 			// Ensure this request for for this window
 			const pty = this._ptys.get(e.persistentProcessId);
 			if (!pty) {
@@ -118,7 +118,7 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 			} catch (err) {
 				this._remoteTerminalChannel.sendCommandResult(reqId, true, err);
 			}
-		});
+		}));
 
 		this._onPtyHostConnected.fire();
 	}

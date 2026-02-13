@@ -1939,6 +1939,17 @@ declare module 'vscode' {
 		detail?: string;
 
 		/**
+		 * A {@link Uri} representing the resource associated with this item.
+		 *
+		 * When set, this property is used to automatically derive several item properties if they are not explicitly provided:
+		 * - **Label**: Derived from the resource's file name when {@link QuickPickItem.label label} is not provided or is empty.
+		 * - **Description**: Derived from the resource's path when {@link QuickPickItem.description description} is not provided or is empty.
+		 * - **Icon**: Derived from the current file icon theme when {@link QuickPickItem.iconPath iconPath} is set to
+		 *   {@link ThemeIcon.File} or {@link ThemeIcon.Folder}.
+		 */
+		resourceUri?: Uri;
+
+		/**
 		 * Optional flag indicating if this item is initially selected.
 		 *
 		 * This is only honored when using the {@link window.showQuickPick showQuickPick} API. To do the same
@@ -1999,6 +2010,13 @@ declare module 'vscode' {
 		 * An optional string to show as placeholder in the input box to guide the user.
 		 */
 		placeHolder?: string;
+
+		/**
+		 * Optional text that provides instructions or context to the user.
+		 *
+		 * The prompt is displayed below the input box and above the list of items.
+		 */
+		prompt?: string;
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
@@ -6460,6 +6478,21 @@ declare module 'vscode' {
 	export type CharacterPair = [string, string];
 
 	/**
+	 * Configuration for line comments.
+	 */
+	export interface LineCommentRule {
+		/**
+		 * The line comment token, like `//`
+		 */
+		comment: string;
+		/**
+		 * Whether the comment token should not be indented and placed at the first column.
+		 * Defaults to false.
+		 */
+		noIndent?: boolean;
+	}
+
+	/**
 	 * Describes how comments for a language work.
 	 */
 	export interface CommentRule {
@@ -6467,7 +6500,7 @@ declare module 'vscode' {
 		/**
 		 * The line comment token, like `// this is a comment`
 		 */
-		lineComment?: string;
+		lineComment?: string | LineCommentRule;
 
 		/**
 		 * The block comment character pair, like `/* block comment *&#47;`
@@ -7784,7 +7817,7 @@ declare module 'vscode' {
 		 *
 		 * Note that the possible values are currently defined as any of the following:
 		 * 'bash', 'cmd', 'csh', 'fish', 'gitbash', 'julia', 'ksh', 'node', 'nu', 'pwsh', 'python',
-		 * 'sh', 'wsl', 'zsh'.
+		 * 'sh', 'wsl', 'xonsh', 'zsh'.
 		 */
 		readonly shell: string | undefined;
 	}
@@ -9591,6 +9624,10 @@ declare module 'vscode' {
 		 * - a relative path to exclude (for example `build/output`)
 		 * - a simple glob pattern (for example `**​/build`, `output/**`)
 		 *
+		 * *Note* that case-sensitivity of the {@link excludes} patterns for built-in file system providers
+		 * will depend on the underlying file system: on Windows and macOS the matching will be case-insensitive and
+		 * on Linux it will be case-sensitive.
+		 *
 		 * It is the file system provider's job to call {@linkcode FileSystemProvider.onDidChangeFile onDidChangeFile}
 		 * for every change given these rules. No event should be emitted for files that match any of the provided
 		 * excludes.
@@ -10041,7 +10078,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A panel that contains a webview.
+	 * A panel that contains a {@linkcode Webview}.
 	 */
 	export interface WebviewPanel {
 		/**
@@ -10057,16 +10094,7 @@ declare module 'vscode' {
 		/**
 		 * Icon for the panel shown in UI.
 		 */
-		iconPath?: Uri | {
-			/**
-			 * The icon path for the light theme.
-			 */
-			readonly light: Uri;
-			/**
-			 * The icon path for the dark theme.
-			 */
-			readonly dark: Uri;
-		};
+		iconPath?: IconPath;
 
 		/**
 		 * {@linkcode Webview} belonging to the panel.
@@ -10102,7 +10130,7 @@ declare module 'vscode' {
 		/**
 		 * Fired when the panel is disposed.
 		 *
-		 * This may be because the user closed the panel or because `.dispose()` was
+		 * This may be because the user closed the panel or because {@linkcode WebviewPanel.dispose dispose} was
 		 * called on it.
 		 *
 		 * Trying to use the panel after it has been disposed throws an exception.
@@ -10115,7 +10143,7 @@ declare module 'vscode' {
 		 * A webview panel may only show in a single column at a time. If it is already showing, this
 		 * method moves it to a new column.
 		 *
-		 * @param viewColumn View column to show the panel in. Shows in the current `viewColumn` if undefined.
+		 * @param viewColumn View column to show the panel in. Shows in the current {@linkcode WebviewPanel.viewColumn} if undefined.
 		 * @param preserveFocus When `true`, the webview will not take focus.
 		 */
 		reveal(viewColumn?: ViewColumn, preserveFocus?: boolean): void;
@@ -10125,17 +10153,17 @@ declare module 'vscode' {
 		 *
 		 * This closes the panel if it showing and disposes of the resources owned by the webview.
 		 * Webview panels are also disposed when the user closes the webview panel. Both cases
-		 * fire the `onDispose` event.
+		 * fire the {@linkcode onDidDispose} event.
 		 */
 		dispose(): any;
 	}
 
 	/**
-	 * Event fired when a webview panel's view state changes.
+	 * Event fired when a {@linkcode WebviewPanel webview panel's} view state changes.
 	 */
 	export interface WebviewPanelOnDidChangeViewStateEvent {
 		/**
-		 * Webview panel whose view state changed.
+		 * {@linkcode WebviewPanel} whose view state changed.
 		 */
 		readonly webviewPanel: WebviewPanel;
 	}
@@ -10270,12 +10298,12 @@ declare module 'vscode' {
 		 *
 		 * To save resources, the editor normally deallocates webview documents (the iframe content) that are not visible.
 		 * For example, when the user collapse a view or switches to another top level activity in the sidebar, the
-		 * `WebviewView` itself is kept alive but the webview's underlying document is deallocated. It is recreated when
+		 * {@linkcode WebviewView} itself is kept alive but the webview's underlying document is deallocated. It is recreated when
 		 * the view becomes visible again.
 		 *
-		 * You can prevent this behavior by setting `retainContextWhenHidden` in the `WebviewOptions`. However this
-		 * increases resource usage and should be avoided wherever possible. Instead, you can use persisted state to
-		 * save off a webview's state so that it can be quickly recreated as needed.
+		 * You can prevent this behavior by setting {@linkcode WebviewOptions.retainContextWhenHidden retainContextWhenHidden} in the {@linkcode WebviewOptions}.
+		 * However this increases resource usage and should be avoided wherever possible. Instead, you can use
+		 * persisted state to save off a webview's state so that it can be quickly recreated as needed.
 		 *
 		 * To save off a persisted state, inside the webview call `acquireVsCodeApi().setState()` with
 		 * any json serializable object. To restore the state again, call `getState()`. For example:
@@ -10298,7 +10326,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Provider for creating `WebviewView` elements.
+	 * Provider for creating {@linkcode WebviewView} elements.
 	 */
 	export interface WebviewViewProvider {
 		/**
@@ -10322,7 +10350,7 @@ declare module 'vscode' {
 	 *
 	 * Text based custom editors use a {@linkcode TextDocument} as their data model. This considerably simplifies
 	 * implementing a custom editor as it allows the editor to handle many common operations such as
-	 * undo and backup. The provider is responsible for synchronizing text changes between the webview and the `TextDocument`.
+	 * undo and backup. The provider is responsible for synchronizing text changes between the webview and the {@linkcode TextDocument}.
 	 */
 	export interface CustomTextEditorProvider {
 
@@ -10332,13 +10360,12 @@ declare module 'vscode' {
 		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
 		 * existing editor using this `CustomTextEditorProvider`.
 		 *
-		 *
 		 * @param document Document for the resource to resolve.
 		 *
 		 * @param webviewPanel The webview panel used to display the editor UI for this resource.
 		 *
 		 * During resolve, the provider must fill in the initial html for the content webview panel and hook up all
-		 * the event listeners on it that it is interested in. The provider can also hold onto the `WebviewPanel` to
+		 * the event listeners on it that it is interested in. The provider can also hold onto the {@linkcode WebviewPanel} to
 		 * use later for example in a command. See {@linkcode WebviewPanel} for additional details.
 		 *
 		 * @param token A cancellation token that indicates the result is no longer needed.
@@ -10386,7 +10413,7 @@ declare module 'vscode' {
 		 *
 		 * This is invoked by the editor when the user undoes this edit. To implement `undo`, your
 		 * extension should restore the document and editor to the state they were in just before this
-		 * edit was added to the editor's internal edit stack by `onDidChangeCustomDocument`.
+		 * edit was added to the editor's internal edit stack by {@linkcode CustomEditorProvider.onDidChangeCustomDocument}.
 		 */
 		undo(): Thenable<void> | void;
 
@@ -10395,7 +10422,7 @@ declare module 'vscode' {
 		 *
 		 * This is invoked by the editor when the user redoes this edit. To implement `redo`, your
 		 * extension should restore the document and editor to the state they were in just after this
-		 * edit was added to the editor's internal edit stack by `onDidChangeCustomDocument`.
+		 * edit was added to the editor's internal edit stack by {@linkcode CustomEditorProvider.onDidChangeCustomDocument}.
 		 */
 		redo(): Thenable<void> | void;
 
@@ -10427,7 +10454,7 @@ declare module 'vscode' {
 		/**
 		 * Unique identifier for the backup.
 		 *
-		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 * This id is passed back to your extension in {@linkcode CustomReadonlyEditorProvider.openCustomDocument openCustomDocument} when opening a custom editor from a backup.
 		 */
 		readonly id: string;
 
@@ -10492,10 +10519,10 @@ declare module 'vscode' {
 		 * Create a new document for a given resource.
 		 *
 		 * `openCustomDocument` is called when the first time an editor for a given resource is opened. The opened
-		 * document is then passed to `resolveCustomEditor` so that the editor can be shown to the user.
+		 * document is then passed to {@link resolveCustomEditor} so that the editor can be shown to the user.
 		 *
-		 * Already opened `CustomDocument` are re-used if the user opened additional editors. When all editors for a
-		 * given resource are closed, the `CustomDocument` is disposed of. Opening an editor at this point will
+		 * Already opened {@linkcode CustomDocument CustomDocuments} are re-used if the user opened additional editors. When all editors for a
+		 * given resource are closed, the {@linkcode CustomDocument CustomDocuments} is disposed of. Opening an editor at this point will
 		 * trigger another call to `openCustomDocument`.
 		 *
 		 * @param uri Uri of the document to open.
@@ -10545,18 +10572,18 @@ declare module 'vscode' {
 		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
 		 * define what an edit is and what data is stored on each edit.
 		 *
-		 * Firing `onDidChange` causes the editors to be marked as being dirty. This is cleared when the user either
-		 * saves or reverts the file.
+		 * Firing {@linkcode CustomEditorProvider.onDidChangeCustomDocument onDidChangeCustomDocument} causes the
+		 * editors to be marked as being dirty. This is cleared when the user either saves or reverts the file.
 		 *
-		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
+		 * Editors that support undo/redo must fire a {@linkcode CustomDocumentEditEvent} whenever an edit happens. This allows
 		 * users to undo and redo the edit using the editor's standard keyboard shortcuts. The editor will also mark
 		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
 		 *
-		 * Editors that support editing but cannot use the editor's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
+		 * Editors that support editing but cannot use the editor's standard undo/redo mechanism must fire a {@linkcode CustomDocumentContentChangeEvent}.
 		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
 		 * `save` or `revert` the file.
 		 *
-		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
+		 * An editor should only ever fire {@linkcode CustomDocumentEditEvent} events, or only ever fire {@linkcode CustomDocumentContentChangeEvent} events.
 		 */
 		readonly onDidChangeCustomDocument: Event<CustomDocumentEditEvent<T>> | Event<CustomDocumentContentChangeEvent<T>>;
 
@@ -10566,14 +10593,14 @@ declare module 'vscode' {
 		 * This method is invoked by the editor when the user saves a custom editor. This can happen when the user
 		 * triggers save while the custom editor is active, by commands such as `save all`, or by auto save if enabled.
 		 *
-		 * To implement `save`, the implementer must persist the custom editor. This usually means writing the
-		 * file data for the custom document to disk. After `save` completes, any associated editor instances will
-		 * no longer be marked as dirty.
+		 * The implementer must persist the custom editor. This usually means writing the
+		 * file data for the custom document to disk. After {@linkcode saveCustomDocument} completes, any associated
+		 * editor instances will no longer be marked as dirty.
 		 *
 		 * @param document Document to save.
 		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
 		 *
-		 * @returns Thenable signaling that saving has completed.
+		 * @returns A {@linkcode Thenable} that saving has completed.
 		 */
 		saveCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
 
@@ -10581,7 +10608,7 @@ declare module 'vscode' {
 		 * Save a custom document to a different location.
 		 *
 		 * This method is invoked by the editor when the user triggers 'save as' on a custom editor. The implementer must
-		 * persist the custom editor to `destination`.
+		 * persist the custom editor to {@linkcode destination}.
 		 *
 		 * When the user accepts save as, the current editor is be replaced by an non-dirty editor for the newly saved file.
 		 *
@@ -10589,7 +10616,7 @@ declare module 'vscode' {
 		 * @param destination Location to save to.
 		 * @param cancellation Token that signals the save is no longer required.
 		 *
-		 * @returns Thenable signaling that saving has completed.
+		 * @returns A {@linkcode Thenable} signaling that saving has completed.
 		 */
 		saveCustomDocumentAs(document: T, destination: Uri, cancellation: CancellationToken): Thenable<void>;
 
@@ -10599,30 +10626,30 @@ declare module 'vscode' {
 		 * This method is invoked by the editor when the user triggers `File: Revert File` in a custom editor. (Note that
 		 * this is only used using the editor's `File: Revert File` command and not on a `git revert` of the file).
 		 *
-		 * To implement `revert`, the implementer must make sure all editor instances (webviews) for `document`
+		 * The implementer must make sure all editor instances (webviews) for {@linkcode document}
 		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
 		 * workspace.
 		 *
 		 * @param document Document to revert.
 		 * @param cancellation Token that signals the revert is no longer required.
 		 *
-		 * @returns Thenable signaling that the change has completed.
+		 * @returns A {@linkcode Thenable} signaling that the revert has completed.
 		 */
 		revertCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Back up a dirty custom document.
 		 *
-		 * Backups are used for hot exit and to prevent data loss. Your `backup` method should persist the resource in
+		 * Backups are used for hot exit and to prevent data loss. Your {@linkcode backupCustomDocument} method should persist the resource in
 		 * its current state, i.e. with the edits applied. Most commonly this means saving the resource to disk in
 		 * the `ExtensionContext.storagePath`. When the editor reloads and your custom editor is opened for a resource,
 		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
 		 * extension should load the file contents from there instead of from the resource in the workspace.
 		 *
-		 * `backup` is triggered approximately one second after the user stops editing the document. If the user
-		 * rapidly edits the document, `backup` will not be invoked until the editing stops.
+		 * {@linkcode backupCustomDocument} is triggered approximately one second after the user stops editing the document. If the user
+		 * rapidly edits the document, {@linkcode backupCustomDocument} will not be invoked until the editing stops.
 		 *
-		 * `backup` is not invoked when `auto save` is enabled (since auto save already persists the resource).
+		 * {@linkcode backupCustomDocument} is not invoked when `auto save` is enabled (since auto save already persists the resource).
 		 *
 		 * @param document Document to backup.
 		 * @param context Information that can be used to backup the document.
@@ -10630,6 +10657,8 @@ declare module 'vscode' {
 		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that the editor has some valid backup.
+		 *
+		 * @returns A {@linkcode Thenable} signaling that the backup has completed.
 		 */
 		backupCustomDocument(document: T, context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 	}
@@ -12280,10 +12309,13 @@ declare module 'vscode' {
 		description?: string | boolean;
 
 		/**
-		 * The {@link Uri} of the resource representing this item.
+		 * A {@link Uri} representing the resource associated with this item.
 		 *
-		 * Will be used to derive the {@link TreeItem.label label}, when it is not provided.
-		 * Will be used to derive the icon from current file icon theme, when {@link TreeItem.iconPath iconPath} has {@link ThemeIcon} value.
+		 * When set, this property is used to automatically derive several item properties if they are not explicitly provided:
+		 * - **Label**: Derived from the resource's file name when {@link TreeItem.label label} is not provided.
+		 * - **Description**: Derived from the resource's path when {@link TreeItem.description description} is set to `true`.
+		 * - **Icon**: Derived from the current file icon theme when {@link TreeItem.iconPath iconPath} is set to
+		 *   {@link ThemeIcon.File} or {@link ThemeIcon.Folder}.
 		 */
 		resourceUri?: Uri;
 
@@ -13130,6 +13162,13 @@ declare module 'vscode' {
 		placeholder: string | undefined;
 
 		/**
+		 * Optional text that provides instructions or context to the user.
+		 *
+		 * The prompt is displayed below the input box and above the list of items.
+		 */
+		prompt: string | undefined;
+
+		/**
 		 * An event signaling when the value of the filter text has changed.
 		 */
 		readonly onDidChangeValue: Event<string>;
@@ -13276,6 +13315,26 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Specifies the location where a {@link QuickInputButton} should be rendered.
+	 */
+	export enum QuickInputButtonLocation {
+		/**
+		 * The button is rendered in the title bar.
+		 */
+		Title = 1,
+
+		/**
+		 * The button is rendered inline to the right of the input box.
+		 */
+		Inline = 2,
+
+		/**
+		 * The button is rendered at the far end inside the input box.
+		 */
+		Input = 3
+	}
+
+	/**
 	 * A button for an action in a {@link QuickPick} or {@link InputBox}.
 	 */
 	export interface QuickInputButton {
@@ -13288,6 +13347,26 @@ declare module 'vscode' {
 		 * An optional tooltip displayed when hovering over the button.
 		 */
 		readonly tooltip?: string | undefined;
+
+		/**
+		 * The location where the button should be rendered.
+		 *
+		 * Defaults to {@link QuickInputButtonLocation.Title}.
+		 *
+		 * **Note:** This property is ignored if the button was added to a {@link QuickPickItem}.
+		 */
+		location?: QuickInputButtonLocation;
+
+		/**
+		 * When present, indicates that the button is a toggle button that can be checked or unchecked.
+		 */
+		readonly toggle?: {
+			/**
+			 * Indicates whether the toggle button is currently checked.
+			 * This property will be updated when the button is toggled.
+			 */
+			checked: boolean;
+		};
 	}
 
 	/**
@@ -13889,6 +13968,10 @@ declare module 'vscode' {
 		 * all opened workspace folders. It cannot be used to add more folders for file watching, nor will
 		 * it report any file events from folders that are not part of the opened workspace folders.
 		 *
+		 * *Note* that case-sensitivity of the {@link globPattern} parameter will depend on the file system
+		 * where the watcher is running: on Windows and macOS the matching will be case-insensitive and
+		 * on Linux it will be case-sensitive.
+		 *
 		 * Optionally, flags to ignore certain kinds of events can be provided.
 		 *
 		 * To stop listening to events the watcher must be disposed.
@@ -13896,7 +13979,7 @@ declare module 'vscode' {
 		 * *Note* that file events from deleting a folder may not include events for the contained files.
 		 * For example, when a folder is moved to the trash, only one event is reported because technically
 		 * this is a rename/move operation and not a delete operation for each files within.
-		 * On top of that, performance optimisations are in place to fold multiple events that all belong
+		 * On top of that, performance optimizations are in place to fold multiple events that all belong
 		 * to the same parent operation (e.g. delete folder) into one event for that parent. As such, if
 		 * you need to know about all deleted files, you have to watch with `**` and deal with all file
 		 * events yourself.
@@ -18127,7 +18210,7 @@ declare module 'vscode' {
 		 * @example
 		 * l10n.t('Hello {name}', { name: 'Erich' });
 		 */
-		export function t(message: string, args: Record<string, any>): string;
+		export function t(message: string, args: Record<string, string | number | boolean>): string;
 		/**
 		 * Marks a string for localization. If a localized bundle is available for the language specified by
 		 * {@link env.language} and the bundle has a localized value for this message, then that localized
@@ -18139,17 +18222,17 @@ declare module 'vscode' {
 		export function t(options: {
 			/**
 			 * The message to localize. If {@link options.args args} is an array, this message supports index templating where strings like
-			 * `{0}` and `{1}` are replaced by the item at that index in the {@link options.args args} array. If `args` is a `Record<string, any>`,
+			 * `{0}` and `{1}` are replaced by the item at that index in the {@link options.args args} array. If `args` is a `Record`,
 			 * this supports named templating where strings like `{foo}` and `{bar}` are replaced by the value in
 			 * the Record for that key (foo, bar, etc).
 			 */
 			message: string;
 			/**
 			 * The arguments to be used in the localized string. As an array, the index of the argument is used to
-			 * match the template placeholder in the localized string. As a Record, the key is used to match the template
+			 * match the template placeholder in the localized string. As a `Record`, the key is used to match the template
 			 * placeholder in the localized string.
 			 */
-			args?: Array<string | number | boolean> | Record<string, any>;
+			args?: Array<string | number | boolean> | Record<string, string | number | boolean>;
 			/**
 			 * A comment to help translators understand the context of the message.
 			 */

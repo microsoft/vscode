@@ -396,10 +396,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	async focusInstance(instance: ITerminalInstance): Promise<void> {
-		if (instance.target === TerminalLocation.Editor) {
-			return this._terminalEditorService.focusInstance(instance);
+		if (this._activeInstance !== instance) {
+			this.setActiveInstance(instance);
 		}
-		return this._terminalGroupService.focusInstance(instance);
+		if (instance.target === TerminalLocation.Editor) {
+			await this._terminalEditorService.focusInstance(instance);
+			return;
+		}
+		await this._terminalGroupService.focusInstance(instance);
 	}
 
 	async focusActiveInstance(): Promise<void> {
@@ -1094,11 +1098,12 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
 		const ctor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
+		const capabilities = options.capabilities ?? new TerminalCapabilityStore();
 		const xterm = this._instantiationService.createInstance(XtermTerminal, undefined, ctor, {
 			cols: options.cols,
 			rows: options.rows,
 			xtermColorProvider: options.colorProvider,
-			capabilities: options.capabilities || new TerminalCapabilityStore(),
+			capabilities,
 			disableOverviewRuler: options.disableOverviewRuler,
 		}, undefined);
 
@@ -1106,7 +1111,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			xterm.raw.attachCustomKeyEventHandler(() => false);
 		}
 
-		const instance = new DetachedTerminal(xterm, options, this._instantiationService);
+		const instance = new DetachedTerminal(xterm, { ...options, capabilities }, this._instantiationService);
 		this._detachedXterms.add(instance);
 		const l = xterm.onDidDispose(() => {
 			this._detachedXterms.delete(instance);
