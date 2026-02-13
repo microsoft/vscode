@@ -7,22 +7,25 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { isExportableSessionData } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
 
 const defaultFileName = 'chat.json';
+const defaultMarkdownFileName = 'chat.md';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
+const markdownFilters = [{ name: localize('chat.markdownFile.label', "Markdown"), extensions: ['md'] }];
 
 /**
  * Target location for importing a chat session.
@@ -77,6 +80,66 @@ export function registerChatExportActions() {
 
 			// Using toJSON on the model
 			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
+			await fileService.writeFile(outputPath, content);
+		}
+	});
+
+	registerAction2(class ExportChatAsMarkdownAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.exportAsMarkdown',
+				category: CHAT_CATEGORY,
+				title: localize2('chat.exportAsMarkdown.label', "Export Chat as Markdown..."),
+				precondition: ChatContextKeys.enabled,
+				f1: true,
+				menu: [{
+					id: MenuId.ChatContext,
+					when: ChatContextKeys.responseIsFiltered.negate(),
+					group: 'export',
+					order: 1,
+				}, {
+					id: MenuId.ChatTitleBarMenu,
+					when: ChatContextKeys.enabled,
+					group: 'c_export',
+					order: 1,
+				}],
+			});
+		}
+		async run(accessor: ServicesAccessor, outputPath?: URI) {
+			const widgetService = accessor.get(IChatWidgetService);
+			const fileDialogService = accessor.get(IFileDialogService);
+			const fileService = accessor.get(IFileService);
+
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget || !widget.viewModel) {
+				return;
+			}
+
+			if (!outputPath) {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultMarkdownFileName);
+				const result = await fileDialogService.showSaveDialog({
+					defaultUri,
+					filters: markdownFilters
+				});
+				if (!result) {
+					return;
+				}
+				outputPath = result;
+			}
+
+			const items = widget.viewModel.getItems()
+				.filter((item): item is (IChatRequestViewModel | IChatResponseViewModel) => isRequestVM(item) || (isResponseVM(item) && !item.errorDetails?.responseIsFiltered));
+
+			if (items.length === 0) {
+				return; // Nothing to export
+			}
+
+			const markdownParts: string[] = [];
+			for (const item of items) {
+				markdownParts.push(stringifyItem(item));
+			}
+
+			const content = VSBuffer.fromString(markdownParts.join('\n\n'));
 			await fileService.writeFile(outputPath, content);
 		}
 	});
