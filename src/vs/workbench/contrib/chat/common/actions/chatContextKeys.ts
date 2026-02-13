@@ -58,6 +58,11 @@ export namespace ChatContextKeys {
 	 * which means the mode picker should be shown with filtered custom agents.
 	 */
 	export const chatSessionHasCustomAgentTarget = new RawContextKey<boolean>('chatSessionHasCustomAgentTarget', false, { type: 'boolean', description: localize('chatSessionHasCustomAgentTarget', "True when the chat session has a customAgentTarget defined to filter modes.") });
+	/**
+	 * True when the chat session has a modelVendor defined in its contribution,
+	 * which means the model picker should be shown with filtered models from that vendor.
+	 */
+	export const chatSessionHasModelVendor = new RawContextKey<boolean>('chatSessionHasModelVendor', false, { type: 'boolean', description: localize('chatSessionHasModelVendor', "True when the chat session has a modelVendor defined to filter models.") });
 	export const agentSupportsAttachments = new RawContextKey<boolean>('agentSupportsAttachments', false, { type: 'boolean', description: localize('agentSupportsAttachments', "True when the chat agent supports attachments.") });
 	export const withinEditSessionDiff = new RawContextKey<boolean>('withinEditSessionDiff', false, { type: 'boolean', description: localize('withinEditSessionDiff', "True when the chat widget dispatches to the edit session chat.") });
 	export const filePartOfEditSession = new RawContextKey<boolean>('filePartOfEditSession', false, { type: 'boolean', description: localize('filePartOfEditSession', "True when the chat widget is within a file with an edit session.") });

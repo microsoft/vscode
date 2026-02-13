@@ -205,6 +205,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return this.contributions.find(c => c.type === chatSessionType)?.customAgentTarget ?? Target.Undefined;
 	}
 
+	getModelVendorForSessionType(chatSessionType: string): string | undefined {
+		return this.contributions.find(c => c.type === chatSessionType)?.modelVendor;
+	}
+
 	getContentProviderSchemes(): string[] {
 		return Array.from(this.contentProviders.keys());
 	}

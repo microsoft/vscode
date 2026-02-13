@@ -353,6 +353,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionOptionsValid: IContextKey<boolean>;
 	private agentSessionTypeKey: IContextKey<string>;
 	private chatSessionHasCustomAgentTarget: IContextKey<boolean>;
+	private chatSessionHasModelVendor: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
@@ -576,6 +577,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 		this.chatSessionHasCustomAgentTarget = ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService);
+		this.chatSessionHasModelVendor = ChatContextKeys.chatSessionHasModelVendor.bindTo(contextKeyService);
 
 		this.history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, this.location));
 
@@ -1049,7 +1051,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.storageService.store(CachedLanguageModelsKey, models, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+
+		const vendorFilter = this.getSessionModelVendor();
+		if (vendorFilter) {
+			// When a vendor filter is active, show only models from that vendor.
+			// This bypasses the isUserSelectable check, allowing extensions to register
+			// models with isUserSelectable: false (hidden from the general picker) that
+			// only appear in the specific session type declaring the matching modelVendor.
+			return models.filter(entry => entry.metadata?.vendor === vendorFilter);
+		}
 		return models.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry) && this.modelSupportedForInlineChat(entry));
+	}
+
+	/**
+	 * Get the model vendor restriction for the current session, if any.
+	 * Returns the vendor string if a `modelVendor` is defined on the session's contribution, or undefined otherwise.
+	 */
+	private getSessionModelVendor(): string | undefined {
+		const sessionResource = this._widget?.viewModel?.model.sessionResource;
+		const ctx = sessionResource ? this.chatService.getChatSessionFromInternalUri(sessionResource) : undefined;
+		const effectiveSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() ?? ctx?.chatSessionType;
+		if (!effectiveSessionType) {
+			return undefined;
+		}
+		return this.chatSessionsService.getModelVendorForSessionType(effectiveSessionType);
 	}
 
 	private setCurrentLanguageModelToDefault() {
@@ -1438,6 +1463,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// Check if this session type has a customAgentTarget
 		const customAgentTarget = ctx && this.chatSessionsService.getCustomAgentTargetForSessionType(ctx.chatSessionType);
 		this.chatSessionHasCustomAgentTarget.set(customAgentTarget !== Target.Undefined);
+
+		// Check if this session type has a modelVendor to filter the model picker
+		const effectiveSessionTypeForVendor = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() ?? ctx?.chatSessionType;
+		const modelVendor = effectiveSessionTypeForVendor ? this.chatSessionsService.getModelVendorForSessionType(effectiveSessionTypeForVendor) : undefined;
+		this.chatSessionHasModelVendor.set(!!modelVendor);
 
 		// Handle agent option from session - set initial mode
 		if (customAgentTarget) {
