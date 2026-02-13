@@ -427,29 +427,19 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				this.windowControlsDimmed = options.dimmed;
 			}
 
-			// Remember the last colors for dimming/undimming
+			const backgroundColor = options.backgroundColor ?? this.lastWindowControlColors?.backgroundColor;
+			const foregroundColor = options.foregroundColor ?? this.lastWindowControlColors?.foregroundColor;
+
 			if (options.backgroundColor !== undefined || options.foregroundColor !== undefined) {
-				this.lastWindowControlColors = {
-					backgroundColor: options.backgroundColor ?? this.lastWindowControlColors?.backgroundColor,
-					foregroundColor: options.foregroundColor ?? this.lastWindowControlColors?.foregroundColor
-				};
+				this.lastWindowControlColors = { backgroundColor, foregroundColor };
 			}
 
-			// Resolve colors: use provided colors or fall back to last
-			// known colors when just toggling the dimmed state
-			const resolvedColors = {
-				backgroundColor: options.backgroundColor ?? this.lastWindowControlColors?.backgroundColor,
-				foregroundColor: options.foregroundColor ?? this.lastWindowControlColors?.foregroundColor
-			};
-
-			// Apply dimming if active
-			const effectiveColors = this.windowControlsDimmed
-				? this.applyDimming(resolvedColors)
-				: resolvedColors;
+			const effectiveBackgroundColor = this.windowControlsDimmed && backgroundColor ? this.dimColor(backgroundColor) : backgroundColor;
+			const effectiveForegroundColor = this.windowControlsDimmed && foregroundColor ? this.dimColor(foregroundColor) : foregroundColor;
 
 			win.setTitleBarOverlay({
-				color: effectiveColors.backgroundColor?.trim() === '' ? undefined : effectiveColors.backgroundColor,
-				symbolColor: effectiveColors.foregroundColor?.trim() === '' ? undefined : effectiveColors.foregroundColor,
+				color: effectiveBackgroundColor?.trim() === '' ? undefined : effectiveBackgroundColor,
+				symbolColor: effectiveForegroundColor?.trim() === '' ? undefined : effectiveForegroundColor,
 				height: options.height ? options.height - 1 : undefined // account for window border
 			});
 		}
@@ -467,20 +457,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				win.setWindowButtonPosition({ x: offset + 1, y: offset });
 			}
 		}
-	}
-
-	private applyDimming(options: { backgroundColor?: string; foregroundColor?: string }): { backgroundColor?: string; foregroundColor?: string } {
-		const result: { backgroundColor?: string; foregroundColor?: string } = {};
-
-		if (options.backgroundColor) {
-			result.backgroundColor = this.dimColor(options.backgroundColor);
-		}
-
-		if (options.foregroundColor) {
-			result.foregroundColor = this.dimColor(options.foregroundColor);
-		}
-
-		return result;
 	}
 
 	private dimColor(color: string): string {
