@@ -47,7 +47,7 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 			data.push([resource, allMarkerData]);
 		}
 		if (data.length > 0) {
-			this._proxy.$acceptMarkersChange(data);
+			this._proxy.$acceptMarkerServiceChange(data);
 		}
 	}
 

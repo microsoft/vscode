@@ -42,7 +42,7 @@ suite('MainThreadDiagnostics', function () {
 				set(v: any): any { return null; }
 				getProxy(): any {
 					return {
-						$acceptMarkersChange() { }
+						$acceptMarkerServiceChange() { }
 					};
 				}
 				drain(): any { return null; }
@@ -84,7 +84,7 @@ suite('MainThreadDiagnostics', function () {
 					set(v: any): any { return null; }
 					getProxy(): any {
 						return {
-							$acceptMarkersChange(data: [UriComponents, IMarkerData[]][]) {
+							$acceptMarkerServiceChange(data: [UriComponents, IMarkerData[]][]) {
 								changedData.push(data);
 							}
 						};
@@ -150,7 +150,7 @@ suite('MainThreadDiagnostics', function () {
 					set(v: any): any { return null; }
 					getProxy(): any {
 						return {
-							$acceptMarkersChange(data: [UriComponents, IMarkerData[]][]) {
+							$acceptMarkerServiceChange(data: [UriComponents, IMarkerData[]][]) {
 								changedData.push(data);
 							}
 						};

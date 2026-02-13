@@ -240,6 +240,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 	private readonly _proxy: MainThreadDiagnosticsShape;
 	private readonly _collections = new Map<string, DiagnosticCollection>();
 	private readonly _onDidChangeDiagnostics = new DebounceEmitter<readonly vscode.Uri[]>({ merge: all => all.flat(), delay: 50 });
+	private readonly _markerServiceMirror: DiagnosticCollection;
 
 	static _mapper(last: readonly vscode.Uri[]): { uris: readonly vscode.Uri[] } {
 		const map = new ResourceMap<vscode.Uri>();
@@ -258,6 +259,15 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		private readonly _extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
+
+		const msmName = '_markerService_mirror';
+		this._markerServiceMirror = new DiagnosticCollection(
+			msmName, msmName,
+			Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, // no limits because this collection is just a mirror of "sanitized" data
+			_uri => undefined,
+			this._fileSystemInfoService.extUri, undefined, this._onDidChangeDiagnostics
+		);
+		this._collections.set(msmName, this._markerServiceMirror);
 	}
 
 	createDiagnosticCollection(extensionId: ExtensionIdentifier, name?: string): vscode.DiagnosticCollection {
@@ -321,49 +331,31 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		} else {
 			const index = new Map<string, number>();
 			const res: [vscode.Uri, vscode.Diagnostic[]][] = [];
-			for (const collection of this._collections.values()) {
-				collection.forEach((uri, diagnostics) => {
-					let idx = index.get(uri.toString());
-					if (typeof idx === 'undefined') {
-						idx = res.length;
-						index.set(uri.toString(), idx);
-						res.push([uri, []]);
-					}
-					res[idx][1] = res[idx][1].concat(...diagnostics);
-				});
-			}
+
+			this._markerServiceMirror.forEach((uri, diagnostics) => {
+				let idx = index.get(uri.toString());
+				if (typeof idx === 'undefined') {
+					idx = res.length;
+					index.set(uri.toString(), idx);
+					res.push([uri, []]);
+				}
+				res[idx][1] = res[idx][1].concat(...diagnostics);
+			});
 			return res;
 		}
 	}
 
 	private _getDiagnostics(resource: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
-		let res: vscode.Diagnostic[] = [];
-		for (const collection of this._collections.values()) {
-			if (collection.has(resource)) {
-				res = res.concat(collection.get(resource));
-			}
-		}
-		return res;
+		return [...this._markerServiceMirror.get(resource)];
 	}
 
-	private _mirrorCollection: vscode.DiagnosticCollection | undefined;
-
-	$acceptMarkersChange(data: [UriComponents, IMarkerData[]][]): void {
-
-		if (!this._mirrorCollection) {
-			const name = '_generated_mirror';
-			const collection = new DiagnosticCollection(
-				name, name,
-				Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, // no limits because this collection is just a mirror of "sanitized" data
-				_uri => undefined,
-				this._fileSystemInfoService.extUri, undefined, this._onDidChangeDiagnostics
-			);
-			this._collections.set(name, collection);
-			this._mirrorCollection = collection;
-		}
-
+	$acceptMarkerServiceChange(data: [UriComponents, IMarkerData[]][]): void {
 		for (const [uri, markers] of data) {
-			this._mirrorCollection.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			if (markers.length === 0) {
+				this._markerServiceMirror.delete(URI.revive(uri));
+			} else {
+				this._markerServiceMirror.set(URI.revive(uri), markers.map(converter.Diagnostic.to));
+			}
 		}
 	}
 }
