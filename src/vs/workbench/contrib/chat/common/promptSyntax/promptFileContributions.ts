@@ -12,6 +12,9 @@ import { PromptHeaderDefinitionProvider } from './languageProviders/PromptHeader
 import { PromptValidatorContribution } from './languageProviders/promptValidator.js';
 import { PromptDocumentSemanticTokensProvider } from './languageProviders/promptDocumentSemanticTokensProvider.js';
 import { PromptCodeActionProvider } from './languageProviders/promptCodeActions.js';
+import { PromptQualityContribution } from './languageProviders/promptQualityContribution.js';
+import { PromptQualityCodeActionProvider } from './languageProviders/promptQualityCodeActionProvider.js';
+import { PromptQualityHoverProvider } from './languageProviders/promptQualityHoverProvider.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR } from './promptTypes.js';
@@ -33,7 +36,10 @@ export class PromptLanguageFeaturesProvider extends Disposable implements IWorkb
 		this._register(languageService.definitionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptHeaderDefinitionProvider)));
 		this._register(languageService.documentSemanticTokensProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptDocumentSemanticTokensProvider)));
 		this._register(languageService.codeActionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptCodeActionProvider)));
+		this._register(languageService.codeActionProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptQualityCodeActionProvider)));
+		this._register(languageService.hoverProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, instantiationService.createInstance(PromptQualityHoverProvider)));
 
 		this._register(instantiationService.createInstance(PromptValidatorContribution));
+		this._register(instantiationService.createInstance(PromptQualityContribution));
 	}
 }

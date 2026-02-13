@@ -132,6 +132,7 @@ import { LanguageModelToolsConfirmationService } from './tools/languageModelTool
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
+import './promptSyntax/promptQualityCodeLensProvider.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
@@ -198,6 +199,12 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
+		},
+		'chat.promptQualityAnalysis.llm.enabled': {
+			type: 'boolean',
+			description: nls.localize('chat.promptQualityAnalysis.llm.enabled', "Controls whether LLM-powered quality analysis runs on prompt, agent, and instruction files. Detects contradictions, persona inconsistencies, cognitive load issues, and coverage gaps."),
+			default: false,
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.AgentsControlClickBehavior]: {
 			type: 'string',
