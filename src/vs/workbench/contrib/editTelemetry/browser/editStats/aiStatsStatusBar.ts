@@ -9,7 +9,7 @@ import { IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { createHotClass } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -18,6 +18,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { AI_STATS_SETTING_ID } from '../settingIds.js';
 import type { AiStatsFeature } from './aiStatsFeature.js';
+import { ChartViewMode, createAiStatsChart, ISessionData } from './aiStatsChart.js';
 import './media.css';
 
 export class AiStatsStatusBar extends Disposable {
@@ -44,7 +45,10 @@ export class AiStatsStatusBar extends Disposable {
 					element: async (_token) => {
 						this._sendHoverTelemetry();
 						store.clear();
-						const elem = this._createStatusBarHover();
+						const elem = createAiStatsHover({
+							data: this._aiStatsFeature,
+							onOpenSettings: () => openSettingsCommand({ ids: [AI_STATS_SETTING_ID] }).run(this._commandService),
+						});
 						return elem.keepUpdated(store).element;
 					},
 					markdownNotSupportedFallback: undefined,
@@ -119,63 +123,138 @@ export class AiStatsStatusBar extends Disposable {
 			)
 		]);
 	}
+}
 
-	private _createStatusBarHover() {
-		const aiRatePercent = this._aiStatsFeature.aiRate.map(r => `${Math.round(r * 100)}%`);
+export interface IAiStatsHoverData {
+	readonly aiRate: IObservable<number>;
+	readonly acceptedInlineSuggestionsToday: IObservable<number>;
+	readonly sessions: IObservable<readonly ISessionData[]>;
+}
 
-		return n.div({
-			class: 'ai-stats-status-bar',
-		}, [
-			n.div({
-				class: 'header',
+export interface IAiStatsHoverOptions {
+	readonly data: IAiStatsHoverData;
+	readonly onOpenSettings?: () => void;
+}
+
+export function createAiStatsHover(options: IAiStatsHoverOptions) {
+	const chartViewMode = observableValue<ChartViewMode>('chartViewMode', 'days');
+	const aiRatePercent = options.data.aiRate.map(r => `${Math.round(r * 100)}%`);
+
+	const createToggleButton = (mode: ChartViewMode, tooltip: string, icon: ThemeIcon) => {
+		return derived(reader => {
+			const currentMode = chartViewMode.read(reader);
+			const isActive = currentMode === mode;
+
+			return n.div({
+				class: ['chart-toggle-button', isActive ? 'active' : ''],
 				style: {
-					minWidth: '200px',
-				}
-			},
-				[
-					n.div({ style: { flex: 1 } }, [localize('aiStatsStatusBarHeader', "AI Usage Statistics")]),
-					n.div({ style: { marginLeft: 'auto' } }, actionBar([
+					padding: '2px 4px',
+					borderRadius: '3px',
+					cursor: 'pointer',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+				},
+				onclick: () => {
+					chartViewMode.set(mode, undefined);
+				},
+				title: tooltip,
+			}, [
+				n.div({
+					class: ThemeIcon.asClassName(icon),
+					style: { fontSize: '14px' }
+				})
+			]);
+		});
+	};
+
+	return n.div({
+		class: 'ai-stats-status-bar',
+	}, [
+		n.div({
+			class: 'header',
+			style: {
+				minWidth: '280px',
+			}
+		},
+			[
+				n.div({ style: { flex: 1 } }, [localize('aiStatsStatusBarHeader', "AI Usage Statistics")]),
+				n.div({ style: { marginLeft: 'auto' } }, options.onOpenSettings
+					? actionBar([
 						{
 							action: {
 								id: 'aiStats.statusBar.settings',
 								label: '',
 								enabled: true,
-								run: () => openSettingsCommand({ ids: [AI_STATS_SETTING_ID] }).run(this._commandService),
+								run: options.onOpenSettings,
 								class: ThemeIcon.asClassName(Codicon.gear),
 								tooltip: localize('aiStats.statusBar.configure', "Configure")
 							},
 							options: { icon: true, label: false, hoverDelegate: nativeHoverDelegate }
 						}
-					]))
-				]
-			),
+					])
+					: [])
+			]
+		),
 
-			n.div({ style: { display: 'flex' } }, [
-				n.div({ style: { flex: 1, paddingRight: '4px' } }, [
-					localize('text1', "AI vs Typing Average: {0}", aiRatePercent.get()),
-				]),
-				/*
-				TODO: Write article that explains the ratio and link to it.
-
-				n.div({ style: { marginLeft: 'auto' } }, actionBar([
-					{
-						action: {
-							id: 'aiStatsStatusBar.openSettings',
-							label: '',
-							enabled: true,
-							run: () => { },
-							class: ThemeIcon.asClassName(Codicon.info),
-							tooltip: ''
-						},
-						options: { icon: true, label: true, }
-					}
-				]))*/
-			]),
+		n.div({ style: { display: 'flex' } }, [
 			n.div({ style: { flex: 1, paddingRight: '4px' } }, [
-				localize('text2', "Accepted inline suggestions today: {0}", this._aiStatsFeature.acceptedInlineSuggestionsToday.get()),
+				localize('text1', "AI vs Typing Average: {0}", aiRatePercent.get()),
 			]),
-		]);
-	}
+		]),
+		n.div({ style: { flex: 1, paddingRight: '4px' } }, [
+			localize('text2', "Accepted inline suggestions today: {0}", options.data.acceptedInlineSuggestionsToday.get()),
+		]),
+
+		// Chart section
+		n.div({
+			style: {
+				marginTop: '8px',
+				borderTop: '1px solid var(--vscode-widget-border)',
+				paddingTop: '8px',
+			}
+		}, [
+			// Chart header with toggle
+			n.div({
+				class: 'header',
+				style: {
+					display: 'flex',
+					alignItems: 'center',
+					marginBottom: '4px',
+				}
+			}, [
+				n.div({ style: { flex: 1 } }, [
+					chartViewMode.map(mode =>
+						mode === 'days'
+							? localize('chartHeaderDays', "AI Rate by Day")
+							: localize('chartHeaderSessions', "AI Rate by Session")
+					)
+				]),
+				n.div({
+					class: 'chart-view-toggle',
+					style: { marginLeft: 'auto', display: 'flex', gap: '2px' }
+				}, [
+					createToggleButton('days', localize('viewByDays', "Days"), Codicon.calendar),
+					createToggleButton('sessions', localize('viewBySessions', "Sessions"), Codicon.listFlat),
+				])
+			]),
+
+			// Chart container
+			derived(reader => {
+				const sessions = options.data.sessions.read(reader);
+				const viewMode = chartViewMode.read(reader);
+				return n.div({
+					ref: (container) => {
+						const chart = createAiStatsChart({
+							sessions,
+							viewMode,
+						});
+						container.appendChild(chart);
+					}
+				});
+			}),
+		]),
+	]);
 }
 
 function actionBar(actions: { action: IAction; options: IActionOptions }[], options?: IActionBarOptions) {

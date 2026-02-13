@@ -113,6 +113,15 @@ export class AiStatsFeature extends Disposable {
 		return val.sessions.length;
 	});
 
+	public readonly sessions = derived(this, r => {
+		this._dataVersion.read(r);
+		const val = this._data.getValue();
+		if (!val) {
+			return [];
+		}
+		return val.sessions;
+	});
+
 	public readonly acceptedInlineSuggestionsToday = derived(this, r => {
 		this._dataVersion.read(r);
 		const val = this._data.getValue();

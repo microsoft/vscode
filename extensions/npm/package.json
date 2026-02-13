@@ -18,7 +18,13 @@
   ],
   "scripts": {
     "compile": "npx gulp compile-extension:npm",
-    "watch": "npx gulp watch-extension:npm"
+    "watch": "npx gulp watch-extension:npm",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
     "find-up": "^5.0.0",

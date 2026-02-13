@@ -16,6 +16,7 @@ import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import TypingsStatus from '../ui/typingsStatus';
 import { nulToken } from '../utils/cancellation';
+import { readUnifiedConfig } from '../utils/configuration';
 import FileConfigurationManager from './fileConfigurationManager';
 import { applyCodeAction } from './util/codeAction';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
@@ -670,10 +671,10 @@ namespace CompletionConfiguration {
 	): CompletionConfiguration {
 		const config = vscode.workspace.getConfiguration(modeId, resource);
 		return {
-			completeFunctionCalls: config.get<boolean>(CompletionConfiguration.completeFunctionCalls, false),
-			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
-			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
-			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, true),
+			completeFunctionCalls: readUnifiedConfig<boolean>(CompletionConfiguration.completeFunctionCalls, false, { scope: resource, fallbackSection: modeId }),
+			pathSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.pathSuggestions, true, { scope: resource, fallbackSection: modeId }),
+			autoImportSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.autoImportSuggestions, true, { scope: resource, fallbackSection: modeId }),
+			nameSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.nameSuggestions, true, { scope: resource, fallbackSection: modeId }),
 			importStatementSuggestions: config.get<boolean>(CompletionConfiguration.importStatementSuggestions, true),
 		};
 	}
@@ -703,7 +704,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
 	): Promise<vscode.CompletionList<MyCompletionItem> | undefined> {
-		if (!vscode.workspace.getConfiguration(this.language.id, document).get('suggest.enabled')) {
+		if (!readUnifiedConfig<boolean>('suggest.enabled', true, { scope: document, fallbackSection: this.language.id })) {
 			return undefined;
 		}
 

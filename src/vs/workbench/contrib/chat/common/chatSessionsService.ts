@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
+import { Event, IWaitUntil } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -14,7 +14,8 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participants/chatAgents.js';
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
-import { IChatProgress, IChatService } from './chatService/chatService.js';
+import { IChatProgress, IChatService, IChatSessionTiming } from './chatService/chatService.js';
+import { Target } from './promptSyntax/service/promptsService.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -35,7 +36,15 @@ export interface IChatSessionProviderOptionItem {
 	description?: string;
 	locked?: boolean;
 	icon?: ThemeIcon;
+	default?: boolean;
 	// [key: string]: any;
+}
+
+export interface IChatSessionProviderOptionGroupCommand {
+	command: string;
+	title: string;
+	tooltip?: string;
+	arguments?: unknown[];
 }
 
 export interface IChatSessionProviderOptionGroup {
@@ -43,6 +52,8 @@ export interface IChatSessionProviderOptionGroup {
 	name: string;
 	description?: string;
 	items: IChatSessionProviderOptionItem[];
+	searchable?: boolean;
+	onSearch?: (query: string, token: CancellationToken) => Thenable<IChatSessionProviderOptionItem[]>;
 	/**
 	 * A context key expression that controls visibility of this option group picker.
 	 * When specified, the picker is only visible when the expression evaluates to true.
@@ -50,6 +61,12 @@ export interface IChatSessionProviderOptionGroup {
 	 * Example: `"chatSessionOption.models == 'gpt-4'"`
 	 */
 	when?: string;
+	icon?: ThemeIcon;
+	/**
+	 * Custom commands to show in the option group's picker UI.
+	 * These will be shown in a separate section at the end of the picker.
+	 */
+	commands?: IChatSessionProviderOptionGroupCommand[];
 }
 
 export interface IChatSessionsExtensionPoint {
@@ -68,7 +85,16 @@ export interface IChatSessionsExtensionPoint {
 	readonly capabilities?: IChatAgentAttachmentCapabilities;
 	readonly commands?: IChatSessionCommandContribution[];
 	readonly canDelegate?: boolean;
+	readonly isReadOnly?: boolean;
+	/**
+	 * When set, the chat session will show a filtered mode picker with custom agents
+	 * that have a matching `target` property. This enables contributed chat sessions
+	 * to reuse the standard agent/mode dropdown with filtered custom agents.
+	 * Custom agents without a `target` property are also shown in all filtered lists
+	 */
+	readonly customAgentTarget?: Target;
 }
+
 export interface IChatSessionItem {
 	resource: URI;
 	label: string;
@@ -77,16 +103,14 @@ export interface IChatSessionItem {
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
-	timing: {
-		startTime: number;
-		endTime?: number;
-	};
+	timing: IChatSessionTiming;
 	changes?: {
 		files: number;
 		insertions: number;
 		deletions: number;
-	} | readonly IChatSessionFileChange[];
+	} | readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[];
 	archived?: boolean;
+	metadata?: { readonly [key: string]: unknown };
 }
 
 export interface IChatSessionFileChange {
@@ -94,6 +118,14 @@ export interface IChatSessionFileChange {
 	originalUri?: URI;
 	insertions: number;
 	deletions: number;
+}
+
+export interface IChatSessionFileChange2 {
+	readonly uri: URI;
+	readonly originalUri?: URI;
+	readonly modifiedUri?: URI;
+	readonly insertions: number;
+	readonly deletions: number;
 }
 
 export type IChatSessionHistoryItem = {
@@ -113,6 +145,11 @@ export type IChatSessionHistoryItem = {
  * The session type used for local agent chat sessions.
  */
 export const localChatSessionType = 'local';
+
+/**
+ * The option ID used for selecting the agent in chat sessions.
+ */
+export const agentOptionId = 'agent';
 
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
@@ -148,36 +185,42 @@ export interface IChatSession extends IDisposable {
 	) => Promise<void>;
 }
 
-export interface IChatSessionItemProvider {
-	readonly chatSessionType: string;
-	readonly onDidChangeChatSessionItems: Event<void>;
-	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
-}
-
 export interface IChatSessionContentProvider {
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 }
 
-export type SessionOptionsChangedCallback = (sessionResource: URI, updates: ReadonlyArray<{
-	optionId: string;
-	value: string | IChatSessionProviderOptionItem;
-}>) => Promise<void>;
+export interface IChatSessionItemController {
+
+	readonly onDidChangeChatSessionItems: Event<void>;
+
+	get items(): readonly IChatSessionItem[];
+
+	refresh(token: CancellationToken): Promise<void>;
+}
+
+/**
+ * Event fired when session options need to be sent to the extension.
+ * Extends IWaitUntil to allow listeners to register async work that will be awaited.
+ */
+export interface IChatSessionOptionsWillNotifyExtensionEvent extends IWaitUntil {
+	readonly sessionResource: URI;
+	readonly updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>;
+}
 
 export interface IChatSessionsService {
 	readonly _serviceBrand: undefined;
 
 	// #region Chat session item provider support
-	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
-	readonly onDidChangeSessionItems: Event<string>;
+	readonly onDidChangeItemsProviders: Event<{ readonly chatSessionType: string }>;
+	readonly onDidChangeSessionItems: Event<{ readonly chatSessionType: string }>;
 
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
 
 	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined;
 
-	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
-	activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined>;
-	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
+	registerChatSessionItemController(chatSessionType: string, controller: IChatSessionItemController): IDisposable;
+	activateChatSessionItemProvider(chatSessionType: string): Promise<void>;
 
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
 	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined;
@@ -186,15 +229,19 @@ export interface IChatSessionsService {
 	getInputPlaceholderForSessionType(chatSessionType: string): string | undefined;
 
 	/**
-	 * Get the list of chat session items grouped by session type.
+	 * Get the list of current chat session items grouped by session type.
+	 * @param providerTypeFilter If specified, only returns items from the given providers. If undefined, returns items from all providers.
 	 */
-	getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>>;
+	getChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>>;
+
+	/**
+	 * Forces the controllers to refresh their session items, optionally filtered by provider type.
+	 */
+	refreshChatSessionItems(providerTypeFilter: readonly string[] | undefined, token: CancellationToken): Promise<void>;
 
 	reportInProgress(chatSessionType: string, count: number): void;
 	getInProgress(): { displayName: string; count: number }[];
 
-	// Notify providers about session items changes
-	notifySessionItemsChanged(chatSessionType: string): void;
 	// #endregion
 
 	// #region Content provider support
@@ -219,11 +266,23 @@ export interface IChatSessionsService {
 	 * Get the capabilities for a specific session type
 	 */
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined;
+
+	/**
+	 * Get the customAgentTarget for a specific session type.
+	 * When the Target is not `Target.Undefined`, the mode picker should show filtered custom agents matching this target.
+	 */
+	getCustomAgentTargetForSessionType(chatSessionType: string): Target;
+
 	onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
-	setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void;
+	/**
+	 * Event fired when session options change and need to be sent to the extension.
+	 * MainThreadChatSessions subscribes to this to forward changes to the extension host.
+	 * Uses IWaitUntil pattern to allow listeners to register async work.
+	 */
+	readonly onRequestNotifyExtension: Event<IChatSessionOptionsWillNotifyExtensionEvent>;
 	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void>;
 
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
@@ -232,6 +291,11 @@ export interface IChatSessionsService {
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {
 	return state === ChatSessionStatus.InProgress || state === ChatSessionStatus.NeedsInput;
+}
+
+export function isIChatSessionFileChange2(obj: unknown): obj is IChatSessionFileChange2 {
+	const candidate = obj as IChatSessionFileChange2;
+	return candidate && candidate.uri instanceof URI && typeof candidate.insertions === 'number' && typeof candidate.deletions === 'number';
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

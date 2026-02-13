@@ -21,7 +21,7 @@ import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import flatmap from 'gulp-flatmap';
 import gunzip from 'gulp-gunzip';
-import untar from 'gulp-untar';
+import { untar } from './lib/util.ts';
 import File from 'vinyl';
 import * as fs from 'fs';
 import glob from 'glob';
@@ -321,7 +321,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		let productJsonContents = '';
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor({ commit, date: readISODate('out-build'), version }))
+			.pipe(jsonEditor({ commit, date: readISODate(sourceFolderName), version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);

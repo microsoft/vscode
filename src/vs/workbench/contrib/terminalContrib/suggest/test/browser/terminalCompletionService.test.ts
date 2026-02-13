@@ -198,6 +198,32 @@ suite('TerminalCompletionService', () => {
 			], { replacementRange: [1, 3] });
 		});
 
+		test('../| should return parent folder completions', async () => {
+			// Scenario: cwd is /parent/folder1, sibling is /parent/folder2
+			// When typing ../, should see contents of /parent/ (folder1 and folder2)
+			validResources = [
+				URI.parse('file:///parent/folder1'),
+				URI.parse('file:///parent'),
+			];
+			childResources = [
+				{ resource: URI.parse('file:///parent/folder1/'), isDirectory: true },
+				{ resource: URI.parse('file:///parent/folder2/'), isDirectory: true },
+			];
+			const resourceOptions: TerminalCompletionResourceOptions = {
+				cwd: URI.parse('file:///parent/folder1'),
+				showDirectories: true,
+				pathSeparator
+			};
+			const result = await terminalCompletionService.resolveResources(resourceOptions, '../', 3, provider, capabilities);
+
+			assertCompletions(result, [
+				{ label: '../', detail: '/parent/' },
+				{ label: '../folder1/', detail: '/parent/folder1/' },
+				{ label: '../folder2/', detail: '/parent/folder2/' },
+				{ label: '../../', detail: '/' },
+			], { replacementRange: [0, 3] });
+		});
+
 		test('cd ./| should return folder completions', async () => {
 			const resourceOptions: TerminalCompletionResourceOptions = {
 				cwd: URI.parse('file:///test'),
@@ -564,7 +590,8 @@ suite('TerminalCompletionService', () => {
 			assertCompletions(result, [
 				{ label: './test/', detail: '/test/test/' },
 				{ label: './test/inner/', detail: '/test/test/inner/' },
-				{ label: './test/../', detail: '/' }
+				// ../` from the viewed folder (/test/test/) goes to /test/, not /
+				{ label: './test/../', detail: '/test/' }
 			], { replacementRange: [0, 5] });
 		});
 		test('test/| should normalize current and parent folders', async () => {

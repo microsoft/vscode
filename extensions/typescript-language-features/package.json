@@ -2,7 +2,7 @@
   "name": "typescript-language-features",
   "description": "%description%",
   "displayName": "%displayName%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "author": "vscode",
   "publisher": "vscode",
   "license": "MIT",
@@ -173,36 +173,6 @@
             "description": "%typescript.enablePromptUseWorkspaceTsdk%",
             "scope": "window"
           },
-          "javascript.referencesCodeLens.enabled": {
-            "type": "boolean",
-            "default": false,
-            "description": "%javascript.referencesCodeLens.enabled%",
-            "scope": "window"
-          },
-          "javascript.referencesCodeLens.showOnAllFunctions": {
-            "type": "boolean",
-            "default": false,
-            "description": "%javascript.referencesCodeLens.showOnAllFunctions%",
-            "scope": "window"
-          },
-          "typescript.referencesCodeLens.enabled": {
-            "type": "boolean",
-            "default": false,
-            "description": "%typescript.referencesCodeLens.enabled%",
-            "scope": "window"
-          },
-          "typescript.referencesCodeLens.showOnAllFunctions": {
-            "type": "boolean",
-            "default": false,
-            "description": "%typescript.referencesCodeLens.showOnAllFunctions%",
-            "scope": "window"
-          },
-          "typescript.implementationsCodeLens.enabled": {
-            "type": "boolean",
-            "default": false,
-            "description": "%typescript.implementationsCodeLens.enabled%",
-            "scope": "window"
-          },
           "typescript.experimental.useTsgo": {
             "type": "boolean",
             "default": false,
@@ -212,16 +182,100 @@
               "experimental"
             ]
           },
+          "js/ts.referencesCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.referencesCodeLens.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
+          },
+          "javascript.referencesCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.referencesCodeLens.enabled%",
+            "markdownDeprecationMessage": "%configuration.referencesCodeLens.enabled.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "typescript.referencesCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.referencesCodeLens.enabled%",
+            "markdownDeprecationMessage": "%configuration.referencesCodeLens.enabled.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "js/ts.referencesCodeLens.showOnAllFunctions": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.referencesCodeLens.showOnAllFunctions%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
+          },
+          "javascript.referencesCodeLens.showOnAllFunctions": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.referencesCodeLens.showOnAllFunctions%",
+            "markdownDeprecationMessage": "%configuration.referencesCodeLens.showOnAllFunctions.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "typescript.referencesCodeLens.showOnAllFunctions": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.referencesCodeLens.showOnAllFunctions%",
+            "markdownDeprecationMessage": "%configuration.referencesCodeLens.showOnAllFunctions.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "js/ts.implementationsCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.implementationsCodeLens.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "TypeScript"
+            ]
+          },
+          "typescript.implementationsCodeLens.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.implementationsCodeLens.enabled%",
+            "markdownDeprecationMessage": "%configuration.implementationsCodeLens.enabled.unifiedDeprecationMessage%",
+            "scope": "window"
+          },
+          "js/ts.implementationsCodeLens.showOnInterfaceMethods": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.implementationsCodeLens.showOnInterfaceMethods%",
+            "scope": "language-overridable",
+            "tags": [
+              "TypeScript"
+            ]
+          },
           "typescript.implementationsCodeLens.showOnInterfaceMethods": {
             "type": "boolean",
             "default": false,
-            "description": "%typescript.implementationsCodeLens.showOnInterfaceMethods%",
+            "markdownDescription": "%configuration.implementationsCodeLens.showOnInterfaceMethods%",
+            "markdownDeprecationMessage": "%configuration.implementationsCodeLens.showOnInterfaceMethods.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.implementationsCodeLens.showOnAllClassMethods": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.implementationsCodeLens.showOnAllClassMethods%",
+            "scope": "language-overridable",
+            "tags": [
+              "TypeScript"
+            ]
           },
           "typescript.implementationsCodeLens.showOnAllClassMethods": {
             "type": "boolean",
             "default": false,
-            "description": "%typescript.implementationsCodeLens.showOnAllClassMethods%",
+            "markdownDescription": "%configuration.implementationsCodeLens.showOnAllClassMethods%",
+            "markdownDeprecationMessage": "%configuration.implementationsCodeLens.showOnAllClassMethods.unifiedDeprecationMessage%",
             "scope": "window"
           },
           "typescript.reportStyleChecksAsWarnings": {
@@ -364,16 +418,28 @@
             "markdownDescription": "%typescript.locale%",
             "scope": "window"
           },
+          "js/ts.suggestionActions.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggestionActions.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
+          },
           "javascript.suggestionActions.enabled": {
             "type": "boolean",
             "default": true,
             "description": "%javascript.suggestionActions.enabled%",
+            "markdownDeprecationMessage": "%configuration.suggestionActions.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
           },
           "typescript.suggestionActions.enabled": {
             "type": "boolean",
             "default": true,
             "description": "%typescript.suggestionActions.enabled%",
+            "markdownDeprecationMessage": "%configuration.suggestionActions.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
           },
           "typescript.updateImportsOnFileMove.enabled": {
@@ -452,12 +518,6 @@
             "markdownDescription": "%typescript.workspaceSymbols.excludeLibrarySymbols%",
             "scope": "window"
           },
-          "typescript.tsserver.enableRegionDiagnostics": {
-            "type": "boolean",
-            "default": true,
-            "description": "%typescript.tsserver.enableRegionDiagnostics%",
-            "scope": "window"
-          },
           "javascript.updateImportsOnPaste.enabled": {
             "scope": "window",
             "type": "boolean",
@@ -483,124 +543,252 @@
         "title": "%configuration.suggest%",
         "order": 21,
         "properties": {
+          "js/ts.suggest.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%typescript.suggest.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
+          },
           "javascript.suggest.enabled": {
             "type": "boolean",
             "default": true,
             "description": "%typescript.suggest.enabled%",
+            "markdownDeprecationMessage": "%configuration.suggest.enabled.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
           "typescript.suggest.enabled": {
             "type": "boolean",
             "default": true,
             "description": "%typescript.suggest.enabled%",
+            "markdownDeprecationMessage": "%configuration.suggest.enabled.unifiedDeprecationMessage%",
             "scope": "language-overridable"
+          },
+          "js/ts.suggest.autoImports": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.autoImports%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.suggest.autoImports": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.autoImports%",
+            "markdownDeprecationMessage": "%configuration.suggest.autoImports.unifiedDeprecationMessage%",
             "scope": "resource"
           },
           "typescript.suggest.autoImports": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.autoImports%",
+            "markdownDeprecationMessage": "%configuration.suggest.autoImports.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "js/ts.suggest.names": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.suggest.names%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript"
+            ]
           },
           "javascript.suggest.names": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.suggest.names%",
+            "markdownDeprecationMessage": "%configuration.suggest.names.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "js/ts.suggest.completeFunctionCalls": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.suggest.completeFunctionCalls%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.suggest.completeFunctionCalls": {
             "type": "boolean",
             "default": false,
             "description": "%configuration.suggest.completeFunctionCalls%",
+            "markdownDeprecationMessage": "%configuration.suggest.completeFunctionCalls.unifiedDeprecationMessage%",
             "scope": "resource"
           },
           "typescript.suggest.completeFunctionCalls": {
             "type": "boolean",
             "default": false,
             "description": "%configuration.suggest.completeFunctionCalls%",
+            "markdownDeprecationMessage": "%configuration.suggest.completeFunctionCalls.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "js/ts.suggest.paths": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.paths%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.suggest.paths": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.paths%",
+            "markdownDeprecationMessage": "%configuration.suggest.paths.unifiedDeprecationMessage%",
             "scope": "resource"
           },
           "typescript.suggest.paths": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.paths%",
+            "markdownDeprecationMessage": "%configuration.suggest.paths.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "js/ts.suggest.completeJSDocs": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.completeJSDocs%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.completeJSDocs%",
+            "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
           "typescript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.completeJSDocs%",
+            "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
+          },
+          "js/ts.suggest.jsdoc.generateReturns": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.suggest.jsdoc.generateReturns": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+            "markdownDeprecationMessage": "%configuration.suggest.jsdoc.generateReturns.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
           "typescript.suggest.jsdoc.generateReturns": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
+            "markdownDeprecationMessage": "%configuration.suggest.jsdoc.generateReturns.unifiedDeprecationMessage%",
             "scope": "language-overridable"
+          },
+          "js/ts.suggest.includeAutomaticOptionalChainCompletions": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.suggest.includeAutomaticOptionalChainCompletions": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+            "markdownDeprecationMessage": "%configuration.suggest.includeAutomaticOptionalChainCompletions.unifiedDeprecationMessage%",
             "scope": "resource"
           },
           "typescript.suggest.includeAutomaticOptionalChainCompletions": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
+            "markdownDeprecationMessage": "%configuration.suggest.includeAutomaticOptionalChainCompletions.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "js/ts.suggest.includeCompletionsForImportStatements": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.includeCompletionsForImportStatements%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.suggest.includeCompletionsForImportStatements": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.includeCompletionsForImportStatements%",
+            "markdownDeprecationMessage": "%configuration.suggest.includeCompletionsForImportStatements.unifiedDeprecationMessage%",
             "scope": "resource"
           },
           "typescript.suggest.includeCompletionsForImportStatements": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.includeCompletionsForImportStatements%",
+            "markdownDeprecationMessage": "%configuration.suggest.includeCompletionsForImportStatements.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "js/ts.suggest.classMemberSnippets.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.classMemberSnippets.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.suggest.classMemberSnippets.enabled": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.classMemberSnippets.enabled%",
+            "markdownDeprecationMessage": "%configuration.suggest.classMemberSnippets.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
           },
           "typescript.suggest.classMemberSnippets.enabled": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.classMemberSnippets.enabled%",
+            "markdownDeprecationMessage": "%configuration.suggest.classMemberSnippets.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "js/ts.suggest.objectLiteralMethodSnippets.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "TypeScript"
+            ]
           },
           "typescript.suggest.objectLiteralMethodSnippets.enabled": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
+            "markdownDeprecationMessage": "%configuration.suggest.objectLiteralMethodSnippets.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
           }
         }
@@ -1248,7 +1436,7 @@
         "title": "%configuration.inlayHints%",
         "order": 24,
         "properties": {
-          "typescript.inlayHints.parameterNames.enabled": {
+          "js/ts.inlayHints.parameterNames.enabled": {
             "type": "string",
             "enum": [
               "none",
@@ -1262,49 +1450,11 @@
             ],
             "default": "none",
             "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.parameterTypes.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.variableTypes.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
-            "type": "boolean",
-            "default": true,
-            "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.propertyDeclarationTypes.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.functionLikeReturnTypes.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
-            "scope": "resource"
-          },
-          "typescript.inlayHints.enumMemberValues.enabled": {
-            "type": "boolean",
-            "default": false,
-            "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
-            "scope": "resource"
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.parameterNames.enabled": {
             "type": "string",
@@ -1320,42 +1470,184 @@
             ],
             "default": "none",
             "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterNames.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.parameterNames.enabled": {
+            "type": "string",
+            "enum": [
+              "none",
+              "literals",
+              "all"
+            ],
+            "enumDescriptions": [
+              "%inlayHints.parameterNames.none%",
+              "%inlayHints.parameterNames.literals%",
+              "%inlayHints.parameterNames.all%"
+            ],
+            "default": "none",
+            "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterNames.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.parameterNames.suppressWhenArgumentMatchesName": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.parameterTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.parameterTypes.enabled": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterTypes.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.parameterTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.parameterTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.variableTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.variableTypes.enabled": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.variableTypes.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.variableTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.variableTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.variableTypes.suppressWhenTypeMatchesName": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.propertyDeclarationTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.propertyDeclarationTypes.enabled": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.propertyDeclarationTypes.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
+          },
+          "typescript.inlayHints.propertyDeclarationTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.propertyDeclarationTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.functionLikeReturnTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "JavaScript",
+              "TypeScript"
+            ]
           },
           "javascript.inlayHints.functionLikeReturnTypes.enabled": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.functionLikeReturnTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "typescript.inlayHints.functionLikeReturnTypes.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.functionLikeReturnTypes.enabled.unifiedDeprecationMessage%",
+            "scope": "resource"
+          },
+          "js/ts.inlayHints.enumMemberValues.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
+            "scope": "language-overridable",
+            "tags": [
+              "TypeScript"
+            ]
+          },
+          "typescript.inlayHints.enumMemberValues.enabled": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
+            "markdownDeprecationMessage": "%configuration.inlayHints.enumMemberValues.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
           }
         }

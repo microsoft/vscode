@@ -45,6 +45,10 @@ export class EditorPool extends Disposable {
 			}
 		};
 	}
+
+	clear(): void {
+		this._pool.clear();
+	}
 }
 
 export class DiffEditorPool extends Disposable {
@@ -80,5 +84,9 @@ export class DiffEditorPool extends Disposable {
 				this._pool.release(codeBlock);
 			}
 		};
+	}
+
+	clear(): void {
+		this._pool.clear();
 	}
 }

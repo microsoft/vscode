@@ -165,6 +165,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 				outputChannel.appendLine(`Launching server: "${serverCommandPath}" ${commandArgs.join(' ')}`);
 				const shell = (process.platform === 'win32');
+				// Skip prelaunch to avoid redownloading electron while it may be in use
+				env['VSCODE_SKIP_PRELAUNCH'] = '1';
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath, shell });
 			} else {
 				const extensionToInstall = process.env['TESTRESOLVER_INSTALL_BUILTIN_EXTENSION'];

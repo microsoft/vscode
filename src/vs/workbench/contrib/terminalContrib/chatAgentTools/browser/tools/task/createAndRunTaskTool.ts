@@ -21,6 +21,7 @@ import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
+import { TerminalToolId } from '../toolIds.js';
 
 interface ICreateAndRunTaskToolInput {
 	workspaceFolder: string;
@@ -157,8 +158,8 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		const allTasks = await this._tasksService.tasks();
 		if (allTasks?.find(t => t._label === task.label)) {
 			return {
-				invocationMessage: new MarkdownString(localize('taskExists', 'Task `{0}` already exists.', task.label)),
-				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task `{0}` already exists.', task.label)),
+				invocationMessage: new MarkdownString(localize('taskExists', 'Task \`{0}\` already exists.', task.label)),
+				pastTenseMessage: new MarkdownString(localize('taskExistsPast', 'Task \`{0}\` already exists.', task.label)),
 				confirmationMessages: undefined
 			};
 		}
@@ -192,7 +193,7 @@ export class CreateAndRunTaskTool implements IToolImpl {
 }
 
 export const CreateAndRunTaskToolData: IToolData = {
-	id: 'create_and_run_task',
+	id: TerminalToolId.CreateAndRunTask,
 	toolReferenceName: 'createAndRunTask',
 	legacyToolReferenceFullNames: ['runTasks/createAndRunTask'],
 	displayName: localize('createAndRunTask.displayName', 'Create and run Task'),

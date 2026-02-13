@@ -10,6 +10,7 @@ import { isTypeScriptDocument } from '../configuration/languageIds';
 import { API } from '../tsServer/api';
 import type * as Proto from '../tsServer/protocol/protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { readUnifiedConfig } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
@@ -181,6 +182,8 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document);
 
+		const fallbackSection = isTypeScriptDocument(document) ? 'typescript' : 'javascript';
+
 		const preferences: Proto.UserPreferences = {
 			...config.get('unstable'),
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
@@ -190,13 +193,13 @@ export default class FileConfigurationManager extends Disposable {
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
 			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('useAliasesForRenames', true),
 			allowRenameOfImportPath: true,
-			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
+			includeAutomaticOptionalChainCompletions: readUnifiedConfig<boolean>('suggest.includeAutomaticOptionalChainCompletions', true, { scope: document, fallbackSection }),
 			provideRefactorNotApplicableReason: true,
-			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
-			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
+			generateReturnInDocTemplate: readUnifiedConfig<boolean>('suggest.jsdoc.generateReturns', true, { scope: document, fallbackSection }),
+			includeCompletionsForImportStatements: readUnifiedConfig<boolean>('suggest.includeCompletionsForImportStatements', true, { scope: document, fallbackSection }),
 			includeCompletionsWithSnippetText: true,
-			includeCompletionsWithClassMemberSnippets: config.get<boolean>('suggest.classMemberSnippets.enabled', true),
-			includeCompletionsWithObjectLiteralMethodSnippets: config.get<boolean>('suggest.objectLiteralMethodSnippets.enabled', true),
+			includeCompletionsWithClassMemberSnippets: readUnifiedConfig<boolean>('suggest.classMemberSnippets.enabled', true, { scope: document, fallbackSection }),
+			includeCompletionsWithObjectLiteralMethodSnippets: readUnifiedConfig<boolean>('suggest.objectLiteralMethodSnippets.enabled', true, { scope: document, fallbackSection }),
 			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
 			autoImportSpecifierExcludeRegexes: preferencesConfig.get<string[]>('autoImportSpecifierExcludeRegexes'),
 			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
@@ -205,8 +208,8 @@ export default class FileConfigurationManager extends Disposable {
 			displayPartsForJSDoc: true,
 			disableLineTextInReferences: true,
 			interactiveInlayHints: true,
-			includeCompletionsForModuleExports: config.get<boolean>('suggest.autoImports'),
-			...getInlayHintsPreferences(config),
+			includeCompletionsForModuleExports: readUnifiedConfig<boolean>('suggest.autoImports', true, { scope: document, fallbackSection }),
+			...getInlayHintsPreferences(document, fallbackSection),
 			...this.getOrganizeImportsPreferences(preferencesConfig),
 			maximumHoverLength: this.getMaximumHoverLength(document),
 		};
@@ -274,31 +277,32 @@ function withDefaultAsUndefined<T, O extends T>(value: T, def: O): Exclude<T, O>
 	return value === def ? undefined : value as Exclude<T, O>;
 }
 
-export class InlayHintSettingNames {
-	static readonly parameterNamesSuppressWhenArgumentMatchesName = 'inlayHints.parameterNames.suppressWhenArgumentMatchesName';
-	static readonly parameterNamesEnabled = 'inlayHints.parameterTypes.enabled';
-	static readonly variableTypesEnabled = 'inlayHints.variableTypes.enabled';
-	static readonly variableTypesSuppressWhenTypeMatchesName = 'inlayHints.variableTypes.suppressWhenTypeMatchesName';
-	static readonly propertyDeclarationTypesEnabled = 'inlayHints.propertyDeclarationTypes.enabled';
-	static readonly functionLikeReturnTypesEnabled = 'inlayHints.functionLikeReturnTypes.enabled';
-	static readonly enumMemberValuesEnabled = 'inlayHints.enumMemberValues.enabled';
-}
+export const InlayHintSettingNames = Object.freeze({
+	parameterNamesEnabled: 'inlayHints.parameterNames.enabled',
+	parameterNamesSuppressWhenArgumentMatchesName: 'inlayHints.parameterNames.suppressWhenArgumentMatchesName',
+	parameterTypesEnabled: 'inlayHints.parameterTypes.enabled',
+	variableTypesEnabled: 'inlayHints.variableTypes.enabled',
+	variableTypesSuppressWhenTypeMatchesName: 'inlayHints.variableTypes.suppressWhenTypeMatchesName',
+	propertyDeclarationTypesEnabled: 'inlayHints.propertyDeclarationTypes.enabled',
+	functionLikeReturnTypesEnabled: 'inlayHints.functionLikeReturnTypes.enabled',
+	enumMemberValuesEnabled: 'inlayHints.enumMemberValues.enabled',
+});
 
-export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
+export function getInlayHintsPreferences(scope: vscode.ConfigurationScope, fallbackSection: string) {
 	return {
-		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(config),
-		includeInlayParameterNameHintsWhenArgumentMatchesName: !config.get<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true),
-		includeInlayFunctionParameterTypeHints: config.get<boolean>(InlayHintSettingNames.parameterNamesEnabled, false),
-		includeInlayVariableTypeHints: config.get<boolean>(InlayHintSettingNames.variableTypesEnabled, false),
-		includeInlayVariableTypeHintsWhenTypeMatchesName: !config.get<boolean>(InlayHintSettingNames.variableTypesSuppressWhenTypeMatchesName, true),
-		includeInlayPropertyDeclarationTypeHints: config.get<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false),
-		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false),
-		includeInlayEnumMemberValueHints: config.get<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false),
+		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(scope, fallbackSection),
+		includeInlayParameterNameHintsWhenArgumentMatchesName: !readUnifiedConfig<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true, { scope, fallbackSection }),
+		includeInlayFunctionParameterTypeHints: readUnifiedConfig<boolean>(InlayHintSettingNames.parameterTypesEnabled, false, { scope, fallbackSection }),
+		includeInlayVariableTypeHints: readUnifiedConfig<boolean>(InlayHintSettingNames.variableTypesEnabled, false, { scope, fallbackSection }),
+		includeInlayVariableTypeHintsWhenTypeMatchesName: !readUnifiedConfig<boolean>(InlayHintSettingNames.variableTypesSuppressWhenTypeMatchesName, true, { scope, fallbackSection }),
+		includeInlayPropertyDeclarationTypeHints: readUnifiedConfig<boolean>(InlayHintSettingNames.propertyDeclarationTypesEnabled, false, { scope, fallbackSection }),
+		includeInlayFunctionLikeReturnTypeHints: readUnifiedConfig<boolean>(InlayHintSettingNames.functionLikeReturnTypesEnabled, false, { scope, fallbackSection }),
+		includeInlayEnumMemberValueHints: readUnifiedConfig<boolean>(InlayHintSettingNames.enumMemberValuesEnabled, false, { scope, fallbackSection }),
 	} as const;
 }
 
-function getInlayParameterNameHintsPreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('inlayHints.parameterNames.enabled')) {
+function getInlayParameterNameHintsPreference(scope: vscode.ConfigurationScope, fallbackSection: string) {
+	switch (readUnifiedConfig<string>(InlayHintSettingNames.parameterNamesEnabled, 'none', { scope, fallbackSection })) {
 		case 'none': return 'none';
 		case 'literals': return 'literals';
 		case 'all': return 'all';

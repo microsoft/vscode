@@ -336,7 +336,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const groupService = accessor.get(ITerminalGroupService);
 		const editorService = accessor.get(ITerminalEditorService);
@@ -358,6 +358,20 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			if (!visible.has(i)) {
 				all.set(i.instanceId, i);
 			}
+		}
+
+		// If there are no hidden terminals, return early
+		if (all.size === 0) {
+			return;
+		}
+
+		// If there's only one hidden terminal, show it directly without the quick pick
+		if (all.size === 1) {
+			const instance = Array.from(all.values())[0];
+			terminalService.setActiveInstance(instance);
+			await terminalService.revealTerminal(instance);
+			await terminalService.focusInstance(instance);
+			return;
 		}
 
 		const items: IQuickPickItem[] = [];

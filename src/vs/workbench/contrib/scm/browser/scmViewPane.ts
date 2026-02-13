@@ -1369,6 +1369,31 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+class CollapseAllAction extends ViewAction<SCMViewPane> {
+	constructor() {
+		super({
+			id: `workbench.scm.action.collapseAll`,
+			title: localize('scmCollapseAll', "Collapse All"),
+			viewId: VIEW_PANE_ID,
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.SCMResourceGroupContext,
+				group: '9_collapse',
+				when: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
+			}
+		});
+	}
+
+	async runInView(_accessor: ServicesAccessor, view: SCMViewPane, context?: ISCMResourceGroup): Promise<void> {
+		if (context) {
+			view.collapseAllResources(context);
+		}
+	}
+}
+
+registerAction2(CollapseAllAction);
+
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction',
 	SetupAction = 'scm.input.triggerSetup'
@@ -1673,6 +1698,7 @@ class SCMInputWidgetEditorOptions {
 
 	dispose(): void {
 		this._disposables.dispose();
+		this._onDidChange.dispose();
 	}
 
 }
@@ -2854,6 +2880,14 @@ export class SCMViewPane extends ViewPane {
 		}
 	}
 
+	collapseAllResources(group: ISCMResourceGroup): void {
+		for (const { element } of this.tree.getNode(group).children) {
+			if (!isSCMViewService(element)) {
+				this.tree.collapse(element, true);
+			}
+		}
+	}
+
 	focusPreviousInput(): void {
 		this.treeOperationSequencer.queue(() => this.focusInput(-1));
 	}
@@ -2974,6 +3008,8 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override dispose(): void {
+		this._onDidChangeViewMode.dispose();
+		this._onDidChangeViewSortKey.dispose();
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
 		this.items.dispose();

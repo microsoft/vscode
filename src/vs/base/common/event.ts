@@ -346,6 +346,89 @@ export namespace Event {
 	}
 
 	/**
+	 * Throttles an event, ensuring the event is fired at most once during the specified delay period.
+	 * Unlike debounce, throttle will fire immediately on the leading edge and/or after the delay on the trailing edge.
+	 *
+	 * *NOTE* that this function returns an `Event` and it MUST be called with a `DisposableStore` whenever the returned
+	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
+	 * returned event causes this utility to leak a listener on the original event.
+	 *
+	 * @param event The event source for the new event.
+	 * @param merge An accumulator function that merges events if multiple occur during the throttle period.
+	 * @param delay The number of milliseconds to throttle.
+	 * @param leading Whether to fire on the leading edge (immediately on first event).
+	 * @param trailing Whether to fire on the trailing edge (after delay with the last value).
+	 * @param leakWarningThreshold See {@link EmitterOptions.leakWarningThreshold}.
+	 * @param disposable A disposable store to register the throttle emitter to.
+	 */
+	export function throttle<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number | typeof MicrotaskDelay, leading?: boolean, trailing?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<T>;
+	export function throttle<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number | typeof MicrotaskDelay, leading?: boolean, trailing?: boolean, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O>;
+	export function throttle<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number | typeof MicrotaskDelay = 100, leading = true, trailing = true, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
+		let subscription: IDisposable;
+		let output: O | undefined = undefined;
+		let handle: Timeout | undefined = undefined;
+		let numThrottledCalls = 0;
+
+		const options: EmitterOptions | undefined = {
+			leakWarningThreshold,
+			onWillAddFirstListener() {
+				subscription = event(cur => {
+					numThrottledCalls++;
+					output = merge(output, cur);
+
+					// If not currently throttling, fire immediately if leading is enabled
+					if (handle === undefined) {
+						if (leading) {
+							emitter.fire(output);
+							output = undefined;
+							numThrottledCalls = 0;
+						}
+
+						// Set up the throttle period
+						if (typeof delay === 'number') {
+							handle = setTimeout(() => {
+								// Fire on trailing edge if there were calls during throttle period
+								if (trailing && numThrottledCalls > 0) {
+									emitter.fire(output!);
+								}
+								output = undefined;
+								handle = undefined;
+								numThrottledCalls = 0;
+							}, delay);
+						} else {
+							// Use a special marker to indicate microtask is pending
+							handle = 0 as unknown as Timeout;
+							queueMicrotask(() => {
+								// Fire on trailing edge if there were calls during throttle period
+								if (trailing && numThrottledCalls > 0) {
+									emitter.fire(output!);
+								}
+								output = undefined;
+								handle = undefined;
+								numThrottledCalls = 0;
+							});
+						}
+					}
+					// If already throttling, just accumulate the value for trailing edge
+				});
+			},
+			onDidRemoveLastListener() {
+				subscription.dispose();
+			}
+		};
+
+		if (!disposable) {
+			_addLeakageTraceLogic(options);
+		}
+
+		const emitter = new Emitter<O>(options);
+
+		disposable?.add(emitter);
+
+		return emitter.event;
+	}
+
+	/**
 	 * Filters an event such that some condition is _not_ met more than once in a row, effectively ensuring duplicate
 	 * event objects from different sources do not fire the same event object.
 	 *

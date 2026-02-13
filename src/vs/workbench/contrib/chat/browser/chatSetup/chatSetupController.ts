@@ -9,7 +9,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
-import { isObject } from '../../../../../base/common/types.js';
+import { isObject, isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -23,13 +23,14 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IActivityService, ProgressBadge } from '../../../../services/activity/common/activity.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_OPEN_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewId, ChatViewContainerId } from '../chat.js';
 import { ChatSetupAnonymous, ChatSetupStep, ChatSetupResultValue, InstallChatEvent, InstallChatClassification, refreshTokens } from './chatSetup.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
@@ -58,7 +59,6 @@ export class ChatSetupController extends Disposable {
 		private readonly context: ChatEntitlementContext,
 		private readonly requests: ChatEntitlementRequests,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService,
@@ -69,6 +69,7 @@ export class ChatSetupController extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -111,8 +112,6 @@ export class ChatSetupController extends Disposable {
 
 		let success: ChatSetupResultValue = false;
 		try {
-			const providerId = ChatEntitlementRequests.providerId(this.configurationService);
-			let session: AuthenticationSession | undefined;
 			let entitlement: ChatEntitlement | undefined;
 
 			let signIn: boolean;
@@ -131,7 +130,7 @@ export class ChatSetupController extends Disposable {
 			if (signIn) {
 				this.setStep(ChatSetupStep.SigningIn);
 				const result = await this.signIn(options);
-				if (!result.session) {
+				if (!result.defaultAccount) {
 					this.doInstall(); // still install the extension in the background to remind the user to sign-in eventually
 
 					const provider = options.useSocialProvider ?? (options.useEnterpriseProvider ? defaultChat.provider.enterprise.id : defaultChat.provider.default.id);
@@ -139,13 +138,12 @@ export class ChatSetupController extends Disposable {
 					return undefined; // treat as cancelled because signing in already triggers an error dialog
 				}
 
-				session = result.session;
 				entitlement = result.entitlement;
 			}
 
 			// Await Install
 			this.setStep(ChatSetupStep.Installing);
-			success = await this.install(session, entitlement ?? this.context.state.entitlement, providerId, watch, options);
+			success = await this.install(entitlement ?? this.context.state.entitlement, watch, options);
 		} finally {
 			this.setStep(ChatSetupStep.Initial);
 			this.context.resume();
@@ -154,19 +152,19 @@ export class ChatSetupController extends Disposable {
 		return success;
 	}
 
-	private async signIn(options: IChatSetupControllerOptions): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
-		let session: AuthenticationSession | undefined;
+	private async signIn(options: IChatSetupControllerOptions): Promise<{ defaultAccount: IDefaultAccount | undefined; entitlement: ChatEntitlement | undefined }> {
 		let entitlements;
+		let defaultAccount;
 		try {
-			({ session, entitlements } = await this.requests.signIn(options));
+			({ defaultAccount, entitlements } = await this.requests.signIn(options));
 		} catch (e) {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
 		}
 
-		if (!session && !this.lifecycleService.willShutdown) {
+		if (!defaultAccount && !this.lifecycleService.willShutdown) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
-				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id ? defaultChat.provider.enterprise.name : defaultChat.provider.default.name),
+				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", this.defaultAccountService.getDefaultAccountAuthenticationProvider().name),
 				detail: localize('unknownSignInErrorDetail', "You must be signed in to use AI features."),
 				primaryButton: localize('retry', "Retry")
 			});
@@ -176,10 +174,10 @@ export class ChatSetupController extends Disposable {
 			}
 		}
 
-		return { session, entitlement: entitlements?.entitlement };
+		return { defaultAccount, entitlement: entitlements?.entitlement };
 	}
 
-	private async install(session: AuthenticationSession | undefined, entitlement: ChatEntitlement, providerId: string, watch: StopWatch, options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
+	private async install(entitlement: ChatEntitlement, watch: StopWatch, options: IChatSetupControllerOptions): Promise<ChatSetupResultValue> {
 		const wasRunning = this.context.state.installed && !this.context.state.disabled;
 		let signUpResult: boolean | { errorCode: number } | undefined = undefined;
 
@@ -190,7 +188,6 @@ export class ChatSetupController extends Disposable {
 			provider = options.useSocialProvider ?? (options.useEnterpriseProvider ? defaultChat.provider.enterprise.id : defaultChat.provider.default.id);
 		}
 
-		let sessions = session ? [session] : undefined;
 		try {
 			if (
 				!options.forceAnonymous &&						// User is not asking for anonymous access
@@ -198,22 +195,12 @@ export class ChatSetupController extends Disposable {
 				!isProUser(entitlement) &&						// User is not signed up for a Copilot subscription
 				entitlement !== ChatEntitlement.Unavailable		// User is eligible for Copilot Free
 			) {
-				if (!sessions) {
-					try {
-						// Consider all sessions for the provider to be suitable for signing up
-						const existingSessions = await this.authenticationService.getSessions(providerId);
-						sessions = existingSessions.length > 0 ? [...existingSessions] : undefined;
-					} catch (error) {
-						// ignore - errors can throw if a provider is not registered
-					}
+				signUpResult = await this.requests.signUpFree();
 
-					if (!sessions || sessions.length === 0) {
-						this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNoSession', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
-						return false; // unexpected
-					}
+				if (isUndefined(signUpResult)) {
+					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedNoSession', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
+					return false; // unexpected
 				}
-
-				signUpResult = await this.requests.signUpFree(sessions);
 
 				if (typeof signUpResult !== 'boolean' /* error */) {
 					this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'failedSignUp', installDuration: watch.elapsed(), signUpErrorCode: signUpResult.errorCode, provider });

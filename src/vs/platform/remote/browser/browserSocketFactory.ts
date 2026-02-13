@@ -49,7 +49,7 @@ export interface IWebSocket {
 
 class BrowserWebSocket extends Disposable implements IWebSocket {
 
-	private readonly _onData = new Emitter<ArrayBuffer>();
+	private readonly _onData = this._register(new Emitter<ArrayBuffer>());
 	public readonly onData = this._onData.event;
 
 	private readonly _onOpen = this._register(new Emitter<void>());

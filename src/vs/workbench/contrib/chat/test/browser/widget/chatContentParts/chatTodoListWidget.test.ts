@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable no-restricted-syntax */
-
 import assert from 'assert';
-import { Event } from '../../../../../../../base/common/event.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { ChatTodoListWidget } from '../../../../browser/widget/chatContentParts/chatTodoListWidget.js';
-import { IChatTodo, IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
+import { isAncestorOfActiveElement } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Event } from '../../../../../../../base/common/event.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { URI } from '../../../../../../../base/common/uri.js';
+import { ChatTodoListWidget } from '../../../../browser/widget/chatContentParts/chatTodoListWidget.js';
+import { IChatTodo, IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 
 const testSessionUri = URI.parse('chat-session://test/session1');
 
@@ -25,7 +24,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 
 	const sampleTodos: IChatTodo[] = [
 		{ id: 1, title: 'First task', status: 'not-started' },
-		{ id: 2, title: 'Second task', status: 'in-progress', description: 'This is a task description' },
+		{ id: 2, title: 'Second task', status: 'in-progress' },
 		{ id: 3, title: 'Third task', status: 'completed' }
 	];
 
@@ -35,11 +34,12 @@ suite('ChatTodoListWidget Accessibility', () => {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
 			getTodos: (sessionResource: URI) => sampleTodos,
-			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { }
+			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { },
+			migrateTodos: (oldSessionResource: URI, newSessionResource: URI) => { }
 		};
 
 		// Mock the configuration service
-		const mockConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
+		const mockConfigurationService = new TestConfigurationService();
 
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IChatTodoListService, mockTodoListService);
@@ -84,11 +84,10 @@ suite('ChatTodoListWidget Accessibility', () => {
 		assert.ok(firstItem.getAttribute('aria-label')?.includes('First task'));
 		assert.ok(firstItem.getAttribute('aria-label')?.includes('not started'));
 
-		// Check second item (in-progress with description)
+		// Check second item (in-progress)
 		const secondItem = todoItems[1] as HTMLElement;
 		assert.ok(secondItem.getAttribute('aria-label')?.includes('Second task'));
 		assert.ok(secondItem.getAttribute('aria-label')?.includes('in progress'));
-		assert.ok(secondItem.getAttribute('aria-label')?.includes('This is a task description'));
 
 		// Check third item (completed)
 		const thirdItem = todoItems[2] as HTMLElement;
@@ -139,12 +138,11 @@ suite('ChatTodoListWidget Accessibility', () => {
 		assert.ok(firstAriaLabel?.includes('First task'), 'First item aria-label should include title');
 		assert.ok(firstAriaLabel?.includes('not started'), 'First item aria-label should include status');
 
-		// Check second item (in-progress with description) - aria-label should include title, status, and description
+		// Check second item (in-progress) - aria-label should include title and status
 		const secondItem = todoItems[1] as HTMLElement;
 		const secondAriaLabel = secondItem.getAttribute('aria-label');
 		assert.ok(secondAriaLabel?.includes('Second task'), 'Second item aria-label should include title');
 		assert.ok(secondAriaLabel?.includes('in progress'), 'Second item aria-label should include status');
-		assert.ok(secondAriaLabel?.includes('This is a task description'), 'Second item aria-label should include description');
 
 		// Check third item (completed) - aria-label should include title and status
 		const thirdItem = todoItems[2] as HTMLElement;
@@ -159,10 +157,11 @@ suite('ChatTodoListWidget Accessibility', () => {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
 			getTodos: (sessionResource: URI) => [],
-			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { }
+			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { },
+			migrateTodos: (oldSessionResource: URI, newSessionResource: URI) => { }
 		};
 
-		const emptyConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
+		const emptyConfigurationService = new TestConfigurationService();
 
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IChatTodoListService, emptyTodoListService);
@@ -200,5 +199,46 @@ suite('ChatTodoListWidget Accessibility', () => {
 		// Verify aria-labelledby connection works
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
+	});
+
+	test('focus expands and places focus on the todo list', () => {
+		widget.render(testSessionUri);
+
+		const expandoButton = widget.domNode.querySelector('.todo-list-expand .monaco-button');
+		assert.strictEqual(expandoButton?.getAttribute('aria-expanded'), 'false', 'Todo list should start collapsed');
+
+		const focused = widget.focus();
+		assert.strictEqual(focused, true, 'Focus should succeed when todos are present');
+		assert.strictEqual(expandoButton?.getAttribute('aria-expanded'), 'true', 'Focus should expand the todo list');
+
+		const todoListContainer = widget.domNode.querySelector('.todo-list-container') as HTMLElement;
+		assert.ok(todoListContainer, 'Todo list container should exist');
+		assert.ok(isAncestorOfActiveElement(todoListContainer), 'Todo list container should contain the active element after focusing');
+	});
+
+	test('hasTodos reports visibility state', () => {
+		widget.render(testSessionUri);
+		assert.strictEqual(widget.hasTodos(), true, 'Widget should report todos are present');
+
+		const emptyTodoListService: IChatTodoListService = {
+			_serviceBrand: undefined,
+			onDidUpdateTodos: Event.None,
+			getTodos: () => [],
+			setTodos: () => { },
+			migrateTodos: () => { }
+		};
+		const emptyConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatTodoListService, emptyTodoListService);
+		instantiationService.stub(IConfigurationService, emptyConfigurationService);
+		const emptyWidget = store.add(instantiationService.createInstance(ChatTodoListWidget));
+		mainWindow.document.body.appendChild(emptyWidget.domNode);
+
+		emptyWidget.render(testSessionUri);
+		assert.strictEqual(emptyWidget.hasTodos(), false, 'Widget should report no todos when the list is empty');
+
+		if (emptyWidget.domNode.parentNode) {
+			emptyWidget.domNode.parentNode.removeChild(emptyWidget.domNode);
+		}
 	});
 });

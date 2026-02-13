@@ -83,6 +83,9 @@ import { TelemetryLogAppender } from '../../platform/telemetry/common/telemetryL
 import { INativeMcpDiscoveryHelperService, NativeMcpDiscoveryHelperChannelName } from '../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { NativeMcpDiscoveryHelperChannel } from '../../platform/mcp/node/nativeMcpDiscoveryHelperChannel.js';
 import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeMcpDiscoveryHelperService.js';
+import { IMcpGatewayService, McpGatewayChannelName } from '../../platform/mcp/common/mcpGateway.js';
+import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js';
+import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
@@ -112,10 +115,10 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	socketServer.registerChannel('logger', new LoggerChannel(loggerService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
 	const logger = loggerService.createLogger('remoteagent', { name: localize('remoteExtensionLog', "Server") });
-	const logService = new LogService(logger, [new ServerLogger(getLogLevel(environmentService))]);
+	const logService = disposables.add(new LogService(logger, [new ServerLogger(getLogLevel(environmentService))]));
 	services.set(ILogService, logService);
 	setTimeout(() => cleanupOlderLogs(environmentService.logsHome.with({ scheme: Schemas.file }).fsPath).then(null, err => logService.error(err)), 10000);
-	logService.onDidChangeLogLevel(logLevel => log(logService, logLevel, `Log level changed to ${LogLevelToString(logService.getLevel())}`));
+	disposables.add(logService.onDidChangeLogLevel(logLevel => log(logService, logLevel, `Log level changed to ${LogLevelToString(logService.getLevel())}`)));
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
 	logService.trace('process arguments:', environmentService.args);
@@ -209,6 +212,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(IAllowedExtensionsService, new SyncDescriptor(AllowedExtensionsService));
 	services.set(INativeServerExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 	services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
+	services.set(IMcpGatewayService, new SyncDescriptor(McpGatewayService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 	services.set(ILanguagePackService, instantiationService.createInstance(NativeLanguagePackService));
@@ -243,10 +247,11 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		socketServer.registerChannel(REMOTE_TERMINAL_CHANNEL_NAME, new RemoteTerminalChannel(environmentService, logService, ptyHostService, productService, extensionManagementService, configurationService));
 
-		const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI, logService), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService, extensionManagementService);
+		const remoteExtensionsScanner = new RemoteExtensionsScannerService(instantiationService.createInstance(ExtensionManagementCLI, productService.extensionsForceVersionByQuality ?? [], logService), environmentService, userDataProfilesService, extensionsScannerService, logService, extensionGalleryService, languagePackService, extensionManagementService);
 		socketServer.registerChannel(RemoteExtensionsScannerChannelName, new RemoteExtensionsScannerChannel(remoteExtensionsScanner, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
 		socketServer.registerChannel(NativeMcpDiscoveryHelperChannelName, instantiationService.createInstance(NativeMcpDiscoveryHelperChannel, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
+		socketServer.registerChannel(McpGatewayChannelName, instantiationService.createInstance(McpGatewayChannel<RemoteAgentConnectionContext>, socketServer));
 
 		const remoteFileSystemChannel = disposables.add(new RemoteAgentFileSystemProviderChannel(logService, environmentService, configurationService));
 		socketServer.registerChannel(REMOTE_FILE_SYSTEM_CHANNEL_NAME, remoteFileSystemChannel);
@@ -377,6 +382,11 @@ function twodigits(n: number): string {
 async function cleanupOlderLogs(logsPath: string): Promise<void> {
 	const currentLog = path.basename(logsPath);
 	const logsRoot = path.dirname(logsPath);
+
+	if (!await Promises.exists(logsRoot)) {
+		return; // Logs root doesn't exist yet, nothing to clean up
+	}
+
 	const children = await Promises.readdir(logsRoot);
 	const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
 	const oldSessions = allSessions.sort().filter((d) => d !== currentLog);

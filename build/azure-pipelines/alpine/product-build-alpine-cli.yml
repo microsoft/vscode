@@ -9,7 +9,7 @@ parameters:
 
 jobs:
 - job: AlpineCLI_${{ parameters.VSCODE_ARCH }}
-  displayName: Alpine (${{ upper(parameters.VSCODE_ARCH) }})
+  displayName: Alpine CLI (${{ upper(parameters.VSCODE_ARCH) }})
   timeoutInMinutes: 60
   pool:
     name: 1es-ubuntu-22.04-x64

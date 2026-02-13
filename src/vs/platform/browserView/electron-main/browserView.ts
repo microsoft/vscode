@@ -4,47 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContentsView, webContents } from 'electron';
+import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions } from '../common/browserView.js';
-import { EVENT_KEY_CODE_MAP, KeyCode, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
-import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId } from '../common/browserView.js';
+import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
-import { ILogService } from '../../log/common/log.js';
 import { isMacintosh } from '../../../base/common/platform.js';
+import { BrowserViewUri } from '../common/browserViewUri.js';
+import { BrowserViewDebugger } from './browserViewDebugger.js';
+import { ILogService } from '../../log/common/log.js';
+import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.js';
+import { BrowserSession } from './browserSession.js';
 
-const nativeShortcutKeys = new Set(['KeyA', 'KeyC', 'KeyV', 'KeyX', 'KeyZ']);
-function shouldIgnoreNativeShortcut(input: Electron.Input): boolean {
-	const isControlInput = isMacintosh ? input.meta : input.control;
-	const isAltOnlyInput = input.alt && !input.control && !input.meta;
-
-	// Ignore Alt-only inputs (often used for accented characters or menu accelerators)
-	if (isAltOnlyInput) {
-		return true;
-	}
-
-	// Ignore Ctrl/Cmd + [A,C,V,X,Z] shortcuts to allow native handling (e.g. copy/paste)
-	return isControlInput && nativeShortcutKeys.has(input.code);
-}
+/** Key combinations that are used in system-level shortcuts. */
+const nativeShortcuts = new Set([
+	KeyMod.CtrlCmd | KeyCode.KeyA,
+	KeyMod.CtrlCmd | KeyCode.KeyC,
+	KeyMod.CtrlCmd | KeyCode.KeyV,
+	KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyV,
+	KeyMod.CtrlCmd | KeyCode.KeyX,
+	...(isMacintosh ? [] : [KeyMod.CtrlCmd | KeyCode.KeyY]),
+	KeyMod.CtrlCmd | KeyCode.KeyZ,
+	KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ
+]);
 
 /**
  * Represents a single browser view instance with its WebContentsView and all associated logic.
  * This class encapsulates all operations and events for a single browser view.
  */
-export class BrowserView extends Disposable {
+export class BrowserView extends Disposable implements ICDPTarget {
 	private readonly _view: WebContentsView;
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 
 	private _lastScreenshot: VSBuffer | undefined = undefined;
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
+	private _lastUserGestureTimestamp: number = -Infinity;
 
+	private _debugger: BrowserViewDebugger;
 	private _window: IBaseWindow | undefined;
 	private _isSendingKeyEvent = false;
+	private _isDisposed = false;
 
 	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent> = this._onDidNavigate.event;
@@ -54,6 +59,9 @@ export class BrowserView extends Disposable {
 
 	private readonly _onDidChangeFocus = this._register(new Emitter<IBrowserViewFocusEvent>());
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent> = this._onDidChangeFocus.event;
+
+	private readonly _onDidChangeVisibility = this._register(new Emitter<IBrowserViewVisibilityEvent>());
+	readonly onDidChangeVisibility: Event<IBrowserViewVisibilityEvent> = this._onDidChangeVisibility.event;
 
 	private readonly _onDidChangeDevToolsState = this._register(new Emitter<IBrowserViewDevToolsStateEvent>());
 	readonly onDidChangeDevToolsState: Event<IBrowserViewDevToolsStateEvent> = this._onDidChangeDevToolsState.event;
@@ -70,52 +78,87 @@ export class BrowserView extends Disposable {
 	private readonly _onDidRequestNewPage = this._register(new Emitter<IBrowserViewNewPageRequest>());
 	readonly onDidRequestNewPage: Event<IBrowserViewNewPageRequest> = this._onDidRequestNewPage.event;
 
+	private readonly _onDidFindInPage = this._register(new Emitter<IBrowserViewFindInPageResult>());
+	readonly onDidFindInPage: Event<IBrowserViewFindInPageResult> = this._onDidFindInPage.event;
+
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 
 	constructor(
-		viewSession: Electron.Session,
-		private readonly storageScope: BrowserViewStorageScope,
-		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		public readonly id: string,
+		public readonly session: BrowserSession,
+		createChildView: (options?: Electron.WebContentsViewConstructorOptions) => BrowserView,
+		options: Electron.WebContentsViewConstructorOptions | undefined,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
+		const webPreferences: Electron.WebPreferences & { type: ReturnType<Electron.WebContents['getType']> } = {
+			...options?.webPreferences,
+
+			nodeIntegration: false,
+			contextIsolation: true,
+			sandbox: true,
+			webviewTag: false,
+			session: this.session.electronSession,
+			preload: FileAccess.asFileUri('vs/platform/browserView/electron-browser/preload-browserView.js').fsPath,
+
+			// TODO@kycutler: Remove this once https://github.com/electron/electron/issues/42578 is fixed
+			type: 'browserView'
+		};
+
 		this._view = new WebContentsView({
-			webPreferences: {
-				nodeIntegration: false,
-				contextIsolation: true,
-				sandbox: true,
-				webviewTag: false,
-				session: viewSession
-			}
+			webPreferences,
+			// Passing an `undefined` webContents triggers an error in Electron.
+			...(options?.webContents ? { webContents: options.webContents } : {})
 		});
+		this._view.setBackgroundColor('#FFFFFF');
 
 		this._view.webContents.setWindowOpenHandler((details) => {
-			// For new tab requests, fire event for workbench to handle
-			if (details.disposition === 'background-tab' || details.disposition === 'foreground-tab') {
-				this._onDidRequestNewPage.fire({
-					url: details.url,
-					name: details.frameName || undefined,
-					background: details.disposition === 'background-tab'
-				});
-				return { action: 'deny' }; // Deny the default browser behavior since we're handling it
+			const location = (() => {
+				switch (details.disposition) {
+					case 'background-tab': return BrowserNewPageLocation.Background;
+					case 'foreground-tab': return BrowserNewPageLocation.Foreground;
+					case 'new-window': return BrowserNewPageLocation.NewWindow;
+					default: return undefined;
+				}
+			})();
+
+			if (!location || !this.consumePopupPermission(location)) {
+				// Eventually we may want to surface this. For now, just silently block it.
+				return { action: 'deny' };
 			}
 
-			// Deny other requests like new windows.
-			return { action: 'deny' };
+			return {
+				action: 'allow',
+				createWindow: (options) => {
+					const childView = createChildView(options);
+					const resource = BrowserViewUri.forUrl(details.url, childView.id);
+
+					// Fire event for the workbench to open this view
+					this._onDidRequestNewPage.fire({
+						resource,
+						location,
+						position: { x: options.x, y: options.y, width: options.width, height: options.height }
+					});
+
+					// Return the webContents so Electron can complete the window.open() call
+					return childView.webContents;
+				}
+			};
 		});
 
 		this._view.webContents.on('destroyed', () => {
-			this._onDidClose.fire();
+			this.dispose();
 		});
 
-		this.setupEventListeners();
+		this._debugger = new BrowserViewDebugger(this, this.logService);
 
-		// Create and register plugins for this web contents
-		this._register(new ThemePlugin(this._view, this.themeMainService, this.logService));
+		this._register(session.acquire());
+
+		this.setupEventListeners();
 	}
 
 	private setupEventListeners(): void {
@@ -195,6 +238,12 @@ export class BrowserView extends Disposable {
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
 			if (isMainFrame) {
+				// Ignore ERR_ABORTED (-3) which is the expected error when user stops a page load.
+				if (errorCode === -3) {
+					fireLoadingEvent(false);
+					return;
+				}
+
 				this._lastError = {
 					url: validatedURL,
 					errorCode,
@@ -237,29 +286,23 @@ export class BrowserView extends Disposable {
 		// Key down events - listen for raw key input events
 		webContents.on('before-input-event', async (event, input) => {
 			if (input.type === 'keyDown' && !this._isSendingKeyEvent) {
-				if (shouldIgnoreNativeShortcut(input)) {
-					return;
-				}
-				const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
-				const keyCode = EVENT_KEY_CODE_MAP[eventKeyCode] || KeyCode.Unknown;
-				const hasCommandModifier = input.control || input.alt || input.meta;
-				const isNonEditingKey =
-					keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
-					keyCode >= KeyCode.AudioVolumeMute;
-
-				if (hasCommandModifier || isNonEditingKey) {
+				if (this.tryHandleCommand(input)) {
 					event.preventDefault();
-					this._onDidKeyCommand.fire({
-						key: input.key,
-						keyCode: eventKeyCode,
-						code: input.code,
-						ctrlKey: input.control || false,
-						shiftKey: input.shift || false,
-						altKey: input.alt || false,
-						metaKey: input.meta || false,
-						repeat: input.isAutoRepeat || false
-					});
 				}
+			}
+		});
+
+		// Track user gestures for popup blocking logic.
+		// Roughly based on https://html.spec.whatwg.org/multipage/interaction.html#tracking-user-activation.
+		webContents.on('input-event', (_event, input) => {
+			switch (input.type) {
+				case 'rawKeyDown':
+				case 'keyDown':
+				case 'mouseDown':
+				case 'pointerDown':
+				case 'pointerUp':
+				case 'touchEnd':
+					this._lastUserGestureTimestamp = Date.now();
 			}
 		});
 
@@ -269,6 +312,36 @@ export class BrowserView extends Disposable {
 		webContents.on('will-prevent-unload', (e) => {
 			e.preventDefault();
 		});
+
+		// Find in page events
+		webContents.on('found-in-page', (_event, result) => {
+			this._onDidFindInPage.fire({
+				activeMatchOrdinal: result.activeMatchOrdinal,
+				matches: result.matches,
+				selectionArea: result.selectionArea,
+				finalUpdate: result.finalUpdate
+			});
+		});
+	}
+
+	private consumePopupPermission(location: BrowserNewPageLocation): boolean {
+		switch (location) {
+			case BrowserNewPageLocation.Foreground:
+			case BrowserNewPageLocation.Background:
+				return true;
+			case BrowserNewPageLocation.NewWindow:
+				// Each user gesture allows one popup window within 1 second
+				if (this._lastUserGestureTimestamp > Date.now() - 1000) {
+					this._lastUserGestureTimestamp = -Infinity;
+					return true;
+				}
+
+				return false;
+		}
+	}
+
+	get webContents(): Electron.WebContents {
+		return this._view.webContents;
 	}
 
 	/**
@@ -282,11 +355,13 @@ export class BrowserView extends Disposable {
 			canGoBack: webContents.navigationHistory.canGoBack(),
 			canGoForward: webContents.navigationHistory.canGoForward(),
 			loading: webContents.isLoading(),
+			focused: webContents.isFocused(),
+			visible: this._view.getVisible(),
 			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
 			lastFavicon: this._lastFavicon,
 			lastError: this._lastError,
-			storageScope: this.storageScope
+			storageScope: this.session.storageScope
 		};
 	}
 
@@ -323,12 +398,17 @@ export class BrowserView extends Disposable {
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
+		if (this._view.getVisible() === visible) {
+			return;
+		}
+
 		// If the view is focused, pass focus back to the window when hiding
 		if (!visible && this._view.webContents.isFocused()) {
 			this._window?.win?.webContents.focus();
 		}
 
 		this._view.setVisible(visible);
+		this._onDidChangeVisibility.fire({ visible });
 	}
 
 	/**
@@ -446,23 +526,144 @@ export class BrowserView extends Disposable {
 	}
 
 	/**
+	 * Find text in the page
+	 */
+	async findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void> {
+		this._view.webContents.findInPage(text, {
+			matchCase: options?.matchCase ?? false,
+			forward: options?.forward ?? true,
+
+			// `findNext` is not very clearly named. From Electron docs: `Whether to begin a new text finding session with this request`.
+			// It needs to be set to `true` if we want a new search to be performed, such as when the text changes.
+			// We name it `recompute` in our internal options to better reflect its purpose / behavior.
+			findNext: options?.recompute ?? false
+		});
+	}
+
+	/**
+	 * Stop finding in page
+	 */
+	async stopFindInPage(keepSelection?: boolean): Promise<void> {
+		this._view.webContents.stopFindInPage(keepSelection ? 'keepSelection' : 'clearSelection');
+	}
+
+	/**
+	 * Get the currently selected text in the browser view.
+	 * Returns immediately with empty string if the page is still loading.
+	 */
+	async getSelectedText(): Promise<string> {
+		// we don't want to wait for the page to finish loading, which executeJavaScript normally does.
+		if (this._view.webContents.isLoading()) {
+			return '';
+		}
+		try {
+			// Uses our preloaded contextBridge-exposed API.
+			return await this._view.webContents.executeJavaScriptInIsolatedWorld(browserViewIsolatedWorldId, [{ code: 'window.browserViewAPI?.getSelectedText?.() ?? ""' }]);
+		} catch {
+			return '';
+		}
+	}
+
+	/**
+	 * Clear all storage data for this browser view's session
+	 */
+	async clearStorage(): Promise<void> {
+		await this.session.electronSession.clearData();
+	}
+
+	/**
 	 * Get the underlying WebContentsView
 	 */
 	getWebContentsView(): WebContentsView {
 		return this._view;
 	}
 
+	// ============ ICDPTarget implementation ============
+
+	/**
+	 * Get CDP target info using Electron's real targetId.
+	 */
+	getTargetInfo(): Promise<CDPTargetInfo> {
+		return this._debugger.getTargetInfo();
+	}
+
+	/**
+	 * Attach to receive debugger events.
+	 * @returns A connection that can be disposed to detach
+	 */
+	attach(): Promise<ICDPConnection> {
+		return this._debugger.attach();
+	}
+
 	override dispose(): void {
+		if (this._isDisposed) {
+			return;
+		}
+		this._isDisposed = true;
+
+		// Dispose debugger. This detaches debug sessions first.
+		this._debugger.dispose();
+
 		// Remove from parent window
 		this._window?.win?.contentView.removeChildView(this._view);
 
+		// Fire close event BEFORE disposing emitters. This signals the view has been destroyed.
+		this._onDidClose.fire();
+
 		// Clean up the view and all its event listeners
-		// Note: webContents.close() automatically removes all event listeners
 		this._view.webContents.close({ waitForBeforeUnload: false });
 
 		super.dispose();
 	}
 
+	/**
+	 * Potentially handle an input event as a VS Code command.
+	 * Returns `true` if the event was forwarded to VS Code and should not be handled natively.
+	 */
+	private tryHandleCommand(input: Electron.Input): boolean {
+		const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
+		const keyCode = EVENT_KEY_CODE_MAP[eventKeyCode] || KeyCode.Unknown;
+
+		const isArrowKey = keyCode >= KeyCode.LeftArrow && keyCode <= KeyCode.DownArrow;
+		const isNonEditingKey =
+			keyCode === KeyCode.Escape ||
+			keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
+			keyCode >= KeyCode.AudioVolumeMute;
+
+		// Ignore most Alt-only inputs (often used for accented characters or menu accelerators)
+		const isAltOnlyInput = input.alt && !input.control && !input.meta;
+		if (isAltOnlyInput && !isNonEditingKey && !isArrowKey) {
+			return false;
+		}
+
+		// Only reroute if there's a command modifier or it's a non-editing key
+		const hasCommandModifier = input.control || input.alt || input.meta;
+		if (!hasCommandModifier && !isNonEditingKey) {
+			return false;
+		}
+
+		// Ignore Ctrl/Cmd + [A,C,V,X,Z] shortcuts to allow native handling (e.g. copy/paste)
+		const isControlInput = isMacintosh ? input.meta : input.control;
+		const modifiedKeyCode = keyCode |
+			(isControlInput ? KeyMod.CtrlCmd : 0) |
+			(input.shift ? KeyMod.Shift : 0) |
+			(input.alt ? KeyMod.Alt : 0);
+		if (nativeShortcuts.has(modifiedKeyCode)) {
+			return false;
+		}
+
+		this._onDidKeyCommand.fire({
+			key: input.key,
+			keyCode: eventKeyCode,
+			code: input.code,
+			ctrlKey: input.control || false,
+			shiftKey: input.shift || false,
+			altKey: input.alt || false,
+			metaKey: input.meta || false,
+			repeat: input.isAutoRepeat || false
+		});
+		return true;
+	}
 
 	private windowById(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
 		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId);
@@ -487,61 +688,5 @@ export class BrowserView extends Disposable {
 		}
 
 		return this.auxiliaryWindowsMainService.getWindowByWebContents(contents);
-	}
-}
-
-export class ThemePlugin extends Disposable {
-	private readonly _webContents: Electron.WebContents;
-	private _injectedCSSKey?: string;
-
-	constructor(
-		private readonly _view: Electron.WebContentsView,
-		private readonly themeMainService: IThemeMainService,
-		private readonly logService: ILogService
-	) {
-		super();
-		this._webContents = _view.webContents;
-
-		// Set view background to match editor background
-		this.applyBackgroundColor();
-
-		// Apply theme when page loads
-		this._webContents.on('did-finish-load', () => this.applyTheme());
-
-		// Update theme when VS Code theme changes
-		this._register(this.themeMainService.onDidChangeColorScheme(() => {
-			this.applyBackgroundColor();
-			this.applyTheme();
-		}));
-	}
-
-	private applyBackgroundColor(): void {
-		const backgroundColor = this.themeMainService.getBackgroundColor();
-		this._view.setBackgroundColor(backgroundColor);
-	}
-
-	private async applyTheme(): Promise<void> {
-		if (this._webContents.isDestroyed()) {
-			return;
-		}
-
-		const colorScheme = this.themeMainService.getColorScheme().dark ? 'dark' : 'light';
-
-		try {
-			// Remove previous theme CSS if it exists
-			if (this._injectedCSSKey) {
-				await this._webContents.removeInsertedCSS(this._injectedCSSKey);
-			}
-
-			// Insert new theme CSS
-			this._injectedCSSKey = await this._webContents.insertCSS(`
-				/* VS Code theme override */
-				:root {
-					color-scheme: ${colorScheme};
-				}
-			`);
-		} catch (error) {
-			this.logService.error('ThemePlugin: Failed to inject CSS', error);
-		}
 	}
 }

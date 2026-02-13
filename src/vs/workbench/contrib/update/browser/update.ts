@@ -12,8 +12,8 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason } from '../../../../platform/update/common/update.js';
-import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, Ready, Overwriting } from '../../../../platform/update/common/update.js';
+import { INotificationService, INotificationHandle, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { ReleaseNotesManager } from './releaseNotesEditor.js';
@@ -30,6 +30,7 @@ import { Promises } from '../../../../base/common/async.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { Event } from '../../../../base/common/event.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
@@ -69,6 +70,81 @@ async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
 			throw new Error(`${err.message} and ${err2.message}`);
 		}
 	}
+}
+
+/**
+ * Appends update-related menu items to the given menu. This registers menu items
+ * for all update states (idle, checking, downloading, etc.) that show the current
+ * update status. The underlying commands (`update.check`, `update.restart`, etc.)
+ * must be registered separately.
+ */
+export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.check',
+			title: nls.localize('checkForUpdates', "Check for Updates...")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.checking',
+			title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloadNow',
+			title: nls.localize('download update_1', "Download Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.downloading',
+			title: nls.localize('DownloadingUpdate', "Downloading Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.install',
+			title: nls.localize('installUpdate...', "Install Update... (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		command: {
+			id: 'update.updating',
+			title: nls.localize('installingUpdate', "Installing Update..."),
+			precondition: ContextKeyExpr.false()
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
+	});
+
+	MenuRegistry.appendMenuItem(menuId, {
+		group,
+		order: 2,
+		command: {
+			id: 'update.restart',
+			title: nls.localize('restartToUpdate', "Restart to Update (1)")
+		},
+		when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
+	});
 }
 
 interface IVersion {
@@ -161,6 +237,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private state: UpdateState;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
+	private overwriteNotificationHandle: INotificationHandle | undefined;
 	private updateStateContextKey: IContextKey<string>;
 	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
 
@@ -244,14 +321,18 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				this.onUpdateDownloaded(state.update);
 				break;
 
+			case StateType.Overwriting:
+				this.onUpdateOverwriting(state);
+				break;
+
 			case StateType.Ready: {
 				const productVersion = state.update.productVersion;
 				if (productVersion) {
 					const currentVersion = parseVersion(this.productService.version);
 					const nextVersion = parseVersion(productVersion);
 					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
-					this.onUpdateReady(state.update);
 				}
+				this.onUpdateReady(state);
 				break;
 			}
 		}
@@ -262,7 +343,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", this.productService.nameShort));
 		} else if (state.type === StateType.CheckingForUpdates) {
 			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for {0} updates...", this.productService.nameShort));
-		} else if (state.type === StateType.Downloading) {
+		} else if (state.type === StateType.Downloading || state.type === StateType.Overwriting) {
 			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
 		} else if (state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
@@ -311,7 +392,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			nls.localize('thereIsUpdateAvailable', "There is an available update."),
 			[{
 				label: nls.localize('download update', "Download Update"),
-				run: () => this.updateService.downloadUpdate()
+				run: () => this.updateService.downloadUpdate(true)
 			}, {
 				label: nls.localize('later', "Later"),
 				run: () => { }
@@ -363,39 +444,71 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	// windows and mac
-	private onUpdateReady(update: IUpdate): void {
-		if (!(isWindows && this.productService.target !== 'user') && !this.shouldShowNotification()) {
+	private onUpdateReady(state: Ready): void {
+		if (state.overwrite && this.overwriteNotificationHandle) {
+			const handle = this.overwriteNotificationHandle;
+			this.overwriteNotificationHandle = undefined;
+
+			// Update notification to show completion with restart action
+			handle.progress.done();
+			handle.updateMessage(nls.localize('newerUpdateReady', "The newer update is ready to install."));
+			handle.updateActions({
+				primary: [
+					toAction({
+						id: 'update.restartToUpdate',
+						label: nls.localize('restartToUpdate2', "Restart to Update"),
+						run: () => this.updateService.quitAndInstall()
+					})
+				]
+			});
+		} else if ((isWindows && this.productService.target !== 'user') || this.shouldShowNotification()) {
+
+			const actions = [{
+				label: nls.localize('updateNow', "Update Now"),
+				run: () => this.updateService.quitAndInstall()
+			}, {
+				label: nls.localize('later', "Later"),
+				run: () => { }
+			}];
+
+			const productVersion = state.update.productVersion;
+			if (productVersion) {
+				actions.push({
+					label: nls.localize('releaseNotes', "Release Notes"),
+					run: () => {
+						this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
+					}
+				});
+			}
+
+			// windows user fast updates and mac
+			this.notificationService.prompt(
+				severity.Info,
+				nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
+				actions,
+				{
+					sticky: true,
+					priority: NotificationPriority.OPTIONAL
+				}
+			);
+		}
+	}
+
+	// macOS overwrite update - overwriting
+	private onUpdateOverwriting(state: Overwriting): void {
+		if (!state.explicit) {
 			return;
 		}
 
-		const actions = [{
-			label: nls.localize('updateNow', "Update Now"),
-			run: () => this.updateService.quitAndInstall()
-		}, {
-			label: nls.localize('later', "Later"),
-			run: () => { }
-		}];
+		// Show notification with progress
+		this.overwriteNotificationHandle = this.notificationService.notify({
+			severity: Severity.Info,
+			sticky: true,
+			message: nls.localize('newerUpdateDownloading', "We found a newer update available and have started to download it. We'll let you know as soon as it's ready to install."),
+			source: nls.localize('update service', "Update Service"),
+		});
 
-		const productVersion = update.productVersion;
-		if (productVersion) {
-			actions.push({
-				label: nls.localize('releaseNotes', "Release Notes"),
-				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
-				}
-			});
-		}
-
-		// windows user fast updates and mac
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
-			actions,
-			{
-				sticky: true,
-				priority: NotificationPriority.OPTIONAL
-			}
-		);
+		this.overwriteNotificationHandle.progress.infinite();
 	}
 
 	private shouldShowNotification(): boolean {
@@ -417,67 +530,17 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private registerGlobalActivityActions(): void {
 		CommandsRegistry.registerCommand('update.check', () => this.updateService.checkForUpdates(true));
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.check',
-				title: nls.localize('checkForUpdates', "Check for Updates...")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Idle)
-		});
-
 		CommandsRegistry.registerCommand('update.checking', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.checking',
-				title: nls.localize('checkingForUpdates2', "Checking for Updates..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates)
-		});
-
-		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.downloadNow',
-				title: nls.localize('download update_1', "Download Update (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload)
-		});
-
+		CommandsRegistry.registerCommand('update.downloadNow', () => this.updateService.downloadUpdate(true));
 		CommandsRegistry.registerCommand('update.downloading', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.downloading',
-				title: nls.localize('DownloadingUpdate', "Downloading Update..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading)
-		});
-
 		CommandsRegistry.registerCommand('update.install', () => this.updateService.applyUpdate());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.install',
-				title: nls.localize('installUpdate...', "Install Update... (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded)
+		CommandsRegistry.registerCommand('update.updating', () => { });
+		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
+		CommandsRegistry.registerCommand('_update.state', () => {
+			return this.state;
 		});
 
-		CommandsRegistry.registerCommand('update.updating', () => { });
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			command: {
-				id: 'update.updating',
-				title: nls.localize('installingUpdate', "Installing Update..."),
-				precondition: ContextKeyExpr.false()
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating)
-		});
+		appendUpdateMenuItems(MenuId.GlobalActivity, '7_update');
 
 		if (this.productService.quality === 'stable') {
 			CommandsRegistry.registerCommand('update.showUpdateReleaseNotes', () => {
@@ -501,21 +564,6 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 				when: ContextKeyExpr.and(CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready), MAJOR_MINOR_UPDATE_AVAILABLE)
 			});
 		}
-
-		CommandsRegistry.registerCommand('update.restart', () => this.updateService.quitAndInstall());
-		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
-			group: '7_update',
-			order: 2,
-			command: {
-				id: 'update.restart',
-				title: nls.localize('restartToUpdate', "Restart to Update (1)")
-			},
-			when: CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready)
-		});
-
-		CommandsRegistry.registerCommand('_update.state', () => {
-			return this.state;
-		});
 	}
 }
 
@@ -633,6 +681,44 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 					return result;
 				}
 			}));
+		}
+	}
+}
+
+export class DefaultAccountUpdateContribution extends Disposable implements IWorkbenchContribution {
+
+	constructor(
+		@IUpdateService private readonly updateService: IUpdateService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService
+	) {
+		super();
+
+		if (isWeb) {
+			return; // Electron only
+		}
+
+		// Check on startup
+		this.checkDefaultAccount();
+
+		// Listen for account changes
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
+			this.checkDefaultAccount();
+		}));
+	}
+
+	private async checkDefaultAccount(): Promise<void> {
+		try {
+			const defaultAccount = await this.defaultAccountService.getDefaultAccount();
+			const shouldDisable = defaultAccount?.entitlementsData?.organization_login_list?.some(
+				org => org.toLowerCase() === 'visual-studio-code'
+			) ?? false;
+
+			if (shouldDisable) {
+				await this.updateService.disableProgressiveReleases();
+				this.dispose();
+			}
+		} catch (error) {
+			// Silently ignore errors - if we can't get the account, we don't disable background updates
 		}
 	}
 }

@@ -73,7 +73,7 @@ export async function main(argv: string[]): Promise<void> {
 					tunnelProcess = spawn('cargo', ['run', '--', subcommand, ...tunnelArgs], { cwd: join(getAppRoot(), 'cli'), stdio, env });
 				} else {
 					const appPath = process.platform === 'darwin'
-						// ./Contents/MacOS/Electron => ./Contents/Resources/app/bin/code-tunnel-insiders
+						// ./Contents/MacOS/Code => ./Contents/Resources/app/bin/code-tunnel-insiders
 						? join(dirname(dirname(process.execPath)), 'Resources', 'app')
 						: dirname(process.execPath);
 					const tunnelCommand = join(appPath, 'bin', `${product.tunnelApplicationName}${isWindows ? '.exe' : ''}`);

@@ -288,6 +288,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'boolean',
 		default: false
 	},
+	[TerminalSettingId.TextBlinking]: {
+		description: localize('terminal.integrated.textBlinking', "Controls whether text blinking is enabled in the terminal."),
+		type: 'boolean',
+		default: false
+	},
 	[TerminalSettingId.CursorStyle]: {
 		description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor when the terminal is focused."),
 		enum: ['block', 'line', 'underline'],
@@ -337,7 +342,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.TerminalTitle]: {
 		'type': 'string',
-		'default': '${process}',
+		'default': '${sequence}',
 		'markdownDescription': terminalTitle
 	},
 	[TerminalSettingId.TerminalDescription]: {
@@ -490,11 +495,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'inherited'
 	},
-	[TerminalSettingId.WindowsEnableConpty]: {
-		description: localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
-		type: 'boolean',
-		default: true
-	},
 	[TerminalSettingId.WordSeparators]: {
 		markdownDescription: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection. Since this is used for link detection, including characters such as `:` that are used when detecting links will cause the line and column part of links like `file:10:5` to be ignored."),
 		type: 'string',
@@ -589,13 +589,10 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnableKittyKeyboardProtocol]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which provides more detailed keyboard input reporting to the terminal."),
+		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which allows a program in the terminal to request more detailed keyboard input reporting. This can, for example, enable `Shift+Enter` to be handled by the program."),
 		type: 'boolean',
-		default: false,
-		tags: ['experimental', 'advanced'],
-		experiment: {
-			mode: 'auto'
-		}
+		default: true,
+		tags: ['advanced']
 	},
 	[TerminalSettingId.EnableWin32InputMode]: {
 		restricted: true,
@@ -671,6 +668,12 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 			localize('terminal.integrated.focusAfterRun.accessible-buffer', "Always focus the accessible buffer."),
 			localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 		]
+	},
+	[TerminalSettingId.AllowInUntrustedWorkspace]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.allowInUntrustedWorkspace', "Controls whether terminals can be created in an untrusted workspace.\n\n**This feature bypasses a security protection that prevents terminals from launching in untrusted workspaces. The reason this is a security risk is because shells are often set up to potentially execute code automatically based on the contents of the current working directory. This should be safe to use provided your shell is set up in such a way that code execution in the folder never happens.**"),
+		type: 'boolean',
+		default: false
 	},
 	[TerminalSettingId.DeveloperPtyHostLatency]: {
 		description: localize('terminal.integrated.developer.ptyHost.latency', "Simulated latency in milliseconds applied to all calls made to the pty host. This is useful for testing terminal behavior under high latency conditions."),

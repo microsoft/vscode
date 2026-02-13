@@ -13,3 +13,5 @@ export default withDefaults({
 		['git-editor-main']: './src/git-editor-main.ts'
 	}
 });
+
+export const StripOutSourceMaps = ['dist/askpass-main.js'];

@@ -19,7 +19,8 @@
   ],
   "enabledApiProposals": [
     "authIssuers",
-    "authProviderSpecific"
+    "authProviderSpecific",
+    "envIsAppPortable"
   ],
   "activationEvents": [],
   "capabilities": {

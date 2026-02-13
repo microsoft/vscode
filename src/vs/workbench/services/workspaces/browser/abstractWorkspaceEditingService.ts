@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkspaceEditingService } from '../common/workspaceEditing.js';
+import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { hasWorkspaceFileExtension, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
+import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from '../../configuration/common/jsonEditing.js';
 import { IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, IEnterWorkspaceResult, IStoredWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkspaceService } from '../../configuration/browser/configurationService.js';
@@ -29,10 +29,34 @@ import { IWorkbenchConfigurationService } from '../../configuration/common/confi
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { Promises } from '../../../../base/common/async.js';
+
+export class DidEnterWorkspaceEvent implements IDidEnterWorkspaceEvent {
+
+	private readonly promises: Promise<void>[] = [];
+
+	constructor(
+		readonly oldWorkspace: IAnyWorkspaceIdentifier,
+		readonly newWorkspace: IAnyWorkspaceIdentifier
+	) { }
+
+	join(promise: Promise<void>): void {
+		this.promises.push(promise);
+	}
+
+	async wait(): Promise<void> {
+		await Promises.settled(this.promises);
+	}
+}
 
 export abstract class AbstractWorkspaceEditingService extends Disposable implements IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidEnterWorkspace = this._register(new Emitter<IDidEnterWorkspaceEvent>());
+	readonly onDidEnterWorkspace: Event<IDidEnterWorkspaceEvent> = this._onDidEnterWorkspace.event;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
@@ -51,6 +75,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@ILogService protected readonly logService: ILogService,
 	) {
 		super();
 	}
@@ -353,6 +378,17 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 	}
 
 	abstract enterWorkspace(workspaceUri: URI): Promise<void>;
+
+	protected async fireDidEnterWorkspace(oldWorkspace: IAnyWorkspaceIdentifier, newWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
+		const event = new DidEnterWorkspaceEvent(oldWorkspace, newWorkspace);
+		this._onDidEnterWorkspace.fire(event);
+
+		try {
+			await event.wait();
+		} catch (error) {
+			this.logService.error('Error while waiting for participants of onDidEnterWorkspace to join:', error);
+		}
+	}
 
 	protected async doEnterWorkspace(workspaceUri: URI): Promise<IEnterWorkspaceResult | undefined> {
 		if (this.environmentService.extensionTestsLocationURI) {

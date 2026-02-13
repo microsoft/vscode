@@ -12,29 +12,32 @@ import { revive } from '../../../../../base/common/marshalling.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IAnyWorkspaceIdentifier, isEmptyWorkspaceIdentifier, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { awaitStatsForSession } from '../chat.js';
-import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
-import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
 import { IChatSessionStats, IChatSessionTiming, ResponseModelState } from '../chatService/chatService.js';
-import { LocalChatSessionUri } from './chatUri.js';
 import { ChatAgentLocation } from '../constants.js';
+import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
+import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, ISerializedChatDataReference, normalizeSerializableChatData } from './chatModel.js';
+import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
+import { LocalChatSessionUri } from './chatUri.js';
 
-const maxPersistedSessions = 25;
+const maxPersistedSessions = 50;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
 
 export class ChatSessionStore extends Disposable {
-	private readonly storageRoot: URI;
+	private storageRoot: URI;
 	private readonly previousEmptyWindowStorageRoot: URI | undefined;
 	private readonly transferredSessionStorageRoot: URI;
 
@@ -52,6 +55,8 @@ export class ChatSessionStore extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 	) {
 		super();
 
@@ -68,6 +73,12 @@ export class ChatSessionStore extends Disposable {
 
 		this.transferredSessionStorageRoot = joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'transferredChatSessions');
 
+		// Listen to workspace transitions to migrate chat sessions
+		this._register(this.workspaceEditingService.onDidEnterWorkspace(event => {
+			const transitionPromise = this.storeQueue.queue(() => this.handleWorkspaceTransition(event.oldWorkspace, event.newWorkspace));
+			event.join(transitionPromise);
+		}));
+
 		this._register(this.lifecycleService.onWillShutdown(e => {
 			this.shuttingDown = true;
 			if (!this.storeTask) {
@@ -79,6 +90,91 @@ export class ChatSessionStore extends Disposable {
 				label: localize('join.chatSessionStore', "Saving chat history")
 			});
 		}));
+	}
+
+	private async handleWorkspaceTransition(oldWorkspace: IAnyWorkspaceIdentifier, newWorkspace: IAnyWorkspaceIdentifier): Promise<void> {
+		const wasEmptyWindow = isEmptyWorkspaceIdentifier(oldWorkspace);
+		const isNewWorkspaceEmpty = isEmptyWorkspaceIdentifier(newWorkspace);
+		const oldWorkspaceId = oldWorkspace.id;
+		const newWorkspaceId = newWorkspace.id;
+
+		this.logService.info(`ChatSessionStore: Workspace transition from ${oldWorkspaceId} to ${newWorkspaceId}`);
+
+		// Determine the old storage location based on the old workspace
+		const oldStorageRoot = wasEmptyWindow ?
+			joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'emptyWindowChatSessions') :
+			joinPath(this.environmentService.workspaceStorageHome, oldWorkspaceId, 'chatSessions');
+
+		// Determine the new storage location based on the new workspace
+		const newStorageRoot = isNewWorkspaceEmpty ?
+			joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'emptyWindowChatSessions') :
+			joinPath(this.environmentService.workspaceStorageHome, newWorkspaceId, 'chatSessions');
+
+		// If the storage roots are identical, there is nothing to migrate
+		if (oldStorageRoot.toString() === newStorageRoot.toString()) {
+			this.storageRoot = newStorageRoot;
+			return;
+		}
+
+		// Update storage root for the new workspace
+		this.storageRoot = newStorageRoot;
+
+		// Migrate session files from old to new location
+		await this.migrateSessionsToNewWorkspace(oldStorageRoot, wasEmptyWindow, isNewWorkspaceEmpty);
+	}
+
+	private async migrateSessionsToNewWorkspace(oldStorageRoot: URI, wasEmptyWindow: boolean, isNewWorkspaceEmpty: boolean): Promise<void> {
+		try {
+			// Check if old storage location exists
+			const oldStorageExists = await this.fileService.exists(oldStorageRoot);
+			if (!oldStorageExists) {
+				this.logService.info(`ChatSessionStore: Old storage location does not exist, skipping migration`);
+				return;
+			}
+
+			// Read all session files from old location
+			const oldDirectory = await this.fileService.resolve(oldStorageRoot);
+			if (!oldDirectory.children) {
+				this.logService.info(`ChatSessionStore: No children in old storage location, skipping migration`);
+				return;
+			}
+
+			this.logService.info(`ChatSessionStore: Found ${oldDirectory.children.length} files in old storage location`);
+
+			// Copy each file to the new location
+			let migratedCount = 0;
+			for (const child of oldDirectory.children) {
+				if (!child.isDirectory && (child.name.endsWith('.json') || child.name.endsWith('.jsonl'))) {
+					const oldFilePath = child.resource;
+					const newFilePath = joinPath(this.storageRoot, child.name);
+
+					try {
+						await this.fileService.copy(oldFilePath, newFilePath, false);
+						migratedCount++;
+					} catch (e) {
+						if (toFileOperationResult(e) === FileOperationResult.FILE_MOVE_CONFLICT) {
+							// File already exists at target - skip as a no-op
+							this.logService.trace(`ChatSessionStore: Session file ${child.name} already exists at target, skipping`);
+						} else {
+							this.reportError('sessionMigration', `Error migrating chat session file ${child.name}`, e);
+						}
+					}
+				}
+			}
+
+			this.logService.info(`ChatSessionStore: Copied ${migratedCount} chat session files from ${wasEmptyWindow ? 'empty window' : oldStorageRoot.toString()} to ${isNewWorkspaceEmpty ? 'empty window' : this.storageRoot.toString()} (originals preserved at old location)`);
+
+			// Clear the index cache and flush it to the new storage scope
+			this.indexCache = undefined;
+			try {
+				await this.flushIndex();
+			} catch (e) {
+				this.reportError('migrateWorkspace', 'Error flushing chat session index after workspace migration', e);
+			}
+
+		} catch (e) {
+			this.reportError('migrateWorkspace', 'Error migrating chat sessions to new workspace', e);
+		}
 	}
 
 	async storeSessions(sessions: ChatModel[]): Promise<void> {
@@ -202,7 +298,7 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
-	async readTransferredSession(sessionResource: URI): Promise<ISerializableChatData | undefined> {
+	async readTransferredSession(sessionResource: URI): Promise<ISerializedChatDataReference | undefined> {
 		try {
 			const storageLocation = this.getTransferredSessionStorageLocation(sessionResource);
 			const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
@@ -210,7 +306,7 @@ export class ChatSessionStore extends Disposable {
 				return undefined;
 			}
 
-			const sessionData = await this.readSessionFromLocation(storageLocation, sessionId);
+			const sessionData = await this.readSessionFromLocation(storageLocation, undefined, sessionId);
 
 			// Clean up the transferred session after reading
 			await this.cleanupTransferredSession(sessionResource);
@@ -247,11 +343,27 @@ export class ChatSessionStore extends Disposable {
 		try {
 			const index = this.internalGetIndex();
 			const storageLocation = this.getStorageLocation(session.sessionId);
-			const content = JSON.stringify(session, undefined, 2);
-			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
+			if (storageLocation.log) {
+				if (session instanceof ChatModel) {
+					if (!session.dataSerializer) {
+						session.dataSerializer = new ChatSessionOperationLog();
+					}
+
+					const { op, data } = session.dataSerializer.write(session);
+					if (data.byteLength > 0) {
+						await this.fileService.writeFile(storageLocation.log, data, { append: op === 'append' });
+					}
+				} else {
+					const content = new ChatSessionOperationLog().createInitialFromSerialized(session);
+					await this.fileService.writeFile(storageLocation.log, content);
+				}
+			} else {
+				await this.fileService.writeFile(storageLocation.flat, VSBuffer.fromString(JSON.stringify(session)));
+			}
 
 			// Write succeeded, update index
-			index.entries[session.sessionId] = await getSessionMetadata(session);
+			const newMetadata = await getSessionMetadata(session);
+			index.entries[session.sessionId] = newMetadata;
 		} catch (e) {
 			this.reportError('sessionWrite', 'Error writing chat session', e);
 		}
@@ -314,13 +426,17 @@ export class ChatSessionStore extends Disposable {
 		}
 
 		const storageLocation = this.getStorageLocation(sessionId);
-		try {
-			await this.fileService.del(storageLocation);
-		} catch (e) {
-			if (toFileOperationResult(e) !== FileOperationResult.FILE_NOT_FOUND) {
-				this.reportError('sessionDelete', 'Error deleting chat session', e);
+		for (const uri of [storageLocation.flat, storageLocation.log]) {
+			try {
+				if (uri) {
+					await this.fileService.del(uri);
+				}
+			} catch (e) {
+				if (toFileOperationResult(e) !== FileOperationResult.FILE_NOT_FOUND) {
+					this.reportError('sessionDelete', 'Error deleting chat session', e);
+				}
 			}
-		} finally {
+
 			delete index.entries[sessionId];
 		}
 	}
@@ -361,9 +477,15 @@ export class ChatSessionStore extends Disposable {
 	}
 
 	private reportError(reasonForTelemetry: string, message: string, error?: Error): void {
-		this.logService.error(`ChatSessionStore: ` + message, toErrorMessage(error));
-
 		const fileOperationReason = error && toFileOperationResult(error);
+
+		if (fileOperationReason === FileOperationResult.FILE_NOT_FOUND) {
+			// Expected case (e.g. reading a non-existent session); keep noise low
+			this.logService.trace(`ChatSessionStore: ` + message, toErrorMessage(error));
+		} else {
+			// Unexpected or serious error; surface at error level
+			this.logService.error(`ChatSessionStore: ` + message, toErrorMessage(error));
+		}
 		type ChatSessionStoreErrorData = {
 			reason: string;
 			fileOperationReason: number;
@@ -404,13 +526,25 @@ export class ChatSessionStore extends Disposable {
 				this.indexCache = { version: 1, entries: {} };
 			}
 
-			return this.indexCache;
 		} catch (e) {
 			// Only if JSON.parse fails
 			this.reportError('invalidIndexJSON', `Index corrupt: ${data}`, e);
 			this.indexCache = { version: 1, entries: {} };
-			return this.indexCache;
 		}
+
+		// Convert from pre-1.109 format which lacks timing
+		for (const entry of Object.values(this.indexCache.entries)) {
+			entry.timing ??= {
+				created: entry.lastMessageDate,
+				lastRequestStarted: undefined,
+				lastRequestEnded: entry.lastMessageDate,
+			};
+
+			// TODO@connor4312: the check for Pending/NeedsInput guards old sessions from Insiders pre PR #288161 and it can be safely removed after a transition period, to only backfill the "complete" state when missing.
+			entry.lastResponseState ??= entry.lastResponseState === ResponseModelState.Pending || entry.lastResponseState === ResponseModelState.NeedsInput ? ResponseModelState.Complete : entry.lastResponseState || ResponseModelState.Complete;
+		}
+
+		return this.indexCache;
 	}
 
 	async getIndex(): Promise<IChatSessionIndex> {
@@ -458,32 +592,53 @@ export class ChatSessionStore extends Disposable {
 		await this.flushIndex();
 	}
 
-	public async readSession(sessionId: string): Promise<ISerializableChatData | undefined> {
+	public async readSession(sessionId: string): Promise<ISerializedChatDataReference | undefined> {
 		return await this.storeQueue.queue(async () => {
 			const storageLocation = this.getStorageLocation(sessionId);
-			return this.readSessionFromLocation(storageLocation, sessionId);
+			return this.readSessionFromLocation(storageLocation.flat, storageLocation.log, sessionId);
 		});
 	}
 
-	private async readSessionFromLocation(storageLocation: URI, sessionId: string): Promise<ISerializableChatData | undefined> {
-		let rawData: string | undefined;
-		try {
-			rawData = (await this.fileService.readFile(storageLocation)).value.toString();
-		} catch (e) {
-			this.reportError('sessionReadFile', `Error reading chat session file ${sessionId}`, e);
+	private async readSessionFromLocation(flatStorageLocation: URI, logStorageLocation: URI | undefined, sessionId: string): Promise<ISerializedChatDataReference | undefined> {
+		let fromLocation = flatStorageLocation;
+		let rawData: VSBuffer | undefined;
 
-			if (toFileOperationResult(e) === FileOperationResult.FILE_NOT_FOUND && this.previousEmptyWindowStorageRoot) {
-				rawData = await this.readSessionFromPreviousLocation(sessionId);
-			}
-
-			if (!rawData) {
-				return undefined;
+		if (logStorageLocation) {
+			try {
+				rawData = (await this.fileService.readFile(logStorageLocation)).value;
+				fromLocation = logStorageLocation;
+			} catch (e) {
+				this.reportError('sessionReadFile', `Error reading log chat session file ${sessionId}`, e);
 			}
 		}
 
+		if (!rawData) {
+			try {
+				rawData = (await this.fileService.readFile(flatStorageLocation)).value;
+				fromLocation = flatStorageLocation;
+			} catch (e) {
+				this.reportError('sessionReadFile', `Error reading flat chat session file ${sessionId}`, e);
+
+				if (toFileOperationResult(e) === FileOperationResult.FILE_NOT_FOUND && this.previousEmptyWindowStorageRoot) {
+					rawData = await this.readSessionFromPreviousLocation(sessionId);
+				}
+			}
+		}
+
+		if (!rawData) {
+			return undefined;
+		}
+
 		try {
+			let session: ISerializableChatDataIn;
+			const log = new ChatSessionOperationLog();
+			if (fromLocation === logStorageLocation) {
+				session = revive(log.read(rawData));
+			} else {
+				session = revive(JSON.parse(rawData.toString()));
+			}
+
 			// TODO Copied from ChatService.ts, cleanup
-			const session: ISerializableChatDataIn = revive(JSON.parse(rawData)); // Revive serialized URIs in session data
 			// Revive serialized markdown strings in response data
 			for (const request of session.requests) {
 				if (Array.isArray(request.response)) {
@@ -498,20 +653,20 @@ export class ChatSessionStore extends Disposable {
 				}
 			}
 
-			return normalizeSerializableChatData(session);
+			return { value: normalizeSerializableChatData(session), serializer: log };
 		} catch (err) {
-			this.reportError('malformedSession', `Malformed session data in ${storageLocation.fsPath}: [${rawData.substring(0, 20)}${rawData.length > 20 ? '...' : ''}]`, err);
+			this.reportError('malformedSession', `Malformed session data in ${fromLocation.fsPath}: [${rawData.slice(0, 20).toString()}${rawData.byteLength > 20 ? '...' : ''}]`, err);
 			return undefined;
 		}
 	}
 
-	private async readSessionFromPreviousLocation(sessionId: string): Promise<string | undefined> {
-		let rawData: string | undefined;
+	private async readSessionFromPreviousLocation(sessionId: string): Promise<VSBuffer | undefined> {
+		let rawData: VSBuffer | undefined;
 
 		if (this.previousEmptyWindowStorageRoot) {
 			const storageLocation2 = joinPath(this.previousEmptyWindowStorageRoot, `${sessionId}.json`);
 			try {
-				rawData = (await this.fileService.readFile(storageLocation2)).value.toString();
+				rawData = (await this.fileService.readFile(storageLocation2)).value;
 				this.logService.info(`ChatSessionStore: Read chat session ${sessionId} from previous location`);
 			} catch (e) {
 				this.reportError('sessionReadFile', `Error reading chat session file ${sessionId} from previous location`, e);
@@ -522,8 +677,17 @@ export class ChatSessionStore extends Disposable {
 		return rawData;
 	}
 
-	private getStorageLocation(chatSessionId: string): URI {
-		return joinPath(this.storageRoot, `${chatSessionId}.json`);
+	private getStorageLocation(chatSessionId: string): {
+		/** <1.109 flat JSON file */
+		flat: URI;
+		/** >=1.109 append log */
+		log?: URI;
+	} {
+		return {
+			flat: joinPath(this.storageRoot, `${chatSessionId}.json`),
+			// todo@connor4312: remove after stabilizing
+			log: this.configurationService.getValue('chat.useLogSessionStorage') !== false ? joinPath(this.storageRoot, `${chatSessionId}.jsonl`) : undefined,
+		};
 	}
 
 	private getTransferredSessionStorageLocation(sessionResource: URI): URI {
@@ -540,11 +704,11 @@ export interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
-	timing?: IChatSessionTiming;
+	timing: IChatSessionTiming;
 	initialLocation?: ChatAgentLocation;
 	hasPendingEdits?: boolean;
 	stats?: IChatSessionStats;
-	lastResponseState?: ResponseModelState;
+	lastResponseState: ResponseModelState;
 
 	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
@@ -609,27 +773,38 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 		stats = await awaitStatsForSession(session);
 	}
 
-	const timing = session instanceof ChatModel ?
+	const lastMessageDate = session instanceof ChatModel ?
+		session.lastMessageDate :
+		session.requests.at(-1)?.timestamp ?? session.creationDate;
+
+	const timing: IChatSessionTiming = session instanceof ChatModel ?
 		session.timing :
 		// session is only ISerializableChatData in the old pre-fs storage data migration scenario
 		{
-			startTime: session.creationDate,
-			endTime: session.lastMessageDate
+			created: session.creationDate,
+			lastRequestStarted: session.requests.at(-1)?.timestamp,
+			lastRequestEnded: lastMessageDate,
 		};
+
+	let lastResponseState = session instanceof ChatModel ?
+		(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
+		ResponseModelState.Complete;
+
+	if (lastResponseState === ResponseModelState.Pending || lastResponseState === ResponseModelState.NeedsInput) {
+		lastResponseState = ResponseModelState.Cancelled;
+	}
 
 	return {
 		sessionId: session.sessionId,
 		title: title || localize('newChat', "New Chat"),
-		lastMessageDate: session.lastMessageDate,
+		lastMessageDate,
 		timing,
 		initialLocation: session.initialLocation,
 		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,
 		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
 		stats,
 		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource),
-		lastResponseState: session instanceof ChatModel ?
-			(session.lastRequest?.response?.state ?? ResponseModelState.Complete) :
-			ResponseModelState.Complete
+		lastResponseState,
 	};
 }
 

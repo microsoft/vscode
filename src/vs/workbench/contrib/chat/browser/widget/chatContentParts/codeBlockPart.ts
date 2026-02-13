@@ -10,7 +10,7 @@ import { renderFormattedText } from '../../../../../../base/browser/formattedTex
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -56,7 +56,7 @@ import { ServiceCollection } from '../../../../../../platform/instantiation/comm
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ResourceLabel } from '../../../../../browser/labels.js';
-import { ResourceContextKey } from '../../../../../common/contextkeys.js';
+import { StaticResourceContextKey } from '../../../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { InspectEditorTokensController } from '../../../../codeEditor/browser/inspectEditorTokens/inspectEditorTokens.js';
 import { MenuPreventer } from '../../../../codeEditor/browser/menuPreventer.js';
@@ -65,26 +65,26 @@ import { getSimpleEditorOptions } from '../../../../codeEditor/browser/simpleEdi
 import { IMarkdownVulnerability } from '../../../common/widget/annotations.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../../../common/model/chatModel.js';
-import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { SuggestController } from '../../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { EditorContextKeys } from '../../../../../../editor/common/editorContextKeys.js';
 
 const $ = dom.$;
 
 export interface ICodeBlockData {
 	readonly codeBlockIndex: number;
 	readonly codeBlockPartIndex: number;
-	readonly element: unknown;
+	readonly element: IChatRequestViewModel | IChatResponseViewModel;
 
 	readonly textModel: Promise<ITextModel> | undefined;
 	readonly languageId: string;
 
 	readonly codemapperUri?: URI;
-	readonly fromSubagent?: boolean;
 
 	readonly vulns?: readonly IMarkdownVulnerability[];
 	readonly range?: Range;
@@ -153,9 +153,6 @@ export interface ICodeBlockRenderOptions {
 
 const defaultCodeblockPadding = 10;
 export class CodeBlockPart extends Disposable {
-	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
-
 	public readonly editor: CodeEditorWidget;
 	protected readonly toolbar: MenuWorkbenchToolBar;
 	private readonly contextKeyService: IContextKeyService;
@@ -167,10 +164,11 @@ export class CodeBlockPart extends Disposable {
 
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
+	private lastLayoutWidth: number | undefined;
 
 	private isDisposed = false;
 
-	private resourceContextKey: ResourceContextKey;
+	private resourceContextKey: StaticResourceContextKey;
 
 	private get verticalPadding(): number {
 		return this.currentCodeBlockData?.renderOptions?.verticalPadding ?? defaultCodeblockPadding;
@@ -191,7 +189,7 @@ export class CodeBlockPart extends Disposable {
 		super();
 		this.element = $('.interactive-result-code-block');
 
-		this.resourceContextKey = this._register(instantiationService.createInstance(ResourceContextKey));
+		this.resourceContextKey = instantiationService.createInstance(StaticResourceContextKey);
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
@@ -252,7 +250,7 @@ export class CodeBlockPart extends Disposable {
 			element.vulnerabilitiesListExpanded = !element.vulnerabilitiesListExpanded;
 			this.vulnsButton.label = this.getVulnerabilitiesLabel();
 			this.element.classList.toggle('chat-vulnerabilities-collapsed', !element.vulnerabilitiesListExpanded);
-			this._onDidChangeContentHeight.fire();
+			this.layout();
 			// this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		}));
 
@@ -277,7 +275,7 @@ export class CodeBlockPart extends Disposable {
 		}));
 		this._register(this.editor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged) {
-				this._onDidChangeContentHeight.fire();
+				this.layout();
 			}
 		}));
 		this._register(this.editor.onDidBlurEditorWidget(() => {
@@ -380,7 +378,12 @@ export class CodeBlockPart extends Disposable {
 		};
 	}
 
-	layout(width: number): void {
+	layout(width = this.lastLayoutWidth): void {
+		if (width === undefined) {
+			return; // not yet in DOM
+		}
+
+		this.lastLayoutWidth = width;
 		const contentHeight = this.getContentHeight();
 
 		let height = contentHeight;
@@ -390,7 +393,12 @@ export class CodeBlockPart extends Disposable {
 
 		const editorBorder = 2;
 		width = width - editorBorder - (this.currentCodeBlockData?.renderOptions?.reserveWidth ?? 0);
-		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height });
+		// !!!!
+		// Important: Using here postponeRendering = true to avoid doing a sync layout on the editor
+		// which can be very expensive if there are many code blocks being laid out at once.
+		// This allows multiple editors to coordinate and render together at the next animation frame.
+		// !!!!
+		this.editor.layout({ width: isRequestVM(this.currentCodeBlockData?.element) ? width * 0.9 : width, height }, /* postponeRendering */ true);
 		this.updatePaddingForLayout();
 	}
 
@@ -398,7 +406,7 @@ export class CodeBlockPart extends Disposable {
 		if (this.currentCodeBlockData?.range) {
 			const lineCount = this.currentCodeBlockData.range.endLineNumber - this.currentCodeBlockData.range.startLineNumber + 1;
 			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
-			return lineCount * lineHeight;
+			return lineCount * lineHeight + 2 * this.verticalPadding;
 		}
 		return this.editor.getContentHeight();
 	}
@@ -447,12 +455,21 @@ export class CodeBlockPart extends Disposable {
 			this.element.classList.add('no-vulns');
 		}
 
-		this._onDidChangeContentHeight.fire();
+		this.layout();
 	}
 
 	reset() {
 		this.clearWidgets();
 		this.currentCodeBlockData = undefined;
+	}
+
+	onDidRemount(): void {
+		if (this.currentCodeBlockData) {
+			// !!!!
+			// Important: if the editor was off-dom and is now connected, we need to re-render it
+			// !!!!
+			this.editor.renderAsync(true);
+		}
 	}
 
 	private clearWidgets() {
@@ -532,6 +549,7 @@ export interface ICodeCompareBlockActionContext {
 	readonly element: IChatResponseViewModel;
 	readonly diffEditor: IDiffEditor;
 	readonly edit: IChatTextEditGroup;
+	toggleDiffViewMode(): void;
 }
 
 export interface ICodeCompareBlockDiffData {
@@ -557,9 +575,6 @@ export interface ICodeCompareBlockData {
 
 // long-lived object that sits in the DiffPool and that gets reused
 export class CodeCompareBlockPart extends Disposable {
-	protected readonly _onDidChangeContentHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
-
 	private readonly contextKeyService: IContextKeyService;
 	private readonly diffEditor: DiffEditorWidget;
 	private readonly resourceLabel: ResourceLabel;
@@ -571,6 +586,8 @@ export class CodeCompareBlockPart extends Disposable {
 	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable());
 	private currentScrollWidth = 0;
 	private currentHorizontalPadding = 0;
+
+	private lastLayoutWidth: number | undefined;
 
 	constructor(
 		private readonly options: ChatEditorOptions,
@@ -636,7 +653,7 @@ export class CodeCompareBlockPart extends Disposable {
 
 		this.resourceLabel = this._register(scopedInstantiationService.createInstance(ResourceLabel, editorHeader, { supportIcons: true }));
 
-		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(editorHeader);
+		const editorScopedService = this._register(this.diffEditor.getModifiedEditor().contextKeyService.createScoped(editorHeader));
 		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
 		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, editorHeader, menuId, {
 			menuOptions: {
@@ -658,11 +675,6 @@ export class CodeCompareBlockPart extends Disposable {
 
 		this._register(this.diffEditor.getModifiedEditor().onDidScrollChange(e => {
 			this.currentScrollWidth = e.scrollWidth;
-		}));
-		this._register(this.diffEditor.onDidContentSizeChange(e => {
-			if (e.contentHeightChanged) {
-				this._onDidChangeContentHeight.fire();
-			}
 		}));
 		this._register(this.diffEditor.getModifiedEditor().onDidBlurEditorWidget(() => {
 			this.element.classList.remove('focused');
@@ -747,11 +759,10 @@ export class CodeCompareBlockPart extends Disposable {
 
 	private _configureForScreenReader(): void {
 		const toolbarElt = this.toolbar.getElement();
+		// Always show toolbar, but add aria-label for screen readers
+		toolbarElt.style.display = 'block';
 		if (this.accessibilityService.isScreenReaderOptimized()) {
-			toolbarElt.style.display = 'block';
 			toolbarElt.ariaLabel = localize('chat.codeBlock.toolbar', 'Code block toolbar');
-		} else {
-			toolbarElt.style.display = '';
 		}
 	}
 
@@ -769,7 +780,13 @@ export class CodeCompareBlockPart extends Disposable {
 		};
 	}
 
-	layout(width: number): void {
+	layout(width = this.lastLayoutWidth): void {
+		if (width === undefined) {
+			return; // not yet in DOM
+		}
+
+		this.lastLayoutWidth = width;
+
 		const editorBorder = 2;
 
 		const toolbar = dom.getTotalHeight(this.editorHeader);
@@ -778,7 +795,6 @@ export class CodeCompareBlockPart extends Disposable {
 			: dom.getTotalHeight(this.messageElement);
 
 		const dimension = new dom.Dimension(width - editorBorder - this.currentHorizontalPadding * 2, toolbar + content);
-		this.element.style.height = `${dimension.height}px`;
 		this.element.style.width = `${dimension.width}px`;
 		this.diffEditor.layout(dimension.with(undefined, content - editorBorder));
 		this.updatePaddingForLayout();
@@ -810,8 +826,6 @@ export class CodeCompareBlockPart extends Disposable {
 			fileKind: FileKind.FILE,
 			fileDecorations: { colors: true, badges: false }
 		});
-
-		this._onDidChangeContentHeight.fire();
 	}
 
 	reset() {
@@ -889,13 +903,24 @@ export class CodeCompareBlockPart extends Disposable {
 		} else {
 			this.diffEditor.setModel(null);
 			this._lastDiffEditorViewModel.value = undefined;
-			this._onDidChangeContentHeight.fire();
 		}
 
 		this.toolbar.context = {
 			edit: data.edit,
 			element: data.element,
 			diffEditor: this.diffEditor,
+			toggleDiffViewMode: () => {
+				const isCurrentlyInline = !!this.diffEditor.getModifiedEditor().contextKeyService.getContextKeyValue(EditorContextKeys.diffEditorInlineMode.key);
+				const renderSideBySide = isCurrentlyInline;
+				this.diffEditor.updateOptions({
+					renderSideBySide,
+					// Make it not-compact in side by side mode, otherwise we may not actually
+					// show it side-by-side if it's a simple diff https://github.com/microsoft/vscode/blob/0632563332c7c08656fb47c97bc4328d62ee1d80/src/vs/editor/browser/widget/diffEditor/diffEditorOptions.ts#L35-L39
+					compactMode: !renderSideBySide,
+					useInlineViewWhenSpaceIsLimited: false,
+				});
+				this.layout();
+			},
 		} satisfies ICodeCompareBlockActionContext;
 	}
 }

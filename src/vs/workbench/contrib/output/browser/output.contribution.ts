@@ -43,11 +43,16 @@ import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { OutputAccessibilityHelp } from './outputAccessibilityHelp.js';
 
 const IMPORTED_LOG_ID_PREFIX = 'importedLog.';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
+
+// Register Accessibility Help
+AccessibleViewRegistry.register(new OutputAccessibilityHelp());
 
 // Register Output Mode
 ModesRegistry.registerLanguage({
