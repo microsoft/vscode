@@ -261,11 +261,13 @@
 	padding-left: 4px;
 }
 
-.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.selected .custom-view-tree-node-item .actions {
+.customview-tree .monaco-list.horizontal-scrolling:focus .monaco-list-row.selected .custom-view-tree-node-item .actions {
 	background-color: var(--vscode-list-activeSelectionBackground);
 }
-
-.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.focused .custom-view-tree-node-item .actions {
+.customview-tree .monaco-list.horizontal-scrolling:not(:focus) .monaco-list-row.selected .custom-view-tree-node-item .actions {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.focused:not(.selected) .custom-view-tree-node-item .actions {
 	background-color: var(--vscode-list-focusBackground);
 }
 
