@@ -9,7 +9,6 @@ import { cloneAndChange } from '../../base/common/objects.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import * as path from '../../base/common/path.js';
 import * as platform from '../../base/common/platform.js';
-import { isEqualOrParent } from '../../base/common/resources.js';
 import { URI } from '../../base/common/uri.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
 import { IServerChannel } from '../../base/parts/ipc/common/ipc.js';
@@ -252,20 +251,8 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 			}
 			const envVariableCollections = new Map<string, IEnvironmentVariableCollection>(entries);
 			const mergedCollection = new MergedEnvironmentVariableCollection(envVariableCollections);
-			// Determine workspace folder for env var collection scoping from the terminal's
-			// CWD, not the last active editor. This ensures extensions like Python Environments
-			// that set workspace-scoped env vars activate the correct environment.
-			let envVarWorkspaceFolder = activeWorkspaceFolder ?? undefined;
-			if (initialCwd) {
-				const cwdUri = URI.file(initialCwd);
-				for (const wf of workspaceFolders) {
-					if (isEqualOrParent(cwdUri, wf.uri)) {
-						envVarWorkspaceFolder = wf;
-						break;
-					}
-				}
-			}
-			await mergedCollection.applyToProcessEnvironment(env, { workspaceFolder: envVarWorkspaceFolder }, variableResolver);
+			const workspaceFolder = activeWorkspaceFolder ? activeWorkspaceFolder ?? undefined : undefined;
+			await mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}
 
 		// Fork the process and listen for messages
