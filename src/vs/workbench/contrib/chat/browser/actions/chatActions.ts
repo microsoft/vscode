@@ -877,7 +877,7 @@ export function registerChatActions() {
 				keybinding: [{
 					weight: KeybindingWeight.WorkbenchContrib,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyH,
-					when: ChatContextKeys.inChatSession,
+					when: ChatContextKeys.inChatInput,
 				}]
 			});
 		}
