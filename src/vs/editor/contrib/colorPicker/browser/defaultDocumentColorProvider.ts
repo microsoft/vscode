@@ -10,25 +10,30 @@ import { DocumentColorProvider, IColor, IColorInformation, IColorPresentation } 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IEditorWorkerService } from '../../../common/services/editorWorker.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
 	constructor(
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	async provideDocumentColors(model: ITextModel, _token: CancellationToken): Promise<IColorInformation[] | null> {
-		return this._editorWorkerService.computeDefaultDocumentColors(model.uri);
+		const colorFormat = this._configurationService.getValue<'rgba' | 'argb'>('editor.colorDecoratorFormat', { resource: model.uri }) ?? 'rgba';
+		return this._editorWorkerService.computeDefaultDocumentColors(model.uri, colorFormat);
 	}
 
-	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
+	provideColorPresentations(model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
 		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), colorFromInfo.alpha));
 
-		const rgb = Color.Format.CSS.formatRGB(color);
+		const colorFormat = this._configurationService.getValue<'rgba' | 'argb'>('editor.colorDecoratorFormat', { resource: model.uri }) ?? 'rgba';
+
+		const rgb = colorFormat === 'argb' ? Color.Format.CSS.formatARGB(color) : Color.Format.CSS.formatRGB(color);
 		const hsl = Color.Format.CSS.formatHSL(color);
-		const hex = Color.Format.CSS.formatHexA(color, true);
+		const hex = colorFormat === 'argb' ? Color.Format.CSS.formatAHex(color, true) : Color.Format.CSS.formatHexA(color, true);
 
 		const colorPresentations: IColorPresentation[] = [];
 		colorPresentations.push({ label: rgb, textEdit: { range: range, text: rgb } });
@@ -42,9 +47,10 @@ export class DefaultDocumentColorProviderFeature extends Disposable {
 	constructor(
 		@ILanguageFeaturesService _languageFeaturesService: ILanguageFeaturesService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		this._register(_languageFeaturesService.colorProvider.register('*', new DefaultDocumentColorProvider(editorWorkerService)));
+		this._register(_languageFeaturesService.colorProvider.register('*', new DefaultDocumentColorProvider(editorWorkerService, configurationService)));
 	}
 }
 

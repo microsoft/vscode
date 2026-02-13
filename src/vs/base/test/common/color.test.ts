@@ -615,6 +615,22 @@ suite('Color', () => {
 				assert.deepStrictEqual(Color.Format.CSS.parseHex('#CFA8')!.rgba, new RGBA(204, 255, 170, 0.533));
 			});
 
+			test('parseHex with ARGB format', () => {
+				// 8-digit ARGB format: #AARRGGBB
+				assert.deepStrictEqual(Color.Format.CSS.parseHex('#80FF0000', 'argb')!.rgba, new RGBA(255, 0, 0, 128 / 255));
+				assert.deepStrictEqual(Color.Format.CSS.parseHex('#FF00FF00', 'argb')!.rgba, new RGBA(0, 255, 0, 1));
+				assert.deepStrictEqual(Color.Format.CSS.parseHex('#000000FF', 'argb')!.rgba, new RGBA(0, 0, 255, 0));
+
+				// 4-digit ARGB format: #ARGB
+				assert.deepStrictEqual(Color.Format.CSS.parseHex('#8F00', 'argb')!.rgba, new RGBA(255, 0, 0, 136 / 255));
+				assert.deepStrictEqual(Color.Format.CSS.parseHex('#F0F0', 'argb')!.rgba, new RGBA(0, 255, 0, 1));
+				assert.deepStrictEqual(Color.Format.CSS.parseHex('#000F', 'argb')!.rgba, new RGBA(0, 0, 255, 0));
+
+				// Verify RGBA is still default
+				assert.deepStrictEqual(Color.Format.CSS.parseHex('#FF000080')!.rgba, new RGBA(255, 0, 0, 128 / 255));
+				assert.deepStrictEqual(Color.Format.CSS.parseHex('#F008')!.rgba, new RGBA(255, 0, 0, 136 / 255));
+			});
+
 			suite('format', () => {
 				test('formatHSL should use whole numbers for percentages', () => {
 					// Test case matching the issue: color with fractional percentages that should be rounded
