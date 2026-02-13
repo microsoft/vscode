@@ -30,7 +30,7 @@
     "watch-client": "npm run gulp watch-client",
     "watch-clientd": "deemon npm run watch-client",
     "kill-watch-clientd": "deemon --kill npm run watch-client",
-    "watch-client-transpile": "npx tsx build/next/index.ts transpile --watch",
+    "watch-client-transpile": "node build/next/index.ts transpile --watch",
     "watch-client-transpiled": "deemon npm run watch-client-transpile",
     "kill-watch-client-transpiled": "deemon --kill npm run watch-client-transpile",
     "watch-extensions": "npm run gulp watch-extensions watch-extension-media",
