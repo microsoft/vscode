@@ -15,9 +15,8 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
+import { createWorkbenchDialogOptions } from './dialog.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { getWindow } from '../../../../base/browser/dom.js';
 
 export class BrowserDialogHandler extends AbstractDialogHandler {
 
@@ -122,15 +121,12 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,
 				inputs
-			}, this.keybindingService, this.layoutService, BrowserDialogHandler.ALLOWABLE_COMMANDS)
+			}, this.keybindingService, this.layoutService, this.hostService, BrowserDialogHandler.ALLOWABLE_COMMANDS)
 		);
 
 		dialogDisposables.add(dialog);
 
-		const targetWindow = getWindow(this.layoutService.activeContainer);
-		this.hostService.setWindowDimmed(targetWindow, true);
 		const result = await dialog.show();
-		this.hostService.setWindowDimmed(targetWindow, false);
 		dialogDisposables.dispose();
 
 		return result;

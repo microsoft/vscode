@@ -12,7 +12,7 @@ import { DialogService } from '../../../services/dialogs/common/dialogService.js
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { createBrowserAboutDialogDetails } from '../../../../platform/dialogs/browser/dialog.js';
+import { createBrowserAboutDialogDetails } from './dialog.js';
 
 export class DialogHandlerContribution extends Disposable implements IWorkbenchContribution {
 
