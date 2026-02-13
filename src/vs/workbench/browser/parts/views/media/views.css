@@ -252,9 +252,23 @@
 }
 
 /* When horizontal scrolling is enabled, shift actions back to the viewport's right edge */
-.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:hover .custom-view-tree-node-item .actions,
-.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.selected .custom-view-tree-node-item .actions,
-.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.focused .custom-view-tree-node-item .actions {
+.customview-tree
+.monaco-list.horizontal-scrolling
+.monaco-list-row:has(.actions .action-item):hover
+.custom-view-tree-node-item
+.actions,
+
+.customview-tree
+.monaco-list.horizontal-scrolling
+.monaco-list-row:has(.actions .action-item).selected
+.custom-view-tree-node-item
+.actions,
+
+.customview-tree
+.monaco-list.horizontal-scrolling
+.monaco-list-row:has(.actions .action-item).focused
+.custom-view-tree-node-item
+.actions {
 	position: relative;
 	right: var(--list-scroll-right-offset, 0px);
 	background-color: var(--vscode-list-hoverBackground);
