@@ -234,7 +234,7 @@ export class ChatRequestParser {
 				}
 			}
 
-			// if there's no agent, asume it is a prompt slash command
+			// if there's no agent or attachments are supported, asume it is a prompt slash command
 			const isPromptCommand = this.promptsService.isValidSlashCommandName(command);
 			if (isPromptCommand) {
 				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, command);
