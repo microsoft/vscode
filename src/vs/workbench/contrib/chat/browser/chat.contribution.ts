@@ -215,6 +215,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental']
 		},
+		[ChatConfiguration.AgentSessionInputNeededNotification]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentSessions.inputNeeded.notification', "Controls whether a notification badge is shown in the command center when agent sessions need user input. Click the notification to open the session requiring attention."),
+			default: true,
+			scope: ConfigurationScope.WINDOW,
+		},
 		[ChatConfiguration.UnifiedAgentsBar]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.unifiedAgentsBar.enabled', "Replaces the command center search box with a unified chat and search widget."),

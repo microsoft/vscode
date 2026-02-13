@@ -49,6 +49,7 @@ export enum ChatConfiguration {
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
 	AgentsControlClickBehavior = 'chat.agentsControl.clickBehavior',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
+	AgentSessionInputNeededNotification = 'chat.agentSessions.inputNeeded.notification',
 }
 
 /**

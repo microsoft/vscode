@@ -1,0 +1,60 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Container */
+.agent-session-input-needed-notification-container {
+	display: flex;
+	align-items: center;
+	-webkit-app-region: no-drag;
+	color: var(--vscode-commandCenter-foreground);
+}
+
+/* Badge */
+.input-needed-badge {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 8px;
+	height: 22px;
+	border-radius: 6px;
+	background-color: var(--vscode-commandCenter-background);
+	border: 1px solid var(--vscode-commandCenter-border, transparent);
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+}
+
+.input-needed-badge:hover {
+	background-color: var(--vscode-commandCenter-activeBackground);
+	border-color: var(--vscode-commandCenter-activeBorder, transparent);
+}
+
+.input-needed-badge:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Icon */
+.input-needed-icon {
+	display: flex;
+	align-items: center;
+	color: var(--vscode-notificationsWarningIcon-foreground);
+	flex-shrink: 0;
+}
+
+/* Count */
+.input-needed-count {
+	font-size: 11px;
+	font-weight: 500;
+	flex-shrink: 0;
+}
+
+/* Description text */
+.input-needed-text {
+	font-size: 12px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 200px;
+}

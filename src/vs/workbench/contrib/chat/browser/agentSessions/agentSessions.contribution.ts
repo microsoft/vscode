@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './experiments/agentSessionsExperiments.contribution.js';
+import './agentSessionInputNeededNotification.contribution.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
