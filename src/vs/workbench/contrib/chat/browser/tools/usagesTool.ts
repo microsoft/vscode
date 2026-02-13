@@ -9,9 +9,10 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { escapeRegExpCharacters } from '../../../../../base/common/strings.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { relativePath } from '../../../../../base/common/resources.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { Location, LocationLink } from '../../../../../editor/common/languages.js';
@@ -23,6 +24,7 @@ import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ISearchService, QueryType, resultIsMatch } from '../../../../services/search/common/search.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress, } from '../../common/tools/languageModelToolsService.js';
 import { createToolSimpleTextResult } from '../../common/tools/builtinTools/toolHelpers.js';
 
@@ -55,6 +57,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IModelService private readonly _modelService: IModelService,
+		@ISearchService private readonly _searchService: ISearchService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
@@ -171,7 +174,7 @@ export class UsagesTool extends Disposable implements IToolImpl {
 			}
 
 			// --- classify and format results with previews ---
-			const previews = await this._getLinePreviews(references, token);
+			const previews = await this._getLinePreviews(input.symbol, references, token);
 
 			const lines: string[] = [];
 			lines.push(`${references.length} usages of \`${input.symbol}\`:\n`);
@@ -205,45 +208,87 @@ export class UsagesTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private async _getLinePreviews(references: LocationLink[], token: CancellationToken): Promise<(string | undefined)[]> {
+	private async _getLinePreviews(symbol: string, references: LocationLink[], token: CancellationToken): Promise<(string | undefined)[]> {
 		const previews: (string | undefined)[] = new Array(references.length);
 
-		// Group references by URI
-		const byUri = new ResourceMap<{ index: number; lineNumber: number }[]>();
+		// Build a lookup: (uriString, lineNumber) → index in references array
+		const lookup = new Map<string, number>();
+		const needSearch = new ResourceSet();
+
 		for (let i = 0; i < references.length; i++) {
 			const ref = references[i];
-			let entries = byUri.get(ref.uri);
-			if (!entries) {
-				entries = [];
-				byUri.set(ref.uri, entries);
+			const lineNumber = Range.lift(ref.range).startLineNumber;
+
+			// Try already-open models first
+			const existingModel = this._modelService.getModel(ref.uri);
+			if (existingModel) {
+				previews[i] = existingModel.getLineContent(lineNumber).trim();
+			} else {
+				lookup.set(`${ref.uri.toString()}:${lineNumber}`, i);
+				needSearch.add(ref.uri);
 			}
-			entries.push({ index: i, lineNumber: Range.lift(ref.range).startLineNumber });
 		}
 
-		// For each unique URI, try IModelService first (already open), then fall back to ITextModelService
-		for (const [uri, entries] of byUri) {
-			if (token.isCancellationRequested) {
-				break;
-			}
-			const existingModel = this._modelService.getModel(uri);
-			if (existingModel) {
-				for (const entry of entries) {
-					previews[entry.index] = existingModel.getLineContent(entry.lineNumber).trim();
-				}
-			} else {
-				try {
-					const modelRef = await this._textModelService.createModelReference(uri);
-					try {
-						for (const entry of entries) {
-							previews[entry.index] = modelRef.object.textEditorModel.getLineContent(entry.lineNumber).trim();
-						}
-					} finally {
-						modelRef.dispose();
+		if (needSearch.size === 0 || token.isCancellationRequested) {
+			return previews;
+		}
+
+		// Use ISearchService to search for the symbol name, restricted to the
+		// referenced files. This is backed by ripgrep for file:// URIs.
+		try {
+			// Build includePattern from workspace-relative paths
+			const folders = this._workspaceContextService.getWorkspace().folders;
+			const relativePaths: string[] = [];
+			for (const uri of needSearch) {
+				const folder = this._workspaceContextService.getWorkspaceFolder(uri);
+				if (folder) {
+					const rel = relativePath(folder.uri, uri);
+					if (rel) {
+						relativePaths.push(rel);
 					}
-				} catch {
-					// file might not be resolvable, leave previews as undefined
 				}
 			}
+
+			if (relativePaths.length > 0) {
+				const includePattern: Record<string, true> = {};
+				if (relativePaths.length === 1) {
+					includePattern[relativePaths[0]] = true;
+				} else {
+					includePattern[`{${relativePaths.join(',')}}`] = true;
+				}
+
+				const searchResult = await this._searchService.textSearch(
+					{
+						type: QueryType.Text,
+						contentPattern: { pattern: escapeRegExpCharacters(symbol), isRegExp: true, isWordMatch: true },
+						folderQueries: folders.map(f => ({ folder: f.uri })),
+						includePattern,
+					},
+					token,
+				);
+
+				for (const fileMatch of searchResult.results) {
+					if (!fileMatch.results) {
+						continue;
+					}
+					for (const textMatch of fileMatch.results) {
+						if (!resultIsMatch(textMatch)) {
+							continue;
+						}
+						for (const range of textMatch.rangeLocations) {
+							const lineNumber = range.source.startLineNumber + 1; // 0-based → 1-based
+							const key = `${fileMatch.resource.toString()}:${lineNumber}`;
+							const idx = lookup.get(key);
+							if (idx !== undefined) {
+								previews[idx] = textMatch.previewText.trim();
+								lookup.delete(key);
+							}
+						}
+					}
+				}
+			}
+		} catch {
+			// search might fail, leave remaining previews as undefined
 		}
 
 		return previews;
