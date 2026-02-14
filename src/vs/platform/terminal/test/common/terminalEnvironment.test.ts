@@ -117,6 +117,7 @@ suite('terminalEnvironment', () => {
 
 		test('should escape $ and ` in PowerShell double-quoted paths', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar\'$"baz', GeneralShellType.PowerShell), '"/foo/bar\'`$`"baz"');
+			strictEqual(escapeNonWindowsPath('/foo/bar\'`$"baz', GeneralShellType.PowerShell), '"/foo/bar\'```$`"baz"');
 		});
 	});
 });
