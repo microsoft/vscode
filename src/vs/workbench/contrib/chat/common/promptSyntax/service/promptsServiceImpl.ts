@@ -1026,10 +1026,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userHomeUri = await this.pathService.userHome();
 		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
-		// Get workspace root for resolving relative cwd paths
-		const workspaceFolder = this.workspaceService.getWorkspace().folders[0];
-		const workspaceRootUri = workspaceFolder?.uri;
-
 		let hasDisabledClaudeHooks = false;
 		const collectedHooks: Record<HookType, IHookCommand[]> = {
 			[HookType.SessionStart]: [],
@@ -1042,10 +1038,17 @@ export class PromptsService extends Disposable implements IPromptsService {
 			[HookType.Stop]: [],
 		};
 
+		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
+
 		for (const hookFile of hookFiles) {
 			try {
 				const content = await this.fileService.readFile(hookFile.uri);
 				const json = parseJSONC(content.value.toString());
+
+				// Resolve the workspace folder that contains this hook file for cwd resolution,
+				// falling back to the first workspace folder for user-level hooks outside the workspace
+				const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(hookFile.uri) ?? defaultFolder;
+				const workspaceRootUri = hookWorkspaceFolder?.uri;
 
 				// Use format-aware parsing that handles Copilot and Claude formats
 				const { format, hooks, disabledAllHooks } = parseHooksFromFile(hookFile.uri, json, workspaceRootUri, userHome);
@@ -1339,10 +1342,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userHomeUri = await this.pathService.userHome();
 		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
-		// Get workspace root for resolving relative cwd paths
-		const workspaceFolder = this.workspaceService.getWorkspace().folders[0];
-		const workspaceRootUri = workspaceFolder?.uri;
-
 		const useClaudeHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_HOOKS);
 		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
 		for (const promptPath of hookFiles) {
@@ -1382,6 +1381,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 					});
 					continue;
 				}
+
+				// Resolve the workspace folder that contains this hook file for cwd resolution,
+				// falling back to the first workspace folder for user-level hooks outside the workspace
+				const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? this.workspaceService.getWorkspace().folders[0];
+				const workspaceRootUri = hookWorkspaceFolder?.uri;
 
 				// Use format-aware parsing to check for disabledAllHooks
 				const { disabledAllHooks } = parseHooksFromFile(uri, json, workspaceRootUri, userHome);
