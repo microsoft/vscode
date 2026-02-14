@@ -207,10 +207,6 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 				customAgentTarget: {
 					description: localize('chatSessionsExtPoint.customAgentTarget', 'When set, the chat session will show a filtered mode picker that prefers custom agents whose target property matches this value. Custom agents without a target property are still shown in all session types. This enables the use of standard agent/mode with contributed sessions.'),
 					type: 'string'
-				},
-				modelVendor: {
-					description: localize('chatSessionsExtPoint.modelVendor', 'When set, the model picker will be filtered to only show models from this vendor. This enables contributed chat sessions to restrict the available language models.'),
-					type: 'string'
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -1124,11 +1120,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public getCustomAgentTargetForSessionType(chatSessionType: string): Target {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
 		return contribution?.customAgentTarget ?? Target.Undefined;
-	}
-
-	public getModelVendorForSessionType(chatSessionType: string): string | undefined {
-		const contribution = this._contributions.get(chatSessionType)?.contribution;
-		return contribution?.modelVendor;
 	}
 
 	public getContentProviderSchemes(): string[] {

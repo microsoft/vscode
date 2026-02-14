@@ -353,7 +353,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionOptionsValid: IContextKey<boolean>;
 	private agentSessionTypeKey: IContextKey<string>;
 	private chatSessionHasCustomAgentTarget: IContextKey<boolean>;
-	private chatSessionHasModelVendor: IContextKey<boolean>;
+	private chatSessionHasTargetedModels: IContextKey<boolean>;
 	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
@@ -474,6 +474,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _emptyInputState: ObservableMemento<IChatModelInputState | undefined>;
 	private _chatSessionIsEmpty = false;
 	private _pendingDelegationTarget: AgentSessionProviders | undefined = undefined;
+	private _currentSessionType: string | undefined = undefined;
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -577,7 +578,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 		this.chatSessionHasCustomAgentTarget = ChatContextKeys.chatSessionHasCustomAgentTarget.bindTo(contextKeyService);
-		this.chatSessionHasModelVendor = ChatContextKeys.chatSessionHasModelVendor.bindTo(contextKeyService);
+		this.chatSessionHasTargetedModels = ChatContextKeys.chatSessionHasTargetedModels.bindTo(contextKeyService);
 
 		this.history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, this.location));
 
@@ -620,8 +621,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// We've changed models and the current one is no longer available. Select a new one
 			const selectedModel = this._currentLanguageModel ? this.getModels().find(m => m.identifier === this._currentLanguageModel.get()?.identifier) : undefined;
-			const selectedModelNotAvailable = this._currentLanguageModel && (!selectedModel?.metadata.isUserSelectable);
-			if (!this.currentLanguageModel || selectedModelNotAvailable) {
+			if (!this.currentLanguageModel || !selectedModel) {
 				this.setCurrentLanguageModelToDefault();
 			}
 		}));
@@ -682,10 +682,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private getSelectedModelStorageKey(): string {
+		const sessionType = this._currentSessionType;
+		if (sessionType && this.hasModelsTargetingSessionType()) {
+			return `chat.currentLanguageModel.${this.location}.${sessionType}`;
+		}
 		return `chat.currentLanguageModel.${this.location}`;
 	}
 
 	private getSelectedModelIsDefaultStorageKey(): string {
+		const sessionType = this._currentSessionType;
+		if (sessionType && this.hasModelsTargetingSessionType()) {
+			return `chat.currentLanguageModel.${this.location}.${sessionType}.isDefault`;
+		}
 		return `chat.currentLanguageModel.${this.location}.isDefault`;
 	}
 
@@ -924,11 +932,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}
 
-			// Sync selected model
+			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
 				const lm = this._currentLanguageModel.get();
 				if (!lm || lm.identifier !== state.selectedModel.identifier) {
-					this.setCurrentLanguageModel(state.selectedModel);
+					if (this.isModelValidForCurrentSession(state.selectedModel)) {
+						this.setCurrentLanguageModel(state.selectedModel);
+					} else {
+						// Model from state doesn't belong to this session's pool - use default
+						this.setCurrentLanguageModelToDefault();
+					}
 				}
 			}
 
@@ -994,7 +1007,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private checkModelSupported(): void {
 		const lm = this._currentLanguageModel.get();
-		if (lm && (!this.modelSupportedForDefaultAgent(lm) || !this.modelSupportedForInlineChat(lm))) {
+		if (lm && (!this.modelSupportedForDefaultAgent(lm) || !this.modelSupportedForInlineChat(lm) || !this.isModelValidForCurrentSession(lm))) {
 			this.setCurrentLanguageModelToDefault();
 		}
 	}
@@ -1052,34 +1065,78 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
-		const vendorFilter = this.getSessionModelVendor();
-		if (vendorFilter) {
-			// When a vendor filter is active, show only models from that vendor.
-			// This bypasses the isUserSelectable check, allowing extensions to register
-			// models with isUserSelectable: false (hidden from the general picker) that
-			// only appear in the specific session type declaring the matching modelVendor.
-			return models.filter(entry => entry.metadata?.vendor === vendorFilter);
+		const sessionType = this.getCurrentSessionType();
+		if (sessionType) {
+			// Session has a specific chat session type - show only models that target
+			// this session type, if any such models exist.
+			const targeted = models.filter(entry => entry.metadata?.targetChatSessionType === sessionType);
+			if (targeted.length > 0) {
+				return targeted;
+			}
 		}
-		return models.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry) && this.modelSupportedForInlineChat(entry));
+
+		// No session type or no targeted models - show general models (those without
+		// a targetChatSessionType) filtered by the standard criteria.
+		return models.filter(entry => !entry.metadata?.targetChatSessionType && entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry) && this.modelSupportedForInlineChat(entry));
 	}
 
 	/**
-	 * Get the model vendor restriction for the current session, if any.
-	 * Returns the vendor string if a `modelVendor` is defined on the session's contribution, or undefined otherwise.
+	 * Get the chat session type for the current session, if any.
+	 * Uses the delegate or `getChatSessionFromInternalUri` to determine the session type.
 	 */
-	private getSessionModelVendor(): string | undefined {
+	private getCurrentSessionType(): string | undefined {
+		const delegateSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.();
+		if (delegateSessionType) {
+			return delegateSessionType;
+		}
 		const sessionResource = this._widget?.viewModel?.model.sessionResource;
 		const ctx = sessionResource ? this.chatService.getChatSessionFromInternalUri(sessionResource) : undefined;
-		const effectiveSessionType = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() ?? ctx?.chatSessionType;
-		if (!effectiveSessionType) {
-			return undefined;
+		return ctx?.chatSessionType;
+	}
+
+	/**
+	 * Check if any registered models target the current session type.
+	 * This is used to set the context key that controls model picker visibility.
+	 */
+	private hasModelsTargetingSessionType(): boolean {
+		const sessionType = this.getCurrentSessionType();
+		if (!sessionType) {
+			return false;
 		}
-		return this.chatSessionsService.getModelVendorForSessionType(effectiveSessionType);
+		return this.languageModelsService.getLanguageModelIds().some(modelId => {
+			const metadata = this.languageModelsService.lookupLanguageModel(modelId);
+			return metadata?.targetChatSessionType === sessionType;
+		});
+	}
+
+	/**
+	 * Check if a model is valid for the current session's model pool.
+	 * If the session has targeted models, the model must target this session type.
+	 * If no models target this session, the model must not have a targetChatSessionType.
+	 */
+	private isModelValidForCurrentSession(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		if (this.hasModelsTargetingSessionType()) {
+			// Session has targeted models - model must match
+			return model.metadata.targetChatSessionType === this.getCurrentSessionType();
+		}
+		// No targeted models - model must not be session-specific
+		return !model.metadata.targetChatSessionType;
+	}
+
+	/**
+	 * Validate that the current model belongs to the current session's pool.
+	 * Called when switching sessions to prevent cross-contamination.
+	 */
+	private checkModelInSessionPool(): void {
+		const lm = this._currentLanguageModel.get();
+		if (lm && !this.isModelValidForCurrentSession(lm)) {
+			this.setCurrentLanguageModelToDefault();
+		}
 	}
 
 	private setCurrentLanguageModelToDefault() {
 		const allModels = this.getModels();
-		const defaultModel = allModels.find(m => m.metadata.isDefaultForLocation[this.location]) || allModels.find(m => m.metadata.isUserSelectable);
+		const defaultModel = allModels.find(m => m.metadata.isDefaultForLocation[this.location]) || allModels[0];
 		if (defaultModel) {
 			this.setCurrentLanguageModel(defaultModel);
 		}
@@ -1464,9 +1521,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const customAgentTarget = ctx && this.chatSessionsService.getCustomAgentTargetForSessionType(ctx.chatSessionType);
 		this.chatSessionHasCustomAgentTarget.set(customAgentTarget !== Target.Undefined);
 
-		// Check if this session type has a modelVendor to filter the model picker
-		const modelVendor = this.getSessionModelVendor();
-		this.chatSessionHasModelVendor.set(!!modelVendor);
+		// Check if this session type has models targeting it via targetChatSessionType
+		const hasTargetedModels = this.hasModelsTargetingSessionType();
+		this.chatSessionHasTargetedModels.set(hasTargetedModels);
 
 		// Handle agent option from session - set initial mode
 		if (customAgentTarget) {
@@ -1790,6 +1847,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.tryUpdateWidgetController();
 			this.updateContextUsageWidget();
 			this.clearQuestionCarousel();
+
+			// Track the current session type and re-initialize model selection
+			// when the session type changes (different session types may have
+			// different model pools via targetChatSessionType).
+			const newSessionType = this.getCurrentSessionType();
+			if (newSessionType !== this._currentSessionType) {
+				this._currentSessionType = newSessionType;
+				this.initSelectedModel();
+			}
+
+			// Validate that the current model belongs to the new session's pool
+			this.checkModelInSessionPool();
 		}));
 
 		let elements;

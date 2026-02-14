@@ -92,11 +92,6 @@ export interface IChatSessionsExtensionPoint {
 	 * Custom agents without a `target` property are also shown in all filtered lists
 	 */
 	readonly customAgentTarget?: Target;
-	/**
-	 * When set, the model picker will be filtered to only show models from this vendor.
-	 * This enables contributed chat sessions to restrict the available language models.
-	 */
-	readonly modelVendor?: string;
 }
 
 export interface IChatSessionItem {
@@ -277,12 +272,6 @@ export interface IChatSessionsService {
 	 * When the Target is not `Target.Undefined`, the mode picker should show filtered custom agents matching this target.
 	 */
 	getCustomAgentTargetForSessionType(chatSessionType: string): Target;
-
-	/**
-	 * Get the modelVendor for a specific session type.
-	 * When set, the model picker should only show models from this vendor.
-	 */
-	getModelVendorForSessionType(chatSessionType: string): string | undefined;
 
 	onDidChangeOptionGroups: Event<string>;
 
