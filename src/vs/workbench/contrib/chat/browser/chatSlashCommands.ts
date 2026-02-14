@@ -11,6 +11,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
+import { IChatService } from '../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
@@ -31,6 +32,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -122,6 +124,19 @@ export class ChatSlashCommandsContribution extends Disposable {
 			locations: [ChatAgentLocation.Chat]
 		}, async () => {
 			await commandService.executeCommand('workbench.action.chat.configure.prompts');
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'rename',
+			detail: nls.localize('rename', "Rename this chat"),
+			sortText: 'z2_rename',
+			executeImmediately: false,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async (prompt, _progress, _history, _location, sessionResource) => {
+			const title = prompt.trim();
+			if (title) {
+				chatService.setChatSessionTitle(sessionResource, title);
+			}
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
