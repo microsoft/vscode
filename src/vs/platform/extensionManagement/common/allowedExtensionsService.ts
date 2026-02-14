@@ -24,6 +24,27 @@ function isIExtension(extension: any): extension is IExtension {
 
 
 const VersionRegex = /^(?<version>\d+\.\d+\.\d+(-.*)?)(@(?<platform>.+))?$/;
+const BlockedAIExtensionKeywords = [
+	'assistant',
+	'chat',
+	'copilot',
+	'codeium',
+	'cody',
+	'tabnine',
+	'openai',
+	'chatgpt',
+	'anthropic',
+	'claude',
+	'gemini',
+	'gpt',
+	'cursor',
+	'deepseek',
+	'mistral',
+	'qwen',
+	'llama',
+	'aider',
+	'continue'
+];
 
 export class AllowedExtensionsService extends Disposable implements IAllowedExtensionsService {
 
@@ -66,6 +87,11 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 	}
 
 	isAllowed(extension: IGalleryExtension | IExtension | { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): true | IMarkdownString {
+		const aiBlockedReason = this.getAIBlockedReason(extension);
+		if (aiBlockedReason) {
+			return aiBlockedReason;
+		}
+
 		if (!this._allowedExtensionsConfigValue) {
 			return true;
 		}
@@ -141,5 +167,25 @@ export class AllowedExtensionsService extends Disposable implements IAllowedExte
 		}
 
 		return extensionReason;
+	}
+
+	private getAIBlockedReason(extension: IGalleryExtension | IExtension | { id: string; publisherDisplayName: string | undefined; version?: string; prerelease?: boolean; targetPlatform?: TargetPlatform }): IMarkdownString | undefined {
+		const fields: string[] = [];
+
+		if (isGalleryExtension(extension)) {
+			fields.push(extension.identifier.id, extension.name, extension.displayName ?? '', extension.publisher, extension.publisherDisplayName ?? '');
+		} else if (isIExtension(extension)) {
+			fields.push(extension.identifier.id, extension.manifest.name, extension.manifest.displayName ?? '', extension.manifest.publisher, extension.publisherDisplayName ?? '');
+		} else {
+			fields.push(extension.id, extension.publisherDisplayName ?? '');
+		}
+
+		const normalizedFields = fields.map(value => value.toLowerCase());
+		const hasBlockedKeyword = BlockedAIExtensionKeywords.some(kw => normalizedFields.some(field => field.includes(kw)));
+		if (!hasBlockedKeyword) {
+			return undefined;
+		}
+
+		return new MarkdownString(nls.localize('ai extension not allowed', "this extension is blocked because AI extensions are disabled in this build"));
 	}
 }
