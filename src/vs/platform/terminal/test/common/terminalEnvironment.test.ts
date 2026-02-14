@@ -91,9 +91,32 @@ suite('terminalEnvironment', () => {
 			strictEqual(escapeNonWindowsPath('/foo/bar\'baz'), '\'/foo/bar\\\'baz\'');
 		});
 
-		test('should remove dangerous characters', () => {
-			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), '\'/foo/bar(echo evil)\'');
-			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), '\'/foo/barwhoami\'');
+		test('should preserve special characters within quotes', () => {
+			strictEqual(escapeNonWindowsPath('/foo/bar~v1', PosixShellType.Bash), '\'/foo/bar~v1\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar$var', PosixShellType.Bash), '\'/foo/bar$var\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar`cmd`', PosixShellType.Bash), '\'/foo/bar`cmd`\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar|baz', PosixShellType.Bash), '\'/foo/bar|baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar&baz', PosixShellType.Bash), '\'/foo/bar&baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar>baz', PosixShellType.Bash), '\'/foo/bar>baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar#baz', PosixShellType.Bash), '\'/foo/bar#baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar!baz', PosixShellType.Bash), '\'/foo/bar!baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar^baz', PosixShellType.Bash), '\'/foo/bar^baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar*baz', PosixShellType.Bash), '\'/foo/bar*baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar;baz', PosixShellType.Bash), '\'/foo/bar;baz\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar<baz', PosixShellType.Bash), '\'/foo/bar<baz\'');
+		});
+
+		test('should safely quote injection patterns', () => {
+			strictEqual(escapeNonWindowsPath('/foo/bar$(echo evil)', PosixShellType.Bash), '\'/foo/bar$(echo evil)\'');
+			strictEqual(escapeNonWindowsPath('/foo/bar`whoami`', PosixShellType.Bash), '\'/foo/bar`whoami`\'');
+		});
+
+		test('should escape $ in fish double-quoted paths', () => {
+			strictEqual(escapeNonWindowsPath('/foo/bar\'$"baz', PosixShellType.Fish), '"/foo/bar\'\\$\\"baz"');
+		});
+
+		test('should escape $ and ` in PowerShell double-quoted paths', () => {
+			strictEqual(escapeNonWindowsPath('/foo/bar\'$"baz', GeneralShellType.PowerShell), '"/foo/bar\'`$`"baz"');
 		});
 	});
 });
