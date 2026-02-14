@@ -1465,8 +1465,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatSessionHasCustomAgentTarget.set(customAgentTarget !== Target.Undefined);
 
 		// Check if this session type has a modelVendor to filter the model picker
-		const effectiveSessionTypeForVendor = this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() ?? ctx?.chatSessionType;
-		const modelVendor = effectiveSessionTypeForVendor ? this.chatSessionsService.getModelVendorForSessionType(effectiveSessionTypeForVendor) : undefined;
+		const modelVendor = this.getSessionModelVendor();
 		this.chatSessionHasModelVendor.set(!!modelVendor);
 
 		// Handle agent option from session - set initial mode
