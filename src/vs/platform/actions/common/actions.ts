@@ -316,6 +316,7 @@ export class MenuId {
 	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 	static readonly ChatContextUsageActions = new MenuId('ChatContextUsageActions');
 	static readonly MarkerHoverStatusBar = new MenuId('MarkerHoverParticipant.StatusBar');
+	static readonly ChatViewSessionTitleContext = new MenuId('ChatViewSessionTitleContext');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
