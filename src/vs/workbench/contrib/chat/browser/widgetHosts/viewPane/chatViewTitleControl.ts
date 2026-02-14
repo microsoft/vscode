@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewTitleControl.css';
-import { addDisposableListener, EventType, h } from '../../../../../../base/browser/dom.js';
+import { addDisposableListener, EventHelper, EventType, getWindow, h } from '../../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { Emitter } from '../../../../../../base/common/event.js';
@@ -14,9 +14,12 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../../../nls.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
+import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { AgentSessionsPicker } from '../../agentSessions/agentSessionsPicker.js';
@@ -49,6 +52,8 @@ export class ChatViewTitleControl extends Disposable {
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly delegate: IChatViewTitleDelegate,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -122,6 +127,23 @@ export class ChatViewTitleControl extends Disposable {
 				this.delegate.focusChat();
 			}));
 		}
+
+		// Context menu on title
+		this._register(addDisposableListener(this.titleContainer, EventType.CONTEXT_MENU, e => {
+			EventHelper.stop(e, true);
+
+			const context = this.model && {
+				$mid: MarshalledId.ChatViewContext,
+				sessionResource: this.model.sessionResource
+			} satisfies IChatViewTitleActionContext;
+
+			this.contextMenuService.showContextMenu({
+				menuId: MenuId.ChatViewSessionTitleContext,
+				contextKeyService: this.contextKeyService,
+				getAnchor: () => new StandardMouseEvent(getWindow(this.titleContainer!), e),
+				getActionsContext: () => context,
+			});
+		}));
 
 		parent.appendChild(this.titleContainer);
 	}
