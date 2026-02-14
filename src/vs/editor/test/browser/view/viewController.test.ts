@@ -316,8 +316,10 @@ suite('ViewController - String content selection', () => {
 		const controller = createViewControllerWithTokens(text, [
 			{ startIndex: 0, type: StandardTokenType.Other },
 			{ startIndex: 8, type: StandardTokenType.String },
+			{ startIndex: 9, type: StandardTokenType.String },
 			{ startIndex: 14, type: StandardTokenType.String },
 			{ startIndex: 16, type: StandardTokenType.String },
+			{ startIndex: 21, type: StandardTokenType.String },
 			{ startIndex: 22, type: StandardTokenType.Other },
 		]);
 		// Column right after opening quote: offset 9 → column 10
