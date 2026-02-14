@@ -175,7 +175,7 @@ export class ViewController {
 			}
 		}
 
-		// Check if current token is a string.
+		// Expand to the contiguous run of string tokens (StandardTokenType.String) around the click position.
 		const lineTokens = tokens.getLineTokens(lineNumber);
 		let startIndex = lineTokens.findTokenIndexAtOffset(column - 1);
 		let endIndex = startIndex;
