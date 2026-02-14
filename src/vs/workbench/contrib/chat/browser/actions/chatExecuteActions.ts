@@ -55,6 +55,9 @@ abstract class SubmitAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 
+    // Save current session target before clearing
+    const currentSessionTarget = widget.input.sessionTypePickerDelegate?.getActiveSessionProvider();
+
 		// Check if there's a pending delegation target
 		const pendingDelegationTarget = widget?.input.pendingDelegationTarget;
 		if (pendingDelegationTarget && pendingDelegationTarget !== AgentSessionProviders.Local) {
@@ -722,6 +725,9 @@ class SubmitWithoutDispatchingAction extends Action2 {
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+
+    // Save current session target before clearing
+    const currentSessionTarget = widget.input.sessionTypePickerDelegate?.getActiveSessionProvider();
 		widget?.acceptInput(context?.inputValue, { noCommandDetection: true });
 	}
 }
@@ -752,6 +758,9 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+
+    // Save current session target before clearing
+    const currentSessionTarget = widget.input.sessionTypePickerDelegate?.getActiveSessionProvider();
 		if (!widget) {
 			return;
 		}
@@ -799,6 +808,9 @@ class SendToNewChatAction extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const chatService = accessor.get(IChatService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+
+    // Save current session target before clearing
+    const currentSessionTarget = widget.input.sessionTypePickerDelegate?.getActiveSessionProvider();
 		if (!widget) {
 			return;
 		}
@@ -820,6 +832,10 @@ class SendToNewChatAction extends Action2 {
 		widget.setInput('');
 
 		await widget.clear();
+    // Restore session target after clearing
+    if (currentSessionTarget) {
+        widget.input.sessionTypePickerDelegate?.setActiveSessionProvider(currentSessionTarget);
+    }
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}
 }
@@ -869,6 +885,9 @@ export class CancelAction extends Action2 {
 		const context = args[0] as IChatExecuteActionContext | undefined;
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+
+    // Save current session target before clearing
+    const currentSessionTarget = widget.input.sessionTypePickerDelegate?.getActiveSessionProvider();
 		if (!widget) {
 			return;
 		}
@@ -915,6 +934,9 @@ export class CancelEdit extends Action2 {
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+
+    // Save current session target before clearing
+    const currentSessionTarget = widget.input.sessionTypePickerDelegate?.getActiveSessionProvider();
 		if (!widget) {
 			return;
 		}
