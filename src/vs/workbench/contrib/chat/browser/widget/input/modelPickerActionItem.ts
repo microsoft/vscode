@@ -29,6 +29,7 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
+	getAllModels(): ILanguageModelChatMetadataAndIdentifier[];
 }
 
 type ChatModelChangeClassification = {
@@ -43,14 +44,54 @@ type ChatModelChangeEvent = {
 	toModel: string | TelemetryTrustedValue<string>;
 };
 
+const organizationDisabledModels = [
+	{ id: 'claude-opus-4.5', label: localize('chat.modelPicker.claudeOpus45', "Claude Opus 4.5") },
+	{ id: 'claude-sonnet-4.5', label: localize('chat.modelPicker.claudeSonnet45', "Claude Sonnet 4.5") },
+	{ id: 'claude-haiku-4.5', label: localize('chat.modelPicker.claudeHaiku45', "Claude Haiku 4.5") },
+	{ id: 'gpt-5.2', label: localize('chat.modelPicker.gpt52', "GPT-5.2") },
+	{ id: 'gpt-5.2-codex', label: localize('chat.modelPicker.gpt52Codex', "GPT-5.2-Codex") },
+	{ id: 'gemini-3-pro', label: localize('chat.modelPicker.gemini3Pro', "Gemini 3 Pro") },
+	{ id: 'gemini-3-flash', label: localize('chat.modelPicker.gemini3Flash', "Gemini 3 Flash") },
+];
 
-function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService, pickerOptions: IChatInputPickerOptions): IActionWidgetDropdownActionProvider {
+const organizationDisabledCategory = {
+	label: localize('chat.modelPicker.disabledByOrganization', "Disabled by your organization"),
+	order: DEFAULT_MODEL_PICKER_CATEGORY.order + 1,
+	showHeader: true
+};
+
+function getOrganizationDisabledActions(delegate: IModelPickerDelegate, pickerOptions: IChatInputPickerOptions, chatEntitlementService: IChatEntitlementService): IActionWidgetDropdownAction[] {
+	if (chatEntitlementService.entitlement !== ChatEntitlement.Business && chatEntitlementService.entitlement !== ChatEntitlement.Enterprise) {
+		return [];
+	}
+
+	const availableModelIds = new Set(delegate.getAllModels().map(model => model.metadata.id));
+	const disabledModels = organizationDisabledModels.filter(model => !availableModelIds.has(model.id));
+	if (disabledModels.length === 0) {
+		return [];
+	}
+
+	return disabledModels.map(model => ({
+		id: `disabled.${model.id}`,
+		enabled: false,
+		checked: false,
+		category: organizationDisabledCategory,
+		class: undefined,
+		tooltip: localize('chat.modelPicker.disabledByOrganization.tooltip', "Disabled by your organization"),
+		label: model.label,
+		hover: { content: localize('chat.modelPicker.disabledByOrganization.tooltip', "Disabled by your organization"), position: pickerOptions.hoverPosition },
+		run: () => { }
+	} satisfies IActionWidgetDropdownAction));
+}
+
+function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService, pickerOptions: IChatInputPickerOptions, chatEntitlementService: IChatEntitlementService): IActionWidgetDropdownActionProvider {
 	return {
 		getActions: () => {
 			const models = delegate.getModels();
+			const actions: IActionWidgetDropdownAction[] = [];
 			if (models.length === 0) {
 				// Show a fake "Auto" entry when no models are available
-				return [{
+				actions.push({
 					id: 'auto',
 					enabled: true,
 					checked: true,
@@ -60,31 +101,36 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, te
 					label: localize('chat.modelPicker.auto', "Auto"),
 					hover: { content: localize('chat.modelPicker.auto.description', "Automatically selects the best model for your task based on capacity."), position: pickerOptions.hoverPosition },
 					run: () => { }
-				} satisfies IActionWidgetDropdownAction];
+				} satisfies IActionWidgetDropdownAction);
+			} else {
+				actions.push(...models.map(model => {
+					const hoverContent = model.metadata.tooltip;
+					return {
+						id: model.metadata.id,
+						enabled: true,
+						icon: model.metadata.statusIcon,
+						checked: model.identifier === delegate.currentModel.get()?.identifier,
+						category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
+						class: undefined,
+						description: model.metadata.multiplier ?? model.metadata.detail,
+						tooltip: hoverContent ? '' : model.metadata.name,
+						hover: hoverContent ? { content: hoverContent, position: pickerOptions.hoverPosition } : undefined,
+						label: model.metadata.name,
+						run: () => {
+							const previousModel = delegate.currentModel.get();
+							telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
+								fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
+								toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown'
+							});
+							delegate.setModel(model);
+						}
+					} satisfies IActionWidgetDropdownAction;
+				}));
 			}
-			return models.map(model => {
-				const hoverContent = model.metadata.tooltip;
-				return {
-					id: model.metadata.id,
-					enabled: true,
-					icon: model.metadata.statusIcon,
-					checked: model.identifier === delegate.currentModel.get()?.identifier,
-					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
-					class: undefined,
-					description: model.metadata.multiplier ?? model.metadata.detail,
-					tooltip: hoverContent ? '' : model.metadata.name,
-					hover: hoverContent ? { content: hoverContent, position: pickerOptions.hoverPosition } : undefined,
-					label: model.metadata.name,
-					run: () => {
-						const previousModel = delegate.currentModel.get();
-						telemetryService.publicLog2<ChatModelChangeEvent, ChatModelChangeClassification>('chat.modelChange', {
-							fromModel: previousModel?.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(previousModel.identifier) : 'unknown',
-							toModel: model.metadata.vendor === 'copilot' ? new TelemetryTrustedValue(model.identifier) : 'unknown'
-						});
-						delegate.setModel(model);
-					}
-				} satisfies IActionWidgetDropdownAction;
-			});
+
+			actions.push(...getOrganizationDisabledActions(delegate, pickerOptions, chatEntitlementService));
+
+			return actions;
 		}
 	};
 }
@@ -166,7 +212,7 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		};
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
-			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, pickerOptions),
+			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, pickerOptions, chatEntitlementService),
 			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService),
 			reporter: { id: 'ChatModelPicker', name: 'ChatModelPicker', includeOptions: true },
 		};
