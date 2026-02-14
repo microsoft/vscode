@@ -201,6 +201,26 @@ suite('AllowedExtensionsService', () => {
 		await promise;
 	});
 
+
+	test('should block AI extension by id', () => {
+		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': true });
+		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
+		assert.strictEqual(testObject.isAllowed({ id: 'github.copilot', publisherDisplayName: 'GitHub' }) === true, false);
+	});
+
+	test('should block AI extension by display name', () => {
+		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': true });
+		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
+		assert.strictEqual(testObject.isAllowed(aGalleryExtension('helpful-tools', { displayName: 'Chat Assistant' })) === true, false);
+	});
+
+	test('should allow non AI extension when wildcard is enabled', () => {
+		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': true });
+		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
+		assert.strictEqual(testObject.isAllowed({ id: 'ms-python.python', publisherDisplayName: 'Microsoft' }), true);
+	});
+
+
 	function aProductService(extensionPublisherOrgs?: string[]): IProductService {
 		return {
 			_serviceBrand: undefined,

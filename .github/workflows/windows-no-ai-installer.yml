@@ -1,0 +1,61 @@
+name: Build Windows No-AI VS Code Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-installer:
+    name: Build Windows x64 Installer (.exe)
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        env:
+          npm_config_foreground_scripts: 'true'
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: npm ci
+
+      - name: Compile and download Electron
+        run: npm exec -- npm-run-all -lp compile "electron x64" download-builtin-extensions
+
+      - name: Build Windows x64 app package
+        run: npm run gulp -- vscode-win32-x64-min-ci
+
+      - name: Build Windows x64 inno updater
+        run: npm run gulp -- vscode-win32-x64-inno-updater
+
+      - name: Build Windows user setup installer
+        run: npm run gulp -- vscode-win32-x64-user-setup
+
+      - name: Rename installer with architecture and version
+        shell: pwsh
+        run: |
+          $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-x64\resources\app\package.json | ConvertFrom-Json
+          $Version = $PackageJson.version
+          Move-Item -Path .build\win32-x64\user-setup\VSCodeSetup.exe -Destination .build\win32-x64\user-setup\VSCodeUserSetup-x64-$Version.exe
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-no-ai-windows-x64-installer
+          path: .build/win32-x64/user-setup/VSCodeUserSetup-x64-*.exe
+          if-no-files-found: error
