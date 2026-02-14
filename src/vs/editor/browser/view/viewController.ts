@@ -183,7 +183,7 @@ export class ViewController {
 			lineTokens.getStandardTokenType(startIndex - 1) === StandardTokenType.String) {
 			startIndex--;
 		}
-		while (endIndex < lineTokens.getCount() &&
+		while (endIndex + 1 < lineTokens.getCount() &&
 			lineTokens.getStandardTokenType(endIndex + 1) === StandardTokenType.String) {
 			endIndex++;
 		}
