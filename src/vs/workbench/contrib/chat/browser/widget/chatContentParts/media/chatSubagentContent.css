@@ -1,0 +1,63 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Subagent-specific styles */
+.interactive-session .interactive-response .value .chat-thinking-fixed-mode.chat-subagent-part {
+
+	/* Collapsed + streaming: show only the last item with max-height */
+	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {
+		max-height: var(--chat-subagent-last-item-height, 200px);
+		overflow: hidden;
+		display: block;
+	}
+
+	/* Expanded: show all content, no max-height, no scrolling */
+	.chat-used-context-list.chat-thinking-collapsible {
+		max-height: none;
+		overflow: visible;
+	}
+
+	/* Prompt and result section styling */
+	.chat-subagent-section {
+		padding: 4px 12px 4px 18px;
+
+		.chat-used-context {
+			margin-bottom: 0px;
+			margin-left: 2px;
+			padding-left: 2px;
+		}
+
+		/* Hide the border for subagent prompt/result sections */
+		.chat-used-context-list {
+			border: none;
+			padding: 0px 2px;
+		}
+	}
+
+	.chat-thinking-tool-wrapper {
+
+		/* Hide the collapsible button's icon since we use the thinking icon */
+		.codicon:not(.chat-thinking-icon) {
+			display: none;
+		}
+
+		/* renable icons in confirmation widget */
+		.chat-confirmation-widget-container .codicon:not(.codicon-terminal) {
+			display: inline-flex;
+		}
+
+		/* Remove padding from tool invocation part when it displays a confirmation widget */
+		.chat-tool-invocation-part.has-confirmation {
+			padding: 4px;
+		}
+
+		.chat-collapsible-markdown-content {
+			.rendered-markdown {
+				font-size: var(--vscode-chat-font-size-body-s);
+				line-height: 1.5em;
+			}
+		}
+	}
+}

@@ -17,6 +17,7 @@ import { GitHubBranchProtectionProviderManager } from './branchProtection.js';
 import { GitHubCanonicalUriProvider } from './canonicalUriProvider.js';
 import { VscodeDevShareProvider } from './shareProviders.js';
 import { GitHubSourceControlHistoryItemDetailsProvider } from './historyItemDetailsProvider.js';
+import { OctokitService } from './auth.js';
 
 export function activate(context: ExtensionContext): void {
 	const disposables: Disposable[] = [];
@@ -35,8 +36,11 @@ export function activate(context: ExtensionContext): void {
 	const telemetryReporter = new TelemetryReporter(aiKey);
 	disposables.push(telemetryReporter);
 
+	const octokitService = new OctokitService();
+	disposables.push(octokitService);
+
 	disposables.push(initializeGitBaseExtension());
-	disposables.push(initializeGitExtension(context, telemetryReporter, logger));
+	disposables.push(initializeGitExtension(context, octokitService, telemetryReporter, logger));
 }
 
 function initializeGitBaseExtension(): Disposable {
@@ -84,7 +88,7 @@ function setGitHubContext(gitAPI: API, disposables: DisposableStore) {
 	}
 }
 
-function initializeGitExtension(context: ExtensionContext, telemetryReporter: TelemetryReporter, logger: LogOutputChannel): Disposable {
+function initializeGitExtension(context: ExtensionContext, octokitService: OctokitService, telemetryReporter: TelemetryReporter, logger: LogOutputChannel): Disposable {
 	const disposables = new DisposableStore();
 
 	let gitExtension = extensions.getExtension<GitExtension>('vscode.git');
@@ -98,10 +102,10 @@ function initializeGitExtension(context: ExtensionContext, telemetryReporter: Te
 
 						disposables.add(registerCommands(gitAPI));
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
-						disposables.add(new GitHubBranchProtectionProviderManager(gitAPI, context.globalState, logger, telemetryReporter));
+						disposables.add(new GitHubBranchProtectionProviderManager(gitAPI, context.globalState, octokitService, logger, telemetryReporter));
 						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler(telemetryReporter)));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
-						disposables.add(gitAPI.registerSourceControlHistoryItemDetailsProvider(new GitHubSourceControlHistoryItemDetailsProvider(gitAPI, logger)));
+						disposables.add(gitAPI.registerSourceControlHistoryItemDetailsProvider(new GitHubSourceControlHistoryItemDetailsProvider(gitAPI, octokitService, logger)));
 						disposables.add(new GitHubCanonicalUriProvider(gitAPI));
 						disposables.add(new VscodeDevShareProvider(gitAPI));
 						setGitHubContext(gitAPI, disposables);

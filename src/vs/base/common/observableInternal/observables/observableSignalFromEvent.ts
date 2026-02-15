@@ -8,12 +8,14 @@ import { transaction } from '../transaction.js';
 import { Event, IDisposable } from '../commonFacade/deps.js';
 import { DebugOwner, DebugNameData } from '../debugName.js';
 import { BaseObservable } from './baseObservable.js';
+import { DebugLocation } from '../debugLocation.js';
 
 export function observableSignalFromEvent(
 	owner: DebugOwner | string,
-	event: Event<any>
+	event: Event<any>,
+	debugLocation = DebugLocation.ofCaller()
 ): IObservable<void> {
-	return new FromEventObservableSignal(typeof owner === 'string' ? owner : new DebugNameData(owner, undefined, undefined), event);
+	return new FromEventObservableSignal(typeof owner === 'string' ? owner : new DebugNameData(owner, undefined, undefined), event, debugLocation);
 }
 
 class FromEventObservableSignal extends BaseObservable<void> {
@@ -22,9 +24,10 @@ class FromEventObservableSignal extends BaseObservable<void> {
 	public readonly debugName: string;
 	constructor(
 		debugNameDataOrName: DebugNameData | string,
-		private readonly event: Event<any>
+		private readonly event: Event<any>,
+		debugLocation: DebugLocation
 	) {
-		super();
+		super(debugLocation);
 		this.debugName = typeof debugNameDataOrName === 'string'
 			? debugNameDataOrName
 			: debugNameDataOrName.getDebugName(this) ?? 'Observable Signal From Event';

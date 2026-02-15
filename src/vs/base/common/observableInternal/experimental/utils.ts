@@ -22,7 +22,7 @@ export function latestChangedValue<T extends IObservable<any>[]>(owner: DebugOwn
 	}
 
 	let hasLastChangedValue = false;
-	let lastChangedValue: any = undefined;
+	let lastChangedValue: unknown = undefined;
 
 	const result = observableFromEvent<any, void>(owner, cb => {
 		const store = new DisposableStore();

@@ -116,7 +116,7 @@
 	transition-timing-function: ease-out;
 }
 
-.reduce-motion .monaco-pane-view .split-view-view {
+.monaco-reduce-motion .monaco-pane-view .split-view-view {
 	transition-duration: 0s !important;
 }
 

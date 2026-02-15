@@ -196,13 +196,13 @@ export class Selection extends Range {
 	/**
 	 * Test if `obj` is an `ISelection`.
 	 */
-	public static isISelection(obj: any): obj is ISelection {
+	public static isISelection(obj: unknown): obj is ISelection {
 		return (
-			obj
-			&& (typeof obj.selectionStartLineNumber === 'number')
-			&& (typeof obj.selectionStartColumn === 'number')
-			&& (typeof obj.positionLineNumber === 'number')
-			&& (typeof obj.positionColumn === 'number')
+			!!obj
+			&& (typeof (obj as ISelection).selectionStartLineNumber === 'number')
+			&& (typeof (obj as ISelection).selectionStartColumn === 'number')
+			&& (typeof (obj as ISelection).positionLineNumber === 'number')
+			&& (typeof (obj as ISelection).positionColumn === 'number')
 		);
 	}
 

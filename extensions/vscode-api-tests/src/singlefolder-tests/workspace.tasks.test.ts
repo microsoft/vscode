@@ -13,8 +13,6 @@ import { assertNoRpc } from '../utils';
 
 	suiteSetup(async () => {
 		const config = workspace.getConfiguration('terminal.integrated');
-		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
-		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
 		// Disable exit alerts as tests may trigger then and we're not testing the notifications
 		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 		// Canvas may cause problems when running in a container

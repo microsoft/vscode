@@ -23,7 +23,12 @@ let documentResource = settings.settings.source;
 
 const vscode = acquireVsCodeApi();
 
-const originalState = vscode.getState() ?? {} as any;
+interface State {
+	scrollProgress?: number;
+	resource?: string;
+}
+
+const originalState: State = vscode.getState() ?? {};
 const state = {
 	...originalState,
 	...getData<any>('data-state')
@@ -285,7 +290,7 @@ window.addEventListener('message', async event => {
 							domEval(childNode);
 						}
 					}
-				} as any);
+				});
 			}
 
 			++documentVersion;
@@ -301,6 +306,11 @@ window.addEventListener('message', async event => {
 
 document.addEventListener('dblclick', event => {
 	if (!settings.settings.doubleClickToSwitchToEditor) {
+		return;
+	}
+
+	// Disable double-click to switch editor for .copilotmd files
+	if (documentResource.endsWith('.copilotmd')) {
 		return;
 	}
 
@@ -432,9 +442,9 @@ function domEval(el: Element): void {
 		const trustedScript = node.innerText;
 		scriptTag.text = trustedScript as string;
 		for (const key of preservedScriptAttributes) {
-			const val = node.getAttribute && node.getAttribute(key);
+			const val = node.getAttribute?.(key);
 			if (val) {
-				scriptTag.setAttribute(key, val as any);
+				scriptTag.setAttribute(key, val);
 			}
 		}
 

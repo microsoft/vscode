@@ -32,8 +32,9 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 
 	// --- config
 	readonly disableUpdates: boolean;
+	readonly isPortable: boolean;
 
-	// TODO@deepak1556 TODO@bpasero temporary until a real fix lands upstream
+	// TODO@deepak1556 temporary until a real fix lands upstream
 	readonly enableRDPDisplayTracking: boolean;
 
 	unsetSnapExportedVariables(): void;
@@ -55,6 +56,9 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get disableUpdates(): boolean { return !!this.args['disable-updates']; }
+
+	@memoize
+	get isPortable(): boolean { return !!process.env['VSCODE_PORTABLE']; }
 
 	@memoize
 	get crossOriginIsolated(): boolean { return !!this.args['enable-coi']; }

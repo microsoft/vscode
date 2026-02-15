@@ -10,7 +10,7 @@ import rimraf from 'rimraf';
 import es from 'event-stream';
 import rename from 'gulp-rename';
 import vfs from 'vinyl-fs';
-import * as ext from './extensions';
+import * as ext from './extensions.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import { Stream } from 'stream';
@@ -34,10 +34,10 @@ export interface IExtensionDefinition {
 	};
 }
 
-const root = path.dirname(path.dirname(__dirname));
-const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = <IExtensionDefinition[]>productjson.builtInExtensions || [];
-const webBuiltInExtensions = <IExtensionDefinition[]>productjson.webBuiltInExtensions || [];
+const root = path.dirname(path.dirname(import.meta.dirname));
+const productjson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
+const builtInExtensions = productjson.builtInExtensions as IExtensionDefinition[] || [];
+const webBuiltInExtensions = productjson.webBuiltInExtensions as IExtensionDefinition[] || [];
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 
@@ -181,7 +181,7 @@ export function getBuiltInExtensions(): Promise<void> {
 	});
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	getBuiltInExtensions().then(() => process.exit(0)).catch(err => {
 		console.error(err);
 		process.exit(1);

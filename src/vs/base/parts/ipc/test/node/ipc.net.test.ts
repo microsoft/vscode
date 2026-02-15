@@ -84,10 +84,12 @@ class Ether {
 	private _ba: Buffer[];
 
 	public get a(): Socket {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any>this._a;
 	}
 
 	public get b(): Socket {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any>this._b;
 	}
 
@@ -647,6 +649,7 @@ suite('WebSocketNodeSocket', () => {
 	async function testReading(frames: number[][], permessageDeflate: boolean): Promise<string> {
 		const disposables = new DisposableStore();
 		const socket = new FakeNodeSocket();
+		// eslint-disable-next-line local/code-no-any-casts
 		const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, permessageDeflate, null, false));
 
 		const barrier = new Barrier();
@@ -706,6 +709,47 @@ suite('WebSocketNodeSocket', () => {
 			];
 			const actual = await testReading(frames, true);
 			assert.deepStrictEqual(actual, 'Hello');
+		});
+
+		test('setRecordInflateBytes(false) clears and stops recording', async () => {
+			const disposables = new DisposableStore();
+			const socket = disposables.add(new FakeNodeSocket());
+			// eslint-disable-next-line local/code-no-any-casts
+			const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, true, null, true));
+
+			const compressedHelloFrame = [0xc1, 0x07, 0xf2, 0x48, 0xcd, 0xc9, 0xc9, 0x07, 0x00];
+			const waitForOneData = () => new Promise<VSBuffer>(resolve => {
+				const d = webSocket.onData(data => {
+					d.dispose();
+					resolve(data);
+				});
+			});
+
+			const firstPromise = waitForOneData();
+			socket.fireData(compressedHelloFrame);
+			const first = await firstPromise;
+			assert.strictEqual(fromCharCodeArray(fromUint8Array(first.buffer)), 'Hello');
+			assert.ok(webSocket.recordedInflateBytes.byteLength > 0);
+
+			webSocket.setRecordInflateBytes(false);
+			assert.strictEqual(webSocket.recordedInflateBytes.byteLength, 0);
+
+			const secondPromise = waitForOneData();
+			socket.fireData(compressedHelloFrame);
+			const second = await secondPromise;
+			assert.strictEqual(fromCharCodeArray(fromUint8Array(second.buffer)), 'Hello');
+			assert.strictEqual(webSocket.recordedInflateBytes.byteLength, 0);
+
+			webSocket.setRecordInflateBytes(true);
+			assert.strictEqual(webSocket.recordedInflateBytes.byteLength, 0);
+
+			const thirdPromise = waitForOneData();
+			socket.fireData(compressedHelloFrame);
+			const third = await thirdPromise;
+			assert.strictEqual(fromCharCodeArray(fromUint8Array(third.buffer)), 'Hello');
+			assert.ok(webSocket.recordedInflateBytes.byteLength > 0);
+
+			disposables.dispose();
 		});
 
 		test('A fragmented compressed text message', async () => {
@@ -779,6 +823,7 @@ suite('WebSocketNodeSocket', () => {
 
 		const disposables = new DisposableStore();
 		const socket = new FakeNodeSocket();
+		// eslint-disable-next-line local/code-no-any-casts
 		const webSocket = disposables.add(new WebSocketNodeSocket(<any>socket, false, null, false));
 
 		let receivedData: string = '';
