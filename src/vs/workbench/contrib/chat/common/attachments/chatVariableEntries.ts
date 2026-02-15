@@ -424,8 +424,11 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 		asStringImplicitContextValue !== null &&
 		(typeof asStringImplicitContextValue.value === 'string' || typeof asStringImplicitContextValue.value === 'undefined') &&
 		(typeof asStringImplicitContextValue.name === 'string' || typeof asStringImplicitContextValue.name === 'undefined') &&
+		(asStringImplicitContextValue.resourceUri === undefined || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
+		(typeof asStringImplicitContextValue.name === 'string' || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
 		(asStringImplicitContextValue.icon === undefined || ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon)) &&
-		URI.isUri(asStringImplicitContextValue.uri)
+		URI.isUri(asStringImplicitContextValue.uri) &&
+		typeof asStringImplicitContextValue.handle === 'number'
 	);
 }
 

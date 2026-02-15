@@ -263,6 +263,9 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
 	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .interactive-item-container .chat-footer-details.hidden {
@@ -297,18 +300,37 @@
 	border-color: var(--vscode-textBlockQuote-border);
 }
 
+.interactive-item-container .value .rendered-markdown strong {
+	font-weight: 600;
+}
+
 .interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
 	margin-bottom: 16px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+	border-collapse: separate;
+	border-spacing: 0;
+	border: 1px solid var(--vscode-chat-requestBorder);
 }
 
-.interactive-item-container .value .rendered-markdown table,
 .interactive-item-container .value .rendered-markdown table td,
 .interactive-item-container .value .rendered-markdown table th {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-collapse: collapse;
+	border-top: none;
+	border-left: none;
 	padding: 4px 6px;
+}
+
+.interactive-item-container .value .rendered-markdown table td:last-child,
+.interactive-item-container .value .rendered-markdown table th:last-child {
+	border-right: none;
+}
+
+.interactive-item-container .value .rendered-markdown table tr:last-child td,
+.interactive-item-container .value .rendered-markdown table tr:last-child th {
+	border-bottom: none;
 }
 
 .interactive-item-container .value .rendered-markdown a,
@@ -435,12 +457,14 @@
 	}
 
 	/* not ideal but I cannot query the last div with this class... */
-	.rendered-markdown:last-of-type > P > SPAN:empty {
+	.rendered-markdown:last-of-type > P > SPAN:empty,
+	.rendered-markdown:last-of-type > SPAN:empty {
 		display: inline-block;
 		width: 11px;
 	}
 
-	.rendered-markdown:last-of-type > P > SPAN:empty::after {
+	.rendered-markdown:last-of-type > P > SPAN:empty::after,
+	.rendered-markdown:last-of-type > SPAN:empty::after {
 		content: '';
 		white-space: nowrap;
 		overflow: hidden;
@@ -604,6 +628,10 @@
 .interactive-item-container .value .rendered-markdown ol {
 	/* Keep this in sync with the values for dedented codeblocks below */
 	padding-inline-start: 28px;
+}
+
+.interactive-item-container .value .rendered-markdown li {
+	margin: 4px 0;
 }
 
 /* NOTE- We want to dedent codeblocks in lists specifically to give them the full width. No more elegant way to do this, these values
@@ -787,9 +815,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 1;
 }
 
+/* Hide context usage widget in compact mode (quick chat) */
+.interactive-session .interactive-input-part.compact .chat-context-usage-container {
+	display: none;
+}
+
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
-.interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container {
+.interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container,
+.interactive-input-part:has(.chat-getting-started-tip-container > .chat-tip-widget) .chat-input-container {
 	/* Remove top border radius when editing session, todo list, or status widget is present */
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
@@ -1214,14 +1248,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
 	display: flex;
 	justify-content: space-between;
 	padding-bottom: 0;
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -2212,8 +2246,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
-	/* shimmer animation for working progress only */
-	&.working-progress:has(.codicon-loading) .rendered-markdown.progress-step > p {
+	/* hide spinner icon for shimmer progress, shimmer handles animation */
+	&.shimmer-progress > .codicon {
+		display: none;
+	}
+
+	/* shimmer animation for shimmer progress */
+	&.shimmer-progress .rendered-markdown.progress-step > p {
 		background: linear-gradient(
 			90deg,
 			var(--vscode-descriptionForeground) 0%,
@@ -2327,8 +2366,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none;
 	border: none;
 
-	.codicon.codicon-file-media {
+	.codicon.codicon-file-media, .codicon.codicon-warning {
 		font-size: 12px;
+		margin-right: 2px;
 	}
 }
 
@@ -2529,7 +2569,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		top: -13px;
 		right: 20px;
 		border-radius: 3px;
-		width: 28px;
 		height: 26px;
 	}
 
@@ -2546,7 +2585,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover:not(.expanded) .actions-container {
-		width: 22px;
 		height: 22px;
 	}
 
@@ -2555,11 +2593,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover:not(.expanded) .actions-container {
-
-		.action-label.codicon-discard,
-		.action-label.codicon-x,
-		.action-label.codicon-edit {
-			margin-top: 4px;
+		.action-label {
+			margin: 4px 2px 0;
 			padding: 3px 3px;
 		}
 	}
@@ -2845,5 +2880,76 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-attachments-show-more-button .chat-attached-context-custom-text {
 	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Pending request styles */
+.interactive-item-container.pending-request {
+	opacity: 0.7;
+
+	.request-hover {
+		top: -17px !important;
+	}
+}
+
+/* Drag handle for reordering pending messages */
+.interactive-item-container .chat-pending-drag-handle {
+	position: absolute;
+	left: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: grab;
+	opacity: 0;
+	transition: opacity 0.15s;
+	color: var(--vscode-descriptionForeground);
+	margin-top: -4px; /* visually center with overlaid top controls */
+}
+
+.interactive-item-container.pending-request:hover .chat-pending-drag-handle {
+	opacity: 1;
+}
+
+/* Dragging state */
+.interactive-item-container.chat-pending-dragging {
+	opacity: 0.4;
+}
+
+/* Insertion indicator */
+.chat-pending-insert-indicator {
+	position: absolute;
+	height: 2px;
+	background: var(--vscode-focusBorder);
+	pointer-events: none;
+	z-index: 100;
+	display: none;
+}
+
+.interactive-item-container .chat-request-status {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-xs);
+	margin-top: 2px;
+	text-align: right;
+}
+
+/* Pending divider styles */
+.interactive-item-container.pending-divider {
+	padding: 8px 16px;
+}
+
+.interactive-item-container.pending-divider .pending-divider-content {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.interactive-item-container.pending-divider .pending-divider-label {
+	font-size: var(--vscode-chat-font-size-body-xs);
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
 	color: var(--vscode-descriptionForeground);
 }

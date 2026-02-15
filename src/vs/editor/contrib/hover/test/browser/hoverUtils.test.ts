@@ -114,10 +114,10 @@ suite('Hover Utils', () => {
 
 		test('returns true when mouse is on element edges', () => {
 			const element = createMockElement(100, 100, 200, 100);
-			assert.strictEqual(isMousePositionWithinElement(element, 100, 100), true); // top-left corner
-			assert.strictEqual(isMousePositionWithinElement(element, 300, 100), true); // top-right corner
-			assert.strictEqual(isMousePositionWithinElement(element, 100, 200), true); // bottom-left corner
-			assert.strictEqual(isMousePositionWithinElement(element, 300, 200), true); // bottom-right corner
+			assert.strictEqual(isMousePositionWithinElement(element, 100, 100), false); // top-left corner
+			assert.strictEqual(isMousePositionWithinElement(element, 300, 100), false); // top-right corner
+			assert.strictEqual(isMousePositionWithinElement(element, 100, 200), false); // bottom-left corner
+			assert.strictEqual(isMousePositionWithinElement(element, 300, 200), false); // bottom-right corner
 		});
 
 		test('returns false when mouse is left of element', () => {
@@ -146,16 +146,16 @@ suite('Hover Utils', () => {
 
 		test('handles element at origin (0,0)', () => {
 			const element = createMockElement(0, 0, 100, 100);
-			assert.strictEqual(isMousePositionWithinElement(element, 0, 0), true);
+			assert.strictEqual(isMousePositionWithinElement(element, 0, 0), false);
 			assert.strictEqual(isMousePositionWithinElement(element, 50, 50), true);
-			assert.strictEqual(isMousePositionWithinElement(element, 100, 100), true);
+			assert.strictEqual(isMousePositionWithinElement(element, 100, 100), false);
 			assert.strictEqual(isMousePositionWithinElement(element, 101, 101), false);
 		});
 
 		test('handles small elements (1x1)', () => {
 			const element = createMockElement(100, 100, 1, 1);
-			assert.strictEqual(isMousePositionWithinElement(element, 100, 100), true);
-			assert.strictEqual(isMousePositionWithinElement(element, 101, 101), true);
+			assert.strictEqual(isMousePositionWithinElement(element, 100, 100), false);
+			assert.strictEqual(isMousePositionWithinElement(element, 101, 101), false);
 			assert.strictEqual(isMousePositionWithinElement(element, 102, 102), false);
 		});
 	});

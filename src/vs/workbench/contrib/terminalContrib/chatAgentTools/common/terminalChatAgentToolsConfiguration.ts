@@ -206,6 +206,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
@@ -534,11 +535,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				description: localize('terminalSandbox.networkSetting.deniedDomains', "Array of denied domains (checked first, takes precedence over allowedDomains)."),
 				items: { type: 'string' },
 				default: []
+			},
+			allowTrustedDomains: {
+				type: 'boolean',
+				description: localize('terminalSandbox.networkSetting.allowTrustedDomains', "When enabled, the Trusted Domains list is included in the allowed domains for network access."),
+				default: false
 			}
 		},
 		default: {
 			allowedDomains: [],
-			deniedDomains: []
+			deniedDomains: [],
+			allowTrustedDomains: false
 		},
 		tags: ['experimental'],
 		restricted: true,

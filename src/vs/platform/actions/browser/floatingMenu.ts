@@ -48,7 +48,7 @@ export class FloatingClickWidget extends Widget {
 }
 
 export abstract class AbstractFloatingClickMenu extends Disposable {
-	private readonly renderEmitter = new Emitter<FloatingClickWidget>();
+	private readonly renderEmitter = this._register(new Emitter<FloatingClickWidget>());
 	protected get onDidRender() { return this.renderEmitter.event; }
 	private readonly menu: IMenu;
 

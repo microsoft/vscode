@@ -29,7 +29,7 @@ enum ChatContributionPoint {
 	chatInstructions = 'chatInstructions',
 	chatAgents = 'chatAgents',
 	chatPromptFiles = 'chatPromptFiles',
-	chatSkills = 'chatSkills'
+	chatSkills = 'chatSkills',
 }
 
 function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
@@ -43,13 +43,17 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 				type: 'object',
 				defaultSnippets: [{
 					body: {
-						path: './relative/path/to/file.md',
+						path: point === ChatContributionPoint.chatSkills
+							? './relative/path/to/skill-name/SKILL.md'
+							: './relative/path/to/file.md',
 					}
 				}],
 				required: ['path'],
 				properties: {
 					path: {
-						description: localize('chatContribution.property.path', 'Path to the file relative to the extension root.'),
+						description: point === ChatContributionPoint.chatSkills
+							? localize('chatContribution.property.path.skills', 'Path to the SKILL.md file relative to the extension root. The folder name must match the "name" property in SKILL.md.')
+							: localize('chatContribution.property.path', 'Path to the file relative to the extension root.'),
 						type: 'string'
 					},
 					name: {
@@ -79,6 +83,10 @@ function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 		case ChatContributionPoint.chatInstructions: return PromptsType.instructions;
 		case ChatContributionPoint.chatAgents: return PromptsType.agent;
 		case ChatContributionPoint.chatSkills: return PromptsType.skill;
+		default: {
+			const exhaustiveCheck: never = contributionPoint;
+			throw new Error(`Unknown contribution point: ${exhaustiveCheck}`);
+		}
 	}
 }
 
@@ -148,16 +156,17 @@ CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): 
 	const promptsService = accessor.get(IPromptsService);
 
 	// Get extension prompt files for all prompt types in parallel
-	const [agents, instructions, prompts, skills] = await Promise.all([
+	const [agents, instructions, prompts, skills, hooks] = await Promise.all([
 		promptsService.listPromptFiles(PromptsType.agent, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.instructions, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.prompt, CancellationToken.None),
 		promptsService.listPromptFiles(PromptsType.skill, CancellationToken.None),
+		promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None),
 	]);
 
 	// Combine all files and collect extension-contributed ones
 	const result: IExtensionPromptFileResult[] = [];
-	for (const file of [...agents, ...instructions, ...prompts, ...skills]) {
+	for (const file of [...agents, ...instructions, ...prompts, ...skills, ...hooks]) {
 		if (file.storage === PromptsStorage.extension) {
 			result.push({ uri: file.uri.toJSON(), type: file.type });
 		}

@@ -1698,6 +1698,7 @@ class SCMInputWidgetEditorOptions {
 
 	dispose(): void {
 		this._disposables.dispose();
+		this._onDidChange.dispose();
 	}
 
 }
@@ -3007,6 +3008,8 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override dispose(): void {
+		this._onDidChangeViewMode.dispose();
+		this._onDidChangeViewSortKey.dispose();
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
 		this.items.dispose();

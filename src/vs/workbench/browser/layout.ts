@@ -22,7 +22,7 @@ import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, Titl
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
-import { EditorGroupLayout, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { Part } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
@@ -380,7 +380,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					showEditorIfHidden();
 				}
 			}));
-			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
+			this._register(this.editorGroupService.mainPart.onDidActivateGroup(e => {
+				if (e.reason !== GroupActivationReason.PART_CLOSE) {
+					showEditorIfHidden(); // only show unless a modal/auxiliary part closes
+				}
+			}));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode
 			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));

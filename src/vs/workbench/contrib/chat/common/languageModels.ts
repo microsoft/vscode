@@ -176,6 +176,7 @@ export interface ILanguageModelChatMetadata {
 	readonly tooltip?: string;
 	readonly detail?: string;
 	readonly multiplier?: string;
+	readonly multiplierNumeric?: number;
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
@@ -194,6 +195,12 @@ export interface ILanguageModelChatMetadata {
 		readonly agentMode?: boolean;
 		readonly editTools?: ReadonlyArray<string>;
 	};
+	/**
+	 * When set, this model is only shown in the model picker for the specified chat session type.
+	 * Models with this property are excluded from the general model picker and only appear
+	 * when the user is in a session matching this type.
+	 */
+	readonly targetChatSessionType?: string;
 }
 
 export namespace ILanguageModelChatMetadata {
@@ -218,6 +225,36 @@ export interface ILanguageModelChatResponse {
 	stream: AsyncIterable<IChatResponsePart | IChatResponsePart[]>;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	result: Promise<any>;
+}
+
+export async function getTextResponseFromStream(response: ILanguageModelChatResponse): Promise<string> {
+	let responseText = '';
+	const streaming = (async () => {
+		if (!response?.stream) {
+			return;
+		}
+		for await (const part of response.stream) {
+			if (Array.isArray(part)) {
+				for (const item of part) {
+					if (item.type === 'text') {
+						responseText += item.value;
+					}
+				}
+			} else if (part.type === 'text') {
+				responseText += part.value;
+			}
+		}
+	})();
+
+	try {
+		await Promise.all([response.result, streaming]);
+		return responseText;
+	} catch (err) {
+		if (responseText) {
+			return responseText;
+		}
+		throw err;
+	}
 }
 
 export interface ILanguageModelChatProvider {
@@ -300,7 +337,7 @@ export interface ILanguageModelsService {
 	/**
 	 * Find a model by its qualified name. The qualified name is what is used in prompt and agent files and is in the format "Model Name (Vendor)".
 	 */
-	lookupLanguageModelByQualifiedName(qualifiedName: string): ILanguageModelChatMetadata | undefined;
+	lookupLanguageModelByQualifiedName(qualifiedName: string): ILanguageModelChatMetadataAndIdentifier | undefined;
 
 	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[];
 
@@ -642,10 +679,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return model;
 	}
 
-	lookupLanguageModelByQualifiedName(referenceName: string): ILanguageModelChatMetadata | undefined {
-		for (const model of this._modelCache.values()) {
+	lookupLanguageModelByQualifiedName(referenceName: string): ILanguageModelChatMetadataAndIdentifier | undefined {
+		for (const [identifier, model] of this._modelCache.entries()) {
 			if (ILanguageModelChatMetadata.matchesQualifiedName(referenceName, model)) {
-				return model;
+				return { metadata: model, identifier };
 			}
 		}
 		return undefined;

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Browser } from 'playwright';
+import { Page } from 'playwright';
 import { TestContext } from './context.js';
 import { GitHubAuth } from './githubAuth.js';
 import { UITest } from './uiTest.js';
@@ -84,7 +84,7 @@ export function setup(context: TestContext) {
 		const cliDataDir = context.createTempDir();
 		const test = new UITest(context);
 		const auth = new GitHubAuth(context);
-		let browser: Browser | undefined;
+		let page: Page | undefined;
 
 		context.log('Logging out of Dev Tunnel to ensure fresh authentication');
 		context.run(entryPoint, '--cli-data-dir', cliDataDir, 'tunnel', 'user', 'logout');
@@ -103,8 +103,9 @@ export function setup(context: TestContext) {
 				const deviceCode = /To grant access .* use code ([A-Z0-9-]+)/.exec(line)?.[1];
 				if (deviceCode) {
 					context.log(`Device code detected: ${deviceCode}, starting device flow authentication`);
-					browser = await context.launchBrowser();
-					await auth.runDeviceCodeFlow(browser, deviceCode);
+					const browser = await context.launchBrowser();
+					page = await browser.newPage();
+					await auth.runDeviceCodeFlow(page, deviceCode);
 					return;
 				}
 
@@ -114,12 +115,11 @@ export function setup(context: TestContext) {
 					const url = context.getTunnelUrl(tunnelUrl, test.workspaceDir);
 					context.log(`CLI started successfully with tunnel URL: ${url}`);
 
-					if (!browser) {
+					if (!page) {
 						throw new Error('Browser instance is not available');
 					}
 
 					context.log(`Navigating to ${url}`);
-					const page = await context.getPage(browser.newPage());
 					await page.goto(url);
 
 					context.log('Waiting for the workbench to load');
@@ -131,7 +131,7 @@ export function setup(context: TestContext) {
 					context.log('Clicking Allow on confirmation dialog');
 					await page.getByRole('button', { name: 'Allow' }).click();
 
-					await auth.runUserWebFlow(page);
+					await auth.runAuthorizeFlow(page);
 
 					context.log('Waiting for connection to be established');
 					await page.getByRole('button', { name: `remote ${tunnelId}` }).waitFor({ timeout: 5 * 60 * 1000 });
@@ -139,7 +139,7 @@ export function setup(context: TestContext) {
 					await test.run(page);
 
 					context.log('Closing browser');
-					await browser.close();
+					await page.context().browser()?.close();
 
 					test.validate();
 					return true;

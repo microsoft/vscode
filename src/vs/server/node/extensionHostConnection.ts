@@ -94,6 +94,7 @@ class ConnectionData {
 			skipWebSocketFrames = false;
 			permessageDeflate = this.socket.permessageDeflate;
 			inflateBytes = this.socket.recordedInflateBytes;
+			this.socket.setRecordInflateBytes(false);
 		}
 
 		return {
@@ -133,6 +134,9 @@ export class ExtensionHostConnection extends Disposable {
 		this._remoteAddress = remoteAddress;
 		this._extensionHostProcess = null;
 		this._connectionData = new ConnectionData(socket, initialDataChunk);
+		if (!this._canSendSocket && socket instanceof WebSocketNodeSocket) {
+			socket.setRecordInflateBytes(false);
+		}
 
 		this._log(`New connection established.`);
 	}
@@ -209,6 +213,9 @@ export class ExtensionHostConnection extends Disposable {
 	public acceptReconnection(remoteAddress: string, _socket: NodeSocket | WebSocketNodeSocket, initialDataChunk: VSBuffer): void {
 		this._remoteAddress = remoteAddress;
 		this._log(`The client has reconnected.`);
+		if (!this._canSendSocket && _socket instanceof WebSocketNodeSocket) {
+			_socket.setRecordInflateBytes(false);
+		}
 		const connectionData = new ConnectionData(_socket, initialDataChunk);
 
 		if (!this._extensionHostProcess) {

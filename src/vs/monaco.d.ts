@@ -2323,6 +2323,12 @@ declare namespace monaco.editor {
 		 */
 		getCustomLineHeightsDecorations(ownerId?: number): IModelDecoration[];
 		/**
+		 * Gets all the decorations that contain custom line heights.
+		 * @param range The range to search in
+		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 */
+		getCustomLineHeightsDecorationsInRange(range: Range, ownerId?: number): IModelDecoration[];
+		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
 		normalizeIndentation(str: string): string;
@@ -3645,7 +3651,7 @@ declare namespace monaco.editor {
 		 * Enable quick suggestions (shadow suggestions)
 		 * Defaults to true.
 		 */
-		quickSuggestions?: boolean | IQuickSuggestionsOptions;
+		quickSuggestions?: boolean | QuickSuggestionsValue | IQuickSuggestionsOptions;
 		/**
 		 * Quick suggestions show delay (in ms)
 		 * Defaults to 10 (ms)
@@ -4587,7 +4593,7 @@ declare namespace monaco.editor {
 		cycle?: boolean;
 	}
 
-	export type QuickSuggestionsValue = 'on' | 'inline' | 'off';
+	export type QuickSuggestionsValue = 'on' | 'inline' | 'off' | 'offWhenInlineCompletions';
 
 	/**
 	 * Configuration options for quick suggestions
@@ -5374,7 +5380,7 @@ declare namespace monaco.editor {
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		inlayHints: IEditorOption<EditorOption.inlayHints, Readonly<Required<IEditorInlayHintsOptions>>>;
-		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;
+		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'inline' | 'top' | 'bottom'>;
 		smartSelect: IEditorOption<EditorOption.smartSelect, Readonly<Required<ISmartSelectOptions>>>;
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;

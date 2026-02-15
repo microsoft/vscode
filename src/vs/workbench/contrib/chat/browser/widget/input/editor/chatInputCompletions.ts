@@ -197,12 +197,18 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				if (widget.lockedAgentId) {
+				if (widget.lockedAgentId && !widget.attachmentCapabilities.supportsPromptAttachments) {
+					return null;
+				}
+
+				// Filter out commands that are not user-invocable (hidden from / menu)
+				const userInvocableCommands = promptCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
+				if (userInvocableCommands.length === 0) {
 					return null;
 				}
 
 				return {
-					suggestions: promptCommands.map((c, i): CompletionItem => {
+					suggestions: userInvocableCommands.map((c, i): CompletionItem => {
 						const label = `/${c.name}`;
 						const description = c.description;
 						return {
@@ -356,6 +362,7 @@ class AgentCompletions extends Disposable {
 
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
+					.filter(a => !chatSessionAgentIds.has(a.id))
 					.map(agent => {
 						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						const detail = agent.description;

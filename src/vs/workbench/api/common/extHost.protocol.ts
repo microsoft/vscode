@@ -1475,6 +1475,8 @@ export interface ExtHostChatAgentsShape2 {
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
+	$setYieldRequested(requestId: string): void;
+	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
 }
 export interface IChatParticipantMetadata {
 	participant: string;
@@ -2598,6 +2600,14 @@ export interface ExtHostTelemetryShape {
 	$onDidChangeTelemetryLevel(level: TelemetryLevel): void;
 }
 
+export interface MainThreadMeteredConnectionShape extends IDisposable {
+}
+
+export interface ExtHostMeteredConnectionShape {
+	$initializeIsConnectionMetered(isMetered: boolean): void;
+	$onDidChangeIsConnectionMetered(isMetered: boolean): void;
+}
+
 export interface ITerminalLinkDto {
 	/** The ID of the link to enable activation and disposal. */
 	id: number;
@@ -2909,6 +2919,31 @@ export interface ExtHostWindowShape {
 	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void;
 }
 
+export type PowerSystemIdleState = 'active' | 'idle' | 'locked' | 'unknown';
+export type PowerThermalState = 'unknown' | 'nominal' | 'fair' | 'serious' | 'critical';
+export type PowerSaveBlockerType = 'prevent-app-suspension' | 'prevent-display-sleep';
+
+export interface MainThreadPowerShape extends IDisposable {
+	$getSystemIdleState(idleThreshold: number): Promise<PowerSystemIdleState>;
+	$getSystemIdleTime(): Promise<number>;
+	$getCurrentThermalState(): Promise<PowerThermalState>;
+	$isOnBatteryPower(): Promise<boolean>;
+	$startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number>;
+	$stopPowerSaveBlocker(id: number): Promise<boolean>;
+	$isPowerSaveBlockerStarted(id: number): Promise<boolean>;
+}
+
+export interface ExtHostPowerShape {
+	$onDidSuspend(): void;
+	$onDidResume(): void;
+	$onDidChangeOnBatteryPower(isOnBattery: boolean): void;
+	$onDidChangeThermalState(state: PowerThermalState): void;
+	$onDidChangeSpeedLimit(limit: number): void;
+	$onWillShutdown(): void;
+	$onDidLockScreen(): void;
+	$onDidUnlockScreen(): void;
+}
+
 export interface ExtHostLogLevelServiceShape {
 	$setLogLevel(level: LogLevel, resource?: UriComponents): void;
 }
@@ -3197,8 +3232,6 @@ export interface IStartMcpOptions {
 	errorOnUserInteraction?: boolean;
 }
 
-
-
 export interface ExtHostMcpShape {
 	$substituteVariables(workspaceFolder: UriComponents | undefined, value: McpServerLaunch.Serialized): Promise<McpServerLaunch.Serialized>;
 	$resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined>;
@@ -3247,6 +3280,8 @@ export interface MainThreadMcpShape {
 	$getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$getTokenForProviderId(id: number, providerId: string, scopes: string[], options?: IMcpAuthenticationOptions): Promise<string | undefined>;
 	$logMcpAuthSetup(data: IAuthMetadataSource): void;
+	$startMcpGateway(): Promise<{ address: UriComponents; gatewayId: string } | undefined>;
+	$disposeMcpGateway(gatewayId: string): void;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {
@@ -3350,6 +3385,7 @@ export type IChatSessionHistoryItemDto = {
 	participant: string;
 	command?: string;
 	variableData?: Dto<IChatRequestVariableData>;
+	modelId?: string;
 } | {
 	type: 'response';
 	parts: IChatProgressDto[];
@@ -3380,11 +3416,18 @@ export interface IChatSessionProviderOptions {
 	optionGroups?: IChatSessionProviderOptionGroup[];
 }
 
+export interface IChatSessionItemsChange {
+	readonly addedOrUpdated: readonly Dto<IChatSessionItem>[];
+	readonly removed: readonly UriComponents[];
+}
+
 export interface MainThreadChatSessionsShape extends IDisposable {
-	$registerChatSessionItemProvider(handle: number, chatSessionType: string): void;
-	$unregisterChatSessionItemProvider(handle: number): void;
-	$onDidChangeChatSessionItems(handle: number): void;
-	$onDidCommitChatSessionItem(handle: number, original: UriComponents, modified: UriComponents): void;
+	$registerChatSessionItemController(controllerHandle: number, chatSessionType: string): void;
+	$unregisterChatSessionItemController(controllerHandle: number): void;
+	$updateChatSessionItems(controllerHandle: number, change: IChatSessionItemsChange): Promise<void>;
+	$addOrUpdateChatSessionItem(controllerHandle: number, item: Dto<IChatSessionItem>): Promise<void>;
+	$onDidChangeChatSessionItems(controllerHandle: number): void;
+	$onDidCommitChatSessionItem(controllerHandle: number, original: UriComponents, modified: UriComponents): void;
 	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
 	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto2>): void;
@@ -3396,7 +3439,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 }
 
 export interface ExtHostChatSessionsShape {
-	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
+	$refreshChatSessionItems(providerHandle: number, token: CancellationToken): Promise<void>;
 	$onDidChangeChatSessionItemState(providerHandle: number, sessionResource: UriComponents, archived: boolean): void;
 
 	$provideChatSessionContent(providerHandle: number, sessionResource: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
@@ -3448,6 +3491,7 @@ export const MainContext = {
 	MainThreadStorage: createProxyIdentifier<MainThreadStorageShape>('MainThreadStorage'),
 	MainThreadSpeech: createProxyIdentifier<MainThreadSpeechShape>('MainThreadSpeechProvider'),
 	MainThreadTelemetry: createProxyIdentifier<MainThreadTelemetryShape>('MainThreadTelemetry'),
+	MainThreadMeteredConnection: createProxyIdentifier<MainThreadMeteredConnectionShape>('MainThreadMeteredConnection'),
 	MainThreadTerminalService: createProxyIdentifier<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
 	MainThreadTerminalShellIntegration: createProxyIdentifier<MainThreadTerminalShellIntegrationShape>('MainThreadTerminalShellIntegration'),
 	MainThreadWebviews: createProxyIdentifier<MainThreadWebviewsShape>('MainThreadWebviews'),
@@ -3466,6 +3510,7 @@ export const MainContext = {
 	MainThreadShare: createProxyIdentifier<MainThreadShareShape>('MainThreadShare'),
 	MainThreadTask: createProxyIdentifier<MainThreadTaskShape>('MainThreadTask'),
 	MainThreadWindow: createProxyIdentifier<MainThreadWindowShape>('MainThreadWindow'),
+	MainThreadPower: createProxyIdentifier<MainThreadPowerShape>('MainThreadPower'),
 	MainThreadLabelService: createProxyIdentifier<MainThreadLabelServiceShape>('MainThreadLabelService'),
 	MainThreadNotebook: createProxyIdentifier<MainThreadNotebookShape>('MainThreadNotebook'),
 	MainThreadNotebookDocuments: createProxyIdentifier<MainThreadNotebookDocumentsShape>('MainThreadNotebookDocumentsShape'),
@@ -3521,6 +3566,7 @@ export const ExtHostContext = {
 	ExtHostTask: createProxyIdentifier<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createProxyIdentifier<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createProxyIdentifier<ExtHostWindowShape>('ExtHostWindow'),
+	ExtHostPower: createProxyIdentifier<ExtHostPowerShape>('ExtHostPower'),
 	ExtHostWebviews: createProxyIdentifier<ExtHostWebviewsShape>('ExtHostWebviews'),
 	ExtHostWebviewPanels: createProxyIdentifier<ExtHostWebviewPanelsShape>('ExtHostWebviewPanels'),
 	ExtHostCustomEditors: createProxyIdentifier<ExtHostCustomEditorsShape>('ExtHostCustomEditors'),
@@ -3560,6 +3606,7 @@ export const ExtHostContext = {
 	ExtHostTimeline: createProxyIdentifier<ExtHostTimelineShape>('ExtHostTimeline'),
 	ExtHostTesting: createProxyIdentifier<ExtHostTestingShape>('ExtHostTesting'),
 	ExtHostTelemetry: createProxyIdentifier<ExtHostTelemetryShape>('ExtHostTelemetry'),
+	ExtHostMeteredConnection: createProxyIdentifier<ExtHostMeteredConnectionShape>('ExtHostMeteredConnection'),
 	ExtHostLocalization: createProxyIdentifier<ExtHostLocalizationShape>('ExtHostLocalization'),
 	ExtHostMcp: createProxyIdentifier<ExtHostMcpShape>('ExtHostMcp'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),

@@ -253,7 +253,7 @@ suite('ChatQuestionCarouselPart', () => {
 			// Use dedicated class selector for stability
 			const nextButton = widget.domNode.querySelector('.chat-question-nav-next') as HTMLElement;
 			assert.ok(nextButton, 'Next button should exist');
-			assert.strictEqual(nextButton.title, 'Submit', 'Next button should have Submit title on last question');
+			assert.strictEqual(nextButton.getAttribute('aria-label'), 'Submit', 'Next button should have Submit aria-label on last question');
 		});
 	});
 
@@ -383,17 +383,26 @@ suite('ChatQuestionCarouselPart', () => {
 					type: 'singleSelect',
 					title: 'Choose one',
 					options: [
-						{ id: 'a', label: 'Option A', value: 'a' }
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
 					]
 				}
 			]);
 			createWidget(carousel);
 
-			const listItem = widget.domNode.querySelector('.chat-question-list-item') as HTMLElement;
-			assert.ok(listItem, 'List item should exist');
-			assert.strictEqual(listItem.getAttribute('role'), 'option');
-			assert.ok(listItem.id, 'List item should have an id');
-			assert.strictEqual(listItem.getAttribute('aria-selected'), 'false', 'Unselected item should have aria-selected=false');
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item');
+			assert.strictEqual(listItems.length, 2, 'Should have 2 list items');
+
+			// First item should be auto-selected (no default value, so first is selected)
+			const firstItem = listItems[0] as HTMLElement;
+			assert.strictEqual(firstItem.getAttribute('role'), 'option');
+			assert.ok(firstItem.id, 'List item should have an id');
+			assert.strictEqual(firstItem.getAttribute('aria-selected'), 'true', 'First item should be auto-selected');
+
+			// Second item should not be selected
+			const secondItem = listItems[1] as HTMLElement;
+			assert.strictEqual(secondItem.getAttribute('role'), 'option');
+			assert.strictEqual(secondItem.getAttribute('aria-selected'), 'false', 'Unselected item should have aria-selected=false');
 		});
 	});
 

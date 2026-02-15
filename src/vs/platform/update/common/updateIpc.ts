@@ -23,7 +23,7 @@ export class UpdateChannel implements IServerChannel {
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
-			case 'downloadUpdate': return this.service.downloadUpdate();
+			case 'downloadUpdate': return this.service.downloadUpdate(arg);
 			case 'applyUpdate': return this.service.applyUpdate();
 			case 'quitAndInstall': return this.service.quitAndInstall();
 			case '_getInitialState': return Promise.resolve(this.service.state);
@@ -60,8 +60,8 @@ export class UpdateChannelClient implements IUpdateService {
 		return this.channel.call('checkForUpdates', explicit);
 	}
 
-	downloadUpdate(): Promise<void> {
-		return this.channel.call('downloadUpdate');
+	downloadUpdate(explicit: boolean): Promise<void> {
+		return this.channel.call('downloadUpdate', explicit);
 	}
 
 	applyUpdate(): Promise<void> {
