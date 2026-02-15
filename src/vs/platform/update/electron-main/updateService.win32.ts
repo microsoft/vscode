@@ -56,11 +56,6 @@ interface IGitHubReleaseAsset {
 	browser_download_url: string;
 }
 
-interface IGitHubRelease {
-	tag_name: string;
-	assets?: IGitHubReleaseAsset[];
-}
-
 interface IGitHubReleaseAsset {
 	name: string;
 	browser_download_url: string;
@@ -158,120 +153,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		return createUpdateURL(this.productService.updateUrl!, platform, quality, commit, options);
-	}
-
-	private isGitHubReleasesUpdateUrl(url: string): boolean {
-		return url.includes('api.github.com/repos/');
-	}
-
-	private async getGitHubReleaseUpdate(token: CancellationToken): Promise<IUpdate | null> {
-		if (!this.url) {
-			return null;
-		}
-
-		const releaseUrl = this.url.endsWith('/') ? `${this.url}releases/latest` : `${this.url}/releases/latest`;
-		const context = await this.requestService.request({
-			url: releaseUrl,
-			headers: {
-				'Accept': 'application/vnd.github+json',
-				'User-Agent': this.productService.applicationName
-			}
-		}, token);
-		const release = await asJson<IGitHubRelease>(context);
-		if (!release?.tag_name) {
-			return null;
-		}
-
-		if (this.productService.commit === release.tag_name) {
-			return null;
-		}
-
-		const installerAsset = release.assets?.find(asset => /setup-x64-.*\.exe$/i.test(asset.name));
-		if (!installerAsset) {
-			return null;
-		}
-
-		return {
-			version: release.tag_name,
-			productVersion: release.tag_name,
-			url: installerAsset.browser_download_url,
-		};
-	}
-
-	private isGitHubReleasesUpdateUrl(url: string): boolean {
-		return url.includes('api.github.com/repos/');
-	}
-
-	private async getGitHubReleaseUpdate(token: CancellationToken): Promise<IUpdate | null> {
-		if (!this.url) {
-			return null;
-		}
-
-		const releaseUrl = this.url.endsWith('/') ? `${this.url}releases/latest` : `${this.url}/releases/latest`;
-		const context = await this.requestService.request({
-			url: releaseUrl,
-			headers: {
-				'Accept': 'application/vnd.github+json',
-				'User-Agent': this.productService.applicationName
-			}
-		}, token);
-		const release = await asJson<IGitHubRelease>(context);
-		if (!release?.tag_name) {
-			return null;
-		}
-
-		if (this.productService.commit === release.tag_name) {
-			return null;
-		}
-
-		const installerAsset = release.assets?.find(asset => /setup-x64-.*\.exe$/i.test(asset.name));
-		if (!installerAsset) {
-			return null;
-		}
-
-		return {
-			version: release.tag_name,
-			productVersion: release.tag_name,
-			url: installerAsset.browser_download_url,
-		};
-	}
-
-	private isGitHubReleasesUpdateUrl(url: string): boolean {
-		return url.includes('api.github.com/repos/');
-	}
-
-	private async getGitHubReleaseUpdate(token: CancellationToken): Promise<IUpdate | null> {
-		if (!this.url) {
-			return null;
-		}
-
-		const releaseUrl = this.url.endsWith('/') ? `${this.url}releases/latest` : `${this.url}/releases/latest`;
-		const context = await this.requestService.request({
-			url: releaseUrl,
-			headers: {
-				'Accept': 'application/vnd.github+json',
-				'User-Agent': this.productService.applicationName
-			}
-		}, token);
-		const release = await asJson<IGitHubRelease>(context);
-		if (!release?.tag_name) {
-			return null;
-		}
-
-		if (this.productService.commit === release.tag_name) {
-			return null;
-		}
-
-		const installerAsset = release.assets?.find(asset => /setup-x64-.*\.exe$/i.test(asset.name));
-		if (!installerAsset) {
-			return null;
-		}
-
-		return {
-			version: release.tag_name,
-			productVersion: release.tag_name,
-			url: installerAsset.browser_download_url,
-		};
 	}
 
 	private isGitHubReleasesUpdateUrl(url: string): boolean {
