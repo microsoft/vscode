@@ -245,7 +245,11 @@ export class WebClientServer {
 		};
 
 		// Prefix routes with basePath for clients
-		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+		const forwardedPrefix = getFirstHeader('x-forwarded-prefix');
+		if (forwardedPrefix !== undefined && !/^[\w\-.\/:%@]+$/.test(forwardedPrefix)) {
+			return serveError(req, res, 400, `Bad request.`);
+		}
+		const basePath = forwardedPrefix || this._basePath;
 
 		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
 		if (typeof queryConnectionToken === 'string') {
@@ -292,8 +296,14 @@ export class WebClientServer {
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
+		if (!/^[\w\-.:+\[\]]+$/.test(remoteAuthority)) {
+			return serveError(req, res, 400, `Bad request.`);
+		}
 		const forwardedPort = getFirstHeader('x-forwarded-port');
 		if (forwardedPort) {
+			if (!/^\d+$/.test(forwardedPort)) {
+				return serveError(req, res, 400, `Bad request.`);
+			}
 			remoteAuthority = replacePort(remoteAuthority, forwardedPort);
 		}
 
