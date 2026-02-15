@@ -120,10 +120,13 @@ jobs:
           product.builtInExtensions = (product.builtInExtensions || []).filter(entry => !isBlocked(entry));
           product.webBuiltInExtensions = (product.webBuiltInExtensions || []).filter(entry => !isBlocked(entry));
 
-          delete product.defaultChatAgent;
-          delete product.chatParticipantRegistry;
-          delete product.aiConfig;
-          delete product.trustedExtensionAuthAccess;
+          if (product.defaultChatAgent) {
+            product.defaultChatAgent.extensionId = 'noaivscode.no-ai-core';
+            product.defaultChatAgent.chatExtensionId = 'noaivscode.no-ai-chat';
+            product.defaultChatAgent.completionsEnablementSetting = 'noaivscode.ai.disabled';
+            product.defaultChatAgent.nextEditSuggestionsSetting = 'noaivscode.ai.disabled';
+          }
+
 
           fs.writeFileSync(productPath, JSON.stringify(product, null, '	'));
           NODE
@@ -135,19 +138,6 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: npm ci
 
-
-      - name: Align package version with release tag for installer metadata
-        shell: bash
-        env:
-          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const packagePath = 'package.json';
-          const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-          packageJson.version = process.env.RELEASE_VERSION;
-          fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, '\t') + '\n');
-          NODE
 
       - name: Compile and download Electron
         run: npm exec -- npm-run-all -lp compile "electron x64" download-builtin-extensions
