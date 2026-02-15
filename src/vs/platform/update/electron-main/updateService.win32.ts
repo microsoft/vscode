@@ -37,6 +37,17 @@ interface IAvailableUpdate {
 	updateFilePath?: string;
 }
 
+interface IGitHubReleaseAsset {
+	name: string;
+	browser_download_url: string;
+}
+
+interface IGitHubRelease {
+	tag_name: string;
+	assets?: IGitHubReleaseAsset[];
+}
+
+
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
 	if (typeof _updateType === 'undefined') {
@@ -100,6 +111,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
+		if (this.productService.updateUrl?.includes('api.github.com/repos/')) {
+			return this.productService.updateUrl;
+		}
+
 		let platform = `win32-${process.arch}`;
 
 		if (getUpdateType() === UpdateType.Archive) {
@@ -111,17 +126,54 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return createUpdateURL(platform, quality, this.productService);
 	}
 
+	private isGitHubReleasesUpdateUrl(url: string): boolean {
+		return url.includes('api.github.com/repos/');
+	}
+
+	private async getGitHubReleaseUpdate(baseUrl: string, token: CancellationToken): Promise<IUpdate | null> {
+		const releaseUrl = baseUrl.endsWith('/') ? `${baseUrl}releases/latest` : `${baseUrl}/releases/latest`;
+		const context = await this.requestService.request({
+			url: releaseUrl,
+			headers: {
+				'Accept': 'application/vnd.github+json',
+				'User-Agent': this.productService.applicationName
+			}
+		}, token);
+		const release = await asJson<IGitHubRelease>(context);
+		if (!release?.tag_name) {
+			return null;
+		}
+
+		if (this.productService.commit === release.tag_name) {
+			return null;
+		}
+
+		const installerAsset = release.assets?.find(asset => /setup-x64-.*\.exe$/i.test(asset.name));
+		if (!installerAsset) {
+			return null;
+		}
+
+		return {
+			version: release.tag_name,
+			productVersion: release.tag_name,
+			url: installerAsset.browser_download_url,
+		};
+	}
+
 	protected doCheckForUpdates(explicit: boolean): void {
-		if (!this.url) {
+		const baseUrl = this.buildUpdateFeedUrl(this.productService.quality ?? 'stable');
+		if (!baseUrl) {
 			return;
 		}
 
-		const url = explicit ? this.url : `${this.url}?bg=true`;
+		const url = explicit ? baseUrl : `${baseUrl}?bg=true`;
 		this.setState(State.CheckingForUpdates(explicit));
 
-		this.requestService.request({ url }, CancellationToken.None)
-			.then<IUpdate | null>(asJson)
-			.then(update => {
+		const updatePromise = this.isGitHubReleasesUpdateUrl(url)
+			? this.getGitHubReleaseUpdate(baseUrl, CancellationToken.None)
+			: this.requestService.request({ url }, CancellationToken.None).then<IUpdate | null>(asJson);
+
+		updatePromise.then(update => {
 				const updateType = getUpdateType();
 
 				if (!update || !update.url || !update.version || !update.productVersion) {
