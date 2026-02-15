@@ -175,16 +175,22 @@ export class ViewController {
 			}
 		}
 
-		// Check if current token is a string.
+		// Expand to the contiguous run of string tokens (StandardTokenType.String) around the click position.
 		const lineTokens = tokens.getLineTokens(lineNumber);
-		const index = lineTokens.findTokenIndexAtOffset(column - 1);
-		if (lineTokens.getStandardTokenType(index) !== StandardTokenType.String) {
-			return undefined;
+		let startIndex = lineTokens.findTokenIndexAtOffset(column - 1);
+		let endIndex = startIndex;
+		while (startIndex > 0 &&
+			lineTokens.getStandardTokenType(startIndex - 1) === StandardTokenType.String) {
+			startIndex--;
+		}
+		while (endIndex + 1 < lineTokens.getCount() &&
+			lineTokens.getStandardTokenType(endIndex + 1) === StandardTokenType.String) {
+			endIndex++;
 		}
 
 		// Verify the click is after starting or before closing quote.
-		const tokenStart = lineTokens.getStartOffset(index);
-		const tokenEnd = lineTokens.getEndOffset(index);
+		const tokenStart = lineTokens.getStartOffset(startIndex);
+		const tokenEnd = lineTokens.getEndOffset(endIndex);
 		if (column !== tokenStart + 2 && column !== tokenEnd) {
 			return undefined;
 		}

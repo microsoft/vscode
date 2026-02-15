@@ -20,8 +20,7 @@ suite.skip('TypeScript Completions', () => {
 		[Config.insertMode]: 'insert',
 		[Config.snippetSuggestions]: 'none',
 		[Config.suggestSelection]: 'first',
-		[Config.javascriptQuoteStyle]: 'double',
-		[Config.typescriptQuoteStyle]: 'double',
+		[Config.quoteStyle]: 'double',
 	});
 
 	const _disposables: vscode.Disposable[] = [];

@@ -204,14 +204,14 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					type: 'boolean',
 					default: false
 				},
-				isReadOnly: {
-					description: localize('chatSessionsExtPoint.isReadOnly', 'Whether this session type is for read-only agents that do not support interactive chat. This flag is incompatible with \'canDelegate\'.'),
-					type: 'boolean',
-					default: false
-				},
 				customAgentTarget: {
 					description: localize('chatSessionsExtPoint.customAgentTarget', 'When set, the chat session will show a filtered mode picker that prefers custom agents whose target property matches this value. Custom agents without a target property are still shown in all session types. This enables the use of standard agent/mode with contributed sessions.'),
 					type: 'string'
+				},
+				requiresCustomModels: {
+					description: localize('chatSessionsExtPoint.requiresCustomModels', 'When set, the chat session will show a filtered model picker that prefers custom models. This enables the use of standard model picker with contributed sessions.'),
+					type: 'boolean',
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -657,7 +657,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
-		if (contribution.isReadOnly || contribution.canDelegate) {
+		if (contribution.canDelegate) {
 			disposableStore.add(this._registerAgent(contribution, ext));
 			disposableStore.add(this._registerCommands(contribution));
 		}
@@ -1125,6 +1125,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public getCustomAgentTargetForSessionType(chatSessionType: string): Target {
 		const contribution = this._contributions.get(chatSessionType)?.contribution;
 		return contribution?.customAgentTarget ?? Target.Undefined;
+	}
+
+	public requiresCustomModelsForSessionType(chatSessionType: string): boolean {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		return !!contribution?.requiresCustomModels;
 	}
 
 	public getContentProviderSchemes(): string[] {

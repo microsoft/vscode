@@ -544,6 +544,11 @@ export interface IModalEditorPart extends IEditorPart {
 	toggleMaximized(): void;
 
 	/**
+	 * Modal container of the editor part.
+	 */
+	getModalElement(): unknown /* HTMLElement */;
+
+	/**
 	 * Close this modal editor part after moving all
 	 * editors of all groups back to the main editor part
 	 * if the related option is set. Dirty editors are

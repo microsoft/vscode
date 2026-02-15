@@ -663,7 +663,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			prompt: turn.prompt,
 			participant: turn.participant,
 			command: turn.command,
-			variableData: variables.length > 0 ? { variables } : undefined
+			variableData: variables.length > 0 ? { variables } : undefined,
+			modelId: turn.modelId,
 		};
 	}
 

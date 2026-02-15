@@ -229,6 +229,7 @@ export class ChatMultiDiffData implements IChatMultiDiffData {
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
+	shimmer?: boolean;
 }
 
 export interface IChatTask extends IChatTaskDto {

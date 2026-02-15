@@ -58,6 +58,12 @@ export namespace ChatContextKeys {
 	 * which means the mode picker should be shown with filtered custom agents.
 	 */
 	export const chatSessionHasCustomAgentTarget = new RawContextKey<boolean>('chatSessionHasCustomAgentTarget', false, { type: 'boolean', description: localize('chatSessionHasCustomAgentTarget', "True when the chat session has a customAgentTarget defined to filter modes.") });
+	/**
+	 * True when the current chat session has models that specifically target it
+	 * via `targetChatSessionType`, which means the model picker should be shown
+	 * even when the widget is locked to a coding agent.
+	 */
+	export const chatSessionHasTargetedModels = new RawContextKey<boolean>('chatSessionHasTargetedModels', false, { type: 'boolean', description: localize('chatSessionHasTargetedModels', "True when the chat session has language models that target it via targetChatSessionType.") });
 	export const agentSupportsAttachments = new RawContextKey<boolean>('agentSupportsAttachments', false, { type: 'boolean', description: localize('agentSupportsAttachments', "True when the chat agent supports attachments.") });
 	export const withinEditSessionDiff = new RawContextKey<boolean>('withinEditSessionDiff', false, { type: 'boolean', description: localize('withinEditSessionDiff', "True when the chat widget dispatches to the edit session chat.") });
 	export const filePartOfEditSession = new RawContextKey<boolean>('filePartOfEditSession', false, { type: 'boolean', description: localize('filePartOfEditSession', "True when the chat widget is within a file with an edit session.") });
@@ -119,8 +125,6 @@ export namespace ChatContextKeys {
 	export const isReadAgentSession = new RawContextKey<boolean>('agentSessionIsRead', false, { type: 'boolean', description: localize('agentSessionIsRead', "True when the agent session item is read.") });
 	export const hasMultipleAgentSessionsSelected = new RawContextKey<boolean>('agentSessionHasMultipleSelected', false, { type: 'boolean', description: localize('agentSessionHasMultipleSelected', "True when multiple agent sessions are selected.") });
 	export const hasAgentSessionChanges = new RawContextKey<boolean>('agentSessionHasChanges', false, { type: 'boolean', description: localize('agentSessionHasChanges', "True when the current agent session item has changes.") });
-
-	export const chatEditsInTreeView = new RawContextKey<boolean>('chatEditsInTreeView', false, { type: 'boolean', description: localize('chatEditsInTreeView', "True when the chat edits working set is displayed as a tree.") });
 
 	export const isKatexMathElement = new RawContextKey<boolean>('chatIsKatexMathElement', false, { type: 'boolean', description: localize('chatIsKatexMathElement', "True when focusing a KaTeX math element.") });
 

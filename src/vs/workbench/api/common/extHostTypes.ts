@@ -3518,7 +3518,8 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly participant: string,
 		readonly toolReferences: vscode.ChatLanguageModelToolReference[],
 		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
-		readonly id?: string
+		readonly id?: string,
+		readonly modelId?: string,
 	) { }
 }
 

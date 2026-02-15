@@ -629,7 +629,7 @@ export class ChatService extends Disposable implements IChatService {
 					undefined, // locationData
 					undefined, // attachments
 					false, // Do not treat as requests completed, else edit pills won't show.
-					undefined,
+					message.modelId,
 					undefined,
 					message.id
 				);

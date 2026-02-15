@@ -23,7 +23,7 @@ import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
-import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing, IViewVisibilityAnimationOptions } from '../../base/browser/ui/grid/grid.js';
+import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { Part } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
@@ -47,8 +47,6 @@ import { AuxiliaryBarPart } from './parts/auxiliarybar/auxiliaryBarPart.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 import { IAuxiliaryWindowService } from '../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { CodeWindow, mainWindow } from '../../base/browser/window.js';
-import { EASE_OUT, EASE_IN } from '../../base/browser/ui/motion/motion.js';
-import { CancellationToken } from '../../base/common/cancellation.js';
 
 //#region Layout Implementation
 
@@ -1870,32 +1868,27 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, hidden);
 
-		// Adjust CSS - for hiding, defer adding the class until animation
-		// completes so the part stays visible during the exit animation.
-		if (!hidden) {
+		// Adjust CSS
+		if (hidden) {
+			this.mainContainer.classList.add(LayoutClasses.SIDEBAR_HIDDEN);
+		} else {
 			this.mainContainer.classList.remove(LayoutClasses.SIDEBAR_HIDDEN);
 		}
 
 		// Propagate to grid
-		this.workbenchGrid.setViewVisible(
-			this.sideBarPartView,
-			!hidden,
-			createViewVisibilityAnimation(hidden, () => {
-				if (!hidden) { return; }
-				// Deferred to after close animation
-				this.mainContainer.classList.add(LayoutClasses.SIDEBAR_HIDDEN);
-				if (this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
-					this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Sidebar);
+		this.workbenchGrid.setViewVisible(this.sideBarPartView, !hidden);
 
-					if (!this.isAuxiliaryBarMaximized()) {
-						this.focusPanelOrEditor(); // do not auto focus when auxiliary bar is maximized
-					}
-				}
-			})
-		);
+		// If sidebar becomes hidden, also hide the current active Viewlet if any
+		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Sidebar);
+
+			if (!this.isAuxiliaryBarMaximized()) {
+				this.focusPanelOrEditor(); // do not auto focus when auxiliary bar is maximized
+			}
+		}
 
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
-		if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
+		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
 			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
 			if (viewletToOpen) {
 				this.openViewContainer(ViewContainerLocation.Sidebar, viewletToOpen);
@@ -2019,6 +2012,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		const panelOpensMaximized = this.panelOpensMaximized();
 
+		// Adjust CSS
+		if (hidden) {
+			this.mainContainer.classList.add(LayoutClasses.PANEL_HIDDEN);
+		} else {
+			this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
+		}
+
 		// If maximized and in process of hiding, unmaximize FIRST before
 		// changing visibility to prevent conflict with setEditorHidden
 		// which would force panel visible again (fixes #281772)
@@ -2026,30 +2026,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.toggleMaximizedPanel();
 		}
 
-		// Adjust CSS - for hiding, defer adding the class until animation
-		// completes because `.nopanel .part.panel { display: none !important }`
-		// would instantly hide the panel content mid-animation.
-		if (!hidden) {
-			this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
-		}
-
 		// Propagate layout changes to grid
-		this.workbenchGrid.setViewVisible(
-			this.panelPartView,
-			!hidden,
-			createViewVisibilityAnimation(hidden, () => {
-				if (!hidden) { return; }
-				// Deferred to after close animation
-				this.mainContainer.classList.add(LayoutClasses.PANEL_HIDDEN);
-				if (this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
-					this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
-				}
-			})
-		);
+		this.workbenchGrid.setViewVisible(this.panelPartView, !hidden);
 
-		// If panel part becomes hidden, focus the editor after animation starts
+		// If panel part becomes hidden, also hide the current active panel if any
 		let focusEditor = false;
 		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
 			if (
 				!isIOS &&						// do not auto focus on iOS (https://github.com/microsoft/vscode/issues/127832)
 				!this.isAuxiliaryBarMaximized()	// do not auto focus when auxiliary bar is maximized
@@ -2223,30 +2206,24 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, hidden);
 
-		// Adjust CSS - for hiding, defer adding the class until animation
-		// completes because `.noauxiliarybar .part.auxiliarybar { display: none !important }`
-		// would instantly hide the content mid-animation.
-		if (!hidden) {
+		// Adjust CSS
+		if (hidden) {
+			this.mainContainer.classList.add(LayoutClasses.AUXILIARYBAR_HIDDEN);
+		} else {
 			this.mainContainer.classList.remove(LayoutClasses.AUXILIARYBAR_HIDDEN);
 		}
 
 		// Propagate to grid
-		this.workbenchGrid.setViewVisible(
-			this.auxiliaryBarPartView,
-			!hidden,
-			createViewVisibilityAnimation(hidden, () => {
-				if (!hidden) { return; }
-				// Deferred to after close animation
-				this.mainContainer.classList.add(LayoutClasses.AUXILIARYBAR_HIDDEN);
-				if (this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
-					this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
-					this.focusPanelOrEditor();
-				}
-			})
-		);
+		this.workbenchGrid.setViewVisible(this.auxiliaryBarPartView, !hidden);
+
+		// If auxiliary bar becomes hidden, also hide the current active pane composite if any
+		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+			this.focusPanelOrEditor();
+		}
 
 		// If auxiliary bar becomes visible, show last active pane composite or default pane composite
-		if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
+		else if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
 			let viewletToOpen: string | undefined = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar);
 
 			// verify that the viewlet we try to open has views before we default to it
@@ -2737,21 +2714,6 @@ type ZenModeConfiguration = {
 
 function getZenModeConfiguration(configurationService: IConfigurationService): ZenModeConfiguration {
 	return configurationService.getValue<ZenModeConfiguration>(WorkbenchLayoutSettings.ZEN_MODE_CONFIG);
-}
-
-/** Duration (ms) for panel/sidebar open (entrance) animations. */
-const PANEL_OPEN_DURATION = 135;
-
-/** Duration (ms) for panel/sidebar close (exit) animations. */
-const PANEL_CLOSE_DURATION = 35;
-
-function createViewVisibilityAnimation(hidden: boolean, onComplete?: () => void, token: CancellationToken = CancellationToken.None): IViewVisibilityAnimationOptions {
-	return {
-		duration: hidden ? PANEL_CLOSE_DURATION : PANEL_OPEN_DURATION,
-		easing: hidden ? EASE_IN : EASE_OUT,
-		token,
-		onComplete,
-	};
 }
 
 //#endregion

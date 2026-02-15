@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindowById } from '../../../../base/browser/dom.js';
+import { Dimension, getWindowById, isHTMLElement } from '../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../base/browser/fastDomNode.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
@@ -15,6 +15,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 
 /**
@@ -56,7 +57,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		initInfo: WebviewInitInfo,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
-		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService
+		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 
@@ -107,8 +109,15 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._container.setVisibility('hidden');
 
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
-			// Mount them to a high level node to avoid this.
-			this._layoutService.getContainer(this.window).appendChild(node);
+			// Mount them to a high level node to avoid this depending on the active container.
+			const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.getModalElement();
+			let root: HTMLElement;
+			if (isHTMLElement(modalEditorContainer)) {
+				root = modalEditorContainer;
+			} else {
+				root = this._layoutService.getContainer(this.window);
+			}
+			root.appendChild(node);
 		}
 
 		return this._container.domNode;

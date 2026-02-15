@@ -206,6 +206,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
+			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
 			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,

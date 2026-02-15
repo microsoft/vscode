@@ -20,6 +20,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
+import { localChatSessionType } from '../common/chatSessionsService.js';
 
 export const IChatTipService = createDecorator<IChatTipService>('chatTipService');
 
@@ -38,24 +39,22 @@ export interface IChatTipService {
 	readonly onDidDismissTip: Event<void>;
 
 	/**
+	 * Fired when the user navigates to a different tip (previous/next).
+	 */
+	readonly onDidNavigateTip: Event<IChatTip>;
+
+	/**
+	 * Fired when the tip widget is hidden without dismissing the tip.
+	 */
+	readonly onDidHideTip: Event<void>;
+
+	/**
 	 * Fired when tips are disabled.
 	 */
 	readonly onDidDisableTips: Event<void>;
 
 	/**
-	 * Gets a tip to show for a request, or undefined if a tip has already been shown this session.
-	 * Only one tip is shown per conversation session (resets when switching conversations).
-	 * Tips are suppressed if a welcome tip was already shown in this session.
-	 * Tips are only shown for requests created after the current session started.
-	 * @param requestId The unique ID of the request (used for stable rerenders).
-	 * @param requestTimestamp The timestamp when the request was created.
-	 * @param contextKeyService The context key service to evaluate tip eligibility.
-	 */
-	getNextTip(requestId: string, requestTimestamp: number, contextKeyService: IContextKeyService): IChatTip | undefined;
-
-	/**
 	 * Gets a tip to show on the welcome/getting-started view.
-	 * Unlike {@link getNextTip}, this does not require a request and skips request-timestamp checks.
 	 * Returns the same tip on repeated calls for stable rerenders.
 	 */
 	getWelcomeTip(contextKeyService: IContextKeyService): IChatTip | undefined;
@@ -73,9 +72,32 @@ export interface IChatTipService {
 	dismissTip(): void;
 
 	/**
+	 * Hides the tip widget without permanently dismissing the tip.
+	 * The tip may be shown again in a future session.
+	 */
+	hideTip(): void;
+
+	/**
 	 * Disables tips permanently by setting the `chat.tips.enabled` configuration to false.
 	 */
 	disableTips(): Promise<void>;
+
+	/**
+	 * Navigates to the next tip in the catalog without permanently dismissing the current one.
+	 * @param contextKeyService The context key service to evaluate tip eligibility.
+	 */
+	navigateToNextTip(contextKeyService: IContextKeyService): IChatTip | undefined;
+
+	/**
+	 * Navigates to the previous tip in the catalog without permanently dismissing the current one.
+	 * @param contextKeyService The context key service to evaluate tip eligibility.
+	 */
+	navigateToPreviousTip(contextKeyService: IContextKeyService): IChatTip | undefined;
+
+	/**
+	 * Clears all dismissed tips so they can be shown again.
+	 */
+	clearDismissedTips(): void;
 }
 
 export interface ITipDefinition {
@@ -149,9 +171,12 @@ const TIP_CATALOG: ITipDefinition[] = [
 	{
 		id: 'tip.undoChanges',
 		message: localize('tip.undoChanges', "Tip: Select Restore Checkpoint to undo changes until that point in the chat conversation."),
-		when: ContextKeyExpr.or(
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		when: ContextKeyExpr.and(
+			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+			ContextKeyExpr.or(
+				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+			),
 		),
 		excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint', 'workbench.action.chat.restoreLastCheckpoint'],
 	},
@@ -472,21 +497,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	private readonly _onDidDismissTip = this._register(new Emitter<void>());
 	readonly onDidDismissTip = this._onDidDismissTip.event;
 
+	private readonly _onDidNavigateTip = this._register(new Emitter<IChatTip>());
+	readonly onDidNavigateTip = this._onDidNavigateTip.event;
+
+	private readonly _onDidHideTip = this._register(new Emitter<void>());
+	readonly onDidHideTip = this._onDidHideTip.event;
+
 	private readonly _onDidDisableTips = this._register(new Emitter<void>());
 	readonly onDidDisableTips = this._onDidDisableTips.event;
-
-	/**
-	 * Timestamp when the current session started.
-	 * Used to only show tips for requests created after this time.
-	 * Resets on each {@link resetSession} call.
-	 */
-	private _sessionStartedAt = Date.now();
-
-	/**
-	 * Whether a chatResponse tip has already been shown in this conversation
-	 * session. Only one response tip is shown per session.
-	 */
-	private _hasShownRequestTip = false;
 
 	/**
 	 * The request ID that was assigned a tip (for stable rerenders).
@@ -514,10 +532,8 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	resetSession(): void {
-		this._hasShownRequestTip = false;
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
-		this._sessionStartedAt = Date.now();
 	}
 
 	dismissTip(): void {
@@ -526,7 +542,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			dismissed.push(this._shownTip.id);
 			this._storageService.store(ChatTipService._DISMISSED_TIP_KEY, JSON.stringify(dismissed), StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
-		this._hasShownRequestTip = false;
+		this._shownTip = undefined;
+		this._tipRequestId = undefined;
+		this._onDidDismissTip.fire();
+	}
+
+	clearDismissedTips(): void {
+		this._storageService.remove(ChatTipService._DISMISSED_TIP_KEY, StorageScope.PROFILE);
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		this._onDidDismissTip.fire();
@@ -557,55 +579,17 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 	}
 
+	hideTip(): void {
+		this._shownTip = undefined;
+		this._tipRequestId = undefined;
+		this._onDidHideTip.fire();
+	}
+
 	async disableTips(): Promise<void> {
-		this._hasShownRequestTip = false;
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		await this._configurationService.updateValue('chat.tips.enabled', false);
 		this._onDidDisableTips.fire();
-	}
-
-	getNextTip(requestId: string, requestTimestamp: number, contextKeyService: IContextKeyService): IChatTip | undefined {
-		// Check if tips are enabled
-		if (!this._configurationService.getValue<boolean>('chat.tips.enabled')) {
-			return undefined;
-		}
-
-		// Only show tips for Copilot
-		if (!this._isCopilotEnabled()) {
-			return undefined;
-		}
-
-		// Only show tips in the main chat panel, not in terminal/editor inline chat
-		if (!this._isChatLocation(contextKeyService)) {
-			return undefined;
-		}
-
-		// Check if this is the request that was assigned a tip (for stable rerenders)
-		if (this._tipRequestId === requestId && this._shownTip) {
-			return this._createTip(this._shownTip);
-		}
-
-		// A new request arrived while we already showed a tip, hide the old one
-		if (this._hasShownRequestTip && this._tipRequestId && this._tipRequestId !== requestId) {
-			this._shownTip = undefined;
-			this._tipRequestId = undefined;
-			this._onDidDismissTip.fire();
-			return undefined;
-		}
-
-		// Only show one tip per session
-		if (this._hasShownRequestTip) {
-			return undefined;
-		}
-
-		// Only show tips for requests created after the current session started.
-		// This prevents showing tips for old requests being re-rendered.
-		if (requestTimestamp < this._sessionStartedAt) {
-			return undefined;
-		}
-
-		return this._pickTip(requestId, contextKeyService);
 	}
 
 	getWelcomeTip(contextKeyService: IContextKeyService): IChatTip | undefined {
@@ -621,6 +605,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 		// Only show tips in the main chat panel, not in terminal/editor inline chat
 		if (!this._isChatLocation(contextKeyService)) {
+			return undefined;
+		}
+
+		// Don't show tips when chat quota is exceeded, the upgrade widget is more relevant
+		if (this._isChatQuotaExceeded(contextKeyService)) {
 			return undefined;
 		}
 
@@ -681,11 +670,44 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._storageService.store(ChatTipService._LAST_TIP_ID_KEY, selectedTip.id, StorageScope.PROFILE, StorageTarget.USER);
 
 		// Record that we've shown a tip this session
-		this._hasShownRequestTip = sourceId !== 'welcome';
 		this._tipRequestId = sourceId;
 		this._shownTip = selectedTip;
 
 		return this._createTip(selectedTip);
+	}
+
+	navigateToNextTip(contextKeyService: IContextKeyService): IChatTip | undefined {
+		return this._navigateTip(1, contextKeyService);
+	}
+
+	navigateToPreviousTip(contextKeyService: IContextKeyService): IChatTip | undefined {
+		return this._navigateTip(-1, contextKeyService);
+	}
+
+	private _navigateTip(direction: 1 | -1, contextKeyService: IContextKeyService): IChatTip | undefined {
+		if (!this._shownTip) {
+			return undefined;
+		}
+
+		const currentIndex = TIP_CATALOG.findIndex(t => t.id === this._shownTip!.id);
+		if (currentIndex === -1) {
+			return undefined;
+		}
+
+		const dismissedIds = new Set(this._getDismissedTipIds());
+		for (let i = 1; i < TIP_CATALOG.length; i++) {
+			const idx = ((currentIndex + direction * i) % TIP_CATALOG.length + TIP_CATALOG.length) % TIP_CATALOG.length;
+			const candidate = TIP_CATALOG[idx];
+			if (!dismissedIds.has(candidate.id) && this._isEligible(candidate, contextKeyService)) {
+				this._shownTip = candidate;
+				this._storageService.store(ChatTipService._LAST_TIP_ID_KEY, candidate.id, StorageScope.PROFILE, StorageTarget.USER);
+				const tip = this._createTip(candidate);
+				this._onDidNavigateTip.fire(tip);
+				return tip;
+			}
+		}
+
+		return undefined;
 	}
 
 	private _isEligible(tip: ITipDefinition, contextKeyService: IContextKeyService): boolean {
@@ -703,6 +725,10 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	private _isChatLocation(contextKeyService: IContextKeyService): boolean {
 		const location = contextKeyService.getContextKeyValue<ChatAgentLocation>(ChatContextKeys.location.key);
 		return !location || location === ChatAgentLocation.Chat;
+	}
+
+	private _isChatQuotaExceeded(contextKeyService: IContextKeyService): boolean {
+		return contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.chatQuotaExceeded.key) === true;
 	}
 
 	private _isCopilotEnabled(): boolean {

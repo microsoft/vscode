@@ -309,6 +309,23 @@ suite('ViewController - String content selection', () => {
 		assert.strictEqual(doubleClickAt(controller, new Position(1, 10)), 'hello');
 	});
 
+	test('Select string content containing escape characters', () => {
+		//                0123456789...
+		const text = 'var x = "hello\\"world";';
+		// Token layout: [0..8) Other  [8..22) String("hello\"world")  [22..23) Other
+		const controller = createViewControllerWithTokens(text, [
+			{ startIndex: 0, type: StandardTokenType.Other },
+			{ startIndex: 8, type: StandardTokenType.String },
+			{ startIndex: 9, type: StandardTokenType.String },
+			{ startIndex: 14, type: StandardTokenType.String },
+			{ startIndex: 16, type: StandardTokenType.String },
+			{ startIndex: 21, type: StandardTokenType.String },
+			{ startIndex: 22, type: StandardTokenType.Other },
+		]);
+		// Column right after opening quote: offset 9 → column 10
+		assert.strictEqual(doubleClickAt(controller, new Position(1, 10)), 'hello\\"world');
+	});
+
 	// -- Click in middle of string should NOT select the whole string --
 
 	test('Click in middle of string does not select whole string', () => {
