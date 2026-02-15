@@ -61,6 +61,16 @@ interface IGitHubRelease {
 	assets?: IGitHubReleaseAsset[];
 }
 
+interface IGitHubReleaseAsset {
+	name: string;
+	browser_download_url: string;
+}
+
+interface IGitHubRelease {
+	tag_name: string;
+	assets?: IGitHubReleaseAsset[];
+}
+
 
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
@@ -264,29 +274,51 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		};
 	}
 
+	private isGitHubReleasesUpdateUrl(url: string): boolean {
+		return url.includes('api.github.com/repos/');
+	}
+
+	private async getGitHubReleaseUpdate(baseUrl: string, token: CancellationToken): Promise<IUpdate | null> {
+		const releaseUrl = baseUrl.endsWith('/') ? `${baseUrl}releases/latest` : `${baseUrl}/releases/latest`;
+		const context = await this.requestService.request({
+			url: releaseUrl,
+			headers: {
+				'Accept': 'application/vnd.github+json',
+				'User-Agent': this.productService.applicationName
+			}
+		}, token);
+		const release = await asJson<IGitHubRelease>(context);
+		if (!release?.tag_name) {
+			return null;
+		}
+
+		if (this.productService.commit === release.tag_name) {
+			return null;
+		}
+
+		const installerAsset = release.assets?.find(asset => /setup-x64-.*\.exe$/i.test(asset.name));
+		if (!installerAsset) {
+			return null;
+		}
+
+		return {
+			version: release.tag_name,
+			productVersion: release.tag_name,
+			url: installerAsset.browser_download_url,
+		};
+	}
+
 	protected doCheckForUpdates(explicit: boolean): void {
-		if (!this.url) {
+		const baseUrl = this.buildUpdateFeedUrl(this.productService.quality ?? 'stable');
+		if (!baseUrl) {
 			return;
 		}
 
-		const background = !explicit && !this.shouldDisableProgressiveReleases();
-		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background });
-
-		// Only set CheckingForUpdates if we're not already in Overwriting state
-		if (this.state.type !== StateType.Overwriting) {
-			this.setState(State.CheckingForUpdates(explicit));
-		}
+		const url = explicit ? baseUrl : `${baseUrl}?bg=true`;
+		this.setState(State.CheckingForUpdates(explicit));
 
 		const updatePromise = this.isGitHubReleasesUpdateUrl(url)
-			? this.getGitHubReleaseUpdate(CancellationToken.None)
-			: this.requestService.request({ url }, CancellationToken.None).then<IUpdate | null>(asJson);
-
-		const updatePromise = this.isGitHubReleasesUpdateUrl(url)
-			? this.getGitHubReleaseUpdate(CancellationToken.None)
-			: this.requestService.request({ url }, CancellationToken.None).then<IUpdate | null>(asJson);
-
-		const updatePromise = this.isGitHubReleasesUpdateUrl(url)
-			? this.getGitHubReleaseUpdate(CancellationToken.None)
+			? this.getGitHubReleaseUpdate(baseUrl, CancellationToken.None)
 			: this.requestService.request({ url }, CancellationToken.None).then<IUpdate | null>(asJson);
 
 		updatePromise.then(update => {
