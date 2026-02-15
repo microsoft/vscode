@@ -27,6 +27,11 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+
+      - name: Configure Open VSX extension gallery
+        run: |
+          node -e "const fs=require('fs');const path='product.json';const product=JSON.parse(fs.readFileSync(path,'utf8'));product.extensionsGallery={serviceUrl:'https://open-vsx.org/vscode/gallery',itemUrl:'https://open-vsx.org/vscode/item',controlUrl:'https://open-vsx.org/vscode/gallery',resourceUrlTemplate:'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',extensionUrlTemplate:'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',nlsBaseUrl:'https://open-vsx.org/vscode/gallery'};fs.writeFileSync(path, JSON.stringify(product, null, '\t'));"
+
       - name: Install dependencies
         env:
           npm_config_foreground_scripts: 'true'
