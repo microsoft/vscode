@@ -1523,6 +1523,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Check if this session type requires custom models
 		const requiresCustomModels = ctx && this.chatSessionsService.requiresCustomModelsForSessionType(ctx.chatSessionType);
+		this.chatSessionHasTargetedModels.set(!!requiresCustomModels);
 
 		// Handle agent option from session - set initial mode
 		if (customAgentTarget) {
