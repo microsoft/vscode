@@ -58,7 +58,7 @@ jobs:
             const version = `${prefix}${maxIndex + 1}`;
             core.setOutput('version', version);
 
-      - name: Configure product branding, gallery, and remove built-in AI extensions
+      - name: Configure product branding, release version, and remove AI features
         shell: bash
         env:
           RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
@@ -66,8 +66,9 @@ jobs:
         run: |
           node <<'NODE'
           const fs = require('fs');
-          const path = 'product.json';
-          const product = JSON.parse(fs.readFileSync(path, 'utf8'));
+
+          const productPath = 'product.json';
+          const product = JSON.parse(fs.readFileSync(productPath, 'utf8'));
 
           Object.assign(product, {
             nameShort: 'NoAIVSCode',
@@ -81,6 +82,7 @@ jobs:
             win32AppUserModelId: 'NoAIVSCode',
             win32ShellNameShort: '&NoAIVSCode',
             quality: 'stable',
+            version: process.env.RELEASE_VERSION,
             commit: process.env.RELEASE_VERSION,
             updateUrl: `https://api.github.com/repos/${process.env.REPOSITORY}`
           });
@@ -118,7 +120,12 @@ jobs:
           product.builtInExtensions = (product.builtInExtensions || []).filter(entry => !isBlocked(entry));
           product.webBuiltInExtensions = (product.webBuiltInExtensions || []).filter(entry => !isBlocked(entry));
 
-          fs.writeFileSync(path, JSON.stringify(product, null, '	'));
+          delete product.defaultChatAgent;
+          delete product.chatParticipantRegistry;
+          delete product.aiConfig;
+          delete product.trustedExtensionAuthAccess;
+
+          fs.writeFileSync(productPath, JSON.stringify(product, null, '	'));
           NODE
 
       - name: Install dependencies
@@ -127,6 +134,20 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: npm ci
+
+
+      - name: Align package version with release tag for installer metadata
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const packagePath = 'package.json';
+          const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+          packageJson.version = process.env.RELEASE_VERSION;
+          fs.writeFileSync(packagePath, JSON.stringify(packageJson, null, '\t') + '\n');
+          NODE
 
       - name: Compile and download Electron
         run: npm exec -- npm-run-all -lp compile "electron x64" download-builtin-extensions
