@@ -28,6 +28,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Configure product branding, gallery, and remove built-in AI extensions
+        shell: bash
         run: |
           node <<'NODE'
           const fs = require('fs');
