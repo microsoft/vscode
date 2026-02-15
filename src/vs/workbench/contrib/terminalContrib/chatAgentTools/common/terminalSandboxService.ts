@@ -21,6 +21,7 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
+import { IChatService } from '../../../chat/common/chatService/chatService.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -64,6 +65,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 		this._appRoot = dirname(FileAccess.asFileUri('').path);
@@ -88,6 +90,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
 			this.setNeedsForceUpdateConfigFile();
+		}));
+
+		this._register(this._chatService.onDidReceiveQuestionCarouselAnswer(e => {
+			void this._handleQuestionCarouselAnswer(e.answers);
 		}));
 	}
 
@@ -270,4 +276,46 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 		return false;
 	}
+
+	private async _handleQuestionCarouselAnswer(answer: Record<string, unknown> | undefined): Promise<void> {
+		if (!answer) {
+			return;
+		}
+		const yesAnswers = this._isYesAnswer(answer);
+		if (yesAnswers.length === 0) {
+			return;
+		}
+		try {
+			await this.addDomainsToAllowList(yesAnswers);
+			this.setNeedsForceUpdateConfigFile();
+			this._setSandboxedDomains();
+		} catch (error) {
+			this._logService.warn(`TerminalSandboxService: Failed to update sandbox allow list from question carousel answer: ${String(error)}`);
+		}
+	}
+
+	private _isYesAnswer(answer: Record<string, unknown> | undefined): string[] {
+		const yesAnswers: string[] = [];
+		const manageDomainAnswer = answer?.manageDomain as { selectedValue?: string } | undefined;
+		if (!manageDomainAnswer) {
+			return yesAnswers;
+		}
+		const value = manageDomainAnswer.selectedValue;
+		if (!value) {
+			return yesAnswers;
+		}
+		const parts = value.split(':');
+		if (parts.length < 2) {
+			return yesAnswers;
+		}
+		const answerLabel = parts[0].trim().toLowerCase();
+		if (answerLabel !== 'yes') {
+			return yesAnswers;
+		}
+		const answerDomain = parts.slice(1).join(':').trim().toLowerCase();
+		yesAnswers.push(answerDomain);
+		return yesAnswers;
+	}
+
+
 }
