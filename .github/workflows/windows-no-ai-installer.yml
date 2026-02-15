@@ -27,6 +27,29 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Validate updater source patch is present
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const file = 'src/vs/platform/update/electron-main/updateService.win32.ts';
+          const content = fs.readFileSync(file, 'utf8');
+
+          const forbidden = ['IUpdateURLOptions', 'pendingCommit', 'commit, options'];
+          const foundForbidden = forbidden.filter(token => content.includes(token));
+          if (foundForbidden.length) {
+            throw new Error(`Stale updater patch detected in ${file}: ${foundForbidden.join(', ')}`);
+          }
+
+          const required = ['getGitHubReleaseUpdate', 'isGitHubReleasesUpdateUrl', "this.productService.updateUrl?.includes('api.github.com/repos/')"];
+          const missing = required.filter(token => !content.includes(token));
+          if (missing.length) {
+            throw new Error(`Expected updater patch tokens missing in ${file}: ${missing.join(', ')}`);
+          }
+
+          console.log('Updater source validation passed.');
+          NODE
+
       - name: Compute release version (yyyy.mm.dd.i)
         id: release_version
         uses: actions/github-script@v7
