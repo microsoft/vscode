@@ -1,0 +1,419 @@
+name: Build Windows No-AI VS Code Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-installer:
+    name: Build Windows x64 Installer (.exe)
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Skip heavyweight optional downloads that are not needed for a build+package run
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1  # we download via gulp, not via the npm postinstall hook
+
+    steps:
+      # ── 1. Checkout ────────────────────────────────────────────────────────
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # ── 2. Node.js ─────────────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # ── 3. Compute release version (yyyy.mm.dd.i) ──────────────────────────
+      - name: Compute release version
+        id: release_version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const d = new Date();
+            const yyyy = d.getUTCFullYear();
+            const mm   = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const dd   = String(d.getUTCDate()).padStart(2, '0');
+            const prefix = `${yyyy}.${mm}.${dd}.`;
+
+            const tags = await github.paginate(github.rest.repos.listTags, {
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              per_page: 100
+            });
+
+            let maxIndex = 0;
+            for (const t of tags) {
+              if (t.name.startsWith(prefix)) {
+                const idx = Number(t.name.slice(prefix.length));
+                if (Number.isInteger(idx) && idx > maxIndex) maxIndex = idx;
+              }
+            }
+
+            const version = `${prefix}${maxIndex + 1}`;
+            core.setOutput('version', version);
+            core.info(`Release version: ${version}`);
+
+      # ── 4. Cache: node_modules (root) ──────────────────────────────────────
+      #
+      #   We cache node_modules directly (not ~/.npm) so that on a hit we skip
+      #   npm ci entirely — no downloads, no node-gyp recompiles.
+      #   No restore-keys: a partial node_modules with native addons on Windows
+      #   will silently break, so we only use an exact match.
+      #
+      - name: Cache root node_modules
+        id: cache-node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: windows-2022-node-modules-${{ hashFiles('package-lock.json') }}
+
+      # ── 5. Cache: remote/node_modules ──────────────────────────────────────
+      - name: Cache remote node_modules
+        id: cache-remote-modules
+        uses: actions/cache@v4
+        with:
+          path: remote/node_modules
+          key: windows-2022-remote-node-modules-${{ hashFiles('remote/package-lock.json') }}
+
+      # ── 6. Cache: Electron binary ──────────────────────────────────────────
+      #
+      #   The gulp "electron x64" task downloads Electron into .build/electron
+      #   and writes a version sentinel file.  Cache it keyed to the electron
+      #   version inside package.json (the "electronVersion" field that vscode
+      #   uses).  When package.json changes the cache is invalidated.
+      #
+      - name: Cache Electron binary
+        id: cache-electron
+        uses: actions/cache@v4
+        with:
+          path: .build/electron
+          key: windows-2022-electron-${{ hashFiles('package.json') }}
+
+      # ── 7. Cache: TypeScript incremental build artefacts ───────────────────
+      #
+      #   .tsbuildinfo files let tsc skip unchanged files on the next compile.
+      #   We use a two-level key: exact sha for a perfect hit, falling back to
+      #   the latest cache from any prior build (tsc then recompiles only the
+      #   files that changed since that snapshot).
+      #
+      - name: Cache TypeScript build info
+        uses: actions/cache@v4
+        with:
+          path: |
+            out-build/**/*.tsbuildinfo
+            out-vscode/**/*.tsbuildinfo
+            .build/**/*.tsbuildinfo
+          key: windows-2022-tsbuildinfo-${{ github.sha }}
+          restore-keys: |
+            windows-2022-tsbuildinfo-
+
+      # ── 8. Install dependencies (only when cache missed) ───────────────────
+      - name: Install root dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        env:
+          npm_config_foreground_scripts: 'true'
+        run: npm ci
+
+      - name: Install remote dependencies
+        if: steps.cache-remote-modules.outputs.cache-hit != 'true'
+        env:
+          npm_config_foreground_scripts: 'true'
+        run: npm ci
+        working-directory: remote
+
+      # ── 9. Patch product.json ──────────────────────────────────────────────
+      #
+      #   Done AFTER npm ci so node_modules is available if any helper script
+      #   needs it, and BEFORE compilation so the baked-in product info is
+      #   correct in the compiled output.
+      #
+      - name: Configure branding, version, and AI removal
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const productPath = 'product.json';
+          const product = JSON.parse(fs.readFileSync(productPath, 'utf8'));
+
+          // ── Branding ──────────────────────────────────────────────────────
+          Object.assign(product, {
+            nameShort:             'NoAIVSCode',
+            nameLong:              'NoAIVSCode',
+            applicationName:       'noaivscode',
+            dataFolderName:        '.noaivscode',
+            win32MutexName:        'noaivscode',
+            win32DirName:          'NoAIVSCode',
+            win32NameVersion:      'NoAIVSCode',
+            win32RegValueName:     'NoAIVSCode',
+            win32AppUserModelId:   'NoAIVSCode',
+            win32ShellNameShort:   '&NoAIVSCode',
+            quality:               'stable',
+
+            // ── Version visible in the About dialog ──────────────────────
+            //
+            // VS Code's About dialog reads `productService.version`, which at
+            // runtime resolves to the `version` key baked into product.json by
+            // the build.  Setting it here (before compilation) means the About
+            // dialog, window title, and the update-check logic all see the same
+            // CalVer tag instead of the upstream semver.
+            //
+            // NOTE: the build system also reads package.json#version; we patch
+            // that below so gulp doesn't override what we set here.
+            version: process.env.RELEASE_VERSION,
+            commit:  process.env.RELEASE_VERSION,
+
+            updateUrl: `https://api.github.com/repos/${process.env.REPOSITORY}`
+          });
+
+          // ── Open VSX gallery (no Microsoft marketplace) ───────────────────
+          product.extensionsGallery = {
+            serviceUrl:           'https://open-vsx.org/vscode/gallery',
+            itemUrl:              'https://open-vsx.org/vscode/item',
+            controlUrl:           'https://open-vsx.org/vscode/gallery',
+            resourceUrlTemplate:  'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',
+            extensionUrlTemplate: 'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',
+            nlsBaseUrl:           'https://open-vsx.org/vscode/gallery'
+          };
+
+          // ── Remove AI entries from built-in extension lists ───────────────
+          const AI_KEYWORDS = [
+            'copilot', 'chat', 'ai', 'assistant',
+            'openai', 'claude', 'gemini', 'gpt',
+            'codeium', 'tabnine', 'intellicode',
+            'codewhisperer', 'amazon-q', 'sourcegraph',
+            'cody', 'continue', 'supermaven'
+          ];
+
+          const isAI = entry => {
+            const haystack = [
+              entry?.name,
+              entry?.metadata?.id,
+              entry?.repo,
+              entry?.metadata?.publisherDisplayName
+            ].filter(Boolean).join(' ').toLowerCase();
+            return AI_KEYWORDS.some(kw => haystack.includes(kw));
+          };
+
+          product.builtInExtensions    = (product.builtInExtensions    || []).filter(e => !isAI(e));
+          product.webBuiltInExtensions = (product.webBuiltInExtensions || []).filter(e => !isAI(e));
+
+          // ── Neutralise the defaultChatAgent stanza ────────────────────────
+          //
+          // VS Code 1.93+ added a `defaultChatAgent` block that wires up
+          // Copilot Chat as the privileged chat provider.  Removing the block
+          // entirely can cause a runtime error in some builds; we replace every
+          // sensitive field with a non-existent extension ID so the wiring
+          // resolves to nothing.
+          //
+          if (product.defaultChatAgent) {
+            product.defaultChatAgent = {
+              extensionId:                    'noaivscode.no-ai-core',
+              chatExtensionId:                'noaivscode.no-ai-chat',
+              completionsEnablementSetting:   'noaivscode.ai.disabled',
+              nextEditSuggestionsSetting:     'noaivscode.ai.disabled'
+            };
+          }
+
+          // ── Strip API-proposal grants for AI extensions ───────────────────
+          //
+          // `extensionEnabledApiProposals` is a map of extension ID → list of
+          // unstable API names they are allowed to use.  Copilot, Copilot Chat,
+          // and related extensions need these grants to function.  Removing
+          // the grants hard-blocks them even if someone side-loads a .vsix.
+          //
+          const AI_EXTENSION_IDS = new Set([
+            'GitHub.copilot',
+            'GitHub.copilot-chat',
+            'GitHub.copilot-nightly',
+            'ms-vscode.vscode-commander',
+            'VisualStudioExptTeam.vscodeintellicode',
+            'VisualStudioExptTeam.vscodeintellicode-completions',
+            'VisualStudioExptTeam.intellicode-api-usage-examples',
+            'ms-toolsai.vscode-ai',
+            'ms-vscode.azure-github-copilot',
+            'TeamsDevApp.vscode-ai-foundry',
+            'openai.chatgpt',
+            'google.geminicodeassist',
+            'amazonwebservices.amazon-q-vscode',
+            'TabNine.tabnine-vscode',
+            'Codeium.codeium',
+            'sourcegraph.cody-ai',
+            'Continue.continue',
+          ]);
+
+          if (product.extensionEnabledApiProposals) {
+            for (const id of AI_EXTENSION_IDS) {
+              delete product.extensionEnabledApiProposals[id];
+              // Also handle case-insensitive variants that sometimes appear
+              const lower = id.toLowerCase();
+              for (const key of Object.keys(product.extensionEnabledApiProposals)) {
+                if (key.toLowerCase() === lower) {
+                  delete product.extensionEnabledApiProposals[key];
+                }
+              }
+            }
+          }
+
+          if (product.extensionsEnabledWithApiProposalVersion) {
+            for (const id of AI_EXTENSION_IDS) {
+              delete product.extensionsEnabledWithApiProposalVersion[id];
+            }
+          }
+
+          // ── Block list for the extension installer ────────────────────────
+          //
+          // VS Code checks `product.extensionBlockList` before installing any
+          // extension from the marketplace or a .vsix file.  We build the list
+          // from both explicit IDs and a publisher-prefix rule.
+          //
+          const BLOCKED_EXTENSION_IDS = [
+            // GitHub Copilot
+            'GitHub.copilot',
+            'GitHub.copilot-chat',
+            'GitHub.copilot-nightly',
+            'ms-vscode.vscode-commander',
+            // IntelliCode
+            'VisualStudioExptTeam.vscodeintellicode',
+            'VisualStudioExptTeam.vscodeintellicode-completions',
+            'VisualStudioExptTeam.intellicode-api-usage-examples',
+            // OpenAI
+            'openai.chatgpt',
+            // Google
+            'google.geminicodeassist',
+            'googlecloudtools.cloudcode',
+            // Amazon
+            'amazonwebservices.amazon-q-vscode',
+            'amazonwebservices.codewhisperer-for-command-line-companion',
+            // Tabnine
+            'TabNine.tabnine-vscode',
+            // Codeium / Windsurf
+            'Codeium.codeium',
+            'codeium.windsurf-vscode',
+            // Sourcegraph / Cody
+            'sourcegraph.cody-ai',
+            // Continue.dev
+            'Continue.continue',
+            // HuggingFace
+            'HuggingFace.huggingface-vscode',
+            // Blackbox
+            'Blackboxapp.blackbox',
+            // Supermaven
+            'supermaven.supermaven',
+            // Pieces
+            'MeshIntelligentTechnologiesInc.pieces-vscode',
+            // Bito
+            'Bito.Bito',
+            // Refact
+            'smallcloud.codify',
+            // Azure AI
+            'ms-toolsai.vscode-ai',
+            'ms-azuretools.vscode-azure-github-copilot',
+            'TeamsDevApp.vscode-ai-foundry',
+            // Misc ChatGPT UIs
+            'gencay.vscode-chatgpt',
+            'genieai.chatgpt-vscode',
+            'timkmecl.chatgpt',
+            'deiucanta.chatgpt',
+            '10nates.ollama-autocoder',
+          ];
+
+          // Merge with any existing block list (deduplicated)
+          const existingBlock = Array.isArray(product.extensionBlockList)
+            ? product.extensionBlockList : [];
+          const merged = [...new Set([...existingBlock, ...BLOCKED_EXTENSION_IDS])];
+          product.extensionBlockList = merged;
+
+          // ── Remove AI telemetry / service endpoints ───────────────────────
+          delete product.aiConfig;
+          delete product.copilotConfig;
+          delete product.aiKey;
+          delete product.aiEndpoint;
+
+          // ── Write back ────────────────────────────────────────────────────
+          fs.writeFileSync(productPath, JSON.stringify(product, null, '\t'));
+          console.log(`product.json patched — version: ${process.env.RELEASE_VERSION}`);
+          NODE
+
+      # ── 10. Patch package.json version ─────────────────────────────────────
+      #
+      #   The gulp build reads package.json#version and can stamp it over what
+      #   we wrote into product.json.  We write the CalVer tag directly (bypassing
+      #   `npm version` which rejects 4-part version strings).
+      #
+      - name: Patch package.json version
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release_version.outputs.version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            p.version = process.env.RELEASE_VERSION;
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2));
+            console.log('package.json version set to', process.env.RELEASE_VERSION);
+          "
+
+      # ── 11. Compile TypeScript + download Electron ─────────────────────────
+      #
+      #   - `compile`            : runs tsc across all tsconfig projects; uses
+      #                            cached .tsbuildinfo for incremental builds
+      #   - `electron x64`       : downloads Electron if .build/electron is
+      #                            absent or stale (skipped on cache hit above)
+      #   - `download-builtin-extensions`: fetches grammar/snippet extensions
+      #
+      - name: Compile and download Electron
+        run: npm exec -- npm-run-all -lp compile "electron x64" download-builtin-extensions
+
+      # ── 12. Package + installer ────────────────────────────────────────────
+      - name: Build Windows x64 app package
+        run: npm run gulp -- vscode-win32-x64-min
+
+      - name: Build Windows x64 inno updater
+        run: npm run gulp -- vscode-win32-x64-inno-updater
+
+      - name: Build Windows user setup installer
+        run: npm run gulp -- vscode-win32-x64-user-setup
+
+      # ── 13. Rename installer ───────────────────────────────────────────────
+      - name: Rename installer with release version
+        shell: pwsh
+        run: |
+          $ReleaseVersion = "${{ steps.release_version.outputs.version }}"
+          $SetupDir = ".build\win32-x64\user-setup"
+          $SourceInstaller = Join-Path $SetupDir "VSCodeSetup.exe"
+          if (-not (Test-Path $SourceInstaller)) {
+            throw "Expected installer not found at $SourceInstaller"
+          }
+          Move-Item -Path $SourceInstaller `
+                    -Destination (Join-Path $SetupDir "NoAIVSCodeSetup-x64-$ReleaseVersion.exe")
+
+      # ── 14. Upload artifact ────────────────────────────────────────────────
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: noaivscode-windows-x64-installer-${{ steps.release_version.outputs.version }}
+          path: .build/win32-x64/user-setup/NoAIVSCodeSetup-x64-*.exe
+          if-no-files-found: error
+
+      # ── 15. Publish GitHub release ─────────────────────────────────────────
+      - name: Publish GitHub release with installer
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_version.outputs.version }}
+          name: NoAIVSCode ${{ steps.release_version.outputs.version }}
+          files: .build/win32-x64/user-setup/NoAIVSCodeSetup-x64-*.exe
+          generate_release_notes: true
