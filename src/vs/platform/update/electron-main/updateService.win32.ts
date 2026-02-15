@@ -51,21 +51,6 @@ interface IGitHubRelease {
 	assets?: IGitHubReleaseAsset[];
 }
 
-interface IGitHubReleaseAsset {
-	name: string;
-	browser_download_url: string;
-}
-
-interface IGitHubReleaseAsset {
-	name: string;
-	browser_download_url: string;
-}
-
-interface IGitHubRelease {
-	tag_name: string;
-	assets?: IGitHubReleaseAsset[];
-}
-
 
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
@@ -139,7 +124,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		await super.initialize();
 	}
 
-	protected buildUpdateFeedUrl(quality: string): string | undefined {
+	protected buildUpdateFeedUrl(quality: string, commit: string, options?: IUpdateURLOptions): string | undefined {
 		if (this.productService.updateUrl?.includes('api.github.com/repos/')) {
 			return this.productService.updateUrl;
 		}
@@ -177,8 +162,14 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return null;
 		}
 
-		const installerAsset = release.assets?.find(asset => /setup-x64-.*\.exe$/i.test(asset.name));
+		const installerAsset = this.getGitHubReleaseAsset(release.assets ?? []);
 		if (!installerAsset) {
+			this.logService.warn('update#getGitHubReleaseUpdate: no matching release asset found', {
+				arch: process.arch,
+				target: this.productService.target,
+				updateType: getUpdateType(),
+				assets: release.assets?.map(asset => asset.name)
+			});
 			return null;
 		}
 
@@ -189,86 +180,70 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		};
 	}
 
-	private isGitHubReleasesUpdateUrl(url: string): boolean {
-		return url.includes('api.github.com/repos/');
-	}
+	private getGitHubReleaseAsset(assets: readonly IGitHubReleaseAsset[]): IGitHubReleaseAsset | undefined {
+		const arch = process.arch.toLowerCase();
+		const updateType = getUpdateType();
+		const target = this.productService.target;
 
-	private async getGitHubReleaseUpdate(baseUrl: string, token: CancellationToken): Promise<IUpdate | null> {
-		const releaseUrl = baseUrl.endsWith('/') ? `${baseUrl}releases/latest` : `${baseUrl}/releases/latest`;
-		const context = await this.requestService.request({
-			url: releaseUrl,
-			headers: {
-				'Accept': 'application/vnd.github+json',
-				'User-Agent': this.productService.applicationName
+		const normalizedAssets = assets.map(asset => ({
+			asset,
+			name: asset.name.toLowerCase()
+		}));
+
+		const isWinArchive = ({ name }: { name: string }) => name.includes('win32') && (name.includes('archive') || name.endsWith('.zip'));
+		const isWinSetup = ({ name }: { name: string }) => name.endsWith('.exe') && name.includes('setup');
+		const hasArch = ({ name }: { name: string }) => name.includes(arch);
+		const isUserInstaller = ({ name }: { name: string }) => name.includes('user');
+
+		const preferred = normalizedAssets.find(({ name }) => {
+			if (!hasArch({ name })) {
+				return false;
 			}
-		}, token);
-		const release = await asJson<IGitHubRelease>(context);
-		if (!release?.tag_name) {
-			return null;
-		}
 
-		if (this.productService.commit === release.tag_name) {
-			return null;
-		}
-
-		const installerAsset = release.assets?.find(asset => /setup-x64-.*\.exe$/i.test(asset.name));
-		if (!installerAsset) {
-			return null;
-		}
-
-		return {
-			version: release.tag_name,
-			productVersion: release.tag_name,
-			url: installerAsset.browser_download_url,
-		};
-	}
-
-	private isGitHubReleasesUpdateUrl(url: string): boolean {
-		return url.includes('api.github.com/repos/');
-	}
-
-	private async getGitHubReleaseUpdate(baseUrl: string, token: CancellationToken): Promise<IUpdate | null> {
-		const releaseUrl = baseUrl.endsWith('/') ? `${baseUrl}releases/latest` : `${baseUrl}/releases/latest`;
-		const context = await this.requestService.request({
-			url: releaseUrl,
-			headers: {
-				'Accept': 'application/vnd.github+json',
-				'User-Agent': this.productService.applicationName
+			if (updateType === UpdateType.Archive) {
+				return isWinArchive({ name });
 			}
-		}, token);
-		const release = await asJson<IGitHubRelease>(context);
-		if (!release?.tag_name) {
-			return null;
+
+			if (!isWinSetup({ name })) {
+				return false;
+			}
+
+			return target === 'user' ? isUserInstaller({ name }) : !isUserInstaller({ name });
+		});
+
+		if (preferred) {
+			return preferred.asset;
 		}
 
-		if (this.productService.commit === release.tag_name) {
-			return null;
-		}
+		const fallback = normalizedAssets.find(({ name }) => {
+			if (!hasArch({ name })) {
+				return false;
+			}
 
-		const installerAsset = release.assets?.find(asset => /setup-x64-.*\.exe$/i.test(asset.name));
-		if (!installerAsset) {
-			return null;
-		}
+			return updateType === UpdateType.Archive
+				? name.endsWith('.zip')
+				: name.endsWith('.exe');
+		});
 
-		return {
-			version: release.tag_name,
-			productVersion: release.tag_name,
-			url: installerAsset.browser_download_url,
-		};
+		return fallback?.asset;
 	}
 
-	protected doCheckForUpdates(explicit: boolean): void {
-		const baseUrl = this.buildUpdateFeedUrl(this.productService.quality ?? 'stable');
+	protected doCheckForUpdates(explicit: boolean, pendingCommit?: string): void {
+		if (!this.quality) {
+			return;
+		}
+
+		const background = !explicit && !this.shouldDisableProgressiveReleases();
+		const baseUrl = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background });
 		if (!baseUrl) {
 			return;
 		}
 
-		const url = explicit ? baseUrl : `${baseUrl}?bg=true`;
 		this.setState(State.CheckingForUpdates(explicit));
 
-		const updatePromise = this.isGitHubReleasesUpdateUrl(url)
+		const updatePromise = this.isGitHubReleasesUpdateUrl(baseUrl)
 			? this.getGitHubReleaseUpdate(baseUrl, CancellationToken.None)
-			: this.requestService.request({ url }, CancellationToken.None).then<IUpdate | null>(asJson);
+			: this.requestService.request({ url: baseUrl }, CancellationToken.None).then<IUpdate | null>(asJson);
 
 		updatePromise.then(update => {
 				const updateType = getUpdateType();
