@@ -27,10 +27,61 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Configure product branding and Open VSX extension gallery
+      - name: Configure product branding, gallery, and remove built-in AI extensions
         run: |
-          node -e "const fs=require('fs');const path='product.json';const product=JSON.parse(fs.readFileSync(path,'utf8'));Object.assign(product,{nameShort:'NoAIVSCode',nameLong:'NoAIVSCode',applicationName:'noaivscode',dataFolderName:'.noaivscode',win32MutexName:'noaivscode',win32DirName:'NoAIVSCode',win32NameVersion:'NoAIVSCode',win32RegValueName:'NoAIVSCode',win32AppUserModelId:'NoAIVSCode',win32ShellNameShort:'&NoAIVSCode'});product.extensionsGallery={serviceUrl:'https://open-vsx.org/vscode/gallery',itemUrl:'https://open-vsx.org/vscode/item',controlUrl:'https://open-vsx.org/vscode/gallery',resourceUrlTemplate:'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',extensionUrlTemplate:'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',nlsBaseUrl:'https://open-vsx.org/vscode/gallery'};fs.writeFileSync(path, JSON.stringify(product, null, '\t'));"
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'product.json';
+          const product = JSON.parse(fs.readFileSync(path, 'utf8'));
 
+          Object.assign(product, {
+            nameShort: 'NoAIVSCode',
+            nameLong: 'NoAIVSCode',
+            applicationName: 'noaivscode',
+            dataFolderName: '.noaivscode',
+            win32MutexName: 'noaivscode',
+            win32DirName: 'NoAIVSCode',
+            win32NameVersion: 'NoAIVSCode',
+            win32RegValueName: 'NoAIVSCode',
+            win32AppUserModelId: 'NoAIVSCode',
+            win32ShellNameShort: '&NoAIVSCode'
+          });
+
+          product.extensionsGallery = {
+            serviceUrl: 'https://open-vsx.org/vscode/gallery',
+            itemUrl: 'https://open-vsx.org/vscode/item',
+            controlUrl: 'https://open-vsx.org/vscode/gallery',
+            resourceUrlTemplate: 'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',
+            extensionUrlTemplate: 'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',
+            nlsBaseUrl: 'https://open-vsx.org/vscode/gallery'
+          };
+
+          const blockedKeywords = [
+            'copilot',
+            'chat',
+            'ai',
+            'assistant',
+            'openai',
+            'claude',
+            'gemini',
+            'gpt'
+          ];
+
+          const isBlocked = (entry) => {
+            const haystack = [
+              entry?.name,
+              entry?.metadata?.id,
+              entry?.repo,
+              entry?.metadata?.publisherDisplayName
+            ].filter(Boolean).join(' ').toLowerCase();
+            return blockedKeywords.some(keyword => haystack.includes(keyword));
+          };
+
+          product.builtInExtensions = (product.builtInExtensions || []).filter(entry => !isBlocked(entry));
+          product.webBuiltInExtensions = (product.webBuiltInExtensions || []).filter(entry => !isBlocked(entry));
+
+          fs.writeFileSync(path, JSON.stringify(product, null, '	'));
+          NODE
       - name: Compute release version (yyyy.mm.dd.i)
         id: release_version
         uses: actions/github-script@v7
