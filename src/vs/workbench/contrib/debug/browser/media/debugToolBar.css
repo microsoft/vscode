@@ -6,10 +6,10 @@
 .monaco-workbench .debug-toolbar {
 	position: absolute;
 	z-index: 2520; /* Below quick input at 2550, above custom titlebar toolbar at 2500 */
-	height: 26px;
+	height: 28px;
 	display: flex;
-	padding-left: 7px;
-	border-radius: 4px;
+	padding-left: 2px;
+	border-radius: 5px;
 	left: 0;
 	top: 0;
 	-webkit-app-region: no-drag;
@@ -20,17 +20,19 @@
 }
 
 .monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container {
-	margin-right: 7px;
+	margin-right: 2px;
 }
 
 .monaco-workbench .debug-toolbar .monaco-action-bar .action-item.select-container .monaco-select-box,
 .monaco-workbench .start-debug-action-item .select-container .monaco-select-box {
-	padding: 0 22px 0 6px;
+	padding: 0 24px 0 8px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .monaco-workbench .debug-toolbar .drag-area {
 	cursor: grab;
-	width: 16px;
+	width: 20px;
 	opacity: 0.5;
 	display: flex;
 	align-items: center;

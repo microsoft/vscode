@@ -1,0 +1,211 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Overall */
+
+.chat-status-bar-entry-tooltip {
+	margin-top: 4px;
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip hr {
+	margin-top: 8px;
+	margin-bottom: 8px;
+}
+
+.chat-status-bar-entry-tooltip div.header {
+	display: flex;
+	align-items: center;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+	font-weight: 600;
+}
+
+.chat-status-bar-entry-tooltip div.header .monaco-action-bar {
+	margin-left: auto;
+}
+
+.chat-status-bar-entry-tooltip div.description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	display: flex;
+	align-items: center;
+	gap: 3px;
+}
+
+.chat-status-bar-entry-tooltip div.description.terms {
+	max-width: 250px;
+}
+
+.chat-status-bar-entry-tooltip .monaco-button {
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
+
+/* Setup for New User */
+
+.chat-status-bar-entry-tooltip .setup .chat-feature-container {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 4px;
+}
+
+/* Quota Indicator */
+
+.chat-status-bar-entry-tooltip .quota-indicator {
+	margin-bottom: 6px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-label {
+	display: flex;
+	justify-content: space-between;
+	gap: 20px;
+	margin-bottom: 3px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-label .quota-value {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
+	width: 100%;
+	height: 4px;
+	background-color: var(--vscode-gauge-background);
+	border-radius: 4px;
+	border: 1px solid var(--vscode-gauge-border);
+	margin: 4px 0;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {
+	height: 100%;
+	background-color: var(--vscode-gauge-foreground);
+	border-radius: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar {
+	background-color: var(--vscode-gauge-warningBackground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar {
+	background-color: var(--vscode-gauge-errorBackground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
+	background-color: var(--vscode-gauge-errorForeground);
+}
+
+/* Settings */
+
+.chat-status-bar-entry-tooltip .settings {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting {
+	display: flex;
+	align-items: center;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .monaco-checkbox {
+	height: 14px;
+	width: 14px;
+	margin-right: 5px;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting .setting-label {
+	cursor: pointer;
+}
+
+.chat-status-bar-entry-tooltip .settings .setting.disabled .setting-label {
+	color: var(--vscode-disabledForeground);
+}
+
+/* Model Selection */
+
+.chat-status-bar-entry-tooltip .model-selection {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 0 0 0;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-text {
+	flex: 1;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-action-bar {
+	margin-left: auto;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-action-bar .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Snoozing */
+
+.chat-status-bar-entry-tooltip .snooze-completions {
+	margin-top: 1px;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	gap: 6px;
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions .monaco-button {
+	width: fit-content;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-wrap: nowrap;
+	padding: 2px 8px;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions .snooze-label {
+	flex: 1;
+	padding-left: 2px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions.disabled .snooze-label {
+	color: var(--vscode-disabledForeground);
+}
+
+.chat-status-bar-entry-tooltip .snooze-completions .snooze-action-bar {
+	margin-left: auto;
+}
+
+/* Contributions */
+
+.chat-status-bar-entry-tooltip .contribution .body {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 5px;
+
+	.description,
+	.detail-item {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+	}
+
+	.detail-item,
+	.detail-item a {
+		margin-left: auto;
+		color: var(--vscode-descriptionForeground);
+	}
+}

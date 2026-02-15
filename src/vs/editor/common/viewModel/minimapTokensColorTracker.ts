@@ -21,7 +21,7 @@ export class MinimapTokensColorTracker extends Disposable {
 	private _colors!: RGBA8[];
 	private _backgroundIsLight!: boolean;
 
-	private readonly _onDidChange = new Emitter<void>();
+	private readonly _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private constructor() {

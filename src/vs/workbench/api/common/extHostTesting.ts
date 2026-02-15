@@ -1071,8 +1071,7 @@ class MirroredChangeCollector implements IncrementalChangeCollector<MirroredColl
 	 * @inheritdoc
 	 */
 	public remove(node: MirroredCollectionTestItem): void {
-		if (this.added.has(node)) {
-			this.added.delete(node);
+		if (this.added.delete(node)) {
 			return;
 		}
 

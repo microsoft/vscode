@@ -224,8 +224,10 @@ export class AIFolderMatchWorkspaceRootImpl extends Disposable implements ISearc
 	}
 	clear(clearingAll?: boolean): void {
 		const changed: ISearchTreeFileMatch[] = this.allDownstreamFileMatches();
-		this.disposeMatches();
-		this._onChange.fire({ elements: changed, removed: true, added: false, clearingAll });
+		if (changed.length > 0) {
+			this.disposeMatches();
+			this._onChange.fire({ elements: changed, removed: true, added: false, clearingAll });
+		}
 	}
 
 	get showHighlights(): boolean {

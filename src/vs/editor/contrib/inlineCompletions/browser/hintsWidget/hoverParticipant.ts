@@ -10,16 +10,14 @@ import { autorun, autorunWithStore, constObservable } from '../../../../../base/
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../browser/editorBrowser.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { Range } from '../../../../common/core/range.js';
-import { ILanguageService } from '../../../../common/languages/language.js';
 import { IModelDecoration } from '../../../../common/model.js';
 import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from '../../../hover/browser/hoverTypes.js';
 import { InlineCompletionsController } from '../controller/inlineCompletionsController.js';
 import { InlineSuggestionHintsContentWidget } from './inlineCompletionsHintsWidget.js';
-import { MarkdownRenderer } from '../../../../browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import * as nls from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { GhostTextView } from '../view/ghostText/ghostTextView.js';
 
@@ -45,11 +43,10 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@ILanguageService private readonly _languageService: ILanguageService,
-		@IOpenerService private readonly _openerService: IOpenerService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 	}
 
@@ -154,10 +151,10 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const $ = dom.$;
 		const markdownHoverElement = $('div.hover-row.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents', { ['aria-live']: 'assertive' }));
-		const renderer = new MarkdownRenderer({ editor: this._editor }, this._languageService, this._openerService);
 		const render = (code: string) => {
 			const inlineSuggestionAvailable = nls.localize('inlineSuggestionFollows', "Suggestion:");
-			const renderedContents = disposables.add(renderer.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code), {
+			const renderedContents = disposables.add(this._markdownRendererService.render(new MarkdownString().appendText(inlineSuggestionAvailable).appendCodeblock('text', code), {
+				context: this._editor,
 				asyncRenderCallback: () => {
 					hoverContentsElement.className = 'hover-contents code-hover-contents';
 					context.onContentsChanged();

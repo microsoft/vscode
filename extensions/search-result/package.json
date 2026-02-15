@@ -2,7 +2,7 @@
   "name": "search-result",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:search-result ./tsconfig.json"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:search-result ./tsconfig.json"
   },
   "capabilities": {
     "virtualWorkspaces": true,
@@ -55,5 +55,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.10"
   }
 }

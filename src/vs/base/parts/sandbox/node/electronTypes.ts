@@ -31,7 +31,7 @@ export interface MessagePortMain extends NodeJS.EventEmitter {
 	 * Sends a message from the port, and optionally, transfers ownership of objects to
 	 * other browsing contexts.
 	 */
-	postMessage(message: any, transfer?: MessagePortMain[]): void;
+	postMessage(message: unknown, transfer?: MessagePortMain[]): void;
 	/**
 	 * Starts the sending of messages queued on the port. Messages will be queued until
 	 * this method is called.
@@ -40,7 +40,7 @@ export interface MessagePortMain extends NodeJS.EventEmitter {
 }
 
 export interface MessageEvent {
-	data: any;
+	data: unknown;
 	ports: MessagePortMain[];
 }
 
@@ -60,7 +60,7 @@ export interface ParentPort extends NodeJS.EventEmitter {
 	/**
 	 * Sends a message from the process to its parent.
 	 */
-	postMessage(message: any): void;
+	postMessage(message: unknown): void;
 }
 
 export interface UtilityNodeJSProcess extends NodeJS.Process {

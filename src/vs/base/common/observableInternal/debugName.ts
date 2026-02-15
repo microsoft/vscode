@@ -103,7 +103,7 @@ function computeDebugName(self: object, data: DebugNameData): string | undefined
 
 function findKey(obj: object, value: object): string | undefined {
 	for (const key in obj) {
-		if ((obj as any)[key] === value) {
+		if ((obj as Record<string, unknown>)[key] === value) {
 			return key;
 		}
 	}

@@ -55,6 +55,10 @@ export function inferredProjectCompilerOptions(
 		projectConfig.strictFunctionTypes = true;
 	}
 
+	if (serviceConfig.implicitProjectConfiguration.strict) {
+		projectConfig.strict = true;
+	}
+
 	if (serviceConfig.implicitProjectConfiguration.module) {
 		projectConfig.module = serviceConfig.implicitProjectConfiguration.module as Proto.ModuleKind;
 	}

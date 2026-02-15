@@ -130,6 +130,7 @@ suite('Workbench parts', () => {
 		assert.strictEqual(part.getId(), 'myPart');
 
 		// Memento
+		// eslint-disable-next-line local/code-no-any-casts
 		let memento = part.testGetMemento(StorageScope.PROFILE, StorageTarget.MACHINE) as any;
 		assert(memento);
 		memento.foo = 'bar';

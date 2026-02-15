@@ -34,11 +34,11 @@ export function createMonacoBaseAPI(): typeof monaco {
 		KeyMod: KeyMod,
 		Position: Position,
 		Range: Range,
-		Selection: <any>Selection,
+		Selection: Selection as unknown as typeof monaco.Selection,
 		SelectionDirection: standaloneEnums.SelectionDirection,
 		MarkerSeverity: standaloneEnums.MarkerSeverity,
 		MarkerTag: standaloneEnums.MarkerTag,
-		Uri: <any>URI,
+		Uri: URI as unknown as typeof monaco.Uri,
 		Token: Token
 	};
 }
