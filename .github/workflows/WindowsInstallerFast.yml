@@ -1,4 +1,4 @@
-name: Build Windows No-AI VS Code Installer
+name: Build Fast Windows No-AI VS Code Installer
 
 on:
   workflow_dispatch:
