@@ -1521,9 +1521,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const customAgentTarget = ctx && this.chatSessionsService.getCustomAgentTargetForSessionType(ctx.chatSessionType);
 		this.chatSessionHasCustomAgentTarget.set(customAgentTarget !== Target.Undefined);
 
-		// Check if this session type has models targeting it via targetChatSessionType
-		const hasTargetedModels = this.hasModelsTargetingSessionType();
-		this.chatSessionHasTargetedModels.set(hasTargetedModels);
+		// Check if this session type requires custom models
+		const requiresCustomModels = ctx && this.chatSessionsService.requiresCustomModelsForSessionType(ctx.chatSessionType);
 
 		// Handle agent option from session - set initial mode
 		if (customAgentTarget) {
