@@ -23,7 +23,7 @@ import { HeightOfHiddenLinesRegionInDiffEditor } from '../../../browser/diff/dif
 suite('NotebookDiff EditorHeightCalculator', () => {
 	['Hide Unchanged Regions', 'Show Unchanged Regions'].forEach(suiteTitle => {
 		suite(suiteTitle, () => {
-			const fontInfo: FontInfo = { lineHeight: 18, fontSize: 18 } as any;
+			const fontInfo: FontInfo = { lineHeight: 18, fontSize: 18 } as FontInfo;
 			let disposables: DisposableStore;
 			let textModelResolver: ITextModelService;
 			let editorWorkerService: IEditorWorkerService;
@@ -58,7 +58,7 @@ suite('NotebookDiff EditorHeightCalculator', () => {
 							object: {
 								textEditorModel: resource === original ? originalModel : modifiedModel,
 								getLanguageId: () => 'javascript',
-							} as any
+							} as IResolvedTextEditorModel
 						};
 					}
 				};

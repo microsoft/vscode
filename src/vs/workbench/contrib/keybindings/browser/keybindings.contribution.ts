@@ -12,10 +12,9 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { showWindowLogActionId } from '../../../services/log/common/logConstants.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { $, append, getDomNodePagePosition, getWindows, onDidRegisterWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, getDomNodePagePosition, getWindows, onDidRegisterWindow } from '../../../../base/browser/dom.js';
 import { createCSSRule, createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { DomEmitter } from '../../../../base/browser/event.js';
 
 class ToggleKeybindingsLogAction extends Action2 {
 	static disposable: IDisposable | undefined;
@@ -64,7 +63,7 @@ class ToggleKeybindingsLogAction extends Action2 {
 		const onKeyDown = disposables.add(new Emitter<KeyboardEvent>());
 
 		function registerWindowListeners(window: Window, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
+			disposables.add(addDisposableListener(window, 'keydown', e => onKeyDown.fire(e), true));
 		}
 
 		for (const { window, disposables } of getWindows()) {

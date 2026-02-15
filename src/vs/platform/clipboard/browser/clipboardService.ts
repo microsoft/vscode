@@ -28,7 +28,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@ILogService private readonly logService: ILogService
+		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 
@@ -46,6 +46,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	triggerPaste(): Promise<void> | undefined {
+		this.logService.trace('BrowserClipboardService#triggerPaste');
 		return undefined;
 	}
 
@@ -119,14 +120,14 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	private readonly mapTextToType = new Map<string, string>(); // unsupported in web (only in-memory)
 
 	async writeText(text: string, type?: string): Promise<void> {
-
+		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' text.length:', text.length);
 		// Clear resources given we are writing text
 		this.clearResourcesState();
 
 		// With type: only in-memory is supported
 		if (type) {
 			this.mapTextToType.set(type, text);
-
+			this.logService.trace('BrowserClipboardService#writeText');
 			return;
 		}
 
@@ -141,6 +142,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
+			this.logService.trace('before navigator.clipboard.writeText');
 			return await getActiveWindow().navigator.clipboard.writeText(text);
 		} catch (error) {
 			console.error(error);
@@ -151,6 +153,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	private fallbackWriteText(text: string): void {
+		this.logService.trace('BrowserClipboardService#fallbackWriteText');
 		const activeDocument = getActiveDocument();
 		const activeElement = activeDocument.activeElement;
 
@@ -173,17 +176,21 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 	}
 
 	async readText(type?: string): Promise<string> {
-
+		this.logService.trace('BrowserClipboardService#readText called with type:', type);
 		// With type: only in-memory is supported
 		if (type) {
-			return this.mapTextToType.get(type) || '';
+			const readText = this.mapTextToType.get(type) || '';
+			this.logService.trace('BrowserClipboardService#readText text.length:', readText.length);
+			return readText;
 		}
 
 		// Guard access to navigator.clipboard with try/catch
 		// as we have seen DOMExceptions in certain browsers
 		// due to security policies.
 		try {
-			return await getActiveWindow().navigator.clipboard.readText();
+			const readText = await getActiveWindow().navigator.clipboard.readText();
+			this.logService.trace('BrowserClipboardService#readText text.length:', readText.length);
+			return readText;
 		} catch (error) {
 			console.error(error);
 		}

@@ -44,6 +44,7 @@ export interface IAuthenticationMcpAccessService {
 	removeAllowedMcpServers(providerId: string, accountName: string): void;
 }
 
+// TODO@TylerLeonhardt: Should this class only keep track of allowed things and throw away disallowed ones?
 export class AuthenticationMcpAccessService extends Disposable implements IAuthenticationMcpAccessService {
 	_serviceBrand: undefined;
 
@@ -87,6 +88,34 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 			}
 		} catch (err) { }
 
+		// Add trusted MCP servers from product.json if they're not already in the list
+		const trustedMcpServerAuthAccess = this._productService.trustedMcpAuthAccess;
+		const trustedMcpServerIds =
+			// Case 1: trustedMcpServerAuthAccess is an array
+			Array.isArray(trustedMcpServerAuthAccess)
+				? trustedMcpServerAuthAccess
+				// Case 2: trustedMcpServerAuthAccess is an object
+				: typeof trustedMcpServerAuthAccess === 'object'
+					? trustedMcpServerAuthAccess[providerId] ?? []
+					: [];
+
+		for (const mcpServerId of trustedMcpServerIds) {
+			const existingServer = trustedMCPServers.find(server => server.id === mcpServerId);
+			if (!existingServer) {
+				// Add new trusted server (name will be set by caller if they have server info)
+				trustedMCPServers.push({
+					id: mcpServerId,
+					name: mcpServerId, // Default to ID, caller can update with proper name
+					allowed: true,
+					trusted: true
+				});
+			} else {
+				// Update existing server to be trusted
+				existingServer.allowed = true;
+				existingServer.trusted = true;
+			}
+		}
+
 		return trustedMCPServers;
 	}
 
@@ -98,9 +127,16 @@ export class AuthenticationMcpAccessService extends Disposable implements IAuthe
 				allowList.push(mcpServer);
 			} else {
 				allowList[index].allowed = mcpServer.allowed;
+				// Update name if provided and not already set to a proper name
+				if (mcpServer.name && mcpServer.name !== mcpServer.id && allowList[index].name !== mcpServer.name) {
+					allowList[index].name = mcpServer.name;
+				}
 			}
 		}
-		this._storageService.store(`mcpserver-${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.APPLICATION, StorageTarget.USER);
+
+		// Filter out trusted servers before storing - they should only come from product.json, not user storage
+		const userManagedServers = allowList.filter(server => !server.trusted);
+		this._storageService.store(`mcpserver-${providerId}-${accountName}`, JSON.stringify(userManagedServers), StorageScope.APPLICATION, StorageTarget.USER);
 		this._onDidChangeMcpSessionAccess.fire({ providerId, accountName });
 	}
 

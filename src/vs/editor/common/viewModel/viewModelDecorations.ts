@@ -9,19 +9,27 @@ import { Range } from '../core/range.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { IModelDecoration, ITextModel, PositionAffinity } from '../model.js';
 import { IViewModelLines } from './viewModelLines.js';
-import { ICoordinatesConverter, InlineDecoration, InlineDecorationType, ViewModelDecoration } from '../viewModel.js';
-import { filterValidationDecorations } from '../config/editorOptions.js';
-import { StandardTokenType } from '../encodedTokenAttributes.js';
+import { filterFontDecorations, filterValidationDecorations } from '../config/editorOptions.js';
+import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecoration.js';
+import { InlineDecoration, InlineDecorationType } from './inlineDecorations.js';
+import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
-export interface IDecorationsViewportData {
+/**
+ * A collection of decorations in a range of lines.
+ */
+export interface IViewDecorationsCollection {
 	/**
-	 * decorations in the viewport.
+	 * decorations in the range of lines (ungrouped).
 	 */
 	readonly decorations: ViewModelDecoration[];
 	/**
-	 * inline decorations grouped by each line in the viewport.
+	 * inline decorations (grouped by each line in the range of lines).
 	 */
 	readonly inlineDecorations: InlineDecoration[][];
+	/**
+	 * Whether the decorations affect the fonts.
+	 */
+	readonly hasVariableFonts: boolean[];
 }
 
 export class ViewModelDecorations implements IDisposable {
@@ -34,7 +42,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
 
-	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
+	private _cachedModelDecorationsResolver: IViewDecorationsCollection | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
 
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
@@ -100,7 +108,7 @@ export class ViewModelDecorations implements IDisposable {
 		return this._getDecorationsInRange(range, true, false).decorations;
 	}
 
-	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
+	public getDecorationsViewportData(viewRange: Range): IViewDecorationsCollection {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
@@ -110,21 +118,23 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): InlineDecoration[] {
+	public getDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): IViewDecorationsCollection {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
-		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations).inlineDecorations[0];
+		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations);
 	}
 
-	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
-		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
+	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IViewDecorationsCollection {
+		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
 		const startLineNumber = viewRange.startLineNumber;
 		const endLineNumber = viewRange.endLineNumber;
 
 		const decorationsInViewport: ViewModelDecoration[] = [];
 		let decorationsInViewportLen = 0;
 		const inlineDecorations: InlineDecoration[][] = [];
+		const hasVariableFonts: boolean[] = [];
 		for (let j = startLineNumber; j <= endLineNumber; j++) {
 			inlineDecorations[j - startLineNumber] = [];
+			hasVariableFonts[j - startLineNumber] = false;
 		}
 
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
@@ -146,6 +156,9 @@ export class ViewModelDecorations implements IDisposable {
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
 					inlineDecorations[j - startLineNumber].push(inlineDecoration);
+					if (decorationOptions.affectsFont) {
+						hasVariableFonts[j - startLineNumber] = true;
+					}
 				}
 			}
 			if (decorationOptions.beforeContentClassName) {
@@ -156,6 +169,9 @@ export class ViewModelDecorations implements IDisposable {
 						InlineDecorationType.Before
 					);
 					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
+					if (decorationOptions.affectsFont) {
+						hasVariableFonts[viewRange.startLineNumber - startLineNumber] = true;
+					}
 				}
 			}
 			if (decorationOptions.afterContentClassName) {
@@ -166,71 +182,17 @@ export class ViewModelDecorations implements IDisposable {
 						InlineDecorationType.After
 					);
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
+					if (decorationOptions.affectsFont) {
+						hasVariableFonts[viewRange.endLineNumber - startLineNumber] = true;
+					}
 				}
 			}
 		}
 
 		return {
 			decorations: decorationsInViewport,
-			inlineDecorations: inlineDecorations
+			inlineDecorations: inlineDecorations,
+			hasVariableFonts
 		};
 	}
-}
-
-export function isModelDecorationVisible(model: ITextModel, decoration: IModelDecoration): boolean {
-	if (decoration.options.hideInCommentTokens && isModelDecorationInComment(model, decoration)) {
-		return false;
-	}
-
-	if (decoration.options.hideInStringTokens && isModelDecorationInString(model, decoration)) {
-		return false;
-	}
-
-	return true;
-}
-
-export function isModelDecorationInComment(model: ITextModel, decoration: IModelDecoration): boolean {
-	return testTokensInRange(
-		model,
-		decoration.range,
-		(tokenType) => tokenType === StandardTokenType.Comment
-	);
-}
-
-export function isModelDecorationInString(model: ITextModel, decoration: IModelDecoration): boolean {
-	return testTokensInRange(
-		model,
-		decoration.range,
-		(tokenType) => tokenType === StandardTokenType.String
-	);
-}
-
-/**
- * Calls the callback for every token that intersects the range.
- * If the callback returns `false`, iteration stops and `false` is returned.
- * Otherwise, `true` is returned.
- */
-function testTokensInRange(model: ITextModel, range: Range, callback: (tokenType: StandardTokenType) => boolean): boolean {
-	for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
-		const lineTokens = model.tokenization.getLineTokens(lineNumber);
-		const isFirstLine = lineNumber === range.startLineNumber;
-		const isEndLine = lineNumber === range.endLineNumber;
-
-		let tokenIdx = isFirstLine ? lineTokens.findTokenIndexAtOffset(range.startColumn - 1) : 0;
-		while (tokenIdx < lineTokens.getCount()) {
-			if (isEndLine) {
-				const startOffset = lineTokens.getStartOffset(tokenIdx);
-				if (startOffset > range.endColumn - 1) {
-					break;
-				}
-			}
-
-			const callbackResult = callback(lineTokens.getStandardTokenType(tokenIdx));
-			if (!callbackResult) {
-				return false;
-			}
-			tokenIdx++;
-		}
-	}
-	return true;
 }

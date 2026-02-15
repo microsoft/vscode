@@ -13,7 +13,7 @@ suite('UriTemplate', () => {
 	/**
 	 * Helper function to test template parsing and component extraction
 	 */
-	function testParsing(template: string, expectedComponents: any[]) {
+	function testParsing(template: string, expectedComponents: unknown[]) {
 		const templ = UriTemplate.parse(template);
 		assert.deepStrictEqual(templ.components.filter(c => typeof c === 'object'), expectedComponents);
 		return templ;
@@ -31,9 +31,9 @@ suite('UriTemplate', () => {
 	test('simple replacement', () => {
 		const templ = UriTemplate.parse('http://example.com/{var}');
 		assert.deepStrictEqual(templ.components, ['http://example.com/', {
-			expression: "{var}",
+			expression: '{var}',
 			operator: '',
-			variables: [{ explodable: false, name: "var", optional: false, prefixLength: undefined, repeatable: false }]
+			variables: [{ explodable: false, name: 'var', optional: false, prefixLength: undefined, repeatable: false }]
 		}, '']);
 		const result = templ.resolve({ var: 'value' });
 		assert.strictEqual(result, 'http://example.com/value');
@@ -42,52 +42,52 @@ suite('UriTemplate', () => {
 	test('parsing components correctly', () => {
 		// Simple component
 		testParsing('http://example.com/{var}', [{
-			expression: "{var}",
+			expression: '{var}',
 			operator: '',
-			variables: [{ explodable: false, name: "var", optional: false, prefixLength: undefined, repeatable: false }]
+			variables: [{ explodable: false, name: 'var', optional: false, prefixLength: undefined, repeatable: false }]
 		}]);
 
 		// Component with operator
 		testParsing('http://example.com/{+path}', [{
-			expression: "{+path}",
+			expression: '{+path}',
 			operator: '+',
-			variables: [{ explodable: false, name: "path", optional: false, prefixLength: undefined, repeatable: false }]
+			variables: [{ explodable: false, name: 'path', optional: false, prefixLength: undefined, repeatable: false }]
 		}]);
 
 		// Component with multiple variables
 		testParsing('http://example.com/{x,y}', [{
-			expression: "{x,y}",
+			expression: '{x,y}',
 			operator: '',
 			variables: [
-				{ explodable: false, name: "x", optional: false, prefixLength: undefined, repeatable: false },
-				{ explodable: false, name: "y", optional: false, prefixLength: undefined, repeatable: false }
+				{ explodable: false, name: 'x', optional: false, prefixLength: undefined, repeatable: false },
+				{ explodable: false, name: 'y', optional: false, prefixLength: undefined, repeatable: false }
 			]
 		}]);
 
 		// Component with value modifiers
 		testParsing('http://example.com/{var:3}', [{
-			expression: "{var:3}",
+			expression: '{var:3}',
 			operator: '',
-			variables: [{ explodable: false, name: "var", optional: false, prefixLength: 3, repeatable: false }]
+			variables: [{ explodable: false, name: 'var', optional: false, prefixLength: 3, repeatable: false }]
 		}]);
 
 		testParsing('http://example.com/{list*}', [{
-			expression: "{list*}",
+			expression: '{list*}',
 			operator: '',
-			variables: [{ explodable: true, name: "list", optional: false, prefixLength: undefined, repeatable: true }]
+			variables: [{ explodable: true, name: 'list', optional: false, prefixLength: undefined, repeatable: true }]
 		}]);
 
 		// Multiple components
 		testParsing('http://example.com/{x}/path/{y}', [
 			{
-				expression: "{x}",
+				expression: '{x}',
 				operator: '',
-				variables: [{ explodable: false, name: "x", optional: false, prefixLength: undefined, repeatable: false }]
+				variables: [{ explodable: false, name: 'x', optional: false, prefixLength: undefined, repeatable: false }]
 			},
 			{
-				expression: "{y}",
+				expression: '{y}',
 				operator: '',
-				variables: [{ explodable: false, name: "y", optional: false, prefixLength: undefined, repeatable: false }]
+				variables: [{ explodable: false, name: 'y', optional: false, prefixLength: undefined, repeatable: false }]
 			}
 		]);
 	});

@@ -42,8 +42,6 @@ export const enum ViewContainerLocation {
 	AuxiliaryBar
 }
 
-export const ViewContainerLocations = [ViewContainerLocation.Sidebar, ViewContainerLocation.Panel, ViewContainerLocation.AuxiliaryBar];
-
 export function ViewContainerLocationToString(viewContainerLocation: ViewContainerLocation) {
 	switch (viewContainerLocation) {
 		case ViewContainerLocation.Sidebar: return 'sidebar';
@@ -175,9 +173,9 @@ export interface IViewContainersRegistry {
 	getViewContainerLocation(container: ViewContainer): ViewContainerLocation;
 
 	/**
-	 * Return the default view container from the given location
+	 * Return the default view containers from the given location
 	 */
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
+	getDefaultViewContainers(location: ViewContainerLocation): ViewContainer[];
 }
 
 interface ViewOrderDelegate {
@@ -250,8 +248,8 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		return [...this.viewContainers.keys()].filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer?.id === container.id).length > 0)[0];
 	}
 
-	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
-		return this.defaultViewContainers.find(viewContainer => this.getViewContainerLocation(viewContainer) === location);
+	getDefaultViewContainers(location: ViewContainerLocation): ViewContainer[] {
+		return this.defaultViewContainers.filter(viewContainer => this.getViewContainerLocation(viewContainer) === location);
 	}
 }
 
@@ -609,6 +607,8 @@ export interface IViewDescriptorService {
 	getDefaultContainerById(id: string): ViewContainer | null;
 	getViewLocationById(id: string): ViewContainerLocation | null;
 
+	canMoveViews(): boolean;
+
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>;
 	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState, reason?: string): void;
 
@@ -660,7 +660,7 @@ export interface ITreeView extends IDisposable {
 
 	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]>;
 
-	readonly container: any | undefined;
+	readonly container: unknown /* HTMLElement */ | undefined;
 
 	// checkboxesChanged is a subset of treeItems
 	refresh(treeItems?: readonly ITreeItem[], checkboxesChanged?: readonly ITreeItem[]): Promise<void>;
@@ -685,7 +685,7 @@ export interface ITreeView extends IDisposable {
 
 	setFocus(item?: ITreeItem): void;
 
-	show(container: any): void;
+	show(container: unknown /* HTMLElement */): void;
 }
 
 export interface IRevealOptions {
@@ -721,11 +721,9 @@ export enum TreeItemCollapsibleState {
 
 export interface ITreeItemLabel {
 
-	label: string;
+	label: string | IMarkdownString;
 
 	highlights?: [number, number][];
-
-	strikethrough?: boolean;
 
 }
 
@@ -845,7 +843,7 @@ export class NoTreeViewError extends Error {
 
 export interface ITreeViewDataProvider {
 	readonly isTreeEmpty?: boolean;
-	onDidChangeEmpty?: Event<void>;
+	readonly onDidChangeEmpty?: Event<void>;
 	getChildren(element?: ITreeItem): Promise<ITreeItem[] | undefined>;
 	getChildrenBatch?(element?: ITreeItem[]): Promise<ITreeItem[][] | undefined>;
 }
@@ -865,9 +863,9 @@ export interface IEditableData {
 }
 
 export interface IViewPaneContainer {
-	onDidAddViews: Event<IView[]>;
-	onDidRemoveViews: Event<IView[]>;
-	onDidChangeViewVisibility: Event<IView>;
+	readonly onDidAddViews: Event<IView[]>;
+	readonly onDidRemoveViews: Event<IView[]>;
+	readonly onDidChangeViewVisibility: Event<IView>;
 
 	readonly views: IView[];
 
