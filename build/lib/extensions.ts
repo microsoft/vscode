@@ -12,8 +12,8 @@ import path from 'path';
 import crypto from 'crypto';
 import { Stream } from 'stream';
 import File from 'vinyl';
-import { createStatsStream } from './stats';
-import * as util2 from './util';
+import { createStatsStream } from './stats.ts';
+import * as util2 from './util.ts';
 import filter from 'gulp-filter';
 import rename from 'gulp-rename';
 import fancyLog from 'fancy-log';
@@ -21,13 +21,17 @@ import ansiColors from 'ansi-colors';
 import buffer from 'gulp-buffer';
 import * as jsoncParser from 'jsonc-parser';
 import webpack from 'webpack';
-import { getProductionDependencies } from './dependencies';
-import { IExtensionDefinition, getExtensionStream } from './builtInExtensions';
-import { getVersion } from './getVersion';
-import { fetchUrls, fetchGithub } from './fetch';
-const vzip = require('gulp-vinyl-zip');
+import { getProductionDependencies } from './dependencies.ts';
+import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
+import { getVersion } from './getVersion.ts';
+import { fetchUrls, fetchGithub } from './fetch.ts';
+import { createTsgoStream, spawnTsgo } from './tsgo.ts';
+import vzip from 'gulp-vinyl-zip';
 
-const root = path.dirname(path.dirname(__dirname));
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+
+const root = path.dirname(path.dirname(import.meta.dirname));
 const commit = getVersion(root);
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 
@@ -38,7 +42,7 @@ function minifyExtensionResources(input: Stream): Stream {
 		.pipe(buffer())
 		.pipe(es.mapSync((f: File) => {
 			const errors: jsoncParser.ParseError[] = [];
-			const value = jsoncParser.parse(f.contents.toString('utf8'), errors, { allowTrailingComma: true });
+			const value = jsoncParser.parse(f.contents!.toString('utf8'), errors, { allowTrailingComma: true });
 			if (errors.length === 0) {
 				// file parsed OK => just stringify to drop whitespace and comments
 				f.contents = Buffer.from(JSON.stringify(value));
@@ -54,7 +58,7 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 		.pipe(packageJsonFilter)
 		.pipe(buffer())
 		.pipe(es.mapSync((f: File) => {
-			const data = JSON.parse(f.contents.toString('utf8'));
+			const data = JSON.parse(f.contents!.toString('utf8'));
 			f.contents = Buffer.from(JSON.stringify(update(data)));
 			return f;
 		}))
@@ -63,18 +67,35 @@ function updateExtensionPackageJSON(input: Stream, update: (data: any) => any): 
 
 function fromLocal(extensionPath: string, forWeb: boolean, disableMangle: boolean): Stream {
 
-	const esm = JSON.parse(fs.readFileSync(path.join(extensionPath, 'package.json'), 'utf8')).type === 'module';
+	const esbuildConfigFileName = forWeb
+		? 'esbuild.browser.mts'
+		: 'esbuild.mts';
 
 	const webpackConfigFileName = forWeb
-		? `extension-browser.webpack.config.${!esm ? 'js' : 'cjs'}`
-		: `extension.webpack.config.${!esm ? 'js' : 'cjs'}`;
+		? `extension-browser.webpack.config.js`
+		: `extension.webpack.config.js`;
 
-	const isWebPacked = fs.existsSync(path.join(extensionPath, webpackConfigFileName));
-	let input = isWebPacked
-		? fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle)
-		: fromLocalNormal(extensionPath);
+	const hasEsbuild = fs.existsSync(path.join(extensionPath, esbuildConfigFileName));
+	const hasWebpack = fs.existsSync(path.join(extensionPath, webpackConfigFileName));
 
-	if (isWebPacked) {
+	let input: Stream;
+	let isBundled = false;
+
+	if (hasEsbuild) {
+		// Unlike webpack, esbuild only does bundling so we still want to run a separate type check step
+		input = es.merge(
+			fromLocalEsbuild(extensionPath, esbuildConfigFileName),
+			typeCheckExtensionStream(extensionPath, forWeb),
+		);
+		isBundled = true;
+	} else if (hasWebpack) {
+		input = fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle);
+		isBundled = true;
+	} else {
+		input = fromLocalNormal(extensionPath);
+	}
+
+	if (isBundled) {
 		input = updateExtensionPackageJSON(input, (data: any) => {
 			delete data.scripts;
 			delete data.dependencies;
@@ -89,6 +110,17 @@ function fromLocal(extensionPath: string, forWeb: boolean, disableMangle: boolea
 	return input;
 }
 
+export function typeCheckExtension(extensionPath: string, forWeb: boolean): Promise<void> {
+	const tsconfigFileName = forWeb ? 'tsconfig.browser.json' : 'tsconfig.json';
+	const tsconfigPath = path.join(extensionPath, tsconfigFileName);
+	return spawnTsgo(tsconfigPath, { taskName: 'typechecking extension (tsgo)', noEmit: true });
+}
+
+export function typeCheckExtensionStream(extensionPath: string, forWeb: boolean): Stream {
+	const tsconfigFileName = forWeb ? 'tsconfig.browser.json' : 'tsconfig.json';
+	const tsconfigPath = path.join(extensionPath, tsconfigFileName);
+	return createTsgoStream(tsconfigPath, { taskName: 'typechecking extension (tsgo)', noEmit: true });
+}
 
 function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, disableMangle: boolean): Stream {
 	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
@@ -97,12 +129,20 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 	const result = es.through();
 
 	const packagedDependencies: string[] = [];
+	const stripOutSourceMaps: string[] = [];
 	const packageJsonConfig = require(path.join(extensionPath, 'package.json'));
 	if (packageJsonConfig.dependencies) {
-		const webpackRootConfig = require(path.join(extensionPath, webpackConfigFileName));
+		const webpackConfig = require(path.join(extensionPath, webpackConfigFileName));
+		const webpackRootConfig = webpackConfig.default;
 		for (const key in webpackRootConfig.externals) {
 			if (key in packageJsonConfig.dependencies) {
 				packagedDependencies.push(key);
+			}
+		}
+
+		if (webpackConfig.StripOutSourceMaps) {
+			for (const filePath of webpackConfig.StripOutSourceMaps) {
+				stripOutSourceMaps.push(filePath);
 			}
 		}
 	}
@@ -119,19 +159,18 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 				path: filePath,
 				stat: fs.statSync(filePath),
 				base: extensionPath,
-				contents: fs.createReadStream(filePath) as any
+				contents: fs.createReadStream(filePath)
 			}));
 
 		// check for a webpack configuration files, then invoke webpack
 		// and merge its output with the files stream.
-		const webpackConfigLocations = (<string[]>glob.sync(
+		const webpackConfigLocations = (glob.sync(
 			path.join(extensionPath, '**', webpackConfigFileName),
 			{ ignore: ['**/node_modules'] }
-		));
-
+		) as string[]);
 		const webpackStreams = webpackConfigLocations.flatMap(webpackConfigPath => {
 
-			const webpackDone = (err: any, stats: any) => {
+			const webpackDone = (err: Error | undefined, stats: any) => {
 				fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), path.relative(extensionPath, webpackConfigPath)))}...`);
 				if (err) {
 					result.emit('error', err);
@@ -145,7 +184,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 				}
 			};
 
-			const exportedConfig = require(webpackConfigPath);
+			const exportedConfig = require(webpackConfigPath).default;
 			return (Array.isArray(exportedConfig) ? exportedConfig : [exportedConfig]).map(config => {
 				const webpackConfig = {
 					...config,
@@ -177,10 +216,15 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 						// * rewrite sourceMappingURL
 						// * save to disk so that upload-task picks this up
 						if (path.extname(data.basename) === '.js') {
-							const contents = (<Buffer>data.contents).toString('utf8');
-							data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
-								return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
-							}), 'utf8');
+							if (stripOutSourceMaps.indexOf(data.relative) >= 0) { // remove source map
+								const contents = (data.contents as Buffer).toString('utf8');
+								data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
+							} else {
+								const contents = (data.contents as Buffer).toString('utf8');
+								data.contents = Buffer.from(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, function (_m, g1) {
+									return `\n//# sourceMappingURL=${sourceMappingURLBase}/extensions/${path.basename(extensionPath)}/${relativeOutputPath}/${g1}`;
+								}), 'utf8');
+							}
 						}
 
 						this.emit('data', data);
@@ -217,12 +261,58 @@ function fromLocalNormal(extensionPath: string): Stream {
 					path: filePath,
 					stat: fs.statSync(filePath),
 					base: extensionPath,
-					contents: fs.createReadStream(filePath) as any
+					contents: fs.createReadStream(filePath)
 				}));
 
 			es.readArray(files).pipe(result);
 		})
 		.catch(err => result.emit('error', err));
+
+	return result.pipe(createStatsStream(path.basename(extensionPath)));
+}
+
+function fromLocalEsbuild(extensionPath: string, esbuildConfigFileName: string): Stream {
+	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
+	const result = es.through();
+
+	const esbuildScript = path.join(extensionPath, esbuildConfigFileName);
+
+	// Run esbuild, then collect the files
+	new Promise<void>((resolve, reject) => {
+		const proc = cp.execFile(process.argv[0], [esbuildScript], {}, (error, _stdout, stderr) => {
+			if (error) {
+				return reject(error);
+			}
+
+			const matches = (stderr || '').match(/\> (.+): error: (.+)?/g);
+			fancyLog(`Bundled extension: ${ansiColors.yellow(path.join(path.basename(extensionPath), esbuildConfigFileName))} with ${matches ? matches.length : 0} errors.`);
+			for (const match of matches || []) {
+				fancyLog.error(match);
+			}
+			return resolve();
+		});
+
+		proc.stdout!.on('data', (data) => {
+			fancyLog(`${ansiColors.green('esbuilding')}: ${data.toString('utf8')}`);
+		});
+	}).then(() => {
+		// After esbuild completes, collect all files using vsce
+		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.None });
+	}).then(fileNames => {
+		const files = fileNames
+			.map(fileName => path.join(extensionPath, fileName))
+			.map(filePath => new File({
+				path: filePath,
+				stat: fs.statSync(filePath),
+				base: extensionPath,
+				contents: fs.createReadStream(filePath)
+			}));
+
+		es.readArray(files).pipe(result);
+	}).catch(err => {
+		console.error(extensionPath);
+		result.emit('error', err);
+	});
 
 	return result.pipe(createStatsStream(path.basename(extensionPath)));
 }
@@ -335,7 +425,7 @@ const marketplaceWebExtensionsExclude = new Set([
 	'ms-vscode.vscode-js-profile-table'
 ]);
 
-const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
+const productJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../product.json'), 'utf8'));
 const builtInExtensions: IExtensionDefinition[] = productJson.builtInExtensions || [];
 const webBuiltInExtensions: IExtensionDefinition[] = productJson.webBuiltInExtensions || [];
 
@@ -419,7 +509,7 @@ export function packageAllLocalExtensionsStream(forWeb: boolean, disableMangle: 
 function doPackageLocalExtensionsStream(forWeb: boolean, disableMangle: boolean, native: boolean): Stream {
 	const nativeExtensionsSet = new Set(nativeExtensions);
 	const localExtensionsDescriptions = (
-		(<string[]>glob.sync('extensions/*/package.json'))
+		(glob.sync('extensions/*/package.json') as string[])
 			.map(manifestPath => {
 				const absoluteManifestPath = path.join(root, manifestPath);
 				const extensionPath = path.dirname(path.join(root, manifestPath));
@@ -559,23 +649,13 @@ export function translatePackageJSON(packageJSON: string, packageNLSPath: string
 
 const extensionsPath = path.join(root, 'extensions');
 
-// Additional projects to run esbuild on. These typically build code for webviews
-const esbuildMediaScripts = [
-	'markdown-language-features/esbuild-notebook.js',
-	'markdown-language-features/esbuild-preview.js',
-	'markdown-math/esbuild.js',
-	'notebook-renderers/esbuild.js',
-	'ipynb/esbuild.js',
-	'simple-browser/esbuild-preview.js',
-];
-
 export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string; outputRoot?: string }[]) {
 	const webpack = require('webpack') as typeof import('webpack');
 
 	const webpackConfigs: webpack.Configuration[] = [];
 
 	for (const { configPath, outputRoot } of webpackConfigLocations) {
-		const configOrFnOrArray = require(configPath);
+		const configOrFnOrArray = require(configPath).default;
 		function addConfig(configOrFnOrArray: webpack.Configuration | ((env: unknown, args: unknown) => webpack.Configuration) | webpack.Configuration[]) {
 			for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
 				const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;
@@ -587,6 +667,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 		}
 		addConfig(configOrFnOrArray);
 	}
+
 	function reporter(fullStats: any) {
 		if (Array.isArray(fullStats.children)) {
 			for (const stats of fullStats.children) {
@@ -632,7 +713,7 @@ export async function webpackExtensions(taskName: string, isWatch: boolean, webp
 	});
 }
 
-async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string; outputRoot?: string }[]) {
+export async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string; outputRoot?: string }[]): Promise<void> {
 	function reporter(stdError: string, script: string) {
 		const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
 		fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
@@ -663,10 +744,23 @@ async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { 
 			});
 		});
 	});
-	return Promise.all(tasks);
+
+	await Promise.all(tasks);
 }
 
-export async function buildExtensionMedia(isWatch: boolean, outputRoot?: string) {
+
+// Additional projects to run esbuild on. These typically build code for webviews
+const esbuildMediaScripts = [
+	'ipynb/esbuild.notebook.mts',
+	'markdown-language-features/esbuild.notebook.mts',
+	'markdown-language-features/esbuild.webview.mts',
+	'markdown-math/esbuild.notebook.mts',
+	'mermaid-chat-features/esbuild.webview.mts',
+	'notebook-renderers/esbuild.notebook.mts',
+	'simple-browser/esbuild.webview.mts',
+];
+
+export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Promise<void> {
 	return esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
 		script: path.join(extensionsPath, p),
 		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined

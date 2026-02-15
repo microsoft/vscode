@@ -11,7 +11,12 @@ export function setup(logger: Logger) {
 	describe('Launch', () => {
 
 		// Shared before/after handling
-		installAllHandlers(logger, opts => ({ ...opts, userDataDir: join(opts.userDataDir, 'ø') }));
+		installAllHandlers(logger, opts => {
+			if (opts.userDataDir) {
+				return { ...opts, userDataDir: join(opts.userDataDir, 'ø') };
+			}
+			return opts;
+		});
 
 		it('verifies that application launches when user data directory has non-ascii characters', async function () {
 			const app = this.app as Application;

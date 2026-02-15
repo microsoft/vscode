@@ -82,9 +82,9 @@ export class SuggestWidgetAdaptor extends Disposable {
 
 					const result = findFirstMax(
 						candidates,
-						compareBy(s => s!.prefixLength, numberComparator)
+						compareBy(s => s.prefixLength, numberComparator)
 					);
-					return result ? result.index : - 1;
+					return result ? result.index : -1;
 				}
 			}));
 
@@ -203,6 +203,7 @@ export class SuggestItemInfo {
 			insertText,
 			item.completion.kind,
 			isSnippetText,
+			item.container.incomplete ?? false,
 		);
 	}
 
@@ -211,6 +212,7 @@ export class SuggestItemInfo {
 		public readonly insertText: string,
 		public readonly completionItemKind: CompletionItemKind,
 		public readonly isSnippetText: boolean,
+		public readonly listIncomplete: boolean,
 	) { }
 
 	public equals(other: SuggestItemInfo): boolean {

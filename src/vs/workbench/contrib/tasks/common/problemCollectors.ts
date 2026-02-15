@@ -11,7 +11,7 @@ import { IDisposable, DisposableStore, Disposable } from '../../../../base/commo
 import { IModelService } from '../../../../editor/common/services/model.js';
 
 import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from './problemMatcher.js';
-import { IMarkerService, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IMarkerService, IMarkerData, MarkerSeverity, IMarker } from '../../../../platform/markers/common/markers.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -58,13 +58,13 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 
 	protected _onDidStateChange: Emitter<IProblemCollectorEvent>;
 
-	protected readonly _onDidFindFirstMatch = new Emitter<void>();
+	protected readonly _onDidFindFirstMatch = this._register(new Emitter<void>());
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
 
-	protected readonly _onDidFindErrors = new Emitter<void>();
+	protected readonly _onDidFindErrors = this._register(new Emitter<IMarker[]>());
 	readonly onDidFindErrors = this._onDidFindErrors.event;
 
-	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
+	protected readonly _onDidRequestInvalidateLastMarker = this._register(new Emitter<void>());
 	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
 
 	constructor(public readonly problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, protected modelService: IModelService, fileService?: IFileService) {
@@ -108,7 +108,7 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 		}, this, this.modelListeners));
 		this.modelService.getModels().forEach(model => this.openModels[model.uri.toString()] = true);
 
-		this._onDidStateChange = new Emitter();
+		this._onDidStateChange = this._register(new Emitter());
 	}
 
 	public get onDidStateChange(): Event<IProblemCollectorEvent> {
@@ -448,7 +448,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				false,
 				true
 			)(async (markerEvent: readonly URI[]) => {
-				if (!markerEvent || !markerEvent.includes(modelEvent.uri) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
+				if (markerEvent.length === 0) {
+					return;
+				}
+				const modelEventUriStr = modelEvent.uri.toString();
+				if ((!markerEvent.some(uri => uri.toString() === modelEventUriStr)) || (this.markerService.read({ resource: modelEvent.uri }).length !== 0)) {
 					return;
 				}
 				const oldLines = Array.from(this.lines);
@@ -457,8 +461,8 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				}
 			});
 
-			this._register(markerChanged); // Ensures markerChanged is tracked and disposed of properly
-
+			// Dispose the debounced listener after timeout - no need to register it since
+			// it's only used temporarily and will be disposed below
 			setTimeout(() => {
 				if (markerChanged) {
 					const _markerChanged = markerChanged;
@@ -542,12 +546,11 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			const matches = background.end.regexp.exec(line);
 			if (matches) {
 				if (this._numberOfMatches > 0) {
-					this._onDidFindErrors.fire();
+					this._onDidFindErrors.fire(this.markerService.read({ owner: background.matcher.owner }));
 				} else {
 					this._onDidRequestInvalidateLastMarker.fire();
 				}
-				if (this._activeBackgroundMatchers.has(background.key)) {
-					this._activeBackgroundMatchers.delete(background.key);
+				if (this._activeBackgroundMatchers.delete(background.key)) {
 					this.resetCurrentResource();
 					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
 					result = true;

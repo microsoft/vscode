@@ -5,7 +5,6 @@
 
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
@@ -13,25 +12,17 @@ import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { MultiDiffEditor } from './multiDiffEditor.js';
 import { MultiDiffEditorInput, MultiDiffEditorResolverContribution, MultiDiffEditorSerializer } from './multiDiffEditorInput.js';
-import { CollapseAllAction, ExpandAllAction, GoToFileAction } from './actions.js';
+import { CollapseAllAction, ExpandAllAction, GoToFileAction, GoToNextChangeAction, GoToPreviousChangeAction } from './actions.js';
 import { IMultiDiffSourceResolverService, MultiDiffSourceResolverService } from './multiDiffSourceResolverService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { OpenScmGroupAction, ScmMultiDiffSourceResolverContribution } from './scmMultiDiffSourceResolver.js';
 
 registerAction2(GoToFileAction);
+registerAction2(GoToNextChangeAction);
+registerAction2(GoToPreviousChangeAction);
 registerAction2(CollapseAllAction);
 registerAction2(ExpandAllAction);
 
-Registry.as<IConfigurationRegistry>(Extensions.Configuration)
-	.registerConfiguration({
-		properties: {
-			'multiDiffEditor.experimental.enabled': {
-				type: 'boolean',
-				default: true,
-				description: 'Enable experimental multi diff editor.',
-			},
-		}
-	});
 
 registerSingleton(IMultiDiffSourceResolverService, MultiDiffSourceResolverService, InstantiationType.Delayed);
 

@@ -1,0 +1,22 @@
+{
+  "name": "@vscode/sample-source",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@vscode/rollup-plugin-esm-url": "^1.0.1-1",
+    "vite": "npm:rolldown-vite@latest",
+    "@vscode/component-explorer": "next",
+    "@vscode/component-explorer-vite-plugin": "next"
+  },
+  "overrides": {
+    "@vscode/component-explorer-vite-plugin": {
+      "vite": "$vite"
+    }
+  }
+}

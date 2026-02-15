@@ -99,6 +99,14 @@ export interface IWindowUtilityProcessConfiguration extends IUtilityProcessConfi
 	 * when the associated browser window closes or reloads.
 	 */
 	readonly windowLifecycleBound?: boolean;
+
+	/**
+	 * Optional period in milliseconds to allow for graceful shutdown
+	 * before forcefully killing the process when the window lifecycle ends.
+	 * If not set or 0, the process will be killed immediately.
+	 * This is useful for extension hosts that need time to deactivate extensions.
+	 */
+	readonly windowLifecycleGraceTime?: number;
 }
 
 function isWindowUtilityProcessConfiguration(config: IUtilityProcessConfiguration): config is IWindowUtilityProcessConfiguration {
@@ -134,7 +142,7 @@ export interface IUtilityProcessCrashEvent extends IUtilityProcessExitBaseEvent 
 	/**
 	 * The reason of the utility process crash.
 	 */
-	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure';
+	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure' | 'memory-eviction';
 }
 
 export interface IUtilityProcessInfo {
@@ -261,8 +269,8 @@ export class UtilityProcess extends Disposable {
 		return true;
 	}
 
-	private createEnv(configuration: IUtilityProcessConfiguration): { [key: string]: any } {
-		const env: { [key: string]: any } = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
+	private createEnv(configuration: IUtilityProcessConfiguration): NodeJS.ProcessEnv {
+		const env: NodeJS.ProcessEnv = configuration.env ? { ...configuration.env } : { ...deepClone(process.env) };
 
 		// Apply supported environment variables from config
 		env['VSCODE_ESM_ENTRYPOINT'] = configuration.entryPoint;
@@ -327,46 +335,6 @@ export class UtilityProcess extends Disposable {
 
 			// Cleanup
 			this.onDidExitOrCrashOrKill();
-		}));
-
-		// V8 Error
-		this._register(Event.fromNodeEventEmitter(process, 'error', (type, location, report) => ({ type, location, report }))(({ type, location, report }) => {
-			this.log(`crashed due to ${type} from V8 at ${location}`, Severity.Info);
-
-			let addons: string[] = [];
-			try {
-				const reportJSON = JSON.parse(report);
-				addons = reportJSON.sharedObjects
-					.filter((sharedObject: string) => sharedObject.endsWith('.node'))
-					.map((addon: string) => {
-						const index = addon.indexOf('extensions') === -1 ? addon.indexOf('node_modules') : addon.indexOf('extensions');
-						return addon.substring(index);
-					});
-			} catch (e) {
-				// ignore
-			}
-
-			// Telemetry
-			type UtilityProcessV8ErrorClassification = {
-				processtype: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of utility process to understand the origin of the crash better.' };
-				error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of error from the utility process to understand the nature of the crash better.' };
-				location: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The source location that triggered the crash to understand the nature of the crash better.' };
-				addons: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The list of addons loaded in the utility process to understand the nature of the crash better' };
-				owner: 'deepak1556';
-				comment: 'Provides insight into V8 sandbox FATAL error caused by native addons.';
-			};
-			type UtilityProcessV8ErrorEvent = {
-				processtype: string;
-				error: string;
-				location: string;
-				addons: string[];
-			};
-			this.telemetryService.publicLog2<UtilityProcessV8ErrorEvent, UtilityProcessV8ErrorClassification>('utilityprocessv8error', {
-				processtype: configuration.type,
-				error: type,
-				location,
-				addons
-			});
 		}));
 
 		// Child process gone
@@ -528,11 +496,17 @@ export class WindowUtilityProcess extends UtilityProcess {
 	private registerWindowListeners(window: BrowserWindow, configuration: IWindowUtilityProcessConfiguration): void {
 
 		// If the lifecycle of the utility process is bound to the window,
-		// we kill the process if the window closes or changes
+		// we terminate the process if the window closes or changes.
+		// If a grace period is configured, we wait for the process to exit
+		// before terminating (e.g. extensions need time to deactivate).
 
 		if (configuration.windowLifecycleBound) {
-			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(() => this.kill()));
-			this._register(Event.fromNodeEventEmitter(window, 'closed')(() => this.kill()));
+			const graceTime = configuration.windowLifecycleGraceTime;
+			const terminate = graceTime && graceTime > 0
+				? () => this.waitForExit(graceTime)
+				: () => this.kill();
+			this._register(Event.filter(this.lifecycleMainService.onWillLoadWindow, e => e.window.win === window)(terminate));
+			this._register(Event.fromNodeEventEmitter(window, 'closed')(terminate));
 		}
 	}
 }

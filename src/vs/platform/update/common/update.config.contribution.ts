@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isWeb, isWindows } from '../../../base/common/platform.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
@@ -30,7 +31,29 @@ configurationRegistry.registerConfiguration({
 			],
 			policy: {
 				name: 'UpdateMode',
+				category: PolicyCategory.Update,
 				minimumVersion: '1.67',
+				localization: {
+					description: { key: 'updateMode', value: localize('updateMode', "Configure whether you receive automatic updates. Requires a restart after change. The updates are fetched from a Microsoft online service."), },
+					enumDescriptions: [
+						{
+							key: 'none',
+							value: localize('none', "Disable updates."),
+						},
+						{
+							key: 'manual',
+							value: localize('manual', "Disable automatic background update checks. Updates will be available if you manually check for updates."),
+						},
+						{
+							key: 'start',
+							value: localize('start', "Check for updates only on startup. Disable automatic background update checks."),
+						},
+						{
+							key: 'default',
+							value: localize('default', "Enable automatic update checks. Code will check for updates automatically and periodically."),
+						}
+					]
+				},
 			}
 		},
 		'update.channel': {
@@ -54,6 +77,18 @@ configurationRegistry.registerConfiguration({
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices']
+		},
+		'update.statusBar': {
+			type: 'string',
+			enum: ['hidden', 'actionable', 'detailed'],
+			default: 'detailed',
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('statusBar', "Controls the visibility of the update status bar entry."),
+			enumDescriptions: [
+				localize('hidden', "The status bar entry is never shown."),
+				localize('actionable', "The status bar entry is shown when an action is required (e.g., download, install, or restart)."),
+				localize('detailed', "The status bar entry is shown for all update states including progress.")
+			]
 		}
 	}
 });

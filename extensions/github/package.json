@@ -157,13 +157,6 @@
           "group": "0_view@2"
         }
       ],
-      "scm/historyItem/hover": [
-        {
-          "command": "github.graph.openOnGitHub",
-          "when": "github.hasGitHubRepo",
-          "group": "1_open@1"
-        }
-      ],
       "timeline/item/context": [
         {
           "command": "github.timeline.openOnGitHub",

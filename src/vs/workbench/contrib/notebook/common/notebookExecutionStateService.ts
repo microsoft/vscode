@@ -83,8 +83,8 @@ export const INotebookExecutionStateService = createDecorator<INotebookExecution
 export interface INotebookExecutionStateService {
 	_serviceBrand: undefined;
 
-	onDidChangeExecution: Event<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>;
-	onDidChangeLastRunFailState: Event<INotebookFailStateChangedEvent>;
+	readonly onDidChangeExecution: Event<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>;
+	readonly onDidChangeLastRunFailState: Event<INotebookFailStateChangedEvent>;
 
 	forceCancelNotebookExecutions(notebookUri: URI): void;
 	getCellExecutionsForNotebook(notebook: URI): INotebookCellExecution[];

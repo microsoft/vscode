@@ -10,11 +10,13 @@
 }
 
 .monaco-keybinding > .monaco-keybinding-key {
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
 	border-style: solid;
 	border-width: 1px;
 	border-radius: 3px;
-	vertical-align: middle;
+	justify-content: center;
+	min-width: 12px;
 	font-size: 11px;
 	padding: 3px 5px;
 	margin: 0 2px;
