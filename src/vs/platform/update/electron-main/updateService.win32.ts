@@ -223,6 +223,40 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		};
 	}
 
+	private isGitHubReleasesUpdateUrl(url: string): boolean {
+		return url.includes('api.github.com/repos/');
+	}
+
+	private async getGitHubReleaseUpdate(baseUrl: string, token: CancellationToken): Promise<IUpdate | null> {
+		const releaseUrl = baseUrl.endsWith('/') ? `${baseUrl}releases/latest` : `${baseUrl}/releases/latest`;
+		const context = await this.requestService.request({
+			url: releaseUrl,
+			headers: {
+				'Accept': 'application/vnd.github+json',
+				'User-Agent': this.productService.applicationName
+			}
+		}, token);
+		const release = await asJson<IGitHubRelease>(context);
+		if (!release?.tag_name) {
+			return null;
+		}
+
+		if (this.productService.commit === release.tag_name) {
+			return null;
+		}
+
+		const installerAsset = release.assets?.find(asset => /setup-x64-.*\.exe$/i.test(asset.name));
+		if (!installerAsset) {
+			return null;
+		}
+
+		return {
+			version: release.tag_name,
+			productVersion: release.tag_name,
+			url: installerAsset.browser_download_url,
+		};
+	}
+
 	protected doCheckForUpdates(explicit: boolean): void {
 		const baseUrl = this.buildUpdateFeedUrl(this.productService.quality ?? 'stable');
 		if (!baseUrl) {
