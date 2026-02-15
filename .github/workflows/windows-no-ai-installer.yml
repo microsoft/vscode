@@ -9,7 +9,7 @@ on:
     - cron: '0 3 * * *'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-windows-installer:
@@ -27,10 +27,39 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-
-      - name: Configure Open VSX extension gallery
+      - name: Configure product branding and Open VSX extension gallery
         run: |
-          node -e "const fs=require('fs');const path='product.json';const product=JSON.parse(fs.readFileSync(path,'utf8'));product.extensionsGallery={serviceUrl:'https://open-vsx.org/vscode/gallery',itemUrl:'https://open-vsx.org/vscode/item',controlUrl:'https://open-vsx.org/vscode/gallery',resourceUrlTemplate:'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',extensionUrlTemplate:'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',nlsBaseUrl:'https://open-vsx.org/vscode/gallery'};fs.writeFileSync(path, JSON.stringify(product, null, '\t'));"
+          node -e "const fs=require('fs');const path='product.json';const product=JSON.parse(fs.readFileSync(path,'utf8'));Object.assign(product,{nameShort:'NoAIVSCode',nameLong:'NoAIVSCode',applicationName:'noaivscode',dataFolderName:'.noaivscode',win32MutexName:'noaivscode',win32DirName:'NoAIVSCode',win32NameVersion:'NoAIVSCode',win32RegValueName:'NoAIVSCode',win32AppUserModelId:'NoAIVSCode',win32ShellNameShort:'&NoAIVSCode'});product.extensionsGallery={serviceUrl:'https://open-vsx.org/vscode/gallery',itemUrl:'https://open-vsx.org/vscode/item',controlUrl:'https://open-vsx.org/vscode/gallery',resourceUrlTemplate:'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',extensionUrlTemplate:'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',nlsBaseUrl:'https://open-vsx.org/vscode/gallery'};fs.writeFileSync(path, JSON.stringify(product, null, '\t'));"
+
+      - name: Compute release version (yyyy.mm.dd.i)
+        id: release_version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const d = new Date();
+            const yyyy = d.getUTCFullYear();
+            const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const dd = String(d.getUTCDate()).padStart(2, '0');
+            const prefix = `${yyyy}.${mm}.${dd}.`;
+
+            const tags = await github.paginate(github.rest.repos.listTags, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+
+            let maxIndex = 0;
+            for (const t of tags) {
+              if (t.name.startsWith(prefix)) {
+                const idx = Number(t.name.slice(prefix.length));
+                if (Number.isInteger(idx) && idx > maxIndex) {
+                  maxIndex = idx;
+                }
+              }
+            }
+
+            const version = `${prefix}${maxIndex + 1}`;
+            core.setOutput('version', version);
 
       - name: Install dependencies
         env:
@@ -51,16 +80,23 @@ jobs:
       - name: Build Windows user setup installer
         run: npm run gulp -- vscode-win32-x64-user-setup
 
-      - name: Rename installer with architecture and version
+      - name: Rename installer with release version
         shell: pwsh
         run: |
-          $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-x64\resources\app\package.json | ConvertFrom-Json
-          $Version = $PackageJson.version
-          Move-Item -Path .build\win32-x64\user-setup\VSCodeSetup.exe -Destination .build\win32-x64\user-setup\VSCodeUserSetup-x64-$Version.exe
+          $ReleaseVersion = "${{ steps.release_version.outputs.version }}"
+          Move-Item -Path .build\win32-x64\user-setup\NoAIVSCodeSetup.exe -Destination .build\win32-x64\user-setup\NoAIVSCodeSetup-x64-$ReleaseVersion.exe
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: vscode-no-ai-windows-x64-installer
-          path: .build/win32-x64/user-setup/VSCodeUserSetup-x64-*.exe
+          name: noaivscode-windows-x64-installer-${{ steps.release_version.outputs.version }}
+          path: .build/win32-x64/user-setup/NoAIVSCodeSetup-x64-*.exe
           if-no-files-found: error
+
+      - name: Publish GitHub release with installer
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_version.outputs.version }}
+          name: NoAIVSCode ${{ steps.release_version.outputs.version }}
+          files: .build/win32-x64/user-setup/NoAIVSCodeSetup-x64-*.exe
+          generate_release_notes: true
