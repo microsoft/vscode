@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as Proto from '../tsServer/protocol/protocol';
+import { readUnifiedConfig } from '../utils/configuration';
 import * as objects from '../utils/objects';
 
 export enum TsServerLogLevel {
@@ -12,6 +13,7 @@ export enum TsServerLogLevel {
 	Normal,
 	Terse,
 	Verbose,
+	RequestTime
 }
 
 export namespace TsServerLogLevel {
@@ -23,6 +25,8 @@ export namespace TsServerLogLevel {
 				return TsServerLogLevel.Terse;
 			case 'verbose':
 				return TsServerLogLevel.Verbose;
+			case 'requestTime':
+				return TsServerLogLevel.RequestTime;
 			case 'off':
 			default:
 				return TsServerLogLevel.Off;
@@ -37,6 +41,8 @@ export namespace TsServerLogLevel {
 				return 'terse';
 			case TsServerLogLevel.Verbose:
 				return 'verbose';
+			case TsServerLogLevel.RequestTime:
+				return 'requestTime';
 			case TsServerLogLevel.Off:
 			default:
 				return 'off';
@@ -59,6 +65,7 @@ export class ImplicitProjectConfiguration {
 	public readonly experimentalDecorators: boolean;
 	public readonly strictNullChecks: boolean;
 	public readonly strictFunctionTypes: boolean;
+	public readonly strict: boolean;
 
 	constructor(configuration: vscode.WorkspaceConfiguration) {
 		this.target = ImplicitProjectConfiguration.readTarget(configuration);
@@ -67,6 +74,7 @@ export class ImplicitProjectConfiguration {
 		this.experimentalDecorators = ImplicitProjectConfiguration.readExperimentalDecorators(configuration);
 		this.strictNullChecks = ImplicitProjectConfiguration.readImplicitStrictNullChecks(configuration);
 		this.strictFunctionTypes = ImplicitProjectConfiguration.readImplicitStrictFunctionTypes(configuration);
+		this.strict = ImplicitProjectConfiguration.readImplicitStrict(configuration);
 	}
 
 	public isEqualTo(other: ImplicitProjectConfiguration): boolean {
@@ -96,6 +104,10 @@ export class ImplicitProjectConfiguration {
 	private static readImplicitStrictFunctionTypes(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('js/ts.implicitProjectConfig.strictFunctionTypes', true);
 	}
+
+	private static readImplicitStrict(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('js/ts.implicitProjectConfig.strict', true);
+	}
 }
 
 export interface TypeScriptServiceConfiguration {
@@ -122,7 +134,6 @@ export interface TypeScriptServiceConfiguration {
 	readonly localNodePath: string | null;
 	readonly globalNodePath: string | null;
 	readonly workspaceSymbolsExcludeLibrarySymbols: boolean;
-	readonly enableRegionDiagnostics: boolean;
 }
 
 export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration, b: TypeScriptServiceConfiguration): boolean {
@@ -165,7 +176,6 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			localNodePath: this.readLocalNodePath(configuration),
 			globalNodePath: this.readGlobalNodePath(configuration),
 			workspaceSymbolsExcludeLibrarySymbols: this.readWorkspaceSymbolsExcludeLibrarySymbols(configuration),
-			enableRegionDiagnostics: this.readEnableRegionDiagnostics(configuration),
 		};
 	}
 
@@ -259,8 +269,8 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return { ...(watchOptions ?? {}) };
 	}
 
-	protected readIncludePackageJsonAutoImports(configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
-		return configuration.get<'auto' | 'on' | 'off'>('typescript.preferences.includePackageJsonAutoImports');
+	protected readIncludePackageJsonAutoImports(_configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
+		return readUnifiedConfig<'auto' | 'on' | 'off' | undefined>('preferences.includePackageJsonAutoImports', undefined, { fallbackSection: 'typescript' });
 	}
 
 	protected readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
@@ -295,9 +305,5 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 
 	private readWebTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', true);
-	}
-
-	private readEnableRegionDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.enableRegionDiagnostics', true);
 	}
 }

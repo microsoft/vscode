@@ -30,11 +30,7 @@ jobs:
       - name: Normalize Win32 updater source to known-good revision
         shell: bash
         run: |
-          if git cat-file -e 456c621e^{commit} 2>/dev/null; then
-            git checkout 456c621e -- src/vs/platform/update/electron-main/updateService.win32.ts
-          else
-            echo "Known-good commit 456c621e not available in this checkout; skipping pin."
-          fi
+          git checkout 456c621e -- src/vs/platform/update/electron-main/updateService.win32.ts
           rg -n "IUpdateURLOptions|pendingCommit|commit, options" src/vs/platform/update/electron-main/updateService.win32.ts && exit 1 || true
 
       - name: Compute release version (yyyy.mm.dd.i)

@@ -6,7 +6,7 @@
 import { Emitter } from '../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { ITextModel, shouldSynchronizeModel } from './model.js';
-import { LanguageFilter, LanguageSelector, score } from './languageSelector.js';
+import { LanguageFilter, LanguageSelector, score, selectLanguageIds } from './languageSelector.js';
 import { URI } from '../../base/common/uri.js';
 
 interface Entry<T> {
@@ -59,7 +59,7 @@ export class LanguageFeatureRegistry<T> {
 	private readonly _entries: Entry<T>[] = [];
 
 	private readonly _onDidChange = new Emitter<number>();
-	readonly onDidChange = this._onDidChange.event;
+	get onDidChange() { return this._onDidChange.event; }
 
 	constructor(private readonly _notebookInfoResolver?: NotebookInfoResolver) { }
 
@@ -115,6 +115,14 @@ export class LanguageFeatureRegistry<T> {
 		return this._entries.map(entry => entry.provider);
 	}
 
+	get registeredLanguageIds(): ReadonlySet<string> {
+		const result = new Set<string>();
+		for (const entry of this._entries) {
+			selectLanguageIds(entry.selector, result);
+		}
+		return result;
+	}
+
 	ordered(model: ITextModel, recursive = false): T[] {
 		const result: T[] = [];
 		this._orderedForEach(model, recursive, entry => result.push(entry.provider));
@@ -139,7 +147,7 @@ export class LanguageFeatureRegistry<T> {
 		return result;
 	}
 
-	private _orderedForEach(model: ITextModel, recursive: boolean, callback: (provider: Entry<T>) => any): void {
+	private _orderedForEach(model: ITextModel, recursive: boolean, callback: (provider: Entry<T>) => void): void {
 
 		this._updateScores(model, recursive);
 
@@ -191,7 +199,7 @@ export class LanguageFeatureRegistry<T> {
 		this._entries.sort(LanguageFeatureRegistry._compareByScoreAndTime);
 	}
 
-	private static _compareByScoreAndTime(a: Entry<any>, b: Entry<any>): number {
+	private static _compareByScoreAndTime(a: Entry<unknown>, b: Entry<unknown>): number {
 		if (a._score < b._score) {
 			return 1;
 		} else if (a._score > b._score) {
@@ -226,4 +234,3 @@ function isBuiltinSelector(selector: LanguageSelector): boolean {
 
 	return Boolean((selector as LanguageFilter).isBuiltin);
 }
-

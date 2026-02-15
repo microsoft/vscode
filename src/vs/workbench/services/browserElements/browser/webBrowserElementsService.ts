@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserType, IElementData } from '../../../../platform/browserElements/common/browserElements.js';
+import { IElementData, IBrowserTargetLocator } from '../../../../platform/browserElements/common/browserElements.js';
 import { IRectangle } from '../../../../platform/window/common/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
@@ -14,11 +14,11 @@ class WebBrowserElementsService implements IBrowserElementsService {
 
 	constructor() { }
 
-	async getElementData(rect: IRectangle, token: CancellationToken): Promise<IElementData | undefined> {
+	async getElementData(rect: IRectangle, token: CancellationToken, locator: IBrowserTargetLocator | undefined): Promise<IElementData | undefined> {
 		throw new Error('Not implemented');
 	}
 
-	startDebugSession(token: CancellationToken, browserType: BrowserType): Promise<void> {
+	async startDebugSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void> {
 		throw new Error('Not implemented');
 	}
 }

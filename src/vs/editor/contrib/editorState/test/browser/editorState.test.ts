@@ -94,6 +94,7 @@ suite('Editor Core - Editor State', () => {
 		const mappedModel = model ? { uri: model.uri ? model.uri : URI.parse('http://dummy.org'), getVersionId: () => model.version } : null;
 
 		return {
+			// eslint-disable-next-line local/code-no-any-casts
 			getModel: (): ITextModel => <any>mappedModel,
 			getPosition: (): Position | undefined => position,
 			getSelection: (): Selection | undefined => selection,
