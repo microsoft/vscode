@@ -19,7 +19,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 
 export class ResourceNotebookCellEdit extends ResourceEdit implements IWorkspaceNotebookCellEdit {
 
-	static is(candidate: any): candidate is IWorkspaceNotebookCellEdit {
+	static is(candidate: unknown): candidate is IWorkspaceNotebookCellEdit {
 		if (candidate instanceof ResourceNotebookCellEdit) {
 			return true;
 		}

@@ -2,16 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-//@ts-check
-
-'use strict';
-const CopyPlugin = require('copy-webpack-plugin');
-const path = require('path');
-
-const defaultConfig = require('../shared.webpack.config');
-const withBrowserDefaults = defaultConfig.browser;
-const browserPlugins = defaultConfig.browserPlugins;
+// @ts-check
+import CopyPlugin from 'copy-webpack-plugin';
+import path from 'path';
+import defaultConfig, { browser as withBrowserDefaults, browserPlugins } from '../shared.webpack.config.mjs';
 
 const languages = [
 	'zh-tw',
@@ -28,13 +22,13 @@ const languages = [
 	'tr',
 	'zh-cn',
 ];
-module.exports = [withBrowserDefaults({
-	context: __dirname,
+export default [withBrowserDefaults({
+	context: import.meta.dirname,
 	entry: {
 		extension: './src/extension.browser.ts',
 	},
 	plugins: [
-		...browserPlugins(__dirname), // add plugins, don't replace inherited
+		...browserPlugins(import.meta.dirname), // add plugins, don't replace inherited
 
 		// @ts-ignore
 		new CopyPlugin({
@@ -63,7 +57,7 @@ module.exports = [withBrowserDefaults({
 		}),
 	],
 }), withBrowserDefaults({
-	context: __dirname,
+	context: import.meta.dirname,
 	entry: {
 		'typescript/tsserver.web': './web/src/webServer.ts'
 	},
@@ -75,7 +69,7 @@ module.exports = [withBrowserDefaults({
 		// all output goes into `dist`.
 		// packaging depends on that and this must always be like it
 		filename: '[name].js',
-		path: path.join(__dirname, 'dist', 'browser'),
+		path: path.join(import.meta.dirname, 'dist', 'browser'),
 		libraryTarget: undefined,
 	},
 	externals: {

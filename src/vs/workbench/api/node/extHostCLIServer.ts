@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createRandomIPCHandle } from '../../../base/parts/ipc/node/ipc.net.js';
-import * as http from 'http';
+import type * as http from 'http';
 import * as fs from 'fs';
 import { IExtHostCommands } from '../common/extHostCommands.js';
 import { IWindowOpenable, IOpenWindowOptions } from '../../../platform/window/common/window.js';
@@ -51,33 +51,37 @@ export interface ICommandsExecuter {
 }
 
 export class CLIServerBase {
-	private readonly _server: http.Server;
+	private _server: http.Server | undefined = undefined;
+	private _disposed = false;
 
 	constructor(
 		private readonly _commands: ICommandsExecuter,
 		private readonly logService: ILogService,
 		private readonly _ipcHandlePath: string,
 	) {
-		this._server = http.createServer((req, res) => this.onRequest(req, res));
-		this.setup().catch(err => {
-			logService.error(err);
-			return '';
-		});
+		this.setup();
 	}
 
 	public get ipcHandlePath() {
 		return this._ipcHandlePath;
 	}
 
-	private async setup(): Promise<string> {
+	private async setup(): Promise<void> {
 		try {
-			this._server.listen(this.ipcHandlePath);
-			this._server.on('error', err => this.logService.error(err));
-		} catch (err) {
-			this.logService.error('Could not start open from terminal server.');
+			const http = await import('http');
+			if (this._disposed) {
+				return;
+			}
+			this._server = http.createServer((req, res) => this.onRequest(req, res));
+			try {
+				this._server.listen(this.ipcHandlePath);
+				this._server.on('error', err => this.logService.error(err));
+			} catch (err) {
+				this.logService.error('Could not start open from terminal server.');
+			}
+		} catch (error) {
+			this.logService.error('Error setting up CLI server', error);
 		}
-
-		return this._ipcHandlePath;
 	}
 
 	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
@@ -153,8 +157,11 @@ export class CLIServerBase {
 	private async openExternal(data: OpenExternalCommandPipeArgs): Promise<undefined> {
 		for (const uriString of data.uris) {
 			const uri = URI.parse(uriString);
-			const urioOpen = uri.scheme === 'file' ? uri : uriString; // workaround for #112577
-			await this._commands.executeCommand('_remoteCLI.openExternal', urioOpen);
+			if (uri.scheme === 'file') {
+				// skip file:// uris, they refer to the file system of the remote that have no meaning on the local machine
+				continue;
+			}
+			await this._commands.executeCommand('_remoteCLI.openExternal', uriString); // always send the string, workaround for #112577
 		}
 	}
 
@@ -174,7 +181,8 @@ export class CLIServerBase {
 	}
 
 	dispose(): void {
-		this._server.close();
+		this._disposed = true;
+		this._server?.close();
 
 		if (this._ipcHandlePath && process.platform !== 'win32' && fs.existsSync(this._ipcHandlePath)) {
 			fs.unlinkSync(this._ipcHandlePath);

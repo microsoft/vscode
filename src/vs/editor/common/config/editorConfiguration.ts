@@ -25,11 +25,11 @@ export interface IEditorConfiguration extends IDisposable {
 	/**
 	 * The `options` have changed (quick event)
 	 */
-	onDidChangeFast: Event<ConfigurationChangedEvent>;
+	readonly onDidChangeFast: Event<ConfigurationChangedEvent>;
 	/**
 	 * The `options` have changed (slow event)
 	 */
-	onDidChange: Event<ConfigurationChangedEvent>;
+	readonly onDidChange: Event<ConfigurationChangedEvent>;
 	/**
 	 * Get the raw options as they were passed in to the editor
 	 * and merged with all calls to `updateOptions`.

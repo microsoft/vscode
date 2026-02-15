@@ -41,6 +41,10 @@ export class ObservablePromise<T> {
 		return new ObservablePromise(fn());
 	}
 
+	public static resolved<T>(value: T): ObservablePromise<T> {
+		return new ObservablePromise(Promise.resolve(value));
+	}
+
 	private readonly _value = observableValue<PromiseResult<T> | undefined>(this, undefined);
 
 	/**

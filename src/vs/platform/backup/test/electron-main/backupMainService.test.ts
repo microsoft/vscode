@@ -586,7 +586,7 @@ flakySuite('BackupMainService', () => {
 			try {
 				await fs.promises.mkdir(path.join(folderBackupPath, Schemas.file), { recursive: true });
 				await fs.promises.mkdir(path.join(workspaceBackupPath, Schemas.untitled), { recursive: true });
-			} catch (error) {
+			} catch {
 				// ignore - folder might exist already
 			}
 

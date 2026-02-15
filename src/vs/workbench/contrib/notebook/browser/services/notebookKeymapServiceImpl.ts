@@ -16,7 +16,7 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IExtensionIdentifier, IExtensionManagementService, InstallOperation } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { Memento, MementoObject } from '../../../../common/memento.js';
+import { Memento } from '../../../../common/memento.js';
 import { distinct } from '../../../../../base/common/arrays.js';
 
 function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
@@ -43,11 +43,15 @@ function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentif
 
 const hasRecommendedKeymapKey = 'hasRecommendedKeymap';
 
+interface NotebookKeymapMemento {
+	[hasRecommendedKeymapKey]?: boolean;
+}
+
 export class NotebookKeymapService extends Disposable implements INotebookKeymapService {
 	_serviceBrand: undefined;
 
-	private notebookKeymapMemento: Memento;
-	private notebookKeymap: MementoObject;
+	private notebookKeymapMemento: Memento<NotebookKeymapMemento>;
+	private notebookKeymap: NotebookKeymapMemento;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

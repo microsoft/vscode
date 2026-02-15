@@ -67,15 +67,15 @@ export const enum KeybindingWeight {
 	ExternalExtension = 400
 }
 
-export interface ICommandAndKeybindingRule extends IKeybindingRule {
-	handler: ICommandHandler;
+export interface ICommandAndKeybindingRule<Args extends unknown[] = unknown[]> extends IKeybindingRule {
+	handler: ICommandHandler<Args>;
 	metadata?: ICommandMetadata | null;
 }
 
 export interface IKeybindingsRegistry {
 	registerKeybindingRule(rule: IKeybindingRule): IDisposable;
 	setExtensionKeybindings(rules: IExtensionKeybindingRule[]): void;
-	registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): IDisposable;
+	registerCommandAndKeybindingRule<Args extends unknown[] = unknown[]>(desc: ICommandAndKeybindingRule<Args>): IDisposable;
 	getDefaultKeybindings(): IKeybindingItem[];
 }
 

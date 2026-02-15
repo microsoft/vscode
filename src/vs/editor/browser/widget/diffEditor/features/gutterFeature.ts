@@ -260,7 +260,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 				overflowBehavior: { maxItems: this._isSmall.read(reader) ? 1 : 3 },
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				actionRunner: store.add(new ActionRunnerWithContext(() => {
-					const item = this._item.get();
+					const item = this._item.read(undefined);
 					const mapping = item.mapping;
 					return {
 						mapping,
@@ -310,8 +310,8 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 		);
 
 		if (preferredParentRange && preferredViewPortRange && preferredParentRange.start < preferredParentRange.endExclusive) {
-			effectiveCheckboxTop = preferredViewPortRange!.clip(effectiveCheckboxTop);
-			effectiveCheckboxTop = preferredParentRange!.clip(effectiveCheckboxTop);
+			effectiveCheckboxTop = preferredViewPortRange.clip(effectiveCheckboxTop);
+			effectiveCheckboxTop = preferredParentRange.clip(effectiveCheckboxTop);
 		}
 
 		this._elements.buttons.style.top = `${effectiveCheckboxTop - itemRange.start}px`;
