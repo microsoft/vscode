@@ -6,8 +6,9 @@
 import * as eslint from 'eslint';
 import { dirname, relative } from 'path';
 import minimatch from 'minimatch';
+import type * as ESTree from 'estree';
 
-export = new class implements eslint.Rule.RuleModule {
+export default new class implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -28,11 +29,11 @@ export = new class implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		let fileRelativePath = relative(dirname(__dirname), context.getFilename());
+		let fileRelativePath = relative(dirname(import.meta.dirname), context.getFilename());
 		if (!fileRelativePath.endsWith('/')) {
 			fileRelativePath += '/';
 		}
-		const ruleArgs = <Record<string, string[]>>context.options[0];
+		const ruleArgs = context.options[0] as Record<string, string[]>;
 
 		const matchingKey = Object.keys(ruleArgs).find(key => fileRelativePath.startsWith(key) || minimatch(fileRelativePath, key));
 		if (!matchingKey) {
@@ -43,8 +44,8 @@ export = new class implements eslint.Rule.RuleModule {
 		const restrictedFunctions = ruleArgs[matchingKey];
 
 		return {
-			FunctionDeclaration: (node: any) => {
-				const isTopLevel = node.parent.type === 'Program';
+			FunctionDeclaration: (node: ESTree.FunctionDeclaration & { parent?: ESTree.Node }) => {
+				const isTopLevel = node.parent?.type === 'Program';
 				const functionName = node.id.name;
 				if (isTopLevel && !restrictedFunctions.includes(node.id.name)) {
 					context.report({
@@ -53,10 +54,10 @@ export = new class implements eslint.Rule.RuleModule {
 					});
 				}
 			},
-			ExportNamedDeclaration(node: any) {
+			ExportNamedDeclaration(node: ESTree.ExportNamedDeclaration & { parent?: ESTree.Node }) {
 				if (node.declaration && node.declaration.type === 'FunctionDeclaration') {
 					const functionName = node.declaration.id.name;
-					const isTopLevel = node.parent.type === 'Program';
+					const isTopLevel = node.parent?.type === 'Program';
 					if (isTopLevel && !restrictedFunctions.includes(node.declaration.id.name)) {
 						context.report({
 							node,

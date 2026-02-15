@@ -19,12 +19,12 @@ export interface ICellRange {
 }
 
 
-export function isICellRange(candidate: any): candidate is ICellRange {
+export function isICellRange(candidate: unknown): candidate is ICellRange {
 	if (!candidate || typeof candidate !== 'object') {
 		return false;
 	}
-	return typeof (<ICellRange>candidate).start === 'number'
-		&& typeof (<ICellRange>candidate).end === 'number';
+	return typeof (candidate as ICellRange).start === 'number'
+		&& typeof (candidate as ICellRange).end === 'number';
 }
 
 export function cellIndexesToRanges(indexes: number[]) {

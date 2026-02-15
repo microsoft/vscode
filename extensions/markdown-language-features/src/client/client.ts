@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { BaseLanguageClient, LanguageClientOptions, NotebookDocumentSyncRegistrationType, Range, TextEdit } from 'vscode-languageclient';
 import { IMdParser } from '../markdownEngine';
 import { IDisposable } from '../util/dispose';
-import { looksLikeMarkdownPath, markdownFileExtensions } from '../util/file';
+import { looksLikeMarkdownPath, markdownFileExtensions, markdownLanguageIds } from '../util/file';
 import { FileWatcherManager } from './fileWatchingManager';
 import { InMemoryDocument } from './inMemoryDocument';
 import * as proto from './protocol';
@@ -60,7 +60,7 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 	const mdFileGlob = `**/*.{${markdownFileExtensions.join(',')}}`;
 
 	const clientOptions: LanguageClientOptions = {
-		documentSelector: [{ language: 'markdown' }],
+		documentSelector: markdownLanguageIds,
 		synchronize: {
 			configurationSection: ['markdown'],
 			fileEvents: vscode.workspace.createFileSystemWatcher(mdFileGlob),

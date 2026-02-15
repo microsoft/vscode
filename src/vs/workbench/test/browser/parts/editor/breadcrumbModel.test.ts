@@ -20,12 +20,12 @@ suite('Breadcrumb Model', function () {
 	let model: BreadcrumbsModel;
 	const workspaceService = new TestContextService(new Workspace('ffff', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
 	const configService = new class extends TestConfigurationService {
-		override getValue(...args: any[]) {
+		override getValue<T>(...args: any[]): T | undefined {
 			if (args[0] === 'breadcrumbs.filePath') {
-				return 'on';
+				return 'on' as T;
 			}
 			if (args[0] === 'breadcrumbs.symbolPath') {
-				return 'on';
+				return 'on' as T;
 			}
 			return super.getValue(...args);
 		}

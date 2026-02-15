@@ -850,7 +850,7 @@ export function parse(text: string, errors: ParseError[] = [], options: ParseOpt
 
 	function onValue(value: unknown) {
 		if (Array.isArray(currentParent)) {
-			(<any[]>currentParent).push(value);
+			currentParent.push(value);
 		} else if (currentProperty !== null) {
 			currentParent[currentProperty] = value;
 		}
@@ -980,7 +980,7 @@ export function findNodeAtLocation(root: Node, path: JSONPath): Node | undefined
 				return undefined;
 			}
 		} else {
-			const index = <number>segment;
+			const index = segment;
 			if (node.type !== 'array' || index < 0 || !Array.isArray(node.children) || index >= node.children.length) {
 				return undefined;
 			}

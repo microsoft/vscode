@@ -57,6 +57,7 @@ export interface IExtHostTunnelService extends ExtHostTunnelServiceShape {
 	setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined, managedRemoteAuthority: vscode.ManagedResolvedAuthority | undefined): Promise<IDisposable>;
 	registerPortsAttributesProvider(portSelector: PortAttributesSelector, provider: vscode.PortAttributesProvider): IDisposable;
 	registerTunnelProvider(provider: vscode.TunnelProvider, information: vscode.TunnelInformation): Promise<IDisposable>;
+	hasTunnelProvider(): Promise<boolean>;
 }
 
 export const IExtHostTunnelService = createDecorator<IExtHostTunnelService>('IExtHostTunnelService');
@@ -129,7 +130,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 					providedAttributes = await provider.provider.providePortAttributes({ port, pid, commandLine }, cancellationToken);
 				} catch (e) {
 					// Call with old signature for breaking API change
-					providedAttributes = await (provider.provider.providePortAttributes as any as (port: number, pid: number | undefined, commandLine: string | undefined, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.PortAttributes>)(port, pid, commandLine, cancellationToken);
+					providedAttributes = await (provider.provider.providePortAttributes as unknown as (port: number, pid: number | undefined, commandLine: string | undefined, token: vscode.CancellationToken) => vscode.ProviderResult<vscode.PortAttributes>)(port, pid, commandLine, cancellationToken);
 				}
 				return { providedAttributes, port };
 			}))));
@@ -167,6 +168,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			this._forwardPortProvider = undefined;
 			this._proxy.$setTunnelProvider(undefined, false);
 		}));
+	}
+
+	hasTunnelProvider(): Promise<boolean> {
+		return this._proxy.$hasTunnelProvider();
 	}
 
 	/**

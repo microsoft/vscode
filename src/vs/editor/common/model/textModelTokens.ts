@@ -16,7 +16,7 @@ import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTok
 import { nullTokenizeEncoded } from '../languages/nullTokenize.js';
 import { ITextModel } from '../model.js';
 import { FixedArray } from './fixedArray.js';
-import { IModelContentChange } from '../textModelEvents.js';
+import { IModelContentChange } from './mirrorTextModel.js';
 import { ContiguousMultilineTokensBuilder } from '../tokens/contiguousMultilineTokensBuilder.js';
 import { LineTokens } from '../tokens/lineTokens.js';
 

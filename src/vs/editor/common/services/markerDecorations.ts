@@ -16,7 +16,7 @@ export const IMarkerDecorationsService = createDecorator<IMarkerDecorationsServi
 export interface IMarkerDecorationsService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeMarker: Event<ITextModel>;
+	readonly onDidChangeMarker: Event<ITextModel>;
 
 	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null;
 

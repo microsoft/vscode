@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from '../../platform/registry/common/platform.js';
-import { localize } from '../../nls.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../platform/configuration/common/configurationRegistry.js';
-import { isMacintosh, isWindows, isLinux, isWeb, isNative } from '../../base/common/platform.js';
-import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchSecurityConfiguration, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase, windowConfigurationNodeBase, DynamicWindowConfiguration } from '../common/configuration.js';
 import { isStandalone } from '../../base/browser/browser.js';
+import { isLinux, isMacintosh, isNative, isWeb, isWindows } from '../../base/common/platform.js';
+import { localize } from '../../nls.js';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from '../../platform/configuration/common/configurationRegistry.js';
+import product from '../../platform/product/common/product.js';
+import { Registry } from '../../platform/registry/common/platform.js';
+import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
+import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
-import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -44,6 +45,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				description: localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
+			},
+			'workbench.editor.titleScrollbarVisibility': {
+				type: 'string',
+				enum: ['auto', 'visible', 'hidden'],
+				enumDescriptions: [
+					localize('workbench.editor.titleScrollbarVisibility.auto', "The horizontal scrollbar will be visible only when necessary."),
+					localize('workbench.editor.titleScrollbarVisibility.visible', "The horizontal scrollbar will always be visible."),
+					localize('workbench.editor.titleScrollbarVisibility.hidden', "The horizontal scrollbar will always be hidden.")
+				],
+				description: localize('titleScrollbarVisibility', "Controls the visibility of the scrollbars used for tabs and breadcrumbs in the editor title area."),
+				default: 'auto',
 			},
 			[LayoutSettings.EDITOR_TABS_MODE]: {
 				'type': 'string',
@@ -173,7 +185,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.languageDetectionHints': {
 				type: 'object',
 				default: { 'untitledEditors': true, 'notebookEditors': true },
-				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a Status bar Quick Fix when the editor language doesn't match detected content language."),
+				description: localize('workbench.editor.showLanguageDetectionHints', "When enabled, shows a status bar Quick Fix when the editor language doesn't match detected content language."),
 				additionalProperties: false,
 				properties: {
 					untitledEditors: {
@@ -201,6 +213,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				type: 'boolean',
 				default: true,
 				description: localize('workbench.editor.tabActionUnpinVisibility', "Controls the visibility of the tab unpin action button.")
+			},
+			'workbench.editor.showTabIndex': {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize({ comment: ['{0}, {1} will be a setting name rendered as a link'], key: 'showTabIndex' }, "When enabled, will show the tab index. This value is ignored when {0} is not set to {1}.", '`#workbench.editor.showTabs#`', '`multiple`')
 			},
 			'workbench.editor.tabSizing': {
 				'type': 'string',
@@ -320,7 +337,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['right', 'down'],
 				'default': 'right',
-				'markdownDescription': localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (for example, from the Explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one.")
+				'markdownDescription': localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (for example, from the Explorer). By default, editors will open on the right hand side of the currently active one. If changed to `down`, the editors will open below the currently active one. This also impacts the split editor action in the editor toolbar.")
 			},
 			'workbench.editor.closeEmptyGroups': {
 				'type': 'boolean',
@@ -331,6 +348,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, such as when forcing an editor to open in a specific group or to the side of the currently active group."),
 				'default': false
+			},
+			'workbench.editor.allowOpenInModalEditor': {
+				'type': 'boolean',
+				'description': localize('allowOpenInModalEditor', "Controls whether editors can be opened in a modal overlay. When enabled, certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay instead of as a regular editor tab."),
+				'default': product.quality !== 'stable', // TODO@bpasero figure out the default for stable
+				tags: ['experimental'],
+				experiment: {
+					mode: 'auto'
+				}
+			},
+			'workbench.editor.swipeToNavigate': {
+				'type': 'boolean',
+				'description': localize('swipeToNavigate', "Navigate between open files using three-finger swipe horizontally. Note that System Preferences > Trackpad > More Gestures > 'Swipe between pages' must be set to 'Swipe with two or three fingers'."),
+				'default': false,
+				'included': isMacintosh && !isWeb
 			},
 			'workbench.editor.mouseBackForwardToNavigate': {
 				'type': 'boolean',
@@ -358,6 +390,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'description': localize('sharedViewState', "Preserves the most recent editor view state (such as scroll position) across all editor groups and restores that if no specific editor view state is found for the editor group."),
 				'default': false
+			},
+			'workbench.editor.restoreEditors': {
+				'type': 'boolean',
+				'description': localize('restoreOnStartup', "Controls whether editors are restored on startup. When disabled, only dirty editors will be restored from the previous session."),
+				'default': true
 			},
 			'workbench.editor.splitInGroupLayout': {
 				'type': 'string',
@@ -474,6 +511,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('askChatLocation.quickChat', "Ask chat questions in Quick Chat.")
 				]
 			},
+			'workbench.commandPalette.showAskInChat': {
+				'type': 'boolean',
+				tags: ['experimental'],
+				'description': localize('showAskInChat', "Controls whether the command palette shows 'Ask in Chat' option at the bottom."),
+				'default': true
+			},
 			'workbench.commandPalette.experimental.enableNaturalLanguageSearch': {
 				'type': 'boolean',
 				tags: ['experimental'],
@@ -505,6 +548,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('openDefaultKeybindings', "Controls whether opening keybinding settings also opens an editor showing all default keybindings."),
 				'default': false
 			},
+			'workbench.settings.alwaysShowAdvancedSettings': {
+				'type': 'boolean',
+				'description': localize('alwaysShowAdvancedSettings', "Controls whether advanced settings are always shown in the settings editor without requiring the `@tag:advanced` filter."),
+				'default': product.quality !== 'stable'
+			},
 			'workbench.sideBar.location': {
 				'type': 'string',
 				'enum': ['left', 'right'],
@@ -529,21 +577,28 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('panelOpensMaximized', "Controls whether the panel opens maximized. It can either always open maximized, never open maximized, or open to the last state it was in before being closed."),
 				'enumDescriptions': [
 					localize('workbench.panel.opensMaximized.always', "Always maximize the panel when opening it."),
-					localize('workbench.panel.opensMaximized.never', "Never maximize the panel when opening it. The panel will open un-maximized."),
+					localize('workbench.panel.opensMaximized.never', "Never maximize the panel when opening it."),
 					localize('workbench.panel.opensMaximized.preserve', "Open the panel to the state that it was in, before it was closed.")
 				]
 			},
 			'workbench.secondarySideBar.defaultVisibility': {
 				'type': 'string',
-				'enum': ['hidden', 'visibleInWorkspace', 'visible'],
-				'default': 'hidden',
-				'tags': ['onExp'],
-				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows opened for the first time."),
+				'enum': ['hidden', 'visibleInWorkspace', 'visible', 'maximizedInWorkspace', 'maximized'],
+				'default': 'visibleInWorkspace',
+				'description': localize('secondarySideBarDefaultVisibility', "Controls the default visibility of the secondary side bar in workspaces or empty windows that are opened for the first time. Can be overridden by the agent sessions startup editor setting."),
 				'enumDescriptions': [
 					localize('workbench.secondarySideBar.defaultVisibility.hidden', "The secondary side bar is hidden by default."),
 					localize('workbench.secondarySideBar.defaultVisibility.visibleInWorkspace', "The secondary side bar is visible by default if a workspace is opened."),
-					localize('workbench.secondarySideBar.defaultVisibility.visible', "The secondary side bar is visible by default.")
+					localize('workbench.secondarySideBar.defaultVisibility.visible', "The secondary side bar is visible by default."),
+					localize('workbench.secondarySideBar.defaultVisibility.maximizedInWorkspace', "The secondary side bar is visible and maximized by default if a workspace is opened."),
+					localize('workbench.secondarySideBar.defaultVisibility.maximized', "The secondary side bar is visible and maximized by default.")
 				]
+			},
+			'workbench.secondarySideBar.forceMaximized': {
+				'type': 'boolean',
+				'default': false,
+				tags: ['experimental'],
+				'description': localize('secondarySideBarForceMaximized', "Controls whether the secondary side bar is enforced to always show maximized on startup and when there are no open editors, in layouts that support a maximized secondary side bar."),
 			},
 			'workbench.secondarySideBar.showLabels': {
 				'type': 'boolean',
@@ -566,6 +621,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.activityBar.location.bottom', "Show the Activity Bar at the bottom of the Primary and Secondary Side Bars."),
 					localize('workbench.activityBar.location.hide', "Hide the Activity Bar in the Primary and Secondary Side Bars.")
 				],
+			},
+			[LayoutSettings.ACTIVITY_BAR_AUTO_HIDE]: {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarAutoHide' }, "Controls whether the Activity Bar is automatically hidden when there is only one view container to show. This applies to the Primary and Secondary Side Bars when {0} is set to {1} or {2}.", '`#workbench.activityBar.location#`', '`top`', '`bottom`'),
+			},
+			[LayoutSettings.ACTIVITY_BAR_COMPACT]: {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarCompact' }, "Controls whether the Activity Bar uses a compact layout with smaller icons and reduced width. This setting only applies when {0} is set to {1}.", '`#workbench.activityBar.location#`', '`default`'),
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
@@ -619,11 +684,10 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'ui',
 				'scope': ConfigurationScope.WINDOW
 			},
-			'workbench.settings.showSuggestions': {
+			'workbench.settings.showAISearchToggle': {
 				'type': 'boolean',
-				'default': false,
-				'description': localize('settings.showSuggestions', "Controls whether setting suggestions are shown below the search bar in the Settings editor."),
-				'tags': ['experimental']
+				'default': true,
+				'description': localize('settings.showAISearchToggle', "Controls whether the AI search results toggle is shown in the search bar in the Settings editor after doing a search and once AI search results are available."),
 			},
 			'workbench.hover.delay': {
 				'type': 'number',
@@ -631,6 +695,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				// Testing has indicated that on Windows and Linux 500 ms matches the native hovers most closely.
 				// On Mac, the delay is 1500.
 				'default': isMacintosh ? 1500 : 500,
+				'minimum': 0
+			},
+			'workbench.hover.reducedDelay': {
+				'type': 'number',
+				'description': localize('workbench.hover.reducedDelay', "Controls the reduced delay in milliseconds used for showing hovers in specific contexts where faster feedback is beneficial."),
+				'default': 500,
 				'minimum': 0
 			},
 			'workbench.reduceMotion': {
@@ -642,6 +712,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.reduceMotion.auto', "Render with reduced motion based on OS configuration."),
 				],
 				default: 'auto',
+				tags: ['accessibility'],
+				enum: ['on', 'off', 'auto']
+			},
+			'workbench.reduceTransparency': {
+				type: 'string',
+				description: localize('workbench.reduceTransparency', "Controls whether the workbench should render with fewer transparency and blur effects for improved performance."),
+				'enumDescriptions': [
+					localize('workbench.reduceTransparency.on', "Always render without transparency and blur effects."),
+					localize('workbench.reduceTransparency.off', "Do not reduce transparency and blur effects."),
+					localize('workbench.reduceTransparency.auto', "Reduce transparency and blur effects based on OS configuration."),
+				],
+				default: 'off',
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
@@ -685,6 +767,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		localize('activeEditorShort', "`${activeEditorShort}`: the file name (e.g. myFile.txt)."),
 		localize('activeEditorMedium', "`${activeEditorMedium}`: the path of the file relative to the workspace folder (e.g. myFolder/myFileFolder/myFile.txt)."),
 		localize('activeEditorLong', "`${activeEditorLong}`: the full path of the file (e.g. /Users/Development/myFolder/myFileFolder/myFile.txt)."),
+		localize('activeEditorLanguageId', "`${activeEditorLanguageId}`: the language identifier of the active editor (e.g. typescript)."),
 		localize('activeFolderShort', "`${activeFolderShort}`: the name of the folder the file is contained in (e.g. myFileFolder)."),
 		localize('activeFolderMedium', "`${activeFolderMedium}`: the path of the folder the file is contained in, relative to the workspace folder (e.g. myFolder/myFileFolder)."),
 		localize('activeFolderLong', "`${activeFolderLong}`: the full path of the folder the file is contained in (e.g. /Users/Development/myFolder/myFileFolder)."),
@@ -885,7 +968,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: 'workbench.activityBar.visible', migrateFn: (value: any) => {
+		key: 'workbench.activityBar.visible', migrateFn: (value: unknown) => {
 			const result: ConfigurationKeyValuePairs = [];
 			if (value !== undefined) {
 				result.push(['workbench.activityBar.visible', { value: undefined }]);
@@ -899,7 +982,7 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: LayoutSettings.ACTIVITY_BAR_LOCATION, migrateFn: (value: any) => {
+		key: LayoutSettings.ACTIVITY_BAR_LOCATION, migrateFn: (value: unknown) => {
 			const results: ConfigurationKeyValuePairs = [];
 			if (value === 'side') {
 				results.push([LayoutSettings.ACTIVITY_BAR_LOCATION, { value: ActivityBarPosition.DEFAULT }]);
@@ -910,7 +993,7 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: 'workbench.editor.doubleClickTabToToggleEditorGroupSizes', migrateFn: (value: any) => {
+		key: 'workbench.editor.doubleClickTabToToggleEditorGroupSizes', migrateFn: (value: unknown) => {
 			const results: ConfigurationKeyValuePairs = [];
 			if (typeof value === 'boolean') {
 				value = value ? 'expand' : 'off';
@@ -919,7 +1002,7 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			return results;
 		}
 	}, {
-		key: LayoutSettings.EDITOR_TABS_MODE, migrateFn: (value: any) => {
+		key: LayoutSettings.EDITOR_TABS_MODE, migrateFn: (value: unknown) => {
 			const results: ConfigurationKeyValuePairs = [];
 			if (typeof value === 'boolean') {
 				value = value ? EditorTabsMode.MULTIPLE : EditorTabsMode.SINGLE;
@@ -928,7 +1011,7 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			return results;
 		}
 	}, {
-		key: 'workbench.editor.tabCloseButton', migrateFn: (value: any) => {
+		key: 'workbench.editor.tabCloseButton', migrateFn: (value: unknown) => {
 			const result: ConfigurationKeyValuePairs = [];
 			if (value === 'left' || value === 'right') {
 				result.push(['workbench.editor.tabActionLocation', { value }]);
@@ -938,7 +1021,7 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			return result;
 		}
 	}, {
-		key: 'zenMode.hideTabs', migrateFn: (value: any) => {
+		key: 'zenMode.hideTabs', migrateFn: (value: unknown) => {
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
 				result.push(['zenMode.showTabs', { value: 'single' }]);

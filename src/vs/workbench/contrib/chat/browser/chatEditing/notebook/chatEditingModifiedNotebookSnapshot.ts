@@ -5,37 +5,37 @@
 
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { filter } from '../../../../../../base/common/objects.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { SnapshotContext } from '../../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { NotebookTextModel } from '../../../../notebook/common/model/notebookTextModel.js';
-import { CellEditType, ICellDto2, ICellEditOperation, IOutputItemDto, NotebookData, NotebookSetting, TransientOptions } from '../../../../notebook/common/notebookCommon.js';
+import { CellEditType, ICellDto2, ICellEditOperation, INotebookTextModel, IOutputItemDto, NotebookData, NotebookSetting, TransientOptions } from '../../../../notebook/common/notebookCommon.js';
 
 const BufferMarker = 'ArrayBuffer-4f56482b-5a03-49ba-8356-210d3b0c1c3d';
 
-type ChatEditingSnapshotNotebookContentQueryData = { sessionId: string; requestId: string | undefined; undoStop: string | undefined; viewType: string };
+type ChatEditingSnapshotNotebookContentQueryData = { session: UriComponents; requestId: string | undefined; undoStop: string | undefined; viewType: string };
 export const ChatEditingNotebookSnapshotScheme = 'chat-editing-notebook-snapshot-model';
 
-export function getNotebookSnapshotFileURI(chatSessionId: string, requestId: string | undefined, undoStop: string | undefined, path: string, viewType: string): URI {
+export function getNotebookSnapshotFileURI(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined, path: string, viewType: string): URI {
 	return URI.from({
 		scheme: ChatEditingNotebookSnapshotScheme,
 		path,
-		query: JSON.stringify({ sessionId: chatSessionId, requestId: requestId ?? '', undoStop: undoStop ?? '', viewType } satisfies ChatEditingSnapshotNotebookContentQueryData),
+		query: JSON.stringify({ session: chatSessionResource, requestId: requestId ?? '', undoStop: undoStop ?? '', viewType } satisfies ChatEditingSnapshotNotebookContentQueryData),
 	});
 }
 
 export function parseNotebookSnapshotFileURI(resource: URI): ChatEditingSnapshotNotebookContentQueryData {
 	const data: ChatEditingSnapshotNotebookContentQueryData = JSON.parse(resource.query);
-	return { sessionId: data.sessionId ?? '', requestId: data.requestId ?? '', undoStop: data.undoStop ?? '', viewType: data.viewType };
+	return { session: data.session, requestId: data.requestId ?? '', undoStop: data.undoStop ?? '', viewType: data.viewType };
 }
 
-export function createSnapshot(notebook: NotebookTextModel, transientOptions: TransientOptions | undefined, outputSizeConfig: IConfigurationService | number): string {
+export function createSnapshot(notebook: INotebookTextModel, transientOptions: TransientOptions | undefined, outputSizeConfig: IConfigurationService | number): string {
 	const outputSizeLimit = (typeof outputSizeConfig === 'number' ? outputSizeConfig : outputSizeConfig.getValue<number>(NotebookSetting.outputBackupSizeLimit)) * 1024;
 	return serializeSnapshot(notebook.createSnapshot({ context: SnapshotContext.Backup, outputSizeLimit, transientOptions }), transientOptions);
 }
 
-export function restoreSnapshot(notebook: NotebookTextModel, snapshot: string): void {
+export function restoreSnapshot(notebook: INotebookTextModel, snapshot: string): void {
 	try {
 		const { transientOptions, data } = deserializeSnapshot(snapshot);
 		notebook.restoreSnapshot(data, transientOptions);
@@ -57,8 +57,9 @@ export class SnapshotComparer {
 	private readonly data: NotebookData;
 	private readonly transientOptions: TransientOptions | undefined;
 	constructor(initialCotent: string) {
-		this.transientOptions = deserializeSnapshot(initialCotent).transientOptions;
-		this.data = deserializeSnapshot(initialCotent).data;
+		const { transientOptions, data } = deserializeSnapshot(initialCotent);
+		this.transientOptions = transientOptions;
+		this.data = data;
 	}
 
 	isEqual(notebook: NotebookData | NotebookTextModel): boolean {

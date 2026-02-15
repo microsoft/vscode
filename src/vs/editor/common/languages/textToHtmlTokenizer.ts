@@ -32,28 +32,36 @@ export async function tokenizeToString(languageService: ILanguageService, text: 
 
 export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens, colorMap: string[], startOffset: number, endOffset: number, tabSize: number, useNbsp: boolean): string {
 	let result = `<div>`;
-	let charIndex = startOffset;
-	let tabsCharDelta = 0;
+	let charIndex = 0;
+	let width = 0;
 
 	let prevIsSpace = true;
 
 	for (let tokenIndex = 0, tokenCount = viewLineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
 		const tokenEndIndex = viewLineTokens.getEndOffset(tokenIndex);
-
-		if (tokenEndIndex <= startOffset) {
-			continue;
-		}
-
 		let partContent = '';
 
 		for (; charIndex < tokenEndIndex && charIndex < endOffset; charIndex++) {
 			const charCode = text.charCodeAt(charIndex);
+			const isTab = charCode === CharCode.Tab;
+
+			width += strings.isFullWidthCharacter(charCode) ? 2 : (isTab ? 0 : 1);
+
+			if (charIndex < startOffset) {
+				if (isTab) {
+					const remainder = width % tabSize;
+					width += remainder === 0 ? tabSize : tabSize - remainder;
+				}
+				continue;
+			}
 
 			switch (charCode) {
 				case CharCode.Tab: {
-					let insertSpacesCount = tabSize - (charIndex + tabsCharDelta) % tabSize;
-					tabsCharDelta += insertSpacesCount - 1;
-					while (insertSpacesCount > 0) {
+					const remainder = width % tabSize;
+					const insertSpacesCount = remainder === 0 ? tabSize : tabSize - remainder;
+					width += insertSpacesCount;
+					let spacesRemaining = insertSpacesCount;
+					while (spacesRemaining > 0) {
 						if (useNbsp && prevIsSpace) {
 							partContent += '&#160;';
 							prevIsSpace = false;
@@ -61,7 +69,7 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 							partContent += ' ';
 							prevIsSpace = true;
 						}
-						insertSpacesCount--;
+						spacesRemaining--;
 					}
 					break;
 				}
@@ -115,9 +123,13 @@ export function tokenizeLineToHTML(text: string, viewLineTokens: IViewLineTokens
 			}
 		}
 
+		if (tokenEndIndex <= startOffset) {
+			continue;
+		}
+
 		result += `<span style="${viewLineTokens.getInlineStyle(tokenIndex, colorMap)}">${partContent}</span>`;
 
-		if (tokenEndIndex > endOffset || charIndex >= endOffset) {
+		if (tokenEndIndex > endOffset || charIndex >= endOffset || startOffset >= endOffset) {
 			break;
 		}
 	}

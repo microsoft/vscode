@@ -3,8 +3,38 @@
 	"tasks": [
 		{
 			"type": "npm",
+			"script": "watch-client-transpiled",
+			"label": "Core - Transpile",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "esbuild",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}/src"
+				],
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+): ERROR: (.+)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"beginsPattern": "Starting transpilation...",
+					"endsPattern": "Finished transpilation with"
+				}
+			}
+		},
+		{
+			"type": "npm",
 			"script": "watch-clientd",
-			"label": "Core - Build",
+			"label": "Core - Typecheck",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
@@ -60,7 +90,8 @@
 		{
 			"label": "VS Code - Build",
 			"dependsOn": [
-				"Core - Build",
+				"Core - Transpile",
+				"Core - Typecheck",
 				"Ext - Build"
 			],
 			"group": {
@@ -71,8 +102,20 @@
 		},
 		{
 			"type": "npm",
+			"script": "kill-watch-client-transpiled",
+			"label": "Kill Core - Transpile",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
 			"script": "kill-watch-clientd",
-			"label": "Kill Core - Build",
+			"label": "Kill Core - Typecheck",
 			"group": "build",
 			"presentation": {
 				"reveal": "never",
@@ -96,7 +139,8 @@
 		{
 			"label": "Kill VS Code - Build",
 			"dependsOn": [
-				"Kill Core - Build",
+				"Kill Core - Transpile",
+				"Kill Core - Typecheck",
 				"Kill Ext - Build"
 			],
 			"group": "build",
@@ -198,7 +242,13 @@
 			"windows": {
 				"command": ".\\scripts\\code-server.bat"
 			},
-			"args": ["--no-launch", "--connection-token", "dev-token", "--port", "8080"],
+			"args": [
+				"--no-launch",
+				"--connection-token",
+				"dev-token",
+				"--port",
+				"8080"
+			],
 			"label": "Run code server",
 			"isBackground": true,
 			"problemMatcher": {
@@ -220,7 +270,12 @@
 			"windows": {
 				"command": ".\\scripts\\code-web.bat"
 			},
-			"args": ["--port", "8080", "--browser", "none"],
+			"args": [
+				"--port",
+				"8080",
+				"--browser",
+				"none"
+			],
 			"label": "Run code web",
 			"isBackground": true,
 			"problemMatcher": {
@@ -246,7 +301,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "node build/lib/preLaunch.js",
+			"command": "node build/lib/preLaunch.ts",
 			"label": "Ensure Prelaunch Dependencies",
 			"presentation": {
 				"reveal": "silent",
@@ -268,23 +323,38 @@
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		},
 		{
-			// Used for monaco editor playground launch config
-			"label": "Launch Http Server",
+			"label": "Launch Monaco Editor Vite",
 			"type": "shell",
-			"command": "node_modules/.bin/ts-node -T ./scripts/playground-server",
+			"command": "npm run dev",
+			"options": {
+				"cwd": "./build/vite/"
+			},
 			"isBackground": true,
 			"problemMatcher": {
+				"owner": "vite",
+				"fileLocation": "absolute",
 				"pattern": {
-					"regexp": ""
+					"regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|warning)\\s+(.*)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"severity": 4,
+					"message": 5
 				},
 				"background": {
 					"activeOnStart": true,
-					"beginsPattern": "never match",
-					"endsPattern": ".*"
+					"beginsPattern": ".*VITE.*",
+					"endsPattern": "(Local|Network):.*"
 				}
-			},
-			"dependsOn": [
-				"Core - Build"
+			}
+		},
+		{
+			"label": "Launch MCP Server",
+			"type": "shell",
+			"command": "cd test/mcp && npm run compile && npm run start-http",
+			"isBackground": true,
+			"problemMatcher": [
+				"$tsc"
 			]
 		}
 	]

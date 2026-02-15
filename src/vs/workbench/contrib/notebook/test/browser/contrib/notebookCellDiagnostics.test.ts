@@ -14,14 +14,14 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IMarkerData, IMarkerService } from '../../../../../../platform/markers/common/markers.js';
-import { IChatAgent, IChatAgentData, IChatAgentService } from '../../../../chat/common/chatAgents.js';
+import { IChatAgent, IChatAgentData, IChatAgentService } from '../../../../chat/common/participants/chatAgents.js';
 import { CellDiagnostics } from '../../../browser/contrib/cellDiagnostics/cellDiagnosticEditorContrib.js';
 import { CodeCellViewModel } from '../../../browser/viewModel/codeCellViewModel.js';
 import { CellKind, NotebookSetting } from '../../../common/notebookCommon.js';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
 import { setupInstantiationService, TestNotebookExecutionStateService, withTestNotebook } from '../testNotebookEditor.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
-import { ChatAgentLocation, ChatMode } from '../../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../chat/common/constants.js';
 
 
 suite('notebookCellDiagnostics', () => {
@@ -55,7 +55,7 @@ suite('notebookCellDiagnostics', () => {
 
 	interface ITestMarkerService extends IMarkerService {
 		markers: ResourceMap<IMarkerData[]>;
-		onMarkersUpdated: Event<void>;
+		readonly onMarkersUpdated: Event<void>;
 	}
 
 	setup(function () {
@@ -68,12 +68,13 @@ suite('notebookCellDiagnostics', () => {
 
 		const agentData = {
 			extensionId: nullExtensionDescription.identifier,
+			extensionVersion: undefined,
 			extensionDisplayName: '',
 			extensionPublisherId: '',
 			name: 'testEditorAgent',
 			isDefault: true,
 			locations: [ChatAgentLocation.Notebook],
-			modes: [ChatMode.Ask],
+			modes: [ChatModeKind.Ask],
 			metadata: {},
 			slashCommands: [],
 			disambiguation: [],

@@ -75,5 +75,5 @@ export type TestStateCount = { [K in TestResultState]: number };
 
 export const makeEmptyCounts = (): TestStateCount => {
 	// shh! don't tell anyone this is actually an array!
-	return new Uint32Array(statesInOrder.length) as any as { [K in TestResultState]: number };
+	return new Uint32Array(statesInOrder.length) as unknown as TestStateCount;
 };

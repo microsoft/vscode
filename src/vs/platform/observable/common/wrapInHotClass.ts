@@ -9,6 +9,7 @@ import { BrandedService, IInstantiationService } from '../../instantiation/commo
 
 export function hotClassGetOriginalInstance<T>(value: T): T {
 	if (value instanceof BaseClass) {
+		// eslint-disable-next-line local/code-no-any-casts
 		return value._instance as any;
 	}
 	return value;
@@ -36,13 +37,14 @@ class BaseClass {
 }
 
 function createWrapper<T extends any[]>(clazz: IObservable<any>, B: new (...args: T) => BaseClass) {
+	// eslint-disable-next-line local/code-no-any-casts
 	return (class ReloadableWrapper extends B {
 		private _autorun: IDisposable | undefined = undefined;
 
 		override init(...params: any[]) {
 			this._autorun = autorunWithStore((reader, store) => {
 				const clazz_ = clazz.read(reader);
-				this._instance = store.add(this.instantiationService.createInstance(clazz_, ...params) as IDisposable);
+				this._instance = store.add(this.instantiationService.createInstance(clazz_, ...params));
 			});
 		}
 
