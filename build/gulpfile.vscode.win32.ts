@@ -113,9 +113,16 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 		};
 
 		if (quality === 'stable' || quality === 'insider') {
-			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
-			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
-			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
+			const appxPackage = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
+			const appxPackageDll = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
+			const appxPackagePath = path.join(sourcePath, 'appx', appxPackage);
+			const appxPackageDllPath = path.join(sourcePath, 'appx', appxPackageDll);
+
+			if (fs.existsSync(appxPackagePath) && fs.existsSync(appxPackageDllPath)) {
+				definitions['AppxPackage'] = appxPackage;
+				definitions['AppxPackageDll'] = appxPackageDll;
+				definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
+			}
 		}
 
 		packageInnoSetup(issPath, { definitions }, cb as (err?: Error | null) => void);
