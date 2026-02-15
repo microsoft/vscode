@@ -9,9 +9,8 @@ import { UntitledTextEditorModel, IUntitledTextEditorModel } from './untitledTex
 import { IFilesConfiguration } from '../../../../platform/files/common/files.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export const IUntitledTextEditorService = createDecorator<IUntitledTextEditorService>('untitledTextEditorService');
@@ -185,7 +184,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 	private readonly _onDidChangeLabel = this._register(new Emitter<IUntitledTextEditorModel>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
-	private readonly mapResourceToModel = new ResourceMap<UntitledTextEditorModel>();
+	private readonly mapResourceToModel = this._register(new DisposableResourceMap<UntitledTextEditorModel>());
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -274,7 +273,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		}
 
 		// Create new model with provided options
-		const model = this._register(this.instantiationService.createInstance(UntitledTextEditorModel, untitledResource, !!options.associatedResource, options.initialValue, options.languageId, options.encoding));
+		const model = this.instantiationService.createInstance(UntitledTextEditorModel, untitledResource, !!options.associatedResource, options.initialValue, options.languageId, options.encoding);
 
 		this.registerModel(model);
 
@@ -294,7 +293,7 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 		Event.once(model.onWillDispose)(() => {
 
 			// Registry
-			this.mapResourceToModel.delete(model.resource);
+			this.mapResourceToModel.deleteAndLeak(model.resource); // model is being disposed in this callback already
 
 			// Listeners
 			modelListeners.dispose();

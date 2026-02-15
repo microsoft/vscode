@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { LazyCollectionState, IMcpService, McpServerCacheState, McpConnectionState } from './mcpTypes.js';
+import { IMcpService, LazyCollectionState, McpConnectionState, McpServerCacheState } from './mcpTypes.js';
 
 
 export namespace McpContextKeys {
@@ -35,7 +35,7 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 
 	constructor(
 		@IMcpService mcpService: IMcpService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -50,11 +50,7 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 			const serverTools = servers.map(s => s.tools.read(r));
 			ctxServerCount.set(servers.length);
 			ctxToolsCount.set(serverTools.reduce((count, tools) => count + tools.length, 0));
-			ctxHasUnknownTools.set(mcpService.lazyCollectionState.read(r) !== LazyCollectionState.AllKnown || servers.some(s => {
-				if (s.trusted.read(r) === false) {
-					return false;
-				}
-
+			ctxHasUnknownTools.set(mcpService.lazyCollectionState.read(r).state !== LazyCollectionState.AllKnown || servers.some(s => {
 				const toolState = s.cacheState.read(r);
 				return toolState === McpServerCacheState.Unknown || toolState === McpServerCacheState.Outdated || toolState === McpServerCacheState.RefreshingFromUnknown;
 			}));

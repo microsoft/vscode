@@ -15,6 +15,7 @@ import { TerminalService } from '../../browser/terminalService.js';
 import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 
 suite('Workbench - TerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,13 +61,13 @@ suite('Workbench - TerminalService', () => {
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			await terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 		test('should not show prompt when any terminal editor is closed (handled by editor itself)', async () => {
 			await setConfirmOnKill(configurationService, 'editor');
@@ -75,14 +76,14 @@ suite('Workbench - TerminalService', () => {
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			await setConfirmOnKill(configurationService, 'always');
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Editor,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 		test('should not show prompt when confirmOnKill is editor and panel terminal is closed', async () => {
 			await setConfirmOnKill(configurationService, 'editor');
@@ -91,7 +92,7 @@ suite('Workbench - TerminalService', () => {
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 		test('should show prompt when confirmOnKill is panel and panel terminal is closed', async () => {
 			await setConfirmOnKill(configurationService, 'panel');
@@ -102,28 +103,28 @@ suite('Workbench - TerminalService', () => {
 				hasChildProcesses: false,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			dialogService.setConfirmResult({ confirmed: true });
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: false,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			// Child process cases
 			dialogService.setConfirmResult({ confirmed: false });
 			await terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				dispose: () => fail()
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			dialogService.setConfirmResult({ confirmed: true });
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 		test('should show prompt when confirmOnKill is always and panel terminal is closed', async () => {
 			await setConfirmOnKill(configurationService, 'always');
@@ -134,28 +135,28 @@ suite('Workbench - TerminalService', () => {
 				hasChildProcesses: false,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			dialogService.setConfirmResult({ confirmed: true });
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: false,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			// Child process cases
 			dialogService.setConfirmResult({ confirmed: false });
 			await terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				dispose: () => fail()
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			dialogService.setConfirmResult({ confirmed: true });
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 	});
 });
@@ -165,5 +166,5 @@ async function setConfirmOnKill(configurationService: TestConfigurationService, 
 	configurationService.onDidChangeConfigurationEmitter.fire({
 		affectsConfiguration: () => true,
 		affectedKeys: ['terminal.integrated.confirmOnKill']
-	} as any);
+	} as unknown as IConfigurationChangeEvent);
 }

@@ -196,14 +196,6 @@ export class ContextMenuController implements IEditorContribution {
 			return;
 		}
 
-		// Disable hover
-		const oldHoverSetting = this._editor.getOption(EditorOption.hover);
-		this._editor.updateOptions({
-			hover: {
-				enabled: false
-			}
-		});
-
 		let anchor: IMouseEvent | IAnchor | null = event;
 		if (!anchor) {
 			// Ensure selection is visible
@@ -237,9 +229,9 @@ export class ContextMenuController implements IEditorContribution {
 					return new ActionViewItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
 				}
 
-				const customActionViewItem = <any>action;
-				if (typeof customActionViewItem.getActionViewItem === 'function') {
-					return customActionViewItem.getActionViewItem();
+				const customAction = action as IAction & { getActionViewItem?: () => ActionViewItem };
+				if (typeof customAction.getActionViewItem === 'function') {
+					return customAction.getActionViewItem();
 				}
 
 				return new ActionViewItem(action, action, { icon: true, label: true, isMenu: true });
@@ -251,9 +243,6 @@ export class ContextMenuController implements IEditorContribution {
 
 			onHide: (wasCancelled: boolean) => {
 				this._contextMenuIsBeingShownCount--;
-				this._editor.updateOptions({
-					hover: oldHoverSetting
-				});
 			}
 		});
 	}

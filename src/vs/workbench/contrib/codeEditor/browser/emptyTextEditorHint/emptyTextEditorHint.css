@@ -5,8 +5,12 @@
 
 .monaco-editor .contentWidgets .empty-editor-hint {
 	color: var(--vscode-input-placeholderForeground);
+	user-select: none;
+	-webkit-user-select: none;
+	pointer-events: none;
 }
 
 .monaco-editor .contentWidgets .empty-editor-hint a {
-	color: var(--vscode-textLink-foreground)
+	color: var(--vscode-textLink-foreground);
+	pointer-events: auto;
 }

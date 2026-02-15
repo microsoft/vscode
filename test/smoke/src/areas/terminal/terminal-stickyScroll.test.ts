@@ -50,12 +50,16 @@ export function setup(options?: { skipSuite: boolean }) {
 			throw new Error(`Failed for command ${command}, exitcode ${exitCode}, text content ${element?.textContent}`);
 		}
 
-		beforeEach(async () => {
+		// Don't use beforeEach as that ignores the retry count, createEmptyTerminal has been
+		// flaky in the past
+		async function beforeEachSetup() {
 			// Create the simplest system profile to get as little process interaction as possible
 			await terminal.createEmptyTerminal();
-		});
+		}
 
 		it('should show sticky scroll when appropriate', async () => {
+			await beforeEachSetup();
+
 			// Write prompt, fill viewport, finish command, print new prompt, verify sticky scroll
 			await checkCommandAndOutput('sticky scroll 1', 0);
 
@@ -64,14 +68,16 @@ export function setup(options?: { skipSuite: boolean }) {
 		});
 
 		it('should support multi-line prompt', async () => {
+			await beforeEachSetup();
+
 			// Standard multi-line prompt
-			await checkCommandAndOutput('sticky scroll 1', 0, "Multi-line\\r\\nPrompt> ", 2);
+			await checkCommandAndOutput('sticky scroll 1', 0, 'Multi-line\\r\\nPrompt> ', 2);
 
 			// New line before prompt
-			await checkCommandAndOutput('sticky scroll 2', 0, "\\r\\nMulti-line Prompt> ", 1);
+			await checkCommandAndOutput('sticky scroll 2', 0, '\\r\\nMulti-line Prompt> ', 1);
 
 			// New line before multi-line prompt
-			await checkCommandAndOutput('sticky scroll 3', 0, "\\r\\nMulti-line\\r\\nPrompt> ", 2);
+			await checkCommandAndOutput('sticky scroll 3', 0, '\\r\\nMulti-line\\r\\nPrompt> ', 2);
 		});
 	});
 }
