@@ -111,6 +111,8 @@ function messageItReferenceToUri({ result, test, taskIndex, messageIndex }: IMes
 type TestUriWithDocument = ParsedTestUri & { documentUri: URI };
 
 export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
+	public static readonly ID = 'workbench.contrib.testing.peekOpener';
+
 	declare _serviceBrand: undefined;
 
 	private lastUri?: TestUriWithDocument;
@@ -480,7 +482,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		if (!this.peek.get()) {
 			const peek = this.instantiationService.createInstance(TestResultsPeek, this.editor);
 			this.peek.set(peek, undefined);
-			peek.onDidClose(() => {
+			Event.once(peek.onDidClose)(() => {
 				this.visible.set(false);
 				this.peek.set(undefined, undefined);
 			});

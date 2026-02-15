@@ -21,6 +21,10 @@
 							"$ref": "vscode://schemas/settings/machine",
 							"description": "Machine specific settings that should be copied into the container. These are only copied when connecting to the container for the first time, rebuilding the container then triggers it again."
 						},
+						"mcp": {
+							"$ref": "vscode://schemas/mcp",
+							"description": "Model Context Protocol server configurations"
+						},
 						"devPort": {
 							"type": "integer",
 							"description": "The port VS Code can use to connect to its backend."

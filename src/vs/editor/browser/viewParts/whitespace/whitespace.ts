@@ -9,7 +9,7 @@ import { Selection } from '../../../common/core/selection.js';
 import { RenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { ViewLineData } from '../../../common/viewModel.js';
+import { ViewLineRenderingData } from '../../../common/viewModel.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
 import * as strings from '../../../../base/common/strings.js';
@@ -90,19 +90,10 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			return;
 		}
 
-		const startLineNumber = ctx.visibleRange.startLineNumber;
-		const endLineNumber = ctx.visibleRange.endLineNumber;
-		const lineCount = endLineNumber - startLineNumber + 1;
-		const needed = new Array<boolean>(lineCount);
-		for (let i = 0; i < lineCount; i++) {
-			needed[i] = true;
-		}
-		const viewportData = this._context.viewModel.getMinimapLinesRenderingData(ctx.viewportData.startLineNumber, ctx.viewportData.endLineNumber, needed);
-
 		this._renderResult = [];
 		for (let lineNumber = ctx.viewportData.startLineNumber; lineNumber <= ctx.viewportData.endLineNumber; lineNumber++) {
 			const lineIndex = lineNumber - ctx.viewportData.startLineNumber;
-			const lineData = viewportData.data[lineIndex]!;
+			const lineData = this._context.viewModel.getViewLineRenderingData(lineNumber);
 
 			let selectionsOnLine: OffsetRange[] | null = null;
 			if (this._options.renderWhitespace === 'selection') {
@@ -130,7 +121,10 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		}
 	}
 
-	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: OffsetRange[] | null, lineData: ViewLineData): string {
+	private _applyRenderWhitespace(ctx: RenderingContext, lineNumber: number, selections: OffsetRange[] | null, lineData: ViewLineRenderingData): string {
+		if (lineData.hasVariableFonts) {
+			return '';
+		}
 		if (this._options.renderWhitespace === 'selection' && !selections) {
 			return '';
 		}

@@ -17,8 +17,8 @@ export class TopmostLineMonitor extends Disposable {
 
 	private readonly _pendingUpdates = new ResourceMap<number>();
 	private readonly _throttle = 50;
-	private _previousTextEditorInfo = new ResourceMap<LastScrollLocation>();
-	private _previousStaticEditorInfo = new ResourceMap<LastScrollLocation>();
+	private readonly _previousTextEditorInfo = new ResourceMap<LastScrollLocation>();
+	private readonly _previousStaticEditorInfo = new ResourceMap<LastScrollLocation>();
 
 	constructor() {
 		super();

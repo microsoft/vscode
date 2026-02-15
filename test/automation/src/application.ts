@@ -18,7 +18,6 @@ export const enum Quality {
 
 export interface ApplicationOptions extends LaunchOptions {
 	quality: Quality;
-	readonly workspacePath: string;
 }
 
 export class Application {
@@ -50,17 +49,20 @@ export class Application {
 		return !!this.options.web;
 	}
 
-	private _workspacePathOrFolder: string;
+	private _workspacePathOrFolder: string | undefined;
 	get workspacePathOrFolder(): string {
+		if (!this._workspacePathOrFolder) {
+			throw new Error('This test requires a workspace to be open');
+		}
 		return this._workspacePathOrFolder;
 	}
 
-	get extensionsPath(): string {
+	get extensionsPath(): string | undefined {
 		return this.options.extensionsPath;
 	}
 
-	private _userDataPath: string;
-	get userDataPath(): string {
+	private _userDataPath: string | undefined;
+	get userDataPath(): string | undefined {
 		return this._userDataPath;
 	}
 
@@ -70,7 +72,6 @@ export class Application {
 
 	async start(): Promise<void> {
 		await this._start();
-		await this.code.waitForElement('.explorer-folders-view');
 	}
 
 	async restart(options?: { workspaceOrFolder?: string; extraArgs?: string[] }): Promise<void> {
@@ -80,7 +81,7 @@ export class Application {
 		})(), 'Application#restart()', this.logger);
 	}
 
-	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<void> {
+	private async _start(workspaceOrFolder = this._workspacePathOrFolder, extraArgs: string[] = []): Promise<void> {
 		this._workspacePathOrFolder = workspaceOrFolder;
 
 		// Launch Code...
@@ -100,17 +101,18 @@ export class Application {
 		}
 	}
 
-	async startTracing(name: string): Promise<void> {
+	async startTracing(name?: string): Promise<void> {
 		await this._code?.startTracing(name);
 	}
 
-	async stopTracing(name: string, persist: boolean): Promise<void> {
+	async stopTracing(name?: string, persist: boolean = false): Promise<void> {
 		await this._code?.stopTracing(name, persist);
 	}
 
 	private async startApplication(extraArgs: string[] = []): Promise<Code> {
 		const code = this._code = await launch({
 			...this.options,
+			workspacePath: this._workspacePathOrFolder,
 			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 

@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 import { Uri } from 'vscode';
 
+export const DEFAULT_REDIRECT_URI = 'https://vscode.dev/redirect';
+
 const VALID_DESKTOP_CALLBACK_SCHEMES = [
 	'vscode',
 	'vscode-insiders',

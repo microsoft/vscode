@@ -18,16 +18,13 @@ export interface StreamTask extends BaseTask {
 	(): NodeJS.ReadWriteStream;
 }
 export interface CallbackTask extends BaseTask {
-	(cb?: (err?: any) => void): void;
+	(cb?: (err?: Error) => void): void;
 }
 
 export type Task = PromiseTask | StreamTask | CallbackTask;
 
 function _isPromise(p: Promise<void> | NodeJS.ReadWriteStream): p is Promise<void> {
-	if (typeof (<any>p).then === 'function') {
-		return true;
-	}
-	return false;
+	return typeof (p as Promise<void>).then === 'function';
 }
 
 function _renderTime(time: number): string {

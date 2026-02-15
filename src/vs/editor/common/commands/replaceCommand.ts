@@ -45,7 +45,7 @@ export class ReplaceOvertypeCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		const intialStartPosition = this._range.getStartPosition();
+		const initialStartPosition = this._range.getStartPosition();
 		const initialEndPosition = this._range.getEndPosition();
 		const initialEndLineNumber = initialEndPosition.lineNumber;
 		const offsetDelta = this._text.length + (this._range.isEmpty() ? 0 : -1);
@@ -53,7 +53,7 @@ export class ReplaceOvertypeCommand implements ICommand {
 		if (endPosition.lineNumber > initialEndLineNumber) {
 			endPosition = new Position(initialEndLineNumber, model.getLineMaxColumn(initialEndLineNumber));
 		}
-		const replaceRange = Range.fromPositions(intialStartPosition, endPosition);
+		const replaceRange = Range.fromPositions(initialStartPosition, endPosition);
 		builder.addTrackedEditOperation(replaceRange, this._text);
 	}
 

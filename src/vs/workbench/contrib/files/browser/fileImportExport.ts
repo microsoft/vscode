@@ -280,7 +280,7 @@ export class BrowserFileUpload {
 			operation.filesTotal += childEntries.length;
 
 			// Split up files from folders to upload
-			const folderTarget = target && target.getChild(entry.name) || undefined;
+			const folderTarget = target?.getChild(entry.name) || undefined;
 			const fileChildEntries: IWebkitDataTransferItemEntry[] = [];
 			const folderChildEntries: IWebkitDataTransferItemEntry[] = [];
 			for (const childEntry of childEntries) {

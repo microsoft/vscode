@@ -136,6 +136,11 @@ export interface IPresentationOptionsConfig {
 	 * Note that if the terminal process exits with a non-zero exit code, it will not close.
 	 */
 	close?: boolean;
+
+	/**
+	 * Controls whether to preserve the task name in the terminal after task completion.
+	 */
+	preserveTerminalName?: boolean;
 }
 
 export interface IRunOptionsConfig {
@@ -147,13 +152,13 @@ export interface IRunOptionsConfig {
 
 export interface ITaskIdentifier {
 	type?: string;
-	[name: string]: any;
+	[name: string]: unknown;
 }
 
 export namespace ITaskIdentifier {
-	export function is(value: any): value is ITaskIdentifier {
-		const candidate: ITaskIdentifier = value;
-		return candidate !== undefined && Types.isString(value.type);
+	export function is(value: unknown): value is ITaskIdentifier {
+		const candidate: ITaskIdentifier = value as ITaskIdentifier;
+		return candidate !== undefined && Types.isString((value as ITaskIdentifier).type);
 	}
 }
 
@@ -225,7 +230,7 @@ export interface ILegacyCommandProperties {
 	isShellCommand?: boolean | IShellConfiguration;
 }
 
-export type CommandString = string | string[] | { value: string | string[]; quoting: 'escape' | 'strong' | 'weak' };
+export type CommandString = Types.SingleOrMany<string> | { value: Types.SingleOrMany<string>; quoting: 'escape' | 'strong' | 'weak' };
 
 export namespace CommandString {
 	export function value(value: CommandString): string {
@@ -551,7 +556,7 @@ type TaskConfigurationValueWithErrors<T> = {
 	errors?: string[];
 };
 
-const EMPTY_ARRAY: any[] = [];
+const EMPTY_ARRAY: never[] = [];
 Object.freeze(EMPTY_ARRAY);
 
 function assignProperty<T, K extends keyof T>(target: T, source: Partial<T>, key: K) {
@@ -583,6 +588,7 @@ interface IMetaData<T, U> {
 }
 
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- IMetaData array holds heterogeneous parser types
 function _isEmpty<T>(this: void, value: T | undefined, properties: IMetaData<T, any>[] | undefined, allowEmptyArray: boolean = false): boolean {
 	if (value === undefined || value === null || properties === undefined) {
 		return true;
@@ -600,6 +606,7 @@ function _isEmpty<T>(this: void, value: T | undefined, properties: IMetaData<T, 
 	return true;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- IMetaData array holds heterogeneous parser types
 function _assignProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: IMetaData<T, any>[]): T | undefined {
 	if (!source || _isEmpty(source, properties)) {
 		return target;
@@ -609,19 +616,20 @@ function _assignProperties<T>(this: void, target: T | undefined, source: T | und
 	}
 	for (const meta of properties) {
 		const property = meta.property;
-		let value: any;
+		let value: T[keyof T] | undefined;
 		if (meta.type !== undefined) {
 			value = meta.type.assignProperties(target[property], source[property]);
 		} else {
 			value = source[property];
 		}
 		if (value !== undefined && value !== null) {
-			target[property] = value;
+			(target as Record<string, unknown>)[property as string] = value;
 		}
 	}
 	return target;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- IMetaData array holds heterogeneous parser types
 function _fillProperties<T>(this: void, target: T | undefined, source: T | undefined, properties: IMetaData<T, any>[] | undefined, allowEmptyArray: boolean = false): T | undefined {
 	if (!source || _isEmpty(source, properties)) {
 		return target;
@@ -631,19 +639,20 @@ function _fillProperties<T>(this: void, target: T | undefined, source: T | undef
 	}
 	for (const meta of properties!) {
 		const property = meta.property;
-		let value: any;
+		let value: T[keyof T] | undefined;
 		if (meta.type) {
 			value = meta.type.fillProperties(target[property], source[property]);
 		} else if (target[property] === undefined) {
 			value = source[property];
 		}
 		if (value !== undefined && value !== null) {
-			target[property] = value;
+			(target as Record<string, unknown>)[property as string] = value;
 		}
 	}
 	return target;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- IMetaData array holds heterogeneous parser types
 function _fillDefaults<T>(this: void, target: T | undefined, defaults: T | undefined, properties: IMetaData<T, any>[], context: IParseContext): T | undefined {
 	if (target && Object.isFrozen(target)) {
 		return target;
@@ -660,7 +669,7 @@ function _fillDefaults<T>(this: void, target: T | undefined, defaults: T | undef
 		if (target[property] !== undefined) {
 			continue;
 		}
-		let value: any;
+		let value: T[keyof T] | undefined;
 		if (meta.type) {
 			value = meta.type.fillDefaults(target[property], context);
 		} else {
@@ -668,12 +677,13 @@ function _fillDefaults<T>(this: void, target: T | undefined, defaults: T | undef
 		}
 
 		if (value !== undefined && value !== null) {
-			target[property] = value;
+			(target as Record<string, unknown>)[property as string] = value;
 		}
 	}
 	return target;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- IMetaData array holds heterogeneous parser types
 function _freeze<T>(this: void, target: T, properties: IMetaData<T, any>[]): Readonly<T> | undefined {
 	if (target === undefined || target === null) {
 		return undefined;
@@ -714,7 +724,7 @@ export namespace RunOptions {
 		return {
 			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
 			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default,
-			instanceLimit: value ? value.instanceLimit : 1,
+			instanceLimit: value?.instanceLimit ? Math.max(value.instanceLimit, 1) : 1,
 			instancePolicy: value ? InstancePolicy.fromString(value.instancePolicy) : Tasks.InstancePolicy.prompt
 		};
 	}
@@ -767,8 +777,8 @@ namespace ShellConfiguration {
 
 	const properties: IMetaData<Tasks.IShellConfiguration, void>[] = [{ property: 'executable' }, { property: 'args' }, { property: 'quoting' }];
 
-	export function is(value: any): value is IShellConfiguration {
-		const candidate: IShellConfiguration = value;
+	export function is(value: unknown): value is IShellConfiguration {
+		const candidate: IShellConfiguration = value as IShellConfiguration;
 		return candidate && (Types.isString(candidate.executable) || Types.isStringArray(candidate.args));
 	}
 
@@ -879,7 +889,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: IMetaData<Tasks.IPresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }, { property: 'close' }];
+		const properties: IMetaData<Tasks.IPresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'revealProblems' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }, { property: 'clear' }, { property: 'group' }, { property: 'close' }, { property: 'preserveTerminalName' }];
 
 		interface IPresentationOptionsShape extends ILegacyCommandProperties {
 			presentation?: IPresentationOptionsConfig;
@@ -895,6 +905,7 @@ namespace CommandConfiguration {
 			let clear: boolean;
 			let group: string | undefined;
 			let close: boolean | undefined;
+			let preserveTerminalName: boolean | undefined;
 			let hasProps = false;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
@@ -933,12 +944,15 @@ namespace CommandConfiguration {
 				if (Types.isBoolean(presentation.close)) {
 					close = presentation.close;
 				}
+				if (Types.isBoolean(presentation.preserveTerminalName)) {
+					preserveTerminalName = presentation.preserveTerminalName;
+				}
 				hasProps = true;
 			}
 			if (!hasProps) {
 				return undefined;
 			}
-			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group, close: close };
+			return { echo: echo!, reveal: reveal!, revealProblems: revealProblems!, focus: focus!, panel: panel!, showReuseMessage: showReuseMessage!, clear: clear!, group, close: close, preserveTerminalName };
 		}
 
 		export function assignProperties(target: Tasks.IPresentationOptions, source: Tasks.IPresentationOptions | undefined): Tasks.IPresentationOptions | undefined {
@@ -951,7 +965,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.IPresentationOptions, context: IParseContext): Tasks.IPresentationOptions | undefined {
 			const defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, revealProblems: Tasks.RevealProblemKind.Never, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true, clear: false, preserveTerminalName: false }, properties, context);
 		}
 
 		export function freeze(value: Tasks.IPresentationOptions): Readonly<Tasks.IPresentationOptions> | undefined {
@@ -996,6 +1010,7 @@ namespace CommandConfiguration {
 		linux?: IBaseCommandConfigurationShape;
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- IMetaData array holds heterogeneous parser types
 	const properties: IMetaData<Tasks.ICommandConfiguration, any>[] = [
 		{ property: 'runtime' }, { property: 'name' }, { property: 'options', type: CommandOptions },
 		{ property: 'args' }, { property: 'taskSelector' }, { property: 'suppressTaskName' },
@@ -1187,14 +1202,15 @@ export namespace ProblemMatcherConverter {
 		return result;
 	}
 
-	export function fromWithOsConfig(this: void, external: IConfigurationProperties & { [key: string]: any }, context: IParseContext): TaskConfigurationValueWithErrors<ProblemMatcher[]> {
+	export function fromWithOsConfig(this: void, external: IConfigurationProperties & { [key: string]: unknown }, context: IParseContext): TaskConfigurationValueWithErrors<ProblemMatcher[]> {
 		let result: TaskConfigurationValueWithErrors<ProblemMatcher[]> = {};
-		if (external.windows && external.windows.problemMatcher && context.platform === Platform.Windows) {
-			result = from(external.windows.problemMatcher, context);
-		} else if (external.osx && external.osx.problemMatcher && context.platform === Platform.Mac) {
-			result = from(external.osx.problemMatcher, context);
-		} else if (external.linux && external.linux.problemMatcher && context.platform === Platform.Linux) {
-			result = from(external.linux.problemMatcher, context);
+		const osExternal = external as unknown as { windows?: { problemMatcher?: ProblemMatcherConfig.ProblemMatcherType }; osx?: { problemMatcher?: ProblemMatcherConfig.ProblemMatcherType }; linux?: { problemMatcher?: ProblemMatcherConfig.ProblemMatcherType } };
+		if (osExternal.windows?.problemMatcher && context.platform === Platform.Windows) {
+			result = from(osExternal.windows.problemMatcher, context);
+		} else if (osExternal.osx?.problemMatcher && context.platform === Platform.Mac) {
+			result = from(osExternal.osx.problemMatcher, context);
+		} else if (osExternal.linux?.problemMatcher && context.platform === Platform.Linux) {
+			result = from(osExternal.linux.problemMatcher, context);
 		} else if (external.problemMatcher) {
 			result = from(external.problemMatcher, context);
 		}
@@ -1335,6 +1351,7 @@ namespace DependsOrder {
 
 namespace ConfigurationProperties {
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- IMetaData array holds heterogeneous parser types
 	const properties: IMetaData<Tasks.IConfigurationProperties, any>[] = [
 		{ property: 'name' },
 		{ property: 'identifier' },
@@ -1349,12 +1366,12 @@ namespace ConfigurationProperties {
 		{ property: 'hide' }
 	];
 
-	export function from(this: void, external: IConfigurationProperties & { [key: string]: any }, context: IParseContext,
+	export function from(this: void, external: IConfigurationProperties & { [key: string]: unknown }, context: IParseContext,
 		includeCommandOptions: boolean, source: TaskConfigSource, properties?: IJSONSchemaMap): TaskConfigurationValueWithErrors<Tasks.IConfigurationProperties> {
 		if (!external) {
 			return {};
 		}
-		const result: Tasks.IConfigurationProperties & { [key: string]: any } = {};
+		const result: Tasks.IConfigurationProperties & { [key: string]: unknown } = {};
 
 		if (properties) {
 			for (const propertyName of Object.keys(properties)) {
@@ -1510,7 +1527,7 @@ namespace ConfiguringTask {
 			RunOptions.fromConfiguration(external.runOptions),
 			{ hide: external.hide }
 		);
-		const configuration = ConfigurationProperties.from(external, context, true, source, typeDeclaration.properties);
+		const configuration = ConfigurationProperties.from(external as IConfigurationProperties & { [key: string]: unknown }, context, true, source, typeDeclaration.properties);
 		result.addTaskLoadMessages(configuration.errors);
 		if (configuration.value) {
 			result.configurationProperties = Object.assign(result.configurationProperties, configuration.value);
@@ -1588,7 +1605,7 @@ namespace CustomTask {
 				identifier: taskName,
 			}
 		);
-		const configuration = ConfigurationProperties.from(external, context, false, source);
+		const configuration = ConfigurationProperties.from(external as IConfigurationProperties & { [key: string]: unknown }, context, false, source);
 		result.addTaskLoadMessages(configuration.errors);
 		if (configuration.value) {
 			result.configurationProperties = Object.assign(result.configurationProperties, configuration.value);
@@ -1708,7 +1725,7 @@ export namespace TaskParser {
 
 	function isCustomTask(value: ICustomTask | IConfiguringTask): value is ICustomTask {
 		const type = value.type;
-		const customize = (value as any).customize;
+		const customize = (value as unknown as Record<string, unknown>).customize;
 		return customize === undefined && (type === undefined || type === null || type === Tasks.CUSTOMIZED_TASK_TYPE || type === 'shell' || type === 'process');
 	}
 
@@ -1980,8 +1997,8 @@ export interface IProblemReporter extends IProblemReporterBase {
 
 export class UUIDMap {
 
-	private last: IStringDictionary<string | string[]> | undefined;
-	private current: IStringDictionary<string | string[]>;
+	private last: IStringDictionary<Types.SingleOrMany<string>> | undefined;
+	private current: IStringDictionary<Types.SingleOrMany<string>>;
 
 	constructor(other?: UUIDMap) {
 		this.current = Object.create(null);

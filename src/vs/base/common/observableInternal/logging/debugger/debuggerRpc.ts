@@ -9,6 +9,7 @@ export function registerDebugChannel<T extends { channelId: string } & API>(
 	channelId: T['channelId'],
 	createClient: () => T['client'],
 ): SimpleTypedRpcConnection<MakeSideAsync<T['host']>> {
+	// eslint-disable-next-line local/code-no-any-casts
 	const g = globalThis as any as GlobalObj;
 
 	let queuedNotifications: unknown[] = [];

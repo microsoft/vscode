@@ -17,6 +17,7 @@ export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 	}
 
 	protected override _nativeConsoleLogMessage(_method: unknown, original: (...args: any[]) => void, args: IArguments) {
+		// eslint-disable-next-line local/code-no-any-casts
 		original.apply(console, args as any);
 	}
 }

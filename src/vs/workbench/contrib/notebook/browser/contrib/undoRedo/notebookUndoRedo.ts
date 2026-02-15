@@ -22,7 +22,7 @@ class NotebookUndoRedoContribution extends Disposable {
 		this._register(UndoCommand.addImplementation(PRIORITY, 'notebook-undo-redo', () => {
 			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 			const viewModel = editor?.getViewModel() as NotebookViewModel | undefined;
-			if (editor && editor.hasModel() && viewModel) {
+			if (editor && editor.hasEditorFocus() && editor.hasModel() && viewModel) {
 				return viewModel.undo().then(cellResources => {
 					if (cellResources?.length) {
 						for (let i = 0; i < editor.getLength(); i++) {
@@ -44,7 +44,7 @@ class NotebookUndoRedoContribution extends Disposable {
 			const editor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);
 			const viewModel = editor?.getViewModel() as NotebookViewModel | undefined;
 
-			if (editor && editor.hasModel() && viewModel) {
+			if (editor && editor.hasEditorFocus() && editor.hasModel() && viewModel) {
 				return viewModel.redo().then(cellResources => {
 					if (cellResources?.length) {
 						for (let i = 0; i < editor.getLength(); i++) {

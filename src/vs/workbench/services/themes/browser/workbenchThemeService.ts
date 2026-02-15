@@ -39,9 +39,10 @@ import { IHostColorSchemeService } from '../common/hostColorSchemeService.js';
 import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
-import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
+import { getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { generateColorThemeCSS } from './colorThemeCss.js';
 
 // implementation
 
@@ -283,7 +284,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}));
 	}
 
-	private installRegistryListeners(): Promise<any> {
+	private installRegistryListeners(): Promise<void> {
 
 		let prevColorId: string | undefined = undefined;
 
@@ -459,27 +460,13 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	private updateDynamicCSSRules(themeData: IColorTheme) {
-		const cssRules = new Set<string>();
-		const ruleCollector = {
-			addRule: (rule: string) => {
-				if (!cssRules.has(rule)) {
-					cssRules.add(rule);
-				}
-			}
-		};
-		ruleCollector.addRule(`.monaco-workbench { forced-color-adjust: none; }`);
-		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
-
-		const colorVariables: string[] = [];
-		for (const item of getColorRegistry().getColors()) {
-			const color = themeData.getColor(item.id, true);
-			if (color) {
-				colorVariables.push(`${asCssVariableName(item.id)}: ${color.toString()};`);
-			}
-		}
-		ruleCollector.addRule(`.monaco-workbench { ${colorVariables.join('\n')} }`);
-
-		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
+		const css = generateColorThemeCSS(
+			themeData,
+			'.monaco-workbench',
+			themingRegistry.getThemingParticipants(),
+			this.environmentService
+		);
+		_applyRules(css.code, colorThemeRulesClassName);
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {
@@ -793,6 +780,7 @@ class ThemeFileWatcher {
 }
 
 function _applyRules(styleSheetContent: string, rulesClassName: string) {
+	// eslint-disable-next-line no-restricted-syntax
 	const themeStyles = mainWindow.document.head.getElementsByClassName(rulesClassName);
 	if (themeStyles.length === 0) {
 		const elStyle = createStyleSheet();

@@ -11,6 +11,9 @@ import { EndOfLineSequence, PositionAffinity } from '../../../common/model.js';
 import { ViewEventHandler } from '../../../common/viewEventHandler.js';
 import { ViewEvent } from '../../../common/viewEvents.js';
 import { testViewModel } from './testViewModel.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { createTextModel } from '../../common/testTextModel.js';
+import { createCodeEditorServices, instantiateTestCodeEditor } from '../testCodeEditor.js';
 
 suite('ViewModel', () => {
 
@@ -86,6 +89,33 @@ suite('ViewModel', () => {
 		});
 	});
 
+	test('view models react first to model changes', () => {
+		const initialText = [
+			'Hello',
+			'world'
+		];
+		const disposables = new DisposableStore();
+
+		const model = disposables.add(createTextModel(initialText.join('\n')));
+		const instantiationService = createCodeEditorServices(disposables);
+		const ed1 = disposables.add(instantiateTestCodeEditor(instantiationService, model));
+		disposables.add(instantiateTestCodeEditor(instantiationService, model));
+
+		// Add a nasty listener which modifies the model during the model change event
+		let isFirst = true;
+		disposables.add(ed1.onDidChangeModelContent((e) => {
+			if (isFirst) {
+				isFirst = false;
+				// delete the \n
+				model.applyEdits([{ range: new Range(1, 6, 2, 1), text: '' }]);
+			}
+		}));
+
+		model.applyEdits([{ range: new Range(2, 6, 2, 6), text: '!' }]);
+
+		disposables.dispose();
+	});
+
 	test('issue #44805: No visible lines via API call', () => {
 		const text = [
 			'line1',
@@ -122,7 +152,7 @@ suite('ViewModel', () => {
 	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
 			const actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard, false);
-			assert.deepStrictEqual(actual, expected);
+			assert.deepStrictEqual(actual.sourceText, expected);
 		});
 	}
 
@@ -198,7 +228,27 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			'line2\nline3\n'
+			[
+				'line2\n',
+				'line3\n'
+			]
+		);
+	});
+
+	test('issue #256039: getPlainTextToCopy with multiple cursors and empty selections should return array', () => {
+		// Bug: When copying with multiple cursors (empty selections) with emptySelectionClipboard enabled,
+		// the result should be an array so that pasting with "editor.multiCursorPaste": "full"
+		// correctly distributes each line to the corresponding cursor.
+		// Without the fix, this returns 'line2\nline3\n' (a single string).
+		// With the fix, this returns ['line2\n', 'line3\n'] (an array).
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 1, 2, 1),
+				new Range(3, 1, 3, 1),
+			],
+			true,
+			['line2\n', 'line3\n']
 		);
 	});
 
@@ -222,7 +272,7 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			['ine2', 'line3']
+			['ine2', 'line3\n']
 		);
 	});
 
@@ -259,7 +309,10 @@ suite('ViewModel', () => {
 				new Range(3, 2, 3, 2),
 			],
 			true,
-			'line2\nline3\n'
+			[
+				'line2\n',
+				'line3\n'
+			]
 		);
 	});
 
@@ -267,7 +320,7 @@ suite('ViewModel', () => {
 		testViewModel(USUAL_TEXT, {}, (viewModel, model) => {
 			model.setEOL(EndOfLineSequence.LF);
 			const actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
-			assert.deepStrictEqual(actual, 'line2\r\nline3\r\nline4\r\n');
+			assert.deepStrictEqual(actual.sourceText, 'line2\r\nline3\r\nline4\r\n');
 		});
 	});
 
