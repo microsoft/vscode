@@ -144,6 +144,18 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return url.includes('api.github.com/repos/');
 	}
 
+	private normalizeGitHubReleaseTag(tag: string): string {
+		return tag.trim().replace(/^v/i, '');
+	}
+
+	private isCurrentGitHubReleaseTag(tag: string): boolean {
+		const normalizedTag = this.normalizeGitHubReleaseTag(tag);
+		const currentVersion = this.productService.version ? this.normalizeGitHubReleaseTag(this.productService.version) : undefined;
+		const currentCommit = this.productService.commit ? this.normalizeGitHubReleaseTag(this.productService.commit) : undefined;
+
+		return normalizedTag === currentVersion || normalizedTag === currentCommit;
+	}
+
 	private async getGitHubReleaseUpdate(baseUrl: string, token: CancellationToken): Promise<IUpdate | null> {
 		const releaseUrl = baseUrl.endsWith('/') ? `${baseUrl}releases/latest` : `${baseUrl}/releases/latest`;
 		const context = await this.requestService.request({
@@ -158,7 +170,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			return null;
 		}
 
-		if (this.productService.commit === release.tag_name) {
+		if (this.isCurrentGitHubReleaseTag(release.tag_name)) {
 			return null;
 		}
 
