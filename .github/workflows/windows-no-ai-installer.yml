@@ -84,7 +84,12 @@ jobs:
         shell: pwsh
         run: |
           $ReleaseVersion = "${{ steps.release_version.outputs.version }}"
-          Move-Item -Path .build\win32-x64\user-setup\NoAIVSCodeSetup.exe -Destination .build\win32-x64\user-setup\NoAIVSCodeSetup-x64-$ReleaseVersion.exe
+          $SetupDir = ".build\win32-x64\user-setup"
+          $SourceInstaller = Join-Path $SetupDir "VSCodeSetup.exe"
+          if (-not (Test-Path $SourceInstaller)) {
+            throw "Expected installer not found at $SourceInstaller"
+          }
+          Move-Item -Path $SourceInstaller -Destination (Join-Path $SetupDir "NoAIVSCodeSetup-x64-$ReleaseVersion.exe")
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
