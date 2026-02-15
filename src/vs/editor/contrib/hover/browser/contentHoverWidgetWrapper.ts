@@ -22,6 +22,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { RenderedContentHover } from './contentHoverRendered.js';
 import { isMousePositionWithinElement } from './hoverUtils.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 
 export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidget {
 
@@ -39,7 +40,8 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IHoverService private readonly _hoverService: IHoverService
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
 		this._contentHoverWidget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
@@ -60,6 +62,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 		}));
 		this._register(this._contentHoverWidget.onDidScroll((e) => {
 			this._participants.forEach(participant => participant.handleScroll?.(e));
+		}));
+		this._register(this._contentHoverWidget.onContentsChanged(() => {
+			this._participants.forEach(participant => participant.handleContentsChanged?.());
 		}));
 		return participants;
 	}
@@ -82,6 +87,9 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			if (this._contentHoverWidget.position && this._currentResult) {
 				this._setCurrentResult(this._currentResult); // render again
 			}
+		}));
+		this._register(this._contentHoverWidget.onContentsChanged(() => {
+			this._onContentsChanged.fire();
 		}));
 	}
 
@@ -210,7 +218,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 
 	private _showHover(hoverResult: ContentHoverResult): void {
 		const context = this._getHoverContext();
-		this._renderedContentHover.value = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService, this._hoverService);
+		this._renderedContentHover.value = new RenderedContentHover(this._editor, hoverResult, this._participants, context, this._keybindingService, this._hoverService, this._clipboardService);
 		if (this._renderedContentHover.value.domNodeHasChildren) {
 			this._contentHoverWidget.show(this._renderedContentHover.value);
 		} else {
@@ -228,8 +236,7 @@ export class ContentHoverWidgetWrapper extends Disposable implements IHoverWidge
 			this.hide();
 		};
 		const onContentsChanged = () => {
-			this._onContentsChanged.fire();
-			this._contentHoverWidget.onContentsChanged();
+			this._contentHoverWidget.handleContentsChanged();
 		};
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);

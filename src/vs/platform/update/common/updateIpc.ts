@@ -23,12 +23,13 @@ export class UpdateChannel implements IServerChannel {
 	call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'checkForUpdates': return this.service.checkForUpdates(arg);
-			case 'downloadUpdate': return this.service.downloadUpdate();
+			case 'downloadUpdate': return this.service.downloadUpdate(arg);
 			case 'applyUpdate': return this.service.applyUpdate();
 			case 'quitAndInstall': return this.service.quitAndInstall();
 			case '_getInitialState': return Promise.resolve(this.service.state);
 			case 'isLatestVersion': return this.service.isLatestVersion();
 			case '_applySpecificUpdate': return this.service._applySpecificUpdate(arg);
+			case 'disableProgressiveReleases': return this.service.disableProgressiveReleases();
 		}
 
 		throw new Error(`Call not found: ${command}`);
@@ -59,8 +60,8 @@ export class UpdateChannelClient implements IUpdateService {
 		return this.channel.call('checkForUpdates', explicit);
 	}
 
-	downloadUpdate(): Promise<void> {
-		return this.channel.call('downloadUpdate');
+	downloadUpdate(explicit: boolean): Promise<void> {
+		return this.channel.call('downloadUpdate', explicit);
 	}
 
 	applyUpdate(): Promise<void> {
@@ -77,6 +78,10 @@ export class UpdateChannelClient implements IUpdateService {
 
 	_applySpecificUpdate(packagePath: string): Promise<void> {
 		return this.channel.call('_applySpecificUpdate', packagePath);
+	}
+
+	disableProgressiveReleases(): Promise<void> {
+		return this.channel.call('disableProgressiveReleases');
 	}
 
 	dispose(): void {

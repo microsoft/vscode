@@ -66,12 +66,14 @@ export const editorGutterItemGlyphForeground = registerColor('editorGutter.itemG
 );
 export const editorGutterItemBackground = registerColor('editorGutter.itemBackground', { dark: opaque(listInactiveSelectionBackground, editorBackground), light: darken(opaque(listInactiveSelectionBackground, editorBackground), .05), hcDark: Color.white, hcLight: Color.black }, nls.localize('editorGutterItemBackground', 'Editor gutter decoration color for gutter item background. This color should be opaque.'));
 
+type QuickDiffProviderKind = 'primary' | 'secondary' | 'contributed';
+
 export interface QuickDiffProvider {
 	readonly id: string;
 	readonly label: string;
 	readonly rootUri: URI | undefined;
 	readonly selector?: LanguageSelector;
-	readonly kind: 'primary' | 'secondary' | 'contributed';
+	readonly kind: QuickDiffProviderKind;
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
 
@@ -79,7 +81,7 @@ export interface QuickDiff {
 	readonly id: string;
 	readonly label: string;
 	readonly originalResource: URI;
-	readonly kind: 'primary' | 'secondary' | 'contributed';
+	readonly kind: QuickDiffProviderKind;
 }
 
 export interface QuickDiffChange {
@@ -91,6 +93,8 @@ export interface QuickDiffChange {
 }
 
 export interface QuickDiffResult {
+	readonly providerId: string;
+	readonly providerKind: QuickDiffProviderKind;
 	readonly original: URI;
 	readonly modified: URI;
 	readonly changes: IChange[];

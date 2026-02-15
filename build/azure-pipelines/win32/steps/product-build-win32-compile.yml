@@ -1,0 +1,274 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_CIBUILD
+    type: boolean
+  - name: VSCODE_QUALITY
+    type: string
+  - name: VSCODE_RUN_ELECTRON_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_BROWSER_TESTS
+    type: boolean
+    default: false
+  - name: VSCODE_RUN_REMOTE_TESTS
+    type: boolean
+    default: false
+
+steps:
+  - template: ../../common/checkout.yml@self
+
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+
+  - task: UsePythonVersion@0
+    inputs:
+      versionSpec: "3.x"
+      addToPath: true
+
+  - template: ../../distro/download-distro.yml@self
+
+  - task: AzureKeyVault@2
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: vscode
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password"
+
+  - task: DownloadPipelineArtifact@2
+    inputs:
+      artifact: Compilation
+      path: $(Build.ArtifactStagingDirectory)
+    displayName: Download compilation output
+
+  - task: ExtractFiles@1
+    displayName: Extract compilation output
+    inputs:
+      archiveFilePatterns: "$(Build.ArtifactStagingDirectory)/compilation.tar.gz"
+      cleanDestinationFolder: false
+
+  - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
+  - pwsh: |
+      mkdir .build -ea 0
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
+    displayName: Prepare node_modules cache key
+
+  - task: Cache@2
+    inputs:
+      key: '"node_modules" | .build/packagelockhash'
+      path: .build/node_modules_cache
+      cacheHitVar: NODE_MODULES_RESTORED
+    displayName: Restore node_modules cache
+
+  - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa
+    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Extract node_modules cache
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      # Set the private NPM registry to the global npmrc file
+      # so that authentication works for subfolders like build/, remote/, extensions/ etc
+      # which does not have their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { npm ci }
+    env:
+      npm_config_arch: $(VSCODE_ARCH)
+      npm_config_foreground_scripts: "true"
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    retryCountOnTaskFailure: 5
+    displayName: Install dependencies
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+  - powershell: node build/azure-pipelines/distro/mixin-npm.ts
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Mixin distro node modules
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
+      exec { mkdir -Force .build/node_modules_cache }
+      exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Create node_modules archive
+
+  - powershell: node build/azure-pipelines/distro/mixin-quality.ts
+    displayName: Mixin distro quality
+
+  - template: ../../common/install-builtin-extensions.yml@self
+
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - powershell: |
+        npm run copy-policy-dto --prefix build
+        node build\lib\policies\policyGenerator.ts build\lib\policies\policyData.jsonc win32
+      displayName: Generate Group Policy definitions
+      retryCountOnTaskFailure: 3
+
+  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'exploration')) }}:
+    - powershell: node build/win32/explorer-dll-fetcher.ts .build/win32/appx
+      displayName: Download Explorer dll
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { npm run gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
+      exec { npm run gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
+      echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
+      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build client
+
+  # Note: the appx prepare step has to follow Build client step since build step replaces the template
+  # strings in the raw manifest file at resources/win32/appx/AppxManifest.xml and places it under
+  # <build-out-dir>/appx/manifest, we need a separate step to prepare the appx package with the
+  # final contents. In our case only the manifest file is bundled into the appx package.
+  - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'exploration')) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        # Add Windows SDK to path
+        $sdk = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64"
+        $env:PATH = "$sdk;$env:PATH"
+        $AppxName = if ('$(VSCODE_QUALITY)' -eq 'stable') { 'code' } else { 'code_insider' }
+        makeappx pack /d "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/appx/manifest" /p "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/appx/${AppxName}_$(VSCODE_ARCH).appx" /nv
+        # Remove the raw manifest folder
+        Remove-Item -Path "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/appx/manifest" -Recurse -Force
+      displayName: Prepare appx package
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { npm run gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
+      mv ..\vscode-reh-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH) # TODO@joaomoreno
+      echo "##vso[task.setvariable variable=BUILT_SERVER]true"
+      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build server
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { npm run gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
+      mv ..\vscode-reh-web-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH)-web # TODO@joaomoreno
+      echo "##vso[task.setvariable variable=BUILT_WEB]true"
+      echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Build server (web)
+
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: unsigned_vscode_cli_win32_$(VSCODE_ARCH)_cli
+        patterns: "**"
+        path: $(Build.ArtifactStagingDirectory)/cli
+      displayName: Download VS Code CLI
+
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $ArtifactName = (gci -Path "$(Build.ArtifactStagingDirectory)/cli" | Select-Object -last 1).FullName
+        Expand-Archive -Path $ArtifactName -DestinationPath "$(Build.ArtifactStagingDirectory)/cli"
+        $ProductJsonPath = (Get-ChildItem -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)" -Name "product.json" -Recurse | Select-Object -First 1)
+        $AppProductJson = Get-Content -Raw -Path "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\$ProductJsonPath" | ConvertFrom-Json
+        $CliAppName = $AppProductJson.tunnelApplicationName
+        $AppName = $AppProductJson.applicationName
+        Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
+      displayName: Move VS Code CLI
+
+    - task: UseDotNet@2
+      inputs:
+        version: 6.x
+
+    - task: EsrpCodeSigning@5
+      inputs:
+        UseMSIAuthentication: true
+        ConnectedServiceName: vscode-esrp
+        AppRegistrationClientId: $(ESRP_CLIENT_ID)
+        AppRegistrationTenantId: $(ESRP_TENANT_ID)
+        AuthAKVName: vscode-esrp
+        AuthSignCertName: esrp-sign
+        FolderPath: .
+        Pattern: noop
+      displayName: 'Install ESRP Tooling'
+
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        $EsrpCodeSigningTool = (gci -directory -filter EsrpCodeSigning_* $(Agent.RootDirectory)\_tasks | Select-Object -last 1).FullName
+        $Version = (gci -directory $EsrpCodeSigningTool | Select-Object -last 1).FullName
+        echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
+      displayName: Find ESRP CLI
+
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.ts }
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: ✍️ Codesign
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - template: product-build-win32-test.yml@self
+      parameters:
+        VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+        VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
+        VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
+        VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - powershell: |
+        . build/azure-pipelines/win32/exec.ps1
+        $ErrorActionPreference = "Stop"
+        exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.ts }
+      condition: succeededOrFailed()
+      displayName: "✍️ Post-job: Codesign"
+
+    - powershell: |
+        $ErrorActionPreference = "Stop"
+
+        $PackageJsonPath = (Get-ChildItem -Path "..\VSCode-win32-$(VSCODE_ARCH)" -Name "package.json" -Recurse | Select-Object -First 1)
+        $PackageJson = Get-Content -Raw -Path ..\VSCode-win32-$(VSCODE_ARCH)\$PackageJsonPath | ConvertFrom-Json
+        $Version = $PackageJson.version
+
+        mkdir $(Build.ArtifactStagingDirectory)\out\system-setup -Force
+        mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$Version.exe
+
+        mkdir $(Build.ArtifactStagingDirectory)\out\user-setup -Force
+        mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $(Build.ArtifactStagingDirectory)\out\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe
+
+        mkdir $(Build.ArtifactStagingDirectory)\out\archive -Force
+        mv .build\win32-$(VSCODE_ARCH)\VSCode-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\archive\VSCode-win32-$(VSCODE_ARCH)-$Version.zip
+
+        mkdir $(Build.ArtifactStagingDirectory)\out\server -Force
+        mv .build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH).zip $(Build.ArtifactStagingDirectory)\out\server\vscode-server-win32-$(VSCODE_ARCH).zip
+
+        mkdir $(Build.ArtifactStagingDirectory)\out\web -Force
+        mv .build\win32-$(VSCODE_ARCH)\vscode-server-win32-$(VSCODE_ARCH)-web.zip $(Build.ArtifactStagingDirectory)\out\web\vscode-server-win32-$(VSCODE_ARCH)-web.zip
+
+        echo "##vso[task.setvariable variable=VSCODE_VERSION]$Version"
+      displayName: Move artifacts to out directory

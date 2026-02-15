@@ -58,9 +58,9 @@ export class NpmTaskProvider implements TaskProvider {
 	}
 
 	public async resolveTask(_task: Task): Promise<Task | undefined> {
-		const npmTask = (<any>_task.definition).script;
+		const npmTask = _task.definition.script;
 		if (npmTask) {
-			const kind: INpmTaskDefinition = (<any>_task.definition);
+			const kind = _task.definition as INpmTaskDefinition;
 			let packageJsonUri: Uri;
 			if (_task.scope === undefined || _task.scope === TaskScope.Global || _task.scope === TaskScope.Workspace) {
 				// scope is required to be a WorkspaceFolder for resolveTask

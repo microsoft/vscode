@@ -9,14 +9,16 @@ import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { LineDecoration } from '../../../../common/viewLayout/lineDecorations.js';
-import { InlineDecoration } from '../../../../common/viewModel.js';
 import { ColumnRange } from '../../../../common/core/ranges/columnRange.js';
+import { assertFn, checkAdjacentItems } from '../../../../../base/common/assert.js';
+import { InlineDecoration } from '../../../../common/viewModel/inlineDecorations.js';
 
 export class GhostText {
 	constructor(
 		public readonly lineNumber: number,
 		public readonly parts: GhostTextPart[],
 	) {
+		assertFn(() => checkAdjacentItems(parts, (p1, p2) => p1.column <= p2.column));
 	}
 
 	equals(other: GhostText): boolean {

@@ -10,8 +10,8 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatResponseViewModel, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatResponseViewModel, isResponseVM } from '../../common/model/chatViewModel.js';
 
 export function registerChatFileTreeActions() {
 	registerAction2(class NextFileTreeAction extends Action2 {
@@ -30,7 +30,7 @@ export function registerChatFileTreeActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateTrees(accessor, false);
 		}
 	});
@@ -51,7 +51,7 @@ export function registerChatFileTreeActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateTrees(accessor, true);
 		}
 	});

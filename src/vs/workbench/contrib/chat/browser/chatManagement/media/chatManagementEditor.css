@@ -1,0 +1,122 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ai-management-editor {
+	height: 100%;
+	overflow: hidden;
+	max-width: 1200px;
+	margin: 0 auto;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-models-management-editor {
+	height: 100%;
+	overflow: hidden;
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 15px 0px 0px 24px;
+}
+
+/* Header - spans full width */
+.ai-management-editor .ai-management-header {
+	box-sizing: border-box;
+	margin-left: 20px;
+	padding: 10px 15px 5px 15px;
+	border-bottom: 1px solid var(--vscode-settings-headerBorder);
+	flex-shrink: 0;
+}
+
+/* Split view container - takes remaining space */
+.ai-management-editor .split-view-container {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+}
+
+.ai-management-editor .sidebar-view,
+.ai-management-editor .contents-view {
+	height: 100%;
+	overflow: hidden;
+}
+
+.ai-management-editor .contents-container {
+	height: 100%;
+	overflow: hidden;
+}
+
+.ai-management-editor .sidebar-container {
+	padding-left: 20px;
+	padding-top: 15px;
+	height: 100%;
+	overflow: hidden;
+	box-sizing: border-box;
+}
+
+.ai-management-editor .sidebar-container .section-list-item {
+	padding-left: 20px;
+	display: flex;
+	align-items: center;
+}
+
+.ai-management-editor .sidebar-container .section-list-item > .section-list-item-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ai-management-editor .ai-management-body {
+	padding: 15px;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.ai-management-editor .header-title-container {
+	display: flex;
+	align-items: end;
+	justify-content: space-between;
+	margin-bottom: 0;
+}
+
+.ai-management-editor .header-title-wrapper {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.ai-management-editor .ai-management-editor-title {
+	font-size: 26px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.ai-management-editor .hide {
+	display: none !important;
+}
+
+.ai-management-editor .plan-badge {
+	padding: 4px 12px;
+	border-radius: 12px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-weight: 500;
+	margin-left: 4px;
+}
+
+.ai-management-editor .header-upgrade-button-container {
+	margin-left: auto;
+}
+
+.ai-management-editor .header-upgrade-button {
+	white-space: nowrap;
+}
+
+/* Widget sections */
+.ai-management-editor .ai-management-body > * {
+	margin-bottom: 20px;
+}
+
+.ai-management-editor .ai-management-body > *:last-child {
+	margin-bottom: 0;
+}

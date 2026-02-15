@@ -6,7 +6,8 @@
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ICellOutput, IOutputDto, IOutputItemDto, compressOutputItemStreams, isTextStreamMime } from '../notebookCommon.js';
+import { ICellOutput, IOutputDto, IOutputItemDto, compressOutputItemStreams } from '../notebookCommon.js';
+import { isTextStreamMime } from '../../../../../base/common/mime.js';
 
 export class NotebookCellOutputTextModel extends Disposable implements ICellOutput {
 
@@ -17,7 +18,7 @@ export class NotebookCellOutputTextModel extends Disposable implements ICellOutp
 		return this._rawOutput.outputs || [];
 	}
 
-	get metadata(): Record<string, any> | undefined {
+	get metadata(): Record<string, unknown> | undefined {
 		return this._rawOutput.metadata;
 	}
 

@@ -24,7 +24,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { equals } from '../../../../base/common/arrays.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ToggleStatusbarVisibilityAction } from '../../actions/layoutActions.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -445,8 +445,8 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	}
 
 	private appendStatusbarEntries(): void {
-		const leftItemsContainer = assertIsDefined(this.leftItemsContainer);
-		const rightItemsContainer = assertIsDefined(this.rightItemsContainer);
+		const leftItemsContainer = assertReturnsDefined(this.leftItemsContainer);
+		const rightItemsContainer = assertReturnsDefined(this.rightItemsContainer);
 
 		// Clear containers
 		clearNode(leftItemsContainer);
@@ -473,7 +473,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			entries.reverse(); // reversing due to flex: row-reverse
 		}
 
-		const target = assertIsDefined(entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
+		const target = assertReturnsDefined(entry.alignment === StatusbarAlignment.LEFT ? this.leftItemsContainer : this.rightItemsContainer);
 
 		const index = entries.indexOf(entry);
 		if (index + 1 === entries.length) {
@@ -635,7 +635,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		const container = assertIsDefined(this.getContainer());
+		const container = assertReturnsDefined(this.getContainer());
 		const styleOverride: IStatusbarStyleOverride | undefined = [...this.styleOverrides].sort((a, b) => a.priority - b.priority)[0];
 
 		// Background / foreground colors
@@ -644,6 +644,9 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		const foregroundColor = this.getColor(styleOverride?.foreground ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND)) || '';
 		container.style.color = foregroundColor;
 		const itemBorderColor = this.getColor(STATUS_BAR_ITEM_FOCUS_BORDER);
+
+		// Update compact entries to refresh hover colors based on current theme
+		this.updateCompactEntries();
 
 		// Border color
 		const borderColor = this.getColor(styleOverride?.border ?? (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BORDER : STATUS_BAR_NO_FOLDER_BORDER)) || this.getColor(contrastBorder);
@@ -660,7 +663,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		const statusBarFocusColor = this.getColor(STATUS_BAR_FOCUS_BORDER);
 
 		if (!this.styleElement) {
-			this.styleElement = createStyleSheet(container);
+			this.styleElement = createStyleSheet(container, undefined, this._store);
 		}
 
 		this.styleElement.textContent = `
