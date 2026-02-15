@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from '../../../base/browser/browser.js';
+import { addDisposableListener } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { VSBuffer, decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -130,7 +131,7 @@ class ServerKeyedAESCrypto implements ISecretStorageCrypto {
 		const keyData = new Uint8Array(AESConstants.KEY_LENGTH / 8);
 
 		for (let i = 0; i < keyData.byteLength; i++) {
-			keyData[i] = clientKey[i]! ^ serverKey[i]!;
+			keyData[i] = clientKey[i] ^ serverKey[i];
 		}
 
 		return mainWindow.crypto.subtle.importKey(
@@ -222,6 +223,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 
 	private loadAuthSessionFromElement(): Record<string, string> {
 		let authSessionInfo: (AuthenticationSessionInfo & { scopes: string[][] }) | undefined;
+		// eslint-disable-next-line no-restricted-syntax
 		const authSessionElement = mainWindow.document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
 		if (authSessionElementAttribute) {
@@ -273,6 +275,11 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 		delete secrets[key];
 		this.secretsPromise = Promise.resolve(secrets);
 		this.save();
+	}
+
+	async keys(): Promise<string[]> {
+		const secrets = await this.secretsPromise;
+		return Object.keys(secrets) || [];
 	}
 
 	private async save(): Promise<void> {
@@ -340,9 +347,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 			return;
 		}
 
-		const fn = () => this.onDidChangeLocalStorage();
-		mainWindow.addEventListener('storage', fn);
-		this.onDidChangeLocalStorageDisposable = { dispose: () => mainWindow.removeEventListener('storage', fn) };
+		this.onDidChangeLocalStorageDisposable = addDisposableListener(mainWindow, 'storage', () => this.onDidChangeLocalStorage());
 	}
 
 	private stopListening(): void {
@@ -593,6 +598,7 @@ function readCookie(name: string): string | undefined {
 (function () {
 
 	// Find config by checking for DOM
+	// eslint-disable-next-line no-restricted-syntax
 	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
 	if (!configElement || !configElementAttribute) {

@@ -2,7 +2,7 @@
   "name": "shellscript",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -68,9 +68,6 @@
           "zlogout",
           "bashrc_Apple_Terminal",
           "zshrc_Apple_Terminal"
-        ],
-        "filenamePatterns": [
-          ".env.*"
         ],
         "firstLine": "^#!.*\\b(bash|fish|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
         "configuration": "./language-configuration.json",

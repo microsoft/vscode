@@ -32,7 +32,7 @@ export class TerminalChatAccessibilityHelp implements IAccessibleViewImplementat
 			{ type: AccessibleViewType.Help },
 			() => helpText,
 			() => TerminalChatController.get(instance)?.terminalChatWidget?.focus(),
-			AccessibilityVerbositySettingId.TerminalChat,
+			AccessibilityVerbositySettingId.TerminalInlineChat,
 		);
 	}
 }

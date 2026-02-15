@@ -9,6 +9,7 @@
 	display: flex;
 	position: relative;
 	overflow: hidden;
+	cursor: default;
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-hidden .cell-statusbar-container {

@@ -24,12 +24,12 @@ suite('Collections', () => {
 		const grouped = collections.groupBy(source, x => x.key);
 
 		// Group 1
-		assert.strictEqual(grouped[group1].length, 2);
+		assert.strictEqual(grouped[group1]?.length, 2);
 		assert.strictEqual(grouped[group1][0].value, value1);
 		assert.strictEqual(grouped[group1][1].value, value2);
 
 		// Group 2
-		assert.strictEqual(grouped[group2].length, 1);
+		assert.strictEqual(grouped[group2]?.length, 1);
 		assert.strictEqual(grouped[group2][0].value, value3);
 	});
 

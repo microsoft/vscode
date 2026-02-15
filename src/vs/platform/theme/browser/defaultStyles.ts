@@ -51,6 +51,7 @@ export const defaultButtonStyles: IButtonStyles = {
 	buttonSecondaryForeground: asCssVariable(buttonSecondaryForeground),
 	buttonSecondaryBackground: asCssVariable(buttonSecondaryBackground),
 	buttonSecondaryHoverBackground: asCssVariable(buttonSecondaryHoverBackground),
+	buttonSecondaryBorder: asCssVariable(buttonBorder),
 	buttonBorder: asCssVariable(buttonBorder),
 };
 

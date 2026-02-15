@@ -7,14 +7,22 @@
 	box-sizing: border-box;
 	display: flex;
 	width: 100%;
-	padding: 4px;
-	border-radius: 2px;
+	padding: 4px 8px;
+	border-radius: 4px;
 	text-align: center;
 	cursor: pointer;
 	justify-content: center;
 	align-items: center;
 	border: 1px solid var(--vscode-button-border, transparent);
-	line-height: 18px;
+	line-height: 16px;
+	font-size: 12px;
+	overflow-wrap: normal;
+}
+
+.monaco-text-button.small {
+	line-height: 14px;
+	font-size: 11px;
+	padding: 3px 6px;
 }
 
 .monaco-text-button:focus {
@@ -61,6 +69,7 @@
 	align-items: center;
 	font-weight: normal;
 	font-style: inherit;
+	line-height: 18px;
 	padding: 4px 0;
 }
 
@@ -100,13 +109,13 @@
 .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
 	border: 1px solid var(--vscode-button-border, transparent);
 	border-left-width: 0 !important;
-	border-radius: 0 2px 2px 0;
+	border-radius: 0 4px 4px 0;
 	display: flex;
 	align-items: center;
 }
 
 .monaco-button-dropdown > .monaco-button.monaco-text-button {
-	border-radius: 2px 0 0 2px;
+	border-radius: 4px 0 0 4px;
 }
 
 .monaco-description-button {

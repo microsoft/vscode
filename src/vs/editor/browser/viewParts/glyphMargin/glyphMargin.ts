@@ -94,8 +94,7 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 
 		let prevClassName: string | null = null;
 		let prevEndLineIndex = 0;
-		for (let i = 0, len = decorations.length; i < len; i++) {
-			const d = decorations[i];
+		for (const d of decorations) {
 			const className = d.className;
 			const zIndex = d.zIndex;
 			let startLineIndex = Math.max(d.startLineNumber, visibleStartLineNumber) - visibleStartLineNumber;
@@ -110,8 +109,8 @@ export abstract class DedupOverlay extends DynamicViewOverlay {
 				prevEndLineIndex = endLineIndex;
 			}
 
-			for (let i = startLineIndex; i <= prevEndLineIndex; i++) {
-				output[i].add(new LineDecorationToRender(className, zIndex, d.tooltip));
+			for (let lineIndex = startLineIndex; lineIndex <= prevEndLineIndex; lineIndex++) {
+				output[lineIndex].add(new LineDecorationToRender(className, zIndex, d.tooltip));
 			}
 		}
 

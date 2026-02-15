@@ -23,7 +23,8 @@ import { IViewsService } from '../../views/common/viewsService.js';
 import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { IUserActivityService } from '../../userActivity/common/userActivityService.js';
-import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
+import { createWorkbenchDialogOptions } from '../../../browser/parts/dialogs/dialog.js';
+import { IHostService } from '../../host/browser/host.js';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -39,6 +40,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IUserActivityService private readonly userActivityService: IUserActivityService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 	}
@@ -140,15 +142,15 @@ export class ProgressService extends Disposable implements IProgressService {
 		return promise.finally(() => clearTimeout(delayHandle));
 	}
 
-	private updateWindowProgress(idx: number = 0) {
+	private updateWindowProgress(idx = 0) {
 
 		// We still have progress to show
 		if (idx < this.windowProgressStack.length) {
 			const [options, progress] = this.windowProgressStack[idx];
 
 			const progressTitle = options.title;
-			const progressMessage = progress.value && progress.value.message;
-			const progressCommand = (<IProgressWindowOptions>options).command;
+			const progressMessage = progress.value?.message;
+			const progressCommand = options.command;
 			let text: string;
 			let title: string;
 			const source = options.source && typeof options.source !== 'string' ? options.source.label : options.source;
@@ -338,6 +340,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			// shows again.
 			let windowProgressDisposable: IDisposable | undefined = undefined;
 			const onVisibilityChange = (visible: boolean) => {
+
 				// Clear any previous running window progress
 				dispose(windowProgressDisposable);
 
@@ -386,7 +389,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 				// create notification now or after a delay
 				if (typeof options.delay === 'number' && options.delay > 0) {
-					if (notificationTimeout !== undefined) {
+					if (notificationTimeout === undefined) {
 						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, options.priority, step?.increment), options.delay);
 					}
 				} else {
@@ -566,7 +569,7 @@ export class ProgressService extends Disposable implements IProgressService {
 					cancelId: buttons.length - 1,
 					disableCloseAction: options.sticky,
 					disableDefaultAction: options.sticky
-				}, this.keybindingService, this.layoutService)
+				}, this.keybindingService, this.layoutService, this.hostService)
 			);
 
 			disposables.add(dialog);
