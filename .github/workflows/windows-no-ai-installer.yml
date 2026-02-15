@@ -1,0 +1,159 @@
+name: Build Windows No-AI VS Code Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 3 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows-installer:
+    name: Build Windows x64 Installer (.exe)
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Configure product branding, gallery, and remove built-in AI extensions
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'product.json';
+          const product = JSON.parse(fs.readFileSync(path, 'utf8'));
+
+          Object.assign(product, {
+            nameShort: 'NoAIVSCode',
+            nameLong: 'NoAIVSCode',
+            applicationName: 'noaivscode',
+            dataFolderName: '.noaivscode',
+            win32MutexName: 'noaivscode',
+            win32DirName: 'NoAIVSCode',
+            win32NameVersion: 'NoAIVSCode',
+            win32RegValueName: 'NoAIVSCode',
+            win32AppUserModelId: 'NoAIVSCode',
+            win32ShellNameShort: '&NoAIVSCode'
+          });
+
+          product.extensionsGallery = {
+            serviceUrl: 'https://open-vsx.org/vscode/gallery',
+            itemUrl: 'https://open-vsx.org/vscode/item',
+            controlUrl: 'https://open-vsx.org/vscode/gallery',
+            resourceUrlTemplate: 'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',
+            extensionUrlTemplate: 'https://open-vsx.org/vscode/unpkg/{publisher}/{name}/{version}/{path}',
+            nlsBaseUrl: 'https://open-vsx.org/vscode/gallery'
+          };
+
+          const blockedKeywords = [
+            'copilot',
+            'chat',
+            'ai',
+            'assistant',
+            'openai',
+            'claude',
+            'gemini',
+            'gpt'
+          ];
+
+          const isBlocked = (entry) => {
+            const haystack = [
+              entry?.name,
+              entry?.metadata?.id,
+              entry?.repo,
+              entry?.metadata?.publisherDisplayName
+            ].filter(Boolean).join(' ').toLowerCase();
+            return blockedKeywords.some(keyword => haystack.includes(keyword));
+          };
+
+          product.builtInExtensions = (product.builtInExtensions || []).filter(entry => !isBlocked(entry));
+          product.webBuiltInExtensions = (product.webBuiltInExtensions || []).filter(entry => !isBlocked(entry));
+
+          fs.writeFileSync(path, JSON.stringify(product, null, '	'));
+          NODE
+      - name: Compute release version (yyyy.mm.dd.i)
+        id: release_version
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const d = new Date();
+            const yyyy = d.getUTCFullYear();
+            const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const dd = String(d.getUTCDate()).padStart(2, '0');
+            const prefix = `${yyyy}.${mm}.${dd}.`;
+
+            const tags = await github.paginate(github.rest.repos.listTags, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+
+            let maxIndex = 0;
+            for (const t of tags) {
+              if (t.name.startsWith(prefix)) {
+                const idx = Number(t.name.slice(prefix.length));
+                if (Number.isInteger(idx) && idx > maxIndex) {
+                  maxIndex = idx;
+                }
+              }
+            }
+
+            const version = `${prefix}${maxIndex + 1}`;
+            core.setOutput('version', version);
+
+      - name: Install dependencies
+        env:
+          npm_config_foreground_scripts: 'true'
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: npm ci
+
+      - name: Compile and download Electron
+        run: npm exec -- npm-run-all -lp compile "electron x64" download-builtin-extensions
+
+      - name: Build Windows x64 app package
+        run: npm run gulp -- vscode-win32-x64-min
+
+      - name: Build Windows x64 inno updater
+        run: npm run gulp -- vscode-win32-x64-inno-updater
+
+      - name: Build Windows user setup installer
+        run: npm run gulp -- vscode-win32-x64-user-setup
+
+      - name: Rename installer with release version
+        shell: pwsh
+        run: |
+          $ReleaseVersion = "${{ steps.release_version.outputs.version }}"
+          $SetupDir = ".build\win32-x64\user-setup"
+          $SourceInstaller = Join-Path $SetupDir "VSCodeSetup.exe"
+          if (-not (Test-Path $SourceInstaller)) {
+            throw "Expected installer not found at $SourceInstaller"
+          }
+          Move-Item -Path $SourceInstaller -Destination (Join-Path $SetupDir "NoAIVSCodeSetup-x64-$ReleaseVersion.exe")
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: noaivscode-windows-x64-installer-${{ steps.release_version.outputs.version }}
+          path: .build/win32-x64/user-setup/NoAIVSCodeSetup-x64-*.exe
+          if-no-files-found: error
+
+      - name: Publish GitHub release with installer
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_version.outputs.version }}
+          name: NoAIVSCode ${{ steps.release_version.outputs.version }}
+          files: .build/win32-x64/user-setup/NoAIVSCodeSetup-x64-*.exe
+          generate_release_notes: true
