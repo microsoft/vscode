@@ -14,8 +14,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { AgentFileType, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -173,6 +171,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 		message: localize('tip.undoChanges', "Tip: Select Restore Checkpoint to undo changes until that point in the chat conversation."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+			ChatContextKeys.sessionTarget.isEqualTo("local"),
 			ContextKeyExpr.or(
 				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
