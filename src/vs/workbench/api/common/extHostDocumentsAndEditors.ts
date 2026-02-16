@@ -14,6 +14,7 @@ import { ExtHostDocumentData } from './extHostDocumentData.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { ExtHostTextEditor } from './extHostTextEditor.js';
 import * as typeConverters from './extHostTypeConverters.js';
+import { ExtensionIdentifier } from '../../..//platform/extensions/common/extensions';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -42,13 +43,13 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 	private readonly _onDidAddDocuments = new Emitter<readonly ExtHostDocumentData[]>();
 	private readonly _onDidRemoveDocuments = new Emitter<readonly ExtHostDocumentData[]>();
-	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly vscode.TextEditor[]>();
-	private readonly _onDidChangeActiveTextEditor = new Emitter<vscode.TextEditor | undefined>();
+	private readonly _onDidChangeVisibleTextEditors = new Emitter<readonly ExtHostTextEditor[]>();
+	private readonly _onDidChangeActiveTextEditor = new Emitter<ExtHostTextEditor | undefined>();
 
 	readonly onDidAddDocuments: Event<readonly ExtHostDocumentData[]> = this._onDidAddDocuments.event;
 	readonly onDidRemoveDocuments: Event<readonly ExtHostDocumentData[]> = this._onDidRemoveDocuments.event;
-	readonly onDidChangeVisibleTextEditors: Event<readonly vscode.TextEditor[]> = this._onDidChangeVisibleTextEditors.event;
-	readonly onDidChangeActiveTextEditor: Event<vscode.TextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
+	readonly onDidChangeVisibleTextEditors: Event<readonly ExtHostTextEditor[]> = this._onDidChangeVisibleTextEditors.event;
+	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor | undefined> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
 		@IExtHostRpcService private readonly _extHostRpc: IExtHostRpcService,
@@ -155,10 +156,10 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		}
 
 		if (delta.removedEditors || delta.addedEditors) {
-			this._onDidChangeVisibleTextEditors.fire(this.allEditors().map(editor => editor.value));
+			this._onDidChangeVisibleTextEditors.fire(this.allEditors());
 		}
 		if (delta.newActiveEditor !== undefined) {
-			this._onDidChangeActiveTextEditor.fire(this.activeEditor());
+			this._onDidChangeActiveTextEditor.fire(this.activeEditor(true));
 		}
 	}
 
@@ -174,17 +175,17 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 		return this._editors.get(id);
 	}
 
-	activeEditor(): vscode.TextEditor | undefined;
+	activeEditor(extensionId: string|ExtensionIdentifier|null): vscode.TextEditor | undefined;
 	activeEditor(internal: true): ExtHostTextEditor | undefined;
-	activeEditor(internal?: true): vscode.TextEditor | ExtHostTextEditor | undefined {
+	activeEditor(internalOrExtensionId: true|string|ExtensionIdentifier|null): vscode.TextEditor | ExtHostTextEditor | undefined {
 		if (!this._activeEditorId) {
 			return undefined;
 		}
 		const editor = this._editors.get(this._activeEditorId);
-		if (internal) {
+		if (internalOrExtensionId === true) {
 			return editor;
 		} else {
-			return editor?.value;
+			return editor?.value(internalOrExtensionId);
 		}
 	}
 

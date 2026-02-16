@@ -659,7 +659,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			// editor data
 			const document = this._documents.getDocument(request.locationData.document);
 			const editor = this._editorsAndDocuments.getEditor(request.locationData.id)!;
-			location = new extHostTypes.ChatRequestEditorData(editor.value, document, typeConvert.Selection.to(request.locationData.selection), typeConvert.Range.to(request.locationData.wholeRange));
+			location = new extHostTypes.ChatRequestEditorData(editor.value(extension.identifier.value), document, typeConvert.Selection.to(request.locationData.selection), typeConvert.Range.to(request.locationData.wholeRange));
 
 		} else if (request.locationData?.type === ChatAgentLocation.Notebook) {
 			// notebook data

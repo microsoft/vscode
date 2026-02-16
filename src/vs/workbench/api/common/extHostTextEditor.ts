@@ -15,7 +15,7 @@ import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNum
 import type * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { Lazy } from '../../../base/common/lazy.js';
-import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 
 export class TextEditorDecorationType {
 
@@ -414,7 +414,18 @@ export class ExtHostTextEditor {
 	private _hasDecorationsForKey = new Set<string>();
 	private _diffInformation: vscode.TextEditorDiffInformation[] | undefined;
 
-	readonly value: vscode.TextEditor;
+	private readonly _value: (tooltag: string) => vscode.TextEditor;
+	private readonly proxies: Map<string|null, vscode.TextEditor> = new Map<string, vscode.TextEditor>();
+	value(extensionId: ExtensionIdentifier|string|null): vscode.TextEditor {
+		const key = extensionId == null ? null : ExtensionIdentifier.toKey(extensionId);
+		if (this.proxies.has(key)) return this.proxies.get(key)!;
+		const proxy: vscode.TextEditor = this._value(key);
+		this.proxies.set(key, proxy);
+		return proxy;
+	}
+	hasValue(editor: vscode.TextEditor) {
+		return this.proxies.values().includes(editor);
+	}
 
 	constructor(
 		readonly id: string,
@@ -431,7 +442,7 @@ export class ExtHostTextEditor {
 
 		const that = this;
 
-		this.value = Object.freeze({
+		this._value = (tooltag: string) => Object.freeze({
 			get document(): vscode.TextDocument {
 				return document.value;
 			},
@@ -495,7 +506,7 @@ export class ExtHostTextEditor {
 				}
 				const edit = new TextEditorEdit(document.value, options);
 				callback(edit);
-				return that._applyEdit(edit);
+				return that._applyEdit(edit, extensionId);
 			},
 			// --- snippet edit
 			insertSnippet(snippet: SnippetString, where?: Position | readonly Position[] | Range | readonly Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; keepWhitespace?: boolean } = { undoStopBefore: true, undoStopAfter: true }): Promise<boolean> {
@@ -618,10 +629,10 @@ export class ExtHostTextEditor {
 	private async _trySetSelection(): Promise<vscode.TextEditor | null | undefined> {
 		const selection = this._selections.map(TypeConverters.Selection.from);
 		await this._runOnProxy(() => this._proxy.$trySetSelections(this.id, selection));
-		return this.value;
+		return this.value(null);
 	}
 
-	private _applyEdit(editBuilder: TextEditorEdit): Promise<boolean> {
+	private _applyEdit(editBuilder: TextEditorEdit, extensionId: string|null): Promise<boolean> {
 		const editData = editBuilder.finalize();
 
 		// return when there is nothing to do
@@ -671,7 +682,8 @@ export class ExtHostTextEditor {
 		return this._proxy.$tryApplyEdits(this.id, editData.documentVersionId, edits, {
 			setEndOfLine: typeof editData.setEndOfLine === 'number' ? TypeConverters.EndOfLine.from(editData.setEndOfLine) : undefined,
 			undoStopBefore: editData.undoStopBefore,
-			undoStopAfter: editData.undoStopAfter
+			undoStopAfter: editData.undoStopAfter,
+			extensionId
 		});
 	}
 	private _runOnProxy(callback: () => Promise<any>): Promise<ExtHostTextEditor | undefined | null> {

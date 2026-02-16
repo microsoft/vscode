@@ -43,7 +43,7 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 	) {
 		function getActiveUri(): URI | undefined {
 			if (editorService) {
-				const activeEditor = editorService.activeEditor();
+				const activeEditor = editorService.activeEditor(null);
 				if (activeEditor) {
 					return activeEditor.document.uri;
 				}
@@ -101,7 +101,7 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 			},
 			getSelectedText: (): string | undefined => {
 				if (editorService) {
-					const activeEditor = editorService.activeEditor();
+					const activeEditor = editorService.activeEditor(null);
 					if (activeEditor && !activeEditor.selection.isEmpty) {
 						return activeEditor.document.getText(activeEditor.selection);
 					}
@@ -110,7 +110,7 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 			},
 			getLineNumber: (): string | undefined => {
 				if (editorService) {
-					const activeEditor = editorService.activeEditor();
+					const activeEditor = editorService.activeEditor(null);
 					if (activeEditor) {
 						return String(activeEditor.selection.end.line + 1);
 					}
@@ -119,7 +119,7 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 			},
 			getColumnNumber: (): string | undefined => {
 				if (editorService) {
-					const activeEditor = editorService.activeEditor();
+					const activeEditor = editorService.activeEditor(null);
 					if (activeEditor) {
 						return String(activeEditor.selection.end.character + 1);
 					}

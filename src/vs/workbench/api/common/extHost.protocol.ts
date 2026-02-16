@@ -313,6 +313,7 @@ export interface IUndoStopOptions {
 
 export interface IApplyEditsOptions extends IUndoStopOptions {
 	setEndOfLine?: EndOfLineSequence;
+	extensionId: string|null;
 }
 
 export interface ISnippetOptions extends IUndoStopOptions {

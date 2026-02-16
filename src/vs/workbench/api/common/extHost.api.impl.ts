@@ -278,6 +278,27 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			};
 		}
 
+		// Wraps an event that returns an ExtHostTextEditor and return an event which returns the
+		// corresponding vscode.TextEditor event for a given extension id.
+		function _asExtensionEditorEvent<T extends ExtHostTextEditor|undefined|readonly ExtHostTextEditor[]|{textEditor: ExtHostTextEditor;}>(actual: vscode.Event<T>):
+				vscode.Event<T extends ExtHostTextEditor|undefined ? vscode.TextEditor|undefined :
+										 T extends readonly ExtHostTextEditor[] ? readonly vscode.TextEditor[] :
+										 T extends { textEditor: ExtHostTextEditor; } ? Omit<T, 'textEditor'>&{textEditor: vscode.TextEditor} : never> {
+			return (listener, thisArgs, disposables) => {
+				const handle = actual((e: T) => {
+					if (Array.isArray(e)) {
+						listener.call(thisArgs, e.map(e => e.value(extension.identifier)) as any);
+					} else if (e && 'textEditor' in e) {
+						listener.call(thisArgs, {...e, textEditor: e.textEditor.value(extension.identifier)} as any);
+					} else {
+						listener.call(thisArgs, e === undefined ? undefined : (e as ExtHostTextEditor).value(extension.identifier) as any);
+					}
+				});
+				disposables?.push(handle);
+				return handle;
+			};
+		}
+
 
 		// Check document selectors for being overly generic. Technically this isn't a problem but
 		// in practice many extensions say they support `fooLang` but need fs-access to do so. Those
@@ -351,7 +372,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(true, id, (...args: any[]): any => {
-					const activeTextEditor = extHostEditors.getActiveTextEditor();
+					const activeTextEditor = extHostEditors.getActiveTextEditor(extension.identifier);
 					if (!activeTextEditor) {
 						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
 						return undefined;
@@ -789,10 +810,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: window
 		const window: typeof vscode.window = {
 			get activeTextEditor() {
-				return extHostEditors.getActiveTextEditor();
+				return extHostEditors.getActiveTextEditor(extension.identifier);
 			},
 			get visibleTextEditors() {
-				return extHostEditors.getVisibleTextEditors();
+				return extHostEditors.getVisibleTextEditors(extension.identifier);
 			},
 			get activeTerminal() {
 				return extHostTerminalService.activeTerminal;
@@ -808,32 +829,32 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					? Promise.resolve(workspace.openTextDocument(documentOrUri))
 					: Promise.resolve(<vscode.TextDocument>documentOrUri));
 
-				return extHostEditors.showTextDocument(document, columnOrOptions, preserveFocus);
+				return extHostEditors.showTextDocument(extension.identifier, document, columnOrOptions, preserveFocus);
 			},
 			createTextEditorDecorationType(options: vscode.DecorationRenderOptions): vscode.TextEditorDecorationType {
 				return extHostEditors.createTextEditorDecorationType(extension, options);
 			},
 			onDidChangeActiveTextEditor(listener, thisArg?, disposables?) {
-				return _asExtensionEvent(extHostEditors.onDidChangeActiveTextEditor)(listener, thisArg, disposables);
+				return _asExtensionEvent(_asExtensionEditorEvent(extHostEditors.onDidChangeActiveTextEditor))(listener, thisArg, disposables);
 			},
 			onDidChangeVisibleTextEditors(listener, thisArg, disposables) {
-				return _asExtensionEvent(extHostEditors.onDidChangeVisibleTextEditors)(listener, thisArg, disposables);
+				return _asExtensionEvent(_asExtensionEditorEvent(extHostEditors.onDidChangeVisibleTextEditors))(listener, thisArg, disposables);
 			},
 			onDidChangeTextEditorSelection(listener: (e: vscode.TextEditorSelectionChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
-				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorSelection)(listener, thisArgs, disposables);
+				return _asExtensionEvent(_asExtensionEditorEvent(extHostEditors.onDidChangeTextEditorSelection))(listener, thisArgs, disposables);
 			},
 			onDidChangeTextEditorOptions(listener: (e: vscode.TextEditorOptionsChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
-				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorOptions)(listener, thisArgs, disposables);
+				return _asExtensionEvent(_asExtensionEditorEvent(extHostEditors.onDidChangeTextEditorOptions))(listener, thisArgs, disposables);
 			},
 			onDidChangeTextEditorVisibleRanges(listener: (e: vscode.TextEditorVisibleRangesChangeEvent) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) {
-				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorVisibleRanges)(listener, thisArgs, disposables);
+				return _asExtensionEvent(_asExtensionEditorEvent(extHostEditors.onDidChangeTextEditorVisibleRanges))(listener, thisArgs, disposables);
 			},
 			onDidChangeTextEditorViewColumn(listener, thisArg?, disposables?) {
-				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorViewColumn)(listener, thisArg, disposables);
+				return _asExtensionEvent(_asExtensionEditorEvent(extHostEditors.onDidChangeTextEditorViewColumn))(listener, thisArg, disposables);
 			},
 			onDidChangeTextEditorDiffInformation(listener, thisArg?, disposables?) {
 				checkProposedApiEnabled(extension, 'textEditorDiffInformation');
-				return _asExtensionEvent(extHostEditors.onDidChangeTextEditorDiffInformation)(listener, thisArg, disposables);
+				return _asExtensionEvent(_asExtensionEditorEvent(extHostEditors.onDidChangeTextEditorDiffInformation))(listener, thisArg, disposables);
 			},
 			onDidCloseTerminal(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostTerminalService.onDidCloseTerminal)(listener, thisArg, disposables);

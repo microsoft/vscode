@@ -11,6 +11,7 @@ import { ExtHostEditors } from './extHostTextEditors.js';
 import { asWebviewUri, webviewGenericCspSource, WebviewRemoteInfo } from '../../contrib/webview/common/webview.js';
 import type * as vscode from 'vscode';
 import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol.js';
+import { ExtensionIdentifier } from 'google3/third_party/vscode/src/vs/platform/extensions/common/extensions';
 
 export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
@@ -26,9 +27,9 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
 		// dispose editor inset whenever the hosting editor goes away
 		this._disposables.add(_editors.onDidChangeVisibleTextEditors(() => {
-			const visibleEditor = _editors.getVisibleTextEditors();
+			const visibleEditor = _editors.getVisibleTextEditors(true);
 			for (const value of this._insets.values()) {
-				if (visibleEditor.indexOf(value.editor) < 0) {
+				if (!visibleEditor.some(editor => editor.hasValue(value.editor))) {
 					value.inset.dispose(); // will remove from `this._insets`
 				}
 			}
@@ -44,7 +45,7 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
 		let apiEditor: ExtHostTextEditor | undefined;
 		for (const candidate of this._editors.getVisibleTextEditors(true)) {
-			if (candidate.value === editor) {
+			if (candidate.hasValue(editor)) {
 				apiEditor = <ExtHostTextEditor>candidate;
 				break;
 			}
@@ -118,7 +119,7 @@ export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 			}
 		};
 
-		this._proxy.$createEditorInset(handle, apiEditor.id, apiEditor.value.document.uri, line + 1, height, options || {}, extension.identifier, extension.extensionLocation);
+		this._proxy.$createEditorInset(handle, apiEditor.id, apiEditor.value(extension.identifier).document.uri, line + 1, height, options || {}, extension.identifier, extension.extensionLocation);
 		this._insets.set(handle, { editor, inset, onDidReceiveMessage });
 
 		return inset;
