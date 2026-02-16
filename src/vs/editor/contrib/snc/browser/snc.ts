@@ -1,4 +1,3 @@
-/* eslint-disable header/header */
 import { registerEditorContribution, EditorContributionInstantiation } from '../../../browser/editorExtensions.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
@@ -18,30 +17,6 @@ import './snc.css';
 // 'sncVisualization' is a trusted name defined in src/vs/code/electron-sandbox/workbench/workbench(-dev).html
 const ttPolicy = createTrustedTypesPolicy('sncVisualization', { createHTML: value => value });
 
-
-// /**
-//  * Determines if a visualization should be positioned as a block (between lines) vs inline (at end of line)
-//  */
-// function shouldUseBlockLayout(html: string): boolean {
-// 	// Check for HTML tables (pandas DataFrames)
-// 	if (html.includes('<table>')) {
-// 		return true;
-// 	}
-
-// 	// Check for multiple line breaks (multi-line content)
-// 	const brCount = (html.match(/<br>/gi) || []).length;
-// 	if (brCount >= 2) {
-// 		return true;
-// 	}
-
-// 	// Check for long content that would overflow inline
-// 	const textContent = html.replace(/<[^>]*>/g, ''); // Strip HTML tags
-// 	if (textContent.length > 200) {
-// 		return true;
-// 	}
-
-// 	return false;
-// }
 
 /**
  * Widget that displays visualization data for a specific line of code.

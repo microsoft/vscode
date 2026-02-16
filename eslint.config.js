@@ -126,6 +126,16 @@ export default tseslint.config(
 			]
 		},
 	},
+	// SNC
+	{
+		files: [
+			'src/vs/platform/snc/**/*.{ts,js,mjs,cjs}',
+			'src/vs/editor/contrib/snc/**/*.{ts,js,mjs,cjs}'
+		],
+		rules: {
+			'header/header': 'off'
+		}
+	},
 	// TS
 	{
 		files: [

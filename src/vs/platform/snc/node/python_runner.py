@@ -22,7 +22,7 @@ import ast
 import html
 import traceback
 import os
-import signal
+
 import importlib.util
 import glob
 import time
@@ -317,8 +317,8 @@ def _reload_stale_visualizers() -> None:
 
 
 # ============================================================================
-# PRELOADING INFRASTRUCTURE
-# Fork-based checkpointing for fast execution
+# POOL WORKER INFRASTRUCTURE
+# Pre-spawned process pool for fast, cross-platform execution
 # ============================================================================
 
 
@@ -332,27 +332,12 @@ def emit_meta(meta: str) -> None:
 
 
 def emit_checkpoint_ready(checkpoint: int) -> None:
-	"""Emit a message indicating a checkpoint is ready for forking."""
+	"""Emit a message indicating a checkpoint is ready."""
 	try:
 		msg = {
 			"type": "checkpoint_ready",
 			"checkpoint": checkpoint,
 			"pid": os.getpid(),
-		}
-		_stream_out.write(json.dumps(msg, ensure_ascii=False) + "\n")
-		_stream_out.flush()
-	except Exception:
-		pass
-
-
-def emit_fork_result(success: bool, child_pid: int = 0, error: str = "") -> None:
-	"""Emit result of a fork operation."""
-	try:
-		msg = {
-			"type": "fork_result",
-			"success": success,
-			"child_pid": child_pid,
-			"error": error
 		}
 		_stream_out.write(json.dumps(msg, ensure_ascii=False) + "\n")
 		_stream_out.flush()
@@ -1452,18 +1437,25 @@ def _execute_run(code_object: Any, models_and_events_json: str, run_id: str, glo
 	_stream_out.flush()
 
 
-def run_preload_mode(working_directory: str) -> None:
+def run_pool_worker_mode(working_directory: str) -> None:
 	"""
-	Run in preload mode with fork-based checkpoints for fast execution.
-	
-	Checkpoint 1: Process with visualizers preloaded, ready to receive code.
-	Checkpoint 2: Same code as before AND leading imports already executed in
-	              the parent process. The forked child only needs to run the
-	              transformed body (skipping both AST transformation and imports).
+	Run as a pool worker process (cross-platform, no os.fork).
+
+	Each worker handles exactly one run then exits. The lifecycle:
+
+	1. Start up, chdir, load visualizers.
+	2. Emit checkpoint_ready(1) and wait for a message on stdin.
+	3a. If the message is {"type": "run", ...}: transform, compile, execute, emit
+	    results, and exit.  (Checkpoint 1 path — used when code has changed.)
+	3b. If the message is {"type": "init_imports", "code": "..."}: split imports
+	    from body, execute imports, cache globals, emit checkpoint_ready(2), then
+	    wait for a {"type": "run", ...} message.  Execute the cached body with the
+	    pre-loaded import globals, emit results, and exit.  (Checkpoint 2 path —
+	    used when code is unchanged and imports are already loaded.)
 	"""
 	global models_and_events, _source_code, execution_step, line_emit_counter
 
-	emit_meta('preload-mode-start')
+	emit_meta('pool-worker-start')
 
 	try:
 		os.chdir(working_directory)
@@ -1477,147 +1469,101 @@ def run_preload_mode(working_directory: str) -> None:
 	_visualizers()
 	emit_meta('visualizers-loaded')
 
-	# Checkpoint 2 cache — includes pre-executed imports
-	cached_code: str = ""
-	cached_body_code: Any = None          # compiled transformed body (no imports)
-	cached_import_globals: Optional[Dict[str, Any]] = None  # globals after exec'ing imports
-
 	emit_checkpoint_ready(1)
 
-	last_child_pid: Optional[int] = None  # Track last forked child to kill on next run
+	# ---- Wait for first message ----
+	line = sys.stdin.readline()
+	if not line:
+		sys.exit(0)
 
-	# Ignore SIGCHLD to auto-reap zombies (except for explicit waitpid calls)
-	signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+	try:
+		cmd = json.loads(line.strip())
+	except json.JSONDecodeError:
+		sys.exit(1)
 
-	while True:
+	if cmd.get('type') == 'init_imports':
+		# Advance to checkpoint 2: pre-execute imports, then wait for run.
+		code = cmd.get('code', '')
+		emit_meta('init-imports-start')
+
 		try:
-			line = sys.stdin.readline()
-			if not line:
-				break
+			import_code, body_code = split_leading_imports(code)
 
-			line = line.strip()
-			if not line:
-				continue
-
-			try:
-				cmd = json.loads(line)
-			except json.JSONDecodeError:
-				continue
-
-			if cmd.get('type') != 'run':
-				continue
-
-			code = cmd.get('code', '')
-			models_and_events_json = cmd.get('models_and_events', '')
-			run_id = cmd.get('run_id', '')
-
-			emit_meta(f'received-run-{run_id}')
-
-			# Kill previous child to prevent concurrent writes to stdout pipe.
-			# Without this, two fork children write to the same pipe simultaneously,
-			# causing interleaved bytes that corrupt NDJSON messages and lose items.
-			if last_child_pid is not None:
-				try:
-					os.kill(last_child_pid, signal.SIGKILL)
-				except OSError:
-					pass  # Already exited
-				last_child_pid = None
-
-			# Reload any visualizers whose files changed on disk
-			_reload_stale_visualizers()
-
-			use_checkpoint2 = (
-				code == cached_code
-				and cached_body_code is not None
-				and cached_import_globals is not None
-			)
-
-			if use_checkpoint2:
-				emit_meta(f'checkpoint2-hit-{run_id}')
-
-			try:
-				pid = os.fork()
-			except OSError as e:
-				emit_fork_result(False, error=str(e))
-				continue
-
-			if pid > 0:
-				# --- Parent process ---
-				last_child_pid = pid
-				emit_fork_result(True, child_pid=pid)
-				if not use_checkpoint2 and code.strip():
-					try:
-						import_code, body_code = split_leading_imports(code)
-
-						# Execute imports in the parent (suppress stdout/stderr
-						# so stray prints don't corrupt the NDJSON stream).
-						import_globals: Dict[str, Any] = {
-							'__name__': '__main__',
-							'__file__': '<string>',
-							'_log_value': log_value,
-							'_log_and_return': log_and_return
-						}
-						with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
-							exec(import_code, import_globals)
-
-						cached_body_code = body_code
-						cached_import_globals = import_globals
-						cached_code = code
-						emit_checkpoint_ready(2)
-					except Exception:
-						pass
-				continue
-
-			# --- Child process ---
-			_source_code = code
-			execution_step = 0
-			line_emit_counter = {}
-
-			if use_checkpoint2:
-				emit_meta('checkpoint2-child-started')
-				if cached_import_globals is None:
-					result = {"stdout": "", "stderr": "", "exitCode": 0, "syntaxError": False}
-					_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
-					_stream_out.flush()
-					os._exit(0)
-				# Imports are already loaded in the parent's memory (inherited
-				# via fork).  Build a globals dict from the cached import state
-				# and execute only the body.
-				globals_dict: Dict[str, Any] = dict(cached_import_globals)  # shallow copy
-				globals_dict['_log_value'] = log_value
-				globals_dict['_log_and_return'] = log_and_return
-				_execute_run(cached_body_code, models_and_events_json, run_id, globals_dict=globals_dict)
-			else:
-				emit_meta('checkpoint1-child-started')
-
-				if not code.strip():
-					result = {"stdout": "", "stderr": "", "exitCode": 0, "syntaxError": False}
-					_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
-					_stream_out.flush()
-					os._exit(0)
-
-				emit_meta('transform-start')
-				try:
-					transformed_ast = transform_code_to_ast(code)
-				except SyntaxError as e:
-					result = {"stdout": "", "stderr": str(e), "exitCode": 1, "syntaxError": True}
-					_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
-					_stream_out.flush()
-					os._exit(0)
-
-				emit_meta('transform-done')
-				code_object = compile(transformed_ast, filename='<string>', mode='exec')
-				emit_meta('compile-done')
-				_execute_run(code_object, models_and_events_json, run_id)
-
-			os._exit(0)
-
+			import_globals: Dict[str, Any] = {
+				'__name__': '__main__',
+				'__file__': '<string>',
+				'_log_value': log_value,
+				'_log_and_return': log_and_return
+			}
+			with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+				exec(import_code, import_globals)
 		except Exception as e:
-			try:
-				_stream_out.write(json.dumps({"type": "error", "error": str(e)}) + "\n")
-				_stream_out.flush()
-			except Exception:
-				pass
+			_stream_out.write(json.dumps({"type": "error", "error": f"Import error: {e}"}) + "\n")
+			_stream_out.flush()
+			sys.exit(1)
+
+		emit_meta('init-imports-done')
+		emit_checkpoint_ready(2)
+
+		# ---- Wait for run message ----
+		line = sys.stdin.readline()
+		if not line:
+			sys.exit(0)
+
+		try:
+			cmd = json.loads(line.strip())
+		except json.JSONDecodeError:
+			sys.exit(1)
+
+		if cmd.get('type') != 'run':
+			sys.exit(1)
+
+		run_id = cmd.get('run_id', '')
+		m_and_e_json = cmd.get('models_and_events', '')
+		_source_code = code
+		_reload_stale_visualizers()
+
+		emit_meta(f'checkpoint2-run-{run_id}')
+
+		globals_dict: Dict[str, Any] = dict(import_globals)
+		globals_dict['_log_value'] = log_value
+		globals_dict['_log_and_return'] = log_and_return
+		_execute_run(body_code, m_and_e_json, run_id, globals_dict=globals_dict)
+		sys.exit(0)
+
+	elif cmd.get('type') == 'run':
+		# Checkpoint 1 path: full transform + compile + execute.
+		code = cmd.get('code', '')
+		run_id = cmd.get('run_id', '')
+		m_and_e_json = cmd.get('models_and_events', '')
+		_source_code = code
+		_reload_stale_visualizers()
+
+		emit_meta(f'checkpoint1-run-{run_id}')
+
+		if not code.strip():
+			result = {"stdout": "", "stderr": "", "exitCode": 0, "syntaxError": False}
+			_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
+			_stream_out.flush()
+			sys.exit(0)
+
+		emit_meta('transform-start')
+		try:
+			transformed_ast = transform_code_to_ast(code)
+		except SyntaxError as e:
+			result = {"stdout": "", "stderr": str(e), "exitCode": 1, "syntaxError": True}
+			_stream_out.write(json.dumps({"type": "end", "result": result, "run_id": run_id}) + "\n")
+			_stream_out.flush()
+			sys.exit(0)
+
+		emit_meta('transform-done')
+		code_object = compile(transformed_ast, filename='<string>', mode='exec')
+		emit_meta('compile-done')
+		_execute_run(code_object, m_and_e_json, run_id)
+		sys.exit(0)
+
+	else:
+		sys.exit(1)
 
 
 if __name__ == "__main__":
@@ -1625,7 +1571,7 @@ if __name__ == "__main__":
 	Main execution block - handles command line usage of the python_runner.
 
 	Modes:
-	1. Preload mode: python_runner.py --preload <working_dir>
+	1. Pool worker mode: python_runner.py --pool-worker <working_dir>
 	2. Direct mode: python_runner.py <working_dir>
 	"""
 
@@ -1635,11 +1581,11 @@ if __name__ == "__main__":
 		print("Error: Working directory required as argument", file=sys.stderr)
 		sys.exit(1)
 
-	if sys.argv[1] == '--preload':
+	if sys.argv[1] == '--pool-worker':
 		if len(sys.argv) < 3:
-			print("Error: --preload requires working directory", file=sys.stderr)
+			print("Error: --pool-worker requires working directory", file=sys.stderr)
 			sys.exit(1)
-		run_preload_mode(sys.argv[2])
+		run_pool_worker_mode(sys.argv[2])
 		sys.exit(0)
 
 	_, working_directory, *_ = sys.argv
