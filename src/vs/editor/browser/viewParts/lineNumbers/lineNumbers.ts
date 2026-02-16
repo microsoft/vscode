@@ -30,6 +30,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _renderFinalNewline!: 'off' | 'on' | 'dimmed';
 	private _lineNumbersLeft!: number;
 	private _lineNumbersWidth!: number;
+	private _lineNumbersFontSize: number | null = null;
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[] | null;
 	private _activeModelLineNumber: number;
@@ -49,6 +50,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _readConfig(): void {
 		const options = this._context.configuration.options;
 		this._lineHeight = options.get(EditorOption.lineHeight);
+		const configuredLineNumbersFontSize = options.get(EditorOption.lineNumbersFontSize);
 		const lineNumbers = options.get(EditorOption.lineNumbers);
 		this._renderLineNumbers = lineNumbers.renderType;
 		this._renderCustomLineNumbers = lineNumbers.renderFn;
@@ -56,6 +58,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		const layoutInfo = options.get(EditorOption.layoutInfo);
 		this._lineNumbersLeft = layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = layoutInfo.lineNumbersWidth;
+		this._lineNumbersFontSize = configuredLineNumbersFontSize > 0 ? configuredLineNumbersFontSize : null;
 	}
 
 	public override dispose(): void {
@@ -151,6 +154,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		}
 
 		const lineHeightClassName = (platform.isLinux ? (this._lineHeight % 2 === 0 ? ' lh-even' : ' lh-odd') : '');
+		const fontSizeStyle = this._lineNumbersFontSize ? `font-size:${this._lineNumbersFontSize}px;` : '';
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 
@@ -198,7 +202,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 
 			output[lineIndex] = (
-				`<div class="${LineNumbersOverlay.CLASS_NAME}${lineHeightClassName}${extraClassNames}" style="left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;">${renderLineNumber}</div>`
+				`<div class="${LineNumbersOverlay.CLASS_NAME}${lineHeightClassName}${extraClassNames}" style="left:${this._lineNumbersLeft}px;width:${this._lineNumbersWidth}px;${fontSizeStyle}">${renderLineNumber}</div>`
 			);
 		}
 
