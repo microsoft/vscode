@@ -209,20 +209,6 @@ const policies: ExportedPolicyDataDto = {
 			default: true
 		},
 		{
-			key: 'chat.agent.enabled',
-			name: 'ChatAgentMode',
-			category: 'InteractiveSession',
-			minimumVersion: '1.99',
-			localization: {
-				description: {
-					key: 'chat.agent.enabled.description',
-					value: 'Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view.'
-				}
-			},
-			type: 'boolean',
-			default: true
-		},
-		{
 			key: 'chat.promptFiles',
 			name: 'ChatPromptFiles',
 			category: 'InteractiveSession',

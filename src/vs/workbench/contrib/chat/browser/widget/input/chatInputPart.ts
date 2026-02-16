@@ -93,7 +93,6 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
-import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
 import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
@@ -392,10 +391,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentModeObservable: ISettableObservable<IChatMode>;
 
 	public get currentModeKind(): ChatModeKind {
-		const mode = this._currentModeObservable.get();
-		return mode.kind === ChatModeKind.Agent && !this.agentService.hasToolsAgent ?
-			ChatModeKind.Edit :
-			mode.kind;
+		return this._currentModeObservable.get().kind;
 	}
 
 	public get currentModeObs(): IObservable<IChatMode> {
@@ -495,7 +491,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IThemeService private readonly themeService: IThemeService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IChatAgentService private readonly agentService: IChatAgentService,
 		@ISharedWebContentExtractorService private readonly sharedWebExtracterService: ISharedWebContentExtractorService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
@@ -1264,13 +1259,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private validateCurrentChatMode() {
 		const currentMode = this._currentModeObservable.get();
 		const validMode = this.chatModeService.findModeById(currentMode.id);
-		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 		if (!validMode) {
-			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
-			return;
-		}
-		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
-			this.setChatMode(ChatModeKind.Ask);
+			this.setChatMode(ChatModeKind.Agent);
 			return;
 		}
 	}
@@ -1445,12 +1435,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			this._inputEditor.focus();
 			this._inputEditor.setValue('');
-		}
-	}
-
-	validateAgentMode(): void {
-		if (!this.agentService.hasToolsAgent && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
-			this.setChatMode(ChatModeKind.Edit);
 		}
 	}
 

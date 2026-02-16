@@ -10,15 +10,13 @@ import { constObservable, IObservable, ISettableObservable, observableValue, tra
 import { URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IChatAgentService } from './participants/chatAgents.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
-import { ChatConfiguration, ChatModeKind } from './constants.js';
+import { ChatModeKind } from './constants.js';
 import { IHandOff, isTarget } from './promptSyntax/promptFileParser.js';
 import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage, Target } from './promptSyntax/service/promptsService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -42,7 +40,6 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	private static readonly CUSTOM_MODES_STORAGE_KEY = 'chat.customModes';
 
 	private readonly hasCustomModes: IContextKey<boolean>;
-	private readonly agentModeDisabledByPolicy: IContextKey<boolean>;
 	private readonly _customModeInstances = new Map<string, CustomChatMode>();
 
 	private readonly _onDidChangeChatModes = this._register(new Emitter<void>());
@@ -50,19 +47,13 @@ export class ChatModeService extends Disposable implements IChatModeService {
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
 		this.hasCustomModes = ChatContextKeys.Modes.hasCustomChatModes.bindTo(contextKeyService);
-		this.agentModeDisabledByPolicy = ChatContextKeys.Modes.agentModeDisabledByPolicy.bindTo(contextKeyService);
-
-		// Initialize the policy context key
-		this.updateAgentModePolicyContextKey();
 
 		// Load cached modes from storage first
 		this.loadCachedModes();
@@ -73,22 +64,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		}));
 		this._register(this.storageService.onWillSaveState(() => this.saveCachedModes()));
 
-		// Listen for configuration changes that affect agent mode policy
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
-				this.updateAgentModePolicyContextKey();
-				this._onDidChangeChatModes.fire();
-			}
-		}));
 
-		// Ideally we can get rid of the setting to disable agent mode?
-		let didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
-		this._register(this.chatAgentService.onDidChangeAgents(() => {
-			if (didHaveToolsAgent !== this.chatAgentService.hasToolsAgent) {
-				didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
-				this._onDidChangeChatModes.fire();
-			}
-		}));
 	}
 
 	private loadCachedModes(): void {
@@ -207,31 +183,15 @@ export class ChatModeService extends Disposable implements IChatModeService {
 
 	private getBuiltinModes(): IChatMode[] {
 		const builtinModes: IChatMode[] = [
+			ChatMode.Agent,
 			ChatMode.Ask,
+			ChatMode.Edit,
 		];
-
-		// Include Agent mode if:
-		// - It's enabled (hasToolsAgent is true), OR
-		// - It's disabled by policy (so we can show it with a lock icon)
-		// But hide it if the user manually disabled it via settings
-		if (this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy()) {
-			builtinModes.unshift(ChatMode.Agent);
-		}
-		builtinModes.push(ChatMode.Edit);
 		return builtinModes;
 	}
 
 	private getCustomModes(): IChatMode[] {
-		// Show custom modes when agent mode is enabled OR when disabled by policy (to show them in the policy-managed group)
-		return this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy() ? Array.from(this._customModeInstances.values()) : [];
-	}
-
-	private updateAgentModePolicyContextKey(): void {
-		this.agentModeDisabledByPolicy.set(this.isAgentModeDisabledByPolicy());
-	}
-
-	private isAgentModeDisabledByPolicy(): boolean {
-		return this.configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
+		return Array.from(this._customModeInstances.values());
 	}
 }
 

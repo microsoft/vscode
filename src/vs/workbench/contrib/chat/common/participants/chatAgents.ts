@@ -16,7 +16,6 @@ import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Command } from '../../../../../editor/common/languages.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -29,7 +28,7 @@ import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRe
 import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 
 //#region agent service, commands etc
 
@@ -218,7 +217,6 @@ export interface IChatAgentService {
 	 * undefined when an agent was removed
 	 */
 	readonly onDidChangeAgents: Event<IChatAgent | undefined>;
-	readonly hasToolsAgent: boolean;
 	registerAgent(id: string, data: IChatAgentData): IDisposable;
 	registerAgentImplementation(id: string, agent: IChatAgentImplementation): IDisposable;
 	registerDynamicAgent(data: IChatAgentData, agentImpl: IChatAgentImplementation): IDisposable;
@@ -267,13 +265,11 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	private readonly _hasDefaultAgent: IContextKey<boolean>;
 	private readonly _extensionAgentRegistered: IContextKey<boolean>;
 	private readonly _defaultAgentRegistered: IContextKey<boolean>;
-	private _hasToolsAgent = false;
 
 	private _chatParticipantDetectionProviders = new Map<number, IChatParticipantDetectionProvider>();
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this._hasDefaultAgent = ChatContextKeys.enabled.bindTo(this.contextKeyService);
@@ -330,26 +326,18 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	private _updateContextKeys(): void {
 		let extensionAgentRegistered = false;
 		let defaultAgentRegistered = false;
-		let toolsAgentRegistered = false;
 		for (const agent of this.getAgents()) {
 			if (agent.isDefault) {
 				if (!agent.isCore) {
 					extensionAgentRegistered = true;
 				}
-				if (agent.id === 'chat.setup' || agent.id === 'github.copilot.editsAgent') {
-					// TODO@roblourens firing the event below probably isn't necessary but leave it alone for now
-					toolsAgentRegistered = true;
-				} else {
+				if (agent.id !== 'chat.setup' && agent.id !== 'github.copilot.editsAgent') {
 					defaultAgentRegistered = true;
 				}
 			}
 		}
 		this._defaultAgentRegistered.set(defaultAgentRegistered);
 		this._extensionAgentRegistered.set(extensionAgentRegistered);
-		if (toolsAgentRegistered !== this._hasToolsAgent) {
-			this._hasToolsAgent = toolsAgentRegistered;
-			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Agent));
-		}
 	}
 
 	registerAgentImplementation(id: string, agentImpl: IChatAgentImplementation): IDisposable {
@@ -421,11 +409,6 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 			return !!a.isDefault && a.locations.includes(location);
 		}));
-	}
-
-	public get hasToolsAgent(): boolean {
-		// The chat participant enablement is just based on this setting. Don't wait for the extension to be loaded.
-		return !!this.configurationService.getValue(ChatConfiguration.AgentEnabled);
 	}
 
 	getContributedDefaultAgent(location: ChatAgentLocation): IChatAgentData | undefined {

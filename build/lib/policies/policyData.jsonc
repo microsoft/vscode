@@ -156,20 +156,6 @@
             "default": true
         },
         {
-            "key": "chat.agent.enabled",
-            "name": "ChatAgentMode",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.99",
-            "localization": {
-                "description": {
-                    "key": "chat.agent.enabled.description",
-                    "value": "When enabled, agent mode can be activated from chat and tools in agentic contexts with side effects can be used."
-                }
-            },
-            "type": "boolean",
-            "default": true
-        },
-        {
             "key": "chat.useHooks",
             "name": "ChatHooks",
             "category": "InteractiveSession",

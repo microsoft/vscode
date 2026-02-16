@@ -88,7 +88,6 @@ suite('VoiceChat', () => {
 		agentHasDupeName(id: string): boolean { throw new Error('Method not implemented.'); }
 		getChatTitle(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> { throw new Error('Method not implemented.'); }
 		getChatSummary(id: string, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<string | undefined> { throw new Error('Method not implemented.'); }
-		hasToolsAgent: boolean = false;
 		hasChatParticipantDetectionProviders(): boolean {
 			throw new Error('Method not implemented.');
 		}

@@ -31,7 +31,6 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -109,8 +108,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	/** Pending tool calls in the streaming phase, keyed by toolCallId */
 	private readonly _pendingToolCalls = new Map<string, ChatToolInvocation>();
 
-	private readonly _isAgentModeEnabled: IObservable<boolean>;
-
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -128,8 +125,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	) {
 		super();
 
-		this._isAgentModeEnabled = observableConfigValue(ChatConfiguration.AgentEnabled, true, this._configurationService);
-
 		this._register(this._contextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(this._toolContextKeys)) {
 				// Not worth it to compute a delta here unless we have many tools changing often
@@ -138,7 +133,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled) || e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExtensionToolsEnabled)) {
 				this._onDidChangeToolsScheduler.schedule();
 			}
 		}));
@@ -197,51 +192,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				description: localize('copilot.toolSet.agent.description', 'Delegate tasks to other agents'),
 			}
 		));
-	}
-
-	/**
-	 * Returns if the given tool or toolset is permitted in the current context.
-	 * When agent mode is enabled, all tools are permitted (no restriction)
-	 * When agent mode is disabled only a subset of read-only tools are permitted in agentic-loop contexts.
-	 */
-	private isPermitted(toolOrToolSet: IToolData | ToolSet, reader?: IReader): boolean {
-		const agentModeEnabled = this._isAgentModeEnabled.read(reader);
-		if (agentModeEnabled !== false) {
-			return true;
-		}
-
-		// Internal tools that explicitly cannot be referenced in prompts are always permitted
-		// since they are infrastructure tools (e.g. inline_chat_exit), not user-facing agent tools
-		if (!isToolSet(toolOrToolSet) && toolOrToolSet.canBeReferencedInPrompt === false && toolOrToolSet.source.type === 'internal') {
-			return true;
-		}
-
-		const permittedInternalToolSetIds = [SpecedToolAliases.read, SpecedToolAliases.search, SpecedToolAliases.web];
-		if (isToolSet(toolOrToolSet)) {
-			const permitted = toolOrToolSet.source.type === 'internal' && permittedInternalToolSetIds.includes(toolOrToolSet.referenceName);
-			this._logService.trace(`LanguageModelToolsService#isPermitted: ToolSet ${toolOrToolSet.id} (${toolOrToolSet.referenceName}) permitted=${permitted}`);
-			return permitted;
-		}
-		for (const toolSet of this._toolSets) {
-			if (toolSet.source.type === 'internal' && permittedInternalToolSetIds.includes(toolSet.referenceName)) {
-				for (const memberTool of toolSet.getTools()) {
-					if (memberTool.id === toolOrToolSet.id) {
-						this._logService.trace(`LanguageModelToolsService#isPermitted: Tool ${toolOrToolSet.id} (${toolOrToolSet.toolReferenceName}) permitted=true (member of ${toolSet.referenceName})`);
-						return true;
-					}
-				}
-			}
-		}
-
-		// Special case for 'vscode_fetchWebPage_internal', which is allowed if we allow 'web' tools
-		// Fetch is implemented with two tools, this one and 'copilot_fetchWebPage'
-		if (toolOrToolSet.id === 'vscode_fetchWebPage_internal' && permittedInternalToolSetIds.includes(SpecedToolAliases.web)) {
-			this._logService.trace(`LanguageModelToolsService#isPermitted: Tool ${toolOrToolSet.id} (${toolOrToolSet.toolReferenceName}) permitted=true (special case)`);
-			return true;
-		}
-
-		this._logService.trace(`LanguageModelToolsService#isPermitted: Tool ${toolOrToolSet.id} (${toolOrToolSet.toolReferenceName}) permitted=false`);
-		return false;
 	}
 
 	override dispose(): void {
@@ -326,9 +276,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			toolData => {
 				const satisfiesWhenClause = !toolData.when || this._contextKeyService.contextMatchesRules(toolData.when);
 				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
-				const satisfiesPermittedCheck = this.isPermitted(toolData);
 				const satisfiesModelFilter = toolMatchesModel(toolData, model);
-				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesPermittedCheck && satisfiesModelFilter;
+				return satisfiesWhenClause && satisfiesExternalToolCheck && satisfiesModelFilter;
 			});
 	}
 
@@ -351,11 +300,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		const extensionToolsEnabled = this._configurationService.getValue<boolean>(ChatConfiguration.ExtensionToolsEnabled);
 		return Iterable.filter(
 			toolDatas,
-			toolData => {
-				const satisfiesExternalToolCheck = toolData.source.type !== 'extension' || !!extensionToolsEnabled;
-				const satisfiesPermittedCheck = this.isPermitted(toolData);
-				return satisfiesExternalToolCheck && satisfiesPermittedCheck;
-			});
+			toolData => toolData.source.type !== 'extension' || !!extensionToolsEnabled);
 	}
 
 	getTool(id: string): IToolData | undefined {
@@ -1303,8 +1248,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 
 	readonly toolSets: IObservable<Iterable<ToolSet>> = derived(this, reader => {
-		const allToolSets = Array.from(this._toolSets.observable.read(reader));
-		return allToolSets.filter(toolSet => this.isPermitted(toolSet, reader));
+		return this._toolSets.observable.read(reader);
 	});
 
 	getToolSetsForModel(model: ILanguageModelChatMetadata | undefined, reader?: IReader): Iterable<IToolSet> {
@@ -1388,7 +1332,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				continue;
 			}
 
-			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool) && this.isPermitted(tool, reader)) {
+			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool)) {
 				result.push([tool, getToolFullReferenceName(tool)]);
 			}
 		}

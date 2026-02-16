@@ -76,20 +76,13 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		// Category definitions
 		const builtInCategory = { label: localize('built-in', "Built-In"), order: 0 };
 		const customCategory = { label: localize('custom', "Custom"), order: 1 };
-		const policyDisabledCategory = { label: localize('managedByOrganization', "Managed by your organization"), order: 999, showHeader: true };
-
-		const agentModeDisabledViaPolicy = configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
 
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
-			const isDisabledViaPolicy =
-				mode.kind === ChatModeKind.Agent &&
-				agentModeDisabledViaPolicy;
-
 			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
 			// Add toolbar actions for Agent modes
 			const toolbarActions: IAction[] = [];
-			if (mode.kind === ChatModeKind.Agent && !isDisabledViaPolicy) {
+			if (mode.kind === ChatModeKind.Agent) {
 				if (mode.uri) {
 					let label, icon, id;
 					if (mode.source?.storage === PromptsStorage.extension) {
@@ -142,17 +135,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				...action,
 				id: getOpenChatActionIdForMode(mode),
 				label: mode.label.get(),
-				icon: isDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : mode.icon.get(),
-				class: isDisabledViaPolicy ? 'disabled-by-policy' : undefined,
-				enabled: !isDisabledViaPolicy,
-				checked: !isDisabledViaPolicy && currentMode.id === mode.id,
+				icon: mode.icon.get(),
+				class: undefined,
+				enabled: true,
+				checked: currentMode.id === mode.id,
 				tooltip: '',
 				hover: { content: tooltip, position: this.pickerOptions.hoverPosition },
 				toolbarActions,
 				run: async () => {
-					if (isDisabledViaPolicy) {
-						return; // Block interaction if disabled by policy
-					}
 					const result = await commandService.executeCommand(
 						ToggleAgentModeActionId,
 						{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
@@ -162,7 +152,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					}
 					return result;
 				},
-				category: isDisabledViaPolicy ? policyDisabledCategory : builtInCategory
+				category: builtInCategory
 			};
 		};
 
@@ -172,7 +162,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				tooltip: '',
 				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip, position: this.pickerOptions.hoverPosition },
 				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined),
-				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
+				category: customCategory
 			};
 		};
 
@@ -208,7 +198,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const currentMode = delegate.currentMode.get();
 				const agentMode = modes.builtin.find(mode => mode.id === ChatMode.Agent.id);
 
-				const shouldHideEditMode = configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden) && chatAgentService.hasToolsAgent && currentMode.id !== ChatMode.Edit.id;
+				const shouldHideEditMode = configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden) && currentMode.id !== ChatMode.Edit.id;
 
 				const otherBuiltinModes = modes.builtin.filter(mode => {
 					if (mode.id === ChatMode.Agent.id) {
@@ -234,7 +224,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 				const customBuiltinModeActions = customModes.builtin?.filter(modeSupportsVSCode)?.map(mode => {
 					const action = makeActionFromCustomMode(mode, currentMode);
-					action.category = agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory;
+					action.category = builtInCategory;
 					return action;
 				}) ?? [];
 				customBuiltinModeActions.sort((a, b) => a.label.localeCompare(b.label));

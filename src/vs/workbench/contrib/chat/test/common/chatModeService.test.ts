@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -16,29 +15,10 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatMode, ChatModeService } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage, Target } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
-
-class TestChatAgentService implements Partial<IChatAgentService> {
-	_serviceBrand: undefined;
-
-	private _hasToolsAgent = true;
-	private readonly _onDidChangeAgents = new Emitter<any>();
-
-	get hasToolsAgent(): boolean {
-		return this._hasToolsAgent;
-	}
-
-	setHasToolsAgent(value: boolean): void {
-		this._hasToolsAgent = value;
-		this._onDidChangeAgents.fire(undefined);
-	}
-
-	readonly onDidChangeAgents = this._onDidChangeAgents.event;
-}
 
 suite('ChatModeService', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,7 +27,6 @@ suite('ChatModeService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let promptsService: MockPromptsService;
-	let chatAgentService: TestChatAgentService;
 	let storageService: TestStorageService;
 	let configurationService: TestConfigurationService;
 	let chatModeService: ChatModeService;
@@ -55,12 +34,10 @@ suite('ChatModeService', () => {
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		promptsService = new MockPromptsService();
-		chatAgentService = new TestChatAgentService();
 		storageService = testDisposables.add(new TestStorageService());
 		configurationService = new TestConfigurationService();
 
 		instantiationService.stub(IPromptsService, promptsService);
-		instantiationService.stub(IChatAgentService, chatAgentService);
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
@@ -81,22 +58,6 @@ suite('ChatModeService', () => {
 		assert.strictEqual(askMode.label.get(), 'Ask');
 		assert.strictEqual(askMode.name.get(), 'ask');
 		assert.strictEqual(askMode.kind, ChatModeKind.Ask);
-	});
-
-	test('should adjust builtin modes based on tools agent availability', () => {
-		// Agent mode should always be present regardless of tools agent availability
-		chatAgentService.setHasToolsAgent(true);
-		let agents = chatModeService.getModes();
-		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent));
-
-		// Without tools agent - Agent mode should not be present
-		chatAgentService.setHasToolsAgent(false);
-		agents = chatModeService.getModes();
-		assert.strictEqual(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), undefined);
-
-		// Ask and Edit modes should always be present
-		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Ask));
-		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Edit));
 	});
 
 	test('should find builtin modes by id', () => {
