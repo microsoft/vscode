@@ -1,0 +1,15 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .wwi {
+	position: absolute;
+	color: var(--vscode-editorWhitespace-foreground) !important;
+	opacity: 0.6;
+	user-select: none;
+	pointer-events: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
