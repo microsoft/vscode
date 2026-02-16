@@ -37,6 +37,7 @@ import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPan
 import { DelayedPagedModel, IPagedModel } from '../../../../base/common/paging.js';
 import { ExtensionIconWidget } from './extensionsWidgets.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 
 function getAriaLabelForExtension(extension: IExtension | null): string {
 	if (!extension) {
@@ -531,7 +532,11 @@ export function buildModalNavigationForPagedList<T>(
 				}
 
 				openAtIndex(index, item);
-			}, error => logService.error(error));
+			}, error => {
+				if (!isCancellationError(error)) {
+					logService.error(`Error while resolving item at index ${index} for modal navigation`, error);
+				}
+			});
 		}
 	};
 

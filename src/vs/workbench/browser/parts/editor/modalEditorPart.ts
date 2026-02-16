@@ -170,12 +170,12 @@ export class ModalEditorPart {
 		editorPart.create(editorPartContainer);
 
 		disposables.add(Event.once(editorPart.onWillClose)(() => disposables.dispose()));
-		disposables.add(Event.runAndSubscribe(editorPart.onDidChangeNavigation, ((ctx: IModalEditorNavigation | undefined) => {
-			if (ctx && ctx.total > 1) {
+		disposables.add(Event.runAndSubscribe(editorPart.onDidChangeNavigation, ((navigation: IModalEditorNavigation | undefined) => {
+			if (navigation && navigation.total > 1) {
 				show(navigationContainer);
-				navigationLabel.textContent = localize('navigationCounter', "{0} of {1}", ctx.current + 1, ctx.total);
-				previousButton.enabled = ctx.current > 0;
-				nextButton.enabled = ctx.current < ctx.total - 1;
+				navigationLabel.textContent = localize('navigationCounter', "{0} of {1}", navigation.current + 1, navigation.total);
+				previousButton.enabled = navigation.current > 0;
+				nextButton.enabled = navigation.current < navigation.total - 1;
 			} else {
 				hide(navigationContainer);
 			}
@@ -351,8 +351,8 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		this._register(this.onDidChangeMaximized(maximized => isMaximizedContext.set(maximized)));
 
 		const hasNavigationContext = EditorPartModalNavigationContext.bindTo(this.scopedContextKeyService);
-		hasNavigationContext.set(!!this._navigation);
-		this._register(this.onDidChangeNavigation(navigation => hasNavigationContext.set(!!navigation)));
+		hasNavigationContext.set(!!this._navigation && this._navigation.total > 1);
+		this._register(this.onDidChangeNavigation(navigation => hasNavigationContext.set(!!navigation && navigation.total > 1)));
 
 		super.handleContextKeys();
 	}
