@@ -135,7 +135,7 @@ class DownloadUpdateAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		await accessor.get(IUpdateService).downloadUpdate();
+		await accessor.get(IUpdateService).downloadUpdate(true);
 	}
 }
 

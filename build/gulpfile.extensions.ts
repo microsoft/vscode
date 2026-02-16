@@ -166,7 +166,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const compileTask = task.define(`compile-extension:${name}`, task.series(cleanTask, async () => {
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts'], { dot: true }));
 		const copyNonTs = util.streamToPromise(nonts.pipe(gulp.dest(out)));
-		const tsgo = spawnTsgo(absolutePath, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl));
+		const tsgo = spawnTsgo(absolutePath, { taskName: 'extensions' }, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl));
 
 		await Promise.all([copyNonTs, tsgo]);
 	}));
@@ -175,7 +175,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts'], { dot: true }));
 		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
 		const watchNonTs = watchInput.pipe(filter(['**', '!**/*.ts'], { dot: true })).pipe(gulp.dest(out));
-		const tsgoStream = watchInput.pipe(util.debounce(() => createTsgoStream(absolutePath, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl)), 200));
+		const tsgoStream = watchInput.pipe(util.debounce(() => createTsgoStream(absolutePath, { taskName: 'extensions' }, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl)), 200));
 		const watchStream = es.merge(nonts.pipe(gulp.dest(out)), watchNonTs, tsgoStream);
 
 		return watchStream;
@@ -273,11 +273,37 @@ gulp.task(compileWebExtensionsTask);
 export const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions(true));
 gulp.task(watchWebExtensionsTask);
 
-async function buildWebExtensions(isWatch: boolean) {
+async function buildWebExtensions(isWatch: boolean): Promise<void> {
 	const extensionsPath = path.join(root, 'extensions');
-	const webpackConfigLocations = await nodeUtil.promisify(glob)(
-		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
+
+	// Find all esbuild.browser.mts files
+	const esbuildConfigLocations = await nodeUtil.promisify(glob)(
+		path.join(extensionsPath, '**', 'esbuild.browser.mts'),
 		{ ignore: ['**/node_modules'] }
 	);
-	return ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
+
+	// Find all webpack configs, excluding those that will be esbuilt
+	const esbuildExtensionDirs = new Set(esbuildConfigLocations.map(p => path.dirname(p)));
+	const webpackConfigLocations = (await nodeUtil.promisify(glob)(
+		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
+		{ ignore: ['**/node_modules'] }
+	)).filter(configPath => !esbuildExtensionDirs.has(path.dirname(configPath)));
+
+	const promises: Promise<unknown>[] = [];
+
+	// Esbuild for extensions
+	if (esbuildConfigLocations.length > 0) {
+		promises.push(
+			ext.esbuildExtensions('packaging web extension (esbuild)', isWatch, esbuildConfigLocations.map(script => ({ script }))),
+			// Also run type check on extensions
+			...esbuildConfigLocations.map(script => ext.typeCheckExtension(path.dirname(script), true))
+		);
+	}
+
+	// Run webpack for remaining extensions
+	if (webpackConfigLocations.length > 0) {
+		promises.push(ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath }))));
+	}
+
+	await Promise.all(promises);
 }

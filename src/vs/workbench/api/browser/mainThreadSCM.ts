@@ -437,6 +437,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 			const artifactProvider = new MainThreadSCMArtifactProvider(this.proxy, this.handle);
 			this._artifactProvider.set(artifactProvider, undefined);
 		} else if (features.hasArtifactProvider === false && this.artifactProvider.get()) {
+			this._artifactProvider.get()?.dispose();
 			this._artifactProvider.set(undefined, undefined);
 		}
 
@@ -595,6 +596,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 	}
 
 	dispose(): void {
+		this._artifactProvider.get()?.dispose();
 		this._stagedQuickDiff?.dispose();
 		this._quickDiff?.dispose();
 	}

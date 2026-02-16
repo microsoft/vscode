@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
+import type * as http from 'http';
 import { AddressInfo } from 'net';
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../common/cancellation.js';
@@ -19,6 +19,7 @@ suite('Request', () => {
 	let server: http.Server;
 
 	setup(async () => {
+		const http = await import('http');
 		port = await new Promise<number>((resolvePort, rejectPort) => {
 			server = http.createServer((req, res) => {
 				if (req.url === '/noreply') {

@@ -68,7 +68,10 @@
 .chat-viewpane.has-sessions-control.sessions-control-orientation-stacked {
 
 	.agent-sessions-container {
-		border-bottom: 1px solid var(--vscode-panel-border);
+		/* center it above the chat which has this max-width restriction */
+		max-width: 950px;
+		margin: 0 auto;
+		width: 100%;
 	}
 
 	.agent-sessions-new-button-container {
@@ -97,7 +100,7 @@
 	}
 
 	.agent-sessions-new-button-container {
-		padding: 8px 12px;
+		padding: 8px;
 	}
 }
 
@@ -124,7 +127,7 @@
 	}
 
 	.agent-session-section {
-		padding: 0 12px 0 20px;
+		padding: 0 6px 0 14px;
 	}
 
 	/* Right position: symmetric padding */
@@ -135,7 +138,7 @@
 		}
 
 		.agent-session-section {
-			padding: 0 12px 0 8px;
+			padding: 0 6px 0 8px;
 		}
 	}
 

@@ -23,7 +23,8 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat.js';
+import { AgentSessionProviders, getAgentSessionProvider } from '../../contrib/chat/browser/agentSessions/agentSessions.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -145,6 +146,18 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._register(this._chatService.onDidReceiveQuestionCarouselAnswer(e => {
 			this._proxy.$handleQuestionCarouselAnswer(e.requestId, e.resolveId, e.answers);
 		}));
+		this._register(this._chatWidgetService.onDidChangeFocusedSession(() => {
+			this._acceptActiveChatSession(this._chatWidgetService.lastFocusedWidget);
+		}));
+
+		// Push the initial active session if there is already a focused widget
+		this._acceptActiveChatSession(this._chatWidgetService.lastFocusedWidget);
+	}
+
+	private _acceptActiveChatSession(widget: IChatWidget | undefined): void {
+		const sessionResource = widget?.viewModel?.sessionResource;
+		const isLocal = sessionResource && getAgentSessionProvider(sessionResource) === AgentSessionProviders.Local;
+		this._proxy.$acceptActiveChatSession(isLocal ? sessionResource : undefined);
 	}
 
 	$unregisterAgent(handle: number): void {
@@ -191,6 +204,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			},
 			setRequestTools: (requestId, tools) => {
 				this._proxy.$setRequestTools(requestId, tools);
+			},
+			setYieldRequested: (requestId) => {
+				this._proxy.$setYieldRequested(requestId);
 			},
 			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {

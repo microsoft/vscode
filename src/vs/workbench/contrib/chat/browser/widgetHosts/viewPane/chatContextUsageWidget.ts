@@ -13,6 +13,11 @@ import { IObservable, observableValue } from '../../../../../../base/common/obse
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
@@ -113,10 +118,20 @@ export class ChatContextUsageWidget extends Disposable {
 
 	private currentData: IChatContextUsageData | undefined;
 
+	private static readonly _OPENED_STORAGE_KEY = 'chat.contextUsage.hasBeenOpened';
+	private static readonly _HOVER_ID = 'chat.contextUsage';
+
+	private readonly _contextUsageOpenedKey: IContextKey<boolean>;
+
+	private _enabled: boolean;
+
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -131,8 +146,69 @@ export class ChatContextUsageWidget extends Disposable {
 		this.progressIndicator = new CircularProgressIndicator();
 		iconContainer.appendChild(this.progressIndicator.domNode);
 
+		// Track context usage opened state
+		this._contextUsageOpenedKey = ChatContextKeys.contextUsageHasBeenOpened.bindTo(this.contextKeyService);
+
+		// Restore persisted state
+		if (this.storageService.getBoolean(ChatContextUsageWidget._OPENED_STORAGE_KEY, StorageScope.WORKSPACE, false)) {
+			this._contextUsageOpenedKey.set(true);
+		}
+
+		// Track enabled state from configuration
+		this._enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatContextUsageEnabled) !== false;
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatContextUsageEnabled)) {
+				this._enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatContextUsageEnabled) !== false;
+				if (!this._enabled) {
+					this.hide();
+				} else if (this.currentData) {
+					this.show();
+				}
+			}
+		}));
+
 		// Set up hover - will be configured when data is available
 		this.setupHover();
+	}
+
+	/**
+	 * Shows the sticky context usage details hover and records that the user
+	 * has opened it. Returns `true` if the details were shown.
+	 */
+	showDetails(): boolean {
+		const details = this._createDetails();
+		if (!details) {
+			return false;
+		}
+		this.hoverService.showInstantHover(
+			{ ...this._hoverOptions, content: details.domNode, target: this.domNode, persistence: { hideOnHover: false, sticky: true } },
+			true
+		);
+		this._markOpened();
+		return true;
+	}
+
+	private readonly _hoverOptions: Omit<IDelayedHoverOptions, 'content'> = {
+		id: ChatContextUsageWidget._HOVER_ID,
+		appearance: { showPointer: true, compact: true },
+		persistence: { hideOnHover: false },
+		trapFocus: true
+	};
+
+	private _createDetails(): ChatContextUsageDetails | undefined {
+		if (!this._isVisible.get() || !this.currentData) {
+			return undefined;
+		}
+		if (!this._contextUsageDetails.value) {
+			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails);
+		}
+		this._contextUsageDetails.value.update(this.currentData);
+		return this._contextUsageDetails.value;
+	}
+
+	private _markOpened(): void {
+		this._contextUsageOpenedKey.set(true);
+		this.storageService.store(ChatContextUsageWidget._OPENED_STORAGE_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private setupHover(): void {
@@ -140,40 +216,15 @@ export class ChatContextUsageWidget extends Disposable {
 		const store = new DisposableStore();
 		this._hoverDisposable.value = store;
 
-		const createDetails = (): ChatContextUsageDetails | undefined => {
-			if (!this._isVisible.get() || !this.currentData) {
-				return undefined;
-			}
-			this._contextUsageDetails.value = this.instantiationService.createInstance(ChatContextUsageDetails);
-			this._contextUsageDetails.value.update(this.currentData);
-			return this._contextUsageDetails.value;
-		};
-
-		const hoverOptions: Omit<IDelayedHoverOptions, 'content'> = {
-			appearance: { showPointer: true, compact: true },
-			persistence: { hideOnHover: false },
-			trapFocus: true
-		};
-
 		store.add(this.hoverService.setupDelayedHover(this.domNode, () => ({
-			...hoverOptions,
-			content: createDetails()?.domNode ?? ''
+			...this._hoverOptions,
+			content: this._createDetails()?.domNode ?? ''
 		})));
-
-		const showStickyHover = () => {
-			const details = createDetails();
-			if (details) {
-				this.hoverService.showInstantHover(
-					{ ...hoverOptions, content: details.domNode, target: this.domNode, persistence: { hideOnHover: false, sticky: true } },
-					true
-				);
-			}
-		};
 
 		// Show sticky + focused hover on click
 		store.add(addDisposableListener(this.domNode, EventType.CLICK, e => {
 			e.stopPropagation();
-			showStickyHover();
+			this.showDetails();
 		}));
 
 		// Show sticky + focused hover on keyboard activation (Space/Enter)
@@ -181,7 +232,7 @@ export class ChatContextUsageWidget extends Disposable {
 			const evt = new StandardKeyboardEvent(e);
 			if (evt.equals(KeyCode.Space) || evt.equals(KeyCode.Enter)) {
 				e.preventDefault();
-				showStickyHover();
+				this.showDetails();
 			}
 		}));
 	}
@@ -194,8 +245,18 @@ export class ChatContextUsageWidget extends Disposable {
 	update(lastRequest: IChatRequestModel | undefined): void {
 		this._lastRequestDisposable.clear();
 
-		if (!lastRequest?.response || !lastRequest.modelId) {
+		if (!lastRequest) {
+			// New/empty chat session clear everything
+			this.currentData = undefined;
 			this.hide();
+			return;
+		}
+
+		if (!lastRequest.response || !lastRequest.modelId) {
+			// Pending request keep old data visible if available
+			if (!this.currentData) {
+				this.hide();
+			}
 			return;
 		}
 
@@ -215,23 +276,28 @@ export class ChatContextUsageWidget extends Disposable {
 		const usage = response.usage;
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
 		const maxInputTokens = modelMetadata?.maxInputTokens;
+		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
-		if (!usage || !maxInputTokens || maxInputTokens <= 0) {
-			this.hide();
+		if (!usage || !maxInputTokens || maxInputTokens <= 0 || !maxOutputTokens || maxOutputTokens <= 0) {
+			if (!this.currentData) {
+				this.hide();
+			}
 			return;
 		}
 
 		const promptTokens = usage.promptTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
-		const percentage = Math.min(100, (promptTokens / maxInputTokens) * 100);
+		const totalContextWindow = maxInputTokens + maxOutputTokens;
+		const usedTokens = promptTokens + maxOutputTokens;
+		const percentage = Math.min(100, (usedTokens / totalContextWindow) * 100);
 
-		this.render(percentage, promptTokens, maxInputTokens, promptTokenDetails);
+		this.render(percentage, usedTokens, totalContextWindow, promptTokenDetails);
 		this.show();
 	}
 
-	private render(percentage: number, promptTokens: number, maxTokens: number, promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[]): void {
+	private render(percentage: number, usedTokens: number, totalContextWindow: number, promptTokenDetails?: readonly { category: string; label: string; percentageOfPrompt: number }[]): void {
 		// Store current data for use in details popup
-		this.currentData = { promptTokens, maxInputTokens: maxTokens, percentage, promptTokenDetails };
+		this.currentData = { usedTokens, totalContextWindow, percentage, promptTokenDetails };
 
 		// Update pie chart progress
 		this.progressIndicator.setProgress(percentage);
@@ -246,6 +312,9 @@ export class ChatContextUsageWidget extends Disposable {
 	}
 
 	private show(): void {
+		if (!this._enabled) {
+			return;
+		}
 		if (this.domNode.style.display === 'none') {
 			this.domNode.style.display = '';
 			this._isVisible.set(true, undefined);

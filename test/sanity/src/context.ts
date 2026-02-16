@@ -298,21 +298,39 @@ export class TestContext {
 		const { url, sha256hash } = await this.fetchMetadata(target);
 		const filePath = path.join(this.createTempDir(), path.basename(url));
 
-		this.log(`Downloading ${url} to ${filePath}`);
-		const { body } = await this.fetchNoErrors(url);
+		const maxRetries = 5;
+		let lastError: Error | undefined;
 
-		const stream = fs.createWriteStream(filePath);
-		await new Promise<void>((resolve, reject) => {
-			body.on('error', reject);
-			stream.on('error', reject);
-			stream.on('finish', resolve);
-			body.pipe(stream);
-		});
+		for (let attempt = 0; attempt < maxRetries; attempt++) {
+			if (attempt > 0) {
+				const delay = Math.pow(2, attempt - 1) * 1000;
+				this.log(`Retrying download (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await new Promise(resolve => setTimeout(resolve, delay));
+			}
 
-		this.log(`Downloaded ${url} to ${filePath}`);
-		this.validateSha256Hash(filePath, sha256hash);
+			try {
+				this.log(`Downloading ${url} to ${filePath}`);
+				const { body } = await this.fetchNoErrors(url);
 
-		return filePath;
+				const stream = fs.createWriteStream(filePath);
+				await new Promise<void>((resolve, reject) => {
+					body.on('error', reject);
+					stream.on('error', reject);
+					stream.on('finish', resolve);
+					body.pipe(stream);
+				});
+
+				this.log(`Downloaded ${url} to ${filePath}`);
+				this.validateSha256Hash(filePath, sha256hash);
+
+				return filePath;
+			} catch (error) {
+				lastError = error instanceof Error ? error : new Error(String(error));
+				this.log(`Download attempt ${attempt + 1} failed: ${lastError.message}`);
+			}
+		}
+
+		this.error(`Failed to download ${url} after ${maxRetries} attempts: ${lastError?.message}`);
 	}
 
 	/**

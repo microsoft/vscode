@@ -54,21 +54,21 @@ suite('sessionDateFromNow', () => {
 
 	const ONE_DAY = 24 * 60 * 60 * 1000;
 
-	test('returns "1 day ago" for yesterday', () => {
+	test('returns "1 day" for yesterday', () => {
 		const now = Date.now();
 		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 		// Time in the middle of yesterday
 		const yesterday = startOfToday - ONE_DAY / 2;
-		assert.strictEqual(sessionDateFromNow(yesterday), '1 day ago');
+		assert.strictEqual(sessionDateFromNow(yesterday), '1 day');
 	});
 
-	test('returns "2 days ago" for two days ago', () => {
+	test('returns "2 days" for two days ago', () => {
 		const now = Date.now();
 		const startOfToday = new Date(now).setHours(0, 0, 0, 0);
 		const startOfYesterday = startOfToday - ONE_DAY;
 		// Time in the middle of two days ago
 		const twoDaysAgo = startOfYesterday - ONE_DAY / 2;
-		assert.strictEqual(sessionDateFromNow(twoDaysAgo), '2 days ago');
+		assert.strictEqual(sessionDateFromNow(twoDaysAgo), '2 days');
 	});
 
 	test('returns fromNow result for today', () => {

@@ -784,6 +784,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly organisations: undefined;
 	readonly isInternal = false;
 	readonly sku = undefined;
+	readonly copilotTrackingId = undefined;
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
@@ -804,6 +805,8 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
+
+	readonly previewFeaturesDisabled = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {

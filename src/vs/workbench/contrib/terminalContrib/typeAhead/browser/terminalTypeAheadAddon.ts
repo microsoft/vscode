@@ -648,7 +648,7 @@ export class PredictionStats extends Disposable {
 	private readonly _stats: [latency: number, correct: boolean][] = [];
 	private _index = 0;
 	private readonly _addedAtTime = new WeakMap<IPrediction, number>();
-	private readonly _changeEmitter = new Emitter<void>();
+	private readonly _changeEmitter = this._register(new Emitter<void>());
 	readonly onChange = this._changeEmitter.event;
 
 	/**

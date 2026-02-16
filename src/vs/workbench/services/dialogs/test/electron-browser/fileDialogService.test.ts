@@ -35,6 +35,7 @@ import { IPathService } from '../../../path/common/pathService.js';
 import { BrowserWorkspaceEditingService } from '../../../workspaces/browser/workspaceEditingService.js';
 import { IWorkspaceEditingService } from '../../../workspaces/common/workspaceEditing.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 
 class TestFileDialogService extends FileDialogService {
 	constructor(
@@ -56,10 +57,11 @@ class TestFileDialogService extends FileDialogService {
 		@ICommandService commandService: ICommandService,
 		@IEditorService editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService,
-			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService);
+			openerService, nativeHostService, dialogService, languageService, workspacesService, labelService, pathService, commandService, editorService, codeEditorService, logService, remoteAgentService);
 	}
 
 	protected override getSimpleFileDialog() {

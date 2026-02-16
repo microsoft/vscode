@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as Proto from '../tsServer/protocol/protocol';
+import { readUnifiedConfig } from '../utils/configuration';
 import * as objects from '../utils/objects';
 
 export enum TsServerLogLevel {
@@ -268,8 +269,8 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return { ...(watchOptions ?? {}) };
 	}
 
-	protected readIncludePackageJsonAutoImports(configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
-		return configuration.get<'auto' | 'on' | 'off'>('typescript.preferences.includePackageJsonAutoImports');
+	protected readIncludePackageJsonAutoImports(_configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
+		return readUnifiedConfig<'auto' | 'on' | 'off' | undefined>('preferences.includePackageJsonAutoImports', undefined, { fallbackSection: 'typescript' });
 	}
 
 	protected readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {

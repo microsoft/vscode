@@ -244,9 +244,11 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			scrollSensitivity: config.mouseWheelScrollSensitivity,
 			scrollOnEraseInDisplay: true,
 			wordSeparator: config.wordSeparators,
-			overviewRuler: options.disableOverviewRuler ? { width: 0 } : {
+			scrollbar: options.disableOverviewRuler ? undefined : {
 				width: 14,
-				showTopBorder: true,
+				overviewRuler: {
+					showTopBorder: true,
+				},
 			},
 			ignoreBracketedPasteMode: config.ignoreBracketedPasteMode,
 			rescaleOverlappingGlyphs: config.rescaleOverlappingGlyphs,
@@ -630,16 +632,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				}
 				this._searchAddon = new AddonCtor({ highlightLimit: XtermTerminalConstants.SearchHighlightLimit });
 				this.raw.loadAddon(this._searchAddon);
-				this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
+				this._store.add(this._searchAddon.onDidChangeResults((results: { resultIndex: number; resultCount: number }) => {
 					this._lastFindResult = results;
 					this._onDidChangeFindResults.fire(results);
-				});
-				this._searchAddon.onBeforeSearch(() => {
+				}));
+				this._store.add(this._searchAddon.onBeforeSearch(() => {
 					this._onBeforeSearch.fire();
-				});
-				this._searchAddon.onAfterSearch(() => {
+				}));
+				this._store.add(this._searchAddon.onAfterSearch(() => {
 					this._onAfterSearch.fire();
-				});
+				}));
 				return this._searchAddon;
 			});
 		}
@@ -844,10 +846,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		try {
 			this.raw.loadAddon(this._webglAddon);
 			this._logService.trace('Webgl was loaded');
-			this._webglAddon.onContextLoss(() => {
+			this._store.add(this._webglAddon.onContextLoss(() => {
 				this._logService.info(`Webgl lost context, disposing of webgl renderer`);
 				this._disposeOfWebglRenderer();
-			});
+			}));
 			this._refreshImageAddon();
 			// WebGL renderer cell dimensions differ from the DOM renderer, make sure the terminal
 			// gets resized after the webgl addon is loaded

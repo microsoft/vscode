@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -31,13 +32,14 @@ import { NullWorkbenchAssignmentService } from '../../../../../services/assignme
 import { IExtensionService, nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { InMemoryTestFileService, mock, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
-import { ChatSendResult, IChatFollowup, IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
@@ -173,6 +175,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
+		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
@@ -421,6 +424,51 @@ suite('ChatService', () => {
 		modelRef.dispose();
 		await testService.waitForModelDisposals();
 		assert.strictEqual(disposed, true);
+	});
+
+	test('steering message queued triggers setYieldRequested', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+		let setYieldRequestedCalled = false;
+
+		const slowAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				requestStarted.complete();
+				await completeRequest.p;
+				return {};
+			},
+			setYieldRequested(requestId: string) {
+				setYieldRequestedCalled = true;
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('slowAgent', { ...getAgentData('slowAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowAgent', slowAgent));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		// Start a request that will wait
+		const response = await testService.sendRequest(model.sessionResource, 'first request', { agentId: 'slowAgent' });
+		ChatSendResult.assertSent(response);
+
+		// Wait for the agent to start processing
+		await requestStarted.p;
+
+		// Queue a steering message while the first request is still in progress
+		const steeringResponse = await testService.sendRequest(model.sessionResource, 'steering message', {
+			agentId: 'slowAgent',
+			queue: ChatRequestQueueKind.Steering
+		});
+		assert.strictEqual(steeringResponse.kind, 'queued');
+
+		// setYieldRequested should have been called on the agent
+		assert.strictEqual(setYieldRequestedCalled, true, 'setYieldRequested should be called when a steering message is queued');
+
+		// Complete the first request
+		completeRequest.complete();
+		await response.data.responseCompletePromise;
 	});
 });
 

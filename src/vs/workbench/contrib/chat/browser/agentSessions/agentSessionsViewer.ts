@@ -56,6 +56,9 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 1
 	readonly title: IconLabel;
+	readonly statusContainer: HTMLElement;
+	readonly statusProviderIcon: HTMLElement;
+	readonly statusTime: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
 	// Column 2 Row 2
@@ -64,11 +67,8 @@ interface IAgentSessionItemTemplate {
 	readonly diffRemovedSpan: HTMLSpanElement;
 
 	readonly badge: HTMLElement;
+	readonly separator: HTMLElement;
 	readonly description: HTMLElement;
-
-	readonly statusContainer: HTMLElement;
-	readonly statusProviderIcon: HTMLElement;
-	readonly statusTime: HTMLElement;
 
 	readonly contextKeyService: IContextKeyService;
 	readonly elementDisposable: DisposableStore;
@@ -111,6 +111,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
+						h('div.agent-session-status@statusContainer', [
+							h('span.agent-session-status-provider-icon@statusProviderIcon'),
+							h('span.agent-session-status-time@statusTime')
+						]),
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
@@ -120,11 +124,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
 						h('div.agent-session-badge@badge'),
+						h('span.agent-session-separator@separator'),
 						h('div.agent-session-description@description'),
-						h('div.agent-session-status@statusContainer', [
-							h('span.agent-session-status-provider-icon@statusProviderIcon'),
-							h('span.agent-session-status-time@statusTime')
-						])
 					])
 				])
 			]
@@ -147,6 +148,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			diffAddedSpan: elements.addedSpan,
 			diffRemovedSpan: elements.removedSpan,
 			badge: elements.badge,
+			separator: elements.separator,
 			description: elements.description,
 			statusContainer: elements.statusContainer,
 			statusProviderIcon: elements.statusProviderIcon,
@@ -215,6 +217,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		if (!hasDiff) {
 			this.renderDescription(session, template, hasBadge);
 		}
+
+		// Separator (dot between badge and description)
+		template.separator.classList.toggle('has-separator', hasBadge && !hasDiff);
 
 		// Status
 		this.renderStatus(session, template);
@@ -307,8 +312,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				const duration = this.toDuration(session.element.timing.lastRequestStarted, session.element.timing.lastRequestEnded, false, true);
 
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-					localize('chat.session.status.failedAfter', "Failed after {0}.", duration) :
-					localize('chat.session.status.completedAfter', "Completed in {0}.", duration);
+					localize('chat.session.status.failedAfter', "Failed after {0}", duration) :
+					localize('chat.session.status.completedAfter', "Completed in {0}", duration);
 			} else {
 				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 					localize('chat.session.status.failed', "Failed") :
@@ -497,7 +502,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
-	static readonly ITEM_HEIGHT = 52;
+	static readonly ITEM_HEIGHT = 44;
 	static readonly SECTION_HEIGHT = 26;
 
 	getHeight(element: AgentSessionListItem): number {
@@ -708,10 +713,10 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 }
 
 export const AgentSessionSectionLabels = {
-	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In Progress"),
+	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In progress"),
 	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
 	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
-	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last 7 Days"),
+	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last 7 days"),
 	[AgentSessionSection.Older]: localize('agentSessions.olderSection', "Older"),
 	[AgentSessionSection.Archived]: localize('agentSessions.archivedSection', "Archived"),
 	[AgentSessionSection.More]: localize('agentSessions.moreSection', "More"),
@@ -775,14 +780,14 @@ export function sessionDateFromNow(sessionTime: number): string {
 	// normalization logic.
 
 	if (sessionTime < startOfToday && sessionTime >= startOfYesterday) {
-		return localize('date.fromNow.days.singular.ago', '1 day ago');
+		return localize('date.fromNow.days.singular', '1 day');
 	}
 
 	if (sessionTime < startOfYesterday && sessionTime >= startOfTwoDaysAgo) {
-		return localize('date.fromNow.days.multiple.ago', '2 days ago');
+		return localize('date.fromNow.days.multiple', '2 days');
 	}
 
-	return fromNow(sessionTime, true);
+	return fromNow(sessionTime, false);
 }
 
 export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSessionsModel | AgentSessionListItem> {

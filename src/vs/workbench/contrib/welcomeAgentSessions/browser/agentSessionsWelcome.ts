@@ -47,6 +47,7 @@ import { ChatSessionPosition, getResourceForNewChatSession } from '../../chat/br
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AgentSessionsControl, IAgentSessionsControlOptions } from '../../chat/browser/agentSessions/agentSessionsControl.js';
 import { AgentSessionsFilter } from '../../chat/browser/agentSessions/agentSessionsFilter.js';
+import { AgentSessionsListDelegate } from '../../chat/browser/agentSessions/agentSessionsViewer.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IResolvedWalkthrough, IWalkthroughsService } from '../../welcomeGettingStarted/browser/gettingStartedService.js';
 import { GettingStartedEditorOptions, GettingStartedInput } from '../../welcomeGettingStarted/browser/gettingStartedInput.js';
@@ -127,7 +128,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 	private chatModelRef: IReference<IChatModel> | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
-	private sessionsLoadingContainer: HTMLElement | undefined;
 	private readonly sessionsControlDisposables = this._register(new DisposableStore());
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private contextService: IContextKeyService;
@@ -534,7 +534,6 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Clear previous sessions control
 		this.sessionsControlDisposables.clear();
 		this.sessionsControl = undefined;
-		this.sessionsLoadingContainer = undefined;
 
 		const sessions = this.agentSessionsService.model.sessions.filter(s => !s.isArchived());
 
@@ -545,45 +544,10 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		}
 	}
 
-	private buildLoadingSkeleton(container: HTMLElement): HTMLElement {
-		const loadingContainer = append(container, $('.agentSessionsWelcome-sessionsLoading', {
-			'role': 'status',
-			'aria-busy': 'true',
-			'aria-label': localize('loadingSessions', "Loading sessions...")
-		}));
-
-		// Create skeleton items to match MAX_SESSIONS (6 items, arranged in 2 columns)
-		for (let i = 0; i < MAX_SESSIONS; i++) {
-			const skeleton = append(loadingContainer, $('.agentSessionsWelcome-sessionSkeleton', { 'aria-hidden': 'true' }));
-			append(skeleton, $('.agentSessionsWelcome-sessionSkeleton-icon'));
-			const content = append(skeleton, $('.agentSessionsWelcome-sessionSkeleton-content'));
-			append(content, $('.agentSessionsWelcome-sessionSkeleton-title'));
-			append(content, $('.agentSessionsWelcome-sessionSkeleton-description'));
-		}
-
-		return loadingContainer;
-	}
-
-	private hideLoadingSkeleton(): void {
-		// Hide loading skeleton and show the sessions control
-		if (this.sessionsLoadingContainer) {
-			this.sessionsLoadingContainer.style.display = 'none';
-		}
-		if (this.sessionsControlContainer) {
-			this.sessionsControlContainer.style.display = '';
-			this.layoutSessionsControl();
-		}
-	}
-
 
 	private buildSessionsGrid(container: HTMLElement, _sessions: IAgentSession[]): void {
-		// Show loading skeleton initially
-		this.sessionsLoadingContainer = this.buildLoadingSkeleton(container);
-
+		// Show cached sessions immediately if available, otherwise show loading skeleton
 		this.sessionsControlContainer = append(container, $('.agentSessionsWelcome-sessionsGrid'));
-		// Hide the control initially until loading completes
-		this.sessionsControlContainer.style.display = 'none';
-
 		const options: IAgentSessionsControlOptions = {
 			overrideStyles: getListStyles({
 				listBackground: editorBackground,
@@ -611,11 +575,11 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		// Listen for loading state changes to toggle skeleton visibility
 		this.sessionsControlDisposables.add(this.agentSessionsService.model.onDidResolve(() => {
-			this.hideLoadingSkeleton();
+			this.layoutSessionsControl();
 		}));
 
 		if (this.agentSessionsService.model.resolved) {
-			this.hideLoadingSkeleton();
+			this.layoutSessionsControl();
 		}
 
 		// Schedule layout at next animation frame to ensure proper rendering
@@ -753,7 +717,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// Content
 		const content = append(tosCard, $('.agentSessionsWelcome-walkthroughCard-content'));
 		const title = append(content, $('.agentSessionsWelcome-walkthroughCard-title'));
-		title.textContent = localize('tosTitle', "Your GitHub Copilot trial is active");
+		title.textContent = localize('tosTitle', "Try GitHub Copilot for free, no sign-in required!");
 
 		const desc = append(content, $('.agentSessionsWelcome-walkthroughCard-description'));
 		const descriptionMarkdown = new MarkdownString(
@@ -852,19 +816,19 @@ export class AgentSessionsWelcomePage extends EditorPane {
 		// TODO: @osortega this is a weird way of doing this, maybe we handle the 2-colum layout in the control itself?
 		const sessionsWidth = Math.min(800, this.lastDimension.width - 80);
 		// Calculate height based on actual visible sessions (capped at MAX_SESSIONS)
-		// Use 52px per item from AgentSessionsListDelegate.ITEM_HEIGHT
+		// Use ITEM_HEIGHT per item from AgentSessionsListDelegate
 		// Give the list FULL height so virtualization renders all items
 		// CSS transforms handle the 2-column visual layout
 		const visibleSessions = Math.min(
 			this.agentSessionsService.model.sessions.filter(s => !s.isArchived()).length,
 			MAX_SESSIONS
 		);
-		const sessionsHeight = visibleSessions * 52;
+		const sessionsHeight = visibleSessions * AgentSessionsListDelegate.ITEM_HEIGHT;
 		this.sessionsControl.layout(sessionsHeight, sessionsWidth);
 
 		// Set margin offset for 2-column layout: actual height - visual height
-		// Visual height = ceil(n/2) * 52, so offset = floor(n/2) * 52
-		const marginOffset = Math.floor(visibleSessions / 2) * 52;
+		// Visual height = ceil(n/2) * ITEM_HEIGHT, so offset = floor(n/2) * ITEM_HEIGHT
+		const marginOffset = Math.floor(visibleSessions / 2) * AgentSessionsListDelegate.ITEM_HEIGHT;
 		this.sessionsControl.element!.style.marginBottom = `-${marginOffset}px`;
 	}
 

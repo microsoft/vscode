@@ -170,6 +170,20 @@
             "default": true
         },
         {
+            "key": "chat.useHooks",
+            "name": "ChatHooks",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.109",
+            "localization": {
+                "description": {
+                    "key": "chat.useHooks.description",
+                    "value": "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`."
+                }
+            },
+            "type": "boolean",
+            "default": true
+        },
+        {
             "key": "chat.tools.terminal.enableAutoApprove",
             "name": "ChatToolsTerminalEnableAutoApprove",
             "category": "IntegratedTerminal",

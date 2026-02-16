@@ -1537,7 +1537,7 @@ export class GridView implements IDisposable {
 		return true;
 	}
 
-	maximizeView(location: GridLocation) {
+	maximizeView(location: GridLocation, excludeViews: readonly IView[] = []) {
 		const [, nodeToMaximize] = this.getNode(location);
 		if (!(nodeToMaximize instanceof LeafNode)) {
 			throw new Error('Location is not a LeafNode');
@@ -1551,11 +1551,13 @@ export class GridView implements IDisposable {
 			this.exitMaximizedView();
 		}
 
+		const excludeViewSet = new Set(excludeViews);
+
 		function hideAllViewsBut(parent: BranchNode, exclude: LeafNode): void {
 			for (let i = 0; i < parent.children.length; i++) {
 				const child = parent.children[i];
 				if (child instanceof LeafNode) {
-					if (child !== exclude) {
+					if (child !== exclude && !excludeViewSet.has(child.view)) {
 						parent.setChildVisible(i, false);
 					}
 				} else {

@@ -14,9 +14,9 @@ import { ViewContainerLocation, IViewDescriptorService } from '../../../common/v
 import { IShellLaunchConfig, ITerminalTabLayoutInfoById, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { TerminalStatus } from './terminalStatusList.js';
 import { getWindow } from '../../../../base/browser/dom.js';
-import { getPartByLocation } from '../../../services/views/browser/viewsService.js';
 import { asArray } from '../../../../base/common/arrays.js';
 import { hasKey, isNumber, type SingleOrMany } from '../../../../base/common/types.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 
 const enum Constants {
 	/**
@@ -278,6 +278,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance | undefined,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@IPaneCompositePartService private readonly _paneCompositePartService: IPaneCompositePartService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
@@ -612,7 +613,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 					resizeAmount *= -1;
 				}
 
-				this._layoutService.resizePart(getPartByLocation(this._terminalLocation), resizeAmount, resizeAmount);
+				this._layoutService.resizePart(this._paneCompositePartService.getPartId(this._terminalLocation), resizeAmount, resizeAmount);
 			} else {
 				this._splitPaneContainer.resizePane(this._activeInstanceIndex, direction, resizeAmount);
 			}

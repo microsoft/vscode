@@ -299,7 +299,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _guidesTextModelPart: GuidesTextModelPart;
 	public get guides(): IGuidesTextModelPart { return this._guidesTextModelPart; }
 
-	private readonly _attachedViews = new AttachedViews();
+	private readonly _attachedViews = this._register(new AttachedViews());
 	private readonly _viewModels = new Set<IViewModel>();
 
 	constructor(
@@ -1563,6 +1563,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					rawContentChanges.push(
 						new ModelRawLineChanged(
 							editLineNumber,
+							currentEditLineNumber,
 							this.getLineContent(currentEditLineNumber),
 							decorationsInCurrentLine
 						));
@@ -1593,7 +1594,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 					rawContentChanges.push(
 						new ModelRawLinesInserted(
 							spliceLineNumber + 1,
-							startLineNumber + insertingLinesCnt,
+							fromLineNumber,
+							cnt,
 							newLines,
 							injectedTexts
 						)
@@ -1653,7 +1655,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
-			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
+			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
 			this._onDidChangeContentOrInjectedText(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
 		this._fireOnDidChangeLineHeight(affectedLineHeights);
@@ -1862,6 +1864,12 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public getCustomLineHeightsDecorations(ownerId: number = 0): model.IModelDecoration[] {
 		const decs = this._decorationsTree.getAllCustomLineHeights(this, ownerId);
 		pushMany(decs, this._fontTokenDecorationsProvider.getAllDecorations(ownerId));
+		return decs;
+	}
+
+	public getCustomLineHeightsDecorationsInRange(range: Range, ownerId: number = 0): model.IModelDecoration[] {
+		const decs = this._decorationsTree.getCustomLineHeightsInInterval(this, this.getOffsetAt(range.getStartPosition()), this.getOffsetAt(range.getEndPosition()), ownerId);
+		pushMany(decs, this._fontTokenDecorationsProvider.getDecorationsInRange(range, ownerId));
 		return decs;
 	}
 
@@ -2246,6 +2254,12 @@ class DecorationsTrees {
 	public getAllCustomLineHeights(host: IDecorationsTreesHost, filterOwnerId: number): model.IModelDecoration[] {
 		const versionId = host.getVersionId();
 		const result = this._search(filterOwnerId, false, false, false, versionId, false);
+		return this._ensureNodesHaveRanges(host, result).filter((i) => typeof i.options.lineHeight === 'number');
+	}
+
+	public getCustomLineHeightsInInterval(host: IDecorationsTreesHost, start: number, end: number, filterOwnerId: number): model.IModelDecoration[] {
+		const versionId = host.getVersionId();
+		const result = this._intervalSearch(start, end, filterOwnerId, false, false, versionId, false);
 		return this._ensureNodesHaveRanges(host, result).filter((i) => typeof i.options.lineHeight === 'number');
 	}
 

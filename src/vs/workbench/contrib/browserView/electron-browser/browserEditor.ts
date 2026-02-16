@@ -51,6 +51,7 @@ export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCa
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', true, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
+export const CONTEXT_BROWSER_HAS_URL = new RawContextKey<boolean>('browserHasUrl', false, localize('browser.hasUrl', "Whether the browser has a URL loaded"));
 export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolean>('browserElementSelectionActive', false, localize('browser.elementSelectionActive', "Whether element selection is currently active"));
 
@@ -105,7 +106,7 @@ class BrowserNavigationBar extends Disposable {
 		// URL input
 		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
 		this._urlInput.type = 'text';
-		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter URL...");
+		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter a URL");
 
 		// Create actions toolbar (right side) with scoped context
 		const actionsContainer = $('.browser-actions-toolbar');
@@ -186,6 +187,7 @@ export class BrowserEditor extends EditorPane {
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
+	private _hasUrlContext!: IContextKey<boolean>;
 	private _devToolsOpenContext!: IContextKey<boolean>;
 	private _elementSelectionActiveContext!: IContextKey<boolean>;
 
@@ -223,6 +225,7 @@ export class BrowserEditor extends EditorPane {
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
+		this._hasUrlContext = CONTEXT_BROWSER_HAS_URL.bindTo(contextKeyService);
 		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 		this._elementSelectionActiveContext = CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE.bindTo(contextKeyService);
 
@@ -766,6 +769,7 @@ export class BrowserEditor extends EditorPane {
 		// Update context keys for command enablement
 		this._canGoBackContext.set(event.canGoBack);
 		this._canGoForwardContext.set(event.canGoForward);
+		this._hasUrlContext.set(!!event.url);
 
 		// Update visibility (welcome screen, error, browser view)
 		this.updateVisibility();
@@ -787,15 +791,11 @@ export class BrowserEditor extends EditorPane {
 		content.appendChild(title);
 
 		const subtitle = $('.browser-welcome-subtitle');
-		subtitle.textContent = localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
-		content.appendChild(subtitle);
-
 		const chatEnabled = this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
-		if (chatEnabled) {
-			const tip = $('.browser-welcome-tip');
-			tip.textContent = localize('browser.welcomeTip', "Tip: Use Add Element to Chat to reference UI elements in chat prompts.");
-			content.appendChild(tip);
-		}
+		subtitle.textContent = chatEnabled
+			? localize('browser.welcomeSubtitleChat', "Use Add Element to Chat to reference UI elements in chat prompts.")
+			: localize('browser.welcomeSubtitle', "Enter a URL above to get started.");
+		content.appendChild(subtitle);
 
 		container.appendChild(content);
 		return container;
@@ -919,6 +919,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
+		this._hasUrlContext.reset();
 		this._storageScopeContext.reset();
 		this._devToolsOpenContext.reset();
 		this._elementSelectionActiveContext.reset();

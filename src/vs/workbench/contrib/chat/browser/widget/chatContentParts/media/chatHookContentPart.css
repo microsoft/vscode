@@ -1,0 +1,44 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-used-context.chat-hook-outcome-blocked .chat-used-context-label .codicon {
+	color: var(--vscode-notificationsWarningIcon-foreground) !important;
+}
+
+.chat-thinking-box .chat-used-context.chat-hook-outcome-blocked,
+.chat-thinking-box .chat-used-context.chat-hook-outcome-warning {
+	padding: 4px 12px 4px 22px;
+	margin-bottom: 0;
+}
+
+.chat-thinking-box .chat-used-context.chat-hook-outcome-blocked > .chat-used-context-label .codicon,
+.chat-thinking-box .chat-used-context.chat-hook-outcome-warning > .chat-used-context-label .codicon {
+	display: none;
+}
+
+.chat-hook-details {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 8px 12px;
+}
+
+.chat-hook-reason {
+	font-size: var(--vscode-chat-font-size-body-s);
+	padding: 4px 10px;
+}
+
+.chat-hook-message {
+	font-size: var(--vscode-chat-font-size-body-s);
+	padding: 4px 10px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* When both reason and message are shown, add a subtle separator */
+.chat-hook-reason + .chat-hook-message {
+	border-top: 1px solid var(--vscode-chat-requestBorder, var(--vscode-editorWidget-border));
+	margin-top: 2px;
+	padding-top: 6px;
+}

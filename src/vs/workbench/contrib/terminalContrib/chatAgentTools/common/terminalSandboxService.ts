@@ -16,10 +16,11 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ITerminalSandboxSettings } from './terminalSandbox.js';
+import { ITerminalSandboxNetworkSettings } from './terminalSandbox.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -52,6 +53,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
+		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 	) {
 		super();
 		this._appRoot = dirname(FileAccess.asFileUri('').path);
@@ -71,6 +73,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			) {
 				this.setNeedsForceUpdateConfigFile();
 			}
+		}));
+
+		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
+			this.setNeedsForceUpdateConfigFile();
 		}));
 	}
 
@@ -142,17 +148,26 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			await this._initTempDir();
 		}
 		if (this._tempDir) {
-			const networkSetting = this._configurationService.getValue<ITerminalSandboxSettings['network']>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+			const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
 			const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
+				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem) ?? {}
 				: {};
 			const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-				? this._configurationService.getValue<ITerminalSandboxSettings['filesystem']>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
+				? this._configurationService.getValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem) ?? {}
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
+
+			const allowedDomainsSet = new Set(networkSetting.allowedDomains ?? []);
+			if (networkSetting.allowTrustedDomains) {
+				for (const domain of this._trustedDomainService.trustedDomains) {
+					allowedDomainsSet.add(domain);
+				}
+			}
+			const allowedDomains = Array.from(allowedDomainsSet);
+
 			const sandboxSettings = {
 				network: {
-					allowedDomains: networkSetting.allowedDomains ?? [],
+					allowedDomains,
 					deniedDomains: networkSetting.deniedDomains ?? []
 				},
 				filesystem: {

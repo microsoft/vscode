@@ -125,16 +125,23 @@ export type IAgentSource = {
  * - 'hidden': neither in picker nor usable as subagent
  */
 export type ICustomAgentVisibility = {
-	readonly userInvokable: boolean;
-	readonly agentInvokable: boolean;
+	readonly userInvocable: boolean;
+	readonly agentInvocable: boolean;
 };
 
 export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibility {
 	if (typeof obj !== 'object' || obj === null) {
 		return false;
 	}
-	const v = obj as { userInvokable?: unknown; agentInvokable?: unknown };
-	return typeof v.userInvokable === 'boolean' && typeof v.agentInvokable === 'boolean';
+	const v = obj as { userInvocable?: unknown; agentInvocable?: unknown };
+	return typeof v.userInvocable === 'boolean' && typeof v.agentInvocable === 'boolean';
+}
+
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot',
+	Claude = 'claude',
+	Undefined = 'undefined',
 }
 
 export interface ICustomAgent {
@@ -169,12 +176,12 @@ export interface ICustomAgent {
 	readonly argumentHint?: string;
 
 	/**
-	 * Target metadata in the prompt header.
+	 * Target of the agent: Copilot, VSCode, Claude, or undefined if not specified.
 	 */
-	readonly target?: string;
+	readonly target: Target;
 
 	/**
-	 * What visibility the agent has (user invokable, subagent invokable).
+	 * What visibility the agent has (user invocable, subagent invocable).
 	 */
 	readonly visibility: ICustomAgentVisibility;
 
@@ -219,6 +226,16 @@ export interface IAgentSkill {
 	readonly storage: PromptsStorage;
 	readonly name: string;
 	readonly description: string | undefined;
+	/**
+	 * If true, the skill should not be automatically loaded by the agent.
+	 * Use for workflows you want to trigger manually with /name.
+	 */
+	readonly disableModelInvocation: boolean;
+	/**
+	 * If false, the skill is hidden from the / menu.
+	 * Use for background knowledge users shouldn't invoke directly.
+	 */
+	readonly userInvocable: boolean;
 }
 
 /**
@@ -256,7 +273,9 @@ export type PromptFileSkipReason =
 	| 'name-mismatch'
 	| 'duplicate-name'
 	| 'parse-error'
-	| 'disabled';
+	| 'disabled'
+	| 'all-hooks-disabled'
+	| 'claude-hooks-disabled';
 
 /**
  * Result of discovering a single prompt file.
@@ -273,6 +292,10 @@ export interface IPromptFileDiscoveryResult {
 	readonly duplicateOf?: URI;
 	/** Extension ID if from extension */
 	readonly extensionId?: string;
+	/** Whether the skill is user-invocable in the / menu (set user-invocable: false to hide it) */
+	readonly userInvocable?: boolean;
+	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */
+	readonly disableModelInvocation?: boolean;
 }
 
 /**
@@ -281,6 +304,11 @@ export interface IPromptFileDiscoveryResult {
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
+}
+
+export interface IConfiguredHooksInfo {
+	readonly hooks: IChatRequestHooks;
+	readonly hasDisabledClaudeHooks: boolean;
 }
 
 /**
@@ -423,5 +451,5 @@ export interface IPromptsService extends IDisposable {
 	 * Gets all hooks collected from hooks.json files.
 	 * The result is cached and invalidated when hook files change.
 	 */
-	getHooks(token: CancellationToken): Promise<IChatRequestHooks | undefined>;
+	getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined>;
 }
