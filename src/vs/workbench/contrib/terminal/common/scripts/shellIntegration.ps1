@@ -17,7 +17,7 @@ if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 	try {
 		# Allow ConstrainedLanguage only when Windows lockdown policy is Audit (PS 7.4+).
 		$Lockdown = [System.Management.Automation.Security.SystemPolicy]::GetSystemLockdownPolicy()
-		if ($Lockdown -and $Lockdown -ne [System.Management.Automation.Security.SystemEnforcementMode]::Audit) {
+		if ($Lockdown -and $Lockdown -ne "Audit") {
 			return;
 		}
 	} catch {
