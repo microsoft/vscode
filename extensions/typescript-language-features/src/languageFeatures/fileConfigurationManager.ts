@@ -178,20 +178,16 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
 			document);
 
-		const preferencesConfig = vscode.workspace.getConfiguration(
-			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
-			document);
-
 		const fallbackSection = isTypeScriptDocument(document) ? 'typescript' : 'javascript';
 
 		const preferences: Proto.UserPreferences = {
 			...config.get('unstable'),
-			quotePreference: this.getQuoteStylePreference(preferencesConfig),
-			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
-			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
-			jsxAttributeCompletionStyle: getJsxAttributeCompletionStyle(preferencesConfig),
+			quotePreference: getQuoteStylePreference(document, fallbackSection),
+			importModuleSpecifierPreference: getImportModuleSpecifierPreference(document, fallbackSection),
+			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(document, fallbackSection),
+			jsxAttributeCompletionStyle: getJsxAttributeCompletionStyle(document, fallbackSection),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
-			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('useAliasesForRenames', true),
+			providePrefixAndSuffixTextForRename: readUnifiedConfig<boolean>('preferences.useAliasesForRenames', true, { scope: document, fallbackSection }),
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: readUnifiedConfig<boolean>('suggest.includeAutomaticOptionalChainCompletions', true, { scope: document, fallbackSection }),
 			provideRefactorNotApplicableReason: true,
@@ -200,9 +196,9 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsWithSnippetText: true,
 			includeCompletionsWithClassMemberSnippets: readUnifiedConfig<boolean>('suggest.classMemberSnippets.enabled', true, { scope: document, fallbackSection }),
 			includeCompletionsWithObjectLiteralMethodSnippets: readUnifiedConfig<boolean>('suggest.objectLiteralMethodSnippets.enabled', true, { scope: document, fallbackSection }),
-			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(preferencesConfig, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
-			autoImportSpecifierExcludeRegexes: preferencesConfig.get<string[]>('autoImportSpecifierExcludeRegexes'),
-			preferTypeOnlyAutoImports: preferencesConfig.get<boolean>('preferTypeOnlyAutoImports', false),
+			autoImportFileExcludePatterns: this.getAutoImportFileExcludePatternsPreference(document, fallbackSection, vscode.workspace.getWorkspaceFolder(document.uri)?.uri),
+			autoImportSpecifierExcludeRegexes: readUnifiedConfig<string[] | undefined>('preferences.autoImportSpecifierExcludeRegexes', undefined, { scope: document, fallbackSection }),
+			preferTypeOnlyAutoImports: readUnifiedConfig<boolean>('preferences.preferTypeOnlyAutoImports', false, { scope: document, fallbackSection }),
 			useLabelDetailsInCompletionEntries: true,
 			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
@@ -210,23 +206,16 @@ export default class FileConfigurationManager extends Disposable {
 			interactiveInlayHints: true,
 			includeCompletionsForModuleExports: readUnifiedConfig<boolean>('suggest.autoImports', true, { scope: document, fallbackSection }),
 			...getInlayHintsPreferences(document, fallbackSection),
-			...this.getOrganizeImportsPreferences(preferencesConfig),
+			...getOrganizeImportsPreferences(document, fallbackSection),
 			maximumHoverLength: this.getMaximumHoverLength(document),
 		};
 
 		return preferences;
 	}
 
-	private getQuoteStylePreference(config: vscode.WorkspaceConfiguration) {
-		switch (config.get<string>('quoteStyle')) {
-			case 'single': return 'single';
-			case 'double': return 'double';
-			default: return 'auto';
-		}
-	}
-
-	private getAutoImportFileExcludePatternsPreference(config: vscode.WorkspaceConfiguration, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
-		return workspaceFolder && config.get<string[]>('autoImportFileExcludePatterns')?.map(p => {
+	private getAutoImportFileExcludePatternsPreference(scope: vscode.ConfigurationScope, fallbackSection: string, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
+		const patterns = readUnifiedConfig<string[] | undefined>('preferences.autoImportFileExcludePatterns', undefined, { scope, fallbackSection });
+		return workspaceFolder && patterns?.map(p => {
 			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
 			const isRelative = /^\.\.?($|[\/\\])/.test(p);
 			// In TypeScript < 5.3, the first path component cannot be a wildcard, so we need to prefix
@@ -239,27 +228,6 @@ export default class FileConfigurationManager extends Disposable {
 					isRelative ? this.client.toTsFilePath(vscode.Uri.joinPath(workspaceFolder, p))! :
 						wildcardPrefix + '**' + path.sep + p;
 		});
-	}
-
-	private getOrganizeImportsPreferences(config: vscode.WorkspaceConfiguration): Proto.UserPreferences {
-		const organizeImportsCollation = config.get<'ordinal' | 'unicode'>('organizeImports.unicodeCollation');
-		const organizeImportsCaseSensitivity = config.get<'auto' | 'caseInsensitive' | 'caseSensitive'>('organizeImports.caseSensitivity');
-		return {
-			// More specific settings
-			organizeImportsTypeOrder: withDefaultAsUndefined(config.get<'auto' | 'last' | 'inline' | 'first'>('organizeImports.typeOrder', 'auto'), 'auto'),
-			organizeImportsIgnoreCase: organizeImportsCaseSensitivity === 'caseInsensitive' ? true
-				: organizeImportsCaseSensitivity === 'caseSensitive' ? false
-					: 'auto',
-			organizeImportsCollation,
-
-			// The rest of the settings are only applicable when using unicode collation
-			...(organizeImportsCollation === 'unicode' ? {
-				organizeImportsCaseFirst: organizeImportsCaseSensitivity === 'caseInsensitive' ? undefined : withDefaultAsUndefined(config.get<'default' | 'upper' | 'lower' | false>('organizeImports.caseFirst', false), 'default'),
-				organizeImportsAccentCollation: config.get<boolean>('organizeImports.accentCollation'),
-				organizeImportsLocale: config.get<string>('organizeImports.locale'),
-				organizeImportsNumericCollation: config.get<boolean>('organizeImports.numericCollation'),
-			} : {}),
-		};
 	}
 
 
@@ -310,8 +278,16 @@ function getInlayParameterNameHintsPreference(scope: vscode.ConfigurationScope, 
 	}
 }
 
-function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('importModuleSpecifier')) {
+function getQuoteStylePreference(scope: vscode.ConfigurationScope, fallbackSection: string) {
+	switch (readUnifiedConfig<string>('preferences.quoteStyle', 'auto', { scope, fallbackSection })) {
+		case 'single': return 'single';
+		case 'double': return 'double';
+		default: return 'auto';
+	}
+}
+
+function getImportModuleSpecifierPreference(scope: vscode.ConfigurationScope, fallbackSection: string) {
+	switch (readUnifiedConfig<string>('preferences.importModuleSpecifier', 'shortest', { scope, fallbackSection })) {
 		case 'project-relative': return 'project-relative';
 		case 'relative': return 'relative';
 		case 'non-relative': return 'non-relative';
@@ -319,8 +295,8 @@ function getImportModuleSpecifierPreference(config: vscode.WorkspaceConfiguratio
 	}
 }
 
-function getImportModuleSpecifierEndingPreference(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('importModuleSpecifierEnding')) {
+function getImportModuleSpecifierEndingPreference(scope: vscode.ConfigurationScope, fallbackSection: string) {
+	switch (readUnifiedConfig<string>('preferences.importModuleSpecifierEnding', 'auto', { scope, fallbackSection })) {
 		case 'minimal': return 'minimal';
 		case 'index': return 'index';
 		case 'js': return 'js';
@@ -328,10 +304,31 @@ function getImportModuleSpecifierEndingPreference(config: vscode.WorkspaceConfig
 	}
 }
 
-function getJsxAttributeCompletionStyle(config: vscode.WorkspaceConfiguration) {
-	switch (config.get<string>('jsxAttributeCompletionStyle')) {
+function getJsxAttributeCompletionStyle(scope: vscode.ConfigurationScope, fallbackSection: string) {
+	switch (readUnifiedConfig<string>('preferences.jsxAttributeCompletionStyle', 'auto', { scope, fallbackSection })) {
 		case 'braces': return 'braces';
 		case 'none': return 'none';
 		default: return 'auto';
 	}
+}
+
+function getOrganizeImportsPreferences(scope: vscode.ConfigurationScope, fallbackSection: string): Proto.UserPreferences {
+	const organizeImportsCollation = readUnifiedConfig<'ordinal' | 'unicode'>('preferences.organizeImports.unicodeCollation', 'ordinal', { scope, fallbackSection });
+	const organizeImportsCaseSensitivity = readUnifiedConfig<'auto' | 'caseInsensitive' | 'caseSensitive'>('preferences.organizeImports.caseSensitivity', 'auto', { scope, fallbackSection });
+	return {
+		// More specific settings
+		organizeImportsTypeOrder: withDefaultAsUndefined(readUnifiedConfig<'auto' | 'last' | 'inline' | 'first'>('preferences.organizeImports.typeOrder', 'auto', { scope, fallbackSection }), 'auto'),
+		organizeImportsIgnoreCase: organizeImportsCaseSensitivity === 'caseInsensitive' ? true
+			: organizeImportsCaseSensitivity === 'caseSensitive' ? false
+				: 'auto',
+		organizeImportsCollation,
+
+		// The rest of the settings are only applicable when using unicode collation
+		...(organizeImportsCollation === 'unicode' ? {
+			organizeImportsCaseFirst: organizeImportsCaseSensitivity === 'caseInsensitive' ? undefined : withDefaultAsUndefined(readUnifiedConfig<'default' | 'upper' | 'lower' | false>('preferences.organizeImports.caseFirst', false, { scope, fallbackSection }), 'default'),
+			organizeImportsAccentCollation: readUnifiedConfig<boolean | undefined>('preferences.organizeImports.accentCollation', undefined, { scope, fallbackSection }),
+			organizeImportsLocale: readUnifiedConfig<string | undefined>('preferences.organizeImports.locale', undefined, { scope, fallbackSection }),
+			organizeImportsNumericCollation: readUnifiedConfig<boolean | undefined>('preferences.organizeImports.numericCollation', undefined, { scope, fallbackSection }),
+		} : {}),
+	};
 }

@@ -15,7 +15,9 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
@@ -121,12 +123,15 @@ export class ChatContextUsageWidget extends Disposable {
 
 	private readonly _contextUsageOpenedKey: IContextKey<boolean>;
 
+	private _enabled: boolean;
+
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -148,6 +153,19 @@ export class ChatContextUsageWidget extends Disposable {
 		if (this.storageService.getBoolean(ChatContextUsageWidget._OPENED_STORAGE_KEY, StorageScope.WORKSPACE, false)) {
 			this._contextUsageOpenedKey.set(true);
 		}
+
+		// Track enabled state from configuration
+		this._enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatContextUsageEnabled) !== false;
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatContextUsageEnabled)) {
+				this._enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatContextUsageEnabled) !== false;
+				if (!this._enabled) {
+					this.hide();
+				} else if (this.currentData) {
+					this.show();
+				}
+			}
+		}));
 
 		// Set up hover - will be configured when data is available
 		this.setupHover();
@@ -294,6 +312,9 @@ export class ChatContextUsageWidget extends Disposable {
 	}
 
 	private show(): void {
+		if (!this._enabled) {
+			return;
+		}
 		if (this.domNode.style.display === 'none') {
 			this.domNode.style.display = '';
 			this._isVisible.set(true, undefined);

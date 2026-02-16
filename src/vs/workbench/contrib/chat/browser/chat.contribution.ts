@@ -60,6 +60,7 @@ import { IPromptsService } from '../common/promptSyntax/service/promptsService.j
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
+import { RenameToolContribution } from './tools/renameTool.js';
 import { UsagesToolContribution } from './tools/usagesTool.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
@@ -459,6 +460,11 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.viewProgressBadge.enabled', "Show a progress badge on the chat view when an agent session is in progress that is opened in that view."),
 		},
+		[ChatConfiguration.ChatContextUsageEnabled]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.contextUsage.enabled', "Show the context window usage indicator in the chat input."),
+		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
 			default: true,
@@ -652,7 +658,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.EditModeHidden]: {
 			type: 'boolean',
 			description: nls.localize('chat.editMode.hidden', "When enabled, hides the Edit mode from the chat mode picker."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -1433,6 +1439,7 @@ registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribu
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(RenameToolContribution.ID, RenameToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActionsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);

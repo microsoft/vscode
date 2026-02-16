@@ -417,7 +417,9 @@ export class OpenModelPickerAction extends Action2 {
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
-						ChatContextKeys.lockedToCodingAgent.negate(),
+						ContextKeyExpr.or(
+							ChatContextKeys.lockedToCodingAgent.negate(),
+							ChatContextKeys.chatSessionHasTargetedModels),
 						ContextKeyExpr.or(
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
@@ -426,6 +428,7 @@ export class OpenModelPickerAction extends Action2 {
 						// Hide in welcome view when session type is not local
 						ContextKeyExpr.or(
 							ChatContextKeys.inAgentSessionsWelcome.negate(),
+							ChatContextKeys.chatSessionHasTargetedModels,
 							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))
 					)
 			}

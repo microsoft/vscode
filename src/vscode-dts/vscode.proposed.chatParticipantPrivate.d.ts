@@ -177,9 +177,14 @@ declare module 'vscode' {
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
 
 		/**
+		 * The identifier of the language model that was used for this request, if known.
+		 */
+		readonly modelId?: string;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined);
 	}
 
 	export class ChatResponseTurn2 {

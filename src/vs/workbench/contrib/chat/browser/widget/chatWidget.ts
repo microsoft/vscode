@@ -634,6 +634,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.height.get() + this.listWidget.contentHeight + this.chatSuggestNextWidget.height;
 	}
 
+	get scrollTop(): number {
+		return this.listWidget.scrollTop;
+	}
+
+	set scrollTop(value: number) {
+		this.listWidget.scrollTop = value;
+	}
+
 	get attachmentModel(): ChatAttachmentModel {
 		return this.input.attachmentModel;
 	}
@@ -670,6 +678,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
+
+		// Forward scroll events from the parent container margins (outside the max-width area) to the chat list
+		this._register(dom.addDisposableListener(parent, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+			this.listWidget.delegateScrollFromMouseWheelEvent(e);
+		}));
 
 		// Update the font family and size
 		this._register(autorun(reader => {

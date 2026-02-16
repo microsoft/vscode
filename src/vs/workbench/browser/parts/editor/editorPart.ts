@@ -973,7 +973,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
 		assertType(isHTMLElement(container));
 
-		return this.scopedInstantiationService.createInstance(EditorDropTarget, container, delegate);
+		return this.scopedInstantiationService.createInstance(EditorDropTarget, this, container, delegate);
 	}
 
 	//#region Part

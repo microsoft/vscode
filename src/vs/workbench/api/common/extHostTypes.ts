@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -3518,7 +3516,8 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly participant: string,
 		readonly toolReferences: vscode.ChatLanguageModelToolReference[],
 		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
-		readonly id?: string
+		readonly id?: string,
+		readonly modelId?: string,
 	) { }
 }
 

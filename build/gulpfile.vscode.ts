@@ -187,6 +187,7 @@ function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, target:
 		const args = [scriptPath, 'bundle', '--out', outDir, '--target', target];
 		if (minify) {
 			args.push('--minify');
+			args.push('--mangle-privates');
 		}
 		if (nls) {
 			args.push('--nls');

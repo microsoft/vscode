@@ -43,6 +43,7 @@ export enum ChatConfiguration {
 	ChatViewSessionsGrouping = 'chat.viewSessions.grouping',
 	ChatViewSessionsOrientation = 'chat.viewSessions.orientation',
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
+	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',

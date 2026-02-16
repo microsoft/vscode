@@ -221,7 +221,7 @@ export class CodeBlockPart extends Disposable {
 		});
 
 		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
-		const editorScopedService = this.editor.contextKeyService.createScoped(toolbarElement);
+		const editorScopedService = this._register(this.editor.contextKeyService.createScoped(toolbarElement));
 		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
 		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
 			menuOptions: {

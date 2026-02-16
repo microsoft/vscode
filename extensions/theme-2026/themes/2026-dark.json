@@ -136,6 +136,7 @@
 		"editorSuggestWidget.selectedBackground": "#3994BC26",
 		"editorHoverWidget.background": "#202122",
 		"editorHoverWidget.border": "#2A2B2CFF",
+		"widget.border": "#2A2B2CFF",
 		"peekView.border": "#2A2B2CFF",
 		"peekViewEditor.background": "#191A1B",
 		"peekViewEditor.matchHighlightBackground": "#3994BC33",

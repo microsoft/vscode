@@ -48,6 +48,7 @@ export interface IModePickerDelegate {
 const builtinDefaultIcon = (mode: IChatMode) => {
 	switch (mode.name.get().toLowerCase()) {
 		case 'ask': return Codicon.ask;
+		case 'edit': return Codicon.edit;
 		case 'plan': return Codicon.tasklist;
 		default: return undefined;
 	}
@@ -176,28 +177,29 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			};
 		};
 
-		const isUserDefinedCustomAgent = (mode: IChatMode): boolean => {
-			if (mode.isBuiltin || !mode.source) {
-				return false;
-			}
-			return mode.source.storage === PromptsStorage.local || mode.source.storage === PromptsStorage.user;
-		};
-
 		const actionProviderWithCustomAgentTarget: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const modes = chatModeService.getModes();
 				const currentMode = delegate.currentMode.get();
 				const filteredCustomModes = modes.custom.filter(mode => {
 					const target = mode.target.get();
-					return isUserDefinedCustomAgent(mode) && (target === customAgentTarget);
+					return target === customAgentTarget || target === Target.Undefined;
 				});
+				const customModes = groupBy(
+					filteredCustomModes,
+					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 				// Always include the default "Agent" option first
 				const checked = currentMode.id === ChatMode.Agent.id;
 				const defaultAction = { ...makeAction(ChatMode.Agent, ChatMode.Agent), checked };
-
+				defaultAction.category = builtInCategory;
+				const builtInActions = customModes.builtin?.map(mode => {
+					const action = makeActionFromCustomMode(mode, currentMode);
+					action.category = builtInCategory;
+					return action;
+				}) ?? [];
 				// Add filtered custom modes
-				const customActions = filteredCustomModes.map(mode => makeActionFromCustomMode(mode, currentMode));
-				return [defaultAction, ...customActions];
+				const customActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
+				return [defaultAction, ...builtInActions, ...customActions];
 			}
 		};
 
@@ -207,13 +209,11 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const currentMode = delegate.currentMode.get();
 				const agentMode = modes.builtin.find(mode => mode.id === ChatMode.Agent.id);
 
-				const shouldHideEditMode = configurationService.getValue<boolean>(ChatConfiguration.EditModeHidden) && chatAgentService.hasToolsAgent && currentMode.id !== ChatMode.Edit.id;
-
 				const otherBuiltinModes = modes.builtin.filter(mode => {
 					if (mode.id === ChatMode.Agent.id) {
 						return false;
 					}
-					if (shouldHideEditMode && mode.id === ChatMode.Edit.id) {
+					if (mode.id === ChatMode.Edit.id) {
 						return false;
 					}
 					if (mode.id === ChatMode.Ask.id) {
@@ -226,14 +226,19 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					modes.custom,
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
-				const customBuiltinModeActions = customModes.builtin?.map(mode => {
+				const modeSupportsVSCode = (mode: IChatMode) => {
+					const target = mode.target.get();
+					return target === Target.Undefined || target === Target.VSCode;
+				};
+
+				const customBuiltinModeActions = customModes.builtin?.filter(modeSupportsVSCode)?.map(mode => {
 					const action = makeActionFromCustomMode(mode, currentMode);
 					action.category = agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory;
 					return action;
 				}) ?? [];
 				customBuiltinModeActions.sort((a, b) => a.label.localeCompare(b.label));
 
-				const customModeActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
+				const customModeActions = customModes.custom?.filter(modeSupportsVSCode)?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
 				customModeActions.sort((a, b) => a.label.localeCompare(b.label));
 
 				const orderedModes = coalesce([

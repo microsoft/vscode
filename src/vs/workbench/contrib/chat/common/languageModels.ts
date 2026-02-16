@@ -195,6 +195,12 @@ export interface ILanguageModelChatMetadata {
 		readonly agentMode?: boolean;
 		readonly editTools?: ReadonlyArray<string>;
 	};
+	/**
+	 * When set, this model is only shown in the model picker for the specified chat session type.
+	 * Models with this property are excluded from the general model picker and only appear
+	 * when the user is in a session matching this type.
+	 */
+	readonly targetChatSessionType?: string;
 }
 
 export namespace ILanguageModelChatMetadata {

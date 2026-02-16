@@ -38,7 +38,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { ACTIVE_GROUP, AUX_WINDOW_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -695,6 +695,23 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class NewChatEditorToSideAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.openChatToSide',
+				title: localize2('interactiveSession.openToSide', "New Chat Editor to the Side"),
+				f1: true,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const widgetService = accessor.get(IChatWidgetService);
+			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), SIDE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+		}
+	});
+
 	registerAction2(class NewChatWindowAction extends Action2 {
 		constructor() {
 			super({
@@ -944,6 +961,29 @@ export function registerChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const widget = widgetService.lastFocusedWidget ?? (await widgetService.revealWidget());
 			widget?.input.showContextUsageDetails();
+		}
+	});
+
+	registerAction2(class ToggleShowContextUsageAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.toggleShowContextUsage',
+				title: localize2('chat.showContextUsage', "Show Context Usage"),
+				category: CHAT_CATEGORY,
+				toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatContextUsageEnabled}`, true),
+				menu: {
+					id: MenuId.ChatWelcomeContext,
+					group: '1_display',
+					order: 1,
+					when: ChatContextKeys.inChatEditor.negate()
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const configurationService = accessor.get(IConfigurationService);
+			const currentValue = configurationService.getValue<boolean>(ChatConfiguration.ChatContextUsageEnabled);
+			await configurationService.updateValue(ChatConfiguration.ChatContextUsageEnabled, !currentValue);
 		}
 	});
 

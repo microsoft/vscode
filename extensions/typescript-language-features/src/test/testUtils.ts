@@ -123,8 +123,7 @@ export const Config = Object.freeze({
 	insertMode: 'editor.suggest.insertMode',
 	snippetSuggestions: 'editor.snippetSuggestions',
 	suggestSelection: 'editor.suggestSelection',
-	javascriptQuoteStyle: 'javascript.preferences.quoteStyle',
-	typescriptQuoteStyle: 'typescript.preferences.quoteStyle',
+	quoteStyle: 'js/ts.preferences.quoteStyle',
 } as const);
 
 export const insertModesValues = Object.freeze(['insert', 'replace']);

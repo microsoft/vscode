@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-/* eslint-disable local/code-no-native-private */
 
 import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
@@ -663,7 +662,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			prompt: turn.prompt,
 			participant: turn.participant,
 			command: turn.command,
-			variableData: variables.length > 0 ? { variables } : undefined
+			variableData: variables.length > 0 ? { variables } : undefined,
+			modelId: turn.modelId,
 		};
 	}
 

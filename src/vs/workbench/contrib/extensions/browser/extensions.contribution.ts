@@ -265,6 +265,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensionsInQuickAccess', "When enabled, extensions can be searched for via Quick Access and report issues from there."),
 				default: true
 			},
+			'extensions.allowOpenInModalEditor': {
+				type: 'boolean',
+				description: localize('extensions.allowOpenInModalEditor', "Controls whether extensions and MCP servers open in a modal editor overlay."),
+				default: product.quality !== 'stable', // TODO@bpasero figure out the default for stable and retire this setting
+				tags: ['experimental'],
+				experiment: {
+					mode: 'auto'
+				}
+			},
 			[VerifyExtensionSignatureConfigKey]: {
 				type: 'boolean',
 				description: localize('extensions.verifySignature', "When enabled, extensions are verified to be signed before getting installed."),

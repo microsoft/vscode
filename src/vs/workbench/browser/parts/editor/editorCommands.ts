@@ -27,7 +27,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
-import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalContext, EditorPartModalMaximizedContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
+import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
 import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
@@ -108,6 +108,8 @@ export const NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID = 'workbench.action.newEmptyEdit
 export const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
 export const MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID = 'workbench.action.moveModalEditorToMain';
 export const TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID = 'workbench.action.toggleModalEditorMaximized';
+export const NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID = 'workbench.action.navigateModalEditorPrevious';
+export const NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID = 'workbench.action.navigateModalEditorNext';
 
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
@@ -1500,6 +1502,64 @@ function registerModalEditorCommands(): void {
 			}
 		}
 	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID,
+				title: localize2('navigateModalEditorPrevious', 'Navigate to Previous Item in Modal Editor'),
+				category: Categories.View,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalNavigationContext),
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.UpArrow,
+					weight: KeybindingWeight.WorkbenchContrib + 10,
+					when: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalNavigationContext)
+				}
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					const nav = part.navigation;
+					if (nav && nav.current > 0) {
+						nav.navigate(nav.current - 1);
+					}
+					break;
+				}
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID,
+				title: localize2('navigateModalEditorNext', 'Navigate to Next Item in Modal Editor'),
+				category: Categories.View,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalNavigationContext),
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.DownArrow,
+					weight: KeybindingWeight.WorkbenchContrib + 10,
+					when: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalNavigationContext)
+				}
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					const nav = part.navigation;
+					if (nav && nav.current < nav.total - 1) {
+						nav.navigate(nav.current + 1);
+					}
+					break;
+				}
+			}
+		}
+	});
 }
 
 function isModalEditorPart(obj: unknown): obj is IModalEditorPart {
@@ -1510,6 +1570,8 @@ function isModalEditorPart(obj: unknown): obj is IModalEditorPart {
 		&& typeof part.onWillClose === 'function'
 		&& typeof part.toggleMaximized === 'function'
 		&& typeof part.maximized === 'boolean'
+		&& typeof part.updateOptions === 'function'
+		&& !!part.modalElement
 		&& part.windowId === mainWindow.vscodeWindowId;
 }
 

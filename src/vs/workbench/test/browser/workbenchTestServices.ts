@@ -2143,6 +2143,7 @@ export class TestChatWidgetService implements IChatWidgetService {
 	onDidAddWidget = Event.None;
 	onDidBackgroundSession = Event.None;
 	onDidChangeFocusedWidget = Event.None;
+	onDidChangeFocusedSession = Event.None;
 
 	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> { return false; }
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }

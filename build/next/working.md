@@ -97,6 +97,20 @@ Two placeholders that need injection:
 
 **Lesson:** Don't add new output file formats that create parity differences with the old build. The old build is the reference.
 
+### 7. Resource Copying: Transpile vs Bundle
+
+**Problem:** The new build used curated, specific resource pattern lists (e.g., `desktopResourcePatterns`) for **both** transpile/dev and production/bundle builds. Team members kept discovering missing resources because every new non-TS file in `src/` required manually adding its pattern.
+
+**Root cause:** The old gulp build uses `gulp.src('src/**')` for dev/transpile — a catch-all glob that streams **every file** in `src/`. Non-TS files bypass the compiler via `tsFilter` + `tsFilter.restore` and land in `out/` untouched. This is inherently complete. The old build only uses curated resource lists for **production packaging** (`vscodeResourceIncludes`, `serverResourceIncludes` in the gulpfiles).
+
+**Fix:**
+- **Transpile/dev path** (`transpile` command, `--watch` mode): Now uses `copyAllNonTsFiles()` which copies ALL non-TS files from `src/` to the output, matching old `gulp.src('src/**')` behavior. No curated patterns needed.
+- **Bundle/production path** (`bundle` command): Continues using `copyResources()` with curated per-target patterns, matching old `vscodeResourceIncludes` etc.
+- Removed `devOnlyResourcePatterns` and `testFixturePatterns` — no longer needed since the broad copy handles all dev resources.
+- Watch mode incremental copy now accepts **any** non-`.ts` file change (removed the `copyExtensions` allowlist).
+
+**Lesson:** Dev builds should copy everything (completeness matters); production builds should be selective (size matters). Don't mix the two strategies.
+
 ---
 
 ## Testing the Fix

@@ -249,8 +249,8 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 
 		// Catch all output coming from the extension host process
 		type Output = { data: string; format: string[] };
-		const onStdout = this._handleProcessOutputStream(this._extensionHostProcess.onStdout);
-		const onStderr = this._handleProcessOutputStream(this._extensionHostProcess.onStderr);
+		const onStdout = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStdout));
+		const onStderr = this._register(this._handleProcessOutputStream(this._extensionHostProcess.onStderr));
 		const onOutput = Event.any(
 			Event.map(onStdout.event, o => ({ data: `%c${o}`, format: [''] })),
 			Event.map(onStderr.event, o => ({ data: `%c${o}`, format: ['color: red'] }))

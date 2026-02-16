@@ -96,6 +96,7 @@ export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>(
 
 export const EditorPartModalContext = new RawContextKey<boolean>('editorPartModal', false, localize('editorPartModal', "Whether focus is in a modal editor part"));
 export const EditorPartModalMaximizedContext = new RawContextKey<boolean>('editorPartModalMaximized', false, localize('editorPartModalMaximized', "Whether the modal editor part is maximized"));
+export const EditorPartModalNavigationContext = new RawContextKey<boolean>('editorPartModalNavigation', false, localize('editorPartModalNavigation', "Whether the modal editor part has navigation context"));
 
 // Editor Layout Context Keys
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false, localize('editorIsOpen', "Whether an editor is open"));

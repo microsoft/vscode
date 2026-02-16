@@ -715,7 +715,7 @@ export class PredictionStats extends Disposable {
 	}
 }
 
-export class PredictionTimeline {
+export class PredictionTimeline extends Disposable {
 	/**
 	 * Expected queue of events. Only predictions for the lowest are
 	 * written into the terminal.
@@ -760,11 +760,11 @@ export class PredictionTimeline {
 	 */
 	private _lookBehind?: IPrediction;
 
-	private readonly _addedEmitter = new Emitter<IPrediction>();
+	private readonly _addedEmitter = this._register(new Emitter<IPrediction>());
 	readonly onPredictionAdded = this._addedEmitter.event;
-	private readonly _failedEmitter = new Emitter<IPrediction>();
+	private readonly _failedEmitter = this._register(new Emitter<IPrediction>());
 	readonly onPredictionFailed = this._failedEmitter.event;
-	private readonly _succeededEmitter = new Emitter<IPrediction>();
+	private readonly _succeededEmitter = this._register(new Emitter<IPrediction>());
 	readonly onPredictionSucceeded = this._succeededEmitter.event;
 
 	private get _currentGenerationPredictions() {
@@ -779,7 +779,7 @@ export class PredictionTimeline {
 		return this._expected.length;
 	}
 
-	constructor(readonly terminal: Terminal, private readonly _style: TypeAheadStyle) { }
+	constructor(readonly terminal: Terminal, private readonly _style: TypeAheadStyle) { super(); }
 
 	setShowPredictions(show: boolean) {
 		if (show === this._showPredictions) {
@@ -1321,7 +1321,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 	activate(terminal: Terminal): void {
 		const style = this._typeaheadStyle = this._register(new TypeAheadStyle(this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoStyle, terminal));
-		const timeline = this._timeline = new PredictionTimeline(terminal, this._typeaheadStyle);
+		const timeline = this._timeline = this._register(new PredictionTimeline(terminal, this._typeaheadStyle));
 		const stats = this.stats = this._register(new PredictionStats(this._timeline));
 
 		timeline.setShowPredictions(this._typeaheadThreshold === 0);

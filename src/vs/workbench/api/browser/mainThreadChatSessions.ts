@@ -128,7 +128,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 						participant: turn.participant,
 						command: turn.command,
 						variableData: variables ? { variables } : undefined,
-						id: turn.id
+						id: turn.id,
+						modelId: turn.modelId,
 					};
 				}
 
