@@ -25,6 +25,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/com
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { isHTMLElement } from '../../../../base/browser/dom.js';
 
 /**
  * Tracks the id of the actively focused webview.
@@ -194,8 +195,14 @@ export class WebviewEditor extends EditorPane {
 			return;
 		}
 
-		const rootContainer = this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
-		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, rootContainer);
+		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
+		let clippingContainer: HTMLElement | undefined;
+		if (isHTMLElement(modalEditorContainer)) {
+			clippingContainer = modalEditorContainer;
+		} else {
+			clippingContainer = this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
+		}
+		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, clippingContainer);
 	}
 
 	private trackFocus(webview: IOverlayWebview): IDisposable {

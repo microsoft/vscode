@@ -24,6 +24,7 @@
 		"--vscode-agentSessionReadIndicator-foreground",
 		"--vscode-agentSessionSelectedBadge-border",
 		"--vscode-agentSessionSelectedUnfocusedBadge-border",
+		"--vscode-agentStatusIndicator-background",
 		"--vscode-badge-background",
 		"--vscode-badge-foreground",
 		"--vscode-banner-background",
@@ -902,6 +903,9 @@
 		"--vscode-window-inactiveBorder"
 	],
 	"others": [
+		"--activity-bar-action-height",
+		"--activity-bar-icon-size",
+		"--activity-bar-width",
 		"--editor-font-size",
 		"--background-dark",
 		"--background-light",

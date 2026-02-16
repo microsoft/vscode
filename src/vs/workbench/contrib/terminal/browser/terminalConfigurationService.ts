@@ -33,7 +33,7 @@ export class TerminalConfigurationService extends Disposable implements ITermina
 		return TerminalLocation.Panel;
 	}
 
-	private readonly _onConfigChanged = new Emitter<void>();
+	private readonly _onConfigChanged = this._register(new Emitter<void>());
 	get onConfigChanged(): Event<void> { return this._onConfigChanged.event; }
 
 	constructor(

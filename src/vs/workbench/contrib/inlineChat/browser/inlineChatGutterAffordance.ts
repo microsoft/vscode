@@ -17,6 +17,7 @@ import { HoverService } from '../../../../platform/hover/browser/hoverService.js
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { ACTION_START } from '../common/inlineChat.js';
 
 export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
@@ -30,6 +31,7 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IThemeService themeService: IThemeService,
+		@IUserInteractionService userInteractionService: IUserInteractionService,
 	) {
 		const data = derived<InlineEditsGutterIndicatorData | undefined>(r => {
 			const value = selection.read(r);
@@ -66,7 +68,7 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 
 		super(
 			_myEditorObs, data, constObservable(InlineEditTabAction.Inactive), constObservable(0), constObservable(false), focusIsInMenu,
-			hoverService, instantiationService, accessibilityService, themeService
+			hoverService, instantiationService, accessibilityService, themeService, userInteractionService
 		);
 
 		this._store.add(autorun(r => {

@@ -18,6 +18,9 @@ import { sumByCategory } from '../helpers/utils.js';
 import { ScmAdapter, ScmRepoAdapter } from './scmAdapter.js';
 import { IRandomService } from '../randomService.js';
 
+type EditTelemetryMode = 'longterm' | '5minWindow' | '20minFocusWindow';
+type EditTelemetryTrigger = '10hours' | 'hashChange' | 'branchChange' | 'closed' | 'time';
+
 export class EditSourceTrackingImpl extends Disposable {
 	public readonly docsState;
 	private readonly _states;
@@ -63,7 +66,7 @@ class TrackedDocumentInfo extends Disposable {
 
 		const longtermResetSignal = observableSignal('resetSignal');
 
-		let longtermReason: '10hours' | 'hashChange' | 'branchChange' | 'closed' = 'closed';
+		let longtermReason: EditTelemetryTrigger = 'closed';
 		this.longtermTracker = derived((reader) => {
 			if (!this._statsEnabled.read(reader)) { return undefined; }
 			longtermResetSignal.read(reader);
@@ -167,7 +170,7 @@ class TrackedDocumentInfo extends Disposable {
 
 	}
 
-	async sendTelemetry(mode: 'longterm' | '5minWindow' | '20minFocusWindow', trigger: string, t: DocumentEditSourceTracker, focusTime: number, actualTime: number) {
+	async sendTelemetry(mode: EditTelemetryMode, trigger: EditTelemetryTrigger, t: DocumentEditSourceTracker, focusTime: number, actualTime: number) {
 		const ranges = t.getTrackedRanges();
 		const keys = t.getAllKeys();
 		if (keys.length === 0) {
@@ -198,7 +201,7 @@ class TrackedDocumentInfo extends Disposable {
 			const deltaModifiedCount = t.getTotalInsertedCharactersCount(key);
 
 			this._telemetryService.publicLog2<{
-				mode: string;
+				mode: EditTelemetryMode;
 				sourceKey: string;
 
 				sourceKeyCleaned: string;
@@ -206,7 +209,7 @@ class TrackedDocumentInfo extends Disposable {
 				extensionVersion: string | undefined;
 				modelId: string | undefined;
 
-				trigger: string;
+				trigger: EditTelemetryTrigger;
 				languageId: string;
 				statsUuid: string;
 				modifiedCount: number;
@@ -254,7 +257,7 @@ class TrackedDocumentInfo extends Disposable {
 
 		const isTrackedByGit = await data.isTrackedByGit;
 		this._telemetryService.publicLog2<{
-			mode: string;
+			mode: EditTelemetryMode;
 			languageId: string;
 			statsUuid: string;
 			nesModifiedCount: number;
@@ -269,7 +272,7 @@ class TrackedDocumentInfo extends Disposable {
 			isTrackedByGit: number;
 			focusTime: number;
 			actualTime: number;
-			trigger: string;
+			trigger: EditTelemetryTrigger;
 		}, {
 			owner: 'hediet';
 			comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (5 minutes of wall-clock time, 20 minutes of focus time for visible documents, or 10 hours otherwise). Focus time is computed as accumulated 1-minute blocks where VS Code has focus and there was recent user activity. Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';

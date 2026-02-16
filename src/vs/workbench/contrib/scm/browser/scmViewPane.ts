@@ -1502,7 +1502,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 	private _cancelAction: IAction;
 
-	private _onDidChange = new Emitter<void>();
+	private _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private readonly _disposables = this._register(new MutableDisposable<DisposableStore>());
@@ -1698,6 +1698,7 @@ class SCMInputWidgetEditorOptions {
 
 	dispose(): void {
 		this._disposables.dispose();
+		this._onDidChange.dispose();
 	}
 
 }
@@ -1932,7 +1933,7 @@ class SCMInputWidget {
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
 		this.toolbarContainer = append(this.element, $('.scm-editor-toolbar'));
 
-		this.contextKeyService = contextKeyService.createScoped(this.element);
+		this.contextKeyService = this.disposables.add(contextKeyService.createScoped(this.element));
 		this.repositoryIdContextKey = this.contextKeyService.createKey('scmRepository', undefined);
 		this.validationMessageContextKey = ContextKeys.SCMInputHasValidationMessage.bindTo(this.contextKeyService);
 
@@ -2189,7 +2190,7 @@ class SCMInputWidget {
 
 export class SCMViewPane extends ViewPane {
 
-	private _onDidLayout: Emitter<void>;
+	private readonly _onDidLayout: Emitter<void>;
 	private layoutCache: ISCMLayout;
 
 	private treeScrollTop: number | undefined;
@@ -2221,7 +2222,7 @@ export class SCMViewPane extends ViewPane {
 		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
-	private readonly _onDidChangeViewMode = new Emitter<ViewMode>();
+	private readonly _onDidChangeViewMode = this._register(new Emitter<ViewMode>());
 	readonly onDidChangeViewMode = this._onDidChangeViewMode.event;
 
 	private _viewSortKey: ViewSortKey;
@@ -2242,7 +2243,7 @@ export class SCMViewPane extends ViewPane {
 		}
 	}
 
-	private readonly _onDidChangeViewSortKey = new Emitter<ViewSortKey>();
+	private readonly _onDidChangeViewSortKey = this._register(new Emitter<ViewSortKey>());
 	readonly onDidChangeViewSortKey = this._onDidChangeViewSortKey.event;
 
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
@@ -2299,7 +2300,7 @@ export class SCMViewPane extends ViewPane {
 		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
 		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
 
-		this._onDidLayout = new Emitter<void>();
+		this._onDidLayout = this._register(new Emitter<void>());
 		this.layoutCache = { height: undefined, width: undefined, onDidChange: this._onDidLayout.event };
 
 		this.storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this.disposables)(e => {
@@ -3007,6 +3008,8 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	override dispose(): void {
+		this._onDidChangeViewMode.dispose();
+		this._onDidChangeViewSortKey.dispose();
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
 		this.items.dispose();

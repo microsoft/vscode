@@ -130,7 +130,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 			this.inputResultView.editor,
 		);
 		this.scrollSynchronizer = this._register(new ScrollSynchronizer(this._viewModel, this.input1View, this.input2View, this.baseView, this.inputResultView, this._layoutModeObs));
-		this._onDidChangeSizeConstraints = new Emitter<void>();
+		this._onDidChangeSizeConstraints = this._register(new Emitter<void>());
 		this.onDidChangeSizeConstraints = this._onDidChangeSizeConstraints.event;
 		this.baseViewDisposables = this._register(new DisposableStore());
 		this.showNonConflictingChangesStore = this.instantiationService.createInstance(PersistentStore<boolean>, 'mergeEditor/showNonConflictingChanges');

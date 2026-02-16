@@ -1,0 +1,133 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/** Modal Background Block */
+.monaco-modal-editor-block {
+	position: fixed;
+	width: 100%;
+	height: 100%;
+	top: 0;
+	left: 0;
+	/* z-index for modal editors: above titlebar (2500) but below quick input (2550) and dialogs (2575) */
+	z-index: 2540;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	/* Never allow content to escape above the title bar */
+	overflow: hidden;
+	background: rgba(0, 0, 0, 0.3);
+
+	.modal-editor-shadow {
+		box-shadow: 0 4px 32px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.2));
+		border-radius: 8px;
+		overflow: hidden;
+	}
+}
+
+/** Modal Editor Container */
+.monaco-modal-editor-block .modal-editor-part {
+	display: flex;
+	flex-direction: column;
+	min-width: 400px;
+	min-height: 300px;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-radius: 8px;
+	overflow: hidden;
+
+	&:focus {
+		outline: none;
+	}
+
+	.content {
+		flex: 1;
+		position: relative;
+		overflow: hidden;
+	}
+}
+
+/** Modal Editor Header */
+.monaco-modal-editor-block .modal-editor-header {
+	display: grid;
+	grid-template-columns: 1fr auto 1fr;
+	align-items: center;
+	height: 32px;
+	min-height: 32px;
+	padding: 0 8px 0 16px;
+	color: var(--vscode-titleBar-activeForeground);
+	background-color: var(--vscode-titleBar-activeBackground);
+	border-bottom: 1px solid var(--vscode-titleBar-border, transparent);
+
+	/* Modal Editor Title */
+	.modal-editor-title {
+		grid-column: 1;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--vscode-titleBar-activeForeground);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	/* Modal Editor Navigation */
+	.modal-editor-navigation {
+		grid-column: 2;
+		display: flex;
+		align-items: center;
+		height: 22px;
+		border-radius: 4px;
+		border: 1px solid var(--vscode-commandCenter-border, transparent);
+		overflow: hidden;
+		user-select: none;
+		-webkit-user-select: none;
+
+		.modal-editor-nav-button.monaco-button {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			width: 22px;
+			height: 100%;
+			padding: 0;
+			border: none;
+			border-radius: 0;
+			background: none;
+			color: inherit;
+			opacity: 0.7;
+		}
+
+		.modal-editor-nav-button.monaco-button:hover:not(.disabled) {
+			opacity: 1;
+			background-color: var(--vscode-commandCenter-activeBackground);
+		}
+
+		.modal-editor-nav-button.monaco-button.disabled {
+			opacity: 0.3;
+		}
+
+		.modal-editor-nav-label {
+			font-size: 11px;
+			font-variant-numeric: tabular-nums;
+			opacity: 0.7;
+			white-space: nowrap;
+			padding: 0 6px;
+		}
+	}
+
+	/* Modal Editor Actions */
+	.modal-editor-action-container {
+		grid-column: 3;
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+
+		.actions-container {
+			gap: 4px;
+
+			.codicon {
+				color: inherit;
+			}
+		}
+	}
+}

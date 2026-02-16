@@ -353,7 +353,7 @@ async function setup(): Promise<void> {
 	await measureAndLog(() => setupRepository(), 'setupRepository', logger);
 
 	// Copy smoke test extension for extension host restart test
-	if (!opts.web) {
+	if (!opts.web && !opts.remote) {
 		const smokeExtPath = path.join(rootPath, 'test', 'smoke', 'extensions', 'vscode-smoketest-ext-host');
 		const dest = path.join(extensionsPath, 'vscode-smoketest-ext-host');
 		if (fs.existsSync(dest)) {
@@ -414,7 +414,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupTaskTests(logger);
 	setupStatusbarTests(logger);
 	if (quality !== Quality.Dev && quality !== Quality.OSS) { setupExtensionTests(logger); }
-	if (!opts.web) { setupExtensionHostRestartTests(logger); }
+	if (!opts.web && !opts.remote) { setupExtensionHostRestartTests(logger); }
 	setupMultirootTests(logger);
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }

@@ -544,10 +544,10 @@ export class Protocol extends Disposable implements IMessagePassingProtocol {
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
 
-	private readonly _onMessage = new Emitter<VSBuffer>();
+	private readonly _onMessage = this._register(new Emitter<VSBuffer>());
 	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
-	private readonly _onDidDispose = new Emitter<void>();
+	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
 	constructor(socket: ISocket) {

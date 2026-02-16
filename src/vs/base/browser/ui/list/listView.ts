@@ -332,8 +332,8 @@ export class ListView<T> implements IListView<T> {
 
 	private readonly disposables: DisposableStore = new DisposableStore();
 
-	private readonly _onDidChangeContentHeight = new Emitter<number>();
-	private readonly _onDidChangeContentWidth = new Emitter<number>();
+	private readonly _onDidChangeContentHeight = this.disposables.add(new Emitter<number>());
+	private readonly _onDidChangeContentWidth = this.disposables.add(new Emitter<number>());
 	readonly onDidChangeContentHeight: Event<number> = Event.latch(this._onDidChangeContentHeight.event, undefined, this.disposables);
 	readonly onDidChangeContentWidth: Event<number> = Event.latch(this._onDidChangeContentWidth.event, undefined, this.disposables);
 	get contentHeight(): number { return this.rangeMap.size; }

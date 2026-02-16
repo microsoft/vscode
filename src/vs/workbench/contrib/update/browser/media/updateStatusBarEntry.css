@@ -7,8 +7,8 @@
 	display: flex;
 	flex-direction: column;
 	padding: 4px 0;
-	min-width: 300px;
-	max-width: 400px;
+	min-width: 310px;
+	max-width: 410px;
 }
 
 /* Header with title and gear icon */
@@ -134,15 +134,4 @@
 .update-status-tooltip .time-remaining {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-bodyFontSize-small);
-}
-
-/* Action button */
-.update-status-tooltip .action-button-container {
-	display: flex;
-	justify-content: flex-end;
-	margin-top: 8px;
-}
-
-.update-status-tooltip .action-button-container .monaco-button {
-	padding: 4px 14px;
 }

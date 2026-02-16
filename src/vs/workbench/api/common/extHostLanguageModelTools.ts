@@ -127,6 +127,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
 				subAgentInvocationId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.subAgentInvocationId : undefined,
 				chatStreamToolCallId: isProposedApiEnabled(extension, 'chatParticipantAdditions') ? options.chatStreamToolCallId : undefined,
+				preToolUseResult: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.preToolUseResult : undefined,
 			}, token);
 
 			const dto: Dto<IToolResult> = result instanceof SerializableObjectWithBuffers ? result.value : result;
@@ -290,8 +291,12 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			chatRequestId: context.chatRequestId,
 			chatSessionId: context.chatSessionId,
 			chatSessionResource: context.chatSessionResource,
-			chatInteractionId: context.chatInteractionId
+			chatInteractionId: context.chatInteractionId,
+			forceConfirmationReason: context.forceConfirmationReason
 		};
+		if (context.forceConfirmationReason) {
+			checkProposedApiEnabled(item.extension, 'chatParticipantPrivate');
+		}
 		if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);
 			if (!result) {
@@ -309,7 +314,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
-				presentation: result.presentation as ToolInvocationPresentation | undefined
+				presentation: result.presentation as ToolInvocationPresentation | undefined,
 			};
 		}
 

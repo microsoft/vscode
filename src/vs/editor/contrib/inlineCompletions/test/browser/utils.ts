@@ -279,6 +279,7 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },
 					refresh: async () => { return null; },
 					signIn: async () => { return null; },
+					signOut: async () => { },
 				});
 				options.serviceCollection.set(IRenameSymbolTrackerService, new NullRenameSymbolTrackerService());
 
