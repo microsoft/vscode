@@ -58,6 +58,7 @@ import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-mai
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 import { ResourceSet } from '../../../base/common/map.js';
+import { extractSelection } from '../../opener/common/opener.js';
 
 //#region Helper Interfaces
 
@@ -1049,7 +1050,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return undefined;
 	}
 
-	private async resolveOpenable(openable: IWindowOpenable, options: IPathResolveOptions = Object.create(null)): Promise<IPathToOpen | undefined> {
+	private async resolveOpenable(openable: IWindowOpenable, options: IPathResolveOptions = Object.create(null)): Promise<IPathToOpen<ITextEditorOptions> | undefined> {
 
 		// handle file:// openables with some extra validation
 		const uri = this.resourceFromOpenable(openable);
@@ -1058,7 +1059,14 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				options = { ...options, forceOpenWorkspaceAsFile: true };
 			}
 
-			return this.doResolveFilePath(uri.fsPath, options);
+			const { uri: uriWithoutSelection, selection } = extractSelection(uri);
+			const resolved = await this.doResolveFilePath(uriWithoutSelection.fsPath, options);
+			// Only apply selection from the original URI fragment to files when resolved options don't already provide one.
+			if (resolved?.fileUri && selection && !resolved.options?.selection) {
+				return { ...resolved, options: { ...(resolved.options ?? {}), selection } };
+			}
+
+			return resolved;
 		}
 
 		// handle non file:// openables

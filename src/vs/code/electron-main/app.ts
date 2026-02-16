@@ -829,7 +829,7 @@ export class CodeApplication extends Disposable {
 
 		// File path
 		if (uri.authority === Schemas.file) {
-			const fileUri = URI.file(uri.fsPath);
+			const fileUri = URI.file(uri.fsPath).with({ query: uri.query, fragment: uri.fragment });
 
 			if (hasWorkspaceFileExtension(fileUri)) {
 				return { workspaceUri: fileUri };
