@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IInstantiationService, createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { IEditorOptions, IModalEditorNavigation, IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -19,6 +19,24 @@ import { IMenuChangeEvent, MenuId } from '../../../../platform/actions/common/ac
 import { DeepPartial } from '../../../../base/common/types.js';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
+
+export const enum GroupActivationReason {
+
+	/**
+	 * Group was activated explicitly by user or programmatic action.
+	 */
+	DEFAULT = 0,
+
+	/**
+	 * Group was activated because a modal or auxiliary editor part was closing.
+	 */
+	PART_CLOSE = 1
+}
+
+export interface IEditorGroupActivationEvent {
+	readonly group: IEditorGroup;
+	readonly reason: GroupActivationReason;
+}
 
 export const enum GroupDirection {
 	UP,
@@ -212,7 +230,7 @@ export interface IEditorGroupsContainer {
 	/**
 	 * An event for when a group gets activated.
 	 */
-	readonly onDidActivateGroup: Event<IEditorGroup>;
+	readonly onDidActivateGroup: Event<IEditorGroupActivationEvent>;
 
 	/**
 	 * An event for when the index of a group changes.
@@ -495,11 +513,60 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
 	 * Close this auxiliary editor part after moving all
-	 * editors of all groups back to the main editor part.
+	 * dirty editors of all groups back to the main editor
+	 * part.
 	 *
 	 * @returns `false` if an editor could not be moved back.
 	 */
 	close(): boolean;
+}
+
+export interface IModalEditorPart extends IEditorPart {
+
+	/**
+	 * Modal container of the editor part.
+	 */
+	readonly modalElement: unknown /* HTMLElement */;
+
+	/**
+	 * Whether the modal editor part is currently maximized.
+	 */
+	readonly maximized: boolean;
+
+	/**
+	 * Fired when the maximized state changes.
+	 */
+	readonly onDidChangeMaximized: Event<boolean>;
+
+	/**
+	 * Toggle between default and maximized size.
+	 */
+	toggleMaximized(): void;
+
+	/**
+	 * The current navigation context, if any.
+	 */
+	readonly navigation: IModalEditorNavigation | undefined;
+
+	/**
+	 * Update options for the modal editor part.
+	 */
+	updateOptions(options?: IModalEditorPartOptions): void;
+
+	/**
+	 * Fired when this modal editor part is about to close.
+	 */
+	readonly onWillClose: Event<void>;
+
+	/**
+	 * Close this modal editor part after moving all
+	 * editors of all groups back to the main editor part
+	 * if the related option is set. Dirty editors are
+	 * always moved back to the main part and thus not closed.
+	 *
+	 * @returns `false` if an editor could not be moved back.
+	 */
+	close(options?: { mergeAllEditorsToMainPart?: boolean }): boolean;
 }
 
 export interface IEditorWorkingSet {
@@ -566,6 +633,20 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * in there at the optional position and size on screen.
 	 */
 	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle>; compact?: boolean; alwaysOnTop?: boolean }): Promise<IAuxiliaryEditorPart>;
+
+	/**
+	 * Creates a modal editor part that shows in a modal overlay
+	 * on top of the main workbench window.
+	 *
+	 * If a modal part already exists, it will be returned
+	 * instead of creating a new one.
+	 */
+	createModalEditorPart(options?: IModalEditorPartOptions): Promise<IModalEditorPart>;
+
+	/**
+	 * The currently active modal editor part, if any.
+	 */
+	readonly activeModalEditorPart: IModalEditorPart | undefined;
 
 	/**
 	 * Returns the instantiation service that is scoped to the

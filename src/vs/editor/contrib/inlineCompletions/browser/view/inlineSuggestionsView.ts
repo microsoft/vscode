@@ -146,6 +146,7 @@ export class InlineSuggestionsView extends Disposable {
 			}),
 			{
 				useSyntaxHighlighting: this._editorObs.getOption(EditorOption.inlineSuggest).map(v => v.syntaxHighlightingEnabled),
+				highlightShortSuggestions: true,
 			},
 		);
 	}

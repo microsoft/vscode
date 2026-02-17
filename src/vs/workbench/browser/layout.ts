@@ -11,7 +11,7 @@ import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
 import { SidebarPart } from './parts/sidebar/sidebarPart.js';
 import { PanelPart } from './parts/panel/panelPart.js';
-import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart } from '../services/layout/browser/layoutService.js';
+import { Position, Parts, PartOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, partOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar, isHorizontal, isMultiWindowPart, IPartVisibilityChangeEvent } from '../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../platform/storage/common/storage.js';
 import { IConfigurationChangeEvent, IConfigurationService, isConfigured } from '../../platform/configuration/common/configuration.js';
@@ -22,7 +22,7 @@ import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, Titl
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
-import { EditorGroupLayout, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { Part } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
@@ -116,7 +116,8 @@ interface IInitialEditorsState {
 }
 
 const COMMAND_CENTER_SETTINGS = [
-	'chat.commandCenter.enabled',
+	'chat.agentsControl.enabled',
+	'chat.unifiedAgentsBar.enabled',
 	'workbench.navigationControl.enabled',
 	'workbench.experimental.share.enabled',
 ];
@@ -156,7 +157,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangePanelPosition = this._register(new Emitter<string>());
 	readonly onDidChangePanelPosition = this._onDidChangePanelPosition.event;
 
-	private readonly _onDidChangePartVisibility = this._register(new Emitter<void>());
+	private readonly _onDidChangePartVisibility = this._register(new Emitter<IPartVisibilityChangeEvent>());
 	readonly onDidChangePartVisibility = this._onDidChangePartVisibility.event;
 
 	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
@@ -340,29 +341,59 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Restore editor if hidden and an editor is to show
 		const showEditorIfHidden = () => {
-			if (!this.isVisible(Parts.EDITOR_PART, mainWindow)) {
-				if (this.isAuxiliaryBarMaximized()) {
-					this.toggleMaximizedAuxiliaryBar();
-				} else {
-					this.toggleMaximizedPanel();
-				}
+			if (
+				this.isVisible(Parts.EDITOR_PART, mainWindow) ||		// already visible
+				this.mainPartEditorService.visibleEditors.length === 0	// no editor to show
+			) {
+				return;
 			}
+
+			if (this.isAuxiliaryBarMaximized()) {
+				this.toggleMaximizedAuxiliaryBar();
+			} else {
+				this.toggleMaximizedPanel();
+			}
+		};
+
+		// Maybe maximize auxiliary bar when no editors are visible
+		const maybeMaximizeAuxiliaryBar = () => {
+			if (
+				this.mainPartEditorService.visibleEditors.length === 0 &&
+				this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED) === true
+			) {
+				this.setAuxiliaryBarMaximized(true);
+
+				return true;
+			}
+
+			return false;
 		};
 
 		// Wait to register these listeners after the editor group service
 		// is ready to avoid conflicts on startup
 		this.editorGroupService.whenRestored.then(() => {
 
-			// Restore main editor part on any editor change in main part
-			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(showEditorIfHidden));
-			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
+			// Handle visible editors changing for parts visibility
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(() => {
+				const handled = maybeMaximizeAuxiliaryBar();
+				if (!handled) {
+					showEditorIfHidden();
+				}
+			}));
+			this._register(this.editorGroupService.mainPart.onDidActivateGroup(e => {
+				if (e.reason !== GroupActivationReason.PART_CLOSE) {
+					showEditorIfHidden(); // only show unless a modal/auxiliary part closes
+				}
+			}));
 
-			// Revalidate center layout when active editor changes: diff editor quits centered mode.
+			// Revalidate center layout when active editor changes: diff editor quits centered mode
 			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));
 		});
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
+
+			// Layout related
 			if ([
 				...TITLE_BAR_SETTINGS,
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
@@ -370,14 +401,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			].some(setting => e.affectsConfiguration(setting))) {
 
 				// Show Command Center if command center actions enabled
-				const shareEnabled = e.affectsConfiguration('workbench.experimental.share.enabled') && this.configurationService.getValue<boolean>('workbench.experimental.share.enabled');
-				const navigationControlEnabled = e.affectsConfiguration('workbench.navigationControl.enabled') && this.configurationService.getValue<boolean>('workbench.navigationControl.enabled');
+				const enabledCommandCenterAction = COMMAND_CENTER_SETTINGS.some(setting => e.affectsConfiguration(setting) && this.configurationService.getValue<boolean>(setting) === true);
 
-				// Currently not supported for "chat.commandCenter.enabled" as we
-				// programatically set this during setup and could lead to unwanted titlebar appearing
-				// const chatControlsEnabled = e.affectsConfiguration('chat.commandCenter.enabled') && this.configurationService.getValue<boolean>('chat.commandCenter.enabled');
-
-				if (shareEnabled || navigationControlEnabled) {
+				if (enabledCommandCenterAction) {
 					if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER) === false) {
 						this.configurationService.updateValue(LayoutSettings.COMMAND_CENTER, true);
 						return; // onDidChangeConfiguration will be triggered again
@@ -398,6 +424,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				this.doUpdateLayoutConfiguration();
+			}
+
+			// Auxiliary Sidebar
+			if (e.affectsConfiguration(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED)) {
+				const forceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
+				if (forceMaximized === true && this.mainPartEditorService.visibleEditors.length === 0) {
+					this.setAuxiliaryBarMaximized(true);
+				} else if (forceMaximized === false && this.isAuxiliaryBarMaximized()) {
+					this.setAuxiliaryBarMaximized(false);
+				}
 			}
 		}));
 
@@ -773,10 +809,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Restore editors based on a set of rules:
 		// - never when running on temporary workspace
+		// - never when `workbench.editor.restoreEditors` is disabled
 		// - not when we have files to open, unless:
 		// - always when `window.restoreWindows: preserve`
 
 		if (isTemporaryWorkspace(contextService.getWorkspace())) {
+			return false;
+		}
+
+		if (this.configurationService.getValue<boolean>(WorkbenchLayoutSettings.EDITOR_RESTORE_EDITORS) === false) {
 			return false;
 		}
 
@@ -1556,7 +1597,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
 
-		const viewMap = {
+		const viewMap: Record<string, ISerializableView> = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
 			[Parts.BANNER_PART]: this.bannerPartView,
 			[Parts.TITLEBAR_PART]: this.titleBarPartView,
@@ -1600,7 +1641,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					}
 				}
 
-				this._onDidChangePartVisibility.fire();
+				this._onDidChangePartVisibility.fire({ partId: part.getId(), visible });
 				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 			}));
 		}
@@ -1943,6 +1984,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (alignment !== 'center' && this.isPanelMaximized()) {
 			this.toggleMaximizedPanel();
 		}
+
+		// Leave auxiliary bar maximized state because changing
+		// panel alignment requires the editor part to be visible
+		this.setAuxiliaryBarMaximized(false);
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
 
@@ -2766,11 +2811,13 @@ interface ILayoutStateChangeEvent<T extends StorageKeyType> {
 
 enum WorkbenchLayoutSettings {
 	AUXILIARYBAR_DEFAULT_VISIBILITY = 'workbench.secondarySideBar.defaultVisibility',
+	AUXILIARYBAR_FORCE_MAXIMIZED = 'workbench.secondarySideBar.forceMaximized',
 	ACTIVITY_BAR_VISIBLE = 'workbench.activityBar.visible',
 	PANEL_POSITION = 'workbench.panel.defaultLocation',
 	PANEL_OPENS_MAXIMIZED = 'workbench.panel.opensMaximized',
 	ZEN_MODE_CONFIG = 'zenMode',
 	EDITOR_CENTERED_LAYOUT_AUTO_RESIZE = 'workbench.editor.centeredLayoutAutoResize',
+	EDITOR_RESTORE_EDITORS = 'workbench.editor.restoreEditors',
 }
 
 enum LegacyWorkbenchLayoutSettings {
@@ -2865,20 +2912,24 @@ class LayoutStateModel extends Disposable {
 		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
 		// Set dynamic defaults: part sizing and side bar visibility
+		const auxiliaryBarForceMaximized = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_FORCE_MAXIMIZED);
 		const workbenchState = this.contextService.getWorkbenchState();
 		const mainContainerDimension = configuration.mainContainerDimension;
 		LayoutStateKeys.SIDEBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
-		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
-		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
+		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY || auxiliaryBarForceMaximized === true;
+		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = auxiliaryBarForceMaximized ? Math.max(300, mainContainerDimension.width / 2) : Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
 			if (isWeb && !this.environmentService.remoteAuthority) {
 				return true; // not required in web if unsupported
 			}
 
-			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
+			if (auxiliaryBarForceMaximized === true) {
+				return false; // forced to be visible
+			}
 
 			// Unless auxiliary bar visibility is explicitly configured, make
 			// sure to not force open it in case we know it was empty before.
+			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 			if (configuration.defaultValue !== 'hidden' && !isConfigured(configuration) && this.stateCache.get(LayoutStateKeys.AUXILIARYBAR_EMPTY.name)) {
 				return true;
 			}
@@ -2937,10 +2988,13 @@ class LayoutStateModel extends Disposable {
 
 	private applyOverrides(configuration: ILayoutStateLoadConfiguration): void {
 
-		// Auxiliary bar: Maximized setting (new workspaces)
+		// Auxiliary bar: Maximized settings
 		if (this.isNew[StorageScope.WORKSPACE]) {
 			const defaultAuxiliaryBarVisibility = this.configurationService.getValue(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
-			if (
+			const startupEditor = this.configurationService.getValue<'none' | 'welcomePage' | 'readme' | 'newUntitledFile' | 'welcomePageInEmptyWorkbench' | 'terminal' | 'agentSessionsWelcomePage'>('workbench.startupEditor');
+			if (startupEditor === 'agentSessionsWelcomePage') {
+				this.applyAuxiliaryBarHiddenOverride(true);
+			} else if (
 				defaultAuxiliaryBarVisibility === 'maximized' ||
 				(defaultAuxiliaryBarVisibility === 'maximizedInWorkspace' && this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)
 			) {
@@ -2979,6 +3033,10 @@ class LayoutStateModel extends Disposable {
 
 		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_LAST_NON_MAXIMIZED_SIZE, this.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE));
 		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED, true);
+	}
+
+	private applyAuxiliaryBarHiddenOverride(value: boolean): void {
+		this.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, value);
 	}
 
 	save(workspace: boolean, global: boolean): void {

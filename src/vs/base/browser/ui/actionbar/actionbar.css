@@ -45,7 +45,8 @@
 	height: 16px;
 }
 
-.monaco-action-bar .action-label {
+.monaco-action-bar .action-label,
+.monaco-action-bar .action-item .keybinding  {
 	display: flex;
 	font-size: 11px;
 	padding: 3px;
@@ -75,12 +76,14 @@
 	display: block;
 }
 
-.monaco-action-bar.vertical .action-label.separator {
+.monaco-action-bar.vertical .action-item .action-label.separator {
 	display: block;
-	border-bottom: 1px solid var(--vscode-disabledForeground);
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-disabledForeground));
 	padding-top: 1px;
-	margin-left: .8em;
-	margin-right: .8em;
+	margin: 4px .8em;
+	width: 100%;
+	height: 0;
+	background-color: transparent;
 }
 
 .monaco-action-bar .action-item .action-label.separator {

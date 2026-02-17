@@ -281,6 +281,7 @@ export interface IWorkspace {
 	 * the location of the workspace configuration
 	 */
 	readonly configuration?: URI | null;
+
 }
 
 export function isWorkspace(thing: unknown): thing is IWorkspace {

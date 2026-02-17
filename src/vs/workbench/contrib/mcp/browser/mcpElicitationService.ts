@@ -19,7 +19,6 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../plat
 import { ChatElicitationRequestPart } from '../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatModel } from '../../chat/common/model/chatModel.js';
 import { ElicitationState, IChatService } from '../../chat/common/chatService/chatService.js';
-import { LocalChatSessionUri } from '../../chat/common/model/chatUri.js';
 import { ElicitationKind, ElicitResult, IFormModeElicitResult, IMcpElicitationService, IMcpServer, IMcpToolCallContext, IUrlModeElicitResult, McpConnectionState, MpcResponseError } from '../common/mcpTypes.js';
 import { mcpServerToSourceData } from '../common/mcpTypesUtils.js';
 import { MCP } from '../common/modelContextProtocol.js';
@@ -85,7 +84,7 @@ export class McpElicitationService implements IMcpElicitationService {
 	private async _elicitForm(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams, token: CancellationToken): Promise<IFormModeElicitResult> {
 		const store = new DisposableStore();
 		const value = await new Promise<MCP.ElicitResult>(resolve => {
-			const chatModel = context?.chatSessionId && this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
+			const chatModel = context?.chatSessionResource && this._chatService.getSession(context.chatSessionResource);
 			if (chatModel instanceof ChatModel) {
 				const request = chatModel.getRequests().at(-1);
 				if (request) {
@@ -152,7 +151,7 @@ export class McpElicitationService implements IMcpElicitationService {
 
 		const store = new DisposableStore();
 		const value = await new Promise<MCP.ElicitResult>(resolve => {
-			const chatModel = context?.chatSessionId && this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
+			const chatModel = context?.chatSessionResource && this._chatService.getSession(context.chatSessionResource);
 			if (chatModel instanceof ChatModel) {
 				const request = chatModel.getRequests().at(-1);
 				if (request) {

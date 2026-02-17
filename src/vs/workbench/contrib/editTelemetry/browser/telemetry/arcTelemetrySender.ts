@@ -95,7 +95,7 @@ export class EditTelemetryReportInlineEditArcSender extends Disposable {
 					...forwardToChannelIf(isCopilotLikeExtension(data.$extensionId)),
 				});
 			}, () => {
-				this._store.deleteAndLeak(reporter);
+				this._store.delete(reporter);
 			}));
 		}));
 	}
@@ -255,7 +255,7 @@ export class EditTelemetryReportEditArcForChatOrInlineChatSender extends Disposa
 					...forwardToChannelIf(isCopilotLikeExtension(data.props.$extensionId)),
 				});
 			}, () => {
-				this._store.deleteAndLeak(reporter);
+				this._store.delete(reporter);
 			}));
 		}));
 	}

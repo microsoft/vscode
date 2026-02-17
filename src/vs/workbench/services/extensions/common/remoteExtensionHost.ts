@@ -225,7 +225,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: remoteInitData.globalStorageHome,
 				workspaceStorageHome: remoteInitData.workspaceStorageHome,
-				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions
+				extensionLogLevel: this._defaultLogLevelsService.defaultLogLevels.extensions,
+				isSessionsWindow: this._environmentService.isSessionsWindow
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : {
 				configuration: workspace.configuration,

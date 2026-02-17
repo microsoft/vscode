@@ -201,6 +201,11 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	enumItemLabels?: string[];
 
 	/**
+	 * Optional keywords used for search purposes.
+	 */
+	keywords?: string[];
+
+	/**
 	 * When specified, controls the presentation format of string settings.
 	 * Otherwise, the presentation format defaults to `singleline`.
 	 */
@@ -260,6 +265,7 @@ export type ConfigurationDefaultValueSource = IExtensionInfo | Map<string, IExte
 export interface IConfigurationDefaults {
 	overrides: IStringDictionary<unknown>;
 	source?: IExtensionInfo;
+	donotCache?: boolean;
 }
 
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {

@@ -505,7 +505,7 @@
 			"request": "launch",
 			"name": "Run Unit Tests",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
-			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
 			},
@@ -535,7 +535,7 @@
 			"request": "launch",
 			"name": "Run Unit Tests For Current File",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
-			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
 			},
@@ -571,7 +571,7 @@
 			"timeout": 240000,
 			"args": [
 				"-l",
-				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron"
+				"${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Code - OSS"
 			],
 			"outFiles": [
 				"${cwd}/out/**/*.js"
@@ -596,6 +596,17 @@
 			"type": "chrome",
 			"request": "launch",
 			"url": "https://microsoft.github.io/monaco-editor/playground.html?source=http%3A%2F%2Flocalhost%3A5199%2Fbuild%2Fvite%2Findex.ts%3Fesm#example-creating-the-editor-hello-world",
+			"preLaunchTask": "Launch Monaco Editor Vite",
+			"presentation": {
+				"group": "monaco",
+				"order": 4
+			}
+		},
+		{
+			"name": "Component Explorer",
+			"type": "chrome",
+			"request": "launch",
+			"url": "http://localhost:5199/___explorer",
 			"preLaunchTask": "Launch Monaco Editor Vite",
 			"presentation": {
 				"group": "monaco",

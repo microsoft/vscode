@@ -92,7 +92,7 @@ export function value<T, R>(comparator?: (a: R, b: R) => boolean): TransformValu
 }
 
 /** An array that will use the schema to compare items positionally. */
-export function array<T, R>(schema: TransformObject<T, R> | TransformValue<T, R>): TransformArray<T[], R[]> {
+export function array<T, R>(schema: TransformObject<T, R> | TransformValue<T, R>): TransformArray<readonly T[], R[]> {
 	return {
 		kind: TransformKind.Array,
 		itemSchema: schema,

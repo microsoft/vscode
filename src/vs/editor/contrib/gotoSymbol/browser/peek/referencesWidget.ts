@@ -248,7 +248,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private readonly _disposeOnNewModel = new DisposableStore();
 	private readonly _callOnDispose = new DisposableStore();
 
-	private readonly _onDidSelectReference = new Emitter<SelectionEvent>();
+	private readonly _onDidSelectReference = this._callOnDispose.add(new Emitter<SelectionEvent>());
 	readonly onDidSelectReference = this._onDidSelectReference.event;
 
 	private _tree!: ReferencesTree;

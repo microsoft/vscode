@@ -6,16 +6,14 @@
 /* eslint-disable local/code-no-test-async-suite */
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { homedir, userInfo } from 'os';
-import { isWindows } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITerminalProcessOptions } from '../../common/terminal.js';
-import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection, type IShellIntegrationInjectionFailure } from '../../node/terminalEnvironment.js';
+import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection, type IShellIntegrationInjectionFailure, sanitizeEnvForLogging } from '../../node/terminalEnvironment.js';
 
-const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
-const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
-const winptyProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: false, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
+const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
+const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
 const pwshExe = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
 const repoRoot = process.platform === 'win32' ? process.cwd()[0].toLowerCase() + process.cwd().substring(1) : process.cwd();
 const logService = new NullLogService();
@@ -38,11 +36,6 @@ suite('platform - terminalEnvironment', async () => {
 				strictEqual((await getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: true }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
 				strictEqual((await getShellIntegrationInjection({ executable: pwshExe, args: ['-l', '-NoLogo'], isFeatureTerminal: false }, enabledProcessOptions, defaultEnvironment, logService, productService, true)).type, 'injection');
 			});
-			if (isWindows) {
-				test('when on windows with conpty false', async () => {
-					strictEqual((await getShellIntegrationInjection({ executable: pwshExe, args: ['-l'], isFeatureTerminal: false }, winptyProcessOptions, defaultEnvironment, logService, productService, true)).type, 'failure');
-				});
-			}
 		});
 
 		// These tests are only expected to work on Windows 10 build 18309 and above
@@ -239,7 +232,7 @@ suite('platform - terminalEnvironment', async () => {
 			test('should fail for unsupported shell but nonce should still be available', async () => {
 				const customProcessOptions: ITerminalProcessOptions = {
 					shellIntegration: { enabled: true, suggestEnabled: false, nonce: 'custom-nonce-12345' },
-					windowsEnableConpty: true,
+
 					windowsUseConptyDll: false,
 					environmentVariableCollections: undefined,
 					workspaceFolder: undefined,
@@ -261,6 +254,94 @@ suite('platform - terminalEnvironment', async () => {
 
 				// But the nonce should be available in the process options for the terminal process to use
 				strictEqual(customProcessOptions.shellIntegration.nonce, 'custom-nonce-12345');
+			});
+		});
+	});
+
+	suite('sanitizeEnvForLogging', () => {
+		test('should return undefined for undefined input', () => {
+			strictEqual(sanitizeEnvForLogging(undefined), undefined);
+		});
+
+		test('should return empty object for empty input', () => {
+			deepStrictEqual(sanitizeEnvForLogging({}), {});
+		});
+
+		test('should pass through non-sensitive values', () => {
+			deepStrictEqual(sanitizeEnvForLogging({
+				PATH: '/usr/bin',
+				HOME: '/home/user',
+				TERM: 'xterm-256color'
+			}), {
+				PATH: '/usr/bin',
+				HOME: '/home/user',
+				TERM: 'xterm-256color'
+			});
+		});
+
+		test('should redact sensitive env var names', () => {
+			deepStrictEqual(sanitizeEnvForLogging({
+				API_KEY: 'secret123',
+				GITHUB_TOKEN: 'ghp_xxxx',
+				MY_SECRET: 'hidden',
+				PASSWORD: 'pass123',
+				AWS_ACCESS_KEY: 'AKIA...',
+				DATABASE_PASSWORD: 'dbpass',
+				CLIENT_SECRET: 'client_secret_value',
+				AUTH_TOKEN: 'auth_value',
+				PRIVATE_KEY: 'private_key_value'
+			}), {
+				API_KEY: '<REDACTED>',
+				GITHUB_TOKEN: '<REDACTED>',
+				MY_SECRET: '<REDACTED>',
+				PASSWORD: '<REDACTED>',
+				AWS_ACCESS_KEY: '<REDACTED>',
+				DATABASE_PASSWORD: '<REDACTED>',
+				CLIENT_SECRET: '<REDACTED>',
+				AUTH_TOKEN: '<REDACTED>',
+				PRIVATE_KEY: '<REDACTED>'
+			});
+		});
+
+		test('should redact JWT tokens by value pattern', () => {
+			deepStrictEqual(sanitizeEnvForLogging({
+				SOME_VAR: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U'
+			}), {
+				SOME_VAR: '<REDACTED>'
+			});
+		});
+
+		test('should redact GitHub tokens by value pattern', () => {
+			deepStrictEqual(sanitizeEnvForLogging({
+				MY_GH: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+			}), {
+				MY_GH: '<REDACTED>'
+			});
+		});
+
+		test('should redact Google API keys by value pattern', () => {
+			deepStrictEqual(sanitizeEnvForLogging({
+				GOOGLE_KEY: 'AIzaSyDaGmWKa4JsXZ-HjGw7ISLn_3namBGewQe'
+			}), {
+				GOOGLE_KEY: '<REDACTED>'
+			});
+		});
+
+		test('should redact long alphanumeric strings (potential secrets)', () => {
+			deepStrictEqual(sanitizeEnvForLogging({
+				LONG_VALUE: 'abcdefghijklmnopqrstuvwxyz123456'
+			}), {
+				LONG_VALUE: '<REDACTED>'
+			});
+		});
+
+		test('should skip undefined values', () => {
+			const env: { [key: string]: string | undefined } = {
+				DEFINED: 'value',
+				UNDEFINED: undefined
+			};
+			deepStrictEqual(sanitizeEnvForLogging(env), {
+				DEFINED: 'value'
 			});
 		});
 	});

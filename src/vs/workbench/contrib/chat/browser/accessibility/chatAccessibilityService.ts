@@ -6,9 +6,8 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
-import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableSet, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -23,6 +22,7 @@ import { IChatResponseViewModel } from '../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from '../chat.js';
 import { ChatWidget } from '../widget/chatWidget.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -30,7 +30,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	private _pendingSignalMap: DisposableMap<URI, AccessibilityProgressSignalScheduler> = this._register(new DisposableMap());
 
-	private readonly notifications: Set<DisposableStore> = new Set();
+	private readonly toasts = this._register(new DisposableSet());
 
 	constructor(
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
@@ -52,14 +52,6 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 			}
 			this.disposeRequest(e);
 		}));
-	}
-
-	override dispose(): void {
-		for (const ds of Array.from(this.notifications)) {
-			ds.dispose();
-		}
-		this.notifications.clear();
-		super.dispose();
 	}
 
 	acceptRequest(uri: URI, skipRequestSignal?: boolean): void {
@@ -120,39 +112,21 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
 
 		// Dispose any previous unhandled notifications to avoid replacement/coalescing.
-		for (const ds of Array.from(this.notifications)) {
-			ds.dispose();
-			this.notifications.delete(ds);
-		}
+		this.toasts.clearAndDisposeAll();
 
 		const title = widget?.viewModel?.model.title ? localize('chatTitle', "Chat: {0}", widget.viewModel.model.title) : localize('chat.untitledChat', "Untitled Chat");
-		const notification = await dom.triggerNotification(title,
-			{
-				detail: localize('notificationDetail', "New chat response.")
-			}
-		);
-		if (!notification) {
-			return;
-		}
 
-		const disposables = new DisposableStore();
-		disposables.add(notification);
-		this.notifications.add(disposables);
+		const cts = new CancellationTokenSource();
+		const disposable = toDisposable(() => cts.dispose(true));
+		this.toasts.add(disposable);
 
-		disposables.add(Event.once(notification.onClick)(async () => {
+		const { clicked } = await this._hostService.showToast({ title, body: localize('notificationDetail', "New chat response.") }, cts.token);
+		this.toasts.deleteAndDispose(disposable);
+		if (clicked) {
 			await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 			await this._widgetService.reveal(widget);
 			widget.focusInput();
-			disposables.dispose();
-			this.notifications.delete(disposables);
-		}));
-
-		disposables.add(this._hostService.onDidChangeFocus(focus => {
-			if (focus) {
-				disposables.dispose();
-				this.notifications.delete(disposables);
-			}
-		}));
+		}
 	}
 
 }

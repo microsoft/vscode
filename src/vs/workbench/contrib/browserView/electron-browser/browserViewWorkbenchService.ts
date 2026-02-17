@@ -54,4 +54,8 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 		const workspaceId = this.workspaceContextService.getWorkspace().id;
 		return this._browserViewService.clearWorkspaceStorage(workspaceId);
 	}
+
+	async getDebugWebSocketEndpoint() {
+		return this._browserViewService.getDebugWebSocketEndpoint();
+	}
 }

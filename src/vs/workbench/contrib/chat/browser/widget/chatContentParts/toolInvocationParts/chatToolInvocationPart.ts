@@ -11,6 +11,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
+import { IChatTodoListService } from '../../../../common/tools/chatTodoListService.js';
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../../chat.js';
@@ -21,6 +22,7 @@ import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInst
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
+import { ChatSimpleToolProgressPart } from './chatSimpleToolProgressPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
@@ -32,9 +34,6 @@ import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		const codeblocks = this.subPart?.codeblocks ?? [];
@@ -64,12 +63,28 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		private readonly announcedToolProgressKeys: Set<string> | undefined,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 	) {
 		super();
 
 		this.domNode = dom.$('.chat-tool-invocation-part');
 		if (toolInvocation.presentation === 'hidden') {
 			return;
+		}
+
+		// Update the todo list service if this tool invocation contains todo data
+		if (toolInvocation.toolSpecificData?.kind === 'todoList') {
+			const sessionResource = context.element.sessionResource;
+			const todos = toolInvocation.toolSpecificData.todoList.map((todo, index) => {
+				const parsedId = parseInt(todo.id, 10);
+				const id = Number.isNaN(parsedId) ? index + 1 : parsedId;
+				return {
+					id,
+					title: todo.title,
+					status: todo.status as 'not-started' | 'in-progress' | 'completed'
+				};
+			});
+			this.chatTodoListService.setTodos(sessionResource, todos);
 		}
 
 		if (toolInvocation.kind === 'toolInvocation') {
@@ -93,16 +108,23 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			partStore.clear();
 
 			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation)) {
+				dom.hide(this.domNode);
 				return;
 			}
 
+			dom.show(this.domNode);
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
 
-			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+			// Add class when displaying a confirmation widget
+			const isConfirmation = this.subPart instanceof ToolConfirmationSubPart ||
+				this.subPart instanceof ChatTerminalToolConfirmationSubPart ||
+				this.subPart instanceof ExtensionsInstallConfirmationWidgetSubPart ||
+				this.subPart instanceof ChatToolPostExecuteConfirmationPart;
+			this.domNode.classList.toggle('has-confirmation', isConfirmation);
+
 			partStore.add(this.subPart.onNeedsRerender(render));
-			this._onDidChangeHeight.fire();
 		};
 
 		const mcpAppRenderData = this.getMcpAppRenderData();
@@ -126,13 +148,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 					));
 					appDomNode.replaceWith(this.mcpAppPart.domNode);
 					appDomNode = this.mcpAppPart.domNode;
-					r.store.add(this.mcpAppPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 				} else {
 					this.mcpAppPart = undefined;
 					dom.clearNode(appDomNode);
 				}
-
-				this._onDidChangeHeight.fire();
 			}));
 		}
 
@@ -167,13 +186,31 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return this.instantiationService.createInstance(ChatTerminalToolProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
 		}
 
+		if (this.toolInvocation.toolSpecificData?.kind === 'resources' && this.toolInvocation.toolSpecificData.values.length > 0) {
+			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, this.toolInvocation.toolSpecificData.values, this.listPool);
+		}
+
+		if (this.toolInvocation.toolSpecificData?.kind === 'simpleToolInvocation') {
+			return this.instantiationService.createInstance(
+				ChatSimpleToolProgressPart,
+				this.toolInvocation,
+				this.context,
+				this.codeBlockStartIndex,
+				this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage,
+				this.toolInvocation.originMessage,
+				this.toolInvocation.toolSpecificData,
+				false,
+			);
+		}
+
+
 		const resultDetails = IChatToolInvocation.resultDetails(this.toolInvocation);
 		if (Array.isArray(resultDetails) && resultDetails.length) {
 			return this.instantiationService.createInstance(ChatResultListSubPart, this.toolInvocation, this.context, this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage, resultDetails, this.listPool);
 		}
 
 		if (isToolResultOutputDetails(resultDetails)) {
-			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context);
+			return this.instantiationService.createInstance(ChatToolOutputSubPart, this.toolInvocation, this.context, this._onDidRemount.event);
 		}
 
 		if (isToolResultInputOutputDetails(resultDetails)) {

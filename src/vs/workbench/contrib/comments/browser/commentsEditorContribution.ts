@@ -435,6 +435,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: async (accessor, args) => {
 		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		const keybindingService = accessor.get(IKeybindingService);
+		const notificationService = accessor.get(INotificationService);
+		const commentService = accessor.get(ICommentService);
 		// Unfortunate, but collapsing the comment thread might cause a dialog to show
 		// If we don't wait for the key up here, then the dialog will consume it and immediately close
 		await keybindingService.enableKeybindingHoldMode(CommentCommandId.Hide);
@@ -445,8 +447,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			if (!controller) {
 				return;
 			}
-			const notificationService = accessor.get(INotificationService);
-			const commentService = accessor.get(ICommentService);
+
 			let error = false;
 			try {
 				const activeComment = commentService.lastActiveCommentcontroller?.activeComment;
@@ -460,6 +461,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			}
 			if (error) {
 				notificationService.error(nls.localize('comments.focusCommand.error', "The cursor must be on a line with a comment to focus the comment"));
+			}
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: CommentCommandId.Hide,
+	weight: KeybindingWeight.EditorContrib,
+	primary: KeyMod.CtrlCmd | KeyCode.Escape,
+	win: { primary: KeyMod.Alt | KeyCode.Backspace },
+	when: ContextKeyExpr.and(EditorContextKeys.focus, CommentContextKeys.commentWidgetVisible),
+	handler: async (accessor, args) => {
+		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		const keybindingService = accessor.get(IKeybindingService);
+		// Unfortunate, but collapsing the comment thread might cause a dialog to show
+		// If we don't wait for the key up here, then the dialog will consume it and immediately close
+		await keybindingService.enableKeybindingHoldMode(CommentCommandId.Hide);
+		if (activeCodeEditor) {
+			const controller = CommentController.get(activeCodeEditor);
+			if (controller) {
+				await controller.collapseVisibleComments();
 			}
 		}
 	}

@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { truncate } from '../../../../../../base/common/strings.js';
@@ -335,7 +336,8 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
 			// Old inputs have a session id for local session
-			const parsed: ISerializedChatEditorInput & { readonly sessionId: string | undefined } = JSON.parse(serializedEditor);
+			// Use revive to properly restore URIs and other special objects in options.target.data
+			const parsed = revive(JSON.parse(serializedEditor));
 
 			// First if we have a modern session resource, use that
 			if (parsed.sessionResource) {

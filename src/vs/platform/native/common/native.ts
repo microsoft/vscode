@@ -15,6 +15,24 @@ import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 
+export interface IToastOptions {
+	readonly id: string;
+
+	readonly title: string;
+	readonly body?: string;
+
+	readonly actions?: readonly string[];
+
+	readonly silent?: boolean;
+}
+
+export interface IToastResult {
+	readonly supported: boolean;
+
+	readonly clicked: boolean;
+	readonly actionIndex?: number;
+}
+
 export interface ICPUProperties {
 	model: string;
 	speed: number;
@@ -84,7 +102,15 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeDisplay: Event<void>;
 
+	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<unknown>;
+
+	readonly onDidChangeOnBatteryPower: Event<boolean>;
+	readonly onDidChangeThermalState: Event<ThermalState>;
+	readonly onDidChangeSpeedLimit: Event<number>;
+	readonly onWillShutdownOS: Event<void>;
+	readonly onDidLockScreen: Event<void>;
+	readonly onDidUnlockScreen: Event<void>;
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
@@ -103,6 +129,8 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
+	openSessionsWindow(): Promise<void>;
+
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
 
@@ -119,12 +147,7 @@ export interface ICommonNativeHostService {
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
-	/**
-	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
-	 *
-	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
-	 */
-	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
 
 	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 
@@ -231,6 +254,11 @@ export interface ICommonNativeHostService {
 	// Registry (Windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
 
+	// Toast Notifications
+	showToast(options: IToastOptions): Promise<IToastResult>;
+	clearToast(id: string): Promise<void>;
+	clearToasts(): Promise<void>;
+
 	// Zip
 	/**
 	 * Creates a zip file at the specified path containing the provided files.
@@ -239,7 +267,31 @@ export interface ICommonNativeHostService {
 	 * @param files An array of file entries to include in the zip, each with a relative path and string contents.
 	 */
 	createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void>;
+
+	// Power
+	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;
+	getSystemIdleTime(): Promise<number>;
+	getCurrentThermalState(): Promise<ThermalState>;
+	isOnBatteryPower(): Promise<boolean>;
+	startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number>;
+	stopPowerSaveBlocker(id: number): Promise<boolean>;
+	isPowerSaveBlockerStarted(id: number): Promise<boolean>;
 }
+
+/**
+ * Represents the system's idle state.
+ */
+export type SystemIdleState = 'active' | 'idle' | 'locked' | 'unknown';
+
+/**
+ * Represents the system's thermal state.
+ */
+export type ThermalState = 'unknown' | 'nominal' | 'fair' | 'serious' | 'critical';
+
+/**
+ * The type of power save blocker.
+ */
+export type PowerSaveBlockerType = 'prevent-app-suspension' | 'prevent-display-sleep';
 
 export const INativeHostService = createDecorator<INativeHostService>('nativeHostService');
 

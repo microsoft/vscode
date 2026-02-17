@@ -1,0 +1,91 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-feedback-hover {
+	max-width: 400px;
+	padding: 4px 0;
+}
+
+.agent-feedback-hover-title {
+	font-weight: bold;
+	font-size: 12px;
+	padding: 2px 8px 6px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+	margin-bottom: 4px;
+}
+
+.agent-feedback-hover-list {
+	max-height: 300px;
+	overflow-y: auto;
+}
+
+.agent-feedback-hover-file-header {
+	font-size: 11px;
+	font-weight: bold;
+	color: var(--vscode-foreground);
+	padding: 6px 8px 2px;
+	font-family: var(--monaco-monospace-font);
+}
+
+.agent-feedback-hover-file-header:not(:first-child) {
+	border-top: 1px solid var(--vscode-editorWidget-border);
+	margin-top: 4px;
+	padding-top: 8px;
+}
+
+.agent-feedback-hover-row {
+	padding: 4px 8px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	border-radius: 4px;
+	cursor: pointer;
+	position: relative;
+}
+
+.agent-feedback-hover-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.agent-feedback-hover-line {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.agent-feedback-hover-text {
+	font-size: 12px;
+	white-space: pre-wrap;
+	word-break: break-word;
+	flex: 1;
+}
+
+.agent-feedback-hover-remove {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0;
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+	border-radius: 4px;
+}
+
+.agent-feedback-hover-row:hover .agent-feedback-hover-remove {
+	opacity: 1;
+}
+
+.agent-feedback-hover-remove:hover {
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Attachment widget pill styling */
+.agent-feedback-attachment .chat-attached-context-pill {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+}

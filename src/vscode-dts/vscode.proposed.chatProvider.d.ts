@@ -33,6 +33,17 @@ declare module 'vscode' {
 		requiresAuthorization?: true | { label: string };
 
 		/**
+		 * A multiplier indicating how many requests this model counts towards a quota.
+		 * For example, "2x" means each request counts twice.
+		 */
+		readonly multiplier?: string;
+
+		/**
+		 * A numeric form of the `multiplier` label
+		 */
+		readonly multiplierNumeric?: number;
+
+		/**
 		 * Whether or not this will be selected by default in the model picker
 		 * NOT BEING FINALIZED
 		 */
@@ -54,6 +65,15 @@ declare module 'vscode' {
 		readonly category?: { label: string; order: number };
 
 		readonly statusIcon?: ThemeIcon;
+
+		/**
+		 * When set, this model is only shown in the model picker for the specified chat session type.
+		 * Models with this property are excluded from the general model picker and only appear
+		 * when the user is in a session matching this type.
+		 *
+		 * The value must match a `type` declared in a `chatSessions` extension contribution.
+		 */
+		readonly targetChatSessionType?: string;
 	}
 
 	export interface LanguageModelChatCapabilities {

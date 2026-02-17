@@ -320,6 +320,41 @@ export interface IEditorOptions {
 		 */
 		alwaysOnTop?: boolean;
 	};
+
+	/**
+	 * Options that only apply when `MODAL_GROUP` is used for opening.
+	 */
+	modal?: IModalEditorPartOptions;
+}
+
+export interface IModalEditorPartOptions {
+
+	/**
+	 * The navigation context for navigating between items
+	 * within this modal editor. Pass `undefined` to clear.
+	 */
+	readonly navigation?: IModalEditorNavigation;
+}
+
+/**
+ * Context for navigating between items within a modal editor.
+ */
+export interface IModalEditorNavigation {
+
+	/**
+	 * Total number of items in the navigation list.
+	 */
+	readonly total: number;
+
+	/**
+	 * Current 0-based index in the navigation list.
+	 */
+	readonly current: number;
+
+	/**
+	 * Navigate to the item at the given 0-based index.
+	 */
+	readonly navigate: (index: number) => void;
 }
 
 export interface ITextEditorSelection {

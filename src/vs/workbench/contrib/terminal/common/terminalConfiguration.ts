@@ -288,6 +288,11 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'boolean',
 		default: false
 	},
+	[TerminalSettingId.TextBlinking]: {
+		description: localize('terminal.integrated.textBlinking', "Controls whether text blinking is enabled in the terminal."),
+		type: 'boolean',
+		default: false
+	},
 	[TerminalSettingId.CursorStyle]: {
 		description: localize('terminal.integrated.cursorStyle', "Controls the style of terminal cursor when the terminal is focused."),
 		enum: ['block', 'line', 'underline'],
@@ -337,7 +342,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.TerminalTitle]: {
 		'type': 'string',
-		'default': '${process}',
+		'default': '${sequence}',
 		'markdownDescription': terminalTitle
 	},
 	[TerminalSettingId.TerminalDescription]: {
@@ -490,11 +495,6 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		],
 		default: 'inherited'
 	},
-	[TerminalSettingId.WindowsEnableConpty]: {
-		description: localize('terminal.integrated.windowsEnableConpty', "Whether to use ConPTY for Windows terminal process communication (requires Windows 10 build number 18309+). Winpty will be used if this is false."),
-		type: 'boolean',
-		default: true
-	},
 	[TerminalSettingId.WordSeparators]: {
 		markdownDescription: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators when double-clicking to select word and in the fallback 'word' link detection. Since this is used for link detection, including characters such as `:` that are used when detecting links will cause the line and column part of links like `file:10:5` to be ignored."),
 		type: 'string',
@@ -589,13 +589,10 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.EnableKittyKeyboardProtocol]: {
 		restricted: true,
-		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which provides more detailed keyboard input reporting to the terminal."),
+		markdownDescription: localize('terminal.integrated.enableKittyKeyboardProtocol', "Whether to enable the kitty keyboard protocol, which allows a program in the terminal to request more detailed keyboard input reporting. This can, for example, enable `Shift+Enter` to be handled by the program."),
 		type: 'boolean',
-		default: false,
-		tags: ['experimental', 'advanced'],
-		experiment: {
-			mode: 'auto'
-		}
+		default: true,
+		tags: ['advanced']
 	},
 	[TerminalSettingId.EnableWin32InputMode]: {
 		restricted: true,

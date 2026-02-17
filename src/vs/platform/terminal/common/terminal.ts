@@ -64,6 +64,7 @@ export const enum TerminalSettingId {
 	FontWeight = 'terminal.integrated.fontWeight',
 	FontWeightBold = 'terminal.integrated.fontWeightBold',
 	CursorBlinking = 'terminal.integrated.cursorBlinking',
+	TextBlinking = 'terminal.integrated.textBlinking',
 	CursorStyle = 'terminal.integrated.cursorStyle',
 	CursorStyleInactive = 'terminal.integrated.cursorStyleInactive',
 	CursorWidth = 'terminal.integrated.cursorWidth',
@@ -91,7 +92,6 @@ export const enum TerminalSettingId {
 	EnvironmentChangesRelaunch = 'terminal.integrated.environmentChangesRelaunch',
 	ShowExitAlert = 'terminal.integrated.showExitAlert',
 	SplitCwd = 'terminal.integrated.splitCwd',
-	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
 	WindowsUseConptyDll = 'terminal.integrated.windowsUseConptyDll',
 	WordSeparators = 'terminal.integrated.wordSeparators',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
@@ -725,7 +725,6 @@ export interface ITerminalProcessOptions {
 		suggestEnabled: boolean;
 		nonce: string;
 	};
-	windowsEnableConpty: boolean;
 	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
@@ -751,7 +750,7 @@ export interface IProcessReadyWindowsPty {
 	/**
 	 * What pty emulation backend is being used.
 	 */
-	backend: 'conpty' | 'winpty';
+	backend: 'conpty';
 	/**
 	 * The Windows build version (eg. 19045)
 	 */
@@ -1025,9 +1024,9 @@ export const enum ShellIntegrationInjectionFailureReason {
 	 */
 	IgnoreShellIntegrationFlag = 'ignoreShellIntegrationFlag',
 	/**
-	 * Shell integration doesn't work with winpty.
+	 * Shell integration doesn't work on older Windows builds that don't support ConPTY.
 	 */
-	Winpty = 'winpty',
+	UnsupportedWindowsBuild = 'unsupportedWindowsBuild',
 	/**
 	 * We're conservative whether we inject when we don't recognize the arguments used for the
 	 * shell as we would prefer launching one without shell integration than breaking their profile.

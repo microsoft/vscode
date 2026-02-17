@@ -13,10 +13,10 @@ import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as event from '../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -27,12 +27,14 @@ import { LanguageFeatureRegistry } from '../../../../../editor/common/languageFe
 import { Location, SymbolKind } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { fillInSymbolsDragData } from '../../../../../platform/dnd/browser/dnd.js';
@@ -59,7 +61,8 @@ import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../common/languageModels.js';
-import { ILanguageModelToolsService, ToolSet } from '../../common/tools/languageModelToolsService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { getCleanPromptName } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 
@@ -96,6 +99,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 		protected readonly currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		@ICommandService protected readonly commandService: ICommandService,
 		@IOpenerService protected readonly openerService: IOpenerService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@ITerminalService protected readonly terminalService?: ITerminalService,
 	) {
 		super();
@@ -193,6 +197,7 @@ function modelSupportsVision(currentLanguageModel: ILanguageModelChatMetadataAnd
 	return currentLanguageModel?.metadata.capabilities?.vision ?? false;
 }
 
+
 export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 
 	constructor(
@@ -206,12 +211,13 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const fileBasename = basename(resource.path);
 		const fileDirname = dirname(resource.path);
@@ -271,10 +277,11 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ITerminalService protected override readonly terminalService: ITerminalService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, terminalService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService, terminalService);
 
 		const ariaLabel = localize('chat.terminalCommand', "Terminal command, {0}", attachment.command);
 		const clickHandler = () => this.openResource(attachment.resource, { editorOptions: { preserveFocus: true } }, false, undefined);
@@ -379,12 +386,14 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		let ariaLabel: string;
 		if (attachment.omittedState === OmittedState.Full) {
@@ -406,7 +415,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : 'Current model';
 
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
-		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
+		this._register(createImageElements(resource, attachment.name, fullName, this.element, attachment.value as Uint8Array, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
 
 		if (resource) {
 			this.addResourceOpenHandlers(resource, undefined);
@@ -424,7 +433,8 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	currentLanguageModelName: string | undefined,
 	clickHandler: () => void,
 	currentLanguageModel?: ILanguageModelChatMetadataAndIdentifier,
-	omittedState?: OmittedState): IDisposable {
+	omittedState?: OmittedState,
+	previewFeaturesDisabled?: boolean): IDisposable {
 
 	const disposable = new DisposableStore();
 	if (omittedState === OmittedState.Partial) {
@@ -439,7 +449,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		disposable.add(dom.addDisposableListener(element, 'click', clickHandler));
 	}
 	const supportsVision = modelSupportsVision(currentLanguageModel);
-	const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$(supportsVision ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
+	const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$((supportsVision && !previewFeaturesDisabled) ? 'span.codicon.codicon-file-media' : 'span.codicon.codicon-warning'));
 	const textLabel = dom.$('span.chat-attached-context-custom-text', {}, name);
 	element.appendChild(pillIcon);
 	element.appendChild(textLabel);
@@ -447,7 +457,14 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 	const hoverElement = dom.$('div.chat-attached-context-hover');
 	hoverElement.setAttribute('aria-label', ariaLabel);
 
-	if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
+	if (previewFeaturesDisabled) {
+		element.classList.add('warning');
+		hoverElement.textContent = localize('chat.imageAttachmentPreviewFeaturesDisabled', "Vision is disabled by your organization.");
+		disposable.add(hoverService.setupDelayedHover(element, {
+			content: hoverElement,
+			style: HoverStyle.Pointer,
+		}));
+	} else if ((!supportsVision && currentLanguageModel) || omittedState === OmittedState.Full) {
 		element.classList.add('warning');
 		hoverElement.textContent = localize('chat.imageAttachmentHover', "{0} does not support images.", currentLanguageModelName ?? 'This model');
 		disposable.add(hoverService.setupDelayedHover(element, {
@@ -507,10 +524,11 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 		this.element.ariaLabel = ariaLabel;
@@ -547,6 +565,9 @@ export class PasteAttachmentWidget extends AbstractChatAttachmentWidget {
 }
 
 export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
+
+	private readonly _tooltipHover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
 	constructor(
 		resource: URI | undefined,
 		range: IRange | undefined,
@@ -558,14 +579,26 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const attachmentLabel = attachment.fullName ?? attachment.name;
-		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
-		this.label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
+
+		// Derive icon classes from resourceUri for file/folder icons
+		if (isStringVariableEntry(attachment) && attachment.icon && (ThemeIcon.isFile(attachment.icon) || ThemeIcon.isFolder(attachment.icon)) && attachment.resourceUri) {
+			const fileKind = ThemeIcon.isFolder(attachment.icon) ? FileKind.FOLDER : FileKind.FILE;
+			const iconClasses = getIconClasses(this.modelService, this.languageService, attachment.resourceUri, fileKind);
+			this.label.setLabel(attachmentLabel, correspondingContentReference?.options?.status?.description, { extraClasses: iconClasses });
+		} else {
+			const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
+			this.label.setLabel(withIcon, correspondingContentReference?.options?.status?.description);
+		}
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
 		if (attachment.kind === 'diagnostic') {
@@ -581,8 +614,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 
 		if (attachment.kind === 'symbol') {
-			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
-			this._register(this.instantiationService.invokeFunction(hookUpSymbolAttachmentDragAndContextMenu, this.element, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext));
+			this._register(this.instantiationService.invokeFunction(hookUpSymbolAttachmentDragAndContextMenu, this.element, this.contextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext));
 		}
 
 		// Handle click for string context attachments with context commands
@@ -595,9 +627,21 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			}));
 		}
 
+		// Setup tooltip hover for string context attachments
+		if ((isStringVariableEntry(attachment) || attachment.kind === 'generic') && attachment.tooltip) {
+			this._setupTooltipHover(attachment.tooltip);
+		}
+
 		if (resource) {
 			this.addResourceOpenHandlers(resource, range);
 		}
+	}
+
+	private _setupTooltipHover(tooltip: IMarkdownString): void {
+		this._tooltipHover.value = this.hoverService.setupDelayedHover(this.element, {
+			content: tooltip,
+			appearance: { showPointer: true },
+		});
 	}
 }
 
@@ -613,10 +657,11 @@ export class PromptFileAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 
 		this.hintElement = dom.append(this.element, dom.$('span.prompt-type'));
@@ -690,10 +735,11 @@ export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		if (attachment.settingId) {
 			const openSettings = () => preferencesService.openSettings({ jsonEditor: false, query: `@id:${attachment.settingId}` });
@@ -732,17 +778,18 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
-		@IHoverService hoverService: IHoverService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 
-		const toolOrToolSet = Iterable.find(toolsService.getTools(), tool => tool.id === attachment.id) ?? Iterable.find(toolsService.toolSets.get(), toolSet => toolSet.id === attachment.id);
+		const toolOrToolSet = Iterable.find(toolsService.getTools(currentLanguageModel?.metadata), tool => tool.id === attachment.id) ?? Iterable.find(toolsService.getToolSetsForModel(currentLanguageModel?.metadata), toolSet => toolSet.id === attachment.id);
 
 		let name = attachment.name;
 		const icon = attachment.icon ?? Codicon.tools;
 
-		if (toolOrToolSet instanceof ToolSet) {
+		if (isToolSet(toolOrToolSet)) {
 			name = toolOrToolSet.referenceName;
 		} else if (toolOrToolSet) {
 			name = toolOrToolSet.toolReferenceName ?? name;
@@ -755,7 +802,7 @@ export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWid
 
 		let hoverContent: string | undefined;
 
-		if (toolOrToolSet instanceof ToolSet) {
+		if (isToolSet(toolOrToolSet)) {
 			hoverContent = localize('toolset', "{0} - {1}", toolOrToolSet.description ?? toolOrToolSet.referenceName, toolOrToolSet.source.label);
 		} else if (toolOrToolSet) {
 			hoverContent = localize('tool', "{0} - {1}", toolOrToolSet.userDescription ?? toolOrToolSet.modelDescription, toolOrToolSet.source.label);
@@ -782,12 +829,14 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		switch (attachment.mimeType) {
 			case 'application/vnd.code.notebook.error': {
@@ -846,7 +895,7 @@ export class NotebookCellOutputChatAttachmentWidget extends AbstractChatAttachme
 		const clickHandler = async () => await this.openResource(resource, { editorOptions: { preserveFocus: true } }, false, undefined);
 		const currentLanguageModelName = this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name ?? this.currentLanguageModel.identifier : undefined;
 		const buffer = this.getOutputItem(resource, attachment)?.data.buffer ?? new Uint8Array();
-		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState));
+		this._register(createImageElements(resource, attachment.name, attachment.name, this.element, buffer, this.hoverService, ariaLabel, currentLanguageModelName, clickHandler, this.currentLanguageModel, attachment.omittedState, this.chatEntitlementService.previewFeaturesDisabled));
 	}
 
 	private getOutputItem(resource: URI, attachment: INotebookOutputVariableEntry) {
@@ -877,9 +926,10 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const ariaLabel = localize('chat.elementAttachment', "Attached element, {0}", attachment.name);
 		this.element.ariaLabel = ariaLabel;
@@ -914,9 +964,10 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		this.label.setLabel(attachment.name, undefined);
 
@@ -962,10 +1013,11 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		@IHoverService hoverService: IHoverService,
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${attachment.historyItem.displayId ?? attachment.historyItem.id}`;
 		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, hidePath: true, nameSuffix });
@@ -1004,9 +1056,10 @@ export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttac
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService);
+		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
 		const historyItemStartId = attachment.historyItemChangeStart.historyItem.displayId ?? attachment.historyItemChangeStart.historyItem.id;
 		const historyItemEndId = attachment.historyItemChangeEnd.historyItem.displayId ?? attachment.historyItemChangeEnd.historyItem.id;
@@ -1061,18 +1114,14 @@ export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAcc
 	return store;
 }
 
-export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, attachment: { name: string; value: Location; kind: SymbolKind }, contextMenuId: MenuId): IDisposable {
+export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, parentContextKeyService: IContextKeyService, attachment: { name: string; value: Location; kind: SymbolKind }, contextMenuId: MenuId): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const textModelService = accessor.get(ITextModelService);
+	const contextMenuService = accessor.get(IContextMenuService);
+	const menuService = accessor.get(IMenuService);
 
 	const store = new DisposableStore();
-
-	// Context
-	store.add(setResourceContext(accessor, scopedContextKeyService, attachment.value.uri));
-
-	const chatResourceContext = chatAttachmentResourceContextKey.bindTo(scopedContextKeyService);
-	chatResourceContext.set(attachment.value.uri.toString());
 
 	// Drag and drop
 	widget.draggable = true;
@@ -1089,26 +1138,57 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		e.dataTransfer?.setDragImage(widget, 0, 0);
 	}));
 
-	// Context menu
-	const providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> = [
-		[EditorContextKeys.hasDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.definitionProvider],
-		[EditorContextKeys.hasReferenceProvider.bindTo(scopedContextKeyService), languageFeaturesService.referenceProvider],
-		[EditorContextKeys.hasImplementationProvider.bindTo(scopedContextKeyService), languageFeaturesService.implementationProvider],
-		[EditorContextKeys.hasTypeDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.typeDefinitionProvider],
-	];
+	// Context menu (context key service created eagerly for keybinding preconditions,
+	// but resource context and provider contexts are initialized lazily on first use)
+	const scopedContextKeyService = store.add(parentContextKeyService.createScoped(widget));
+	chatAttachmentResourceContextKey.bindTo(scopedContextKeyService).set(attachment.value.uri.toString());
+	store.add(setResourceContext(accessor, scopedContextKeyService, attachment.value.uri));
+
+	let providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> | undefined;
+
+	const ensureProviderContexts = () => {
+		if (!providerContexts) {
+			providerContexts = [
+				[EditorContextKeys.hasDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.definitionProvider],
+				[EditorContextKeys.hasReferenceProvider.bindTo(scopedContextKeyService), languageFeaturesService.referenceProvider],
+				[EditorContextKeys.hasImplementationProvider.bindTo(scopedContextKeyService), languageFeaturesService.implementationProvider],
+				[EditorContextKeys.hasTypeDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.typeDefinitionProvider],
+			];
+		}
+	};
 
 	const updateContextKeys = async () => {
+		ensureProviderContexts();
 		const modelRef = await textModelService.createModelReference(attachment.value.uri);
 		try {
 			const model = modelRef.object.textEditorModel;
-			for (const [contextKey, registry] of providerContexts) {
+			for (const [contextKey, registry] of providerContexts!) {
 				contextKey.set(registry.has(model));
 			}
 		} finally {
 			modelRef.dispose();
 		}
 	};
-	store.add(addBasicContextMenu(accessor, widget, scopedContextKeyService, contextMenuId, attachment.value, updateContextKeys));
+
+	store.add(dom.addDisposableListener(widget, dom.EventType.CONTEXT_MENU, async domEvent => {
+		const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
+		dom.EventHelper.stop(domEvent, true);
+
+		try {
+			await updateContextKeys();
+		} catch (e) {
+			console.error(e);
+		}
+
+		contextMenuService.showContextMenu({
+			contextKeyService: scopedContextKeyService,
+			getAnchor: () => event,
+			getActions: () => {
+				const menu = menuService.getMenuActions(contextMenuId, scopedContextKeyService, { arg: attachment.value });
+				return getFlatContextMenuActions(menu);
+			},
+		});
+	}));
 
 	return store;
 }

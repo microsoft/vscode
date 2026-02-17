@@ -16,9 +16,10 @@ import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
+import { TerminalToolId } from '../toolIds.js';
 
 export const GetTaskOutputToolData: IToolData = {
-	id: 'get_task_output',
+	id: TerminalToolId.GetTaskOutput,
 	toolReferenceName: 'getTaskOutput',
 	legacyToolReferenceFullNames: ['runTasks/getTaskOutput'],
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),

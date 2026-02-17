@@ -56,13 +56,24 @@ export namespace PromptsConfig {
 	export const INSTRUCTIONS_LOCATION_KEY = 'chat.instructionsFilesLocations';
 	/**
 	 * Configuration key for the locations of mode files.
+	 * @deprecated Use {@link AGENTS_LOCATION_KEY} instead
 	 */
 	export const MODE_LOCATION_KEY = 'chat.modeFilesLocations';
+
+	/**
+	 * Configuration key for the locations of agent files (with simplified path support).
+	 */
+	export const AGENTS_LOCATION_KEY = 'chat.agentFilesLocations';
 
 	/**
 	 * Configuration key for the locations of skill folders.
 	 */
 	export const SKILLS_LOCATION_KEY = 'chat.agentSkillsLocations';
+
+	/**
+	 * Configuration key for the locations of hook files.
+	 */
+	export const HOOKS_LOCATION_KEY = 'chat.hookFilesLocations';
 
 	/**
 	 * Configuration key for prompt file suggestions.
@@ -85,9 +96,39 @@ export namespace PromptsConfig {
 	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
 
 	/**
+	 * Configuration key for the CLAUDE.md.
+	 */
+	export const USE_CLAUDE_MD = 'chat.useClaudeMdFile';
+
+	/**
 	 * Configuration key for agent skills usage.
 	 */
 	export const USE_AGENT_SKILLS = 'chat.useAgentSkills';
+
+	/**
+	 * Configuration key for chat hooks usage.
+	 */
+	export const USE_CHAT_HOOKS = 'chat.useHooks';
+
+	/**
+	 * Configuration key for enabling Claude hooks.
+	 */
+	export const USE_CLAUDE_HOOKS = 'chat.useClaudeHooks';
+
+	/**
+	 * Configuration key for enabling stronger skill adherence prompt (experimental).
+	 */
+	export const USE_SKILL_ADHERENCE_PROMPT = 'chat.experimental.useSkillAdherencePrompt';
+
+	/**
+	 * Configuration key for including applying instructions.
+	 */
+	export const INCLUDE_APPLYING_INSTRUCTIONS = 'chat.includeApplyingInstructions';
+
+	/**
+	 * Configuration key for including referenced instructions.
+	 */
+	export const INCLUDE_REFERENCED_INSTRUCTIONS = 'chat.includeReferencedInstructions';
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
@@ -221,9 +262,11 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 		case PromptsType.prompt:
 			return PromptsConfig.PROMPT_LOCATIONS_KEY;
 		case PromptsType.agent:
-			return PromptsConfig.MODE_LOCATION_KEY;
+			return PromptsConfig.AGENTS_LOCATION_KEY;
 		case PromptsType.skill:
 			return PromptsConfig.SKILLS_LOCATION_KEY;
+		case PromptsType.hook:
+			return PromptsConfig.HOOKS_LOCATION_KEY;
 		default:
 			throw new Error('Unknown prompt type');
 	}
@@ -260,11 +303,12 @@ export function asBoolean(value: unknown): boolean | undefined {
 
 /**
  * Helper to check if a path starts with tilde (user home).
- * Supports both Unix-style (`~/`) and Windows-style (`~\`) paths.
+ * Only supports Unix-style (`~/`) paths for cross-platform sharing.
+ * Backslash paths (`~\`) are not supported to ensure paths are shareable in repos.
  *
  * @param path - path to check
- * @returns `true` if the path starts with `~/` or `~\`
+ * @returns `true` if the path starts with `~/`
  */
 export function isTildePath(path: string): boolean {
-	return path.startsWith('~/') || path.startsWith('~\\');
+	return path.startsWith('~/');
 }

@@ -82,9 +82,9 @@ export async function getShellIntegrationInjection(
 	if (shellLaunchConfig.ignoreShellIntegration) {
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.IgnoreShellIntegrationFlag };
 	}
-	// Shell integration doesn't work with winpty
-	if (isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309)) {
-		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.Winpty };
+	// Shell integration requires Windows 10 build 18309+ (ConPTY support)
+	if (isWindows && getWindowsBuildNumber() < 18309) {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedWindowsBuild };
 	}
 
 	const originalArgs = shellLaunchConfig.args;
@@ -103,7 +103,7 @@ export async function getShellIntegrationInjection(
 	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		if (isWindows) {
-			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
+			const enableWindowsEnvReporting = options.windowsUseConptyDll || getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
 			if (enableWindowsEnvReporting) {
 				envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 			}
@@ -374,4 +374,57 @@ function areZshBashFishLoginArgs(originalArgs: SingleOrMany<string>): boolean {
 	}
 	return isString(originalArgs) && shLoginArgs.includes(originalArgs.toLowerCase())
 		|| !isString(originalArgs) && originalArgs.length === 1 && shLoginArgs.includes(originalArgs[0].toLowerCase());
+}
+
+/**
+ * Patterns that indicate sensitive environment variable names.
+ */
+const sensitiveEnvVarNames = /^(?:.*_)?(?:API_?KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|CREDENTIAL|AUTH|PRIVATE_?KEY|ACCESS_?KEY|CLIENT_?SECRET|APIKEY)(?:_.*)?$/i;
+
+/**
+ * Patterns for detecting secret values in environment variables.
+ */
+const secretValuePatterns = [
+	// JWT tokens
+	/^eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+$/,
+	// GitHub tokens
+	/^gh[psuro]_[a-zA-Z0-9]{36}$/,
+	/^github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}$/,
+	// Google API keys
+	/^AIza[A-Za-z0-9_\-]{35}$/,
+	// Slack tokens
+	/^xox[pbar]\-[A-Za-z0-9\-]+$/,
+	// Azure/MS tokens (common patterns)
+	/^[a-zA-Z0-9]{32,}$/,
+];
+
+/**
+ * Sanitizes environment variables for logging by redacting sensitive values.
+ */
+export function sanitizeEnvForLogging(env: IProcessEnvironment | undefined): IProcessEnvironment | undefined {
+	if (!env) {
+		return env;
+	}
+	const sanitized: IProcessEnvironment = {};
+	for (const key of Object.keys(env)) {
+		const value = env[key];
+		if (value === undefined) {
+			continue;
+		}
+		// Check if the key name suggests a sensitive value
+		if (sensitiveEnvVarNames.test(key)) {
+			sanitized[key] = '<REDACTED>';
+			continue;
+		}
+		// Check if the value matches known secret patterns
+		let isSecret = false;
+		for (const pattern of secretValuePatterns) {
+			if (pattern.test(value)) {
+				isSecret = true;
+				break;
+			}
+		}
+		sanitized[key] = isSecret ? '<REDACTED>' : value;
+	}
+	return sanitized;
 }

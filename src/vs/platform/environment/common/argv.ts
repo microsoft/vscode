@@ -53,6 +53,7 @@ export interface NativeParsedArgs {
 	goto?: boolean;
 	'new-window'?: boolean;
 	'reuse-window'?: boolean;
+	'sessions'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
 	'prof-startup'?: boolean;

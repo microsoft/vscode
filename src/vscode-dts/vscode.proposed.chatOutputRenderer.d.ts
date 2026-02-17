@@ -44,6 +44,21 @@ declare module 'vscode' {
 		readonly value: Uint8Array;
 	}
 
+	/**
+	 * A webview used to render chat output.
+	 */
+	export interface ChatOutputWebview {
+		/**
+		 * The webview to render content into.
+		 */
+		readonly webview: Webview;
+
+		/**
+		 * Fired when the webview is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+	}
+
 	export interface ChatOutputRenderer {
 		/**
 		 * Given an output, render it into the provided webview.
@@ -57,7 +72,7 @@ declare module 'vscode' {
 		 *
 		 * @returns A promise that resolves when the webview has been initialized and is ready to be presented to the user.
 		 */
-		renderChatOutput(data: ChatOutputDataItem, webview: Webview, ctx: {}, token: CancellationToken): Thenable<void>;
+		renderChatOutput(data: ChatOutputDataItem, webview: ChatOutputWebview, ctx: {}, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace chat {

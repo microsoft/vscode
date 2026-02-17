@@ -21,17 +21,25 @@ export const enum TunnelPrivacyId {
  */
 const CLEANUP_TIMEOUT = 10_000;
 
-const cliPath = process.env.VSCODE_FORWARDING_IS_DEV
-	? path.join(__dirname, '../../../cli/target/debug/code')
-	: path.join(
-		vscode.env.appRoot,
-		process.platform === 'darwin'
-			? 'bin'
-			: process.platform === 'win32' && vscode.env.appQuality === 'insider'
-				? '../../../bin' // TODO: remove as part of https://github.com/microsoft/vscode/issues/282514
-				: '../../bin',
-		vscode.env.appQuality === 'stable' ? 'code-tunnel' : 'code-tunnel-insiders',
-	) + (process.platform === 'win32' ? '.exe' : '');
+const versionFolder = vscode.env.appCommit?.substring(0, 10);
+let cliPath: string;
+if (process.env.VSCODE_FORWARDING_IS_DEV) {
+	cliPath = path.join(__dirname, '../../../cli/target/debug/code');
+} else {
+	let binPath: string;
+	if (process.platform === 'darwin') {
+		binPath = 'bin';
+	} else if (process.platform === 'win32' && versionFolder && vscode.env.appRoot.includes(versionFolder)) {
+		binPath = '../../../bin';
+	} else {
+		binPath = '../../bin';
+	}
+
+	const cliName = vscode.env.appQuality === 'stable' ? 'code-tunnel' : 'code-tunnel-insiders';
+	const extension = process.platform === 'win32' ? '.exe' : '';
+
+	cliPath = path.join(vscode.env.appRoot, binPath, cliName) + extension;
+}
 
 class Tunnel implements vscode.Tunnel {
 	private readonly disposeEmitter = new vscode.EventEmitter<void>();

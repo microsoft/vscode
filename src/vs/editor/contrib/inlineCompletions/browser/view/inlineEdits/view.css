@@ -260,3 +260,14 @@
 	width: 4px;
 }
 
+/* File icon in long distance hint widget */
+.inline-edits-long-distance-hint-widget.show-file-icons .target-file .file-icon::before {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	vertical-align: text-bottom;
+	background-size: 16px;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+

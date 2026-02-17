@@ -1,5 +1,5 @@
 ---
-description: Architecture documentation for VS Code notebook and interactive window components
+description: Architecture documentation for VS Code notebook and interactive window components. Use when working in `src/vs/workbench/contrib/notebook/`
 ---
 
 # Notebook Architecture

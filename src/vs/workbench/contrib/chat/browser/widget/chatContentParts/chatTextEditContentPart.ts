@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
@@ -42,9 +42,6 @@ interface ICodeCompareModelService {
 export class ChatTextEditContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 	private readonly comparePart: IDisposableReference<CodeCompareBlockPart> | undefined;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
 		chatTextEdit: IChatTextEditGroup,
@@ -85,12 +82,6 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 			}));
 
 			this.comparePart = this._register(diffEditorPool.get());
-
-			// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
-			// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-			this._register(this.comparePart.object.onDidChangeContentHeight(() => {
-				this._onDidChangeHeight.fire();
-			}));
 
 			const data: ICodeCompareBlockData = {
 				element,
