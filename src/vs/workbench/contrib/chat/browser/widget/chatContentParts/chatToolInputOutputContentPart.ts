@@ -232,6 +232,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			parentContextKeyService: this.contextKeyService,
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
+			text: part.data,
 		};
 		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this.context.currentWidth.get() || 300);

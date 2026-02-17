@@ -92,6 +92,7 @@ export interface ICodeBlockData {
 	readonly parentContextKeyService?: IContextKeyService;
 	readonly renderOptions?: ICodeBlockRenderOptions;
 
+	readonly text?: string;
 	readonly chatSessionResource: URI;
 }
 
@@ -406,6 +407,11 @@ export class CodeBlockPart extends Disposable {
 		if (this.currentCodeBlockData?.range) {
 			const lineCount = this.currentCodeBlockData.range.endLineNumber - this.currentCodeBlockData.range.startLineNumber + 1;
 			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+			return lineCount * lineHeight + 2 * this.verticalPadding;
+		} else if (this.currentCodeBlockData?.text) {
+			const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+			// TODO: Wrapping?
+			const lineCount = (this.currentCodeBlockData.text.match(/\n/g)?.length ?? 0) + 1;
 			return lineCount * lineHeight + 2 * this.verticalPadding;
 		}
 		return this.editor.getContentHeight();

@@ -230,6 +230,7 @@ export class ChatToolOutputContentSubPart extends Disposable {
 			parentContextKeyService: this.contextKeyService,
 			renderOptions: firstPart.options,
 			chatSessionResource: this.context.element.sessionResource,
+			text: combinedText,
 		};
 		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this.context.currentWidth.get());
