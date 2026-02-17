@@ -43,7 +43,6 @@ export function registerChatForkActions() {
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatService = accessor.get(IChatService);
-			const forkedTitlePrefix = localize('chat.forked.titlePrefix', "Forked: ");
 
 			// When invoked via /fork slash command, args[0] is a URI (sessionResource).
 			// Fork at the last request in that session.
@@ -63,7 +62,10 @@ export function registerChatForkActions() {
 				cleanData.sessionId = generateUuid();
 				const forkTimestamp = Date.now();
 				cleanData.creationDate = forkTimestamp;
-				cleanData.customTitle = chatModel.title.startsWith(forkedTitlePrefix)
+				// Use non-localized flag instead of title prefix check
+				const sourceWasAlreadyForked = serializedData.isForked;
+				cleanData.isForked = true;
+				cleanData.customTitle = sourceWasAlreadyForked
 					? chatModel.title
 					: localize('chat.forked.title', "Forked: {0}", chatModel.title);
 				for (const [index, req] of cleanData.requests.entries()) {
@@ -162,7 +164,10 @@ export function registerChatForkActions() {
 			forkedData.sessionId = generateUuid();
 			const forkedTimestamp = Date.now();
 			forkedData.creationDate = forkedTimestamp;
-			forkedData.customTitle = chatModel.title.startsWith(forkedTitlePrefix)
+			// Use non-localized flag instead of title prefix check
+			const sourceWasAlreadyForked = serializedData.isForked;
+			forkedData.isForked = true;
+			forkedData.customTitle = sourceWasAlreadyForked
 				? chatModel.title
 				: localize('chat.forked.title', "Forked: {0}", chatModel.title);
 			for (const [index, req] of forkedData.requests.entries()) {
