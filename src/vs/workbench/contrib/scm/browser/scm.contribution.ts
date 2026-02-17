@@ -49,6 +49,8 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { IFolderToOpen } from '../../../../platform/window/common/window.js';
+import { IHostService } from '../../../services/host/browser/host.js';
 import product from '../../../../platform/product/common/product.js';
 
 ModesRegistry.registerLanguage({
@@ -580,6 +582,38 @@ CommandsRegistry.registerCommand('scm.openInIntegratedTerminal', async (accessor
 	await commandService.executeCommand('openInIntegratedTerminal', provider.rootUri);
 });
 
+CommandsRegistry.registerCommand('scm.openRepository', async (accessor, ...providers: ISCMProvider[]) => {
+	if (!providers || providers.length === 0) {
+		return;
+	}
+
+	const provider = providers.length === 1 ? providers[0] : undefined;
+	if (!provider?.rootUri) {
+		return;
+	}
+
+	const hostService = accessor.get(IHostService);
+	const folderToOpen: IFolderToOpen = { folderUri: provider.rootUri };
+
+	await hostService.openWindow([folderToOpen], { forceNewWindow: false });
+});
+
+CommandsRegistry.registerCommand('scm.openRepositoryInNewWindow', async (accessor, ...providers: ISCMProvider[]) => {
+	if (!providers || providers.length === 0) {
+		return;
+	}
+
+	const provider = providers.length === 1 ? providers[0] : undefined;
+	if (!provider?.rootUri) {
+		return;
+	}
+
+	const hostService = accessor.get(IHostService);
+	const folderToOpen: IFolderToOpen = { folderUri: provider.rootUri };
+
+	await hostService.openWindow([folderToOpen], { forceNewWindow: true });
+});
+
 CommandsRegistry.registerCommand('scm.openInTerminal', async (accessor, provider: ISCMProvider) => {
 	if (!provider || !provider.rootUri) {
 		return;
@@ -629,6 +663,26 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 		ContextKeyExpr.or(
 			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'integrated'),
 			ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+});
+
+MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
+	group: 'navigation',
+	command: {
+		id: 'scm.openRepository',
+		title: localize('open repository', "Open Repository")
+	},
+	order: 98,
+	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
+});
+
+MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
+	group: 'navigation',
+	command: {
+		id: 'scm.openRepositoryInNewWindow',
+		title: localize('open repository in new window', "Open Repository in New Window")
+	},
+	order: 99,
+	when: ContextKeyExpr.equals('scmProviderHasRootUri', true)
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
