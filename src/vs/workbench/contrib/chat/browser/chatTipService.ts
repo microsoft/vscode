@@ -10,7 +10,7 @@ import { createDecorator, IInstantiationService } from '../../../../platform/ins
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -588,7 +588,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	async disableTips(): Promise<void> {
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
-		await this._configurationService.updateValue('chat.tips.enabled', false);
+		await this._configurationService.updateValue('chat.tips.enabled', false, ConfigurationTarget.APPLICATION);
 		this._onDidDisableTips.fire();
 	}
 

@@ -284,6 +284,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.tips.enabled': {
 			type: 'boolean',
+			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('chat.tips.enabled', "Controls whether tips are shown above user messages in chat. This is an experimental feature."),
 			default: false,
 			tags: ['experimental'],

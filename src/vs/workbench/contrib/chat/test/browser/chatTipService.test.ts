@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -27,6 +27,19 @@ import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModel
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(): boolean {
 		return true;
+	}
+}
+
+class TrackingConfigurationService extends TestConfigurationService {
+	public lastUpdateTarget: ConfigurationTarget | undefined;
+	public lastUpdateKey: string | undefined;
+	public lastUpdateValue: unknown;
+
+	override updateValue(key: string, value: unknown, arg3?: unknown): Promise<void> {
+		this.lastUpdateKey = key;
+		this.lastUpdateValue = value;
+		this.lastUpdateTarget = arg3 as ConfigurationTarget | undefined;
+		return Promise.resolve(undefined);
 	}
 }
 
@@ -169,6 +182,20 @@ suite('ChatTipService', () => {
 		await service.disableTips();
 
 		assert.ok(fired, 'onDidDisableTips should fire');
+	});
+
+	test('disableTips writes to application settings target', async () => {
+		const trackingConfigurationService = new TrackingConfigurationService();
+		configurationService = trackingConfigurationService;
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		const service = createService();
+
+		await service.disableTips();
+
+		assert.strictEqual(trackingConfigurationService.lastUpdateKey, 'chat.tips.enabled');
+		assert.strictEqual(trackingConfigurationService.lastUpdateValue, false);
+		assert.strictEqual(trackingConfigurationService.lastUpdateTarget, ConfigurationTarget.APPLICATION);
 	});
 
 	test('disableTips resets state so re-enabling works', async () => {
