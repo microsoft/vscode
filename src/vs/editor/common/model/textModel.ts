@@ -1472,7 +1472,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
+	/** @internal */
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits?: false, reason?: TextModelEditSource): void;
+	/** @internal */
 	public applyEdits(operations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits: true, reason?: TextModelEditSource): model.IValidEditOperation[];
 	public applyEdits(rawOperations: readonly model.IIdentifiedSingleEditOperation[], computeUndoEdits?: boolean, reason?: TextModelEditSource): void | model.IValidEditOperation[] {
 		try {
