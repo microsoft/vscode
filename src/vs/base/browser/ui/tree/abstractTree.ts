@@ -1431,7 +1431,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		const firstVisibleNode = this.getNodeAtHeight(this.paddingTop);
 
 		// Don't render anything if there are no elements
-		if (!firstVisibleNode || this.tree.scrollTop <= this.paddingTop) {
+		if (!firstVisibleNode || this.tree.scrollTop <= this.paddingTop || this.view.renderHeight === 0) {
 			this._widget.setState(undefined);
 			return;
 		}

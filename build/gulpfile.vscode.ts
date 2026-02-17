@@ -67,6 +67,7 @@ const vscodeResourceIncludes = [
 
 	// Workbench
 	'out-build/vs/code/electron-browser/workbench/workbench.html',
+	'out-build/vs/sessions/electron-browser/sessions.html',
 
 	// Electron Preload
 	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
@@ -95,6 +96,9 @@ const vscodeResourceIncludes = [
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+
+	// Sessions
+	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
 
 	// Extensions
 	'out-build/vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
@@ -148,7 +152,7 @@ const bundleVSCodeTask = task.define('bundle-vscode', task.series(
 					...bootstrapEntryPoints
 				],
 				resources: vscodeResources,
-				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench'
+				skipTSBoilerplateRemoval: entryPoint => entryPoint === 'vs/code/electron-browser/workbench/workbench' || entryPoint === 'vs/sessions/electron-browser/sessions'
 			}
 		}
 	)
@@ -327,7 +331,11 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/api/node/extensionHostProcess.js',
 			'vs/code/electron-browser/workbench/workbench.html',
-			'vs/code/electron-browser/workbench/workbench.js'
+			'vs/code/electron-browser/workbench/workbench.js',
+			'vs/sessions/sessions.desktop.main.js',
+			'vs/sessions/sessions.desktop.main.css',
+			'vs/sessions/electron-browser/sessions.html',
+			'vs/sessions/electron-browser/sessions.js'
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
@@ -378,6 +386,34 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				this.emit('data', file);
 			}));
 
+
+		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
+		const embedded = isInsiderOrExploration
+			? (product as typeof product & { embedded?: { nameShort: string; nameLong: string; applicationName: string; dataFolderName: string; darwinBundleIdentifier: string } }).embedded
+			: undefined;
+
+		const packageSubJsonStream = isInsiderOrExploration
+			? gulp.src(['package.json'], { base: '.' })
+				.pipe(jsonEditor((json: Record<string, unknown>) => {
+					json.name = `sessions-${quality || 'oss-dev'}`;
+					return json;
+				}))
+				.pipe(rename('package.sub.json'))
+			: undefined;
+
+		const productSubJsonStream = embedded
+			? gulp.src(['product.json'], { base: '.' })
+				.pipe(jsonEditor((json: Record<string, unknown>) => {
+					json.nameShort = embedded.nameShort;
+					json.nameLong = embedded.nameLong;
+					json.applicationName = embedded.applicationName;
+					json.dataFolderName = embedded.dataFolderName;
+					json.darwinBundleIdentifier = embedded.darwinBundleIdentifier;
+					return json;
+				}))
+				.pipe(rename('product.sub.json'))
+			: undefined;
+
 		const license = gulp.src([product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
 		// TODO the API should be copied to `out` during compile, not here
@@ -413,7 +449,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'node_modules/vsda/**' // retain copy of `vsda` in node_modules for internal use
 			], 'node_modules.asar'));
 
-		let all = es.merge(
+		const mergeStreams = [
 			packageJsonStream,
 			productJsonStream,
 			license,
@@ -421,7 +457,14 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			telemetry,
 			sources,
 			deps
-		);
+		];
+		if (packageSubJsonStream) {
+			mergeStreams.push(packageSubJsonStream);
+		}
+		if (productSubJsonStream) {
+			mergeStreams.push(productSubJsonStream);
+		}
+		let all = es.merge(...mergeStreams);
 
 		if (platform === 'win32') {
 			all = es.merge(all, gulp.src([
@@ -470,12 +513,24 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			all = es.merge(all, shortcut, policyDest);
 		}
 
+		const electronConfig = {
+			...config,
+			platform,
+			arch: arch === 'armhf' ? 'arm' : arch,
+			ffmpegChromium: false,
+			...(embedded ? {
+				darwinMiniAppName: embedded.nameShort,
+				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
+				darwinMiniAppIcon: 'resources/darwin/sessions.icns',
+			} : {})
+		};
+
 		let result: NodeJS.ReadWriteStream = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
-			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: false }))
-			.pipe(filter(['**', '!LICENSE', '!version', ...(platform === 'darwin' ? ['!**/Contents/Applications/**'] : [])], { dot: true }));
+			.pipe(electron(electronConfig))
+			.pipe(filter(['**', '!LICENSE', '!version'], { dot: true }));
 
 		if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })

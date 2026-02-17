@@ -8,6 +8,7 @@ import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../.
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
@@ -100,6 +101,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	// Persistent title elements for shimmer
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
+	private titleDetailRendered: IRenderedMarkdown | undefined;
 
 	/**
 	 * Check if a tool invocation is the parent subagent tool (the tool that spawns a subagent).
@@ -366,11 +368,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 	private updateTitle(): void {
 		const prefix = this.agentName || localize('chat.subagent.prefix', 'Subagent');
-		const shimmerText = `${prefix}: `;
-		let detailText = this.description;
-		if (this.currentRunningToolMessage && this.isActive) {
-			detailText += ` \u2014 ${this.currentRunningToolMessage}`;
-		}
+		const shimmerText = `${prefix}: ${this.description}`;
+		const toolCallText = this.currentRunningToolMessage && this.isActive ? ` \u2014 ${this.currentRunningToolMessage}` : ``;
 
 		if (!this._collapseButton) {
 			return;
@@ -386,18 +385,32 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.titleShimmerSpan.textContent = shimmerText;
 
-		const result = this.chatContentMarkdownRenderer.render(new MarkdownString(detailText));
-		result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
-		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
-
-		if (this.titleDetailContainer) {
-			this.titleDetailContainer.replaceWith(result.element);
-		} else {
-			labelElement.appendChild(result.element);
+		// Dispose previous detail rendering
+		if (this.titleDetailRendered) {
+			this.titleDetailRendered.dispose();
+			this.titleDetailRendered = undefined;
 		}
-		this.titleDetailContainer = result.element;
 
-		const fullLabel = `${shimmerText}${detailText}`;
+		if (!toolCallText) {
+			if (this.titleDetailContainer) {
+				this.titleDetailContainer.remove();
+				this.titleDetailContainer = undefined;
+			}
+		} else {
+			const result = this.chatContentMarkdownRenderer.render(new MarkdownString(toolCallText));
+			result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
+			renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+			this.titleDetailRendered = result;
+
+			if (this.titleDetailContainer) {
+				this.titleDetailContainer.replaceWith(result.element);
+			} else {
+				labelElement.appendChild(result.element);
+			}
+			this.titleDetailContainer = result.element;
+		}
+
+		const fullLabel = `${shimmerText}${toolCallText}`;
 		this._collapseButton.element.ariaLabel = fullLabel;
 		this._collapseButton.element.ariaExpanded = String(this.isExpanded());
 	}
@@ -650,6 +663,17 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
 		hookPart: IChatHookPart
 	): void {
+		// update title with hook message
+		const hookMessage = hookPart.stopReason
+			? (hookPart.toolDisplayName
+				? localize('hook.subagent.blocked', 'Blocked {0}', hookPart.toolDisplayName)
+				: localize('hook.subagent.blockedGeneric', 'Blocked by hook'))
+			: (hookPart.toolDisplayName
+				? localize('hook.subagent.warning', 'Warning for {0}', hookPart.toolDisplayName)
+				: localize('hook.subagent.warningGeneric', 'Hook warning'));
+		this.currentRunningToolMessage = hookMessage;
+		this.updateTitle();
+
 		if (this.isExpanded() || this.hasExpandedOnce) {
 			const result = factory();
 			this.appendHookItemToDOM(result.domNode, hookPart);

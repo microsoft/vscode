@@ -49,7 +49,7 @@
 		"build/**/*.js.map": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
-		}
+		},
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc",
@@ -69,7 +69,8 @@
 		"extensions/terminal-suggest/src/completions/upstream/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
-		"test/integration/browser/out/**": true
+		"test/integration/browser/out/**": true,
+		"src/vs/sessions/**": true
 	},
 	// --- Search ---
 	"search.exclude": {
@@ -92,6 +93,7 @@
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
 		"build/loader.min": true,
 		"**/*.snap": true,
+		"src/vs/sessions/**": true
 	},
 	// --- TypeScript ---
 	"typescript.experimental.useTsgo": true,

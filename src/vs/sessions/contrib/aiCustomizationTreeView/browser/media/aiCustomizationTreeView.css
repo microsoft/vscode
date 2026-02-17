@@ -1,0 +1,98 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ai-customization-view {
+	height: 100%;
+}
+
+.ai-customization-view .tree-container {
+	height: 100%;
+}
+
+/* Tree item styling */
+.ai-customization-view .ai-customization-tree-item {
+	display: flex;
+	align-items: center;
+	height: 22px;
+	line-height: 22px;
+	padding-right: 8px;
+}
+
+.ai-customization-view .ai-customization-tree-item .icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.ai-customization-view .ai-customization-tree-item .name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-view .ai-customization-tree-item .description {
+	flex-shrink: 1;
+	color: var(--vscode-descriptionForeground);
+	font-size: 0.9em;
+	margin-left: 8px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	opacity: 0.8;
+}
+
+/* Group headers */
+.ai-customization-view .ai-customization-group-header {
+	display: flex;
+	align-items: center;
+	height: 22px;
+	font-weight: 600;
+	text-transform: uppercase;
+	font-size: 11px;
+	letter-spacing: 0.5px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.ai-customization-view .ai-customization-group-header .label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Category headers (top-level types like "Custom Agents", "Skills") */
+.ai-customization-view .ai-customization-category {
+	display: flex;
+	align-items: center;
+	height: 22px;
+	line-height: 22px;
+	font-weight: 600;
+}
+
+.ai-customization-view .ai-customization-category .icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-right: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.ai-customization-view .ai-customization-category .label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Empty state */
+.ai-customization-view .empty-message {
+	padding: 10px;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+}

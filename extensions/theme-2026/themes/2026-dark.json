@@ -104,6 +104,7 @@
 		"editor.background": "#121314",
 		"editor.foreground": "#BBBEBF",
 		"editorStickyScroll.background": "#121314",
+		"editorStickyScrollHover.background": "#202122",
 		"editorLineNumber.foreground": "#858889",
 		"editorLineNumber.activeForeground": "#BBBEBF",
 		"editorCursor.foreground": "#BBBEBF",
