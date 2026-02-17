@@ -93,7 +93,6 @@
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
 		"build/loader.min": true,
 		"**/*.snap": true,
-		"src/vs/sessions/**": true
 	},
 	// --- TypeScript ---
 	"typescript.experimental.useTsgo": true,
