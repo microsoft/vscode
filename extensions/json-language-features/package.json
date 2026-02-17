@@ -134,7 +134,9 @@
             "https://raw.githubusercontent.com/": true,
             "https://www.schemastore.org/": true,
             "https://json.schemastore.org/": true,
-            "https://json-schema.org/": true
+            "https://json-schema.org/": true,
+            "https://unpkg.com/": true,
+            "https://cdn.jsdelivr.net/": true,
           },
           "additionalProperties": {
             "type": "boolean"
