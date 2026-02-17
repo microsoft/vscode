@@ -51,6 +51,7 @@
 		"widget.shadow": "#00000000",
 		"widget.border": "#EEEEF1",
 		"editorStickyScroll.shadow": "#00000000",
+		"editorStickyScrollHover.background": "#F0F0F3",
 		"sideBarStickyScroll.shadow": "#00000000",
 		"panelStickyScroll.shadow": "#00000000",
 		"listFilterWidget.shadow": "#00000000",
