@@ -8,6 +8,7 @@ import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../.
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
+import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
@@ -100,6 +101,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	// Persistent title elements for shimmer
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
+	private titleDetailRendered: IRenderedMarkdown | undefined;
 
 	/**
 	 * Check if a tool invocation is the parent subagent tool (the tool that spawns a subagent).
@@ -383,16 +385,30 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.titleShimmerSpan.textContent = shimmerText;
 
-		const result = this.chatContentMarkdownRenderer.render(new MarkdownString(toolCallText));
-		result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
-		renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
-
-		if (this.titleDetailContainer) {
-			this.titleDetailContainer.replaceWith(result.element);
-		} else {
-			labelElement.appendChild(result.element);
+		// Dispose previous detail rendering
+		if (this.titleDetailRendered) {
+			this.titleDetailRendered.dispose();
+			this.titleDetailRendered = undefined;
 		}
-		this.titleDetailContainer = result.element;
+
+		if (!toolCallText) {
+			if (this.titleDetailContainer) {
+				this.titleDetailContainer.remove();
+				this.titleDetailContainer = undefined;
+			}
+		} else {
+			const result = this.chatContentMarkdownRenderer.render(new MarkdownString(toolCallText));
+			result.element.classList.add('collapsible-title-content', 'chat-thinking-title-detail');
+			renderFileWidgets(result.element, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+			this.titleDetailRendered = result;
+
+			if (this.titleDetailContainer) {
+				this.titleDetailContainer.replaceWith(result.element);
+			} else {
+				labelElement.appendChild(result.element);
+			}
+			this.titleDetailContainer = result.element;
+		}
 
 		const fullLabel = `${shimmerText}${toolCallText}`;
 		this._collapseButton.element.ariaLabel = fullLabel;
