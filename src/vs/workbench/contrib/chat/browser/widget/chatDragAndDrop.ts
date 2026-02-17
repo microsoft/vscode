@@ -309,7 +309,7 @@ export class ChatDragAndDrop extends Themable {
 		return undefined;
 	}
 
-	private async resolveHTMLAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
+	public async resolveFilesAndImages(dataTransfer: DataTransfer): Promise<IChatRequestVariableEntry[]> {
 		const existingAttachmentNames = new Set<string>(this.attachmentModel.attachments.map(attachment => attachment.name));
 		const createDisplayName = (): string => {
 			const baseName = localize('dragAndDroppedImageName', 'Image from URL');
@@ -355,20 +355,27 @@ export class ChatDragAndDrop extends Themable {
 		const imageTransferData: ImageTransferData[] = [];
 
 		// Image Web File Drag and Drop
-		const imageFiles = extractImageFilesFromDragEvent(e);
+		const imageFiles = extractImageFilesFromDataTransfer(dataTransfer);
 		if (imageFiles.length) {
 			const imageTransferDataFromFiles = await Promise.all(imageFiles.map(file => getImageTransferDataFromFile(file)));
 			imageTransferData.push(...imageTransferDataFromFiles.filter(data => !!data));
 		}
 
 		// Image Web URL Drag and Drop
-		const imageUrls = extractUrlsFromDragEvent(e);
+		const imageUrls = extractUrlsFromDataTransfer(dataTransfer, this.logService);
 		if (imageUrls.length) {
 			const imageTransferDataFromUrl = await Promise.all(imageUrls.map(getImageTransferDataFromUrl));
 			imageTransferData.push(...imageTransferDataFromUrl.filter(data => !!data));
 		}
 
 		return await this.chatAttachmentResolveService.resolveImageAttachContext(imageTransferData);
+	}
+
+	private async resolveHTMLAttachContext(e: DragEvent): Promise<IChatRequestVariableEntry[]> {
+		if (e.dataTransfer) {
+			return this.resolveFilesAndImages(e.dataTransfer);
+		}
+		return [];
 	}
 
 	private setOverlay(target: HTMLElement, type: ChatDragAndDropType | undefined): void {
@@ -433,8 +440,8 @@ function containsImageDragType(e: DragEvent): boolean {
 	return false;
 }
 
-function extractUrlsFromDragEvent(e: DragEvent, logService?: ILogService): string[] {
-	const textUrl = e.dataTransfer?.getData('text/uri-list');
+function extractUrlsFromDataTransfer(dataTransfer: DataTransfer, logService?: ILogService): string[] {
+	const textUrl = dataTransfer.getData('text/uri-list');
 	if (textUrl) {
 		try {
 			const urls = UriList.parse(textUrl);
@@ -450,11 +457,12 @@ function extractUrlsFromDragEvent(e: DragEvent, logService?: ILogService): strin
 	return [];
 }
 
-function extractImageFilesFromDragEvent(e: DragEvent): File[] {
-	const files = e.dataTransfer?.files;
+function extractImageFilesFromDataTransfer(dataTransfer: DataTransfer): File[] {
+	const files = dataTransfer.files;
 	if (!files) {
 		return [];
 	}
 
 	return Array.from(files).filter(file => file.type.startsWith('image/'));
 }
+

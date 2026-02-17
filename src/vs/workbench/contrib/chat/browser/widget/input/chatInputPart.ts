@@ -1929,6 +1929,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
+		this._register(dom.addDisposableListener(this._inputEditorElement, 'paste', async (e: ClipboardEvent) => {
+			if (!e.clipboardData) {
+				return;
+			}
+
+			// We need to check if there are images in the clipboard to prevent default behavior
+			// If we don't prevent default, the editor will try to paste the image as text (e.g. file path or binary)
+			const hasImages = Array.from(e.clipboardData.files).some(file => file.type.startsWith('image/'));
+			if (hasImages) {
+				e.preventDefault();
+			}
+
+			const attachments = await this.dnd.resolveFilesAndImages(e.clipboardData);
+			if (attachments.length > 0) {
+				this._attachmentModel.addContext(...attachments);
+			}
+		}));
+
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
 			if (currentHeight !== this.inputEditorHeight) {
