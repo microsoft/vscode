@@ -11,6 +11,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
@@ -220,6 +221,31 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
+	/**
+	 * Persist external sessions locally so they can be restored from disk
+	 * even after the external provider is no longer available.
+	 */
+	async storeExternalSessionsLocally(sessions: ChatModel[]): Promise<void> {
+		if (this.shuttingDown) {
+			return;
+		}
+
+		try {
+			this.storeTask = this.storeQueue.queue(async () => {
+				try {
+					await Promise.all(sessions.map(session => this.writeExternalSessionLocally(session)));
+					await this.trimEntries();
+					await this.flushIndex();
+				} catch (e) {
+					this.reportError('storeExternalSessions', 'Error storing external chat sessions locally', e);
+				}
+			});
+			await this.storeTask;
+		} finally {
+			this.storeTask = undefined;
+		}
+	}
+
 	async storeTransferSession(transferData: IChatTransfer, session: ChatModel): Promise<void> {
 		const index = this.getTransferredSessionIndex();
 		const workspaceKey = transferData.toWorkspace.toString();
@@ -386,6 +412,61 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
+	/**
+	 * Write an external session's full data locally using a generated local ID,
+	 * so it survives across restarts even without the external provider.
+	 * The index entry is keyed by the generated local UUID so that deletion, title
+	 * updates, and other operations work consistently with file storage.
+	 */
+	private async writeExternalSessionLocally(session: ChatModel): Promise<void> {
+		if (LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
+			return;
+		}
+
+		try {
+			const index = this.internalGetIndex();
+			const externalSessionUri = session.sessionResource.toString();
+
+			// Check if this external session was already persisted by scanning for its URI
+			let localId: string | undefined;
+			for (const [key, entry] of Object.entries(index.entries)) {
+				if (entry.externalSessionResource === externalSessionUri) {
+					localId = key;
+					break;
+				}
+			}
+			localId ??= generateUuid();
+
+			const storageLocation = this.getStorageLocation(localId);
+			if (storageLocation.log) {
+				if (!session.dataSerializer) {
+					session.dataSerializer = new ChatSessionOperationLog();
+				}
+				const { op, data } = session.dataSerializer.write(session);
+				if (data.byteLength > 0) {
+					await this.fileService.writeFile(storageLocation.log, data, { append: op === 'append' });
+				}
+			} else {
+				await this.fileService.writeFile(storageLocation.flat, VSBuffer.fromString(JSON.stringify(session)));
+			}
+
+			// Remove old external-URI-keyed entry if it exists (from metadata-only writes)
+			if (index.entries[externalSessionUri]) {
+				delete index.entries[externalSessionUri];
+			}
+
+			// Key the index entry by localId so delete/clear/title operations work consistently
+			const newMetadata = await getSessionMetadata(session);
+			newMetadata.isPersistedLocally = true;
+			newMetadata.externalSessionResource = externalSessionUri;
+			// Override sessionId to match the local storage key
+			newMetadata.sessionId = localId;
+			index.entries[localId] = newMetadata;
+		} catch (e) {
+			this.reportError('externalSessionWrite', 'Error writing external chat session locally', e);
+		}
+	}
+
 	private async flushIndex(): Promise<void> {
 		const index = this.internalGetIndex();
 		try {
@@ -405,14 +486,14 @@ export class ChatSessionStore extends Disposable {
 	private async trimEntries(): Promise<void> {
 		const index = this.internalGetIndex();
 		const entries = Object.entries(index.entries)
-			.filter(([_id, entry]) => !entry.isExternal)
+			.filter(([_id, entry]) => !entry.isExternal || entry.isPersistedLocally)
 			.sort((a, b) => b[1].lastMessageDate - a[1].lastMessageDate)
 			.map(([id]) => id);
 
 		if (entries.length > maxPersistedSessions) {
 			const entriesToDelete = entries.slice(maxPersistedSessions);
-			for (const entry of entriesToDelete) {
-				delete index.entries[entry];
+			for (const id of entriesToDelete) {
+				await this.internalDeleteSession(id);
 			}
 
 			this.logService.trace(`ChatSessionStore: Trimmed ${entriesToDelete.length} old chat sessions from index`);
@@ -436,9 +517,9 @@ export class ChatSessionStore extends Disposable {
 					this.reportError('sessionDelete', 'Error deleting chat session', e);
 				}
 			}
-
-			delete index.entries[sessionId];
 		}
+
+		delete index.entries[sessionId];
 	}
 
 	hasSessions(): boolean {
@@ -721,6 +802,19 @@ export interface IChatSessionEntryMetadata {
 	 * Whether this session was loaded from an external provider (eg background/cloud sessions).
 	 */
 	isExternal?: boolean;
+
+	/**
+	 * Whether this external session has been fully persisted locally. External sessions with
+	 * local persistence can be restored from disk even after the external provider is gone.
+	 */
+	isPersistedLocally?: boolean;
+
+	/**
+	 * The original external session resource URI. Stored when an external session
+	 * is persisted locally so the origin can be tracked. The index entry itself
+	 * is keyed by the generated local UUID for consistent file operations.
+	 */
+	externalSessionResource?: string;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {

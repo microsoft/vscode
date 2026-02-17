@@ -42,6 +42,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	repoData: IExportableRepoData | undefined = undefined;
 	isDisposed = false;
 	lastRequestObs: IObservable<IChatRequestModel | undefined>;
+	dataSerializer: { write: (session: IChatModel) => { op: 'write' | 'append'; data: { byteLength: number } } } | undefined = undefined;
 
 	constructor(readonly sessionResource: URI) {
 		super();

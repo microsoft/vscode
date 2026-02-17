@@ -170,7 +170,9 @@ export class ChatService extends Disposable implements IChatService {
 						await this._chatSessionStore.storeSessions([model]);
 					}
 				} else if (!localSessionId && model.getRequests().length > 0) {
-					await this._chatSessionStore.storeSessionsMetadataOnly([model]);
+					// Persist external sessions (e.g. third-party model agents) locally
+					// so they can be restored after restart
+					await this._chatSessionStore.storeExternalSessionsLocally([model]);
 				}
 			}
 		}));
@@ -235,7 +237,18 @@ export class ChatService extends Disposable implements IChatService {
 
 		const liveNonLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => !LocalChatSessionUri.parseLocalSessionId(session.sessionResource));
-		this._chatSessionStore.storeSessionsMetadataOnly(liveNonLocalChats);
+
+		// Persist external sessions with requests locally so they survive restarts
+		const nonLocalWithRequests = liveNonLocalChats.filter(session => session.getRequests().length > 0);
+		if (nonLocalWithRequests.length > 0) {
+			this._chatSessionStore.storeExternalSessionsLocally(nonLocalWithRequests);
+		}
+
+		// Store metadata only for empty external sessions
+		const nonLocalWithoutRequests = liveNonLocalChats.filter(session => session.getRequests().length === 0);
+		if (nonLocalWithoutRequests.length > 0) {
+			this._chatSessionStore.storeSessionsMetadataOnly(nonLocalWithoutRequests);
+		}
 	}
 
 	/**
@@ -385,12 +398,13 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	/**
-	 * Returns an array of chat details for all local chat sessions in history (not currently loaded).
+	 * Returns an array of chat details for all chat sessions in history (not currently loaded).
+	 * Includes both local sessions and external sessions that have been persisted locally.
 	 */
 	async getHistorySessionItems(): Promise<IChatDetail[]> {
 		const index = await this._chatSessionStore.getIndex();
 		return Object.values(index)
-			.filter(entry => !entry.isExternal)
+			.filter(entry => !entry.isExternal || entry.isPersistedLocally)
 			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && entry.initialLocation === ChatAgentLocation.Chat && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
