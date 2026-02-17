@@ -635,6 +635,18 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		type: 'boolean',
 		default: true
 	},
+	[TerminalSettingId.ShellIntegrationQuickFixAutoFill]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixAutoFill', "When shell integration is enabled and a quick fix is available, automatically fill the terminal prompt with the suggested command."),
+		type: 'boolean',
+		default: false
+	},
+	[TerminalSettingId.ShellIntegrationQuickFixGhostText]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.shellIntegration.quickFixGhostText', "When shell integration is enabled and a quick fix is available, show the suggested command as ghost text that can be accepted with Tab."),
+		type: 'boolean',
+		default: false
+	},
 	[TerminalSettingId.ShellIntegrationEnvironmentReporting]: {
 		markdownDescription: localize('terminal.integrated.shellIntegration.environmentReporting', "Controls whether to report the shell environment, enabling its use in features such as {0}. This may cause a slowdown when printing your shell's prompt.", `\`#${TerminalContribSettingId.SuggestEnabled}#\``),
 		type: 'boolean',

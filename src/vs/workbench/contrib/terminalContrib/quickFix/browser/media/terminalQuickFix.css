@@ -19,3 +19,13 @@
 .monaco-workbench .terminal .terminal-command-decoration.quick-fix.explainOnly {
 	color: var(--vscode-editorLightBulbAutoFix-foreground) !important;
 }
+
+/* Quick fix ghost text styling */
+.xterm-screen .xterm-decoration-container .xterm-decoration.quick-fix-ghost-text {
+	z-index: 6;
+	opacity: 0.5;
+	font-style: italic;
+	color: var(--vscode-editorGhostText-foreground, var(--vscode-terminal-foreground));
+	pointer-events: none;
+	white-space: pre;
+}
