@@ -26,7 +26,13 @@
   "browser": "./dist/browser/mergeConflictMain",
   "scripts": {
     "compile": "gulp compile-extension:merge-conflict",
-    "watch": "gulp watch-extension:merge-conflict"
+    "watch": "gulp watch-extension:merge-conflict",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
   },
   "contributes": {
     "commands": [

@@ -1,0 +1,40 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Left Tool Bar Container */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container {
+	display: none;
+	padding-left: 8px;
+	flex-grow: 0;
+	flex-shrink: 0;
+	text-align: center;
+	position: relative;
+	z-index: 2500;
+	-webkit-app-region: no-drag;
+	height: 100%;
+	order: 2;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container:not(.has-no-actions) {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container .codicon {
+	color: inherit;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item {
+	display: flex;
+}
+
+/* TODO: Hack to avoid flicker when sidebar becomes visible.
+ * The contribution swaps the menu item synchronously, but the toolbar
+ * re-render is async, causing a brief flash. Hide the container via
+ * CSS when sidebar is visible (nosidebar class is removed synchronously). */
+.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container {
+	display: none !important;
+}

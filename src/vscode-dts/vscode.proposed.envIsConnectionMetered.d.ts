@@ -8,7 +8,7 @@ declare module 'vscode' {
 	export namespace env {
 		/**
 		 * Whether the current network connection is metered (such as mobile data or tethering).
-		 * Always returns `false` if the `update.respectMeteredConnections` setting is disabled.
+		 * Always returns `false` if the `network.meteredConnection` setting is set to `off`.
 		 */
 		export const isMeteredConnection: boolean;
 

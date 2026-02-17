@@ -85,6 +85,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly capabilities?: IChatAgentAttachmentCapabilities;
 	readonly commands?: IChatSessionCommandContribution[];
 	readonly canDelegate?: boolean;
+	readonly isReadOnly?: boolean;
 	/**
 	 * When set, the chat session will show a filtered mode picker with custom agents
 	 * that have a matching `target` property. This enables contributed chat sessions
@@ -92,6 +93,7 @@ export interface IChatSessionsExtensionPoint {
 	 * Custom agents without a `target` property are also shown in all filtered lists
 	 */
 	readonly customAgentTarget?: Target;
+	readonly requiresCustomModels?: boolean;
 }
 
 export interface IChatSessionItem {
@@ -273,6 +275,10 @@ export interface IChatSessionsService {
 	 */
 	getCustomAgentTargetForSessionType(chatSessionType: string): Target;
 
+	/**
+	 * Returns whether the session type requires custom models. When true, the model picker should show filtered custom models.
+	 */
+	requiresCustomModelsForSessionType(chatSessionType: string): boolean;
 	onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;

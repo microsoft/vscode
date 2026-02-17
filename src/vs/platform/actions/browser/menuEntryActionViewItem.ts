@@ -520,7 +520,12 @@ export class DropdownWithDefaultActionViewItem extends BaseActionViewItem {
 		super.actionRunner = actionRunner;
 
 		this._defaultAction.actionRunner = actionRunner;
-		this._dropdown.actionRunner = actionRunner;
+		// When togglePrimaryAction is enabled, keep the dropdown's private
+		// action runner so that the onDidRun listener only fires for actions
+		// originating from the dropdown, not from unrelated toolbar buttons.
+		if (!this._options?.togglePrimaryAction) {
+			this._dropdown.actionRunner = actionRunner;
+		}
 		if (this._primaryActionListener.value) {
 			this.registerTogglePrimaryActionListener();
 		}

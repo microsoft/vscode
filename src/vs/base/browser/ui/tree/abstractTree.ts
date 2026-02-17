@@ -832,7 +832,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 	private readonly actionbar: ActionBar;
 	private readonly toggles: TreeFindToggle[] = [];
 
-	readonly _onDidDisable = new Emitter<void>();
+	readonly _onDidDisable = this._register(new Emitter<void>());
 	readonly onDidDisable = this._onDidDisable.event;
 	readonly onDidChangeValue: Event<string>;
 	readonly onDidToggleChange: Event<ITreeFindToggleChangeEvent>;
@@ -1431,7 +1431,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		const firstVisibleNode = this.getNodeAtHeight(this.paddingTop);
 
 		// Don't render anything if there are no elements
-		if (!firstVisibleNode || this.tree.scrollTop <= this.paddingTop) {
+		if (!firstVisibleNode || this.tree.scrollTop <= this.paddingTop || this.view.renderHeight === 0) {
 			this._widget.setState(undefined);
 			return;
 		}
@@ -1901,10 +1901,10 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 	private elements: HTMLElement[] = [];
 	private state: StickyScrollState<T, TFilterData, TRef> | undefined;
 
-	private _onDidChangeHasFocus = new Emitter<boolean>();
+	private _onDidChangeHasFocus = this._register(new Emitter<boolean>());
 	readonly onDidChangeHasFocus = this._onDidChangeHasFocus.event;
 
-	private _onContextMenu = new Emitter<ITreeContextMenuEvent<T>>();
+	private _onContextMenu = this._register(new Emitter<ITreeContextMenuEvent<T>>());
 	readonly onContextMenu: Event<ITreeContextMenuEvent<T>> = this._onContextMenu.event;
 
 	private _domHasFocus: boolean = false;

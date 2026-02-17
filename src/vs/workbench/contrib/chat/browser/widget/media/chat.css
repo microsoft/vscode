@@ -457,12 +457,14 @@
 	}
 
 	/* not ideal but I cannot query the last div with this class... */
-	.rendered-markdown:last-of-type > P > SPAN:empty {
+	.rendered-markdown:last-of-type > P > SPAN:empty,
+	.rendered-markdown:last-of-type > SPAN:empty {
 		display: inline-block;
 		width: 11px;
 	}
 
-	.rendered-markdown:last-of-type > P > SPAN:empty::after {
+	.rendered-markdown:last-of-type > P > SPAN:empty::after,
+	.rendered-markdown:last-of-type > SPAN:empty::after {
 		content: '';
 		white-space: nowrap;
 		overflow: hidden;
@@ -2244,8 +2246,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 
-	/* shimmer animation for working progress only */
-	&.working-progress:has(.codicon-loading) .rendered-markdown.progress-step > p {
+	/* hide spinner icon for shimmer progress, shimmer handles animation */
+	&.shimmer-progress > .codicon {
+		display: none;
+	}
+
+	/* shimmer animation for shimmer progress */
+	&.shimmer-progress .rendered-markdown.progress-step > p {
 		background: linear-gradient(
 			90deg,
 			var(--vscode-descriptionForeground) 0%,

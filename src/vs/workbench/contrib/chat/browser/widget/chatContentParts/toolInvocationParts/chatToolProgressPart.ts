@@ -105,7 +105,8 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			this.provideScreenReaderStatus(content);
 		}
 
-		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation);
+		const isAskQuestionsTool = this.toolInvocation.toolId === 'copilot_askQuestions';
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation, isAskQuestionsTool ? undefined : false);
 	}
 
 	private getAnnouncementKey(kind: 'progress' | 'complete'): string {

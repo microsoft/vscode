@@ -160,7 +160,11 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			const allowedDomainsSet = new Set(networkSetting.allowedDomains ?? []);
 			if (networkSetting.allowTrustedDomains) {
 				for (const domain of this._trustedDomainService.trustedDomains) {
-					allowedDomainsSet.add(domain);
+					// Filter out sole wildcard '*' as sandbox runtime doesn't allow it
+					// Wildcards like '*.github.com' are OK
+					if (domain !== '*') {
+						allowedDomainsSet.add(domain);
+					}
 				}
 			}
 			const allowedDomains = Array.from(allowedDomainsSet);

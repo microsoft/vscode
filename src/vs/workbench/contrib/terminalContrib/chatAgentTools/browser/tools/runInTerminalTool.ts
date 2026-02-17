@@ -429,7 +429,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunInTerminalInputParams;
 
-		const chatSessionResource = context.chatSessionResource ?? (context.chatSessionId ? LocalChatSessionUri.forSession(context.chatSessionId) : undefined);
+		const chatSessionResource = context.chatSessionResource;
 		let instance: ITerminalInstance | undefined;
 		if (chatSessionResource) {
 			const toolTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
@@ -658,6 +658,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		if (!invocation.context) {
+			throw new Error('Invocation context must be provided for this tool');
+		}
+
 		const commandId = toolSpecificData.terminalCommandId;
 		if (toolSpecificData.alternativeRecommendation) {
 			return {
@@ -672,8 +676,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._logService.debug(`RunInTerminalTool: Invoking with options ${JSON.stringify(args)}`);
 		let toolResultMessage: string | IMarkdownString | undefined;
 
-		const chatSessionResource = invocation.context?.sessionResource ?? LocalChatSessionUri.forSession(invocation.context?.sessionId ?? 'no-chat-session');
-		const chatSessionId = chatSessionResourceToId(chatSessionResource);
+		const chatSessionResource = invocation.context.sessionResource;
 		const command = toolSpecificData.commandLine.userEdited ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original;
 		const didUserEditCommand = (
 			toolSpecificData.commandLine.userEdited !== undefined &&
@@ -699,7 +702,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const store = new DisposableStore();
 
 		// Unified terminal initialization
-		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionId=${chatSessionId}`);
+		this._logService.debug(`RunInTerminalTool: Creating ${args.isBackground ? 'background' : 'foreground'} terminal. termId=${termId}, chatSessionResource=${chatSessionResource}`);
 		const toolTerminal = await this._initTerminal(chatSessionResource, termId, terminalToolSessionId, args.isBackground, token);
 
 		this._handleTerminalVisibility(toolTerminal, chatSessionResource);
@@ -775,7 +778,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Create unified ActiveTerminalExecution (creates and owns the strategy)
 			const execution = this._instantiationService.createInstance(
 				ActiveTerminalExecution,
-				chatSessionId,
+				chatSessionResource,
 				termId,
 				toolTerminal,
 				commandDetection!,
@@ -1229,7 +1232,7 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	}
 
 	constructor(
-		readonly sessionId: string,
+		readonly sessionResource: URI,
 		readonly termId: string,
 		toolTerminal: IToolTerminal,
 		commandDetection: ICommandDetectionCapability,

@@ -119,16 +119,13 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 
 	// Group: Aux Window
 	else if (preferredGroup === AUX_WINDOW_GROUP) {
-		group = editorGroupService.createAuxiliaryEditorPart({
-			bounds: options?.auxiliary?.bounds,
-			compact: options?.auxiliary?.compact,
-			alwaysOnTop: options?.auxiliary?.alwaysOnTop
-		}).then(group => group.activeGroup);
+		group = editorGroupService.createAuxiliaryEditorPart(options?.auxiliary)
+			.then(group => group.activeGroup);
 	}
 
 	// Group: Modal (gated behind a setting)
 	else if (preferredGroup === MODAL_GROUP && configurationService.getValue<boolean>('workbench.editor.allowOpenInModalEditor')) {
-		group = editorGroupService.createModalEditorPart()
+		group = editorGroupService.createModalEditorPart(options?.modal)
 			.then(part => part.activeGroup);
 	}
 

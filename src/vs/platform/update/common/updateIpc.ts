@@ -41,7 +41,7 @@ export class UpdateChannelClient implements IUpdateService {
 	declare readonly _serviceBrand: undefined;
 	private readonly disposables = new DisposableStore();
 
-	private readonly _onStateChange = new Emitter<State>();
+	private readonly _onStateChange = this.disposables.add(new Emitter<State>());
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	private _state: State = State.Uninitialized;

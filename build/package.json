@@ -70,7 +70,7 @@
     "pretypecheck": "npm run copy-policy-dto",
     "typecheck": "cd .. && npx tsgo --project build/tsconfig.json",
     "watch": "npm run typecheck -- --watch",
-    "test": "mocha --ui tdd 'lib/**/*.test.ts'"
+    "test": "mocha --ui tdd '{lib,next}/**/*.test.ts'"
   },
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",

@@ -1,0 +1,117 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-chat-widget {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+}
+
+/* Welcome container fills available space and centers content */
+.sessions-chat-widget .agent-chat-welcome-container {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Input area */
+.sessions-chat-input-area {
+	width: 100%;
+	max-width: 800px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	border-radius: 8px;
+	background-color: var(--vscode-input-background);
+	overflow: hidden;
+}
+
+.sessions-chat-input-area:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* Editor */
+.sessions-chat-editor {
+	padding: 0 10px;
+	height: 72px;
+	min-height: 72px;
+	max-height: 200px;
+}
+
+.sessions-chat-editor .monaco-editor,
+.sessions-chat-editor .monaco-editor .overflow-guard,
+.sessions-chat-editor .monaco-editor-background {
+	background-color: var(--vscode-input-background) !important;
+	border-radius: 8px 8px 0 0;
+}
+
+/* Toolbar */
+.sessions-chat-toolbar {
+	display: flex;
+	align-items: center;
+	padding: 4px 8px;
+	gap: 4px;
+}
+
+.sessions-chat-toolbar-spacer {
+	flex: 1;
+}
+
+/* Model picker - uses workbench ModelPickerActionItem */
+.sessions-chat-model-picker {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-model-picker .action-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 8px;
+	border-radius: 4px;
+	font-size: 12px;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-chat-model-picker .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-chat-model-picker .action-label .codicon {
+	font-size: 12px;
+}
+
+/* Send button */
+.sessions-chat-send-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	border: none;
+	outline: none;
+}
+
+.sessions-chat-send-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-chat-send-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-chat-send-button .codicon {
+	font-size: 16px;
+}

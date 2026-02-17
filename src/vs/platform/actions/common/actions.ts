@@ -245,6 +245,7 @@ export class MenuId {
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
 	static readonly InlineEditToolbar = new MenuId('InlineEditToolbar');
+	static readonly AgentFeedbackEditorContent = new MenuId('AgentFeedbackEditorContent');
 	static readonly ChatContext = new MenuId('ChatContext');
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');

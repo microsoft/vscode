@@ -229,6 +229,7 @@ export class ChatMultiDiffData implements IChatMultiDiffData {
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
+	shimmer?: boolean;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -1445,6 +1446,7 @@ export interface IChatSessionContext {
 	readonly chatSessionType: string;
 	readonly chatSessionResource: URI;
 	readonly isUntitled: boolean;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';

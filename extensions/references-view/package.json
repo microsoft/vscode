@@ -27,7 +27,7 @@
     "onCommand:editor.action.showReferences"
   ],
   "main": "./out/extension",
-  "browser": "./dist/extension.js",
+  "browser": "./dist/browser/extension",
   "contributes": {
     "configuration": {
       "properties": {
@@ -396,7 +396,13 @@
   },
   "scripts": {
     "compile": "npx gulp compile-extension:references-view",
-    "watch": "npx gulp watch-extension:references-view"
+    "watch": "npx gulp watch-extension:references-view",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
   },
   "devDependencies": {
     "@types/node": "22.x"
