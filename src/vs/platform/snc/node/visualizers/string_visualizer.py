@@ -2300,10 +2300,19 @@ def visualize(value, model=None):
         f'</div>'
     )
 
+    string_div_style = (
+        'line-height: 28px;'
+        'max-height: 600px;'
+        'max-width: 800px;'
+        'overflow: auto;'
+        'scrollbar-width: thin;'
+        'scrollbar-color: rgba(127, 127, 127, 0.1) transparent;'
+    )
+
     # Add tabindex to make div focusable for keyboard events, and snc-key-down handler
     return (
         f'<div tabindex="0" snc-key-down="{html.escape(repr(KeyDown()))}" style="color: {STRING}; white-space: pre; user-select: none; outline: none;">'
-        f'''<div style="line-height: 28px;">{chars_html}</div>'''
+        f'''<div style="{string_div_style}">{chars_html}</div>'''
         f'{search_box_html}'
         '</div>'
     )

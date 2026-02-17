@@ -56,14 +56,45 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 
 		// Add custom mouse wheel event handling to actually scroll
 		this._register(dom.addDisposableListener(this.domNode, 'wheel', (e: WheelEvent) => {
+			let remainingDeltaY = e.deltaY;
+			let remainingDeltaX = e.deltaX;
+			let consumedAny = false;
 
-			const oldScrollTop = this.domNode.scrollTop;
-			const oldScrollLeft = this.domNode.scrollLeft;
+			for (const node of e.composedPath()) {
+				if (!dom.isHTMLElement(node)) {
+					continue;
+				}
+				if (node !== this.domNode && !this.domNode.contains(node)) {
+					continue;
+				}
 
-			this.domNode.scrollTop += e.deltaY;
-			this.domNode.scrollLeft += e.deltaX;
+				const oldScrollTop = node.scrollTop;
+				const oldScrollLeft = node.scrollLeft;
 
-			if (oldScrollTop != this.domNode.scrollTop || oldScrollLeft != this.domNode.scrollLeft) {
+				if (remainingDeltaY !== 0) {
+					node.scrollTop += remainingDeltaY;
+					const consumedDeltaY = node.scrollTop - oldScrollTop;
+					if (consumedDeltaY !== 0) {
+						remainingDeltaY -= consumedDeltaY;
+						consumedAny = true;
+					}
+				}
+
+				if (remainingDeltaX !== 0) {
+					node.scrollLeft += remainingDeltaX;
+					const consumedDeltaX = node.scrollLeft - oldScrollLeft;
+					if (consumedDeltaX !== 0) {
+						remainingDeltaX -= consumedDeltaX;
+						consumedAny = true;
+					}
+				}
+
+				if (remainingDeltaY === 0 && remainingDeltaX === 0) {
+					break;
+				}
+			}
+
+			if (consumedAny) {
 				e.preventDefault();
 				e.stopPropagation();
 			}
@@ -221,6 +252,12 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	 * Update the widget's HTML content
 	 */
 	private static readonly FOCUSABLE_SELECTOR = '[tabindex], input, textarea, select';
+	private static isScrollableElement(el: HTMLElement): boolean {
+		return el.scrollTop !== 0
+			|| el.scrollLeft !== 0
+			|| el.scrollHeight > el.clientHeight
+			|| el.scrollWidth > el.clientWidth;
+	}
 
 	updateContent(html: string): void {
 		// Avoid tearing down/rebuilding DOM when content did not change.
@@ -237,6 +274,15 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		let focusedIndex = -1;
 		let savedSelectionStart: number | null = null;
 		let savedSelectionEnd: number | null = null;
+		const savedWidgetScrollTop = this.domNode.scrollTop;
+		const savedWidgetScrollLeft = this.domNode.scrollLeft;
+		const oldScrollableElements = Array.from(this.domNode.querySelectorAll('*'))
+			.filter(dom.isHTMLElement)
+			.filter(VisualizationWidget.isScrollableElement);
+		const savedScrollOffsets = oldScrollableElements.map((el) => ({
+			top: el.scrollTop,
+			left: el.scrollLeft
+		}));
 
 		// Build the combined list of focusable elements across widget + hoisted dropdown
 		const widgetFocusable = Array.from(this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR));
@@ -270,27 +316,48 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		this.hoistDropdownPanel();
 		this.updateLayoutMode();
 
-		// Restore focus to the same nth focusable element
-		// Look in both the widget and any hoisted dropdown
-		if (focusedIndex >= 0) {
+		// Restore scroll/focus after DOM replacement settles. Restore scroll first
+		// so focus restoration with preventScroll does not fight with scroll offsets.
+		const shouldRestoreScroll = savedWidgetScrollTop !== 0
+			|| savedWidgetScrollLeft !== 0
+			|| savedScrollOffsets.some((offset) => offset.top !== 0 || offset.left !== 0);
+		if (shouldRestoreScroll || focusedIndex >= 0) {
 			// Defer to next frame so layout/DOM updates settle, and ensure only the
-			// latest update in a burst is allowed to restore focus.
+			// latest update in a burst is allowed to restore scroll/focus.
 			dom.getWindow(this.domNode).requestAnimationFrame(() => {
 				if (currentFocusRestoreVersion !== this.focusRestoreVersion) {
 					return;
 				}
-				const widgetFocusable = Array.from(this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR));
-				const hoistedFocusable = this.hoistedDropdown
-					? Array.from(this.hoistedDropdown.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR))
-					: [];
-				const allFocusable = [...widgetFocusable, ...hoistedFocusable];
-				if (focusedIndex < allFocusable.length) {
-					const el = allFocusable[focusedIndex] as HTMLElement;
-					el.focus({ preventScroll: true });
-					// Restore cursor position for input/textarea elements
-					if (savedSelectionStart !== null && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
-						el.selectionStart = savedSelectionStart;
-						el.selectionEnd = savedSelectionEnd;
+
+				if (shouldRestoreScroll) {
+					this.domNode.scrollTop = savedWidgetScrollTop;
+					this.domNode.scrollLeft = savedWidgetScrollLeft;
+					const newScrollableElements = Array.from(this.domNode.querySelectorAll('*'))
+						.filter(dom.isHTMLElement)
+						.filter(VisualizationWidget.isScrollableElement);
+					const restoreCount = Math.min(savedScrollOffsets.length, newScrollableElements.length);
+					for (let i = 0; i < restoreCount; i++) {
+						newScrollableElements[i].scrollTop = savedScrollOffsets[i].top;
+						newScrollableElements[i].scrollLeft = savedScrollOffsets[i].left;
+					}
+				}
+
+				// Restore focus to the same nth focusable element
+				// Look in both the widget and any hoisted dropdown
+				if (focusedIndex >= 0) {
+					const widgetFocusable = Array.from(this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR));
+					const hoistedFocusable = this.hoistedDropdown
+						? Array.from(this.hoistedDropdown.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR))
+						: [];
+					const allFocusable = [...widgetFocusable, ...hoistedFocusable];
+					if (focusedIndex < allFocusable.length) {
+						const el = allFocusable[focusedIndex] as HTMLElement;
+						el.focus({ preventScroll: true });
+						// Restore cursor position for input/textarea elements
+						if (savedSelectionStart !== null && (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement)) {
+							el.selectionStart = savedSelectionStart;
+							el.selectionEnd = savedSelectionEnd;
+						}
 					}
 				}
 			});

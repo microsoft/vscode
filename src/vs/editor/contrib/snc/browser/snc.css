@@ -20,13 +20,13 @@
 	border-color: rgba(127, 127, 127, 0.1);
 	border-style: solid;
 	border-width: 1px;
-	max-width: 800px;
-	max-height: 600px;
-	overflow: auto;
-	scrollbar-width: thin;
-	scrollbar-color: rgba(127, 127, 127, 0.1) transparent;
+	/* max-width: 800px; */
+	/* max-height: 600px; */
+	/* overflow: auto; */
+	/* scrollbar-width: thin; */
+	/* scrollbar-color: rgba(127, 127, 127, 0.1) transparent; */
 	filter: none;
-	opacity: 0.9;
+	opacity: 1.0;
 	z-index: 1000;
 	user-select: text;
 }
