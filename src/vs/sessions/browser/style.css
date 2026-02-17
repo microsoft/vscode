@@ -1,0 +1,167 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Ensure workbench container is positioned for overlay */
+.agent-sessions-workbench {
+	position: relative;
+}
+
+/* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
+
+/**
+ * The auxiliary bar and panel use a card-like appearance with margins and border-radius
+ * applied directly on the .part element. The grid allocates full space; CSS margin shrinks
+ * the part within its split-view-view wrapper. Layout dimensions are reduced in code
+ * (AgenticAuxiliaryBarPart) to keep internal layout correct.
+ *
+ * No z-index or stacking-context changes - sashes render naturally on top.
+ *
+ * Margin values (must match the constants in the Part classes):
+ *   Sidebar:       no card (flush, spans full height)
+ *   Auxiliary bar:  top=8, bottom=8, right=8
+ *   Panel:          bottom=8, left=8, right=8
+ */
+
+.agent-sessions-workbench .part.sidebar {
+	background: var(--vscode-sideBar-background);
+	border-right: 1px solid var(--vscode-sideBar-border, transparent);
+}
+
+.agent-sessions-workbench .part.auxiliarybar {
+	margin: 8px 8px 8px 0;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+}
+
+.agent-sessions-workbench .part.panel {
+	margin: 0 8px 8px 8px;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+}
+
+/* Grid background matches the chat bar / sidebar background */
+.agent-sessions-workbench > .monaco-grid-view {
+	background-color: var(--vscode-sideBar-background);
+}
+
+/* Editor Modal Overlay */
+.agent-sessions-workbench .editor-modal-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 1000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+	visibility: hidden;
+}
+
+.agent-sessions-workbench .editor-modal-overlay.visible {
+	pointer-events: auto;
+	visibility: visible;
+}
+
+/* Modal Backdrop */
+.agent-sessions-workbench .editor-modal-backdrop {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(0, 0, 0, 0.4);
+	opacity: 0;
+	transition: opacity 0.15s ease-out;
+}
+
+.agent-sessions-workbench .editor-modal-overlay.visible .editor-modal-backdrop {
+	opacity: 1;
+}
+
+/* Modal Container */
+.agent-sessions-workbench .editor-modal-container {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	/* Width and height are set dynamically in TypeScript */
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-radius: 8px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	overflow: hidden;
+	transform: scale(0.95);
+	opacity: 0;
+	transition: transform 0.15s ease-out, opacity 0.15s ease-out;
+}
+
+.agent-sessions-workbench .editor-modal-overlay.visible .editor-modal-container {
+	transform: scale(1);
+	opacity: 1;
+}
+
+/* Modal Header with close button */
+.agent-sessions-workbench .editor-modal-header {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	height: 32px;
+	min-height: 32px;
+	padding: 0 8px;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	border-bottom: 1px solid var(--vscode-editorGroupHeader-tabsBorder, transparent);
+}
+
+.agent-sessions-workbench .editor-modal-close-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-icon-foreground);
+	cursor: pointer;
+	border-radius: 4px;
+}
+
+.agent-sessions-workbench .editor-modal-close-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .editor-modal-close-button:active {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+/* Editor Content Area */
+.agent-sessions-workbench .editor-modal-content {
+	flex: 1;
+	overflow: hidden;
+	position: relative;
+	min-height: 0; /* Allow flexbox shrinking */
+}
+
+.agent-sessions-workbench .editor-modal-content > .part.editor {
+	position: absolute !important;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+/* ---- Chat Input ---- */
+
+.agent-sessions-workbench .interactive-session .chat-input-container {
+	border-radius: 8px !important;
+}
+
+.agent-sessions-workbench .interactive-session .interactive-input-part {
+	margin: 0 8px !important;
+	display: inherit !important;
+	padding: 4px 0 8px 0px !important;
+}

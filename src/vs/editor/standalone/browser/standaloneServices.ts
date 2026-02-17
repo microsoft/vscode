@@ -101,6 +101,8 @@ import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorker
 import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
+import { IUserInteractionService } from '../../../platform/userInteraction/browser/userInteractionService.js';
+import { UserInteractionService } from '../../../platform/userInteraction/browser/userInteractionServiceImpl.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -220,7 +222,6 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly keyboardLayoutResource: URI = URI.from({ scheme: 'monaco', authority: 'keyboardLayoutResource' });
 	readonly argvResource: URI = URI.from({ scheme: 'monaco', authority: 'argvResource' });
 	readonly untitledWorkspacesHome: URI = URI.from({ scheme: 'monaco', authority: 'untitledWorkspacesHome' });
-	readonly builtinWorkbenchModesHome: URI = URI.from({ scheme: 'monaco', authority: 'builtinWorkbenchModesHome' });
 	readonly workspaceStorageHome: URI = URI.from({ scheme: 'monaco', authority: 'workspaceStorageHome' });
 	readonly localHistoryHome: URI = URI.from({ scheme: 'monaco', authority: 'localHistoryHome' });
 	readonly cacheHome: URI = URI.from({ scheme: 'monaco', authority: 'cacheHome' });
@@ -719,11 +720,11 @@ export class StandaloneConfigurationService implements IConfigurationService {
 	}
 }
 
-class StandaloneResourceConfigurationService implements ITextResourceConfigurationService {
+class StandaloneResourceConfigurationService extends Disposable implements ITextResourceConfigurationService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeConfiguration = new Emitter<ITextResourceConfigurationChangeEvent>();
+	private readonly _onDidChangeConfiguration = this._register(new Emitter<ITextResourceConfigurationChangeEvent>());
 	public readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
 	constructor(
@@ -731,9 +732,10 @@ class StandaloneResourceConfigurationService implements ITextResourceConfigurati
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService
 	) {
-		this.configurationService.onDidChangeConfiguration((e) => {
+		super();
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			this._onDidChangeConfiguration.fire({ affectedKeys: e.affectedKeys, affectsConfiguration: (resource: URI, configuration: string) => e.affectsConfiguration(configuration) });
-		});
+		}));
 	}
 
 	getValue<T>(resource: URI, section?: string): T;
@@ -1137,6 +1139,10 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	async signIn(): Promise<IDefaultAccount | null> {
 		return null;
 	}
+
+	async signOut(): Promise<void> {
+		// no-op
+	}
 }
 
 export interface IEditorOverrideServices {
@@ -1183,6 +1189,7 @@ registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
 registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
 registerSingleton(IDefaultAccountService, StandaloneDefaultAccountService, InstantiationType.Eager);
 registerSingleton(IRenameSymbolTrackerService, NullRenameSymbolTrackerService, InstantiationType.Eager);
+registerSingleton(IUserInteractionService, UserInteractionService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

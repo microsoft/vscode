@@ -68,6 +68,11 @@ export interface IBrowserViewWorkbenchService {
 	 * Clear all storage data for the current workspace browser session
 	 */
 	clearWorkspaceStorage(): Promise<void>;
+
+	/**
+	 * Get the endpoint for connecting to a browser view's CDP proxy server
+	 */
+	getDebugWebSocketEndpoint(): Promise<string>;
 }
 
 

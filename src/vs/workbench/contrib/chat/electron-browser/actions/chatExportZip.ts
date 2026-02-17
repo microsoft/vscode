@@ -44,7 +44,7 @@ export function registerChatExportZipAction() {
 			const fileService = accessor.get(IFileService);
 			const configurationService = accessor.get(IConfigurationService);
 
-			const repoInfoEnabled = configurationService.getValue<boolean>(ChatConfiguration.RepoInfoEnabled) ?? true;
+			const repoInfoEnabled = configurationService.getValue<boolean>(ChatConfiguration.RepoInfoEnabled) ?? false;
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget || !widget.viewModel) {

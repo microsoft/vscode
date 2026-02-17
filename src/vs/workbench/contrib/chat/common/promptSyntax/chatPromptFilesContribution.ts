@@ -43,13 +43,17 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 				type: 'object',
 				defaultSnippets: [{
 					body: {
-						path: './relative/path/to/file.md',
+						path: point === ChatContributionPoint.chatSkills
+							? './relative/path/to/skill-name/SKILL.md'
+							: './relative/path/to/file.md',
 					}
 				}],
 				required: ['path'],
 				properties: {
 					path: {
-						description: localize('chatContribution.property.path', 'Path to the file relative to the extension root.'),
+						description: point === ChatContributionPoint.chatSkills
+							? localize('chatContribution.property.path.skills', 'Path to the SKILL.md file relative to the extension root. The folder name must match the "name" property in SKILL.md.')
+							: localize('chatContribution.property.path', 'Path to the file relative to the extension root.'),
 						type: 'string'
 					},
 					name: {

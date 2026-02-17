@@ -56,12 +56,12 @@
 
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
-	padding: 0 4px 0 4px;
+	padding: 0 4px 0 8px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
 	width: 100%;
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
@@ -73,8 +73,8 @@
 
 .action-widget .monaco-list-row.group-header {
 	color: var(--vscode-descriptionForeground) !important;
-	font-weight: 600;
-	font-size: 13px;
+	font-weight: 500;
+	font-size: 11px;
 }
 
 .action-widget .monaco-list-row.group-header:not(:first-of-type) {
@@ -120,8 +120,16 @@
 
 .action-widget .monaco-list-row.action {
 	display: flex;
-	gap: 4px;
+	gap: 6px;
 	align-items: center;
+}
+
+.action-widget .monaco-list-row.action .codicon {
+	font-size: 12px;
+}
+
+.action-widget .monaco-list-row.action .action-list-item-toolbar .codicon {
+	font-size: 16px;
 }
 
 .action-widget .monaco-list-row.action.option-disabled,
@@ -168,13 +176,13 @@
 }
 
 .action-widget .action-widget-action-bar .actions-container {
-	padding: 4px 8px 2px 24px;
+	padding: 2px 8px 0px 26px;
 	width: auto;
 }
 
 .action-widget-action-bar .action-label {
 	color: var(--vscode-textLink-activeForeground);
-	font-size: 13px;
+	font-size: 12px;
 	line-height: 22px;
 	padding: 0;
 	pointer-events: all;

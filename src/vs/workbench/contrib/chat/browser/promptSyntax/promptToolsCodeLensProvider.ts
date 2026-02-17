@@ -15,13 +15,14 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { showToolsPicker } from '../actions/chatToolPicker.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, Target } from '../../common/promptSyntax/service/promptsService.js';
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
 import { PromptFileRewriter } from './promptFileRewriter.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IEditorModel } from '../../../../../editor/common/editorCommon.js';
-import { PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { isGithubTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
+import { isTarget, parseCommaSeparatedList, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
+import { getTarget, isVSCodeOrDefaultTarget } from '../../common/promptSyntax/languageProviders/promptValidator.js';
+import { isBoolean } from '../../../../../base/common/types.js';
 
 class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider {
 
@@ -40,10 +41,10 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 		this._register(this.languageService.codeLensProvider.register(ALL_PROMPTS_LANGUAGE_SELECTOR, this));
 
 		this._register(CommandsRegistry.registerCommand(this.cmdId, (_accessor, ...args) => {
-			const [first, second, third, forth] = args;
-			const model = first as IEditorModel;
-			if (isITextModel(model) && Range.isIRange(second) && Array.isArray(third) && (typeof forth === 'string' || forth === undefined)) {
-				this.updateTools(model as ITextModel, Range.lift(second), third, forth);
+			const [modelArg, rangeArg, isStringArg, toolsArg, targetArg] = args;
+			const model = modelArg as IEditorModel;
+			if (isITextModel(model) && Range.isIRange(rangeArg) && isBoolean(isStringArg) && Array.isArray(toolsArg) && isTarget(targetArg)) {
+				this.updateTools(model as ITextModel, Range.lift(rangeArg), isStringArg, toolsArg, targetArg);
 			}
 		}));
 	}
@@ -61,15 +62,23 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 			return undefined;
 		}
 
-		if (isGithubTarget(promptType, header.target)) {
+		const target = getTarget(promptType, header);
+		if (!isVSCodeOrDefaultTarget(target)) {
 			return undefined;
 		}
 
 		const toolsAttr = header.getAttribute(PromptHeaderAttributes.tools);
-		if (!toolsAttr || toolsAttr.value.type !== 'array') {
+		if (!toolsAttr) {
 			return undefined;
 		}
-		const items = toolsAttr.value.items;
+		let value = toolsAttr.value;
+		if (value.type === 'string') {
+			value = parseCommaSeparatedList(value);
+		}
+		if (value.type !== 'array') {
+			return undefined;
+		}
+		const items = value.items;
 		const selectedTools = items.filter(item => item.type === 'string').map(item => item.value);
 
 		const codeLens: CodeLens = {
@@ -77,19 +86,19 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 			command: {
 				title: localize('configure-tools.capitalized.ellipsis', "Configure Tools..."),
 				id: this.cmdId,
-				arguments: [model, toolsAttr.value.range, selectedTools, header.target]
+				arguments: [model, toolsAttr.range, toolsAttr.value.type === 'string', selectedTools, target]
 			}
 		};
 		return { lenses: [codeLens] };
 	}
 
-	private async updateTools(model: ITextModel, range: Range, selectedTools: readonly string[], target: string | undefined): Promise<void> {
-		const selectedToolsNow = () => this.languageModelToolsService.toToolAndToolSetEnablementMap(selectedTools, target, undefined);
+	private async updateTools(model: ITextModel, range: Range, isString: boolean, selectedTools: readonly string[], target: Target): Promise<void> {
+		const selectedToolsNow = () => this.languageModelToolsService.toToolAndToolSetEnablementMap(selectedTools, undefined);
 		const newSelectedAfter = await this.instantiationService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools"), 'codeLens', undefined, selectedToolsNow);
 		if (!newSelectedAfter) {
 			return;
 		}
-		this.instantiationService.createInstance(PromptFileRewriter).rewriteTools(model, newSelectedAfter, range);
+		this.instantiationService.createInstance(PromptFileRewriter).rewriteTools(model, newSelectedAfter, range, isString);
 	}
 }
 

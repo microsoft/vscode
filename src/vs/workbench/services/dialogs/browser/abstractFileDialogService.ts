@@ -32,6 +32,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { IEditorService } from '../../editor/common/editorService.js';
 import { EditorOpenSource } from '../../../../platform/editor/common/editor.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -54,13 +55,20 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@ICommandService protected readonly commandService: ICommandService,
 		@IEditorService protected readonly editorService: IEditorService,
 		@ICodeEditorService protected readonly codeEditorService: ICodeEditorService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) { }
 
 	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow(), authorityFilter = this.getAuthorityFilterForWindow()): Promise<URI> {
 
 		// Check for last active file first...
 		let candidate = this.historyService.getLastActiveFile(schemeFilter, authorityFilter);
+
+		// Skip user data files (e.g. Machine/settings.json) as default path candidates
+		if (candidate && await this.isRemoteUserData(candidate)) {
+			this.logService.debug(`[FileDialogService] Skipping last active file as it is a remote user data resource: ${candidate}`);
+			candidate = undefined;
+		}
 
 		// ...then for last active file root
 		if (!candidate) {
@@ -89,6 +97,13 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// ...then for last active file
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveFile(schemeFilter, authorityFilter);
+
+			// Skip user data files (e.g. Machine/settings.json) as default path candidates
+			if (candidate && await this.isRemoteUserData(candidate)) {
+				this.logService.debug(`[FileDialogService] Skipping last active file as it is a remote user data resource: ${candidate}`);
+				candidate = undefined;
+			}
+
 			if (candidate) {
 				this.logService.debug(`[FileDialogService] Default folder path using parent of last active file: ${candidate}`);
 			}
@@ -316,6 +331,28 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
 		return this.getSimpleFileDialog().showSaveDialog(options);
+	}
+
+	/**
+	 * Checks whether the given resource is a remote user data file
+	 * that should not be used as a default file dialog path candidate.
+	 * This covers remote user data files such as settings.json, keybindings.json, etc.
+	 */
+	private async isRemoteUserData(resource: URI): Promise<boolean> {
+		if (!this.environmentService.remoteAuthority) {
+			return false;
+		}
+
+		const remoteEnv = await this.remoteAgentService.getEnvironment();
+		if (remoteEnv) {
+
+			const remoteDataHome = resources.dirname(resources.dirname(remoteEnv.settingsPath));
+			if (!resources.isEqual(remoteDataHome, remoteDataHome.with({ path: '/' })) && resources.isEqualOrParent(resource, remoteDataHome)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private getSchemeFilterForWindow(defaultUriScheme?: string): string {

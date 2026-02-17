@@ -1040,7 +1040,7 @@ class UnifiedEnvironmentVariableCollection extends Disposable {
 		this._onDidChangeCollection.fire();
 	}
 
-	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
+	protected readonly _onDidChangeCollection: Emitter<void> = this._register(new Emitter<void>());
 	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
 
 	constructor(

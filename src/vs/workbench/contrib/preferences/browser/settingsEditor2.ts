@@ -93,10 +93,6 @@ export function createGroupIterator(group: SettingsTreeGroupElement): Iterable<I
 
 const $ = DOM.$;
 
-interface IFocusEventFromScroll extends KeyboardEvent {
-	fromScroll: true;
-}
-
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
 
@@ -147,6 +143,7 @@ export class SettingsEditor2 extends EditorPane {
 		`@${FEATURE_SETTING_TAG}remote`,
 		`@${FEATURE_SETTING_TAG}timeline`,
 		`@${FEATURE_SETTING_TAG}notebook`,
+		`@${FEATURE_SETTING_TAG}chat`,
 		`@${POLICY_SETTING_TAG}`
 	];
 
@@ -270,14 +267,14 @@ export class SettingsEditor2 extends EditorPane {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
-		this.searchDelayer = new Delayer(200);
+		this.searchDelayer = this._register(new Delayer(200));
 		this.viewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
 
-		this.settingFastUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE);
-		this.settingSlowUpdateDelayer = new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE);
+		this.settingFastUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_FAST_DEBOUNCE));
+		this.settingSlowUpdateDelayer = this._register(new Delayer<void>(SettingsEditor2.SETTING_UPDATE_SLOW_DEBOUNCE));
 
-		this.searchInputDelayer = new Delayer<void>(SettingsEditor2.SEARCH_DEBOUNCE);
-		this.updatedConfigSchemaDelayer = new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER);
+		this.searchInputDelayer = this._register(new Delayer<void>(SettingsEditor2.SEARCH_DEBOUNCE));
+		this.updatedConfigSchemaDelayer = this._register(new Delayer<void>(SettingsEditor2.CONFIG_SCHEMA_UPDATE_DELAYER));
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
@@ -786,8 +783,15 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}));
 
+		const headerRightControlsContainer = DOM.append(headerControlsContainer, $('.settings-right-controls'));
+
+		const openSettingsJsonContainer = DOM.append(headerRightControlsContainer, $('.open-settings-json'));
+		const openSettingsJsonButton = this._register(new Button(openSettingsJsonContainer, { secondary: true, title: true, ...defaultButtonStyles }));
+		openSettingsJsonButton.label = localize('openSettingsJson', "Edit as JSON");
+		this._register(openSettingsJsonButton.onDidClick(() => this.openSettingsFile()));
+
 		if (this.userDataSyncWorkbenchService.enabled && this.userDataSyncEnablementService.canToggleEnablement()) {
-			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerControlsContainer));
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerRightControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
 				this.lastSyncedLabel = lastSyncedLabel;
 				this.updateInputAriaLabel();
@@ -878,7 +882,7 @@ export class SettingsEditor2 extends EditorPane {
 			// If the target display category is different than the source's, unfocus the category
 			// so that we can render all found settings again.
 			// Then, the reveal call will correctly find the target setting.
-			if (this.viewState.filterToCategory && evt.source.displayCategory !== targetElement.displayCategory) {
+			if (this.viewState.categoryFilter && evt.source.displayCategory !== targetElement.displayCategory) {
 				this.tocTree.setFocus([]);
 			}
 			try {
@@ -1050,55 +1054,14 @@ export class SettingsEditor2 extends EditorPane {
 
 			this.tocFocusedElement = element;
 			this.tocTree.setSelection(element ? [element] : []);
-			if (this.searchResultModel) {
-				if (this.viewState.filterToCategory !== element) {
-					this.viewState.filterToCategory = element ?? undefined;
-					// Force render in this case, because
-					// onDidClickSetting relies on the updated view.
-					this.renderTree(undefined, true);
-					this.settingsTree.scrollTop = 0;
-				}
-			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				let targetElement = element;
-				// Searches equvalent old Object currently living in the Tree nodes.
-				if (!this.settingsTree.hasElement(targetElement)) {
-					if (element instanceof SettingsTreeGroupElement) {
-						const targetId = element.id;
 
-						const findInViewNodes = (nodes: any[]): SettingsTreeGroupElement | undefined => {
-							for (const node of nodes) {
-								if (node.element instanceof SettingsTreeGroupElement && node.element.id === targetId) {
-									return node.element;
-								}
-								if (node.children && node.children.length > 0) {
-									const found = findInViewNodes(node.children);
-									if (found) {
-										return found;
-									}
-								}
-							}
-							return undefined;
-						};
-
-						try {
-							const rootNode = this.settingsTree.getNode(null);
-							if (rootNode && rootNode.children) {
-								const foundOldElement = findInViewNodes(rootNode.children);
-								if (foundOldElement) {
-									// Now we don't reveal the New Object, reveal the Old Object"
-									targetElement = foundOldElement;
-								}
-							}
-						} catch (err) {
-							// Tree might be in an invalid state, ignore
-						}
-					}
-				}
-
-				if (this.settingsTree.hasElement(targetElement)) {
-					this.settingsTree.reveal(targetElement, 0);
-					this.settingsTree.setFocus([targetElement]);
-				}
+			// Filter to show only the selected category
+			if (this.viewState.categoryFilter !== element) {
+				this.viewState.categoryFilter = element ?? undefined;
+				// Force render in this case, because
+				// onDidClickSetting relies on the updated view.
+				this.renderTree(undefined, true);
+				this.settingsTree.scrollTop = 0;
 			}
 		}));
 
@@ -1245,68 +1208,6 @@ export class SettingsEditor2 extends EditorPane {
 
 	private updateTreeScrollSync(): void {
 		this.settingRenderers.cancelSuggesters();
-		if (this.searchResultModel) {
-			return;
-		}
-
-		if (!this.tocTreeModel) {
-			return;
-		}
-
-		const elementToSync = this.settingsTree.firstVisibleElement;
-		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
-			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
-				null;
-
-		// It's possible for this to be called when the TOC and settings tree are out of sync - e.g. when the settings tree has deferred a refresh because
-		// it is focused. So, bail if element doesn't exist in the TOC.
-		let nodeExists = true;
-		try { this.tocTree.getNode(element); } catch (e) { nodeExists = false; }
-		if (!nodeExists) {
-			return;
-		}
-
-		if (element && this.tocTree.getSelection()[0] !== element) {
-			const ancestors = this.getAncestors(element);
-			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
-
-			this.tocTree.reveal(element);
-			const elementTop = this.tocTree.getRelativeTop(element);
-			if (typeof elementTop !== 'number') {
-				return;
-			}
-
-			this.tocTree.collapseAll();
-
-			ancestors.forEach(e => this.tocTree.expand(<SettingsTreeGroupElement>e));
-			if (elementTop < 0 || elementTop > 1) {
-				this.tocTree.reveal(element);
-			} else {
-				this.tocTree.reveal(element, elementTop);
-			}
-
-			this.tocTree.expand(element);
-
-			this.tocTree.setSelection([element]);
-
-			const fakeKeyboardEvent = new KeyboardEvent('keydown');
-			(<IFocusEventFromScroll>fakeKeyboardEvent).fromScroll = true;
-			this.tocTree.setFocus([element], fakeKeyboardEvent);
-		}
-	}
-
-	private getAncestors(element: SettingsTreeElement): SettingsTreeElement[] {
-		const ancestors: SettingsTreeElement[] = [];
-
-		while (element.parent) {
-			if (element.parent.id !== 'root') {
-				ancestors.push(element.parent);
-			}
-
-			element = element.parent;
-		}
-
-		return ancestors.reverse();
 	}
 
 	private updateChangedSetting(key: string, value: unknown, manualReset: boolean, languageFilter: string | undefined, scope: ConfigurationScope | undefined): Promise<void> {
@@ -1685,6 +1586,18 @@ export class SettingsEditor2 extends EditorPane {
 				await this.onSearchInputChanged(true);
 			} else {
 				this.refreshTOCTree();
+
+				// Set initial category to the first one (Commonly Used)
+				const rootChildren = this.settingsTreeModel.value.root.children;
+				if (Array.isArray(rootChildren) && rootChildren.length > 0) {
+					const firstCategory = rootChildren[0];
+					if (firstCategory instanceof SettingsTreeGroupElement) {
+						this.viewState.categoryFilter = firstCategory;
+						this.tocTree.setFocus([firstCategory]);
+						this.tocTree.setSelection([firstCategory]);
+					}
+				}
+
 				this.refreshTree();
 				this.tocTree.collapseAll();
 			}
@@ -1887,7 +1800,7 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (expandResults) {
 				this.tocTree.setFocus([]);
-				this.viewState.filterToCategory = undefined;
+				this.viewState.categoryFilter = undefined;
 			}
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
 
@@ -2009,7 +1922,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.tocTreeModel.currentSearchModel = this.searchResultModel;
 		if (expandResults) {
 			this.tocTree.setFocus([]);
-			this.viewState.filterToCategory = undefined;
+			this.viewState.categoryFilter = undefined;
 			this.tocTree.expandAll();
 			this.settingsTree.scrollTop = 0;
 		}
@@ -2249,10 +2162,9 @@ class SyncControls extends Disposable {
 	) {
 		super();
 
-		const headerRightControlsContainer = DOM.append(container, $('.settings-right-controls'));
-		const turnOnSyncButtonContainer = DOM.append(headerRightControlsContainer, $('.turn-on-sync'));
+		const turnOnSyncButtonContainer = DOM.append(container, $('.turn-on-sync'));
 		this.turnOnSyncButton = this._register(new Button(turnOnSyncButtonContainer, { title: true, ...defaultButtonStyles }));
-		this.lastSyncedLabel = DOM.append(headerRightControlsContainer, $('.last-synced-label'));
+		this.lastSyncedLabel = DOM.append(container, $('.last-synced-label'));
 		DOM.hide(this.lastSyncedLabel);
 
 		this.turnOnSyncButton.enabled = true;

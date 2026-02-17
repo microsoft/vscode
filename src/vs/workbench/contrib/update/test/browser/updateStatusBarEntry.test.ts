@@ -4,16 +4,50 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Downloading, StateType } from '../../../../../platform/update/common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, formatBytes, formatTimeRemaining } from '../../browser/updateStatusBarEntry.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, formatBytes, formatDate, formatTimeRemaining, getProgressPercent, tryParseDate } from '../../browser/updateStatusBarEntry.js';
 
 suite('UpdateStatusBarEntry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	let clock: sinon.SinonFakeTimers;
+
+	setup(() => {
+		clock = sinon.useFakeTimers();
+	});
+
+	teardown(() => {
+		clock.restore();
+	});
+
 	function createDownloadingState(downloadedBytes?: number, totalBytes?: number, startTime?: number): Downloading {
 		return { type: StateType.Downloading, explicit: true, overwrite: false, downloadedBytes, totalBytes, startTime };
 	}
+
+	suite('getProgressPercent', () => {
+		test('handles invalid values', () => {
+			assert.strictEqual(getProgressPercent(undefined, 100), undefined);
+			assert.strictEqual(getProgressPercent(50, undefined), undefined);
+			assert.strictEqual(getProgressPercent(undefined, undefined), undefined);
+			assert.strictEqual(getProgressPercent(50, 0), undefined);
+			assert.strictEqual(getProgressPercent(50, -10), undefined);
+		});
+
+		test('computes correct percentage', () => {
+			assert.strictEqual(getProgressPercent(0, 100), 0);
+			assert.strictEqual(getProgressPercent(50, 100), 50);
+			assert.strictEqual(getProgressPercent(100, 100), 100);
+			assert.strictEqual(getProgressPercent(1, 3), 33);
+			assert.strictEqual(getProgressPercent(2, 3), 67);
+		});
+
+		test('clamps to 0-100 range', () => {
+			assert.strictEqual(getProgressPercent(-10, 100), 0);
+			assert.strictEqual(getProgressPercent(200, 100), 100);
+		});
+	});
 
 	suite('computeDownloadTimeRemaining', () => {
 		test('returns undefined for invalid or incomplete input', () => {
@@ -115,6 +149,32 @@ suite('UpdateStatusBarEntry', () => {
 			assert.strictEqual(formatBytes(1126), '1.1 KB');
 			assert.strictEqual(formatBytes(1075), '1 KB');
 			assert.strictEqual(formatBytes(1024 * 1024 * 25.35), '25.4 MB');
+		});
+	});
+
+	suite('tryParseDate', () => {
+		test('returns undefined for undefined input', () => {
+			assert.strictEqual(tryParseDate(undefined), undefined);
+		});
+
+		test('returns undefined for invalid date strings', () => {
+			assert.strictEqual(tryParseDate(''), undefined);
+			assert.strictEqual(tryParseDate('not-a-date'), undefined);
+		});
+
+		test('parses valid ISO date strings', () => {
+			const result = tryParseDate('2026-02-06T05:03:03.991Z');
+			assert.ok(result !== undefined);
+			assert.strictEqual(typeof result, 'number');
+			assert.ok(result > 0);
+		});
+	});
+
+	suite('formatDate', () => {
+		test('formats a timestamp as a readable date', () => {
+			const result = formatDate(1705276800000);
+			assert.ok(result.length > 0);
+			assert.ok(result.includes('2024'));
 		});
 	});
 

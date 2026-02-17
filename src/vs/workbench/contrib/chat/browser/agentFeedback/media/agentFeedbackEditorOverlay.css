@@ -1,0 +1,72 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-feedback-editor-overlay-widget {
+	padding: 2px 4px;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border-radius: 6px;
+	border: 1px solid var(--vscode-contrastBorder);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	z-index: 10;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	overflow: hidden;
+}
+
+.agent-feedback-editor-overlay-widget .action-item > .action-label {
+	padding: 4px 6px;
+	font-size: 11px;
+	line-height: 14px;
+	border-radius: 4px;
+}
+
+.agent-feedback-editor-overlay-widget .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+.agent-feedback-editor-overlay-widget .action-item.primary > .action-label {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.monaco-workbench .agent-feedback-editor-overlay-widget .monaco-action-bar .action-item.primary > .action-label:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.agent-feedback-editor-overlay-widget .action-item > .action-label.codicon:not(.separator) {
+	color: var(--vscode-foreground);
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	font-size: 16px;
+	line-height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.agent-feedback-editor-overlay-widget .monaco-action-bar .action-item.disabled {
+
+	> .action-label.codicon::before,
+	> .action-label.codicon,
+	> .action-label,
+	> .action-label:hover {
+		color: var(--vscode-button-separator);
+		opacity: 1;
+	}
+}
+
+.agent-feedback-editor-overlay-widget .action-item.label-item {
+	font-variant-numeric: tabular-nums;
+}
+
+.agent-feedback-editor-overlay-widget .monaco-action-bar .action-item.label-item > .action-label,
+.agent-feedback-editor-overlay-widget .monaco-action-bar .action-item.label-item > .action-label:hover {
+	color: var(--vscode-foreground);
+	opacity: 1;
+}
