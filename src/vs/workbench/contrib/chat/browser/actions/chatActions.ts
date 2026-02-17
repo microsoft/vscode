@@ -13,6 +13,7 @@ import { safeIntl } from '../../../../../base/common/date.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { language } from '../../../../../base/common/platform.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -50,6 +51,7 @@ import { IChatAgentResult, IChatAgentService } from '../../common/participants/c
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { ElicitationState, IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -64,7 +66,7 @@ import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { AgentSessionProviders, getAgentSessionProvider } from '../agentSessions/agentSessions.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -178,6 +180,20 @@ export interface IChatViewOpenOptions {
 	 * but explicit tool exclusions always win.
 	 */
 	toolsExclude?: string[];
+
+	/**
+	 * The session target to set in the chat input dropdown.
+	 * Valid values are: 'local', 'background', 'cloud', 'claude', 'codex'
+	 * This corresponds to AgentSessionProviders enum values.
+	 */
+	target?: 'local' | 'background' | 'cloud' | 'claude' | 'codex';
+
+	/**
+	 * If true, creates a new chat session before applying other parameters.
+	 * This ensures mode, prompt, target, and other options are applied to a fresh session
+	 * rather than modifying an existing one.
+	 */
+	newSession?: boolean;
 }
 
 export interface IChatViewOpenRequestEntry {
@@ -188,6 +204,15 @@ export interface IChatViewOpenRequestEntry {
 export const CHAT_CONFIG_MENU_ID = new MenuId('workbench.chat.menu.config');
 
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
+
+// Map target parameter values to AgentSessionProviders enum
+const TARGET_TO_PROVIDER_MAP: Record<string, AgentSessionProviders> = {
+	'local': AgentSessionProviders.Local,
+	'background': AgentSessionProviders.Background,
+	'cloud': AgentSessionProviders.Cloud,
+	'claude': AgentSessionProviders.Claude,
+	'codex': AgentSessionProviders.Codex
+};
 
 abstract class OpenChatGlobalAction extends Action2 {
 	constructor(overrides: Pick<ICommandPaletteOptions, 'keybinding' | 'title' | 'id' | 'menu'>, private readonly mode?: IChatMode) {
@@ -231,9 +256,47 @@ abstract class OpenChatGlobalAction extends Action2 {
 			return;
 		}
 
+		// Handle newSession parameter - create a new chat session before applying other options
+		if (opts?.newSession) {
+			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
+			chatWidget = widgetService.lastFocusedWidget ?? chatWidget;
+		}
+
 		const switchToMode = (opts?.mode ? chatModeService.findModeByName(opts?.mode) : undefined) ?? this.mode;
 		if (switchToMode) {
 			await this.handleSwitchToMode(switchToMode, chatWidget, instaService, commandService);
+		}
+
+		// Handle target parameter to set session target dropdown
+		// Only switch session type if needed and session is empty
+		if (opts?.target) {
+			const targetProvider = TARGET_TO_PROVIDER_MAP[opts.target];
+			if (targetProvider) {
+				const isEmpty = (chatWidget.viewModel?.getItems().length ?? 0) === 0;
+				const viewModel = chatWidget.viewModel;
+				const isLocalSession = viewModel && (
+					viewModel.sessionResource.scheme === Schemas.vscodeLocalChatSession ||
+					viewModel.sessionResource.scheme === Schemas.vscodeChatEditor
+				);
+
+				// Determine current session's provider type
+				const currentProvider = viewModel ? getAgentSessionProvider(viewModel.sessionResource) ?? AgentSessionProviders.Local : AgentSessionProviders.Local;
+
+				// If the current session already matches the target, no action needed
+				if (currentProvider === targetProvider) {
+					// Already on the correct target, nothing to do
+				} else if (!isEmpty) {
+					// Session has content and target is different - don't disrupt existing work
+				} else if (isLocalSession && targetProvider !== AgentSessionProviders.Local) {
+					// Empty local session, switch to the specified target type
+					const position = chatWidget.location === ChatAgentLocation.Chat ? 'sidebar' : 'editor';
+					await commandService.executeCommand(`workbench.action.chat.openNewChatSessionInPlace.${targetProvider}`, position);
+					// Get the updated widget after session change
+					chatWidget = widgetService.lastFocusedWidget ?? chatWidget;
+				}
+			} else {
+				logService.warn(`Invalid target value: ${opts.target}. Valid values are: local, background, cloud, claude, codex`);
+			}
 		}
 
 		if (opts?.modelSelector) {

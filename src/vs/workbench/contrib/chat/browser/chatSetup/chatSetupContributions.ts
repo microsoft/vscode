@@ -43,7 +43,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatModeService } from '../../common/chatModes.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, IChatViewOpenOptions } from '../actions/chatActions.js';
 import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { ChatSetupAnonymous } from './chatSetup.js';
@@ -640,12 +640,29 @@ class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 
 		const agentParam = params.get('agent') ?? params.get('mode');
 		const inputParam = params.get('prompt');
-		if (!agentParam && !inputParam) {
+		const targetParam = params.get('target') as IChatViewOpenOptions['target'] | null;
+		const newSessionParam = params.get('newSession');
+		const newSession = newSessionParam === 'true' || newSessionParam === '1';
+
+		if (!agentParam && !inputParam && !targetParam && !newSession) {
 			return false;
 		}
 
 		const agentId = agentParam ? this.resolveAgentId(agentParam) : undefined;
 		await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, agentId, inputParam ? { inputValue: inputParam } : undefined);
+
+		// Handle target and newSession parameters via CHAT_OPEN_ACTION_ID
+		if (targetParam || newSession) {
+			const openOptions: IChatViewOpenOptions = { query: '' };
+			if (targetParam) {
+				openOptions.target = targetParam;
+			}
+			if (newSession) {
+				openOptions.newSession = true;
+			}
+			await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, openOptions);
+		}
+
 		return true;
 	}
 
