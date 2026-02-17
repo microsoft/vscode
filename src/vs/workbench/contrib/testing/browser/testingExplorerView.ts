@@ -636,19 +636,19 @@ class ResultSummaryView extends Disposable {
 
 	private renderActivityBadge(countSummary: CountSummary, isRunning: boolean) {
 		if (isRunning) {
-			if (this.lastBadge instanceof IconBadge && this.lastBadge.icon === spinningLoading) {
+			if (this.badgeDisposable.value && this.lastBadge instanceof IconBadge && this.lastBadge.icon === spinningLoading) {
 				return;
 			}
 
 			this.lastBadge = new IconBadge(spinningLoading, () => localize('testingRunningBadge', 'Tests are running'));
 		} else if (countSummary && this.badgeType !== TestingCountBadge.Off && countSummary[this.badgeType] !== 0) {
-			if (this.lastBadge instanceof NumberBadge && this.lastBadge.number === countSummary[this.badgeType]) {
+			if (this.badgeDisposable.value && this.lastBadge instanceof NumberBadge && this.lastBadge.number === countSummary[this.badgeType]) {
 				return;
 			}
 
 			this.lastBadge = new NumberBadge(countSummary[this.badgeType], num => this.getLocalizedBadgeString(this.badgeType, num));
 		} else if (this.crService.isEnabled()) {
-			if (this.lastBadge instanceof IconBadge && this.lastBadge.icon === icons.testingContinuousIsOn) {
+			if (this.badgeDisposable.value && this.lastBadge instanceof IconBadge && this.lastBadge.icon === icons.testingContinuousIsOn) {
 				return;
 			}
 
