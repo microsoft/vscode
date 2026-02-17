@@ -193,9 +193,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		if (sessionTypeItem.type === AgentSessionProviders.Background) {
-			return 'Copilot CLI';
-		}
 		return undefined;
 	}
 
@@ -210,10 +207,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		if (!this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
-			if (currentType === AgentSessionProviders.Background) {
-				const suffix = dom.$('span.chat-input-picker-label.chat-input-picker-suffix', undefined, 'Copilot CLI');
-				labelElements.push(suffix);
-			}
 		}
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
