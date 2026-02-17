@@ -200,6 +200,27 @@
 	background-color: color-mix(in srgb, var(--vscode-list-hoverBackground) 95%, black) !important;
 }
 
+.quick-input-list .quick-input-list-entry .quick-input-list-separator {
+	height: 16px;
+	margin-top: 2px;
+	display: flex;
+	align-items: center;
+	font-size: 11px;
+	padding: 0 4px 1px 4px;
+	border-radius: var(--vscode-cornerRadius-small) !important;
+	background: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent) !important;
+	color: var(--vscode-badge-foreground) !important;
+	margin-right: 8px;
+}
+
+.monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator,
+.monaco-list-row.selected .quick-input-list-entry .quick-input-list-separator,
+.monaco-list-row:hover .quick-input-list-entry .quick-input-list-separator {
+	background: transparent !important;
+	color: inherit !important;
+	padding: 0;
+}
+
 .monaco-workbench .monaco-editor .suggest-widget .monaco-list {
 	border-radius: var(--radius-lg);
 }
@@ -565,13 +586,20 @@
 	left: 0;
 }
 
+/* Minimap autohide: ensure opacity:0 overrides the 0.85 above */
+.monaco-workbench .monaco-editor .minimap:is(.minimap-autohide-mouseover, .minimap-autohide-scroll) {
+	opacity: 0;
+}
+
+.monaco-workbench .monaco-editor .minimap:is(.minimap-autohide-mouseover:hover, .minimap-autohide-scroll.active) {
+	opacity: 0.85;
+}
+
 /* Sticky Scroll */
 .monaco-workbench .monaco-editor .sticky-widget {
 	box-shadow: var(--shadow-md) !important;
 	border-bottom: var(--vscode-editorWidget-border) !important;
 	background: transparent !important;
-	backdrop-filter: var(--backdrop-blur-md) !important;
-	-webkit-backdrop-filter: var(--backdrop-blur-md) !important;
 }
 
 .monaco-workbench .monaco-editor .sticky-widget > * {
@@ -582,10 +610,15 @@
 	border-bottom: none !important;
 }
 
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines {
-	background: color-mix(in srgb, var(--vscode-editor-background) 40%, transparent) !important;
+.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-line-numbers,
+.monaco-editor .sticky-widget .sticky-line-content {
 	backdrop-filter: var(--backdrop-blur-md) !important;
 	-webkit-backdrop-filter: var(--backdrop-blur-md) !important;
+	background: color-mix(in srgb, var(--vscode-editor-background) 40%, transparent) !important;
+}
+
+.monaco-workbench .monaco-editor .sticky-widget .sticky-line-content:hover {
+	background: var(--vscode-editorStickyScrollHover-background) !important;
 }
 
 .monaco-editor .rename-box.preview {
@@ -795,7 +828,9 @@
 	background: var(--vscode-editor-background) !important;
 }
 
-.monaco-workbench.monaco-reduce-transparency .monaco-editor .sticky-widget .sticky-widget-lines {
+.monaco-workbench.monaco-reduce-transparency .monaco-editor .sticky-widget .sticky-widget-line-numbers,
+.monaco-workbench.monaco-reduce-transparency .monaco-editor .sticky-widget .sticky-widget-lines,
+.monaco-workbench.monaco-reduce-transparency .monaco-editor .sticky-widget .sticky-line-content {
 	-webkit-backdrop-filter: none !important;
 	backdrop-filter: none !important;
 	background: var(--vscode-editor-background) !important;
