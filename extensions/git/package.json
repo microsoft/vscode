@@ -527,6 +527,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.graph.rebase",
+        "title": "%command.graphRebase%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.deleteRemoteBranch",
         "title": "%command.deleteRemoteBranch%",
         "category": "Git",
@@ -1748,6 +1754,10 @@
           "when": "false"
         },
         {
+          "command": "git.graph.rebase",
+          "when": "false"
+        },
+        {
           "command": "git.graph.compareRef",
           "when": "false"
         },
@@ -2626,6 +2636,11 @@
           "command": "git.graph.checkout",
           "when": "scmProvider == git",
           "group": "1_checkout@1"
+        },
+        {
+          "command": "git.graph.rebase",
+          "when": "scmProvider == git && scmHistoryItemRef =~ /^refs\\/heads\\/|^refs\\/remotes\\//",
+          "group": "2_branch@1"
         },
         {
           "command": "git.graph.deleteBranch",
