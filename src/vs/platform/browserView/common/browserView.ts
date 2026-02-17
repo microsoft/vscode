@@ -275,4 +275,9 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	clearStorage(id: string): Promise<void>;
+
+	/**
+	 * Get a CDP WebSocket endpoint URL.
+	 */
+	getDebugWebSocketEndpoint(): Promise<string>;
 }
