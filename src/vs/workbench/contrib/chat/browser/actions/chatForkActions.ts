@@ -43,7 +43,6 @@ export function registerChatForkActions() {
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatService = accessor.get(IChatService);
-			const forkedTitlePrefix = localize('chat.forked.titlePrefix', "Forked: ");
 
 			// When invoked via /fork slash command, args[0] is a URI (sessionResource).
 			// Fork at the last request in that session.
@@ -63,9 +62,11 @@ export function registerChatForkActions() {
 				cleanData.sessionId = generateUuid();
 				const forkTimestamp = Date.now();
 				cleanData.creationDate = forkTimestamp;
-				cleanData.customTitle = chatModel.title.startsWith(forkedTitlePrefix)
+				// Use metadata flag to determine if already forked, instead of checking localized prefix
+				cleanData.customTitle = cleanData.isForkedSession
 					? chatModel.title
 					: localize('chat.forked.title', "Forked: {0}", chatModel.title);
+				cleanData.isForkedSession = true;
 				for (const [index, req] of cleanData.requests.entries()) {
 					req.shouldBeRemovedOnSend = undefined;
 					req.isHidden = undefined;
@@ -162,9 +163,11 @@ export function registerChatForkActions() {
 			forkedData.sessionId = generateUuid();
 			const forkedTimestamp = Date.now();
 			forkedData.creationDate = forkedTimestamp;
-			forkedData.customTitle = chatModel.title.startsWith(forkedTitlePrefix)
+			// Use metadata flag to determine if already forked, instead of checking localized prefix
+			forkedData.customTitle = forkedData.isForkedSession
 				? chatModel.title
 				: localize('chat.forked.title', "Forked: {0}", chatModel.title);
+			forkedData.isForkedSession = true;
 			for (const [index, req] of forkedData.requests.entries()) {
 				req.shouldBeRemovedOnSend = undefined;
 				req.isHidden = undefined;

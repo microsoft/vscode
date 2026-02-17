@@ -1576,6 +1576,8 @@ export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 've
 	repoData?: IExportableRepoData;
 	/** Pending requests that were queued but not yet processed */
 	pendingRequests?: ISerializablePendingRequestData[];
+	/** Whether this session was created as a fork of another session */
+	isForkedSession?: boolean;
 }
 
 /**
@@ -2064,6 +2066,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._isImported;
 	}
 
+	private _isForkedSession = false;
+	get isForkedSession(): boolean {
+		return this._isForkedSession;
+	}
+
 	private _customTitle: string | undefined;
 	get customTitle(): string | undefined {
 		return this._customTitle;
@@ -2125,6 +2132,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._timestamp = (isValidFullData && initialData.creationDate) || Date.now();
 		this._customTitle = isValidFullData ? initialData.customTitle : undefined;
+		this._isForkedSession = isValidFullData ? (initialData.isForkedSession ?? false) : false;
 
 		// Initialize input model from serialized data (undefined for new chats)
 		const serializedInputState = initialModelProps.inputState || (isValidFullData && initialData.inputState ? initialData.inputState : undefined);
@@ -2623,6 +2631,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			customTitle: this._customTitle,
 			inputState: this.inputModel.toJSON(),
 			repoData: this._repoData,
+			isForkedSession: this._isForkedSession,
 		};
 	}
 
