@@ -59,7 +59,7 @@
 	background-color: var(--vscode-editorWidget-background);
 	border-radius: 4px 4px 0 0;
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
-	border-bottom: none; /* Seamless attachment to input below */
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);

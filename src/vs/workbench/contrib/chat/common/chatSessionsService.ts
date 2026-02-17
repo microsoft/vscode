@@ -262,7 +262,7 @@ export interface IChatSessionsService {
 	/**
 	 * Fired when options for a chat session change.
 	 */
-	onDidChangeSessionOptions: Event<URI>;
+	readonly onDidChangeSessionOptions: Event<URI>;
 
 	/**
 	 * Get the capabilities for a specific session type
@@ -279,7 +279,7 @@ export interface IChatSessionsService {
 	 * Returns whether the session type requires custom models. When true, the model picker should show filtered custom models.
 	 */
 	requiresCustomModelsForSessionType(chatSessionType: string): boolean;
-	onDidChangeOptionGroups: Event<string>;
+	readonly onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;

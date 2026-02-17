@@ -23,6 +23,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'git.showProgress': false,
 
 		'github.copilot.chat.claudeCode.enabled': true,
+		'github.copilot.chat.cli.branchSupport.enabled': true,
 		'github.copilot.chat.languageContext.typescript.enabled': true,
 
 		'inlineChat.affordance': 'editor',

@@ -66,7 +66,7 @@ export class ChatTipContentPart extends Disposable {
 			const nextTip = this._getNextTip();
 			if (nextTip) {
 				this._renderTip(nextTip);
-				this.focus();
+				dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => this.focus());
 			} else {
 				this._onDidHide.fire();
 			}
@@ -74,7 +74,7 @@ export class ChatTipContentPart extends Disposable {
 
 		this._register(this._chatTipService.onDidNavigateTip(tip => {
 			this._renderTip(tip);
-			this.focus();
+			dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => this.focus());
 		}));
 
 		this._register(this._chatTipService.onDidHideTip(() => {

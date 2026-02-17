@@ -993,13 +993,23 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
-		const existingSessionData = this._sessions.get(sessionResource);
-		if (existingSessionData) {
-			return existingSessionData.session;
+		{
+			const existingSessionData = this._sessions.get(sessionResource);
+			if (existingSessionData) {
+				return existingSessionData.session;
+			}
 		}
 
 		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource), token))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
+		}
+
+		// Check again after async provider resolution
+		{
+			const existingSessionData = this._sessions.get(sessionResource);
+			if (existingSessionData) {
+				return existingSessionData.session;
+			}
 		}
 
 		const resolvedType = this._resolveToPrimaryType(sessionResource.scheme) || sessionResource.scheme;
@@ -1009,12 +1019,25 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+
+		// Make sure another session wasn't created while we were awaiting the provider
+		{
+			const existingSessionData = this._sessions.get(sessionResource);
+			if (existingSessionData) {
+				session.dispose();
+				return existingSessionData.session;
+			}
+		}
+
 		const sessionData = new ContributedChatSessionData(session, sessionResource.scheme, sessionResource, session.options, resource => {
 			sessionData.dispose();
 			this._sessions.delete(resource);
 		});
 
 		this._sessions.set(sessionResource, sessionData);
+
+		// Make sure any listeners are aware of the new session and its options
+		this._onDidChangeSessionOptions.fire(sessionResource);
 
 		return session;
 	}

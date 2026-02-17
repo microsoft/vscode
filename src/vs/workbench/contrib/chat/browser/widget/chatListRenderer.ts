@@ -2103,6 +2103,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const inputPartHasCarousel = widget?.input.questionCarousel !== undefined;
 
 		if (carousel.isUsed || responseIsComplete) {
+			if (responseIsComplete && !carousel.isUsed && isResponseVM(context.element) && carousel.resolveId && carousel.data === undefined) {
+				carousel.data = {};
+				carousel.isUsed = true;
+				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, undefined);
+				this.pendingQuestionCarousels.get(context.element.sessionResource)?.clear();
+			}
+
 			// Clear the carousel from input part when response completes (stopped/canceled)
 			// Only clear if this response's carousel is currently displayed (pass responseId)
 			if (responseIsComplete && inputPartHasCarousel && responseId) {

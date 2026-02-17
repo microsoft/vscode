@@ -342,7 +342,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.TerminalTitle]: {
 		'type': 'string',
-		'default': '${sequence}',
+		'default': '${process}',
 		'markdownDescription': terminalTitle
 	},
 	[TerminalSettingId.TerminalDescription]: {

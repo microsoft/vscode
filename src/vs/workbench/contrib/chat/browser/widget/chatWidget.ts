@@ -7,6 +7,7 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -1991,17 +1992,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection, undefined);
 
-		// mark any question carousels as used on reload
-		for (const request of model.getRequests()) {
-			if (request.response) {
-				for (const part of request.response.entireResponse.value) {
-					if (part.kind === 'questionCarousel' && !part.isUsed) {
-						part.isUsed = true;
-					}
-				}
-			}
-		}
-
 		// Pass input model reference to input part for state syncing
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0);
 		this.listWidget.setViewModel(this.viewModel);
@@ -2047,12 +2037,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
-		const updatePendingRequestKeys = () => {
-			const pendingCount = model.getPendingRequests().length;
+		let lastSteeringCount = 0;
+		const updatePendingRequestKeys = (announceSteering: boolean) => {
+			const pendingRequests = model.getPendingRequests();
+			const pendingCount = pendingRequests.length;
 			this._hasPendingRequestsContextKey.set(pendingCount > 0);
+			const steeringCount = pendingRequests.filter(pending => pending.kind === ChatRequestQueueKind.Steering).length;
+			if (announceSteering && steeringCount > 0 && lastSteeringCount === 0) {
+				status(localize('chat.pendingRequests.steeringQueued', "Steering"));
+			}
+			lastSteeringCount = steeringCount;
 		};
-		updatePendingRequestKeys();
-		this.viewModelDisposables.add(model.onDidChangePendingRequests(() => updatePendingRequestKeys()));
+		updatePendingRequestKeys(false);
+		this.viewModelDisposables.add(model.onDidChangePendingRequests(() => updatePendingRequestKeys(true)));
 
 		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {
@@ -2263,18 +2260,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		const responseId = this.input.questionCarouselResponseId;
+		const inputPart = this.inputPartDisposable.value;
+		if (!inputPart) {
+			return;
+		}
+
+		const responseId = inputPart.questionCarouselResponseId;
 		if (!responseId || this.viewModel.model.lastRequest?.id !== responseId) {
 			return;
 		}
 
-		const carouselPart = this.input.questionCarousel;
+		const carouselPart = inputPart.questionCarousel;
 		if (!carouselPart) {
 			return;
 		}
 
 		carouselPart.ignore();
-		this.input.clearQuestionCarousel(responseId);
+		inputPart.clearQuestionCarousel(responseId);
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
