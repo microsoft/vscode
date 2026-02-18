@@ -151,7 +151,13 @@ export class ExtHostTreeViews extends Disposable implements ExtHostTreeViewsShap
 			dispose: async () => {
 				// Wait for the registration promise to finish before doing the dispose.
 				await registerPromise;
-				this._treeViews.delete(viewId);
+				// Only notify the main thread if this view was not replaced by a new registration.
+				// When an extension disposes a view and immediately re-registers it, the new
+				// registration may have already updated _treeViews before this async dispose runs.
+				if (this._treeViews.get(viewId) === treeView) {
+					this._treeViews.delete(viewId);
+					this._proxy.$disposeTree(viewId);
+				}
 				treeView.dispose();
 			}
 		};
@@ -1108,6 +1114,5 @@ class ExtHostTreeView<T> extends Disposable {
 		this._refreshCancellationSource.dispose();
 
 		this._clearAll();
-		this._proxy.$disposeTree(this._viewId);
 	}
 }

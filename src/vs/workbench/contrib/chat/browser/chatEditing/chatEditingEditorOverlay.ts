@@ -10,7 +10,7 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platfor
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction, IActionRunner } from '../../../../../base/common/actions.js';
 import { $, addDisposableGenericMouseMoveListener, append } from '../../../../../base/browser/dom.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -35,7 +35,7 @@ export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
 	constructor(
 		action: IAction,
-		options: IBaseActionViewItemOptions,
+		options: IActionViewItemOptions,
 		private readonly _entry: IObservable<IModifiedFileEntry | undefined>,
 		private readonly _editor: { focus(): void } | undefined,
 		private readonly _keybindingService: IKeybindingService,
@@ -92,7 +92,7 @@ export class ChatEditingAcceptRejectActionViewItem extends ActionViewItem {
 
 	protected override getTooltip(): string | undefined {
 		const value = super.getTooltip();
-		if (!value || this.options.keybinding) {
+		if (!value) {
 			return value;
 		}
 		return this._keybindingService.appendKeybinding(value, this._action.id);

@@ -9,6 +9,7 @@ import './sessions.common.main.js';
 //#region --- workbench (agentic desktop main)
 
 import './electron-browser/sessions.main.js';
+import './electron-browser/titleService.js';
 import '../workbench/electron-browser/desktop.contribution.js';
 
 //#endregion

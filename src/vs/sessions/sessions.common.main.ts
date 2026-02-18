@@ -351,9 +351,9 @@ import '../workbench/contrib/surveys/browser/nps.contribution.js';
 import '../workbench/contrib/surveys/browser/languageSurveys.contribution.js';
 
 // Welcome
-import '../workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
-import '../workbench/contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js';
-import '../workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
+// import '../workbench/contrib/welcomeGettingStarted/browser/gettingStarted.contribution.js';
+// import '../workbench/contrib/welcomeAgentSessions/browser/agentSessionsWelcome.contribution.js';
+// import '../workbench/contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
 import '../workbench/contrib/welcomeViews/common/viewsWelcome.contribution.js';
 import '../workbench/contrib/welcomeViews/common/newFile.contribution.js';
 

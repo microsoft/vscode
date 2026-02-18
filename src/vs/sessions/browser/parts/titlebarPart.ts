@@ -203,7 +203,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}));
 
 		// Right toolbar (driven by Menus.TitleBarRight - includes account submenu)
-		const rightToolbarContainer = append(this.rightContent, $('div.action-toolbar-container'));
+		const rightToolbarContainer = prepend(this.rightContent, $('div.action-toolbar-container'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRight, {
 			contextMenu: Menus.TitleBarContext,
 			telemetrySource: 'titlePart.right',
@@ -258,8 +258,15 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	private lastLayoutDimension: Dimension | undefined;
 
+	get hasZoomableElements(): boolean {
+		return true; // sessions titlebar always has command center and toolbar actions
+	}
+
 	get preventZoom(): boolean {
-		return getZoomFactor(getWindow(this.element)) < 1;
+		// Prevent zooming behavior if any of the following conditions are met:
+		// 1. Shrinking below the window control size (zoom < 1)
+		// 2. No custom items are present in the title bar
+		return getZoomFactor(getWindow(this.element)) < 1 || !this.hasZoomableElements;
 	}
 
 	override layout(width: number, height: number): void {
@@ -342,6 +349,7 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 	constructor(
 		readonly container: HTMLElement,
 		editorGroupsContainer: IEditorGroupsContainer,
+		private readonly mainTitlebar: TitlebarPart,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -353,6 +361,15 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 	) {
 		const id = AuxiliaryTitlebarPart.COUNTER++;
 		super(`workbench.parts.auxiliaryTitle.${id}`, getWindow(container), contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
+	}
+
+	override get preventZoom(): boolean {
+		// Prevent zooming behavior if any of the following conditions are met:
+		// 1. Shrinking below the window control size (zoom < 1)
+		// 2. No custom items are present in the main title bar
+		// The auxiliary title bar never contains any zoomable items itself,
+		// but we want to match the behavior of the main title bar.
+		return getZoomFactor(getWindow(this.element)) < 1 || !this.mainTitlebar.hasZoomableElements;
 	}
 }
 
@@ -366,15 +383,19 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 	readonly mainPart: TitlebarPart;
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@IThemeService themeService: IThemeService
 	) {
 		super('workbench.agentSessionsTitleService', themeService, storageService);
 
-		this.mainPart = this._register(this.instantiationService.createInstance(MainTitlebarPart));
+		this.mainPart = this._register(this.createMainTitlebarPart());
 		this.onMenubarVisibilityChange = this.mainPart.onMenubarVisibilityChange;
 		this._register(this.registerPart(this.mainPart));
+	}
+
+	protected createMainTitlebarPart(): TitlebarPart {
+		return this.instantiationService.createInstance(MainTitlebarPart);
 	}
 
 	//#region Auxiliary Titlebar Parts
@@ -386,7 +407,7 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 
 		const disposables = new DisposableStore();
 
-		const titlebarPart = instantiationService.createInstance(AuxiliaryTitlebarPart, titlebarPartContainer, editorGroupsContainer);
+		const titlebarPart = this.doCreateAuxiliaryTitlebarPart(titlebarPartContainer, editorGroupsContainer, instantiationService);
 		disposables.add(this.registerPart(titlebarPart));
 
 		disposables.add(Event.runAndSubscribe(titlebarPart.onDidChange, () => titlebarPartContainer.style.height = `${titlebarPart.height}px`));
@@ -395,6 +416,10 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 		Event.once(titlebarPart.onWillDispose)(() => disposables.dispose());
 
 		return titlebarPart;
+	}
+
+	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): TitlebarPart & IAuxiliaryTitlebarPart {
+		return instantiationService.createInstance(AuxiliaryTitlebarPart, container, editorGroupsContainer, this.mainPart);
 	}
 
 	//#endregion

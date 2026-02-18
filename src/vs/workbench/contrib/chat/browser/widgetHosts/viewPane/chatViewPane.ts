@@ -66,7 +66,9 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
-	/** @deprecated */
+	/**
+	 * @deprecated This is kept around to support old view states. However it should not be set on new states and `sessionResource` should be used instead.
+	 */
 	sessionId?: string;
 	sessionResource?: URI;
 
@@ -695,7 +697,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			await this.updateWidgetLockState(model.sessionResource); // Update widget lock state based on session type
 
 			// remember as model to restore in view state
-			this.viewState.sessionId = model.sessionId;
 			this.viewState.sessionResource = model.sessionResource;
 		}
 

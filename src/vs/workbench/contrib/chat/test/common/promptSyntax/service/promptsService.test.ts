@@ -47,6 +47,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../pl
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
+import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
 
@@ -151,6 +152,10 @@ suite('PromptsService', () => {
 				}
 				return { results, messages: [] };
 			}
+		});
+
+		instaService.stub(IRemoteAgentService, {
+			getEnvironment: () => Promise.resolve(null),
 		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));

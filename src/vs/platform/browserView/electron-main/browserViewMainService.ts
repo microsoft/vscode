@@ -15,7 +15,6 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { BrowserViewUri } from '../common/browserViewUri.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
-import { IBrowserViewCDPProxyServer } from './browserViewCDPProxyServer.js';
 import { IProductService } from '../../product/common/productService.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 
@@ -51,8 +50,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IProductService private readonly productService: IProductService,
-		@IBrowserViewCDPProxyServer private readonly cdpProxyServer: IBrowserViewCDPProxyServer,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 	}
@@ -362,9 +360,5 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			this.environmentMainService.workspaceStorageHome
 		);
 		await browserSession.electronSession.clearData();
-	}
-
-	async getDebugWebSocketEndpoint(): Promise<string> {
-		return this.cdpProxyServer.getWebSocketEndpoint();
 	}
 }

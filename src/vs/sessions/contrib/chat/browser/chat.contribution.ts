@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -15,14 +16,18 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
-import { ITerminalService, ITerminalGroupService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AgenticPromptsService } from './promptsService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ChatViewContainerId, ChatViewId } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -64,6 +69,33 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 }
 registerAction2(OpenSessionWorktreeInVSCodeAction);
 
+class NewChatInSessionsWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.newChat',
+			title: localize2('chat.newEdits.label', "New Chat"),
+			category: CHAT_CATEGORY,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 2,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+				secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+					secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
+				},
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		sessionsManagementService.openNewSession();
+	}
+}
+
+registerAction2(NewChatInSessionsWindowAction);
+
 export class OpenSessionInTerminalAction extends Action2 {
 
 	constructor() {
@@ -81,7 +113,7 @@ export class OpenSessionInTerminalAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor,): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
-		const terminalGroupService = accessor.get(ITerminalGroupService);
+		const viewsService = accessor.get(IViewsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
@@ -94,7 +126,7 @@ export class OpenSessionInTerminalAction extends Action2 {
 				terminalService.setActiveInstance(instance);
 			}
 		}
-		terminalGroupService.showPanel(true);
+		await viewsService.openView(TERMINAL_VIEW_ID, true);
 	}
 }
 

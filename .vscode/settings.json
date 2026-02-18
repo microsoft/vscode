@@ -70,7 +70,7 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
-		"src/vs/sessions/**": true
+		// "src/vs/sessions/**": true
 	},
 	// --- Search ---
 	"search.exclude": {

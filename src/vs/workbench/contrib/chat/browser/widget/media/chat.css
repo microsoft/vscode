@@ -1400,12 +1400,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 3px 0px 3px 6px;
 	display: flex;
 	align-items: center;
-	color: var(--vscode-descriptionForeground);
-}
-
-.monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item .codicon.codicon,
-.monaco-workbench .interactive-session .chat-input-toolbars .action-label .codicon.codicon {
-	color: var(--vscode-descriptionForeground) !important;
+	color: var(--vscode-foreground);
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,

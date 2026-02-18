@@ -25,6 +25,17 @@ interface NodeDataResponse {
 	bounds: IRectangle;
 }
 
+const MAX_CONSOLE_LOG_ENTRIES = 1000;
+const consoleLogStore = new Map<string, string[]>();
+
+function locatorKey(locator: IBrowserTargetLocator): string {
+	const key = locator.browserViewId ?? locator.webviewId;
+	if (!key) {
+		return 'unknown';
+	}
+	return key;
+}
+
 export class NativeBrowserElementsMainService extends Disposable implements INativeBrowserElementsMainService {
 	_serviceBrand: undefined;
 
@@ -38,11 +49,82 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 	get windowId(): never { throw new Error('Not implemented in electron-main'); }
 
+	async getConsoleLogs(windowId: number | undefined, locator: IBrowserTargetLocator): Promise<string | undefined> {
+		const key = locatorKey(locator);
+		const entries = consoleLogStore.get(key);
+		if (!entries || entries.length === 0) {
+			return undefined;
+		}
+		return entries.join('\n');
+	}
+
+	async startConsoleSession(windowId: number | undefined, token: CancellationToken, locator: IBrowserTargetLocator, cancelAndDetachId?: number): Promise<void> {
+		const window = this.windowById(windowId);
+		if (!window?.win) {
+			return undefined;
+		}
+
+		let targetWebContents: Electron.WebContents | undefined;
+		if (locator.browserViewId) {
+			targetWebContents = this.browserViewMainService.tryGetBrowserView(locator.browserViewId)?.webContents;
+		}
+
+		if (!targetWebContents) {
+			return undefined;
+		}
+
+		const key = locatorKey(locator);
+		if (!consoleLogStore.has(key)) {
+			consoleLogStore.set(key, []);
+		}
+
+		const levelMap: Record<number, string> = { 0: 'log', 1: 'warning', 2: 'error' };
+		const onConsoleMessage = (_event: Electron.Event, level: number, message: string, _line: number, _sourceId: string) => {
+			const levelName = levelMap[level] ?? 'log';
+			const formatted = `[${levelName}] ${message}`;
+			const current = consoleLogStore.get(key) ?? [];
+			current.push(formatted);
+			if (current.length > MAX_CONSOLE_LOG_ENTRIES) {
+				current.splice(0, current.length - MAX_CONSOLE_LOG_ENTRIES);
+			}
+			consoleLogStore.set(key, current);
+		};
+
+		const cleanupListeners = () => {
+			targetWebContents?.off('console-message', onConsoleMessage);
+			window.win?.webContents.off('ipc-message', onIpcMessage);
+		};
+
+		const onIpcMessage = async (_event: Electron.Event, channel: string, closedCancelAndDetachId: number) => {
+			if (channel === `vscode:cancelConsoleSession${cancelAndDetachId}`) {
+				if (cancelAndDetachId !== closedCancelAndDetachId) {
+					return;
+				}
+				cleanupListeners();
+				consoleLogStore.delete(key);
+			}
+		};
+
+		targetWebContents.on('console-message', onConsoleMessage);
+
+		targetWebContents.once('destroyed', () => {
+			cleanupListeners();
+			consoleLogStore.delete(key);
+		});
+
+		token.onCancellationRequested(() => {
+			cleanupListeners();
+			consoleLogStore.delete(key);
+		});
+
+		window.win.webContents.on('ipc-message', onIpcMessage);
+	}
+
 	/**
 	 * Find the webview target that matches the given locator.
 	 * Checks either webviewId or browserViewId depending on what's provided.
 	 */
-	async findWebviewTarget(debuggers: Electron.Debugger, locator: IBrowserTargetLocator): Promise<string | undefined> {
+	private async findWebviewTarget(debuggers: Electron.Debugger, locator: IBrowserTargetLocator): Promise<string | undefined> {
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
 
 		if (locator.webviewId) {

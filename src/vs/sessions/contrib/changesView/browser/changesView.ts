@@ -13,7 +13,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IObservableWithChange, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, dirname } from '../../../../base/common/path.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -44,7 +44,6 @@ import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/la
 import { ViewPane, IViewPaneOptions, ViewAction } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -56,6 +55,7 @@ import { IActivityService, NumberBadge } from '../../../../workbench/services/ac
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 const $ = dom.$;
 
@@ -92,6 +92,11 @@ interface IChangesFolderItem {
 	readonly type: 'folder';
 	readonly uri: URI;
 	readonly name: string;
+}
+
+interface IActiveSession {
+	readonly resource: URI;
+	readonly sessionType: string;
 }
 
 type ChangesTreeElement = IChangesFileItem | IChangesFolderItem;
@@ -201,8 +206,14 @@ export class ChangesViewPane extends ViewPane {
 		this.storageService.store('changesView.viewMode', mode, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
-	// Track the active session's editing session resource
-	private readonly activeSessionResource = observableValue<URI | undefined>(this, undefined);
+	// Track the active session used by this view
+	private readonly activeSession: IObservableWithChange<IActiveSession | undefined>;
+	private readonly activeSessionFileCountObs: IObservableWithChange<number>;
+	private readonly activeSessionHasChangesObs: IObservableWithChange<boolean>;
+
+	get activeSessionHasChanges(): IObservable<boolean> {
+		return this.activeSessionHasChangesObs;
+	}
 
 	// Badge for file count
 	private readonly badgeDisposable = this._register(new MutableDisposable());
@@ -220,9 +231,9 @@ export class ChangesViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -235,113 +246,85 @@ export class ChangesViewPane extends ViewPane {
 		this.viewModeContextKey = changesViewModeContextKey.bindTo(contextKeyService);
 		this.viewModeContextKey.set(initialMode);
 
+		// Track active session from sessions management service
+		this.activeSession = derivedOpts<IActiveSession | undefined>({
+			equalsFn: (a, b) => isEqual(a?.resource, b?.resource),
+		}, reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			if (!activeSession?.resource) {
+				return undefined;
+			}
+
+			return {
+				resource: activeSession.resource,
+				sessionType: getChatSessionType(activeSession.resource),
+			};
+		}).recomputeInitiallyAndOnChange(this._store);
+
+		this.activeSessionFileCountObs = this.createActiveSessionFileCountObservable();
+		this.activeSessionHasChangesObs = this.activeSessionFileCountObs.map(fileCount => fileCount > 0).recomputeInitiallyAndOnChange(this._store);
+
 		// Setup badge tracking
 		this.registerBadgeTracking();
-
-		// Track active session from focused chat widgets
-		this.registerActiveSessionTracking();
 
 		// Set chatSessionType on the view's context key service so ViewTitle
 		// menu items can use it in their `when` clauses. Update reactively
 		// when the active session changes.
 		const viewSessionTypeKey = this.scopedContextKeyService.createKey<string>(ChatContextKeys.agentSessionType.key, '');
 		this._register(autorun(reader => {
-			const sessionResource = this.activeSessionResource.read(reader);
-			viewSessionTypeKey.set(sessionResource ? getChatSessionType(sessionResource) : '');
+			const activeSession = this.activeSession.read(reader);
+			viewSessionTypeKey.set(activeSession?.sessionType ?? '');
 		}));
-	}
-
-	private registerActiveSessionTracking(): void {
-		// Initialize with the last focused widget's session if available
-		const lastFocused = this.chatWidgetService.lastFocusedWidget;
-		if (lastFocused?.viewModel?.sessionResource) {
-			this.activeSessionResource.set(lastFocused.viewModel.sessionResource, undefined);
-		}
-
-		// Listen for new widgets and track their focus
-		this._register(this.chatWidgetService.onDidAddWidget(widget => {
-			this._register(widget.onDidFocus(() => {
-				if (widget.viewModel?.sessionResource) {
-					this.activeSessionResource.set(widget.viewModel.sessionResource, undefined);
-				}
-			}));
-
-			// Also track view model changes (when a widget loads a different session)
-			this._register(widget.onDidChangeViewModel(({ currentSessionResource }) => {
-				// Only update if this widget is focused
-				if (this.chatWidgetService.lastFocusedWidget === widget && currentSessionResource) {
-					this.activeSessionResource.set(currentSessionResource, undefined);
-				}
-			}));
-		}));
-
-		// Track focus changes on existing widgets
-		for (const widget of this.chatWidgetService.getAllWidgets()) {
-			this._register(widget.onDidFocus(() => {
-				if (widget.viewModel?.sessionResource) {
-					this.activeSessionResource.set(widget.viewModel.sessionResource, undefined);
-				}
-			}));
-
-			this._register(widget.onDidChangeViewModel(({ currentSessionResource }) => {
-				if (this.chatWidgetService.lastFocusedWidget === widget && currentSessionResource) {
-					this.activeSessionResource.set(currentSessionResource, undefined);
-				}
-			}));
-		}
 	}
 
 	private registerBadgeTracking(): void {
-		// Signal observable that triggers when sessions data changes
+		// Update badge when file count changes
+		this._register(autorun(reader => {
+			const fileCount = this.activeSessionFileCountObs.read(reader);
+			this.updateBadge(fileCount);
+		}));
+	}
+
+	private createActiveSessionFileCountObservable(): IObservableWithChange<number> {
+		const activeSessionResource = this.activeSession.map(a => a?.resource);
+
 		const sessionsChangedSignal = observableFromEvent(
 			this,
 			this.agentSessionsService.model.onDidChangeSessions,
 			() => ({}),
 		);
 
-		// Observable for session file changes from agentSessionsService (cloud/background sessions)
-		// Reactive to both activeSessionResource changes AND session data changes
 		const sessionFileChangesObs = derived(reader => {
-			const sessionResource = this.activeSessionResource.read(reader);
+			const sessionResource = activeSessionResource.read(reader);
 			sessionsChangedSignal.read(reader);
 			if (!sessionResource) {
 				return Iterable.empty();
 			}
+
 			const model = this.agentSessionsService.getSession(sessionResource);
 			return model?.changes instanceof Array ? model.changes : Iterable.empty();
 		});
 
-		// Create observable for the number of files changed in the active session
-		// Combines both editing session entries and session file changes (for cloud/background sessions)
-		const fileCountObs = derived(reader => {
-			const sessionResource = this.activeSessionResource.read(reader);
-			if (!sessionResource) {
+		return derived(reader => {
+			const activeSession = this.activeSession.read(reader);
+			if (!activeSession) {
 				return 0;
 			}
 
-			// Background chat sessions render the working set based on the session files, not the editing session
-			const isBackgroundSession = getChatSessionType(sessionResource) === AgentSessionProviders.Background;
+			const isBackgroundSession = activeSession.sessionType === AgentSessionProviders.Background;
 
-			// Count from editing session entries (skip for background sessions)
 			let editingSessionCount = 0;
 			if (!isBackgroundSession) {
 				const sessions = this.chatEditingService.editingSessionsObs.read(reader);
-				const session = sessions.find(candidate => isEqual(candidate.chatSessionResource, sessionResource));
+				const session = sessions.find(candidate => isEqual(candidate.chatSessionResource, activeSession.resource));
 				editingSessionCount = session ? session.entries.read(reader).length : 0;
 			}
 
-			// Count from session file changes (cloud/background sessions)
 			const sessionFiles = [...sessionFileChangesObs.read(reader)];
 			const sessionFilesCount = sessionFiles.length;
 
 			return editingSessionCount + sessionFilesCount;
-		});
-
-		// Update badge when file count changes
-		this._register(autorun(reader => {
-			const fileCount = fileCountObs.read(reader);
-			this.updateBadge(fileCount);
-		}));
+		}).recomputeInitiallyAndOnChange(this._store);
 	}
 
 	private updateBadge(fileCount: number): void {
@@ -404,25 +387,26 @@ export class ChangesViewPane extends ViewPane {
 
 	private onVisible(): void {
 		this.renderDisposables.clear();
+		const activeSessionResource = this.activeSession.map(a => a?.resource);
 
 		// Create observable for the active editing session
 		// Note: We must read editingSessionsObs to establish a reactive dependency,
 		// so that the view updates when a new editing session is added (e.g., cloud sessions)
 		const activeEditingSessionObs = derived(reader => {
-			const sessionResource = this.activeSessionResource.read(reader);
-			if (!sessionResource) {
+			const activeSession = this.activeSession.read(reader);
+			if (!activeSession) {
 				return undefined;
 			}
 			const sessions = this.chatEditingService.editingSessionsObs.read(reader);
-			return sessions.find(candidate => isEqual(candidate.chatSessionResource, sessionResource));
+			return sessions.find(candidate => isEqual(candidate.chatSessionResource, activeSession.resource));
 		});
 
 		// Create observable for edit session entries from the ACTIVE session only (local editing sessions)
 		const editSessionEntriesObs = derived(reader => {
-			const sessionResource = this.activeSessionResource.read(reader);
+			const activeSession = this.activeSession.read(reader);
 
 			// Background chat sessions render the working set based on the session files, not the editing session
-			if (sessionResource && getChatSessionType(sessionResource) === AgentSessionProviders.Background) {
+			if (activeSession?.sessionType === AgentSessionProviders.Background) {
 				return [];
 			}
 
@@ -462,9 +446,9 @@ export class ChangesViewPane extends ViewPane {
 		);
 
 		// Observable for session file changes from agentSessionsService (cloud/background sessions)
-		// Reactive to both activeSessionResource changes AND session data changes
+		// Reactive to both activeSession changes AND session data changes
 		const sessionFileChangesObs = derived(reader => {
-			const sessionResource = this.activeSessionResource.read(reader);
+			const sessionResource = activeSessionResource.read(reader);
 			sessionsChangedSignal.read(reader);
 			if (!sessionResource) {
 				return Iterable.empty();
@@ -530,8 +514,8 @@ export class ChangesViewPane extends ViewPane {
 			// `chatSessionType == copilotcli` (e.g. Create Pull Request) are shown
 			const chatSessionTypeKey = scopedContextKeyService.createKey<string>(ChatContextKeys.agentSessionType.key, '');
 			this.renderDisposables.add(autorun(reader => {
-				const sessionResource = this.activeSessionResource.read(reader);
-				chatSessionTypeKey.set(sessionResource ? getChatSessionType(sessionResource) : '');
+				const activeSession = this.activeSession.read(reader);
+				chatSessionTypeKey.set(activeSession?.sessionType ?? '');
 			}));
 
 			// Bind required context keys for the menu buttons
@@ -560,7 +544,7 @@ export class ChangesViewPane extends ViewPane {
 
 			this.renderDisposables.add(autorun(reader => {
 				const { isSessionMenu, added, removed } = topLevelStats.read(reader);
-				const sessionResource = this.activeSessionResource.read(reader);
+				const sessionResource = activeSessionResource.read(reader);
 				reader.store.add(scopedInstantiationService.createInstance(
 					MenuWorkbenchButtonBar,
 					this.actionsContainer!,

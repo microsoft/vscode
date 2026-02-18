@@ -1020,8 +1020,6 @@ declare module 'vscode' {
 		readonly rawInput?: unknown;
 
 		readonly chatRequestId?: string;
-		/** @deprecated Use {@link chatSessionResource} instead */
-		readonly chatSessionId?: string;
 		readonly chatSessionResource?: Uri;
 		readonly chatInteractionId?: string;
 	}

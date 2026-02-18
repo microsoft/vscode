@@ -147,8 +147,8 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 	private _position: IContentWidgetPosition | null = null;
 	private _isVisible = false;
 
-	private readonly _onDidRunAction = this._store.add(new Emitter<void>());
-	readonly onDidRunAction: Event<void> = this._onDidRunAction.event;
+	private readonly _onDidRunAction = this._store.add(new Emitter<string>());
+	readonly onDidRunAction: Event<string> = this._onDidRunAction.event;
 
 	readonly allowEditorOverflow = false;
 	readonly suppressMouseDown = false;
@@ -179,7 +179,10 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 				return undefined;
 			}
 		}));
-		this._store.add(toolbar.actionRunner.onDidRun(() => this._onDidRunAction.fire()));
+		this._store.add(toolbar.actionRunner.onDidRun((e) => {
+			this._onDidRunAction.fire(e.action.id);
+			this._hide();
+		}));
 
 		this._store.add(autorun(r => {
 			const sel = selection.read(r);

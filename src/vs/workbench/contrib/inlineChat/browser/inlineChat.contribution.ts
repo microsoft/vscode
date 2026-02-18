@@ -93,7 +93,8 @@ MenuRegistry.appendMenuItem(MenuId.InlineChatEditorAffordance, {
 	order: 1,
 	command: {
 		id: ACTION_START,
-		title: localize('editCode', "Edit Code"),
+		title: localize('editCode', "Ask for Edits"),
+		shortTitle: localize('editCodeShort', "Ask for Edits"),
 		icon: Codicon.sparkle,
 	},
 	when: EditorContextKeys.hasNonEmptySelection,
@@ -103,6 +104,7 @@ MenuRegistry.appendMenuItem(MenuId.InlineChatEditorAffordance, {
 
 registerAction2(InlineChatActions.StartSessionAction);
 registerAction2(InlineChatActions.FocusInlineChat);
+registerAction2(InlineChatActions.SubmitInlineChatInputAction);
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

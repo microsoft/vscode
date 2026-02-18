@@ -11,6 +11,9 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { arch, platform } from '../../../../base/common/process.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IntervalTimer } from '../../../../base/common/async.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 interface IEmergencyAlert {
 	readonly commit: string;
@@ -27,9 +30,14 @@ interface IEmergencyAlerts {
 	readonly alerts: IEmergencyAlert[];
 }
 
-export class EmergencyAlert implements IWorkbenchContribution {
+const POLLING_INTERVAL = 60 * 60 * 1000; // 1 hour
+const BANNER_ID = 'emergencyAlert.banner';
+
+export class EmergencyAlert extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.emergencyAlert';
+
+	private readonly pollingTimer = this._register(new IntervalTimer());
 
 	constructor(
 		@IBannerService private readonly bannerService: IBannerService,
@@ -37,9 +45,7 @@ export class EmergencyAlert implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService
 	) {
-		if (productService.quality !== 'insider') {
-			return; // only enabled in insiders for now
-		}
+		super();
 
 		const emergencyAlertUrl = productService.emergencyAlertUrl;
 		if (!emergencyAlertUrl) {
@@ -47,6 +53,7 @@ export class EmergencyAlert implements IWorkbenchContribution {
 		}
 
 		this.fetchAlerts(emergencyAlertUrl);
+		this.pollingTimer.cancelAndSet(() => this.fetchAlerts(emergencyAlertUrl), POLLING_INTERVAL, mainWindow);
 	}
 
 	private async fetchAlerts(url: string): Promise<void> {
@@ -58,7 +65,7 @@ export class EmergencyAlert implements IWorkbenchContribution {
 	}
 
 	private async doFetchAlerts(url: string): Promise<void> {
-		const requestResult = await this.requestService.request({ type: 'GET', url, disableCache: true }, CancellationToken.None);
+		const requestResult = await this.requestService.request({ type: 'GET', url, disableCache: true, timeout: 20000 }, CancellationToken.None);
 
 		if (requestResult.res.statusCode !== 200) {
 			throw new Error(`Failed to fetch emergency alerts: HTTP ${requestResult.res.statusCode}`);
@@ -78,8 +85,9 @@ export class EmergencyAlert implements IWorkbenchContribution {
 				return;
 			}
 
+			this.bannerService.hide(BANNER_ID);
 			this.bannerService.show({
-				id: 'emergencyAlert.banner',
+				id: BANNER_ID,
 				icon: Codicon.warning,
 				message: emergencyAlert.message,
 				actions: emergencyAlert.actions
