@@ -12,8 +12,6 @@
 	user-select: initial;
 	-webkit-user-select: initial;
 	position: relative;
-	/* Create stacking context before to terminal canvases. */
-	z-index: 12;
 }
 
 .terminal-command-decoration.hide {
