@@ -12,12 +12,17 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ISessionOpenOptions, openSession as openSessionDefault } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsOpener.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { IChatSessionItem, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { LocalChatSessionUri } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -63,16 +68,16 @@ export interface ISessionsManagementService {
 	openSession(sessionResource: URI, openOptions?: ISessionOpenOptions): Promise<void>;
 
 	/**
-	 * Open a new session, apply options, and send the initial request.
-	 * This is the main entry point for the new-chat welcome widget.
-	 */
-	openSessionAndSend(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void>;
-
-	/**
 	 * Switch to the new-session view.
 	 * No-op if the current session is already a new session.
 	 */
 	openNewSession(): void;
+
+	/**
+	 * Open a new session, apply options, and send the initial request.
+	 * This is the main entry point for the new-chat welcome widget.
+	 */
+	sendRequestForNewSession(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>, folderUri?: URI): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
@@ -96,6 +101,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 
@@ -107,9 +115,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.lastSelectedSession = this.loadLastSelectedSession();
 
 		// Save on shutdown
-		this._register(this.storageService.onWillSaveState(() => {
-			this.saveLastSelectedSession();
-		}));
+		this._register(this.storageService.onWillSaveState(() => this.saveLastSelectedSession()));
 
 		// Update active session when session options change
 		this._register(this.chatSessionsService.onDidChangeSessionOptions(sessionResource => {
@@ -124,9 +130,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}));
 
 		// Update active session when the agent sessions model changes (e.g., metadata updates with worktree/repository info)
-		this._register(this.agentSessionsService.model.onDidChangeSessions(() => {
-			this.refreshActiveSessionFromModel();
-		}));
+		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.refreshActiveSessionFromModel()));
 	}
 
 	private refreshActiveSessionFromModel(): void {
@@ -208,44 +212,106 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async openSession(sessionResource: URI, openOptions?: ISessionOpenOptions): Promise<void> {
-		const session = this.agentSessionsService.model.getSession(sessionResource);
-		if (session) {
-			this.isNewChatSessionContext.set(false);
-			this.setActiveSession(session);
-			await this.instantiationService.invokeFunction(openSessionDefault, session, openOptions);
+		this.isNewChatSessionContext.set(false);
+
+		const existingSession = this.agentSessionsService.model.getSession(sessionResource);
+		if (existingSession) {
+			await this.openExistingSession(existingSession, openOptions);
+		} else if (LocalChatSessionUri.isLocalSession(sessionResource)) {
+			await this.openLocalSession();
 		} else {
-			// For new sessions, load via the chat service first so the model
-			// is ready before the ChatViewPane renders it.
-			const modelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
-			// Switch view only after the model is loaded so the ChatViewPane
-			// has content immediately when it becomes visible.
-			this.isNewChatSessionContext.set(false);
-			const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
-			if (!chatWidget?.viewModel) {
-				this.logService.warn(`[ActiveSessionService] Failed to open session: ${sessionResource.toString()}`);
-				modelRef?.dispose();
-				return;
-			}
-			const repository = this.getRepositoryFromSessionOption(sessionResource);
-			const activeSessionItem: IActiveSessionItem = {
-				resource: sessionResource,
-				label: chatWidget.viewModel.model.title || '',
-				timing: chatWidget.viewModel.model.timing,
-				repository,
-				worktree: undefined
-			};
-			this.logService.info(`[ActiveSessionService] Active session changed (new): ${sessionResource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
-			this._activeSession.set(activeSessionItem, undefined);
+			await this.openNewRemoteSession(sessionResource);
 		}
 	}
 
-	async openSessionAndSend(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {
-		// 1. Open the session in ChatViewPane - this transitions views,
-		//    loads the model, and connects it to the ChatWidget so
-		//    tool invocations work.
+	/**
+	 * Open an existing agent session - set it as active and reveal it.
+	 */
+	private async openExistingSession(session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<void> {
+		this.setActiveSession(session);
+		await this.instantiationService.invokeFunction(openSessionDefault, session, openOptions);
+	}
+
+	/**
+	 * Open a fresh local chat session - show the ChatViewPane and clear the widget.
+	 */
+	private async openLocalSession(): Promise<void> {
+		const view = await this.viewsService.openView(ChatViewId) as ChatViewPane | undefined;
+		if (view) {
+			await view.widget.clear();
+			if (view.widget.viewModel) {
+				const folder = this.workspaceContextService.getWorkspace().folders[0];
+				const activeSessionItem: IActiveSessionItem = {
+					resource: view.widget.viewModel.sessionResource,
+					label: view.widget.viewModel.model.title || '',
+					timing: view.widget.viewModel.model.timing,
+					repository: folder?.uri,
+					worktree: undefined
+				};
+				this._activeSession.set(activeSessionItem, undefined);
+			}
+		}
+	}
+
+	/**
+	 * Open a new remote session - load the model first, then show it in the ChatViewPane.
+	 */
+	private async openNewRemoteSession(sessionResource: URI): Promise<void> {
+		const modelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
+		if (!chatWidget?.viewModel) {
+			this.logService.warn(`[ActiveSessionService] Failed to open session: ${sessionResource.toString()}`);
+			modelRef?.dispose();
+			return;
+		}
+		const repository = this.getRepositoryFromSessionOption(sessionResource);
+		const activeSessionItem: IActiveSessionItem = {
+			resource: sessionResource,
+			label: chatWidget.viewModel.model.title || '',
+			timing: chatWidget.viewModel.model.timing,
+			repository,
+			worktree: undefined
+		};
+		this.logService.info(`[ActiveSessionService] Active session changed (new): ${sessionResource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
+		this._activeSession.set(activeSessionItem, undefined);
+	}
+
+	async sendRequestForNewSession(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>, folderUri?: URI): Promise<void> {
+		if (LocalChatSessionUri.isLocalSession(sessionResource)) {
+			await this.sendLocalSession(sessionResource, query, folderUri);
+		} else {
+			await this.sendCustomSession(sessionResource, query, sendOptions, selectedOptions);
+		}
+	}
+
+	/**
+	 * Local sessions run directly through the ChatWidget.
+	 * Set the workspace folder, open a fresh chat view, and submit via acceptInput.
+	 */
+	private async sendLocalSession(sessionResource: URI, query: string, folderUri?: URI): Promise<void> {
+		if (folderUri) {
+			await this.workspaceEditingService.updateFolders(0, this.workspaceContextService.getWorkspace().folders.length, [{ uri: folderUri }]);
+		}
+
 		await this.openSession(sessionResource);
 
-		// 2. Apply selected options to the contributed session
+		const widget = this.chatWidgetService.lastFocusedWidget;
+		if (widget) {
+			widget.setInput(query);
+			widget.acceptInput(query);
+		}
+	}
+
+	/**
+	 * Custom sessions (worktree, cloud, etc.) go through the chat service.
+	 * Apply selected options, send the request, then wait for the extension
+	 * to create an agent session so it appears in the sidebar.
+	 */
+	private async sendCustomSession(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {
+		// 1. Open the session - loads the model and shows the ChatViewPane
+		await this.openSession(sessionResource);
+
+		// 2. Apply selected options (repository, branch, etc.) to the contributed session
 		if (selectedOptions && selectedOptions.size > 0) {
 			const modelRef = this.chatService.getActiveSessionReference(sessionResource);
 			if (modelRef) {
@@ -264,22 +330,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 
-		// 3. Snapshot existing session resources so we can detect the new one
+		// 3. Send the request
 		const existingResources = new Set(
 			this.agentSessionsService.model.sessions.map(s => s.resource.toString())
 		);
-
-		// 4. Send the request through the chat service - the model is now
-		//    connected to the ChatWidget, so tools and rendering work.
 		const result = await this.chatService.sendRequest(sessionResource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			this.logService.error(`[ActiveSessionService] sendRequest rejected: ${result.reason}`);
 			return;
 		}
 
-		// 5. After send, the extension creates an agent session. Wait for it
-		//    and set it as the active session so the titlebar and sidebar
-		//    reflect the new session.
+		// 4. Wait for the extension to create an agent session, then set it as active
 		let newSession = this.agentSessionsService.model.sessions.find(
 			s => !existingResources.has(s.resource.toString())
 		);
