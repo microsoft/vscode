@@ -73,7 +73,6 @@ const CUSTOMIZATIONS_COLLAPSED_KEY = 'agentSessions.customizationsCollapsed';
 export class AgenticSessionsViewPane extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
-	private newSessionButtonContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	sessionsControl: AgentSessionsControl | undefined;
 	private aiCustomizationContainer: HTMLElement | undefined;
@@ -156,7 +155,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
 
 		// New Session Button
-		const newSessionButtonContainer = this.newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
+		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
 		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
 		newSessionButton.label = localize('newSession', "New Session");
 		this._register(newSessionButton.onDidClick(() => this.activeSessionService.openNewSession()));
@@ -402,14 +401,11 @@ export class AgenticSessionsViewPane extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
-		if (!this.sessionsControl || !this.newSessionButtonContainer) {
+		if (!this.sessionsControl || !this.sessionsControlContainer) {
 			return;
 		}
 
-		const buttonHeight = this.newSessionButtonContainer.offsetHeight;
-		const customizationHeight = this.aiCustomizationContainer?.offsetHeight || 0;
-		const availableSessionsHeight = height - buttonHeight - customizationHeight;
-		this.sessionsControl.layout(availableSessionsHeight, width);
+		this.sessionsControl.layout(this.sessionsControlContainer.offsetHeight, width);
 	}
 
 	override focus(): void {
