@@ -63,6 +63,8 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		let currentGhostText: string | undefined;
 
 		const writeGhostText = (text: string) => {
+			// Clear any existing ghost text first
+			clearGhostText();
 			// Write dim text (ANSI escape: \x1b[2m = dim, \x1b[0m = reset)
 			// Also save cursor, write, restore cursor
 			xterm.raw.write(`\x1b7\x1b[2m${text}\x1b8`);
@@ -144,7 +146,7 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 
 		// Clear ghost text when user types (but not for Tab/Arrow which accept it)
 		this.add(xterm.raw.onKey(e => {
-			if (currentGhostText && e.key !== 'Tab' && e.key !== 'ArrowRight') {
+			if (currentGhostText && e.domEvent.key !== 'Tab' && e.domEvent.key !== 'ArrowRight') {
 				clearGhostText();
 			}
 		}));
