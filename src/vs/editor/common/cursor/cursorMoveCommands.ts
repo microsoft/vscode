@@ -521,8 +521,6 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	// Move down by `count` model lines, treating each folded region as a single step.
-	// This is the correct behavior for vim's `j` motion: logical lines are moved, folds are skipped.
 	private static _moveDownByFoldedLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, count: number): PartialCursorState[] {
 		const model = viewModel.model;
 		const lineCount = model.getLineCount();
@@ -533,30 +531,12 @@ export class CursorMoveCommands {
 				? cursor.modelState.selection.endLineNumber
 				: cursor.modelState.position.lineNumber;
 
-			let line = startLine;
-			for (let steps = 0; steps < count && line < lineCount; steps++) {
-				// Advance one model line, then jump over any fold that begins there.
-				// The whole fold counts as a single step.
-				const candidate = line + 1;
-				let target = candidate;
-				for (const area of hiddenAreas) {
-					if (candidate >= area.startLineNumber && candidate <= area.endLineNumber) {
-						target = area.endLineNumber + 1;
-						break;
-					}
-				}
-				if (target > lineCount) {
-					// Fold reaches end of document; no visible line to land on.
-					break;
-				}
-				line = target;
-			}
-
-			const modelLineDelta = line - startLine;
-			if (modelLineDelta === 0) {
+			const targetLine = CursorMoveCommands._targetFoldedDown(startLine, count, hiddenAreas, lineCount);
+			const delta = targetLine - startLine;
+			if (delta === 0) {
 				return CursorState.fromModelState(cursor.modelState);
 			}
-			return CursorState.fromModelState(MoveOperations.moveDown(viewModel.cursorConfig, model, cursor.modelState, inSelectionMode, modelLineDelta));
+			return CursorState.fromModelState(MoveOperations.moveDown(viewModel.cursorConfig, model, cursor.modelState, inSelectionMode, delta));
 		});
 	}
 
@@ -569,31 +549,51 @@ export class CursorMoveCommands {
 				? cursor.modelState.selection.startLineNumber
 				: cursor.modelState.position.lineNumber;
 
-			let line = startLine;
-			for (let steps = 0; steps < count && line > 1; steps++) {
-				// Retreat one model line, then jump over any fold that ends there.
-				// The whole fold counts as a single step.
-				const candidate = line - 1;
-				let target = candidate;
-				for (const area of hiddenAreas) {
-					if (candidate >= area.startLineNumber && candidate <= area.endLineNumber) {
-						target = area.startLineNumber - 1;
-						break;
-					}
-				}
-				if (target < 1) {
-					// Fold reaches start of document; no visible line to land on.
-					break;
-				}
-				line = target;
-			}
-
-			const modelLineDelta = startLine - line;
-			if (modelLineDelta === 0) {
+			const targetLine = CursorMoveCommands._targetFoldedUp(startLine, count, hiddenAreas);
+			const delta = startLine - targetLine;
+			if (delta === 0) {
 				return CursorState.fromModelState(cursor.modelState);
 			}
-			return CursorState.fromModelState(MoveOperations.moveUp(viewModel.cursorConfig, model, cursor.modelState, inSelectionMode, modelLineDelta));
+			return CursorState.fromModelState(MoveOperations.moveUp(viewModel.cursorConfig, model, cursor.modelState, inSelectionMode, delta));
 		});
+	}
+
+	// Compute the target line after moving `count` steps downward from `startLine`,
+	// treating each folded region as a single step.
+	private static _targetFoldedDown(startLine: number, count: number, hiddenAreas: Range[], lineCount: number): number {
+		let target = startLine + count;
+		let i = 0;
+		while (i < hiddenAreas.length && hiddenAreas[i].endLineNumber <= startLine) { i++; }
+		while (i < hiddenAreas.length && hiddenAreas[i].startLineNumber <= target) {
+			const area = hiddenAreas[i];
+			const extended = target + (area.endLineNumber - area.startLineNumber + 1);
+			if (extended > lineCount) {
+				// Fold reaches end of document; land on the line before it.
+				return area.startLineNumber - 1;
+			}
+			target = extended;
+			i++;
+		}
+		return Math.min(target, lineCount);
+	}
+
+	// Compute the target line after moving `count` steps upward from `startLine`,
+	// treating each folded region as a single step.
+	private static _targetFoldedUp(startLine: number, count: number, hiddenAreas: Range[]): number {
+		let target = startLine - count;
+		let i = hiddenAreas.length - 1;
+		while (i >= 0 && hiddenAreas[i].startLineNumber >= startLine) { i--; }
+		while (i >= 0 && hiddenAreas[i].endLineNumber >= target) {
+			const area = hiddenAreas[i];
+			const extended = target - (area.endLineNumber - area.startLineNumber + 1);
+			if (extended < 1) {
+				// Fold reaches start of document; land on the line after it.
+				return area.endLineNumber + 1;
+			}
+			target = extended;
+			i--;
+		}
+		return Math.max(target, 1);
 	}
 
 	private static _moveToViewPosition(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, toViewLineNumber: number, toViewColumn: number): PartialCursorState {
