@@ -244,7 +244,7 @@ registerAction2(class DisableTipsAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 
 		await chatTipService.disableTips();
-		commandService.executeCommand('workbench.action.openSettings', 'chat.tips.enabled');
+		await commandService.executeCommand('workbench.action.openSettings', 'chat.tips.enabled');
 	}
 });
 
