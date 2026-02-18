@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
@@ -16,6 +17,8 @@ import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from '../../
 import { registerActiveInstanceAction } from '../../../terminal/browser/terminalActions.js';
 import { registerTerminalContribution, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import './media/terminalQuickFix.css';
 import { ITerminalQuickFixService, TerminalQuickFixType } from './quickFix.js';
 import { TerminalQuickFixAddon } from './quickFixAddon.js';
@@ -46,6 +49,7 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		private readonly _ctx: ITerminalContributionContext,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) {
 		super();
 	}
@@ -97,12 +101,16 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 
 		// Hook up listeners
 		this.add(this._addon.onDidRequestRerunCommand((e) => this._ctx.instance.runCommand(e.command, e.shouldExecute || false)));
-		this.add(this._addon.onDidUpdateQuickFixes(e => {
+		this.add(this._addon.onDidUpdateQuickFixes(async e => {
 			// Only track the latest command's quick fixes
 			this._quickFixMenuItems.value = e.actions ? xterm.decorationAddon.registerMenuItems(e.command, e.actions) : undefined;
 
-			// Get the first terminal command quick fix
-			const terminalCommandFix = e.actions?.find(a => a.type === TerminalQuickFixType.TerminalCommand && a.command);
+			// Get the first terminal command quick fix (filter out copilot-debug suggestions)
+			const terminalCommandFix = e.actions?.find(a =>
+				a.type === TerminalQuickFixType.TerminalCommand &&
+				a.command &&
+				!a.command.startsWith('copilot-debug')
+			);
 
 			// Ghost text mode: write dim text to terminal
 			const ghostTextEnabled = this._configurationService.getValue<boolean>(TerminalSettingId.ShellIntegrationQuickFixGhostText);
@@ -115,12 +123,30 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 			const autoFillEnabled = this._configurationService.getValue<boolean>(TerminalSettingId.ShellIntegrationQuickFixAutoFill);
 			if (autoFillEnabled && terminalCommandFix?.command) {
 				this._ctx.instance.runCommand(terminalCommandFix.command, false);
+				return;
+			}
+
+			// AI-powered fix: if no quick fix found but command failed, try AI (requires Copilot)
+			if (ghostTextEnabled && !terminalCommandFix && e.command) {
+				const output = e.command.getOutput() ?? '';
+				const commandLine = e.command.command;
+				const exitCode = e.command.exitCode;
+				// Try AI if: command failed (non-zero exit) AND output is short (< 1000 chars = likely error message)
+				const shouldTryAI = exitCode !== 0 && output.length < 1000;
+				if (shouldTryAI && commandLine) {
+					const aiSuggestion = await this._getAICommandSuggestion(commandLine, output);
+					if (aiSuggestion) {
+						writeGhostText(aiSuggestion);
+					}
+				}
 			}
 		}));
 
-		// Clear ghost text when user types
-		this.add(xterm.raw.onData(() => {
-			clearGhostText();
+		// Clear ghost text when user types (but not for Tab/Arrow which accept it)
+		this.add(xterm.raw.onKey(e => {
+			if (currentGhostText && e.key !== 'Tab' && e.key !== 'ArrowRight') {
+				clearGhostText();
+			}
 		}));
 
 		// Register quick fixes
@@ -136,6 +162,75 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		]) {
 			this._addon.registerCommandFinishedListener(actionOption);
 		}
+	}
+
+	/**
+	 * Get AI-powered command suggestion for typos
+	 */
+	private async _getAICommandSuggestion(command: string, errorOutput: string): Promise<string | undefined> {
+		console.log('[QuickFix AI] User command:', command);
+		console.log('[QuickFix AI] Error output:', errorOutput.substring(0, 200));
+
+		try {
+			// Select a fast model (gpt-4o-mini preferred for speed)
+			let models = await this._languageModelsService.selectLanguageModels({
+				vendor: 'copilot',
+				family: 'gpt-4o-mini'
+			});
+
+			if (models.length === 0) {
+				// Fallback to any available Copilot model
+				models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot' });
+				if (models.length === 0) {
+					console.log('[QuickFix AI] No Copilot models available');
+					return undefined;
+				}
+			}
+
+			console.log('[QuickFix AI] Using model:', models[0]);
+
+			const prompt = `Command: ${command}
+Error: ${errorOutput.substring(0, 200)}
+What is the correct shell command? Reply with ONLY the corrected command, nothing else.`;
+
+			const cts = new CancellationTokenSource();
+			const response = await this._languageModelsService.sendChatRequest(
+				models[0],
+				new ExtensionIdentifier('core'),
+				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+				{},
+				cts.token
+			);
+
+			let result = '';
+			for await (const part of response.stream) {
+				const parts = Array.isArray(part) ? part : [part];
+				for (const p of parts) {
+					if (p.type === 'text') {
+						result += p.value;
+					}
+				}
+			}
+
+			console.log('[QuickFix AI] Raw response:', result);
+
+			// Clean up the response - strip markdown code fences and extract just the command
+			let cleaned = result.trim();
+			// Remove markdown code fences (```bash, ```sh, ```, etc.)
+			cleaned = cleaned.replace(/^```[\w]*\n?/gm, '').replace(/```$/gm, '').trim();
+			// Take first non-empty line
+			cleaned = cleaned.split('\n').map(l => l.trim()).filter(l => l)[0] || '';
+
+			console.log('[QuickFix AI] Parsed command:', cleaned);
+
+			// Don't suggest the same command
+			if (cleaned && cleaned !== command) {
+				return cleaned;
+			}
+		} catch (e) {
+			console.log('[QuickFix AI] Error:', e);
+		}
+		return undefined;
 	}
 }
 registerTerminalContribution(TerminalQuickFixContribution.ID, TerminalQuickFixContribution);

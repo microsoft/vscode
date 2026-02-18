@@ -28,7 +28,6 @@ export const enum TerminalContextKeyStrings {
 	TabsMouse = 'terminalTabsMouse',
 	AltBufferActive = 'terminalAltBufferActive',
 	SuggestWidgetVisible = 'terminalSuggestWidgetVisible',
-	QuickFixGhostTextVisible = 'terminalQuickFixGhostTextVisible',
 	A11yTreeFocus = 'terminalA11yTreeFocus',
 	ViewShowing = 'terminalViewShowing',
 	TextSelected = 'terminalTextSelected',
@@ -93,9 +92,6 @@ export namespace TerminalContextKeys {
 
 	/** Whether the terminal's suggest widget is visible. */
 	export const suggestWidgetVisible = new RawContextKey<boolean>(TerminalContextKeyStrings.SuggestWidgetVisible, false, localize('terminalSuggestWidgetVisible', "Whether the terminal's suggest widget is visible."));
-
-	/** Whether quick fix ghost text is visible in the terminal. */
-	export const quickFixGhostTextVisible = new RawContextKey<boolean>(TerminalContextKeyStrings.QuickFixGhostTextVisible, false, localize('terminalQuickFixGhostTextVisible', "Whether quick fix ghost text is visible in the terminal."));
 
 	/** Whether the terminal is NOT focused. */
 	export const notFocus = focus.toNegated();
