@@ -103,6 +103,7 @@ export class ActionListDropdown extends Disposable {
 		this._previousFocusedElement = dom.getDocument(anchor).activeElement as HTMLElement | undefined;
 		this._focusedIndex = -1;
 
+		this._collapsedSections.clear();
 		if (options?.collapsedByDefault) {
 			for (const section of options.collapsedByDefault) {
 				this._collapsedSections.add(section);

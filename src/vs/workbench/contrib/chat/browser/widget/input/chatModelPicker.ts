@@ -382,7 +382,7 @@ export class ModelPickerWidget extends Disposable {
 		const items = buildModelPickerItems(
 			this._models,
 			this._selectedModel?.identifier,
-			this._languageModelsService.getRecentlyUsedModelIds(7),
+			this._languageModelsService.getRecentlyUsedModelIds(),
 			curatedForTier,
 			isPro,
 			this._productService.version,
