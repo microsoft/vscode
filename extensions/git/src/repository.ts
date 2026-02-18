@@ -884,6 +884,10 @@ export class Repository implements Disposable {
 	private _isHidden: boolean;
 	get isHidden(): boolean { return this._isHidden; }
 
+	get isShallow(): Promise<boolean> {
+		return this.repository.isShallow();
+	}
+
 	private isRepositoryHuge: false | { limit: number } = false;
 	private didWarnAboutLimit = false;
 

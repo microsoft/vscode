@@ -4318,6 +4318,19 @@ export class CommandCenter {
 
 	@command('git.publish', { repository: true })
 	async publish(repository: Repository): Promise<void> {
+		if (await repository.isShallow) {
+			const proceed = l10n.t('Continue');
+			const result = await window.showWarningMessage(
+				l10n.t('The repository "{0}" is a shallow clone. Publishing it may result in a partial history on the remote.', path.basename(repository.root)),
+				{ modal: true },
+				proceed
+			);
+
+			if (result !== proceed) {
+				return;
+			}
+		}
+
 		const branchName = repository.HEAD && repository.HEAD.name || '';
 		const remotes = repository.remotes;
 

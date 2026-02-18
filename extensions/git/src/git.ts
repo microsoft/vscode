@@ -1480,6 +1480,15 @@ export class Repository {
 		return parseGitCommits(result.stdout);
 	}
 
+	async isShallow(cancellationToken?: CancellationToken): Promise<boolean> {
+		try {
+			const result = await this.exec(['rev-parse', '--is-shallow-repository'], { cancellationToken });
+			return result.stdout.trim() === 'true';
+		} catch (e) {
+			return false;
+		}
+	}
+
 	async logFile(uri: Uri, options?: LogFileOptions, cancellationToken?: CancellationToken): Promise<Commit[]> {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
