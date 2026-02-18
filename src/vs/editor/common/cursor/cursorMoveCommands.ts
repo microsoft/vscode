@@ -294,6 +294,9 @@ export class CursorMoveCommands {
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move up by view lines
 					return this._moveUpByViewLines(viewModel, cursors, inSelectionMode, value);
+				} else if (unit === CursorMove.Unit.FoldedLine) {
+					// Move up by model lines, skipping over folded regions
+					return this._moveUpByFoldedLines(viewModel, cursors, inSelectionMode, value);
 				} else {
 					// Move up by model lines
 					return this._moveUpByModelLines(viewModel, cursors, inSelectionMode, value);
@@ -303,6 +306,9 @@ export class CursorMoveCommands {
 				if (unit === CursorMove.Unit.WrappedLine) {
 					// Move down by view lines
 					return this._moveDownByViewLines(viewModel, cursors, inSelectionMode, value);
+				} else if (unit === CursorMove.Unit.FoldedLine) {
+					// Move down by model lines, skipping over folded regions
+					return this._moveDownByFoldedLines(viewModel, cursors, inSelectionMode, value);
 				} else {
 					// Move down by model lines
 					return this._moveDownByModelLines(viewModel, cursors, inSelectionMode, value);
@@ -515,6 +521,81 @@ export class CursorMoveCommands {
 		return result;
 	}
 
+	// Move down by `count` model lines, treating each folded region as a single step.
+	// This is the correct behavior for vim's `j` motion: logical lines are moved, folds are skipped.
+	private static _moveDownByFoldedLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, count: number): PartialCursorState[] {
+		const model = viewModel.model;
+		const lineCount = model.getLineCount();
+		const hiddenAreas = viewModel.getHiddenAreas();
+
+		return cursors.map(cursor => {
+			const startLine = cursor.modelState.hasSelection() && !inSelectionMode
+				? cursor.modelState.selection.endLineNumber
+				: cursor.modelState.position.lineNumber;
+
+			let line = startLine;
+			for (let steps = 0; steps < count && line < lineCount; steps++) {
+				// Advance one model line, then jump over any fold that begins there.
+				// The whole fold counts as a single step.
+				const candidate = line + 1;
+				let target = candidate;
+				for (const area of hiddenAreas) {
+					if (candidate >= area.startLineNumber && candidate <= area.endLineNumber) {
+						target = area.endLineNumber + 1;
+						break;
+					}
+				}
+				if (target > lineCount) {
+					// Fold reaches end of document; no visible line to land on.
+					break;
+				}
+				line = target;
+			}
+
+			const modelLineDelta = line - startLine;
+			if (modelLineDelta === 0) {
+				return CursorState.fromModelState(cursor.modelState);
+			}
+			return CursorState.fromModelState(MoveOperations.moveDown(viewModel.cursorConfig, model, cursor.modelState, inSelectionMode, modelLineDelta));
+		});
+	}
+
+	private static _moveUpByFoldedLines(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, count: number): PartialCursorState[] {
+		const model = viewModel.model;
+		const hiddenAreas = viewModel.getHiddenAreas();
+
+		return cursors.map(cursor => {
+			const startLine = cursor.modelState.hasSelection() && !inSelectionMode
+				? cursor.modelState.selection.startLineNumber
+				: cursor.modelState.position.lineNumber;
+
+			let line = startLine;
+			for (let steps = 0; steps < count && line > 1; steps++) {
+				// Retreat one model line, then jump over any fold that ends there.
+				// The whole fold counts as a single step.
+				const candidate = line - 1;
+				let target = candidate;
+				for (const area of hiddenAreas) {
+					if (candidate >= area.startLineNumber && candidate <= area.endLineNumber) {
+						target = area.startLineNumber - 1;
+						break;
+					}
+				}
+				if (target < 1) {
+					// Fold reaches start of document; no visible line to land on.
+					break;
+				}
+				line = target;
+			}
+
+			const modelLineDelta = startLine - line;
+			if (modelLineDelta === 0) {
+				return CursorState.fromModelState(cursor.modelState);
+			}
+			return CursorState.fromModelState(MoveOperations.moveUp(viewModel.cursorConfig, model, cursor.modelState, inSelectionMode, modelLineDelta));
+		});
+	}
+
 	private static _moveToViewPosition(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, toViewLineNumber: number, toViewColumn: number): PartialCursorState {
 		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, toViewLineNumber, toViewColumn, 0));
 	}
@@ -626,8 +707,10 @@ export namespace CursorMove {
 						\`\`\`
 					* 'by': Unit to move. Default is computed based on 'to' value.
 						\`\`\`
-						'line', 'wrappedLine', 'character', 'halfLine'
+						'line', 'wrappedLine', 'character', 'halfLine', 'foldedLine'
 						\`\`\`
+						Use 'foldedLine' with 'up'/'down' to move by logical lines while treating each
+						folded region as a single step.
 					* 'value': Number of units to move. Default is '1'.
 					* 'select': If 'true' makes the selection. Default is 'false'.
 					* 'noHistory': If 'true' does not add the movement to navigation history. Default is 'false'.
@@ -643,7 +726,7 @@ export namespace CursorMove {
 						},
 						'by': {
 							'type': 'string',
-							'enum': ['line', 'wrappedLine', 'character', 'halfLine']
+							'enum': ['line', 'wrappedLine', 'character', 'halfLine', 'foldedLine']
 						},
 						'value': {
 							'type': 'number',
@@ -695,7 +778,8 @@ export namespace CursorMove {
 		Line: 'line',
 		WrappedLine: 'wrappedLine',
 		Character: 'character',
-		HalfLine: 'halfLine'
+		HalfLine: 'halfLine',
+		FoldedLine: 'foldedLine'
 	};
 
 	/**
@@ -781,6 +865,9 @@ export namespace CursorMove {
 			case RawUnit.HalfLine:
 				unit = Unit.HalfLine;
 				break;
+			case RawUnit.FoldedLine:
+				unit = Unit.FoldedLine;
+				break;
 		}
 
 		return {
@@ -855,6 +942,7 @@ export namespace CursorMove {
 		WrappedLine,
 		Character,
 		HalfLine,
+		FoldedLine,
 	}
 
 }
