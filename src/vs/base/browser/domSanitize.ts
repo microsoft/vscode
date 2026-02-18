@@ -117,8 +117,10 @@ function validateLink(value: string, allowedProtocols: AllowedLinksConfig): bool
 
 	try {
 		const url = new URL(value, fakeRelativeUrlProtocol + '://');
-		if (allowedProtocols.override.includes(url.protocol.replace(/:$/, ''))) {
-			return true;
+		for (const override of allowedProtocols.override) {
+			if (url.protocol.replace(/:$/, '') === override) {
+				return true;
+			}
 		}
 
 		if (allowedProtocols.allowRelativePaths
@@ -138,7 +140,7 @@ function validateLink(value: string, allowedProtocols: AllowedLinksConfig): bool
  * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
  * attributes are valid.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig) {
+function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig, linkValidator?: (link: string) => boolean) {
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
 		// check all href/src attributes for validity
 		for (const attr of ['href', 'src']) {
@@ -146,6 +148,8 @@ function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConf
 				const attrValue = node.getAttribute(attr) as string;
 				if (attr === 'href') {
 					if (!attrValue.startsWith('#') && !validateLink(attrValue, allowedLinkProtocols)) {
+						node.removeAttribute(attr);
+					} else if (linkValidator && !linkValidator(attrValue)) {
 						node.removeAttribute(attr);
 					}
 				} else { // 'src'
@@ -194,6 +198,15 @@ export interface DomSanitizerConfig {
 	readonly allowedLinkProtocols?: {
 		readonly override?: readonly string[] | '*';
 	};
+
+	/**
+	 * Optional validator for link `href` values.
+	 *
+	 * Runs after both {@link allowedLinkProtocols} and other built-in link checks.
+	 * Return `true` to keep the link, `false` to remove the `href` attribute.
+	 * Defaults to keeping links.
+	 */
+	readonly linkValidator?: (link: string) => boolean;
 
 	/**
 	 * If set, allows relative paths for links.
@@ -292,13 +305,14 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 
 		hookDomPurifyHrefAndSrcSanitizer(
 			{
-				override: config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
-				allowRelativePaths: config?.allowRelativeLinkPaths ?? false
+				override: config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https], allowRelativePaths: config?.allowRelativeLinkPaths ?? false
 			},
 			{
 				override: config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https],
 				allowRelativePaths: config?.allowRelativeMediaPaths ?? false
-			});
+			},
+			config?.linkValidator,
+		);
 
 		if (config?.replaceWithPlaintext) {
 			dompurify.addHook('uponSanitizeElement', replaceWithPlainTextHook);

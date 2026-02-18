@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { parse as parseJSONC } from '../../../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { basename, dirname, isEqual, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
@@ -132,6 +132,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 		[PromptsType.skill]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 		[PromptsType.hook]: new ResourceMap<Promise<IExtensionPromptPath>>(),
 	};
+
+	/**
+	 * Known URIs from extension providers, keyed by prompt type.
+	 */
+	private knownProviderUris: { [key in PromptsType]?: ResourceSet } = {};
 
 	constructor(
 		@ILogService public readonly logger: ILogService,
@@ -337,6 +342,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return result;
 		}
 
+		// Build new set of known URIs, then swap atomically to avoid race conditions
+		const newKnownUris = new ResourceSet();
+
 		// Collect files from all providers
 		for (const providerEntry of providers) {
 			try {
@@ -352,6 +360,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 						const msg = e instanceof Error ? e.message : String(e);
 						this.logger.error(`[listFromProviders] Failed to make file readonly: ${file.uri}`, msg);
 					}
+					// Track this URI for link sanitization
+					newKnownUris.add(file.uri);
 					result.push({
 						uri: file.uri,
 						storage: PromptsStorage.extension,
@@ -364,6 +374,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this.logger.error(`[listFromProviders] Failed to get ${type} files from provider`, e instanceof Error ? e.message : String(e));
 			}
 		}
+
+		// Swap atomically after all async operations complete
+		this.knownProviderUris[type] = newKnownUris;
 
 		return result;
 	}
@@ -1333,6 +1346,29 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		return { type: PromptsType.instructions, files };
+	}
+
+	public isKnownResourceUri(uri: URI): boolean {
+		// Check if the URI is registered as a contributed file or provider resource in any prompt type
+		for (const type of [PromptsType.prompt, PromptsType.instructions, PromptsType.agent, PromptsType.skill]) {
+			if (this.contributedFiles[type].has(uri)) {
+				return true;
+			}
+			const knownUris = this.knownProviderUris[type];
+			if (knownUris) {
+				// For skills, allow any file under the skill folder (<path>/<skillName>/**)
+				if (type === PromptsType.skill) {
+					for (const skillUri of knownUris) {
+						if (extUriBiasedIgnorePathCase.isEqualOrParent(uri, dirname(skillUri))) {
+							return true;
+						}
+					}
+				} else if (knownUris.has(uri)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private async getHookDiscoveryInfo(token: CancellationToken): Promise<IPromptDiscoveryInfo> {
