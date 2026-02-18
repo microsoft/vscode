@@ -262,10 +262,11 @@ class TestVisualize(unittest.TestCase):
 
         # .name is already shown, so FieldSelect for .name should not be in autocomplete
         # But .x and .y should be
-        self.assertIn("FieldSelect(accessor='.x')", html_output)
-        self.assertIn("FieldSelect(accessor='.y')", html_output)
+        # Note: repr uses single quotes which get HTML-escaped to &#x27; in the output
+        self.assertIn("FieldSelect(accessor=&#x27;.x&#x27;)", html_output)
+        self.assertIn("FieldSelect(accessor=&#x27;.y&#x27;)", html_output)
         # .name should NOT be in autocomplete selections
-        self.assertNotIn("FieldSelect(accessor='.name')", html_output)
+        self.assertNotIn("FieldSelect(accessor=&#x27;.name&#x27;)", html_output)
 
     def test_visualize_shows_live_value_for_partial_input(self):
         """When typing a partial accessor, the value column should attempt to eval it."""
