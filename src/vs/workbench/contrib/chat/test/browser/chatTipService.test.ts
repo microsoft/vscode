@@ -25,6 +25,12 @@ import { ILanguageModelToolsService } from '../../common/tools/languageModelTool
 import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModelToolsService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../../test/common/workbenchTestServices.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { MockChatService } from '../common/chatService/mockChatService.js';
+import { CreateSlashCommandsUsageTracker } from '../../browser/createSlashCommandsUsageTracker.js';
+import { ChatRequestSlashCommandPart } from '../../common/requestParser/chatParserTypes.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(): boolean {
@@ -92,6 +98,7 @@ suite('ChatTipService', () => {
 		} as Partial<IPromptsService> as IPromptsService);
 		instantiationService.stub(ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService()));
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+		instantiationService.stub(IChatService, new MockChatService());
 	});
 
 	test('returns a welcome tip', () => {
@@ -756,6 +763,41 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded when no skill files exist');
 	});
 
+	test('shows tip.createSlashCommands when context key is false', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.hasUsedCreateSlashCommands.key, false);
+
+		// Dismiss tips until we find createSlashCommands or run out
+		let found = false;
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+			if (tip.id === 'tip.createSlashCommands') {
+				found = true;
+				break;
+			}
+			service.dismissTip();
+		}
+
+		assert.ok(found, 'Should eventually show tip.createSlashCommands when context key is false');
+	});
+
+	test('does not show tip.createSlashCommands when context key is true', () => {
+		contextKeyService.createKey(ChatContextKeys.hasUsedCreateSlashCommands.key, true);
+		const service = createService();
+
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+			assert.notStrictEqual(tip.id, 'tip.createSlashCommands', 'Should not show tip.createSlashCommands when context key is true');
+			service.dismissTip();
+		}
+	});
+
 	test('re-checks agent file exclusion when onDidChangeCustomAgents fires', async () => {
 		const agentChangeEmitter = testDisposables.add(new Emitter<void>());
 		let agentFiles: IPromptPath[] = [];
@@ -788,5 +830,191 @@ suite('ChatTipService', () => {
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after onDidChangeCustomAgents fires and agent files exist');
+	});
+});
+
+suite('CreateSlashCommandsUsageTracker', () => {
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let storageService: InMemoryStorageService;
+	let contextKeyService: MockContextKeyService;
+	let submitRequestEmitter: Emitter<{ readonly chatSessionResource: URI }>;
+	let sessions: Map<string, { lastRequest: { message: { text: string; parts: readonly { kind: string }[] } } | undefined }>;
+
+	setup(() => {
+		storageService = testDisposables.add(new InMemoryStorageService());
+		contextKeyService = new MockContextKeyService();
+		submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI }>());
+		sessions = new Map();
+	});
+
+	function createMockChatServiceForTracker(): IChatService {
+		return {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: (resource: URI) => sessions.get(resource.toString()),
+		} as Partial<IChatService> as IChatService;
+	}
+
+	function createTracker(chatService?: IChatService): CreateSlashCommandsUsageTracker {
+		return testDisposables.add(new CreateSlashCommandsUsageTracker(
+			chatService ?? createMockChatServiceForTracker(),
+			storageService,
+			() => contextKeyService,
+		));
+	}
+
+	test('syncContextKey sets context key to false when storage is empty', () => {
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
+		assert.strictEqual(value, false, 'Context key should be false when no create commands have been used');
+	});
+
+	test('syncContextKey sets context key to true when storage has recorded usage', () => {
+		storageService.store('chat.tips.usedCreateSlashCommands', true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
+		assert.strictEqual(value, true, 'Context key should be true when create commands have been used');
+	});
+
+	test('detects create-instruction slash command via text fallback', () => {
+		const sessionResource = URI.parse('chat:session1');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: {
+					text: '/create-instruction test',
+					parts: [],
+				},
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
+		assert.strictEqual(value, true, 'Context key should be true after /create-instruction is used');
+		assert.strictEqual(
+			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
+			true,
+			'Storage should persist the create slash command usage',
+		);
+	});
+
+	test('detects create-prompt slash command via text fallback', () => {
+		const sessionResource = URI.parse('chat:session2');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: {
+					text: '/create-prompt my-prompt',
+					parts: [],
+				},
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		assert.strictEqual(
+			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
+			true,
+			'Storage should persist the create-prompt usage',
+		);
+	});
+
+	test('detects create-agent slash command via parsed part', () => {
+		const sessionResource = URI.parse('chat:session3');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: {
+					text: '/create-agent test',
+					parts: [
+						new ChatRequestSlashCommandPart(
+							new OffsetRange(0, 13),
+							new Range(1, 1, 1, 14),
+							{ command: 'create-agent', detail: '', locations: [] },
+						),
+					],
+				},
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		assert.strictEqual(
+			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
+			true,
+			'Storage should persist when create-agent slash command part is detected',
+		);
+	});
+
+	test('does not mark used for non-create slash commands', () => {
+		const sessionResource = URI.parse('chat:session4');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: {
+					text: '/help test',
+					parts: [],
+				},
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
+		assert.strictEqual(value, false, 'Context key should remain false for non-create slash commands');
+	});
+
+	test('does not mark used when session has no last request', () => {
+		const sessionResource = URI.parse('chat:session5');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), { lastRequest: undefined });
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		assert.strictEqual(
+			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
+			false,
+			'Should not mark used when there is no last request',
+		);
+	});
+
+	test('only marks used once even with multiple create commands', () => {
+		const sessionResource = URI.parse('chat:session6');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: { text: '/create-skill test', parts: [] },
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+		assert.strictEqual(storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false), true);
+
+		// Fire again — should be a no-op
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: { text: '/create-prompt test', parts: [] },
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+		assert.strictEqual(storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false), true);
 	});
 });
