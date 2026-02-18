@@ -18,7 +18,7 @@ import { equals } from '../../../../base/common/objects.js';
 import Severity from '../../../../base/common/severity.js';
 import { format, isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { isString } from '../../../../base/common/types.js';
+import { isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -512,17 +512,15 @@ interface IRawCuratedModel {
 	readonly id: string;
 	readonly isNew?: boolean;
 	readonly minVSCodeVersion?: string;
-	readonly paidOnly?: boolean;
 }
 
 interface IChatControlResponse {
 	readonly version: number;
 	readonly restrictedChatParticipants: { [name: string]: string[] };
-	readonly curatedModels?: (string | IRawCuratedModel)[];
-}
-
-function normalizeCuratedModels(models: (string | IRawCuratedModel)[]): IRawCuratedModel[] {
-	return models.map(m => typeof m === 'string' ? { id: m } : m);
+	readonly curatedModels?: {
+		readonly free?: IRawCuratedModel[];
+		readonly paid?: IRawCuratedModel[];
+	};
 }
 
 export class LanguageModelsService implements ILanguageModelsService {
@@ -1425,19 +1423,26 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return this._curatedModels;
 	}
 
-	private _setCuratedModels(models: IRawCuratedModel[]): void {
+	private _setCuratedModels(free: IRawCuratedModel[], paid: IRawCuratedModel[]): void {
 		const toPublic = (m: IRawCuratedModel): ICuratedModel => ({ id: m.id, isNew: m.isNew, minVSCodeVersion: m.minVSCodeVersion });
-		this._curatedModels = {
-			free: models.filter(m => !m.paidOnly).map(toPublic),
-			paid: models.filter(m => m.paidOnly).map(toPublic),
-		};
 
+		this._curatedModels = { free: [], paid: [] };
 		const newIds = new Set<string>();
-		for (const model of models) {
+
+		for (const model of free) {
+			this._curatedModels.free.push(toPublic(model));
 			if (model.isNew) {
 				newIds.add(model.id);
 			}
 		}
+
+		for (const model of paid) {
+			this._curatedModels.paid.push(toPublic(model));
+			if (model.isNew) {
+				newIds.add(model.id);
+			}
+		}
+
 		this._newModelIds = newIds;
 		this._onDidChangeNewModelIds.fire();
 	}
@@ -1495,9 +1500,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 		// Restore curated models from storage
 		const rawCurated = this._storageService.get(CHAT_CURATED_MODELS_STORAGE_KEY, StorageScope.APPLICATION);
 		try {
-			const curated = JSON.parse(rawCurated ?? '[]');
-			if (Array.isArray(curated)) {
-				this._setCuratedModels(normalizeCuratedModels(curated));
+			const curated = JSON.parse(rawCurated ?? '{}');
+			if (isObject(curated) && Array.isArray(curated.free) && Array.isArray(curated.paid)) {
+				this._setCuratedModels(curated.free, curated.paid);
 			}
 		} catch (err) {
 			this._storageService.remove(CHAT_CURATED_MODELS_STORAGE_KEY, StorageScope.APPLICATION);
@@ -1536,8 +1541,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._storageService.store(CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY, JSON.stringify(registry), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		// Update curated models
-		if (result.curatedModels && Array.isArray(result.curatedModels)) {
-			this._setCuratedModels(normalizeCuratedModels(result.curatedModels));
+		if (result.curatedModels) {
+			this._setCuratedModels(result.curatedModels?.free ?? [], result.curatedModels?.paid ?? []);
 			this._storageService.store(CHAT_CURATED_MODELS_STORAGE_KEY, JSON.stringify(result.curatedModels), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
 	}
