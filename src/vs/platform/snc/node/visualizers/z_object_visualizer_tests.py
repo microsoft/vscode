@@ -1,0 +1,617 @@
+"""
+Tests for z_object_visualizer.py - configurable field visualization.
+
+These tests follow TDD: written before the implementation.
+
+Run this test file directly:
+    python3 src/vs/platform/snc/node/visualizers/z_object_visualizer_tests.py
+
+Or use pytest with verbose output:
+    python3 -m pytest src/vs/platform/snc/node/visualizers/z_object_visualizer_tests.py -v
+"""
+
+import unittest
+import json
+import os
+import tempfile
+import shutil
+from unittest.mock import patch
+
+from z_object_visualizer import (
+    visualize, init_model, update, can_visualize,
+    TRIVIAL_NAMES, DEFAULT_FIELDS_FOR_TYPE, DOTFILE_NAME,
+    AddFieldClick, FieldInput, FieldSelect, FieldClick, KeyDown,
+    load_fields_from_dotfile, save_fields_to_dotfile,
+    _get_full_class_name,
+)
+
+
+# =============================================================================
+# Test Helpers
+# =============================================================================
+
+class TestObj:
+    """Simple test object with known attributes."""
+    def __init__(self):
+        self.x = 10
+        self.y = 20
+        self.name = "test"
+
+
+class AnotherObj:
+    """Another test object to test dotfile with multiple types."""
+    def __init__(self):
+        self.alpha = 1
+        self.beta = 2
+
+
+def make_input_event(value: str) -> dict:
+    """Create a FieldInput event dict (from snc-input)."""
+    return {
+        'pythonEventStr': f"lambda e: FieldInput(value=e.get('value', ''))",
+        'eventJSON': {'type': 'input', 'value': value},
+    }
+
+
+def make_mouse_down_event(python_event_str: str, detail: int = 1) -> dict:
+    """Create a mouse down event dict with the given pythonEventStr."""
+    return {
+        'pythonEventStr': python_event_str,
+        'eventJSON': {
+            'type': 'mousedown',
+            'button': 0,
+            'buttons': 1,
+            'detail': detail,
+            'offsetY': 5,
+            'elementHeight': 20,
+            'timeStamp': 1000.0,
+        },
+    }
+
+
+def make_key_down_event(key: str) -> dict:
+    """Create a KeyDown event dict."""
+    return {
+        'pythonEventStr': repr(KeyDown()),
+        'eventJSON': {
+            'type': 'keydown',
+            'key': key,
+            'metaKey': False,
+            'shiftKey': False,
+            'ctrlKey': False,
+            'altKey': False,
+        },
+    }
+
+
+# =============================================================================
+# TestInitModel
+# =============================================================================
+
+class TestInitModel(unittest.TestCase):
+    """Test init_model returns correct initial state."""
+
+    def test_init_model_returns_expected_structure(self):
+        """init_model returns a dict with all expected keys."""
+        obj = TestObj()
+        model = init_model(obj)
+
+        self.assertIn('fields', model)
+        self.assertIn('editing_index', model)
+        self.assertIn('adding_field', model)
+        self.assertIn('input_value', model)
+        self.assertIn('handledKeys', model)
+
+        self.assertIsInstance(model['fields'], list)
+        self.assertIsNone(model['editing_index'])
+        self.assertFalse(model['adding_field'])
+        self.assertEqual(model['input_value'], "")
+        self.assertIn('Enter', model['handledKeys'])
+        self.assertIn('Escape', model['handledKeys'])
+
+    def test_init_model_uses_non_trivial_names_for_unknown_type(self):
+        """For a custom object with no DEFAULT_FIELDS_FOR_TYPE, use dir() minus TRIVIAL_NAMES."""
+        obj = TestObj()
+        model = init_model(obj)
+
+        # TestObj has .x, .y, .name attributes
+        self.assertIn('.x', model['fields'])
+        self.assertIn('.y', model['fields'])
+        self.assertIn('.name', model['fields'])
+
+        # Should NOT contain trivial names like __class__, __init__, etc.
+        for field in model['fields']:
+            attr_name = field.lstrip('.')
+            self.assertNotIn(attr_name, TRIVIAL_NAMES,
+                             f"Trivial name '{attr_name}' should not be in fields")
+
+    def test_init_model_uses_default_fields_for_known_type(self):
+        """For types in DEFAULT_FIELDS_FOR_TYPE (when no dotfile), use those defaults."""
+        import re
+        match = re.search(r'hello', 'hello world')
+        self.assertIsNotNone(match)
+
+        # Ensure no dotfile interferes
+        with patch('z_object_visualizer.load_fields_from_dotfile', return_value=None):
+            model = init_model(match)
+
+        self.assertEqual(model['fields'], DEFAULT_FIELDS_FOR_TYPE['re.Match'])
+
+    def test_init_model_loads_from_dotfile(self):
+        """When dotfile has fields for this type, use those."""
+        obj = TestObj()
+        full_class_name = _get_full_class_name(obj)
+        saved_fields = ['.x', '.name']
+
+        with patch('z_object_visualizer.load_fields_from_dotfile', return_value=saved_fields):
+            model = init_model(obj)
+
+        self.assertEqual(model['fields'], saved_fields)
+
+    def test_init_model_falls_back_when_type_not_in_dotfile(self):
+        """Dotfile exists but doesn't have this type → fall back to non-trivial names."""
+        obj = TestObj()
+
+        # load_fields_from_dotfile returns None (type not in dotfile)
+        with patch('z_object_visualizer.load_fields_from_dotfile', return_value=None):
+            model = init_model(obj)
+
+        # Should still have the non-trivial attributes
+        self.assertIn('.x', model['fields'])
+        self.assertIn('.y', model['fields'])
+        self.assertIn('.name', model['fields'])
+
+
+# =============================================================================
+# TestVisualize
+# =============================================================================
+
+class TestVisualize(unittest.TestCase):
+    """Test the visualize function renders correct HTML."""
+
+    def test_visualize_primitives_unchanged(self):
+        """None, int, float should still return repr."""
+        self.assertEqual(visualize(None, None), repr(None))
+        self.assertEqual(visualize(42, None), repr(42))
+        self.assertEqual(visualize(3.14, None), repr(3.14))
+        self.assertEqual(visualize(True, None), repr(True))
+
+    def test_visualize_object_shows_field_table(self):
+        """Object visualization should contain table with field names and values."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        html_output = visualize(obj, model)
+
+        self.assertIn('.x', html_output)
+        self.assertIn('.name', html_output)
+        self.assertIn('10', html_output)  # value of .x
+        self.assertIn('test', html_output)  # value of .name (in repr form)
+        self.assertIn('<table', html_output)
+
+    def test_visualize_shows_add_button(self):
+        """HTML should contain a (+) button with snc-mouse-down for AddFieldClick."""
+        obj = TestObj()
+        model = init_model(obj)
+        html_output = visualize(obj, model)
+
+        self.assertIn('snc-mouse-down', html_output)
+        self.assertIn('AddFieldClick', html_output)
+        self.assertIn('+', html_output)
+
+    def test_visualize_shows_input_when_adding(self):
+        """When adding_field=True, shows an <input> with snc-input handler."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['adding_field'] = True
+        model['input_value'] = '.na'
+        html_output = visualize(obj, model)
+
+        self.assertIn('<input', html_output)
+        self.assertIn('snc-input', html_output)
+        self.assertIn('FieldInput', html_output)
+
+    def test_visualize_shows_input_when_editing(self):
+        """When editing_index is set, that row shows an <input>."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        model['editing_index'] = 0
+        model['input_value'] = '.x'
+        html_output = visualize(obj, model)
+
+        self.assertIn('<input', html_output)
+        self.assertIn('snc-input', html_output)
+
+    def test_visualize_shows_autocomplete_suggestions(self):
+        """When adding/editing with input, shows autocomplete suggestions."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []  # no existing fields
+        model['adding_field'] = True
+        model['input_value'] = '.x'
+        html_output = visualize(obj, model)
+
+        # Should show .x as a suggestion (since it starts with '.x')
+        self.assertIn('FieldSelect', html_output)
+
+    def test_visualize_filters_autocomplete_by_input(self):
+        """Typing '.na' should show '.name' but not '.x'."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []
+        model['adding_field'] = True
+        model['input_value'] = '.na'
+        html_output = visualize(obj, model)
+
+        # Should have .name as suggestion
+        self.assertIn('.name', html_output)
+        # Should NOT have FieldSelect for .x (doesn't match '.na' prefix)
+        # .x is still shown in... hmm actually .x might not appear at all if no fields
+        # Let's check FieldSelect specifically
+        self.assertNotIn("FieldSelect(accessor=&#x27;.x&#x27;)", html_output)
+
+    def test_visualize_excludes_already_shown_from_autocomplete(self):
+        """Fields already in model['fields'] should not appear in autocomplete."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.name']
+        model['adding_field'] = True
+        model['input_value'] = '.'  # matches everything
+        html_output = visualize(obj, model)
+
+        # .name is already shown, so FieldSelect for .name should not be in autocomplete
+        # But .x and .y should be
+        self.assertIn("FieldSelect(accessor='.x')", html_output)
+        self.assertIn("FieldSelect(accessor='.y')", html_output)
+        # .name should NOT be in autocomplete selections
+        self.assertNotIn("FieldSelect(accessor='.name')", html_output)
+
+    def test_visualize_shows_live_value_for_partial_input(self):
+        """When typing a partial accessor, the value column should attempt to eval it."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x']
+        model['adding_field'] = True
+        model['input_value'] = '.name'
+        html_output = visualize(obj, model)
+
+        # .name evaluates to 'test', should be shown
+        self.assertIn('test', html_output)
+
+    def test_visualize_shows_class_name_header(self):
+        """Should show the full class name in the header."""
+        obj = TestObj()
+        model = init_model(obj)
+        html_output = visualize(obj, model)
+
+        full_name = _get_full_class_name(obj)
+        self.assertIn('TestObj', html_output)
+
+    def test_visualize_field_has_double_click_handler(self):
+        """Normal field names should have snc-mouse-down with FieldClick for double-click."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        html_output = visualize(obj, model)
+
+        self.assertIn('FieldClick(index=0)', html_output)
+        self.assertIn('FieldClick(index=1)', html_output)
+
+
+# =============================================================================
+# TestUpdate
+# =============================================================================
+
+class TestUpdate(unittest.TestCase):
+    """Test the update function processes events correctly."""
+
+    def test_null_event_returns_unchanged(self):
+        """Passing None event returns model unchanged."""
+        obj = TestObj()
+        model = init_model(obj)
+        new_model, commands = update(None, "x = TestObj()", 1, model, obj)
+        self.assertEqual(new_model, model)
+        self.assertEqual(commands, [])
+
+    def test_empty_event_returns_unchanged(self):
+        """Passing empty event dict returns model unchanged."""
+        obj = TestObj()
+        model = init_model(obj)
+        new_model, commands = update({}, "x = TestObj()", 1, model, obj)
+        self.assertEqual(new_model, model)
+        self.assertEqual(commands, [])
+
+    def test_add_field_click_sets_adding_true(self):
+        """AddFieldClick event sets adding_field=True and clears input."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x']
+
+        event = make_mouse_down_event(repr(AddFieldClick()))
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertTrue(new_model['adding_field'])
+        self.assertEqual(new_model['input_value'], '')
+        self.assertIsNone(new_model['editing_index'])
+
+    def test_field_input_updates_input_value(self):
+        """FieldInput event updates input_value in model."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['adding_field'] = True
+
+        event = make_input_event('.na')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['input_value'], '.na')
+
+    def test_field_select_adds_field_when_adding(self):
+        """FieldSelect during add mode appends accessor to fields."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x']
+        model['adding_field'] = True
+        model['input_value'] = '.na'
+
+        event = make_mouse_down_event(repr(FieldSelect(accessor='.name')))
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIn('.name', new_model['fields'])
+        self.assertFalse(new_model['adding_field'])
+        self.assertEqual(new_model['input_value'], '')
+
+    def test_field_select_replaces_field_when_editing(self):
+        """FieldSelect during edit mode replaces the field at editing_index."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.y']
+        model['editing_index'] = 0
+        model['input_value'] = '.na'
+
+        event = make_mouse_down_event(repr(FieldSelect(accessor='.name')))
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['fields'][0], '.name')
+        self.assertEqual(new_model['fields'][1], '.y')
+        self.assertIsNone(new_model['editing_index'])
+        self.assertEqual(new_model['input_value'], '')
+
+    def test_double_click_starts_editing(self):
+        """FieldClick with detail=2 sets editing_index and input_value."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+
+        event = make_mouse_down_event(repr(FieldClick(index=0)), detail=2)
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['editing_index'], 0)
+        self.assertEqual(new_model['input_value'], '.x')
+        self.assertFalse(new_model['adding_field'])
+
+    def test_single_click_does_not_start_editing(self):
+        """FieldClick with detail=1 does NOT start editing."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+
+        event = make_mouse_down_event(repr(FieldClick(index=0)), detail=1)
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIsNone(new_model['editing_index'])
+
+    def test_enter_commits_add(self):
+        """Enter key during add mode appends input_value to fields."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x']
+        model['adding_field'] = True
+        model['input_value'] = '.name'
+
+        event = make_key_down_event('Enter')
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIn('.name', new_model['fields'])
+        self.assertFalse(new_model['adding_field'])
+        self.assertEqual(new_model['input_value'], '')
+
+    def test_enter_commits_edit(self):
+        """Enter key during edit mode replaces field at editing_index."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.y']
+        model['editing_index'] = 0
+        model['input_value'] = '.name'
+
+        event = make_key_down_event('Enter')
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['fields'][0], '.name')
+        self.assertIsNone(new_model['editing_index'])
+
+    def test_enter_with_empty_input_does_not_add(self):
+        """Enter with empty input_value during add should not add empty field."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x']
+        model['adding_field'] = True
+        model['input_value'] = ''
+
+        event = make_key_down_event('Enter')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(len(new_model['fields']), 1)
+        self.assertFalse(new_model['adding_field'])
+
+    def test_escape_cancels_add(self):
+        """Escape key during add mode cancels adding."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['adding_field'] = True
+        model['input_value'] = '.na'
+
+        event = make_key_down_event('Escape')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertFalse(new_model['adding_field'])
+        self.assertEqual(new_model['input_value'], '')
+
+    def test_escape_cancels_edit(self):
+        """Escape key during edit mode cancels editing."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        model['editing_index'] = 0
+        model['input_value'] = '.foo'
+
+        event = make_key_down_event('Escape')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIsNone(new_model['editing_index'])
+        self.assertEqual(new_model['input_value'], '')
+        # Field should be unchanged
+        self.assertEqual(new_model['fields'][0], '.x')
+
+    def test_field_select_saves_dotfile(self):
+        """FieldSelect commit should call save_fields_to_dotfile."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x']
+        model['adding_field'] = True
+
+        event = make_mouse_down_event(repr(FieldSelect(accessor='.name')))
+        with patch('z_object_visualizer.save_fields_to_dotfile') as mock_save:
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+            mock_save.assert_called_once()
+            # Should save with the updated fields list
+            saved_fields = mock_save.call_args[0][1]
+            self.assertIn('.name', saved_fields)
+
+    def test_enter_saves_dotfile(self):
+        """Enter commit should call save_fields_to_dotfile."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x']
+        model['adding_field'] = True
+        model['input_value'] = '.name'
+
+        event = make_key_down_event('Enter')
+        with patch('z_object_visualizer.save_fields_to_dotfile') as mock_save:
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+            mock_save.assert_called_once()
+
+    def test_none_model_gets_initialized(self):
+        """Passing None model initializes a fresh model."""
+        obj = TestObj()
+        event = make_mouse_down_event(repr(AddFieldClick()))
+        new_model, commands = update(event, "x = TestObj()", 1, None, obj)
+        self.assertIsNotNone(new_model)
+        self.assertTrue(new_model['adding_field'])
+
+
+# =============================================================================
+# TestDotfile
+# =============================================================================
+
+class TestDotfile(unittest.TestCase):
+    """Test dotfile load/save operations."""
+
+    def setUp(self):
+        """Create a temp directory for dotfile tests."""
+        self.orig_cwd = os.getcwd()
+        self.tmp_dir = tempfile.mkdtemp()
+        os.chdir(self.tmp_dir)
+
+    def tearDown(self):
+        """Restore original cwd and clean up temp dir."""
+        os.chdir(self.orig_cwd)
+        shutil.rmtree(self.tmp_dir)
+
+    def test_load_fields_missing_file(self):
+        """No dotfile → returns None."""
+        result = load_fields_from_dotfile('some.Type')
+        self.assertIsNone(result)
+
+    def test_load_fields_from_dotfile(self):
+        """Valid dotfile with type key → returns fields list."""
+        data = {'some.Type': ['.x', '.y']}
+        with open(DOTFILE_NAME, 'w') as f:
+            json.dump(data, f)
+
+        result = load_fields_from_dotfile('some.Type')
+        self.assertEqual(result, ['.x', '.y'])
+
+    def test_load_fields_type_not_in_dotfile(self):
+        """Dotfile exists but doesn't have this type → returns None."""
+        data = {'other.Type': ['.a', '.b']}
+        with open(DOTFILE_NAME, 'w') as f:
+            json.dump(data, f)
+
+        result = load_fields_from_dotfile('some.Type')
+        self.assertIsNone(result)
+
+    def test_load_fields_corrupt_file(self):
+        """Bad JSON → returns None (doesn't crash)."""
+        with open(DOTFILE_NAME, 'w') as f:
+            f.write('this is not json{{{')
+
+        result = load_fields_from_dotfile('some.Type')
+        self.assertIsNone(result)
+
+    def test_save_fields_to_dotfile(self):
+        """Saves correct JSON structure."""
+        save_fields_to_dotfile('some.Type', ['.x', '.y'])
+
+        with open(DOTFILE_NAME, 'r') as f:
+            data = json.load(f)
+
+        self.assertEqual(data['some.Type'], ['.x', '.y'])
+
+    def test_save_preserves_other_types(self):
+        """Saving for type A doesn't clobber type B entries."""
+        save_fields_to_dotfile('type.A', ['.a1', '.a2'])
+        save_fields_to_dotfile('type.B', ['.b1', '.b2'])
+
+        with open(DOTFILE_NAME, 'r') as f:
+            data = json.load(f)
+
+        self.assertEqual(data['type.A'], ['.a1', '.a2'])
+        self.assertEqual(data['type.B'], ['.b1', '.b2'])
+
+    def test_save_overwrites_same_type(self):
+        """Saving the same type again overwrites the previous entry."""
+        save_fields_to_dotfile('some.Type', ['.x'])
+        save_fields_to_dotfile('some.Type', ['.x', '.y'])
+
+        with open(DOTFILE_NAME, 'r') as f:
+            data = json.load(f)
+
+        self.assertEqual(data['some.Type'], ['.x', '.y'])
+
+
+# =============================================================================
+# TestGetFullClassName
+# =============================================================================
+
+class TestGetFullClassName(unittest.TestCase):
+    """Test _get_full_class_name helper."""
+
+    def test_builtin_type(self):
+        """Built-in types should return module.qualname."""
+        result = _get_full_class_name("hello")
+        self.assertEqual(result, 'builtins.str')
+
+    def test_custom_type(self):
+        """Custom types should include module and qualname."""
+        obj = TestObj()
+        result = _get_full_class_name(obj)
+        self.assertIn('TestObj', result)
+
+
+if __name__ == '__main__':
+    unittest.main()
