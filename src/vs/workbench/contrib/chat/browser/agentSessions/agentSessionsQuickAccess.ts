@@ -17,6 +17,9 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID } from './agentSessions.js';
 import { archiveButton, deleteButton, getSessionButtons, getSessionDescription, renameButton, unarchiveButton } from './agentSessionsPicker.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { IChatSessionEmbeddingsService } from '../../common/chatSessionEmbeddingsService.js';
+import { IChatWidgetService } from '../chat.js';
 
 export const AGENT_SESSIONS_QUICK_ACCESS_PREFIX = 'agent ';
 
@@ -29,6 +32,8 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatSessionEmbeddingsService private readonly chatSessionEmbeddingsService: IChatSessionEmbeddingsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(AGENT_SESSIONS_QUICK_ACCESS_PREFIX, {
 			canAcceptInBackground: true,
@@ -48,6 +53,7 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 			.sort(this.sorter.compare.bind(this.sorter));
 		const groupedSessions = groupAgentSessionsByDate(sessions);
 
+		let fuzzyMatchCount = 0;
 		for (const group of groupedSessions.values()) {
 			if (group.sessions.length > 0) {
 				picks.push({ type: 'separator', label: group.label });
@@ -56,8 +62,38 @@ export class AgentSessionsQuickAccessProvider extends PickerQuickAccessProvider<
 					const highlights = matchesFuzzy(filter, session.label, true);
 					if (highlights) {
 						picks.push(this.toPickItem(session, highlights));
+						fuzzyMatchCount++;
 					}
 				}
+			}
+		}
+
+		// When fuzzy title matches are scarce, augment with semantic search
+		if (filter.length >= 3 && fuzzyMatchCount < 3 && this.chatSessionEmbeddingsService.isReady) {
+			const cts = new CancellationTokenSource();
+			try {
+				const semanticResults = await this.chatSessionEmbeddingsService.search(filter, 5, cts.token);
+				if (semanticResults.length > 0) {
+					const shownLabels = new Set(sessions.filter(s => matchesFuzzy(filter, s.label, true)).map(s => s.label));
+					const newResults = semanticResults.filter(r => !shownLabels.has(r.title));
+
+					if (newResults.length > 0) {
+						picks.push({ type: 'separator', label: localize('contentMatches', "Content Matches") });
+						for (const result of newResults) {
+							const scorePercent = Math.round(result.score * 100);
+							picks.push({
+								label: `$(comment-discussion) ${result.title}`,
+								description: `${scorePercent}% match`,
+								detail: result.matchSnippet.substring(0, 120),
+								accept: () => {
+									this.chatWidgetService.openSession(result.sessionResource);
+								}
+							});
+						}
+					}
+				}
+			} finally {
+				cts.dispose();
 			}
 		}
 

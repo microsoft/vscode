@@ -35,6 +35,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IChatWidget } from '../chat.js';
+import { IChatSessionEmbeddingsService } from '../../common/chatSessionEmbeddingsService.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
@@ -94,6 +95,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IChatSessionEmbeddingsService private readonly chatSessionEmbeddingsService: IChatSessionEmbeddingsService,
 	) {
 		super();
 
@@ -109,6 +111,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	private registerListeners(): void {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.revealAndFocusActiveEditorSession()));
+		this._register(this.chatSessionEmbeddingsService.onDidUpdateIndex(() => {
+			if (this.visible && this.sessionsListFindIsOpen) {
+				this.sessionsList?.refilter();
+			}
+		}));
 	}
 
 	private revealAndFocusActiveEditorSession(): void {
@@ -180,7 +187,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				multipleSelectionSupport: true,
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
-				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
+				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(session => this.chatSessionEmbeddingsService.getSearchText(session.resource)),
 				overrideStyles: this.options.overrideStyles,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 				collapseByDefault: (element: unknown) => collapseByDefault(element),

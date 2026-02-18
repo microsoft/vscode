@@ -61,6 +61,7 @@ import { PromptsService } from '../common/promptSyntax/service/promptsServiceImp
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
 import { RenameToolContribution } from './tools/renameTool.js';
+import { SessionsToolContribution } from './tools/sessionsTool.js';
 import { UsagesToolContribution } from './tools/usagesTool.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
@@ -74,6 +75,10 @@ import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js'
 import { registerChatExecuteActions } from './actions/chatExecuteActions.js';
 import { registerChatFileTreeActions } from './actions/chatFileTreeActions.js';
 import { ChatGettingStartedContribution } from './actions/chatGettingStarted.js';
+import { registerChatForkActions } from './actions/chatForkActions.js';
+import { registerChatSessionSearchActions } from './actions/chatSessionSearchActions.js';
+import { ChatSessionEmbeddingsService } from './chatSessionEmbeddingsServiceImpl.js';
+import { IChatSessionEmbeddingsService } from '../common/chatSessionEmbeddingsService.js';
 import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
@@ -1098,6 +1103,15 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		'chat.tools.sessionsTool.enabled': {
+			type: 'boolean',
+			default: true,
+			markdownDescription: nls.localize('chat.tools.sessionsTool.enabled', "Controls whether the sessions tool is available for searching and summarizing past conversations."),
+			tags: ['preview'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[ChatConfiguration.AutoExpandToolFailures]: {
 			type: 'boolean',
 			default: true,
@@ -1451,6 +1465,7 @@ registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, Workbe
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(UsagesToolContribution.ID, UsagesToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(RenameToolContribution.ID, RenameToolContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(SessionsToolContribution.ID, SessionsToolContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActionsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);
@@ -1485,6 +1500,8 @@ registerChatExecuteActions();
 registerChatQueueActions();
 registerQuickChatActions();
 registerChatExportActions();
+registerChatForkActions();
+registerChatSessionSearchActions();
 registerMoveActions();
 registerNewChatActions();
 registerChatContextActions();
@@ -1527,6 +1544,7 @@ registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.D
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
 registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
+registerSingleton(IChatSessionEmbeddingsService, ChatSessionEmbeddingsService, InstantiationType.Delayed);
 registerSingleton(IAgentFeedbackService, AgentFeedbackService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
