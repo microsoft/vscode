@@ -394,7 +394,8 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			const chatSessionResource = terminalChatService.getChatSessionResourceForInstance(instance);
 			let chatSessionTitle: string | undefined;
 			if (chatSessionResource) {
-				chatSessionTitle = chatService.getSessionTitle(chatSessionResource);
+				const liveTitle = chatService.getSession(chatSessionResource)?.title;
+				chatSessionTitle = liveTitle ?? chatService.getSessionTitle(chatSessionResource);
 			}
 
 			const description = chatSessionTitle;
