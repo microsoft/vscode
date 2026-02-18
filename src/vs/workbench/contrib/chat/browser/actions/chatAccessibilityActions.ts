@@ -16,7 +16,6 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { AccessibleViewProviderId } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../../contrib/accessibility/browser/accessibilityConfiguration.js';
 import { CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, isThinkingContentIncludedInAccessibleView } from '../accessibility/chatResponseAccessibleView.js';
 
