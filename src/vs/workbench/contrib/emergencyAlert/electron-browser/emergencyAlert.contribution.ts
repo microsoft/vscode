@@ -37,10 +37,6 @@ export class EmergencyAlert implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService
 	) {
-		if (productService.quality !== 'insider') {
-			return; // only enabled in insiders for now
-		}
-
 		const emergencyAlertUrl = productService.emergencyAlertUrl;
 		if (!emergencyAlertUrl) {
 			return; // no emergency alert configured
