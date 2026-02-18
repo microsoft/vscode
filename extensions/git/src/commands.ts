@@ -5531,9 +5531,15 @@ export class CommandCenter {
 							.filter((line: string) => !!line)
 						[0];
 
-						message = hint
-							? l10n.t('Git: {0}', hint)
-							: l10n.t('Git error');
+						if (hint && /^warning: /i.test(hint)) {
+							type = 'warning';
+							options.modal = false;
+							message = l10n.t('Git: {0}', hint.replace(/^warning: /i, ''));
+						} else {
+							message = hint
+								? l10n.t('Git: {0}', hint)
+								: l10n.t('Git error');
+						}
 
 						break;
 					}
