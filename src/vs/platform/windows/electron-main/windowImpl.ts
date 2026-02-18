@@ -1129,11 +1129,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this.currentHttpProxy = newHttpProxy;
 				this.currentNoProxy = newNoProxy;
 
-				const proxyRules = newHttpProxy || '';
-				const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
-				this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
-				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
-				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
+				if (newHttpProxy) {
+					const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
+					this.logService.trace(`Setting proxy to '${newHttpProxy}', bypassing '${proxyBypassRules}'`);
+					this._win.webContents.session.setProxy({ proxyRules: newHttpProxy, proxyBypassRules, pacScript: '' });
+					electron.app.setProxy({ proxyRules: newHttpProxy, proxyBypassRules, pacScript: '' });
+				} else {
+					this.logService.trace(`Clearing proxy settings`);
+					this._win.webContents.session.setProxy({});
+					electron.app.setProxy({});
+				}
 			}
 		}
 	}
