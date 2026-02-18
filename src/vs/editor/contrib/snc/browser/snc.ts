@@ -961,7 +961,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 		const target = ev.target as HTMLElement;
 		const rect = target.getBoundingClientRect();
 
-		const eventJSON = { type: ev.type, button: ev.button, buttons: ev.buttons, offsetY: ev.clientY - rect.top, elementHeight: rect.height, timeStamp: ev.timeStamp, altKey: ev.altKey, ctrlKey: ev.ctrlKey, metaKey: ev.metaKey, shiftKey: ev.shiftKey };
+		const eventJSON = { type: ev.type, button: ev.button, buttons: ev.buttons, detail: ev.detail, offsetY: ev.clientY - rect.top, elementHeight: rect.height, timeStamp: ev.timeStamp, altKey: ev.altKey, ctrlKey: ev.ctrlKey, metaKey: ev.metaKey, shiftKey: ev.shiftKey };
 
 		const event: UiEvent = { line: lineNumber, visIndex, pythonEventStr, eventJSON };
 		// console.log('SNC viz_pointer event', JSON.stringify(event));
