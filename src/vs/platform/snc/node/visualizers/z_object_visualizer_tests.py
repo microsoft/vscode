@@ -21,6 +21,7 @@ from z_object_visualizer import (
     visualize, init_model, update, can_visualize,
     TRIVIAL_NAMES, DEFAULT_FIELDS_FOR_TYPE, DOTFILE_NAME,
     AddFieldClick, FieldInput, FieldSelect, FieldClick, KeyDown,
+    RemoveFieldClick,
     load_fields_from_dotfile, save_fields_to_dotfile,
     _get_full_class_name,
 )
@@ -299,6 +300,16 @@ class TestVisualize(unittest.TestCase):
         self.assertIn('FieldClick(index=0)', html_output)
         self.assertIn('FieldClick(index=1)', html_output)
 
+    def test_visualize_shows_remove_button(self):
+        """Each field row should have a remove (×) button with RemoveFieldClick."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        html_output = visualize(obj, model)
+
+        self.assertIn('RemoveFieldClick(index=0)', html_output)
+        self.assertIn('RemoveFieldClick(index=1)', html_output)
+
 
 # =============================================================================
 # TestUpdate
@@ -513,6 +524,58 @@ class TestUpdate(unittest.TestCase):
         new_model, commands = update(event, "x = TestObj()", 1, None, obj)
         self.assertIsNotNone(new_model)
         self.assertTrue(new_model['adding_field'])
+
+    def test_remove_field_removes_from_list(self):
+        """RemoveFieldClick removes the field at the given index."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+
+        event = make_mouse_down_event(repr(RemoveFieldClick(index=1)))
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['fields'], ['.x', '.y'])
+
+    def test_remove_field_saves_dotfile(self):
+        """RemoveFieldClick should persist the updated fields to dotfile."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+
+        event = make_mouse_down_event(repr(RemoveFieldClick(index=0)))
+        with patch('z_object_visualizer.save_fields_to_dotfile') as mock_save:
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+            mock_save.assert_called_once()
+            saved_fields = mock_save.call_args[0][1]
+            self.assertEqual(saved_fields, ['.name'])
+
+    def test_remove_field_out_of_range_is_noop(self):
+        """RemoveFieldClick with invalid index does nothing."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x']
+
+        event = make_mouse_down_event(repr(RemoveFieldClick(index=5)))
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['fields'], ['.x'])
+
+    def test_remove_field_cancels_editing_if_index_matches(self):
+        """Removing the field being edited should cancel editing."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        model['editing_index'] = 0
+        model['input_value'] = '.x'
+
+        event = make_mouse_down_event(repr(RemoveFieldClick(index=0)))
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIsNone(new_model['editing_index'])
+        self.assertEqual(new_model['input_value'], '')
+        self.assertEqual(new_model['fields'], ['.name'])
 
 
 # =============================================================================

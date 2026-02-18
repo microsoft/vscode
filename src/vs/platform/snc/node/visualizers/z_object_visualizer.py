@@ -81,6 +81,11 @@ class FieldClick:
     index: int
 
 @dataclass(frozen=True, slots=True)
+class RemoveFieldClick:
+    """User clicked the (×) button to remove a field."""
+    index: int
+
+@dataclass(frozen=True, slots=True)
 class KeyDown:
     """Keyboard event (Enter to commit, Escape to cancel)."""
     pass
@@ -280,6 +285,19 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
                 if full_class_name:
                     save_fields_to_dotfile(full_class_name, model['fields'])
 
+        case RemoveFieldClick(index=idx):
+            if 0 <= idx < len(model['fields']):
+                model['fields'].pop(idx)
+                # Cancel editing if the removed field was being edited
+                if model.get('editing_index') is not None:
+                    if model['editing_index'] == idx:
+                        model['editing_index'] = None
+                        model['input_value'] = ''
+                    elif model['editing_index'] > idx:
+                        model['editing_index'] -= 1
+                if full_class_name:
+                    save_fields_to_dotfile(full_class_name, model['fields'])
+
         case FieldClick(index=idx):
             detail = event_json.get('detail', 1)
             if detail >= 2:
@@ -338,15 +356,20 @@ def visualize(obj, model=None):
             # This field is being edited: show input
             field_trs.append(_render_input_row(obj, model, is_editing=True, editing_index=i))
         else:
-            # Normal display: double-clickable field name
+            # Normal display: double-clickable field name with remove button
             display_accessor, val_str = _eval_field(obj, accessor_code)
             click_event = repr(FieldClick(index=i))
+            remove_event = repr(RemoveFieldClick(index=i))
             field_trs.append(
                 f'<tr>'
                 f'<td snc-mouse-down="{html.escape(click_event)}" '
                 f'style="color:{BLUE};opacity:0.7;cursor:pointer;padding-right:8px;">'
                 f'{html.escape(display_accessor)}</td>'
                 f'<td>{html.escape(val_str)}</td>'
+                f'<td snc-mouse-down="{html.escape(remove_event)}" '
+                f'style="color:{GRAY};cursor:pointer;padding-left:4px;opacity:0.5;user-select:none;" '
+                f'title="Remove field">'
+                f'\u00d7</td>'
                 f'</tr>'
             )
 
