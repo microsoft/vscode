@@ -8,7 +8,6 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		'chat.agentsControl.clickBehavior': 'focus',
 		'chat.agentsControl.enabled': true,
 		'chat.agent.maxRequests': 1000,
 		'chat.restoreLastPanelSession': true,
