@@ -2237,7 +2237,7 @@ def build_preview_regex(model, string_value: str) -> str | None:
             return append_segment_to_regex(current_regex, 'literal', selected_text)
 
 
-def visualize(value, model=None):
+def visualize(value, model=None) -> str:
     if model is None:
         model = init_model(value)
 
