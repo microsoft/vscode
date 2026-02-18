@@ -850,10 +850,14 @@ interface IVariableCompletionsDetails {
 	range: IChatCompletionRangeResult;
 }
 
+function escapeForCharClass(text: string): string {
+	return text.replace(/[-\\^\]]/g, '\\$&');
+}
+
 class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
 	private static readonly addDebugEventsSnapshotCommand = '_addDebugEventsSnapshotCmd';
-	private static readonly VariableNameDef = new RegExp(`[${chatVariableLeader}${chatAgentLeader}][\\w:-]*`, 'g'); // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][\\w:-]*`, 'g'); // MUST be using `g`-flag
 
 
 	constructor(
@@ -874,7 +878,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		super();
 
 		// File/Folder completions in one go and m
-		const fileWordPattern = new RegExp(`[${chatVariableLeader}${chatAgentLeader}][^\\s]*`, 'g');
+		const fileWordPattern = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][^\\s]*`, 'g');
 		this.registerVariableCompletions('fileAndFolder', async ({ widget, range }, token) => {
 			if (!widget.supportsFileReferences) {
 				return;
@@ -948,7 +952,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			const result: CompletionList = { suggestions: [] };
-			const range2 = computeCompletionRanges(model, position, new RegExp(`[${chatVariableLeader}${chatAgentLeader}][^\\s]*`, 'g'), true);
+			const range2 = computeCompletionRanges(model, position, new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][^\\s]*`, 'g'), true);
 			if (range2) {
 				this.addSymbolEntries(widget, result, range2, token);
 			}
@@ -1272,7 +1276,7 @@ function isEmptyUpToCompletionWord(model: ITextModel, rangeResult: IChatCompleti
 
 class ToolCompletions extends Disposable {
 
-	private static readonly VariableNameDef = new RegExp(`(?<=^|\\s)[${chatVariableLeader}${chatAgentLeader}]\\w*`, 'g'); // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`(?<=^|\\s)[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}]\\w*`, 'g'); // MUST be using `g`-flag
 
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
