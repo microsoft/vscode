@@ -15,7 +15,7 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { BrowserViewUri } from '../common/browserViewUri.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
-import { IBrowserViewCDPProxyServer } from './browserViewCDPProxyServer.js';
+import { BrowserViewCDPProxyServer } from './browserViewCDPProxyServer.js';
 import { IProductService } from '../../product/common/productService.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
 
@@ -39,6 +39,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	}
 
 	private readonly browserViews = this._register(new DisposableMap<string, BrowserView>());
+	private readonly cdpProxyServer = this._register(this.instantiationService.createInstance(BrowserViewCDPProxyServer, this));
 
 	// ICDPBrowserTarget events
 	private readonly _onTargetCreated = this._register(new Emitter<BrowserView>());
@@ -52,7 +53,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IProductService private readonly productService: IProductService,
-		@IBrowserViewCDPProxyServer private readonly cdpProxyServer: IBrowserViewCDPProxyServer,
 	) {
 		super();
 	}
