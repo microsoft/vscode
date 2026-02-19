@@ -34,7 +34,7 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { MenuSettings, TitlebarStyle } from '../../../platform/window/common/window.js';
 import { IPreferencesService } from '../../services/preferences/common/preferences.js';
 import { QuickInputAlignmentContextKey } from '../../../platform/quickinput/browser/quickInput.js';
-import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 
 // Register Icons
 const menubarIcon = registerIcon('menuBar', Codicon.layoutMenubar, localize('menuBarIcon', "Represents the menu bar"));
@@ -1214,6 +1214,23 @@ abstract class BaseResizeViewAction extends Action2 {
 	}
 }
 
+export function resizeEditorGroupInDirection(editorGroupService: IEditorGroupsService, direction: GroupDirection, increment: number): boolean {
+	const activeGroup = editorGroupService.mainPart.activeGroup;
+	const adjacentGroup = editorGroupService.mainPart.findGroup({ direction }, activeGroup);
+	if (!adjacentGroup || adjacentGroup === activeGroup) {
+		return false;
+	}
+
+	const adjacentSize = editorGroupService.mainPart.getSize(adjacentGroup);
+	if (direction === GroupDirection.LEFT || direction === GroupDirection.RIGHT) {
+		editorGroupService.mainPart.setSize(adjacentGroup, { width: adjacentSize.width - increment, height: adjacentSize.height });
+	} else {
+		editorGroupService.mainPart.setSize(adjacentGroup, { width: adjacentSize.width, height: adjacentSize.height - increment });
+	}
+
+	return true;
+}
+
 class IncreaseViewSizeAction extends BaseResizeViewAction {
 
 	constructor() {
@@ -1309,6 +1326,70 @@ class DecreaseViewHeightAction extends BaseResizeViewAction {
 	}
 }
 
+class ResizeEditorLeftAction extends BaseResizeViewAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.resizeEditorLeft',
+			title: localize2('resizeEditorLeft', 'Resize Editor Left'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		resizeEditorGroupInDirection(accessor.get(IEditorGroupsService), GroupDirection.LEFT, BaseResizeViewAction.RESIZE_INCREMENT);
+	}
+}
+
+class ResizeEditorRightAction extends BaseResizeViewAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.resizeEditorRight',
+			title: localize2('resizeEditorRight', 'Resize Editor Right'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		resizeEditorGroupInDirection(accessor.get(IEditorGroupsService), GroupDirection.RIGHT, BaseResizeViewAction.RESIZE_INCREMENT);
+	}
+}
+
+class ResizeEditorUpAction extends BaseResizeViewAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.resizeEditorUp',
+			title: localize2('resizeEditorUp', 'Resize Editor Up'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		resizeEditorGroupInDirection(accessor.get(IEditorGroupsService), GroupDirection.UP, BaseResizeViewAction.RESIZE_INCREMENT);
+	}
+}
+
+class ResizeEditorDownAction extends BaseResizeViewAction {
+
+	constructor() {
+		super({
+			id: 'workbench.action.resizeEditorDown',
+			title: localize2('resizeEditorDown', 'Resize Editor Down'),
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext.toNegated()
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		resizeEditorGroupInDirection(accessor.get(IEditorGroupsService), GroupDirection.DOWN, BaseResizeViewAction.RESIZE_INCREMENT);
+	}
+}
+
 registerAction2(IncreaseViewSizeAction);
 registerAction2(IncreaseViewWidthAction);
 registerAction2(IncreaseViewHeightAction);
@@ -1316,6 +1397,10 @@ registerAction2(IncreaseViewHeightAction);
 registerAction2(DecreaseViewSizeAction);
 registerAction2(DecreaseViewWidthAction);
 registerAction2(DecreaseViewHeightAction);
+registerAction2(ResizeEditorLeftAction);
+registerAction2(ResizeEditorRightAction);
+registerAction2(ResizeEditorUpAction);
+registerAction2(ResizeEditorDownAction);
 
 //#region Quick Input Alignment Actions
 
