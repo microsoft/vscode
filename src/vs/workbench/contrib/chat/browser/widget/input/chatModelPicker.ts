@@ -113,9 +113,11 @@ function createModelAction(
  *
  * Layout:
  * 1. Auto (always first)
- * 2. Recently used + curated models (merged, sorted alphabetically, no header)
- * 3. Other Models (collapsible toggle, sorted alphabetically)
- *    - Last item is "Manage Models..."
+ * 2. Promoted section (selected + recently used + featured models from control manifest)
+ *    - Available models sorted alphabetically, followed by unavailable models
+ *    - Unavailable models show upgrade/update/admin status
+ * 3. Other Models (collapsible toggle, sorted by vendor then name)
+ *    - Last item is "Manage Models..." (always visible during filtering)
  */
 export function buildModelPickerItems(
 	models: ILanguageModelChatMetadataAndIdentifier[],
