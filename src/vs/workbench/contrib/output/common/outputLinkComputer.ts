@@ -139,7 +139,7 @@ export class OutputLinkComputer implements IWebWorkerServerRequestHandler {
 						resourceString = resource.toString();
 					}
 				} catch (error) {
-					continue; // we might find an invalid URI and then we dont want to loose all other links
+					continue; // we might find an invalid URI and then we dont want to lose all other links
 				}
 
 				// Append line/col information to URI if matching
