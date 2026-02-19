@@ -19,6 +19,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'files.autoSave': 'afterDelay',
 
+		'git.autofetch': true,
 		'git.showProgress': false,
 
 		'github.copilot.chat.claudeCode.enabled': true,
