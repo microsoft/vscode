@@ -47,3 +47,11 @@
 .monaco-editor .snc-dropdown-option:hover {
 	background-color: #094771;
 }
+
+/* Object visualizer: hide remove button until row is hovered */
+.monaco-editor .snc-field-row .snc-remove-btn {
+	visibility: hidden;
+}
+.monaco-editor .snc-field-row:hover .snc-remove-btn {
+	visibility: visible;
+}

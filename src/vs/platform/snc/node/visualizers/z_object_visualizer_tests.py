@@ -309,6 +309,22 @@ class TestVisualize(unittest.TestCase):
 
         self.assertIn('RemoveFieldClick(index=0)', html_output)
         self.assertIn('RemoveFieldClick(index=1)', html_output)
+        # Remove button uses CSS class for hover visibility
+        self.assertIn('snc-remove-btn', html_output)
+        self.assertIn('snc-field-row', html_output)
+
+    def test_visualize_autocomplete_uses_dropdown_hoisting(self):
+        """Autocomplete should use snc-dropdown-trigger/panel classes for hoisting."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []
+        model['adding_field'] = True
+        model['input_value'] = '.'
+        html_output = visualize(obj, model)
+
+        self.assertIn('snc-dropdown-trigger', html_output)
+        self.assertIn('snc-dropdown-panel', html_output)
+        self.assertIn('snc-dropdown-option', html_output)
 
 
 # =============================================================================

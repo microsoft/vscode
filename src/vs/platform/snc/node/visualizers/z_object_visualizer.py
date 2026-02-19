@@ -356,20 +356,21 @@ def visualize(obj, model=None):
             # This field is being edited: show input
             field_trs.append(_render_input_row(obj, model, is_editing=True, editing_index=i))
         else:
-            # Normal display: double-clickable field name with remove button
+            # Normal display: double-clickable field name with remove button (left, hover-only)
             display_accessor, val_str = _eval_field(obj, accessor_code)
             click_event = repr(FieldClick(index=i))
             remove_event = repr(RemoveFieldClick(index=i))
             field_trs.append(
-                f'<tr>'
+                f'<tr class="snc-field-row">'
+                f'<td class="snc-remove-btn" snc-mouse-down="{html.escape(remove_event)}" '
+                f'style="color:{GRAY};cursor:pointer;opacity:0.5;user-select:none;'
+                f'padding-right:2px;width:12px;" '
+                f'title="Remove field">'
+                f'\u00d7</td>'
                 f'<td snc-mouse-down="{html.escape(click_event)}" '
                 f'style="color:{BLUE};opacity:0.7;cursor:pointer;padding-right:8px;">'
                 f'{html.escape(display_accessor)}</td>'
                 f'<td>{html.escape(val_str)}</td>'
-                f'<td snc-mouse-down="{html.escape(remove_event)}" '
-                f'style="color:{GRAY};cursor:pointer;padding-left:4px;opacity:0.5;user-select:none;" '
-                f'title="Remove field">'
-                f'\u00d7</td>'
                 f'</tr>'
             )
 
@@ -428,23 +429,24 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
             select_event = repr(FieldSelect(accessor=suggestion))
             items.append(
                 f'<div snc-mouse-down="{html.escape(select_event)}" '
-                f'style="padding:2px 6px;cursor:pointer;color:{BLUE};'
-                f'background:{SUGGESTION_BG};"'
-                f' onmouseover="this.style.background=\'{SUGGESTION_HOVER}\'"'
-                f' onmouseout="this.style.background=\'{SUGGESTION_BG}\'"'
+                f'class="snc-dropdown-option" '
+                f'style="padding:2px 6px;cursor:pointer;color:{BLUE};white-space:nowrap;"'
                 f'>{html.escape(suggestion)}</div>'
             )
         suggestion_html = (
-            f'<div style="position:absolute;z-index:100;border:1px solid {INPUT_BORDER};'
+            f'<div class="snc-dropdown-panel" data-snc-dropdown-align="left" style="'
+            f'position:absolute;left:0;top:100%;'
+            f'border:1px solid {INPUT_BORDER};'
             f'max-height:200px;overflow-y:auto;background:{SUGGESTION_BG};'
             f'min-width:150px;font-size:12px;">'
             + '\n'.join(items)
             + '</div>'
         )
 
-    return (
-        f'<tr>'
-        f'<td style="position:relative;padding-right:8px;">'
+    # Wrap input + dropdown in snc-dropdown-trigger so the TS hoisting mechanism
+    # can move the panel outside the overflow-clipped widget
+    input_html = (
+        f'<span class="snc-dropdown-trigger" style="position:relative;display:inline-block;">'
         f'<input type="text" snc-input="{html.escape(input_event)}" '
         f'value="{html.escape(input_value)}" '
         f'placeholder=".field_name" '
@@ -453,6 +455,14 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
         f'padding:1px 4px;font-family:inherit;font-size:inherit;'
         f'outline:none;width:120px;" />'
         f'{suggestion_html}'
+        f'</span>'
+    )
+
+    return (
+        f'<tr>'
+        f'<td></td>'
+        f'<td style="padding-right:8px;">'
+        f'{input_html}'
         f'</td>'
         f'<td>{html.escape(val_str)}</td>'
         f'</tr>'
