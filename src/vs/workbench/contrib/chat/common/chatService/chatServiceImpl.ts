@@ -794,7 +794,9 @@ export class ChatService extends Disposable implements IChatService {
 
 		if (options?.queue) {
 			const queued = this.queuePendingRequest(model, sessionResource, request, options);
-			this.processPendingRequests(sessionResource);
+			if (!options.pauseQueue) {
+				this.processPendingRequests(sessionResource);
+			}
 			return queued;
 		} else if (hasPendingRequest) {
 			this.trace('sendRequest', `Session ${sessionResource} already has a pending request`);

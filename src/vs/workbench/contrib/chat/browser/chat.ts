@@ -322,6 +322,11 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	/**
+	 * When true, always queues the request regardless of whether a request is currently in progress.
+	 * The request stays in the pending queue until explicitly processed.
+	 */
+	alwaysQueue?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {

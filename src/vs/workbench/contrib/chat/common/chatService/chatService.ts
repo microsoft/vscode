@@ -1329,6 +1329,12 @@ export interface IChatSendRequestOptions {
 	 */
 	queue?: ChatRequestQueueKind;
 
+	/**
+	 * When true, the queued request will not be processed immediately even if no request is active.
+	 * The request stays in the queue until `processPendingRequests` is called explicitly.
+	 */
+	pauseQueue?: boolean;
+
 }
 
 export type IChatModelReference = IReference<IChatModel>;
