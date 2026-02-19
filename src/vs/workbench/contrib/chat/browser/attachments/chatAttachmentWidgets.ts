@@ -970,6 +970,7 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		// Wrap all sections in a scrollable container for VS Code styled scrollbar
 		const scrollableContent = dom.$('div.chat-element-hover-content');
+		const innerScrollables: DomScrollableElement[] = [];
 
 		// ELEMENT section: show the selected element tag with all attributes
 		{
@@ -982,47 +983,16 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			const tagDisplay = this.formatElementTag(attachment);
 			elementCode.textContent = tagDisplay;
 			elementPre.appendChild(elementCode);
-			section.appendChild(elementPre);
+			const elementScrollable = this._register(new DomScrollableElement(elementPre, {
+				horizontal: ScrollbarVisibility.Auto,
+				vertical: ScrollbarVisibility.Hidden,
+			}));
+			innerScrollables.push(elementScrollable);
+			section.appendChild(elementScrollable.getDomNode());
 			scrollableContent.appendChild(section);
 		}
 
-		// ATTRIBUTES section
-		if (attachment.attributes && Object.keys(attachment.attributes).length > 0) {
-			const section = dom.$('div.chat-element-hover-section');
-			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.attributes', "ATTRIBUTES"));
-			section.appendChild(header);
-			const table = dom.$('div.chat-element-hover-table');
-			for (const [name, value] of Object.entries(attachment.attributes)) {
-				const row = dom.$('div.chat-element-hover-row');
-				row.appendChild(dom.$('span.chat-element-hover-label', {}, `${name}:`));
-				row.appendChild(dom.$('span.chat-element-hover-value', {}, value));
-				table.appendChild(row);
-			}
-			section.appendChild(table);
-			scrollableContent.appendChild(section);
-		}
-
-		// HTML PATH section: render ancestor chain as indented HTML tree (matching CSS selector hover style)
-		if (attachment.ancestors && attachment.ancestors.length > 1) {
-			const section = dom.$('div.chat-element-hover-section');
-			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.htmlPath', "HTML PATH"));
-			section.appendChild(header);
-			const lines: string[] = [];
-			for (let i = 0; i < attachment.ancestors.length; i++) {
-				const ancestor = attachment.ancestors[i];
-				const indent = '  '.repeat(i);
-				const tag = this.formatAncestorTag(ancestor);
-				lines.push(`${indent}${tag}`);
-			}
-			const pathPre = dom.$('pre.chat-element-hover-code');
-			const pathCode = dom.$('code');
-			pathCode.textContent = lines.join('\n');
-			pathPre.appendChild(pathCode);
-			section.appendChild(pathPre);
-			scrollableContent.appendChild(section);
-		}
-
-		// COMPUTED STYLES section (show key properties to keep hover concise)
+		// KEY COMPUTED STYLES section
 		const computedStyleEntries = this.getComputedStyleEntriesForHover(attachment.computedStyles);
 		if (computedStyleEntries.length > 0) {
 			const section = dom.$('div.chat-element-hover-section');
@@ -1044,12 +1014,53 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 				table.appendChild(row);
 			}
 			section.appendChild(table);
-			const showMoreButton = dom.$('button.chat-element-hover-show-more', { type: 'button' }, localize('chat.elementHover.showMore', "Show More"));
+			const showMoreButton = dom.$('button.chat-element-hover-show-more', { type: 'button' }, localize('chat.elementHover.showMore', "Show More..."));
 			this._register(dom.addDisposableListener(showMoreButton, dom.EventType.CLICK, async e => {
 				dom.EventHelper.stop(e, true);
 				await this.openElementAttachment(attachment);
 			}));
 			section.appendChild(showMoreButton);
+			scrollableContent.appendChild(section);
+		}
+
+		// HTML PATH section: render ancestor chain as indented HTML tree
+		if (attachment.ancestors && attachment.ancestors.length > 1) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.htmlPath', "HTML PATH"));
+			section.appendChild(header);
+			const lines: string[] = [];
+			for (let i = 0; i < attachment.ancestors.length; i++) {
+				const ancestor = attachment.ancestors[i];
+				const indent = '  '.repeat(i);
+				const tag = this.formatAncestorTag(ancestor);
+				lines.push(`${indent}${tag}`);
+			}
+			const pathPre = dom.$('pre.chat-element-hover-code');
+			const pathCode = dom.$('code');
+			pathCode.textContent = lines.join('\n');
+			pathPre.appendChild(pathCode);
+			const pathScrollable = this._register(new DomScrollableElement(pathPre, {
+				horizontal: ScrollbarVisibility.Auto,
+				vertical: ScrollbarVisibility.Hidden,
+			}));
+			innerScrollables.push(pathScrollable);
+			section.appendChild(pathScrollable.getDomNode());
+			scrollableContent.appendChild(section);
+		}
+
+		// ATTRIBUTES section
+		if (attachment.attributes && Object.keys(attachment.attributes).length > 0) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.attributes', "ATTRIBUTES"));
+			section.appendChild(header);
+			const table = dom.$('div.chat-element-hover-table');
+			for (const [name, value] of Object.entries(attachment.attributes)) {
+				const row = dom.$('div.chat-element-hover-row');
+				row.appendChild(dom.$('span.chat-element-hover-label', {}, `${name}:`));
+				row.appendChild(dom.$('span.chat-element-hover-value', {}, value));
+				table.appendChild(row);
+			}
+			section.appendChild(table);
 			scrollableContent.appendChild(section);
 		}
 
@@ -1097,7 +1108,12 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			...commonHoverOptions,
 			content: hoverElement,
 			additionalClasses: ['chat-element-data-hover'],
-			onDidShow: () => scrollableElement.scanDomNode(),
+			onDidShow: () => {
+				for (const s of innerScrollables) {
+					s.scanDomNode();
+				}
+				scrollableElement.scanDomNode();
+			},
 		};
 	}
 

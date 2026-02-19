@@ -2401,9 +2401,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-element-hover-content {
-	max-height: 350px;
+	max-height: 500px;
 	box-sizing: border-box;
 	padding-right: 10px;
+	padding-bottom: 15px;
 }
 
 .chat-element-hover .chat-element-hover-section {
@@ -2432,7 +2433,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 12px;
 	line-height: 1.5;
 	white-space: pre;
-	overflow-x: auto;
+	overflow: hidden;
 	color: var(--vscode-editor-foreground);
 }
 
@@ -2487,8 +2488,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-editor-foreground);
 	white-space: pre-wrap;
 	word-break: break-word;
-	max-height: 60px;
-	overflow: hidden;
 }
 
 .chat-element-hover .chat-element-hover-show-more {
@@ -2499,7 +2498,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	font-size: 12px;
-	text-decoration: underline;
+	text-decoration: none;
 }
 
 .chat-element-hover .chat-element-hover-show-more:hover,
