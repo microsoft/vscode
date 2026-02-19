@@ -278,7 +278,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	async sendRequestForNewSession(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>, folderUri?: URI): Promise<void> {
 		if (LocalChatSessionUri.isLocalSession(sessionResource)) {
-			await this.sendLocalSession(sessionResource, query, folderUri);
+			await this.sendLocalSession(sessionResource, query, sendOptions, folderUri);
 		} else {
 			await this.sendCustomSession(sessionResource, query, sendOptions, selectedOptions);
 		}
@@ -288,7 +288,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Local sessions run directly through the ChatWidget.
 	 * Set the workspace folder, open a fresh chat view, and submit via acceptInput.
 	 */
-	private async sendLocalSession(sessionResource: URI, query: string, folderUri?: URI): Promise<void> {
+	private async sendLocalSession(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, folderUri?: URI): Promise<void> {
 		if (folderUri) {
 			await this.workspaceEditingService.updateFolders(0, this.workspaceContextService.getWorkspace().folders.length, [{ uri: folderUri }]);
 		}
@@ -297,6 +297,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const widget = this.chatWidgetService.lastFocusedWidget;
 		if (widget) {
+			if (sendOptions.attachedContext?.length) {
+				widget.attachmentModel.addContext(...sendOptions.attachedContext);
+			}
 			widget.setInput(query);
 			widget.acceptInput(query);
 		}
