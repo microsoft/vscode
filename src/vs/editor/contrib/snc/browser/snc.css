@@ -62,3 +62,7 @@
 .monaco-editor .snc-hover-hidden:hover {
 	visibility: visible;
 }
+
+.monaco-editor .full-opacity-on-hover:hover {
+	opacity: 1.0 !important;
+}

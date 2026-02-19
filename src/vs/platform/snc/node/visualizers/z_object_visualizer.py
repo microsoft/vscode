@@ -470,13 +470,13 @@ def visualize(obj, model=None):
                 f'style="{row_style}{target_style}">'
                 f'<td snc-mouse-down="{html.escape(drag_start_event)}" '
                 f'style="color:{GRAY};cursor:grab;opacity:0.5;user-select:none;'
-                f'padding-right:0;width:10px;font-size:8px;" '
-                f'title="Drag to reorder">'
-                f'<span class="snc-hover-hidden">\u2800\u2801\u2800\u2801</span></td>'
+                f'padding-right:0;width:10px;font-size:8px;font-style:normal;" '
+                f'title="Drag to reorder" class="full-opacity-on-hover">'
+                f'<span class="snc-hover-hidden">\u283F</span></td>'
                 f'<td snc-mouse-down="{html.escape(remove_event)}" '
                 f'style="color:{GRAY};cursor:pointer;opacity:0.5;user-select:none;'
                 f'padding-right:2px;width:12px;" '
-                f'title="Remove field">'
+                f'title="Remove field" class="full-opacity-on-hover">'
                 f'<span class="snc-hover-hidden">\u00d7</span></td>'
                 f'<td snc-mouse-down="{html.escape(click_event)}" '
                 f'style="color:{BLUE};opacity:0.7;cursor:pointer;padding-right:8px;">'
@@ -495,8 +495,8 @@ def visualize(obj, model=None):
     add_event = repr(AddFieldClick())
     add_button = (
         f'<tr snc-mouse-down="{html.escape(add_event)}" class="snc-hover-hidden-parent">'
-        f'<td></td>'
-        f'<td class="snc-hover-hide-border" colspan=2 style="color:{GRAY};cursor:pointer;text-align:center;opacity:0.5;user-select:none;height:5px;border:1px solid {GRAY_HALF_ALPHA}">'
+        f'<td></td><td></td>'
+        f'<td class="snc-hover-hide-border full-opacity-on-hover" colspan=2 style="color:{GRAY};cursor:pointer;text-align:center;opacity:0.5;user-select:none;height:5px;border:1px solid {GRAY_HALF_ALPHA}">'
             f'<span class="snc-hover-hidden" style="display:inline-block;position:absolute;margin-top:-9px;margin-left:-0.4em;font-size:8px;font-style:normal">+</span>'
         f'</td>'
         # f'<td></td>'
@@ -584,7 +584,7 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
 
     return (
         f'<tr>'
-        f'<td></td>'
+        f'<td></td><td></td>'
         f'<td style="padding-right:8px;">'
         f'{input_html}'
         f'</td>'
