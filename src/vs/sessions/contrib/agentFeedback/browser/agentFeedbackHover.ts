@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../../base/browser/dom.js';
-import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
-import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { localize } from '../../../../../nls.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../browser/labels.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
-import { IAgentFeedbackVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 /**
  * Creates the custom hover content for the "N comments" attachment.

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { basename } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { localize } from '../../../../../nls.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { basename } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
+import { localize } from '../../../../nls.js';
 import { IAgentFeedbackService, IAgentFeedback } from './agentFeedbackService.js';
-import { IChatWidgetService } from '../chat.js';
-import { IAgentFeedbackVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 const ATTACHMENT_ID_PREFIX = 'agentFeedback:';
 

@@ -165,7 +165,10 @@ import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribu
 
 // Chat
 import '../workbench/contrib/chat/electron-browser/chat.contribution.js';
-import '../workbench/contrib/inlineChat/electron-browser/inlineChat.contribution.js';
+//import '../workbench/contrib/inlineChat/electron-browser/inlineChat.contribution.js';
+
+import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
+
 // Encryption
 import '../workbench/contrib/encryption/electron-browser/encryption.contribution.js';
 

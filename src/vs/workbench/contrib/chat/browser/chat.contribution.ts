@@ -141,10 +141,6 @@ import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
-import { AgentFeedbackService, IAgentFeedbackService } from './agentFeedback/agentFeedbackService.js';
-import { AgentFeedbackAttachmentContribution } from './agentFeedback/agentFeedbackAttachment.js';
-import { AgentFeedbackEditorOverlay } from './agentFeedback/agentFeedbackEditorOverlay.js';
-import { registerAgentFeedbackEditorActions } from './agentFeedback/agentFeedbackEditorActions.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
@@ -1159,7 +1155,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ExitAfterDelegation]: {
 			type: 'boolean',
 			description: nls.localize('chat.exitAfterDelegation', "Controls whether the chat panel automatically exits after delegating a request to another session."),
-			default: true,
+			default: false,
 			tags: ['preview'],
 		},
 		'chat.extensionUnification.enabled': {
@@ -1482,7 +1478,6 @@ registerWorkbenchContribution2(ChatAgentRecommendation.ID, ChatAgentRecommendati
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatQueuePickerRendering.ID, ChatQueuePickerRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorContextKeys.ID, ChatEditingEditorContextKeys, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribution, WorkbenchPhase.BlockRestore);
@@ -1494,7 +1489,6 @@ registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContrib
 registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(AgentFeedbackAttachmentContribution.ID, AgentFeedbackAttachmentContribution, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatAccessibilityActions();
@@ -1514,7 +1508,6 @@ registerNewChatActions();
 registerChatContextActions();
 registerChatDeveloperActions();
 registerChatEditorActions();
-registerAgentFeedbackEditorActions();
 registerChatElicitationActions();
 registerChatToolActions();
 registerLanguageModelActions();
@@ -1551,6 +1544,5 @@ registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.D
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
 registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
-registerSingleton(IAgentFeedbackService, AgentFeedbackService, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

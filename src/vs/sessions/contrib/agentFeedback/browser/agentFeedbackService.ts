@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
-import { Comment, CommentThread, CommentThreadCollapsibleState, CommentThreadState, CommentInput } from '../../../../../editor/common/languages.js';
-import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from '../../../comments/browser/commentService.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { localize } from '../../../../../nls.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { IChatEditingService } from '../../common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
-import { agentSessionContainsResource, editingEntriesContainResource } from '../sessionResourceMatching.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IRange } from '../../../../editor/common/core/range.js';
+import { Comment, CommentThread, CommentThreadCollapsibleState, CommentThreadState, CommentInput } from '../../../../editor/common/languages.js';
+import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from '../../../../workbench/contrib/comments/browser/commentService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { registerAction2, Action2, MenuId } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize } from '../../../../nls.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
+import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
+import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 
 // --- Types --------------------------------------------------------------------
 

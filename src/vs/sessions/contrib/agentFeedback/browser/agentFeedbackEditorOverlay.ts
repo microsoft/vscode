@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentFeedbackEditorOverlay.css';
-import { Disposable, DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAction } from '../../../../../base/common/actions.js';
-import { Event } from '../../../../../base/common/event.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { Disposable, DisposableMap, DisposableStore, combinedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../../base/common/actions.js';
+import { Event } from '../../../../base/common/event.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
+import { EditorGroupView } from '../../../../workbench/browser/parts/editor/editorGroupView.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
-import { assertType } from '../../../../../base/common/types.js';
-import { localize } from '../../../../../nls.js';
+import { assertType } from '../../../../base/common/types.js';
+import { localize } from '../../../../nls.js';
 import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
+import { Menus } from '../../../browser/menus.js';
 
 class AgentFeedbackActionViewItem extends ActionViewItem {
 
@@ -84,7 +84,7 @@ class AgentFeedbackOverlayWidget extends Disposable {
 			this._domNode.appendChild(this._toolbarNode);
 		}
 
-		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, MenuId.AgentFeedbackEditorContent, {
+		this._showStore.add(this._instaService.createInstance(MenuWorkbenchToolBar, this._toolbarNode, Menus.AgentFeedbackEditorContent, {
 			telemetrySource: 'agentFeedback.overlayToolbar',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			toolbarOptions: {

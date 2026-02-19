@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { EditorsOrder, IEditorIdentifier } from '../../../../common/editor.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatWidgetService } from '../chat.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { EditorsOrder, IEditorIdentifier } from '../../../../workbench/common/editor.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
+import { Menus } from '../../../browser/menus.js';
 
 export const submitFeedbackActionId = 'agentFeedbackEditor.action.submit';
 export const navigatePreviousFeedbackActionId = 'agentFeedbackEditor.action.navigatePrevious';
@@ -61,7 +62,7 @@ class SubmitFeedbackAction extends AgentFeedbackEditorAction {
 			icon: Codicon.send,
 			precondition: ChatContextKeys.enabled,
 			menu: {
-				id: MenuId.AgentFeedbackEditorContent,
+				id: Menus.AgentFeedbackEditorContent,
 				group: 'a_submit',
 				order: 0,
 				when: ChatContextKeys.enabled,
@@ -110,7 +111,7 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 			f1: true,
 			precondition: ChatContextKeys.enabled,
 			menu: {
-				id: MenuId.AgentFeedbackEditorContent,
+				id: Menus.AgentFeedbackEditorContent,
 				group: 'navigate',
 				order: _next ? 2 : 1,
 				when: ChatContextKeys.enabled,
@@ -149,7 +150,7 @@ class ClearAllFeedbackAction extends AgentFeedbackEditorAction {
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled),
 			menu: {
-				id: MenuId.AgentFeedbackEditorContent,
+				id: Menus.AgentFeedbackEditorContent,
 				group: 'a_submit',
 				order: 1,
 				when: ChatContextKeys.enabled,
@@ -169,7 +170,7 @@ export function registerAgentFeedbackEditorActions(): void {
 	registerAction2(class extends NavigateFeedbackAction { constructor() { super(true); } });
 	registerAction2(ClearAllFeedbackAction);
 
-	MenuRegistry.appendMenuItem(MenuId.AgentFeedbackEditorContent, {
+	MenuRegistry.appendMenuItem(Menus.AgentFeedbackEditorContent, {
 		command: {
 			id: navigationBearingFakeActionId,
 			title: localize('label', 'Navigation Status'),

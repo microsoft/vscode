@@ -2382,6 +2382,131 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-top: 2px;
 }
 
+/* Element hover (DevTools-style) */
+.chat-element-hover {
+	max-width: 400px;
+	min-width: 250px;
+}
+
+.monaco-hover.workbench-hover.chat-element-data-hover .hover-contents.html-hover-contents {
+	padding: 0;
+}
+
+.monaco-hover.workbench-hover.chat-element-data-hover .chat-element-hover-scrollable {
+	width: 100%;
+}
+
+.chat-element-hover.chat-attached-context-hover {
+	padding: 6px 0 6px 6px;
+}
+
+.chat-element-hover-content {
+	max-height: 350px;
+	box-sizing: border-box;
+	padding-right: 10px;
+}
+
+.chat-element-hover .chat-element-hover-section {
+	padding: 4px 6px;
+}
+
+.chat-element-hover .chat-element-hover-section + .chat-element-hover-section {
+	border-top: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.2));
+}
+
+.chat-element-hover .chat-element-hover-header {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	color: var(--vscode-descriptionForeground);
+	letter-spacing: 0.5px;
+	margin-bottom: 4px;
+}
+
+.chat-element-hover .chat-element-hover-code {
+	margin: 0;
+	padding: 4px 6px;
+	background: var(--vscode-textCodeBlock-background);
+	border-radius: 3px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	line-height: 1.5;
+	white-space: pre;
+	overflow-x: auto;
+	color: var(--vscode-editor-foreground);
+}
+
+.chat-element-hover .chat-element-hover-code code {
+	font-family: inherit;
+	font-size: inherit;
+	background: transparent;
+	padding: 0;
+	border-radius: 0;
+	display: block;
+}
+
+.chat-element-hover .chat-element-hover-table {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 2px 8px;
+}
+
+.chat-element-hover .chat-element-hover-row {
+	display: contents;
+}
+
+.chat-element-hover .chat-element-hover-label {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-debugTokenExpression-name);
+	white-space: nowrap;
+}
+
+.chat-element-hover .chat-element-hover-value {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-editor-foreground);
+	word-break: break-all;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.chat-element-hover .chat-element-hover-color-swatch {
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	border: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.4));
+	border-radius: 2px;
+	flex-shrink: 0;
+}
+
+.chat-element-hover .chat-element-hover-text {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-editor-foreground);
+	white-space: pre-wrap;
+	word-break: break-word;
+	max-height: 60px;
+	overflow: hidden;
+}
+
+.chat-element-hover .chat-element-hover-show-more {
+	background: none;
+	border: none;
+	padding: 0;
+	margin-top: 6px;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	text-decoration: underline;
+}
+
+.chat-element-hover .chat-element-hover-show-more:hover,
+.chat-element-hover .chat-element-hover-show-more:focus-visible {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 
 .chat-attached-context-attachment .chat-attached-context-pill {
 	font-size: 12px;

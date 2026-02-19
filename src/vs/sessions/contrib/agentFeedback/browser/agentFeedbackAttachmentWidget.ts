@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentFeedbackAttachment.css';
-import * as dom from '../../../../../base/browser/dom.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import * as event from '../../../../../base/common/event.js';
-import { localize } from '../../../../../nls.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAgentFeedbackVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import * as dom from '../../../../base/browser/dom.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import * as event from '../../../../base/common/event.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { AgentFeedbackHover } from './agentFeedbackHover.js';
 
 /**
