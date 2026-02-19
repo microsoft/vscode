@@ -11,7 +11,7 @@ import { hasModifierKeys, StandardKeyboardEvent } from '../../../../../../base/b
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import * as aria from '../../../../../../base/browser/ui/aria/aria.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
-import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderLabelWithIcons } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../../base/common/actions.js';
@@ -67,6 +67,7 @@ import { WorkbenchList } from '../../../../../../platform/list/browser/listServi
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ObservableMemento, observableMemento } from '../../../../../../platform/observable/common/observableMemento.js';
 import { bindContextKey } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
@@ -496,6 +497,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatAgentService private readonly agentService: IChatAgentService,
@@ -2877,6 +2879,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		button.element.appendChild(countsContainer);
 		countsContainer.appendChild(this._workingSetLinesAddedSpan.value);
 		countsContainer.appendChild(this._workingSetLinesRemovedSpan.value);
+		const countsHover = store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), countsContainer, ''));
 
 		store.add(autorun(reader => {
 			const { files, added, removed, shouldShowEditingSession } = topLevelStats.read(reader);
@@ -2891,7 +2894,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._workingSetLinesAddedSpan.value.textContent = `+${added}`;
 			this._workingSetLinesRemovedSpan.value.textContent = `-${removed}`;
 
-			countsContainer.title = localize('chatEditingSession.lineCountsTooltip', '{0}, {1} lines added, {2} lines removed', buttonLabel, added, removed);
+			countsHover.update(localize('chatEditingSession.lineCountsTooltip', '{0}, {1} lines added, {2} lines removed', buttonLabel, added, removed));
 
 			dom.setVisibility(shouldShowEditingSession, this.chatEditingSessionWidgetContainer);
 		}));
