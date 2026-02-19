@@ -87,6 +87,21 @@ class RemoveFieldClick:
     index: int
 
 @dataclass(frozen=True, slots=True)
+class DragStart:
+    """User pressed mouse down on a drag handle to start reordering."""
+    index: int
+
+@dataclass(frozen=True, slots=True)
+class DragOver:
+    """Mouse moved over a row while dragging (reorder target)."""
+    index: int
+
+@dataclass(frozen=True, slots=True)
+class DragEnd:
+    """User released mouse to drop a field at the target position."""
+    index: int
+
+@dataclass(frozen=True, slots=True)
 class KeyDown:
     """Keyboard event (Enter to commit, Escape to cancel)."""
     pass
@@ -214,6 +229,8 @@ def init_model(value):
             "adding_field": False,
             "input_value": "",
             "selected_suggestion_index": None,
+            "drag_from_index": None,
+            "drag_over_index": None,
             "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"],
         }
 
@@ -232,6 +249,8 @@ def init_model(value):
         "adding_field": False,
         "input_value": "",
         "selected_suggestion_index": None,
+        "drag_from_index": None,
+        "drag_over_index": None,
         "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"],
     }
 
@@ -306,6 +325,32 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
                         model['editing_index'] -= 1
                 if full_class_name:
                     save_fields_to_dotfile(full_class_name, model['fields'])
+
+        case DragStart(index=idx):
+            if 0 <= idx < len(model['fields']):
+                model['drag_from_index'] = idx
+                model['drag_over_index'] = idx
+
+        case DragOver(index=idx):
+            if model.get('drag_from_index') is not None:
+                if event_json.get('buttons', 0) == 0:
+                    # Mouse released outside a DragEnd target — cancel drag
+                    model['drag_from_index'] = None
+                    model['drag_over_index'] = None
+                else:
+                    model['drag_over_index'] = idx
+
+        case DragEnd(index=idx):
+            drag_from = model.get('drag_from_index')
+            if drag_from is not None and 0 <= drag_from < len(model['fields']):
+                target = idx
+                if drag_from != target:
+                    field = model['fields'].pop(drag_from)
+                    model['fields'].insert(target, field)
+                    if full_class_name:
+                        save_fields_to_dotfile(full_class_name, model['fields'])
+            model['drag_from_index'] = None
+            model['drag_over_index'] = None
 
         case FieldClick(index=idx):
             detail = event_json.get('detail', 1)
@@ -402,12 +447,32 @@ def visualize(obj, model=None):
             # This field is being edited: show input
             field_trs.append(_render_input_row(obj, model, is_editing=True, editing_index=i))
         else:
-            # Normal display: double-clickable field name with remove button (left, hover-only)
+            # Normal display: double-clickable field name with remove/drag handles
             display_accessor, val_str = _eval_field(obj, accessor_code)
             click_event = repr(FieldClick(index=i))
             remove_event = repr(RemoveFieldClick(index=i))
+            drag_start_event = repr(DragStart(index=i))
+            drag_over_event = repr(DragOver(index=i))
+            drag_end_event = repr(DragEnd(index=i))
+
+            # Visual feedback during drag
+            is_drag_source = (model.get('drag_from_index') == i)
+            is_drag_target = (model.get('drag_from_index') is not None
+                              and model.get('drag_over_index') == i
+                              and model.get('drag_from_index') != i)
+            row_style = 'opacity:0.3;' if is_drag_source else ''
+            target_style = f'border-top:2px solid {BLUE};' if is_drag_target else ''
+
             field_trs.append(
-                f'<tr class="snc-hover-hidden-parent">'
+                f'<tr class="snc-hover-hidden-parent" '
+                f'snc-mouse-move="{html.escape(drag_over_event)}" '
+                f'snc-mouse-up="{html.escape(drag_end_event)}" '
+                f'style="{row_style}{target_style}">'
+                f'<td snc-mouse-down="{html.escape(drag_start_event)}" '
+                f'style="color:{GRAY};cursor:grab;opacity:0.5;user-select:none;'
+                f'padding-right:0;width:10px;font-size:8px;" '
+                f'title="Drag to reorder">'
+                f'<span class="snc-hover-hidden">\u2800\u2801\u2800\u2801</span></td>'
                 f'<td snc-mouse-down="{html.escape(remove_event)}" '
                 f'style="color:{GRAY};cursor:pointer;opacity:0.5;user-select:none;'
                 f'padding-right:2px;width:12px;" '

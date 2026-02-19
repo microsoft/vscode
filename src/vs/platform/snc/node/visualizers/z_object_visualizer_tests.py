@@ -21,7 +21,7 @@ from z_object_visualizer import (
     visualize, init_model, update, can_visualize,
     TRIVIAL_NAMES, DEFAULT_FIELDS_FOR_TYPE, DOTFILE_NAME,
     AddFieldClick, FieldInput, FieldSelect, FieldClick, KeyDown,
-    RemoveFieldClick,
+    RemoveFieldClick, DragStart, DragOver, DragEnd,
     load_fields_from_dotfile, save_fields_to_dotfile,
     _get_full_class_name, _get_autocomplete_suggestions,
 )
@@ -809,6 +809,173 @@ class TestUpdate(unittest.TestCase):
 # =============================================================================
 # TestDotfile
 # =============================================================================
+
+# =============================================================================
+# TestDragReorder
+# =============================================================================
+
+def make_mouse_move_event(python_event_str: str, buttons: int = 1) -> dict:
+    """Create a mouse move event dict."""
+    return {
+        'pythonEventStr': python_event_str,
+        'eventJSON': {
+            'type': 'mousemove',
+            'buttons': buttons,
+        },
+    }
+
+
+def make_mouse_up_event(python_event_str: str) -> dict:
+    """Create a mouse up event dict."""
+    return {
+        'pythonEventStr': python_event_str,
+        'eventJSON': {
+            'type': 'mouseup',
+            'buttons': 0,
+        },
+    }
+
+
+class TestDragReorder(unittest.TestCase):
+    """Test drag-and-drop field reordering."""
+
+    def test_drag_start_sets_drag_from_index(self):
+        """DragStart sets drag_from_index in model."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+
+        event = make_mouse_down_event(repr(DragStart(index=1)))
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['drag_from_index'], 1)
+
+    def test_drag_over_sets_drag_over_index(self):
+        """DragOver while dragging sets drag_over_index."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+        model['drag_from_index'] = 2
+
+        event = make_mouse_move_event(repr(DragOver(index=0)), buttons=1)
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['drag_over_index'], 0)
+
+    def test_drag_over_cancels_on_button_release(self):
+        """DragOver with buttons=0 cancels drag."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+        model['drag_from_index'] = 2
+        model['drag_over_index'] = 0
+
+        event = make_mouse_move_event(repr(DragOver(index=1)), buttons=0)
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIsNone(new_model['drag_from_index'])
+        self.assertIsNone(new_model['drag_over_index'])
+
+    def test_drag_over_ignored_when_not_dragging(self):
+        """DragOver without active drag is ignored."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+
+        event = make_mouse_move_event(repr(DragOver(index=1)), buttons=1)
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIsNone(new_model.get('drag_over_index'))
+
+    def test_drag_end_reorders_forward(self):
+        """DragEnd moves field from index 0 to index 2."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+        model['drag_from_index'] = 0
+        model['drag_over_index'] = 2
+
+        event = make_mouse_up_event(repr(DragEnd(index=2)))
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['fields'], ['.name', '.y', '.x'])
+        self.assertIsNone(new_model['drag_from_index'])
+        self.assertIsNone(new_model['drag_over_index'])
+
+    def test_drag_end_reorders_backward(self):
+        """DragEnd moves field from index 2 to index 0."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+        model['drag_from_index'] = 2
+        model['drag_over_index'] = 0
+
+        event = make_mouse_up_event(repr(DragEnd(index=0)))
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['fields'], ['.y', '.x', '.name'])
+        self.assertIsNone(new_model['drag_from_index'])
+        self.assertIsNone(new_model['drag_over_index'])
+
+    def test_drag_end_same_position_is_noop(self):
+        """DragEnd to the same position doesn't change order."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+        model['drag_from_index'] = 1
+        model['drag_over_index'] = 1
+
+        event = make_mouse_up_event(repr(DragEnd(index=1)))
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['fields'], ['.x', '.name', '.y'])
+
+    def test_drag_end_saves_dotfile(self):
+        """DragEnd should save reordered fields to dotfile."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+        model['drag_from_index'] = 0
+        model['drag_over_index'] = 2
+
+        event = make_mouse_up_event(repr(DragEnd(index=2)))
+        with patch('z_object_visualizer.save_fields_to_dotfile') as mock_save:
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+            mock_save.assert_called_once()
+
+    def test_drag_end_without_drag_is_noop(self):
+        """DragEnd without active drag does nothing."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name', '.y']
+
+        event = make_mouse_up_event(repr(DragEnd(index=1)))
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['fields'], ['.x', '.name', '.y'])
+
+    def test_visualize_shows_drag_handles(self):
+        """Each field row should have a drag handle."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        html_output = visualize(obj, model)
+
+        self.assertIn('DragStart(index=0)', html_output)
+        self.assertIn('DragStart(index=1)', html_output)
+
+    def test_visualize_shows_drag_target_indicators(self):
+        """Each field row should have DragOver and DragEnd handlers."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        html_output = visualize(obj, model)
+
+        self.assertIn('DragOver(index=0)', html_output)
+        self.assertIn('DragEnd(index=0)', html_output)
+
 
 class TestDotfile(unittest.TestCase):
     """Test dotfile load/save operations."""
