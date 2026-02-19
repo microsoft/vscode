@@ -212,7 +212,8 @@ def init_model(value):
             "editing_index": None,
             "adding_field": False,
             "input_value": "",
-            "handledKeys": ["Enter", "Escape"],
+            "selected_suggestion_index": None,
+            "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown"],
         }
 
     full_class_name = _get_full_class_name(value)
@@ -229,7 +230,8 @@ def init_model(value):
         "editing_index": None,
         "adding_field": False,
         "input_value": "",
-        "handledKeys": ["Enter", "Escape"],
+        "selected_suggestion_index": None,
+        "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown"],
     }
 
 
@@ -268,6 +270,7 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
 
         case FieldInput(value=val):
             model['input_value'] = val
+            model['selected_suggestion_index'] = None  # reset selection on typing
 
         case FieldSelect(accessor=accessor):
             if model.get('adding_field'):
@@ -309,27 +312,64 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
 
         case KeyDown():
             key = event_json.get('key', '')
-            if key == 'Enter':
-                input_val = model.get('input_value', '').strip()
+            is_input_active = model.get('adding_field') or model.get('editing_index') is not None
+
+            if key == 'ArrowDown' and is_input_active:
+                # Compute suggestions to know the count
+                suggestions = _get_autocomplete_suggestions(value, model.get('fields', []), model.get('input_value', '')) if value is not None else []
+                if suggestions:
+                    cur = model.get('selected_suggestion_index')
+                    if cur is None:
+                        model['selected_suggestion_index'] = 0
+                    else:
+                        model['selected_suggestion_index'] = (cur + 1) % min(len(suggestions), 10)
+
+            elif key == 'ArrowUp' and is_input_active:
+                suggestions = _get_autocomplete_suggestions(value, model.get('fields', []), model.get('input_value', '')) if value is not None else []
+                if suggestions:
+                    cur = model.get('selected_suggestion_index')
+                    count = min(len(suggestions), 10)
+                    if cur is None:
+                        model['selected_suggestion_index'] = count - 1
+                    else:
+                        model['selected_suggestion_index'] = (cur - 1) % count
+
+            elif key == 'Enter':
+                # If a suggestion is selected, commit it
+                sel_idx = model.get('selected_suggestion_index')
+                if sel_idx is not None and is_input_active:
+                    suggestions = _get_autocomplete_suggestions(value, model.get('fields', []), model.get('input_value', '')) if value is not None else []
+                    capped = suggestions[:10]
+                    if 0 <= sel_idx < len(capped):
+                        commit_val = capped[sel_idx]
+                    else:
+                        commit_val = model.get('input_value', '').strip()
+                else:
+                    commit_val = model.get('input_value', '').strip()
+
                 if model.get('adding_field'):
-                    if input_val:
-                        model['fields'].append(input_val)
+                    if commit_val:
+                        model['fields'].append(commit_val)
                         if full_class_name:
                             save_fields_to_dotfile(full_class_name, model['fields'])
                     model['adding_field'] = False
                     model['input_value'] = ''
+                    model['selected_suggestion_index'] = None
                 elif model.get('editing_index') is not None:
                     idx = model['editing_index']
-                    if input_val and 0 <= idx < len(model['fields']):
-                        model['fields'][idx] = input_val
+                    if commit_val and 0 <= idx < len(model['fields']):
+                        model['fields'][idx] = commit_val
                         if full_class_name:
                             save_fields_to_dotfile(full_class_name, model['fields'])
                     model['editing_index'] = None
                     model['input_value'] = ''
+                    model['selected_suggestion_index'] = None
+
             elif key == 'Escape':
                 model['adding_field'] = False
                 model['editing_index'] = None
                 model['input_value'] = ''
+                model['selected_suggestion_index'] = None
 
     return (model, commands)
 
@@ -421,16 +461,20 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
     # Build autocomplete suggestions
     current_fields = model.get('fields', [])
     suggestions = _get_autocomplete_suggestions(obj, current_fields, input_value)
+    selected_idx = model.get('selected_suggestion_index')
 
     suggestion_html = ''
     if suggestions:
         items = []
-        for suggestion in suggestions[:10]:  # cap at 10 suggestions
+        for i, suggestion in enumerate(suggestions[:10]):  # cap at 10 suggestions
             select_event = repr(FieldSelect(accessor=suggestion))
+            is_selected = (selected_idx == i)
+            bg = '#094771' if is_selected else SUGGESTION_BG
             items.append(
                 f'<div snc-mouse-down="{html.escape(select_event)}" '
                 f'class="snc-dropdown-option" '
-                f'style="padding:2px 6px;cursor:pointer;color:{BLUE};white-space:nowrap;"'
+                f'style="padding:2px 6px;cursor:pointer;color:{BLUE};white-space:nowrap;'
+                f'background:{bg};"'
                 f'>{html.escape(suggestion)}</div>'
             )
         suggestion_html = (
@@ -445,12 +489,16 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
 
     # Wrap input + dropdown in snc-dropdown-trigger so the TS hoisting mechanism
     # can move the panel outside the overflow-clipped widget
+    extra_attrs = ' autofocus'
+    if is_editing:
+        extra_attrs += ' data-snc-select-all'
     input_html = (
         f'<span class="snc-dropdown-trigger" style="position:relative;display:inline-block;">'
         f'<input type="text" snc-input="{html.escape(input_event)}" '
         f'value="{html.escape(input_value)}" '
         f'placeholder=".field_name" '
-        f'spellcheck="false" '
+        f'spellcheck="false"'
+        f'{extra_attrs} '
         f'style="background:{INPUT_BG};color:{BLUE};border:1px solid {INPUT_BORDER};'
         f'padding:1px 4px;font-family:inherit;font-size:inherit;'
         f'outline:none;width:120px;" />'

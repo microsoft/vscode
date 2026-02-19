@@ -23,7 +23,7 @@ from z_object_visualizer import (
     AddFieldClick, FieldInput, FieldSelect, FieldClick, KeyDown,
     RemoveFieldClick,
     load_fields_from_dotfile, save_fields_to_dotfile,
-    _get_full_class_name,
+    _get_full_class_name, _get_autocomplete_suggestions,
 )
 
 
@@ -101,14 +101,18 @@ class TestInitModel(unittest.TestCase):
         self.assertIn('editing_index', model)
         self.assertIn('adding_field', model)
         self.assertIn('input_value', model)
+        self.assertIn('selected_suggestion_index', model)
         self.assertIn('handledKeys', model)
 
         self.assertIsInstance(model['fields'], list)
         self.assertIsNone(model['editing_index'])
         self.assertFalse(model['adding_field'])
         self.assertEqual(model['input_value'], "")
+        self.assertIsNone(model['selected_suggestion_index'])
         self.assertIn('Enter', model['handledKeys'])
         self.assertIn('Escape', model['handledKeys'])
+        self.assertIn('ArrowUp', model['handledKeys'])
+        self.assertIn('ArrowDown', model['handledKeys'])
 
     def test_init_model_uses_non_trivial_names_for_unknown_type(self):
         """For a custom object with no DEFAULT_FIELDS_FOR_TYPE, use dir() minus TRIVIAL_NAMES."""
@@ -312,6 +316,61 @@ class TestVisualize(unittest.TestCase):
         # Remove button uses CSS class for hover visibility
         self.assertIn('snc-remove-btn', html_output)
         self.assertIn('snc-field-row', html_output)
+
+    def test_visualize_input_has_autofocus_when_adding(self):
+        """Input should have autofocus attribute when adding a field."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['adding_field'] = True
+        model['input_value'] = ''
+        html_output = visualize(obj, model)
+
+        self.assertIn('autofocus', html_output)
+
+    def test_visualize_input_has_autofocus_when_editing(self):
+        """Input should have autofocus attribute when editing a field."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        model['editing_index'] = 0
+        model['input_value'] = '.x'
+        html_output = visualize(obj, model)
+
+        self.assertIn('autofocus', html_output)
+
+    def test_visualize_input_has_select_all_when_editing(self):
+        """Input should have data-snc-select-all when editing (not when adding)."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x', '.name']
+        model['editing_index'] = 0
+        model['input_value'] = '.x'
+        html_output = visualize(obj, model)
+
+        self.assertIn('data-snc-select-all', html_output)
+
+    def test_visualize_input_no_select_all_when_adding(self):
+        """Input should NOT have data-snc-select-all when adding."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['adding_field'] = True
+        model['input_value'] = ''
+        html_output = visualize(obj, model)
+
+        self.assertNotIn('data-snc-select-all', html_output)
+
+    def test_visualize_highlights_selected_suggestion(self):
+        """Selected suggestion should have highlight background."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []
+        model['adding_field'] = True
+        model['input_value'] = '.'
+        model['selected_suggestion_index'] = 0
+        html_output = visualize(obj, model)
+
+        # The first suggestion should have the highlight color
+        self.assertIn('#094771', html_output)
 
     def test_visualize_autocomplete_uses_dropdown_hoisting(self):
         """Autocomplete should use snc-dropdown-trigger/panel classes for hoisting."""
@@ -540,6 +599,113 @@ class TestUpdate(unittest.TestCase):
         new_model, commands = update(event, "x = TestObj()", 1, None, obj)
         self.assertIsNotNone(new_model)
         self.assertTrue(new_model['adding_field'])
+
+    def test_arrow_down_selects_first_suggestion(self):
+        """ArrowDown from no selection selects the first suggestion."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []
+        model['adding_field'] = True
+        model['input_value'] = '.'
+
+        event = make_key_down_event('ArrowDown')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['selected_suggestion_index'], 0)
+
+    def test_arrow_down_wraps_around(self):
+        """ArrowDown wraps from last suggestion back to first."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []
+        model['adding_field'] = True
+        model['input_value'] = '.'
+        # Get the count of suggestions to set index to last
+        from z_object_visualizer import _get_autocomplete_suggestions
+        suggestions = _get_autocomplete_suggestions(obj, [], '.')
+        last_idx = min(len(suggestions), 10) - 1
+        model['selected_suggestion_index'] = last_idx
+
+        event = make_key_down_event('ArrowDown')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertEqual(new_model['selected_suggestion_index'], 0)
+
+    def test_arrow_up_selects_last_suggestion(self):
+        """ArrowUp from no selection selects the last suggestion."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []
+        model['adding_field'] = True
+        model['input_value'] = '.'
+
+        event = make_key_down_event('ArrowUp')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        from z_object_visualizer import _get_autocomplete_suggestions
+        suggestions = _get_autocomplete_suggestions(obj, [], '.')
+        expected = min(len(suggestions), 10) - 1
+        self.assertEqual(new_model['selected_suggestion_index'], expected)
+
+    def test_arrow_up_wraps_around(self):
+        """ArrowUp from first suggestion wraps to last."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []
+        model['adding_field'] = True
+        model['input_value'] = '.'
+        model['selected_suggestion_index'] = 0
+
+        event = make_key_down_event('ArrowUp')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        from z_object_visualizer import _get_autocomplete_suggestions
+        suggestions = _get_autocomplete_suggestions(obj, [], '.')
+        expected = min(len(suggestions), 10) - 1
+        self.assertEqual(new_model['selected_suggestion_index'], expected)
+
+    def test_enter_commits_selected_suggestion(self):
+        """Enter with a selected suggestion commits that suggestion, not the input text."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []
+        model['adding_field'] = True
+        model['input_value'] = '.'
+        # Get suggestions and pick the first one
+        from z_object_visualizer import _get_autocomplete_suggestions
+        suggestions = _get_autocomplete_suggestions(obj, [], '.')
+        model['selected_suggestion_index'] = 0
+        expected_field = suggestions[0]
+
+        event = make_key_down_event('Enter')
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIn(expected_field, new_model['fields'])
+        self.assertFalse(new_model['adding_field'])
+        self.assertIsNone(new_model['selected_suggestion_index'])
+
+    def test_field_input_resets_selected_suggestion(self):
+        """Typing in the input should reset the selected suggestion index."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['adding_field'] = True
+        model['selected_suggestion_index'] = 2
+
+        event = make_input_event('.na')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIsNone(new_model['selected_suggestion_index'])
+
+    def test_arrow_keys_noop_when_not_input_active(self):
+        """ArrowDown/Up should do nothing when not adding or editing."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = ['.x']
+
+        event = make_key_down_event('ArrowDown')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+        self.assertIsNone(new_model['selected_suggestion_index'])
 
     def test_remove_field_removes_from_list(self):
         """RemoveFieldClick removes the field at the given index."""

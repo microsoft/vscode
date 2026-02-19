@@ -321,7 +321,8 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		const shouldRestoreScroll = savedWidgetScrollTop !== 0
 			|| savedWidgetScrollLeft !== 0
 			|| savedScrollOffsets.some((offset) => offset.top !== 0 || offset.left !== 0);
-		if (shouldRestoreScroll || focusedIndex >= 0) {
+		const autoFocusEl = this.domNode.querySelector('[autofocus]') as HTMLElement | null;
+		if (shouldRestoreScroll || focusedIndex >= 0 || autoFocusEl) {
 			// Defer to next frame so layout/DOM updates settle, and ensure only the
 			// latest update in a burst is allowed to restore scroll/focus.
 			dom.getWindow(this.domNode).requestAnimationFrame(() => {
@@ -342,9 +343,17 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 					}
 				}
 
-				// Restore focus to the same nth focusable element
-				// Look in both the widget and any hoisted dropdown
-				if (focusedIndex >= 0) {
+				// Autofocus takes priority: focus the [autofocus] element if present
+				// (used by visualizers to focus newly created inputs)
+				if (autoFocusEl) {
+					autoFocusEl.focus({ preventScroll: true });
+					// Select all text if requested (e.g. editing an existing field)
+					if (autoFocusEl.hasAttribute('data-snc-select-all') && autoFocusEl instanceof HTMLInputElement) {
+						autoFocusEl.select();
+					}
+				} else if (focusedIndex >= 0) {
+					// Restore focus to the same nth focusable element
+					// Look in both the widget and any hoisted dropdown
 					const widgetFocusable = Array.from(this.domNode.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR));
 					const hoistedFocusable = this.hoistedDropdown
 						? Array.from(this.hoistedDropdown.querySelectorAll(VisualizationWidget.FOCUSABLE_SELECTOR))
