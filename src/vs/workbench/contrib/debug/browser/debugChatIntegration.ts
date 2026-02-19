@@ -26,6 +26,15 @@ const enum PickerMode {
 	Expression = 'expression',
 }
 
+const enum DebugValueSerializationLimit {
+	MaxDepth = 3,
+	MaxChildrenPerNode = 20,
+	MaxScopeVariables = 200,
+	MaxNodeCount = 500,
+}
+
+const truncatedOutputSuffix = '... output truncated';
+
 class DebugSessionContextPick implements IChatContextPickerItem {
 	readonly type = 'pickerPick';
 	readonly label = localize('chatContext.debugSession', 'Debug Session...');
@@ -134,7 +143,7 @@ class DebugSessionContextPick implements IChatContextPickerItem {
 					label: watch.name,
 					description: watch.value,
 					iconClass: ThemeIcon.asClassName(Codicon.eye),
-					asAttachment: (): IChatRequestVariableEntry[] => createDebugAttachments(stackFrame, createDebugVariableEntry(watch)),
+					asAttachment: async (): Promise<IChatRequestVariableEntry[]> => createDebugAttachments(stackFrame, await createSerializedDebugVariableEntry(watch)),
 				});
 			}
 		}
@@ -160,7 +169,7 @@ class DebugSessionContextPick implements IChatContextPickerItem {
 					picks.push({
 						label: localize('allVariablesInScope', 'All variables in {0}', scope.name),
 						iconClass: ThemeIcon.asClassName(Codicon.symbolNamespace),
-						asAttachment: (): IChatRequestVariableEntry[] => createDebugAttachments(stackFrame, createScopeEntry(scope, variables)),
+						asAttachment: async (): Promise<IChatRequestVariableEntry[]> => createDebugAttachments(stackFrame, await createScopeEntry(scope, variables)),
 					});
 				}
 				for (const variable of variables) {
@@ -168,7 +177,7 @@ class DebugSessionContextPick implements IChatContextPickerItem {
 						label: variable.name,
 						description: formatVariableDescription(variable),
 						iconClass: ThemeIcon.asClassName(Codicon.symbolVariable),
-						asAttachment: (): IChatRequestVariableEntry[] => createDebugAttachments(stackFrame, createDebugVariableEntry(variable)),
+						asAttachment: async (): Promise<IChatRequestVariableEntry[]> => createDebugAttachments(stackFrame, await createSerializedDebugVariableEntry(variable)),
 					});
 				}
 			} catch {
@@ -262,17 +271,17 @@ class DebugSessionContextPick implements IChatContextPickerItem {
 	}
 }
 
-function createDebugVariableEntry(expression: IExpression): IDebugVariableEntry {
+function createDebugVariableEntry(expression: IExpression, value = formatExpressionValue(expression), didTruncate = false): IDebugVariableEntry {
 	return {
 		kind: 'debugVariable',
 		id: `debug-variable:${expression.getId()}`,
 		name: expression.name,
 		fullName: expression.name,
 		icon: Codicon.debug,
-		value: expression.value,
+		value,
 		expression: expression.name,
 		type: expression.type,
-		modelDescription: formatModelDescription(expression.name, expression.value, expression.type),
+		modelDescription: formatModelDescription(expression.name, value, expression.type, didTruncate),
 	};
 }
 
@@ -299,18 +308,18 @@ function createDebugAttachments(stackFrame: IStackFrame, variableEntry: IDebugVa
 	];
 }
 
-function createScopeEntry(scope: IScope, variables: IExpression[]): IDebugVariableEntry {
-	const variablesSummary = variables.map(v => `${v.name}: ${v.value}`).join('\n');
+async function createScopeEntry(scope: IScope, variables: IExpression[]): Promise<IDebugVariableEntry> {
+	const { value, didTruncate } = await serializeScopeVariables(variables);
 	return {
 		kind: 'debugVariable',
 		id: `debug-scope:${scope.name}`,
 		name: `Scope: ${scope.name}`,
 		fullName: `Scope: ${scope.name}`,
 		icon: Codicon.debug,
-		value: variablesSummary,
+		value,
 		expression: scope.name,
 		type: 'scope',
-		modelDescription: `Debug scope "${scope.name}" with ${variables.length} variables:\n${variablesSummary}`,
+		modelDescription: formatModelDescription(`Scope: ${scope.name}`, value, 'scope', didTruncate),
 	};
 }
 
@@ -330,13 +339,134 @@ function formatExpressionResult(value: string, type?: string): string {
 	return value || type || '';
 }
 
-function formatModelDescription(name: string, value: string, type?: string): string {
+function formatModelDescription(name: string, value: string, type?: string, didTruncate = false): string {
 	let description = `Debug variable "${name}"`;
 	if (type) {
 		description += ` of type ${type}`;
 	}
 	description += ` with value: ${value}`;
+	if (didTruncate) {
+		description += `\n${truncatedOutputSuffix}`;
+	}
 	return description;
+}
+
+function formatExpressionValue(expression: IExpression): string {
+	return expression.value ?? '';
+}
+
+interface IDebugVariableSerializationState {
+	readonly lines: string[];
+	nodeCount: number;
+	didTruncate: boolean;
+}
+
+async function createSerializedDebugVariableEntry(expression: IExpression): Promise<IDebugVariableEntry> {
+	const { value, didTruncate } = await serializeExpressionValue(expression);
+	return createDebugVariableEntry(expression, value, didTruncate);
+}
+
+async function serializeExpressionValue(expression: IExpression): Promise<{ value: string; didTruncate: boolean }> {
+	if (!expression.hasChildren) {
+		return {
+			value: formatExpressionValue(expression),
+			didTruncate: false,
+		};
+	}
+
+	const state: IDebugVariableSerializationState = {
+		lines: [],
+		nodeCount: 0,
+		didTruncate: false,
+	};
+	await appendExpressionLines(expression, 0, state);
+	if (!state.lines.length) {
+		return {
+			value: formatExpressionValue(expression),
+			didTruncate: false,
+		};
+	}
+	if (state.didTruncate) {
+		state.lines.push(truncatedOutputSuffix);
+	}
+	return {
+		value: state.lines.join('\n'),
+		didTruncate: state.didTruncate,
+	};
+}
+
+async function serializeScopeVariables(variables: IExpression[]): Promise<{ value: string; didTruncate: boolean }> {
+	const state: IDebugVariableSerializationState = {
+		lines: [],
+		nodeCount: 0,
+		didTruncate: false,
+	};
+
+	const maxVariables = Math.min(variables.length, DebugValueSerializationLimit.MaxScopeVariables);
+	for (let i = 0; i < maxVariables; i++) {
+		await appendExpressionLines(variables[i], 0, state);
+		if (state.nodeCount >= DebugValueSerializationLimit.MaxNodeCount) {
+			state.didTruncate = true;
+			break;
+		}
+	}
+
+	if (variables.length > maxVariables) {
+		state.didTruncate = true;
+		state.lines.push(`... ${variables.length - maxVariables} more top-level variables`);
+	}
+
+	if (state.didTruncate) {
+		state.lines.push(truncatedOutputSuffix);
+	}
+
+	return {
+		value: state.lines.join('\n'),
+		didTruncate: state.didTruncate,
+	};
+}
+
+async function appendExpressionLines(expression: IExpression, depth: number, state: IDebugVariableSerializationState): Promise<void> {
+	if (state.nodeCount >= DebugValueSerializationLimit.MaxNodeCount) {
+		state.didTruncate = true;
+		return;
+	}
+
+	state.nodeCount++;
+	const indent = '  '.repeat(depth);
+	const typeSuffix = expression.type ? ` (${expression.type})` : '';
+	state.lines.push(`${indent}${expression.name}${typeSuffix}: ${formatExpressionValue(expression)}`);
+
+	if (!expression.hasChildren) {
+		return;
+	}
+
+	if (depth >= DebugValueSerializationLimit.MaxDepth) {
+		state.didTruncate = true;
+		return;
+	}
+
+	let children: IExpression[];
+	try {
+		children = await expression.getChildren();
+	} catch {
+		state.lines.push(`${indent}  Failed to load children`);
+		return;
+	}
+
+	const maxChildren = Math.min(children.length, DebugValueSerializationLimit.MaxChildrenPerNode);
+	for (let i = 0; i < maxChildren; i++) {
+		await appendExpressionLines(children[i], depth + 1, state);
+		if (state.nodeCount >= DebugValueSerializationLimit.MaxNodeCount) {
+			state.didTruncate = true;
+			break;
+		}
+	}
+
+	if (children.length > maxChildren) {
+		state.didTruncate = true;
+		state.lines.push(`${indent}  ... ${children.length - maxChildren} more children`);
+	}
 }
 
 export class DebugChatContextContribution extends Disposable implements IWorkbenchContribution {
@@ -376,7 +506,7 @@ registerAction2(class extends Action2 {
 		}
 
 		// Context is the variable from the variables view
-		const entry = createDebugVariableEntryFromContext(context);
+		const entry = await createDebugVariableEntryFromContext(context);
 		if (entry) {
 			const stackFrame = debugService.getViewModel().focusedStackFrame;
 			if (stackFrame) {
@@ -416,7 +546,7 @@ registerAction2(class extends Action2 {
 		if (stackFrame) {
 			widget.attachmentModel.addContext(createPausedLocationEntry(stackFrame));
 		}
-		widget.attachmentModel.addContext(createDebugVariableEntry(context));
+		widget.attachmentModel.addContext(await createSerializedDebugVariableEntry(context));
 	}
 });
 
@@ -457,7 +587,7 @@ registerAction2(class extends Action2 {
 			if (scope) {
 				const variables = await scope.getChildren();
 				widget.attachmentModel.addContext(createPausedLocationEntry(stackFrame));
-				widget.attachmentModel.addContext(createScopeEntry(scope, variables));
+				widget.attachmentModel.addContext(await createScopeEntry(scope, variables));
 			}
 		} catch {
 			// Ignore errors
@@ -478,10 +608,10 @@ function isVariablesContext(context: unknown): context is IVariablesContext {
 	return typeof context === 'object' && context !== null && 'variable' in context && 'sessionId' in context;
 }
 
-function createDebugVariableEntryFromContext(context: unknown): IDebugVariableEntry | undefined {
+async function createDebugVariableEntryFromContext(context: unknown): Promise<IDebugVariableEntry | undefined> {
 	// The context can be either a Variable directly, or an IVariablesContext object
 	if (context instanceof Variable) {
-		return createDebugVariableEntry(context);
+		return createSerializedDebugVariableEntry(context);
 	}
 
 	// Handle IVariablesContext format from the variables view
