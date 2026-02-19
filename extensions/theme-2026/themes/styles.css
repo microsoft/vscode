@@ -278,9 +278,6 @@
 }
 
 /* Context Menus */
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical {
-	border-radius: var(--radius-lg);
-}
 
 .monaco-workbench .context-view .monaco-menu {
 	box-shadow: var(--shadow-lg);
@@ -296,7 +293,6 @@
 }
 
 .monaco-workbench .monaco-menu-container > .monaco-scrollable-element {
-	border-radius: var(--radius-lg) !important;
 	box-shadow: var(--shadow-lg) !important;
 	background: color-mix(in srgb, var(--vscode-menu-background) 60%, transparent) !important;
 	backdrop-filter: var(--backdrop-blur-md);
@@ -316,7 +312,6 @@
 /* Suggest Widget */
 .monaco-workbench .monaco-editor .suggest-widget {
 	box-shadow: var(--shadow-lg);
-	border-radius: var(--radius-lg);
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 	background: color-mix(in srgb, var(--vscode-editorSuggestWidget-background) 60%, transparent) !important;
@@ -330,14 +325,11 @@
 /* Find Widget */
 .monaco-workbench .monaco-editor .find-widget {
 	box-shadow: var(--shadow-lg);
-	border-radius: var(--radius-lg);
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
-	margin-top: 4px !important;
 }
 
 .monaco-workbench .inline-chat-gutter-menu {
-	border-radius: var(--radius-lg);
 	box-shadow: var(--shadow-lg);
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
