@@ -2873,6 +2873,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}));
 
+		const countsContainer = dom.$('.working-set-line-counts');
+		button.element.appendChild(countsContainer);
+		countsContainer.appendChild(this._workingSetLinesAddedSpan.value);
+		countsContainer.appendChild(this._workingSetLinesRemovedSpan.value);
+
 		store.add(autorun(reader => {
 			const { files, added, removed, shouldShowEditingSession } = topLevelStats.read(reader);
 
@@ -2886,13 +2891,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._workingSetLinesAddedSpan.value.textContent = `+${added}`;
 			this._workingSetLinesRemovedSpan.value.textContent = `-${removed}`;
 
+			countsContainer.title = localize('chatEditingSession.lineCountsTooltip', '{0}, {1} lines added, {2} lines removed', buttonLabel, added, removed);
+
 			dom.setVisibility(shouldShowEditingSession, this.chatEditingSessionWidgetContainer);
 		}));
-
-		const countsContainer = dom.$('.working-set-line-counts');
-		button.element.appendChild(countsContainer);
-		countsContainer.appendChild(this._workingSetLinesAddedSpan.value);
-		countsContainer.appendChild(this._workingSetLinesRemovedSpan.value);
 
 		const toggleWorkingSet = () => {
 			this._workingSetCollapsed.set(!this._workingSetCollapsed.get(), undefined);
