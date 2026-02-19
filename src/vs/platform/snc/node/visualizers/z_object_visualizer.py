@@ -456,12 +456,21 @@ def visualize(obj, model=None):
             drag_end_event = repr(DragEnd(index=i))
 
             # Visual feedback during drag
-            is_drag_source = (model.get('drag_from_index') == i)
-            is_drag_target = (model.get('drag_from_index') is not None
-                              and model.get('drag_over_index') == i
-                              and model.get('drag_from_index') != i)
+            drag_from = model.get('drag_from_index')
+            drag_over = model.get('drag_over_index')
+            is_drag_source = (drag_from == i)
+            is_drag_target = (drag_from is not None
+                              and drag_over == i
+                              and drag_from != i)
             row_style = 'opacity:0.3;' if is_drag_source else ''
-            target_style = f'border-top:2px solid {BLUE};' if is_drag_target else ''
+            if is_drag_target:
+                # border-top when dragging up, border-bottom when dragging down
+                if drag_from > drag_over:
+                    target_style = f'border-top:2px solid {BLUE};'
+                else:
+                    target_style = f'border-bottom:2px solid {BLUE};'
+            else:
+                target_style = ''
 
             field_trs.append(
                 f'<tr class="snc-hover-hidden-parent" '
