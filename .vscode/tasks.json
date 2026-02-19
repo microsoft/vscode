@@ -26,7 +26,7 @@
 					"message": 4
 				},
 				"background": {
-					"beginsPattern": "Starting transpilation...",
+					"beginsPattern": "Starting transpilation\\.\\.\\.",
 					"endsPattern": "Finished transpilation with"
 				}
 			}

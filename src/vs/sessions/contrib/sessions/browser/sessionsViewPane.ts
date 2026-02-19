@@ -11,7 +11,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -44,7 +44,6 @@ import { getCustomizationTotalCount } from './customizationCounts.js';
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
 const SessionsViewFilterSubMenu = new MenuId('AgentSessionsViewFilterSubMenu');
-const SessionsViewHeaderMenu = new MenuId('AgentSessionsViewHeaderMenu');
 
 const CUSTOMIZATIONS_COLLAPSED_KEY = 'agentSessions.customizationsCollapsed';
 
@@ -88,17 +87,14 @@ export class AgenticSessionsViewPane extends ViewPane {
 	private createControls(parent: HTMLElement): void {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 
+		// Sessions Filter (actions go to view title bar via menu registration)
+		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
+			filterMenuId: SessionsViewFilterSubMenu,
+			groupResults: () => AgentSessionsGrouping.Date
+		}));
+
 		// Sessions section (top, fills available space)
 		const sessionsSection = DOM.append(sessionsContainer, $('.agent-sessions-section'));
-
-		// Sessions header with title and toolbar actions
-		const sessionsHeader = DOM.append(sessionsSection, $('.agent-sessions-header'));
-		const headerText = DOM.append(sessionsHeader, $('span'));
-		headerText.textContent = localize('sessions', "SESSIONS");
-		const headerToolbarContainer = DOM.append(sessionsHeader, $('.agent-sessions-header-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, headerToolbarContainer, SessionsViewHeaderMenu, {
-			menuOptions: { shouldForwardArgs: true },
-		}));
 
 		// Sessions content container
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
@@ -115,12 +111,6 @@ export class AgenticSessionsViewPane extends ViewPane {
 			const keybindingHint = DOM.append(newSessionButton.element, $('span.new-session-keybinding-hint'));
 			keybindingHint.textContent = keybinding.getLabel() ?? '';
 		}
-
-		// Sessions filter: contributes filter actions via SessionsViewFilterSubMenu; actions are rendered in the sessions header toolbar (SessionsViewHeaderMenu)
-		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
-			filterMenuId: SessionsViewFilterSubMenu,
-			groupResults: () => AgentSessionsGrouping.Date
-		}));
 
 		// Sessions Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
@@ -297,12 +287,13 @@ KeybindingsRegistry.registerKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 });
 
-MenuRegistry.appendMenuItem(SessionsViewHeaderMenu, {
+MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	submenu: SessionsViewFilterSubMenu,
 	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
 	group: 'navigation',
 	order: 3,
 	icon: Codicon.filter,
+	when: ContextKeyExpr.equals('view', SessionsViewId)
 } satisfies ISubmenuItem);
 
 registerAction2(class RefreshAgentSessionsViewerAction extends Action2 {
@@ -311,11 +302,8 @@ registerAction2(class RefreshAgentSessionsViewerAction extends Action2 {
 			id: 'sessionsView.refresh',
 			title: localize2('refresh', "Refresh Agent Sessions"),
 			icon: Codicon.refresh,
-			menu: [{
-				id: SessionsViewHeaderMenu,
-				group: 'navigation',
-				order: 1,
-			}],
+			f1: true,
+			category: localize2('sessionsViewCategory', "Agent Sessions"),
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -333,9 +321,10 @@ registerAction2(class FindAgentSessionInViewerAction extends Action2 {
 			title: localize2('find', "Find Agent Session"),
 			icon: Codicon.search,
 			menu: [{
-				id: SessionsViewHeaderMenu,
+				id: MenuId.ViewTitle,
 				group: 'navigation',
 				order: 2,
+				when: ContextKeyExpr.equals('view', SessionsViewId),
 			}]
 		});
 	}

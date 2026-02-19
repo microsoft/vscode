@@ -1189,6 +1189,9 @@ export class NewChatViewPane extends ViewPane {
 	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
 		this._widget?.setVisible(visible);
+		if (visible) {
+			this._widget?.focusInput();
+		}
 	}
 }
 

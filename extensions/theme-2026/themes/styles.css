@@ -30,7 +30,7 @@
 /* Stealth Shadows - shadow-based depth for UI elements, controlled by workbench.stealthShadows.enabled */
 
 /* Activity Bar */
-.monaco-workbench .part.activitybar {
+.monaco-workbench.vs .part.activitybar {
 	z-index: 50;
 	position: relative;
 }
@@ -44,55 +44,54 @@
 }
 
 /* Sidebar */
-.monaco-workbench .part.sidebar {
+.monaco-workbench.vs .part.sidebar {
 	box-shadow: var(--shadow-md);
 	z-index: 40;
 	position: relative;
 }
 
-.monaco-workbench.sidebar-right .part.sidebar {
+.monaco-workbench.sidebar-right.vs .part.sidebar {
 	box-shadow: var(--shadow-md);
 }
 
-.monaco-workbench .part.auxiliarybar {
+.monaco-workbench.vs .part.auxiliarybar {
 	box-shadow: var(--shadow-md);
 	z-index: 35;
 	position: relative;
 }
 
 /* Ensure iframe containers in pane-body render above sidebar z-index */
-.monaco-workbench > div[data-keybinding-context] {
+.monaco-workbench.vs > div[data-keybinding-context] {
 	z-index: 50 !important;
 }
 
 /* Ensure in-editor pane iframes render below sidebar z-index */
-.monaco-workbench > div[data-parent-flow-to-element-id] {
+.monaco-workbench.vs > div[data-parent-flow-to-element-id] {
 	z-index: 0 !important;
 }
 
 
 /* Ensure webview containers render above sidebar z-index */
-.monaco-workbench .part.sidebar .webview,
-.monaco-workbench .part.sidebar .webview-container,
-.monaco-workbench .part.auxiliarybar .webview,
-.monaco-workbench .part.auxiliarybar .webview-container {
+.monaco-workbench.vs .part.sidebar .webview,
+.monaco-workbench.vs .part.sidebar .webview-container,
+.monaco-workbench.vs .part.auxiliarybar .webview,
+.monaco-workbench.vs .part.auxiliarybar .webview-container {
 	position: relative;
 	z-index: 50;
 	transform: translateZ(0);
 }
 
 /* Panel */
-.monaco-workbench .part.panel {
+.monaco-workbench.vs .part.panel {
 	box-shadow: var(--shadow-md);
-	/* z-index: 35; */
 	position: relative;
 }
 
-.monaco-workbench.panel-position-left .part.panel {
+.monaco-workbench.panel-position-left.vs .part.panel {
 	box-shadow: var(--shadow-md);
 }
 
-.monaco-workbench.panel-position-right .part.panel {
+.monaco-workbench.panel-position-right.vs .part.panel {
 	box-shadow: var(--shadow-md);
 }
 
@@ -101,42 +100,40 @@
 }
 
 /* Sashes - ensure they extend full height and are above other panels */
-.monaco-workbench .monaco-sash {
+.monaco-workbench.vs .monaco-sash {
 	z-index: 35;
 }
 
-.monaco-workbench .monaco-sash.vertical {
+.monaco-workbench.vs .monaco-sash.vertical {
 	z-index: 40;
 }
 
-.monaco-workbench .monaco-sash.vertical:nth-child(2) {
+.monaco-workbench.vs .monaco-sash.vertical:nth-child(2) {
 	z-index: 45;
 }
 
-.monaco-workbench .monaco-sash.horizontal {
+.monaco-workbench.vs .monaco-sash.horizontal {
 	z-index: 35;
 }
 
 /* Editor */
-.monaco-workbench .part.editor {
+.monaco-workbench.vs .part.editor {
 	position: relative;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title {
+.monaco-workbench.vs .part.editor > .content .editor-group-container > .title {
 	box-shadow: none;
 	position: relative;
 	z-index: 10;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
 	box-shadow: inset var(--shadow-active-tab);
 	position: relative;
 	z-index: 5;
-	border-radius: 0;
-	border-top: none !important;
 }
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover:not(.active) {
+.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover:not(.active) {
 	box-shadow: var(--shadow-sm);
 }
 
@@ -152,14 +149,6 @@
 /* Title Bar */
 .monaco-workbench.vs .part.titlebar {
 	box-shadow: var(--shadow-md);
-}
-
-.monaco-workbench .part.titlebar.inactive {
-	background: var(--vscode-titleBar-inactiveBackground) !important;
-
-	& > * {
-		opacity: 0.3;
-	}
 }
 
 /* Quick Input (Command Palette) */
@@ -211,15 +200,12 @@
 	display: flex;
 	align-items: center;
 	font-size: 11px;
-	padding: 0 4px 1px 4px;
+	padding: 0 4px;
 	border-radius: var(--vscode-cornerRadius-small) !important;
-	background: color-mix(in srgb, var(--vscode-badge-background) 70%, transparent) !important;
-	color: var(--vscode-badge-foreground) !important;
+	background: transparent !important;
+	color: var(--vscode-descriptionForeground) !important;
+	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent) !important;
 	margin-right: 8px;
-}
-
-.monaco-workbench.vs-dark .quick-input-list .quick-input-list-entry .quick-input-list-separator {
-	background: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent) !important;
 }
 
 .monaco-workbench .monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator,
@@ -227,6 +213,7 @@
 .monaco-workbench .monaco-list-row:hover .quick-input-list-entry .quick-input-list-separator {
 	background: transparent !important;
 	color: inherit !important;
+	border: none !important;
 	padding: 0;
 }
 
@@ -250,8 +237,11 @@
 
 /* Chat Widget */
 .monaco-workbench .interactive-session .chat-input-container {
-	box-shadow: inset var(--shadow-sm);
 	border-radius: var(--radius-lg);
+}
+
+.monaco-workbench.vs .interactive-session .chat-input-container {
+	box-shadow: inset var(--shadow-sm);
 }
 
 .monaco-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
@@ -448,11 +438,9 @@
 
 .monaco-workbench .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
 	border-radius: var(--radius-sm);
-	background: color-mix(in srgb, var(--vscode-badge-background) 70%, transparent) !important;
-}
-
-.monaco-workbench.vs-dark .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
-	background: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent) !important;
+	background: transparent !important;
+	color: var(--vscode-descriptionForeground) !important;
+	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent) !important;
 }
 
 /* Welcome Tiles */
