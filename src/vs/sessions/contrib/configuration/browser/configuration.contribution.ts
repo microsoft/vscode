@@ -36,6 +36,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.allowOpenInModalEditor': false,
 		'window.menuStyle': 'custom',
+		'window.dialogStyle': 'custom',
 
 		'terminal.integrated.initialHint': false
 	},
