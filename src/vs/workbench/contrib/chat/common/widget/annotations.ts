@@ -31,17 +31,31 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 				}
 			}
 
-			const refId = refIdPool++;
-			const printUri = URI.parse(contentRefUrl).with({ path: String(refId) });
-			const markdownText = `[${label}](${printUri.toString()})`;
-
-			const annotationMetadata = { [refId]: item };
-
-			if (previousItem?.kind === 'markdownContent') {
-				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
-				result[previousItemIndex] = { ...previousItem, content: merged, inlineReferences: { ...annotationMetadata, ...(previousItem.inlineReferences || {}) } };
+			// When the preceding markdown ends inside a code context (inline code span
+			// or fenced code block), markdown links won't be parsed, they render as
+			// literal text like [file](http://_vscodecontentref_/1). In that case, emit
+			// just the plain label so the output stays readable.
+			const previousText = previousItem?.kind === 'markdownContent' ? previousItem.content.value : '';
+			if (isInsideCodeContext(previousText)) {
+				if (previousItem?.kind === 'markdownContent') {
+					const merged = appendMarkdownString(previousItem.content, new MarkdownString(label));
+					result[previousItemIndex] = { ...previousItem, content: merged };
+				} else {
+					result.push({ content: new MarkdownString(label), kind: 'markdownContent' });
+				}
 			} else {
-				result.push({ content: new MarkdownString(markdownText), inlineReferences: annotationMetadata, kind: 'markdownContent' });
+				const refId = refIdPool++;
+				const printUri = URI.parse(contentRefUrl).with({ path: String(refId) });
+				const markdownText = `[${label}](${printUri.toString()})`;
+
+				const annotationMetadata = { [refId]: item };
+
+				if (previousItem?.kind === 'markdownContent') {
+					const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
+					result[previousItemIndex] = { ...previousItem, content: merged, inlineReferences: { ...annotationMetadata, ...(previousItem.inlineReferences || {}) } };
+				} else {
+					result.push({ content: new MarkdownString(markdownText), inlineReferences: annotationMetadata, kind: 'markdownContent' });
+				}
 			}
 		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && canMergeMarkdownStrings(previousItem.content, item.content)) {
 			const merged = appendMarkdownString(previousItem.content, item.content);
@@ -72,6 +86,98 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 	}
 
 	return result;
+}
+
+/**
+ * Checks whether the end of a markdown string is inside a code context
+ * (fenced code block or inline code span) where markdown link syntax
+ * would be rendered as literal text.
+ */
+export function isInsideCodeContext(text: string): boolean {
+	const lines = text.split('\n');
+	let inFencedBlock = false;
+	let fenceChar = '';
+	let fenceLength = 0;
+	const unfencedLines: string[] = [];
+
+	for (const line of lines) {
+		const trimmed = line.trimStart();
+
+		if (inFencedBlock) {
+			// Check for closing fence: same char, at least same length, only whitespace after
+			const closeLength = countLeadingChar(trimmed, fenceChar);
+			if (closeLength >= fenceLength && trimmed.substring(closeLength).trim() === '') {
+				inFencedBlock = false;
+				unfencedLines.length = 0;
+			}
+			continue;
+		}
+
+		// Check for opening fence (3+ backticks or tildes at start of line)
+		const firstChar = trimmed[0];
+		if (firstChar === '`' || firstChar === '~') {
+			const openLength = countLeadingChar(trimmed, firstChar);
+			// Backtick fences: info string must not contain backticks
+			if (openLength >= 3 && (firstChar === '~' || !trimmed.substring(openLength).includes('`'))) {
+				inFencedBlock = true;
+				fenceChar = firstChar;
+				fenceLength = openLength;
+				unfencedLines.length = 0;
+				continue;
+			}
+		}
+
+		unfencedLines.push(line);
+	}
+
+	return inFencedBlock || hasUnclosedInlineCode(unfencedLines.join('\n'));
+}
+
+function countLeadingChar(text: string, char: string): number {
+	let count = 0;
+	while (count < text.length && text[count] === char) {
+		count++;
+	}
+	return count;
+}
+
+/**
+ * Checks whether the text has an unclosed inline code span.
+ * In CommonMark, a code span opens with a backtick sequence of length N
+ * and closes with the next backtick sequence of the same length N.
+ */
+function hasUnclosedInlineCode(text: string): boolean {
+	let i = 0;
+	while (i < text.length) {
+		if (text[i] !== '`') {
+			i++;
+			continue;
+		}
+
+		const openLen = countLeadingChar(text.substring(i), '`');
+		i += openLen;
+
+		// Search for a matching closing backtick sequence of the same length
+		let found = false;
+		while (i < text.length) {
+			if (text[i] !== '`') {
+				i++;
+				continue;
+			}
+			const closeLen = countLeadingChar(text.substring(i), '`');
+			i += closeLen;
+			if (closeLen === openLen) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 export interface IMarkdownVulnerability {
