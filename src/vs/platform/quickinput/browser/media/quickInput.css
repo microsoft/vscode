@@ -97,6 +97,10 @@
 	padding: 6px 6px 4px 6px;
 }
 
+.quick-input-widget .quick-input-filter .monaco-inputbox {
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
 .quick-input-widget.hidden-input .quick-input-header {
 	/* reduce margins and paddings when input box hidden */
 	padding: 0;

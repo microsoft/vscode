@@ -202,7 +202,7 @@
 
 .monaco-workbench .quick-input-widget .quick-input-filter .monaco-inputbox {
 	background: color-mix(in srgb, var(--vscode-input-background) 60%, transparent) !important;
-	border-radius: 6px;
+	/* border-radius: 6px; */
 }
 
 /* Chat Widget */
