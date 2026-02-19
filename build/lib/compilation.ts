@@ -199,7 +199,10 @@ export function watchTypeCheckTask(src: string): task.StreamTask {
 			const stream = createTsgoStream(projectPath, { taskName: 'watch-client-noEmit', noEmit: true });
 			const result = es.through();
 			stream.on('end', () => result.emit('end'));
-			stream.on('error', () => result.emit('end'));
+			stream.on('error', err => {
+				fancyLog.error(ansiColors.red('[tsgo] watch-client-noEmit failed'), err);
+				result.emit('end');
+			});
 			return result;
 		}));
 		return tsgoStream;
