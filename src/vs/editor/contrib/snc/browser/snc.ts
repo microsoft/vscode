@@ -113,11 +113,11 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			this.dispatch_as_python_event('snc-mouse-up', ev);
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (ev: KeyboardEvent) => {
-			// For input/textarea elements, only dispatch Enter/Escape (to close dropdowns etc.)
+			// For input/textarea elements, only dispatch certain keys to Python.
 			// Other keys should still type normally, but must not bubble to VS Code.
 			const target = ev.target as HTMLElement;
 			if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-				if (ev.key !== 'Enter' && ev.key !== 'Escape') {
+				if (ev.key !== 'Enter' && ev.key !== 'Escape' && ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') {
 					ev.stopPropagation();
 					return;
 				}
@@ -343,9 +343,10 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 					}
 				}
 
-				// Autofocus takes priority: focus the [autofocus] element if present
-				// (used by visualizers to focus newly created inputs)
-				if (autoFocusEl) {
+				// Autofocus: focus the [autofocus] element only when no existing focus
+				// to restore (i.e. the input just appeared). When focusedIndex >= 0,
+				// the normal path preserves cursor position in already-focused inputs.
+				if (autoFocusEl && focusedIndex < 0) {
 					autoFocusEl.focus({ preventScroll: true });
 					// Select all text if requested (e.g. editing an existing field)
 					if (autoFocusEl.hasAttribute('data-snc-select-all') && autoFocusEl instanceof HTMLInputElement) {
