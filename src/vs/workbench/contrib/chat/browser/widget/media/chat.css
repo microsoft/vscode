@@ -846,6 +846,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
+	transition: opacity 0.2s ease-in-out;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-list {
+	transition: max-height 0.2s ease-in-out, opacity 0.15s ease-in-out;
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container:has(.chat-todo-list-widget.has-todos) + .chat-editing-session .chat-editing-session-container {
@@ -899,33 +904,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* Inline added/removed line count styling */
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts {
 	display: inline-flex;
-	gap: 4px;
-	margin-left: 6px;
+	gap: 6px;
+	margin-left: 8px;
 	font-size: 11px;
-	font-weight: 500;
+	font-weight: 600;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
+	color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green));
+	font-weight: 600;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview .working-set-line-counts .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
+	color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red));
+	font-weight: 600;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts {
 	margin: 0 6px;
 	display: inline-flex;
-	gap: 4px;
+	gap: 6px;
 	font-size: 11px;
+	font-weight: 600;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts .working-set-lines-added {
-	color: var(--vscode-chat-linesAddedForeground);
+	color: var(--vscode-gitDecoration-addedResourceForeground, var(--vscode-charts-green));
+	font-weight: 600;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts .working-set-lines-removed {
-	color: var(--vscode-chat-linesRemovedForeground);
+	color: var(--vscode-gitDecoration-deletedResourceForeground, var(--vscode-charts-red));
+	font-weight: 600;
 }
 
 .interactive-session .chat-editing-session .working-set-title {
@@ -1197,6 +1207,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	scroll-behavior: smooth;
 	scroll-padding-top: 24px;
 	/* Half item height to show partial next item */
+	transition: max-height 0.2s ease-in-out, opacity 0.15s ease-in-out;
+}
+
+.interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .expand-icon {
+	transition: transform 0.15s ease-in-out;
+}
 	scroll-padding-bottom: 24px;
 	/* Half item height to show partial previous item */
 }
@@ -1420,6 +1436,70 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
 	color: var(--vscode-icon-foreground) !important;
+}
+
+/* Chat Queue Picker Split-Button Improvements */
+.monaco-action-bar .chat-queue-picker.monaco-dropdown-with-default {
+	position: relative;
+}
+
+/* Visual separator between primary button and dropdown */
+.monaco-action-bar .chat-queue-picker.monaco-dropdown-with-default .queue-picker-separator {
+	width: 1px;
+	height: 16px;
+	background-color: var(--vscode-button-separator);
+	opacity: 0.4;
+	align-self: center;
+	margin: 0 1px;
+}
+
+.monaco-action-bar .chat-queue-picker.monaco-dropdown-with-default:hover .queue-picker-separator {
+	opacity: 0.6;
+}
+
+/* Queue depth badge */
+.monaco-action-bar .chat-queue-picker .queue-depth-badge {
+	position: absolute;
+	top: -4px;
+	right: -4px;
+	min-width: 16px;
+	height: 16px;
+	border-radius: 8px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 10px;
+	font-weight: 600;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	padding: 0 4px;
+	box-sizing: border-box;
+	z-index: 1;
+	pointer-events: none;
+}
+
+/* Improved focus ring styles for keyboard navigation */
+.monaco-action-bar .chat-queue-picker .action-container:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	border-radius: 4px;
+}
+
+.monaco-action-bar .chat-queue-picker .dropdown-action-container:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	border-radius: 4px;
+}
+
+/* Distinct hover states for primary and dropdown sections */
+.monaco-action-bar .chat-queue-picker .action-container:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: 4px 0 0 4px;
+}
+
+.monaco-action-bar .chat-queue-picker .dropdown-action-container:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	border-radius: 0 4px 4px 0;
 }
 
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,

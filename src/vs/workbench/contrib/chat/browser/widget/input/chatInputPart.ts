@@ -95,6 +95,7 @@ import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { IChatTodoListService } from '../../../common/tools/chatTodoListService.js';
 import { ChatHistoryNavigator } from '../../../common/widget/chatWidgetHistoryService.js';
 import { ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenDelegationPickerAction, OpenModelPickerAction, OpenModePickerAction, OpenSessionTargetPickerAction, OpenWorkspacePickerAction } from '../../actions/chatExecuteActions.js';
 import { AgentSessionProviders, getAgentSessionProvider } from '../../agentSessions/agentSessions.js';
@@ -511,6 +512,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 	) {
 		super();
 
@@ -2876,9 +2878,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		store.add(autorun(reader => {
 			const { files, added, removed, shouldShowEditingSession } = topLevelStats.read(reader);
 
-			const buttonLabel = files === 1
+			// Get todo list info if todos are visible
+			let todoSummary = '';
+			if (sessionResource) {
+				const todos = this.chatTodoListService.getTodos(sessionResource);
+				if (todos.length > 0) {
+					const completedCount = todos.filter(t => t.status === 'completed').length;
+					const totalCount = todos.length;
+					todoSummary = localize('chatEditingSession.todos', '{0}/{1} tasks • ', completedCount, totalCount);
+				}
+			}
+
+			const fileLabel = files === 1
 				? localize('chatEditingSession.oneFile', '1 file changed')
 				: localize('chatEditingSession.manyFiles', '{0} files changed', files);
+
+			const buttonLabel = todoSummary + fileLabel;
 
 			button.label = buttonLabel;
 			button.element.setAttribute('aria-label', localize('chatEditingSession.ariaLabelWithCounts', '{0}, {1} lines added, {2} lines removed', buttonLabel, added, removed));

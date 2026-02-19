@@ -27,6 +27,7 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatSubmitAction } from '../../actions/chatExecuteActions.js';
 import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../actions/chatQueueActions.js';
+import { IChatWidgetService } from '../../chat.js';
 
 /**
  * Split-button action view item for the queue/steer picker in the chat execute toolbar.
@@ -42,6 +43,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	private readonly _primaryActionAction: Action;
 	private readonly _primaryAction: ActionViewItem;
 	private readonly _dropdown: ActionWidgetDropdownActionViewItem;
+	private _queueDepthBadge: HTMLElement | undefined;
 
 	constructor(
 		action: IAction,
@@ -52,6 +54,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(undefined, action);
 
@@ -60,7 +63,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 		// Primary action - runs the current default (queue or steer)
 		this._primaryActionAction = this._register(new Action(
 			'chat.queuePickerPrimary',
-			isSteerDefault ? localize('chat.steerWithMessage', "Steer with Message") : localize('chat.queueMessage', "Add to Queue"),
+			isSteerDefault ? localize('chat.sendNow', "Send Now (interrupt)") : localize('chat.sendNext', "Send Next (after current)"),
 			ThemeIcon.asClassName(Codicon.arrowUp),
 			!!contextKeyService.getContextKeyValue(ChatContextKeys.inputHasText.key),
 			() => this._runDefaultAction()
@@ -100,24 +103,53 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	private _updatePrimaryAction(): void {
 		const isSteerDefault = this._isSteerDefault();
 		this._primaryActionAction.label = isSteerDefault
-			? localize('chat.steerWithMessage', "Steer with Message")
-			: localize('chat.queueMessage', "Add to Queue");
+			? localize('chat.sendNow', "Send Now (interrupt)")
+			: localize('chat.sendNext', "Send Next (after current)");
+		this._updateQueueDepthBadge();
+	}
+
+	private _updateQueueDepthBadge(): void {
+		if (!this._queueDepthBadge) {
+			return;
+		}
+
+		const widget = this.chatWidgetService.lastFocusedWidget;
+		const model = widget?.viewModel?.model;
+		const pendingCount = model?.getPendingRequests().length ?? 0;
+
+		if (pendingCount > 0) {
+			this._queueDepthBadge.textContent = String(pendingCount);
+			this._queueDepthBadge.style.display = 'flex';
+			this._queueDepthBadge.setAttribute('aria-label', localize('chat.queueDepth', '{0} message(s) queued', pendingCount));
+		} else {
+			this._queueDepthBadge.style.display = 'none';
+		}
 	}
 
 	private _runDefaultAction(): void {
 		const actionId = this._isSteerDefault()
 			? ChatSteerWithMessageAction.ID
 			: ChatQueueMessageAction.ID;
-		this.commandService.executeCommand(actionId);
+		this.commandService.executeCommand(actionId).then(() => {
+			// Update badge after the action completes
+			setTimeout(() => this._updateQueueDepthBadge(), 100);
+		});
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('monaco-dropdown-with-default');
+		container.classList.add('chat-queue-picker');
 
 		// Primary action button
 		const primaryContainer = $('.action-container');
 		this._primaryAction.render(append(container, primaryContainer));
+
+		// Queue depth badge
+		this._queueDepthBadge = append(primaryContainer, $('.queue-depth-badge'));
+		this._queueDepthBadge.setAttribute('role', 'status');
+		this._updateQueueDepthBadge();
+
 		this._register(addDisposableListener(primaryContainer, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {
@@ -126,6 +158,10 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
+
+		// Visual separator
+		const separator = $('.queue-picker-separator');
+		append(container, separator);
 
 		// Dropdown arrow button
 		const dropdownContainer = $('.dropdown-action-container');
@@ -161,46 +197,52 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	private _getDropdownActions(): IActionWidgetDropdownAction[] {
 		const queueAction: IActionWidgetDropdownAction = {
 			id: ChatQueueMessageAction.ID,
-			label: localize('chat.queueMessage', "Add to Queue"),
+			label: localize('chat.sendNext', "Send Next (after current)"),
 			tooltip: '',
 			enabled: true,
 			icon: Codicon.add,
 			class: undefined,
 			hover: {
-				content: localize('chat.queueMessage.hover', "Queue this message to send after the current request completes. The current response will finish uninterrupted before the queued message is sent."),
+				content: localize('chat.sendNext.hover', "Queue this message to send after the current request completes. The current response will finish uninterrupted before the queued message is sent."),
 			},
 			run: () => {
-				this.commandService.executeCommand(ChatQueueMessageAction.ID);
+				this.commandService.executeCommand(ChatQueueMessageAction.ID).then(() => {
+					setTimeout(() => this._updateQueueDepthBadge(), 100);
+				});
 			}
 		};
 
 		const steerAction: IActionWidgetDropdownAction = {
 			id: ChatSteerWithMessageAction.ID,
-			label: localize('chat.steerWithMessage', "Steer with Message"),
+			label: localize('chat.sendNow', "Send Now (interrupt)"),
 			tooltip: '',
 			enabled: true,
 			icon: Codicon.arrowRight,
 			class: undefined,
 			hover: {
-				content: localize('chat.steerWithMessage.hover', "Send this message at the next opportunity, signaling the current request to yield. The current response will stop and the new message will be sent immediately."),
+				content: localize('chat.sendNow.hover', "Send this message at the next opportunity, signaling the current request to yield. The current response will stop and the new message will be sent immediately."),
 			},
 			run: () => {
-				this.commandService.executeCommand(ChatSteerWithMessageAction.ID);
+				this.commandService.executeCommand(ChatSteerWithMessageAction.ID).then(() => {
+					setTimeout(() => this._updateQueueDepthBadge(), 100);
+				});
 			}
 		};
 
 		const sendAction: IActionWidgetDropdownAction = {
 			id: '_' + ChatSubmitAction.ID, // _ to avoid showing a keybinding which is not valid in this context
-			label: localize('chat.sendImmediately', "Stop and Send"),
+			label: localize('chat.cancelAndSend', "Cancel & Send"),
 			tooltip: '',
 			enabled: true,
 			icon: Codicon.arrowUp,
 			class: undefined,
 			hover: {
-				content: localize('chat.sendImmediately.hover', "Cancel the current request and send this message immediately."),
+				content: localize('chat.cancelAndSend.hover', "Cancel the current request and send this message immediately."),
 			},
 			run: () => {
-				this.commandService.executeCommand(ChatSubmitAction.ID);
+				this.commandService.executeCommand(ChatSubmitAction.ID).then(() => {
+					setTimeout(() => this._updateQueueDepthBadge(), 100);
+				});
 			}
 		};
 
