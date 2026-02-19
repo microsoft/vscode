@@ -3,27 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
+import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { Button } from '../../../base/browser/ui/button/button.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
 import { IAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { URI } from '../../../base/common/uri.js';
 import './actionWidget.css';
 import { localize } from '../../../nls.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
-import { defaultButtonStyles, defaultListStyles } from '../../theme/browser/defaultStyles.js';
+import { IOpenerService } from '../../opener/common/opener.js';
+import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IHoverService } from '../../hover/browser/hover.js';
-import { MarkdownString } from '../../../base/common/htmlContent.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverPositionOptions, IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
 
@@ -44,7 +46,7 @@ export interface IActionListItemHover {
 	/**
 	 * Content to display in the hover.
 	 */
-	readonly content?: string;
+	readonly content?: string | MarkdownString;
 
 	readonly position?: IHoverPositionOptions;
 }
@@ -55,7 +57,7 @@ export interface IActionListItem<T> {
 	readonly group?: { kind?: unknown; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
-	readonly description?: string;
+	readonly description?: string | IMarkdownString;
 	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
@@ -87,11 +89,6 @@ export interface IActionListItem<T> {
 	 * Optional badge text to display after the label (e.g., "New").
 	 */
 	readonly badge?: string;
-	/**
-	 * When set, the description is rendered as a primary button.
-	 * The callback is invoked when the button is clicked.
-	 */
-	readonly descriptionButton?: { readonly label: string; readonly onDidClick: () => void };
 }
 
 interface IActionMenuTemplateData {
@@ -172,7 +169,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 	constructor(
 		private readonly _supportsPreview: boolean,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IActionMenuTemplateData {
@@ -247,23 +245,23 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.badge.style.display = 'none';
 		}
 
-		// if there is a keybinding, prioritize over description for now
-		if (element.descriptionButton) {
-			data.description!.textContent = '';
-			data.description!.style.display = 'inline';
-			const button = new Button(data.description!, { ...defaultButtonStyles, small: true });
-			button.label = element.descriptionButton.label;
-			data.elementDisposables.add(button.onDidClick(e => {
-				e?.stopPropagation();
-				element.descriptionButton!.onDidClick();
-			}));
-			data.elementDisposables.add(button);
-		} else if (element.keybinding) {
+		if (element.keybinding) {
 			data.description!.textContent = element.keybinding.getLabel();
 			data.description!.style.display = 'inline';
 			data.description!.style.letterSpacing = '0.5px';
 		} else if (element.description) {
-			data.description!.textContent = stripNewlines(element.description);
+			dom.clearNode(data.description!);
+			if (typeof element.description === 'string') {
+				data.description!.textContent = stripNewlines(element.description);
+			} else {
+				const rendered = renderMarkdown(element.description, {
+					actionHandler: (content: string) => {
+						this._openerService.open(URI.parse(content), { allowCommands: true });
+					}
+				});
+				data.elementDisposables.add(rendered);
+				data.description!.appendChild(rendered.element);
+			}
 			data.description!.style.display = 'inline';
 		} else {
 			data.description!.textContent = '';
@@ -272,7 +270,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		const actionTitle = this._keybindingService.lookupKeybinding(acceptSelectedActionCommand)?.getLabel();
 		const previewTitle = this._keybindingService.lookupKeybinding(previewSelectedActionCommand)?.getLabel();
-		data.container.classList.toggle('option-disabled', element.disabled);
+		data.container.classList.toggle('option-disabled', !!element.disabled);
 		if (element.hover !== undefined) {
 			// Don't show tooltip when hover content is configured - the rich hover will show instead
 			data.container.title = '';
@@ -363,6 +361,7 @@ export class ActionList<T> extends Disposable {
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
 	private _lastMinWidth = 0;
+	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 
 	constructor(
@@ -376,6 +375,7 @@ export class ActionList<T> extends Disposable {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IHoverService private readonly _hoverService: IHoverService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 		this.domNode = document.createElement('div');
@@ -404,7 +404,7 @@ export class ActionList<T> extends Disposable {
 
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
+			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -416,7 +416,8 @@ export class ActionList<T> extends Disposable {
 					if (element.kind === ActionListItemKind.Action) {
 						let label = element.label ? stripNewlines(element?.label) : '';
 						if (element.description) {
-							label = label + ', ' + stripNewlines(element.description);
+							const descText = typeof element.description === 'string' ? element.description : element.description.value;
+							label = label + ', ' + stripNewlines(descText);
 						}
 						if (element.disabled) {
 							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
@@ -508,10 +509,10 @@ export class ActionList<T> extends Disposable {
 		} else {
 			this._collapsedSections.add(section);
 		}
-		this._applyFilter();
+		this._applyFilter(true);
 	}
 
-	private _applyFilter(): void {
+	private _applyFilter(reposition?: boolean): void {
 		const filterLower = this._filterText.toLowerCase();
 		const isFiltering = filterLower.length > 0;
 		const visible: IActionListItem<T>[] = [];
@@ -542,7 +543,8 @@ export class ActionList<T> extends Disposable {
 				}
 				// Match against label and description
 				const label = (item.label ?? '').toLowerCase();
-				const desc = (item.description ?? '').toLowerCase();
+				const descValue = typeof item.description === 'string' ? item.description : item.description?.value ?? '';
+				const desc = descValue.toLowerCase();
 				if (label.includes(filterLower) || desc.includes(filterLower)) {
 					visible.push(item);
 				}
@@ -577,12 +579,14 @@ export class ActionList<T> extends Disposable {
 			// otherwise the blur handler in ActionWidgetService closes the widget.
 			// Keep focus on the filter input if the user is typing a filter.
 			if (filterInputHasFocus) {
-				this._filterInput!.focus();
+				this._filterInput?.focus();
 			} else {
 				this._list.domFocus();
 			}
 			// Reposition the context view so the widget grows in the correct direction
-			this._contextViewService.layout();
+			if (reposition) {
+				this._contextViewService.layout();
+			}
 		}
 	}
 
@@ -598,6 +602,14 @@ export class ActionList<T> extends Disposable {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
+	focus(): void {
+		if (this._filterInput) {
+			this._filterInput.focus();
+		} else {
+			this._list.domFocus();
+		}
+	}
+
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
 		this.cts.cancel();
@@ -605,9 +617,7 @@ export class ActionList<T> extends Disposable {
 		this._contextViewService.hideContextView();
 	}
 
-	layout(minWidth: number): number {
-		this._hasLaidOut = true;
-		this._lastMinWidth = minWidth;
+	private computeHeight(): number {
 		// Compute height based on currently visible items in the list
 		const visibleCount = this._list.length;
 		let listHeight = 0;
@@ -626,16 +636,53 @@ export class ActionList<T> extends Disposable {
 			}
 		}
 
-		this._list.layout(listHeight);
+		const filterHeight = this._filterContainer ? 36 : 0;
+		const padding = 10;
+		const targetWindow = dom.getWindow(this.domNode);
+		const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;
+		const widgetTop = this.domNode.getBoundingClientRect().top;
+		const availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
+		const maxHeight = Math.max(availableHeight, this._actionLineHeight * 3 + filterHeight);
+		const height = Math.min(listHeight + filterHeight, maxHeight);
+		return height - filterHeight;
+	}
+
+	private computeMaxWidth(minWidth: number): number {
+		const visibleCount = this._list.length;
 		const effectiveMinWidth = Math.max(minWidth, this._options?.minWidth ?? 0);
 		let maxWidth = effectiveMinWidth;
 
-		if (visibleCount >= 50) {
-			maxWidth = Math.max(380, effectiveMinWidth);
-		} else {
-			// For finding width dynamically (not using resize observer)
-			const itemWidths: number[] = [];
+		const totalItemCount = this._allMenuItems.length;
+		if (totalItemCount >= 50) {
+			return Math.max(380, effectiveMinWidth);
+		}
+
+		if (this._cachedMaxWidth !== undefined) {
+			return this._cachedMaxWidth;
+		}
+
+		if (totalItemCount > visibleCount) {
+			// Temporarily splice in all items to measure widths,
+			// preventing width jumps when expanding/collapsing sections.
+			const visibleItems: IActionListItem<T>[] = [];
 			for (let i = 0; i < visibleCount; i++) {
+				visibleItems.push(this._list.element(i));
+			}
+
+			const allItems = [...this._allMenuItems];
+			this._list.splice(0, visibleCount, allItems);
+			let allItemsHeight = 0;
+			for (const item of allItems) {
+				switch (item.kind) {
+					case ActionListItemKind.Header: allItemsHeight += this._headerLineHeight; break;
+					case ActionListItemKind.Separator: allItemsHeight += this._separatorLineHeight; break;
+					default: allItemsHeight += this._actionLineHeight; break;
+				}
+			}
+			this._list.layout(allItemsHeight);
+
+			const itemWidths: number[] = [];
+			for (let i = 0; i < allItems.length; i++) {
 				const element = this._getRowElement(i);
 				if (element) {
 					element.style.width = 'auto';
@@ -645,21 +692,38 @@ export class ActionList<T> extends Disposable {
 				}
 			}
 
-			// resize observer - can be used in the future since list widget supports dynamic height but not width
 			maxWidth = Math.max(...itemWidths, effectiveMinWidth);
+
+			// Restore visible items
+			this._list.splice(0, allItems.length, visibleItems);
+			return maxWidth;
 		}
 
-		const filterHeight = this._filterContainer ? 36 : 0;
-		const maxVhPrecentage = 0.7;
-		const maxHeight = this._layoutService.getContainer(dom.getWindow(this.domNode)).clientHeight * maxVhPrecentage;
-		const height = Math.min(listHeight + filterHeight, maxHeight);
-		const listFinalHeight = height - filterHeight;
-		this._list.layout(listFinalHeight, maxWidth);
+		// All items are visible, measure them directly
+		const itemWidths: number[] = [];
+		for (let i = 0; i < visibleCount; i++) {
+			const element = this._getRowElement(i);
+			if (element) {
+				element.style.width = 'auto';
+				const width = element.getBoundingClientRect().width;
+				element.style.width = '';
+				itemWidths.push(width);
+			}
+		}
+		return Math.max(...itemWidths, effectiveMinWidth);
+	}
 
-		this.domNode.style.height = `${listFinalHeight}px`;
+	layout(minWidth: number): number {
+		this._hasLaidOut = true;
+		this._lastMinWidth = minWidth;
 
-		this._list.domFocus();
-		return maxWidth;
+		const listHeight = this.computeHeight();
+		this._list.layout(listHeight);
+
+		this._cachedMaxWidth = this.computeMaxWidth(minWidth);
+		this._list.layout(listHeight, this._cachedMaxWidth);
+		this.domNode.style.height = `${listHeight}px`;
+		return this._cachedMaxWidth;
 	}
 
 	focusPrevious() {
@@ -733,12 +797,12 @@ export class ActionList<T> extends Disposable {
 		let newHover: IHoverWidget | undefined;
 
 		// Show hover if the element has hover content
-		if (element.hover?.content && this.focusCondition(element)) {
+		if (element.hover?.content) {
 			// The List widget separates data models from DOM elements, so we need to
 			// look up the actual DOM node to use as the hover target.
 			const rowElement = this._getRowElement(index);
 			if (rowElement) {
-				const markdown = element.hover.content ? new MarkdownString(element.hover.content) : undefined;
+				const markdown = typeof element.hover.content === 'string' ? new MarkdownString(element.hover.content) : element.hover.content;
 				newHover = this._hoverService.showDelayedHover({
 					content: markdown ?? '',
 					target: rowElement,
@@ -770,15 +834,23 @@ export class ActionList<T> extends Disposable {
 				return;
 			}
 
+			// Set focus immediately for responsive hover feedback
+			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+
 			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
 				const result = await this._delegate.onHover(element.item, this.cts.token);
-				element.canPreview = result ? result.canPreview : undefined;
+				const canPreview = result ? result.canPreview : undefined;
+				if (canPreview !== element.canPreview) {
+					element.canPreview = canPreview;
+					if (typeof e.index === 'number') {
+						this._list.splice(e.index, 1, [element]);
+						this._list.setFocus([e.index]);
+					}
+				}
 			}
-			if (e.index) {
-				this._list.splice(e.index, 1, [element]);
-			}
-
-			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+		} else if (element && element.hover?.content && typeof e.index === 'number') {
+			// Show hover for disabled items that have hover content
+			this._showHoverForElement(element, e.index);
 		}
 	}
 

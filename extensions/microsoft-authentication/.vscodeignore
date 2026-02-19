@@ -7,7 +7,7 @@ package-lock.json
 src/**
 .gitignore
 vsc-extension-quickstart.md
-**/tsconfig.json
+**/tsconfig*.json
 **/tslint.json
 **/*.map
 **/*.ts

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElementData, INativeBrowserElementsService, IBrowserTargetLocator } from '../common/browserElements.js';
+import { IElementData, IElementAncestor, INativeBrowserElementsService, IBrowserTargetLocator } from '../common/browserElements.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IRectangle } from '../../window/common/window.js';
 import { BrowserWindow, webContents } from 'electron';
@@ -23,17 +23,20 @@ interface NodeDataResponse {
 	outerHTML: string;
 	computedStyle: string;
 	bounds: IRectangle;
+	ancestors?: IElementAncestor[];
+	attributes?: Record<string, string>;
+	computedStyles?: Record<string, string>;
+	dimensions?: { top: number; left: number; width: number; height: number };
+	innerText?: string;
 }
 
 const MAX_CONSOLE_LOG_ENTRIES = 1000;
+
+/** Stores captured console log entries, keyed by a locator string. */
 const consoleLogStore = new Map<string, string[]>();
 
-function locatorKey(locator: IBrowserTargetLocator): string {
-	const key = locator.browserViewId ?? locator.webviewId;
-	if (!key) {
-		return 'unknown';
-	}
-	return key;
+function locatorKey(locator: IBrowserTargetLocator): string | undefined {
+	return locator.browserViewId ?? locator.webviewId;
 }
 
 export class NativeBrowserElementsMainService extends Disposable implements INativeBrowserElementsMainService {
@@ -51,6 +54,10 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 	async getConsoleLogs(windowId: number | undefined, locator: IBrowserTargetLocator): Promise<string | undefined> {
 		const key = locatorKey(locator);
+		if (!key) {
+			return undefined;
+		}
+
 		const entries = consoleLogStore.get(key);
 		if (!entries || entries.length === 0) {
 			return undefined;
@@ -63,7 +70,10 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		if (!window?.win) {
 			return undefined;
 		}
+		const windowWebContents = window.win.webContents;
 
+		// For BrowserView targets, listen to the console-message event directly
+		// on the BrowserView's webContents. No CDP needed.
 		let targetWebContents: Electron.WebContents | undefined;
 		if (locator.browserViewId) {
 			targetWebContents = this.browserViewMainService.tryGetBrowserView(locator.browserViewId)?.webContents;
@@ -74,6 +84,11 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		}
 
 		const key = locatorKey(locator);
+		if (!key) {
+			return undefined;
+		}
+
+		// Initialize log store for this locator if it doesn't exist yet (don't clear on restart)
 		if (!consoleLogStore.has(key)) {
 			consoleLogStore.set(key, []);
 		}
@@ -92,32 +107,27 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 		const cleanupListeners = () => {
 			targetWebContents?.off('console-message', onConsoleMessage);
-			window.win?.webContents.off('ipc-message', onIpcMessage);
+			targetWebContents?.off('destroyed', onTargetDestroyed);
+			windowWebContents.off('ipc-message', onIpcMessage);
 		};
 
-		const onIpcMessage = async (_event: Electron.Event, channel: string, closedCancelAndDetachId: number) => {
+		const onIpcMessage = (_event: Electron.Event, channel: string, closedCancelAndDetachId: number) => {
 			if (channel === `vscode:cancelConsoleSession${cancelAndDetachId}`) {
 				if (cancelAndDetachId !== closedCancelAndDetachId) {
 					return;
 				}
 				cleanupListeners();
-				consoleLogStore.delete(key);
 			}
 		};
 
+		const onTargetDestroyed = () => {
+			cleanupListeners();
+		};
+
 		targetWebContents.on('console-message', onConsoleMessage);
-
-		targetWebContents.once('destroyed', () => {
-			cleanupListeners();
-			consoleLogStore.delete(key);
-		});
-
-		token.onCancellationRequested(() => {
-			cleanupListeners();
-			consoleLogStore.delete(key);
-		});
-
-		window.win.webContents.on('ipc-message', onIpcMessage);
+		targetWebContents.on('destroyed', onTargetDestroyed);
+		windowWebContents.on('ipc-message', onIpcMessage);
+		token.onCancellationRequested(cleanupListeners);
 	}
 
 	/**
@@ -376,7 +386,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 			}, sessionId);
 		} catch (e) {
 			debuggers.detach();
-			throw new Error('No target found', e);
+			throw new Error('No target found', { cause: e });
 		}
 
 		if (!targetSessionId) {
@@ -409,7 +419,16 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 			height: clippedBounds.height * zoomFactor
 		};
 
-		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };
+		return {
+			outerHTML: nodeData.outerHTML,
+			computedStyle: nodeData.computedStyle,
+			bounds: scaledBounds,
+			ancestors: nodeData.ancestors,
+			attributes: nodeData.attributes,
+			computedStyles: nodeData.computedStyles,
+			dimensions: nodeData.dimensions,
+			innerText: nodeData.innerText,
+		};
 	}
 
 	async getNodeData(sessionId: string, debuggers: Electron.Debugger, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
@@ -460,10 +479,91 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 							throw new Error('Failed to get outerHTML.');
 						}
 
+						// Extract additional structured data for rich hover
+						let ancestors: IElementAncestor[] | undefined;
+						let attributes: Record<string, string> | undefined;
+						let computedStyles: Record<string, string> | undefined;
+						let innerText: string | undefined;
+
+						try {
+							// Build ancestor chain using JavaScript evaluation (more reliable than DOM.describeNode for parent walking)
+							const { object: resolvedNode } = await debuggers.sendCommand('DOM.resolveNode', { nodeId }, sessionId);
+							if (resolvedNode?.objectId) {
+								const { result: ancestorResult } = await debuggers.sendCommand('Runtime.callFunctionOn', {
+									objectId: resolvedNode.objectId,
+									functionDeclaration: `function() {
+										var chain = [];
+										var el = this;
+										while (el && el.nodeType === 1) {
+											var entry = { tagName: el.tagName.toLowerCase() };
+											if (el.id) { entry.id = el.id; }
+											if (el.className && typeof el.className === 'string') {
+												var cls = el.className.trim().split(/\\s+/).filter(Boolean);
+												if (cls.length > 0) { entry.classNames = cls; }
+											}
+											chain.unshift(entry);
+											el = el.parentElement;
+										}
+										return chain;
+									}`,
+									returnByValue: true,
+								}, sessionId);
+								if (ancestorResult?.value && Array.isArray(ancestorResult.value)) {
+									ancestors = ancestorResult.value;
+								}
+
+								// Get attributes from the element
+								const { result: attrResult } = await debuggers.sendCommand('Runtime.callFunctionOn', {
+									objectId: resolvedNode.objectId,
+									functionDeclaration: `function() {
+										var attrs = {};
+										for (var i = 0; i < this.attributes.length; i++) {
+											attrs[this.attributes[i].name] = this.attributes[i].value;
+										}
+										return attrs;
+									}`,
+									returnByValue: true,
+								}, sessionId);
+								if (attrResult?.value) {
+									attributes = attrResult.value;
+								}
+
+								// Get inner text (truncated)
+								const { result: innerTextResult } = await debuggers.sendCommand('Runtime.callFunctionOn', {
+									objectId: resolvedNode.objectId,
+									functionDeclaration: 'function() { return this.innerText; }',
+									returnByValue: true,
+								}, sessionId);
+								if (innerTextResult?.value) {
+									const text = String(innerTextResult.value).trim();
+									innerText = text.length > 100 ? text.substring(0, 100) + '\u2026' : text;
+								}
+							}
+
+							// Capture all computed styles for model-facing element context.
+							const { computedStyle: computedStyleArray } = await debuggers.sendCommand('CSS.getComputedStyleForNode', { nodeId }, sessionId);
+							if (computedStyleArray) {
+								computedStyles = {};
+								for (const prop of computedStyleArray) {
+									if (prop.name && typeof prop.value === 'string') {
+										computedStyles[prop.name] = prop.value;
+									}
+								}
+							}
+						} catch {
+							// Non-critical: if any enrichment fails, we still have the core data
+						}
+
+						// TODO: computedStyle here is actually the matched styles
 						resolve({
 							outerHTML,
 							computedStyle: formatted,
-							bounds: { x, y, width, height }
+							bounds: { x, y, width, height },
+							ancestors,
+							attributes,
+							computedStyles,
+							dimensions: { top: y, left: x, width, height },
+							innerText,
 						});
 					} catch (err) {
 						debuggers.off('message', onMessage);

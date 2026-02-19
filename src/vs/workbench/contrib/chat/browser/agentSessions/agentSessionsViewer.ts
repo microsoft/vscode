@@ -76,6 +76,7 @@ interface IAgentSessionItemTemplate {
 }
 
 export interface IAgentSessionRendererOptions {
+	readonly disableHover?: boolean;
 	getHoverPosition(): HoverPosition;
 }
 
@@ -364,6 +365,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		if (this.options.disableHover) {
+			return;
+		}
+
 		if (!isSessionInProgressStatus(session.element.status) && session.element.isRead()) {
 			return; // the hover is complex and large, for now limit it to in-progress sessions only
 		}
@@ -758,19 +763,13 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 		}
 	}
 
-	const sectionWithCount = (section: AgentSessionSection, sessions: IAgentSession[]) => ({
-		section,
-		label: localize('agentSessions.sectionWithCount', "{0} ({1})", AgentSessionSectionLabels[section], sessions.length),
-		sessions
-	});
-
 	return new Map<AgentSessionSection, IAgentSessionSection>([
-		[AgentSessionSection.InProgress, sectionWithCount(AgentSessionSection.InProgress, inProgressSessions)],
-		[AgentSessionSection.Today, sectionWithCount(AgentSessionSection.Today, todaySessions)],
-		[AgentSessionSection.Yesterday, sectionWithCount(AgentSessionSection.Yesterday, yesterdaySessions)],
-		[AgentSessionSection.Week, sectionWithCount(AgentSessionSection.Week, weekSessions)],
-		[AgentSessionSection.Older, sectionWithCount(AgentSessionSection.Older, olderSessions)],
-		[AgentSessionSection.Archived, sectionWithCount(AgentSessionSection.Archived, archivedSessions)],
+		[AgentSessionSection.InProgress, { section: AgentSessionSection.InProgress, label: AgentSessionSectionLabels[AgentSessionSection.InProgress], sessions: inProgressSessions }],
+		[AgentSessionSection.Today, { section: AgentSessionSection.Today, label: AgentSessionSectionLabels[AgentSessionSection.Today], sessions: todaySessions }],
+		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
+		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
+		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
+		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSectionWithCount', "Archived ({0})", archivedSessions.length), sessions: archivedSessions }],
 	]);
 }
 

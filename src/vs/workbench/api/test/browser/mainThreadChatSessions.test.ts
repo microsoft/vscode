@@ -62,6 +62,7 @@ suite('ObservableChatSession', function () {
 			$disposeChatSessionContent: sinon.stub(),
 			$refreshChatSessionItems: sinon.stub(),
 			$onDidChangeChatSessionItemState: sinon.stub(),
+			$newChatSessionItem: sinon.stub().resolves(undefined),
 		};
 	});
 
@@ -359,6 +360,7 @@ suite('MainThreadChatSessions', function () {
 			$disposeChatSessionContent: sinon.stub(),
 			$refreshChatSessionItems: sinon.stub(),
 			$onDidChangeChatSessionItemState: sinon.stub(),
+			$newChatSessionItem: sinon.stub().resolves(undefined),
 		};
 
 		const extHostContext = new class implements IExtHostContext {

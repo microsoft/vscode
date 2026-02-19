@@ -24,6 +24,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	onDidChangeLanguageModels = Event.None;
 	onDidChangeLanguageModelVendors = Event.None;
+	onDidChangeCuratedModels = Event.None;
 
 	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
 		return;
@@ -87,23 +88,15 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	async migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> { }
 
-	getRecentlyUsedModelIds(_maxCount?: number): string[] {
+	getRecentlyUsedModelIds(): string[] {
 		return [];
 	}
 
-	recordModelUsage(_modelIdentifier: string): void { }
+	addToRecentlyUsedList(): void { }
 
 	getCuratedModels(): ICuratedModels {
 		return { free: [], paid: [] };
 	}
-
-	getNewModelIds(): string[] {
-		return [];
-	}
-
-	onDidChangeNewModelIds = Event.None;
-
-	markNewModelsAsSeen(): void { }
 
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
 }

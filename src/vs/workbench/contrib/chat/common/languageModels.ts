@@ -371,12 +371,12 @@ export interface ILanguageModelsService {
 	 * Returns the most recently used model identifiers, ordered by most-recent-first.
 	 * @param maxCount Maximum number of entries to return (default 7).
 	 */
-	getRecentlyUsedModelIds(maxCount?: number): string[];
+	getRecentlyUsedModelIds(): string[];
 
 	/**
 	 * Records that a model was used, updating the recently used list.
 	 */
-	recordModelUsage(modelIdentifier: string): void;
+	addToRecentlyUsedList(model: ILanguageModelChatMetadataAndIdentifier): void;
 
 	/**
 	 * Returns the curated models from the models control manifest,
@@ -385,19 +385,9 @@ export interface ILanguageModelsService {
 	getCuratedModels(): ICuratedModels;
 
 	/**
-	 * Returns the IDs of curated models that are marked as new and have not been seen yet.
+	 * Fires when curated models change.
 	 */
-	getNewModelIds(): string[];
-
-	/**
-	 * Fires when the set of new (unseen) model IDs changes.
-	 */
-	readonly onDidChangeNewModelIds: Event<void>;
-
-	/**
-	 * Marks all new models as seen, clearing the new badge.
-	 */
-	markNewModelsAsSeen(): void;
+	readonly onDidChangeCuratedModels: Event<ICuratedModels>;
 
 	/**
 	 * Observable map of restricted chat participant names to allowed extension publisher/IDs.
@@ -408,6 +398,7 @@ export interface ILanguageModelsService {
 
 export interface ICuratedModel {
 	readonly id: string;
+	readonly label: string;
 	readonly isNew?: boolean;
 	readonly minVSCodeVersion?: string;
 }
@@ -504,12 +495,12 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 
 const CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY = 'chatModelPickerPreferences';
 const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
-const CHAT_MODEL_SEEN_NEW_MODELS_STORAGE_KEY = 'chatModelSeenNewModels';
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
 const CHAT_CURATED_MODELS_STORAGE_KEY = 'chat.curatedModels';
 
 interface IRawCuratedModel {
 	readonly id: string;
+	readonly label: string;
 	readonly isNew?: boolean;
 	readonly minVSCodeVersion?: string;
 }
@@ -548,18 +539,17 @@ export class LanguageModelsService implements ILanguageModelsService {
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
 	private _recentlyUsedModelIds: string[] = [];
+
+	private readonly _onDidChangeCuratedModels = this._store.add(new Emitter<ICuratedModels>());
+	readonly onDidChangeCuratedModels = this._onDidChangeCuratedModels.event;
+
 	private _curatedModels: ICuratedModels = { free: [], paid: [] };
-	private _newModelIds: Set<string> = new Set();
-	private _seenNewModelIds: Set<string> = new Set();
 
 	private _chatControlUrl: string | undefined;
 	private _chatControlDisposed = false;
 
 	private readonly _restrictedChatParticipants = observableValue<{ [name: string]: string[] }>(this, Object.create(null));
 	readonly restrictedChatParticipants: IObservable<{ [name: string]: string[] }> = this._restrictedChatParticipants;
-
-	private readonly _onDidChangeNewModelIds = this._store.add(new Emitter<void>());
-	readonly onDidChangeNewModelIds: Event<void> = this._onDidChangeNewModelIds.event;
 
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -575,7 +565,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._readModelPickerPreferences();
 		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
-		this._seenNewModelIds = this._readSeenNewModels();
 		this._initChatControlData();
 		this._store.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, this._store)(() => this._onDidChangeModelPickerPreferences()));
 
@@ -1393,21 +1382,25 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._storageService.store(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, this._recentlyUsedModelIds, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
-	getRecentlyUsedModelIds(maxCount: number = 7): string[] {
+	getRecentlyUsedModelIds(): string[] {
 		// Filter to only include models that still exist in the cache
 		return this._recentlyUsedModelIds
-			.filter(id => this._modelCache.has(id))
-			.slice(0, maxCount);
+			.filter(id => this._modelCache.has(id) && id !== 'auto')
+			.slice(0, 5);
 	}
 
-	recordModelUsage(modelIdentifier: string): void {
+	addToRecentlyUsedList(model: ILanguageModelChatMetadataAndIdentifier): void {
+		if (model.metadata.id === 'auto' && this._vendors.get(model.metadata.vendor)?.isDefault) {
+			return;
+		}
+
 		// Remove if already present (to move to front)
-		const index = this._recentlyUsedModelIds.indexOf(modelIdentifier);
+		const index = this._recentlyUsedModelIds.indexOf(model.identifier);
 		if (index !== -1) {
 			this._recentlyUsedModelIds.splice(index, 1);
 		}
 		// Add to front
-		this._recentlyUsedModelIds.unshift(modelIdentifier);
+		this._recentlyUsedModelIds.unshift(model.identifier);
 		// Cap at a reasonable max to avoid unbounded growth
 		if (this._recentlyUsedModelIds.length > 20) {
 			this._recentlyUsedModelIds.length = 20;
@@ -1424,7 +1417,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	private _setCuratedModels(free: IRawCuratedModel[], paid: IRawCuratedModel[]): void {
-		const toPublic = (m: IRawCuratedModel): ICuratedModel => ({ id: m.id, isNew: m.isNew, minVSCodeVersion: m.minVSCodeVersion });
+		const toPublic = (m: IRawCuratedModel): ICuratedModel => ({ id: m.id, label: m.label, isNew: m.isNew, minVSCodeVersion: m.minVSCodeVersion });
 
 		this._curatedModels = { free: [], paid: [] };
 		const newIds = new Set<string>();
@@ -1443,43 +1436,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 		}
 
-		this._newModelIds = newIds;
-		this._onDidChangeNewModelIds.fire();
+		this._onDidChangeCuratedModels.fire(this._curatedModels);
 	}
-
-	getNewModelIds(): string[] {
-		const result: string[] = [];
-		for (const id of this._newModelIds) {
-			if (!this._seenNewModelIds.has(id)) {
-				result.push(id);
-			}
-		}
-		return result;
-	}
-
-	markNewModelsAsSeen(): void {
-		let changed = false;
-		for (const id of this._newModelIds) {
-			if (!this._seenNewModelIds.has(id)) {
-				this._seenNewModelIds.add(id);
-				changed = true;
-			}
-		}
-		if (changed) {
-			this._saveSeenNewModels();
-			this._onDidChangeNewModelIds.fire();
-		}
-	}
-
-	private _readSeenNewModels(): Set<string> {
-		return new Set(this._storageService.getObject<string[]>(CHAT_MODEL_SEEN_NEW_MODELS_STORAGE_KEY, StorageScope.PROFILE, []));
-	}
-
-	private _saveSeenNewModels(): void {
-		this._storageService.store(CHAT_MODEL_SEEN_NEW_MODELS_STORAGE_KEY, [...this._seenNewModelIds], StorageScope.PROFILE, StorageTarget.USER);
-	}
-
-	//#endregion
 
 	//#region Chat control data
 

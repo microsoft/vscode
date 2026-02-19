@@ -7,8 +7,7 @@ client/src/**
 server/src/**
 client/out/**
 server/out/**
-client/tsconfig.json
-server/tsconfig.json
+**/tsconfig*.json
 server/test/**
 server/bin/**
 server/build/**

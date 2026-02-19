@@ -61,10 +61,15 @@
 }
 
 /* Ensure iframe containers in pane-body render above sidebar z-index */
-.monaco-workbench > div[data-keybinding-context],
 .monaco-workbench > div[data-keybinding-context] {
 	z-index: 50 !important;
 }
+
+/* Ensure in-editor pane iframes render below sidebar z-index */
+.monaco-workbench > div[data-parent-flow-to-element-id] {
+	z-index: 0 !important;
+}
+
 
 /* Ensure webview containers render above sidebar z-index */
 .monaco-workbench .part.sidebar .webview,
@@ -200,7 +205,7 @@
 	background-color: color-mix(in srgb, var(--vscode-list-hoverBackground) 95%, black) !important;
 }
 
-.quick-input-list .quick-input-list-entry .quick-input-list-separator {
+.monaco-workbench .quick-input-list .quick-input-list-entry .quick-input-list-separator {
 	height: 16px;
 	margin-top: 2px;
 	display: flex;
@@ -208,14 +213,18 @@
 	font-size: 11px;
 	padding: 0 4px 1px 4px;
 	border-radius: var(--vscode-cornerRadius-small) !important;
-	background: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent) !important;
+	background: color-mix(in srgb, var(--vscode-badge-background) 70%, transparent) !important;
 	color: var(--vscode-badge-foreground) !important;
 	margin-right: 8px;
 }
 
-.monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator,
-.monaco-list-row.selected .quick-input-list-entry .quick-input-list-separator,
-.monaco-list-row:hover .quick-input-list-entry .quick-input-list-separator {
+.monaco-workbench.vs-dark .quick-input-list .quick-input-list-entry .quick-input-list-separator {
+	background: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent) !important;
+}
+
+.monaco-workbench .monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator,
+.monaco-workbench .monaco-list-row.selected .quick-input-list-entry .quick-input-list-separator,
+.monaco-workbench .monaco-list-row:hover .quick-input-list-entry .quick-input-list-separator {
 	background: transparent !important;
 	color: inherit !important;
 	padding: 0;
@@ -435,6 +444,15 @@
 /* Settings */
 .monaco-workbench .settings-editor .settings-toc-container {
 	box-shadow: var(--shadow-sm);
+}
+
+.monaco-workbench .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
+	border-radius: var(--radius-sm);
+	background: color-mix(in srgb, var(--vscode-badge-background) 70%, transparent) !important;
+}
+
+.monaco-workbench.vs-dark .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
+	background: color-mix(in srgb, var(--vscode-badge-background) 50%, transparent) !important;
 }
 
 /* Welcome Tiles */

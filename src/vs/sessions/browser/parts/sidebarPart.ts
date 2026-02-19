@@ -53,8 +53,13 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	static readonly MARGIN_TOP = 0;
 	static readonly MARGIN_BOTTOM = 0;
 	static readonly MARGIN_LEFT = 0;
-	static readonly FOOTER_HEIGHT = 39;
+	private static readonly FOOTER_ITEM_HEIGHT = 26;
+	private static readonly FOOTER_ITEM_GAP = 4;
+	private static readonly FOOTER_VERTICAL_PADDING = 6;
 
+	private footerContainer: HTMLElement | undefined;
+	private footerToolbar: MenuWorkbenchToolBar | undefined;
+	private previousLayoutDimensions: { width: number; height: number; top: number; left: number } | undefined;
 
 	//#region IView
 
@@ -167,13 +172,41 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	private createFooter(parent: HTMLElement): void {
-		const footer = append(parent, $('.sidebar-footer'));
+		const footer = append(parent, $('.sidebar-footer.sidebar-action-list'));
+		this.footerContainer = footer;
 
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, footer, Menus.SidebarFooter, {
+		this.footerToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, footer, Menus.SidebarFooter, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
 			telemetrySource: 'sidebarFooter',
 		}));
+
+		this._register(this.footerToolbar.onDidChangeMenuItems(() => {
+			if (this.previousLayoutDimensions) {
+				const { width, height, top, left } = this.previousLayoutDimensions;
+				this.layout(width, height, top, left);
+			}
+		}));
+	}
+
+	private getFooterHeight(): number {
+		const actionCount = this.footerToolbar?.getItemsLength() ?? 0;
+		if (actionCount === 0) {
+			return 0;
+		}
+
+		return SidebarPart.FOOTER_VERTICAL_PADDING * 2
+			+ (actionCount * SidebarPart.FOOTER_ITEM_HEIGHT)
+			+ ((actionCount - 1) * SidebarPart.FOOTER_ITEM_GAP);
+	}
+
+	private updateFooterVisibility(): void {
+		const footer = this.footerContainer;
+		if (!footer) {
+			return;
+		}
+
+		footer.style.display = this.getFooterHeight() > 0 ? '' : 'none';
 	}
 
 	override updateStyles(): void {
@@ -193,14 +226,19 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
+		this.previousLayoutDimensions = { width, height, top, left };
+
 		if (!this.layoutService.isVisible(Parts.SIDEBAR_PART)) {
 			return;
 		}
 
+		this.updateFooterVisibility();
+		const footerHeight = Math.min(height, this.getFooterHeight());
+
 		// Layout content with reduced height to account for footer
 		super.layout(
 			width,
-			height - SidebarPart.FOOTER_HEIGHT,
+			height - footerHeight,
 			top, left
 		);
 

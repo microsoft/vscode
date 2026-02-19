@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-inline-anchor-widget {
-	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border: 0.5px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	margin: 0 1px;
 	padding: 1px 3px;
@@ -12,11 +12,11 @@
 	width: fit-content;
 	font-weight: normal;
 	text-decoration: none;
+	font-size: var(--vscode-chat-font-size-body-s);
 }
 
 .chat-inline-anchor-widget .icon-label {
 	padding: 0 3px;
-	text-wrap: wrap;
 
 	.label-suffix {
 		color: var(--vscode-peekViewTitleDescription-foreground);

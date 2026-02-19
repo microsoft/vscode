@@ -29,6 +29,8 @@ class MockLanguageModelsService implements ILanguageModelsService {
 	private readonly _onDidChangeLanguageModelVendors = new Emitter<readonly string[]>();
 	readonly onDidChangeLanguageModelVendors = this._onDidChangeLanguageModelVendors.event;
 
+	onDidChangeCuratedModels = Event.None;
+
 	addVendor(vendor: IUserFriendlyLanguageModel): void {
 		this.vendors.push(vendor);
 		this.modelsByVendor.set(vendor.vendor, []);
@@ -136,12 +138,9 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 	async migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> { }
 
-	getRecentlyUsedModelIds(_maxCount?: number): string[] { return []; }
-	recordModelUsage(_modelIdentifier: string): void { }
+	getRecentlyUsedModelIds(): string[] { return []; }
+	addToRecentlyUsedList(): void { }
 	getCuratedModels(): ICuratedModels { return { free: [], paid: [] }; }
-	getNewModelIds(): string[] { return []; }
-	onDidChangeNewModelIds = Event.None;
-	markNewModelsAsSeen(): void { }
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
 }
 

@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { API } from '../../tsServer/api';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { hasModifiedUnifiedConfig } from '../../utils/configuration';
+import { hasModifiedUnifiedConfig, readUnifiedConfig, ReadUnifiedConfigOptions } from '../../utils/configuration';
 import { Disposable } from '../../utils/dispose';
 
 export class Condition extends Disposable {
@@ -114,6 +114,18 @@ export function requireHasModifiedUnifiedConfig(
 ) {
 	return new Condition(
 		() => hasModifiedUnifiedConfig(configValue, { fallbackSection }),
+		vscode.workspace.onDidChangeConfiguration
+	);
+}
+
+export function requireGlobalUnifiedConfig(
+	configValue: string,
+	options: ReadUnifiedConfigOptions
+) {
+	return new Condition(
+		() => {
+			return !!readUnifiedConfig(configValue, undefined, options);
+		},
 		vscode.workspace.onDidChangeConfiguration
 	);
 }

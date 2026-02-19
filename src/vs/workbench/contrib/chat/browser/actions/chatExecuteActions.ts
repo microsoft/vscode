@@ -20,12 +20,13 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
-import { IChatService } from '../../common/chatService/chatService.js';
+import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
@@ -874,14 +875,31 @@ export class CancelAction extends Action2 {
 	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const context = args[0] as IChatExecuteActionContext | undefined;
 		const widgetService = accessor.get(IChatWidgetService);
+		const logService = accessor.get(ILogService);
+		const telemetryService = accessor.get(ITelemetryService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
+			telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
+				source: 'cancelAction',
+				reason: 'noWidget',
+				requestInProgress: 'unknown',
+				pendingRequests: 0,
+			});
+			logService.info('ChatCancelAction#run: No focused chat widget was found');
 			return;
 		}
 
 		const chatService = accessor.get(IChatService);
 		if (widget.viewModel) {
 			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource);
+		} else {
+			telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
+				source: 'cancelAction',
+				reason: 'noViewModel',
+				requestInProgress: 'unknown',
+				pendingRequests: 0,
+			});
+			logService.info('ChatCancelAction#run: Canceled chat widget has no view model');
 		}
 	}
 }

@@ -145,6 +145,8 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		const width = this._list.value?.layout(actionBarWidth);
 		widget.style.width = `${width}px`;
 
+		this._list.value?.focus();
+
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
 			// Don't hide if focus moved to a hover that belongs to this action widget

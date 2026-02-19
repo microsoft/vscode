@@ -21,7 +21,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotD
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { autorun, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -323,6 +323,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private readonly _editingSession = observableValue<IChatEditingSession | undefined>(this, undefined);
+	private readonly _viewModelObs = observableFromEvent(this, this.onDidChangeViewModel, () => this.viewModel);
 
 	private parsedChatRequest: IParsedChatRequest | undefined;
 	get parsedInput() {
@@ -405,7 +406,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.viewContext = viewContext ?? {};
 
-		const viewModelObs = observableFromEvent(this, this.onDidChangeViewModel, () => this.viewModel);
+		const viewModelObs = this._viewModelObs;
 
 		if (typeof location === 'object') {
 			this._location = location;
@@ -1006,7 +1007,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const tipPart = store.add(this.instantiationService.createInstance(ChatTipContentPart,
 			tip,
 			renderer,
-			() => this.chatTipService.getWelcomeTip(this.contextKeyService),
 		));
 		tipContainer.appendChild(tipPart.domNode);
 		this._gettingStartedTipPartRef = tipPart;
@@ -2511,9 +2511,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
+		const sessionResource = this.viewModel?.sessionResource;
+		const userSelectedTools = this.input.selectedToolsModel.userSelectedTools;
+
+		let lastToolsSnapshot = userSelectedTools.get();
+
+		// When the widget has loaded a new session, return a snapshot of the tools for this session.
+		// Only sync with the tools model when this session is shown.
+		const scopedTools = derived(reader => {
+			const activeSession = this._viewModelObs.read(reader)?.sessionResource;
+			if (isEqual(activeSession, sessionResource)) {
+				const tools = userSelectedTools.read(reader);
+				lastToolsSnapshot = tools;
+				return tools;
+			}
+			return lastToolsSnapshot;
+		});
+
 		return {
 			modeInfo: this.input.currentModeInfo,
-			userSelectedTools: this.input.selectedToolsModel.userSelectedTools,
+			userSelectedTools: scopedTools,
 		};
 	}
 

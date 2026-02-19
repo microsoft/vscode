@@ -92,6 +92,15 @@ declare module 'vscode' {
 	 */
 	export type ChatSessionItemControllerRefreshHandler = (token: CancellationToken) => Thenable<void>;
 
+	export interface ChatSessionItemControllerNewItemHandlerContext {
+		readonly request: ChatRequest;
+	}
+
+	/**
+	 * Extension callback invoked when a new chat session is started.
+	 */
+	export type ChatSessionItemControllerNewItemHandler = (context: ChatSessionItemControllerNewItemHandlerContext, token: CancellationToken) => Thenable<ChatSessionItem>;
+
 	/**
 	 * Manages chat sessions for a specific chat session type
 	 */
@@ -119,6 +128,15 @@ declare module 'vscode' {
 		 * This is also called on first load to get the initial set of items.
 		 */
 		readonly refreshHandler: ChatSessionItemControllerRefreshHandler;
+
+		/**
+		 * Invoked when a new chat session is started.
+		 *
+		 * This allows the controller to initialize the chat session item with information from the initial request.
+		 *
+		 * The returned chat session is added to the collection and shown in the UI.
+		 */
+		newChatSessionItemHandler?: ChatSessionItemControllerNewItemHandler;
 
 		/**
 		 * Fired when an item's archived state changes.
@@ -363,6 +381,7 @@ declare module 'vscode' {
 		 */
 		// TODO: Should we introduce our own type for `ChatRequestHandler` since not all field apply to chat sessions?
 		// TODO: Revisit this to align with code.
+		// TODO: pass in options?
 		readonly requestHandler: ChatRequestHandler | undefined;
 	}
 
