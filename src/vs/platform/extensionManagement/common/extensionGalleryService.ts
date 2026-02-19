@@ -1163,7 +1163,7 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			for (let index = 0; index < extensions.length; index++) {
 				const extension = extensions[index];
 				setTelemetry(extension, ((query.pageNumber - 1) * query.pageSize) + index, options.source);
-				if (areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId, })) {
+				if (this.productService.defaultChatAgent && areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId, })) {
 					defaultChatAgentExtension = extension;
 				} else {
 					result.push(extension);
@@ -1991,15 +1991,17 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 			}
 		}
 
-		deprecated[this.productService.defaultChatAgent.extensionId.toLowerCase()] = {
-			disallowInstall: true,
-			extension: {
-				id: this.productService.defaultChatAgent.chatExtensionId,
-				displayName: 'GitHub Copilot Chat',
-				autoMigrate: { storage: false, donotDisable: true },
-				preRelease: this.productService.quality !== 'stable'
-			}
-		};
+		if (this.productService.defaultChatAgent) {
+			deprecated[this.productService.defaultChatAgent.extensionId.toLowerCase()] = {
+				disallowInstall: true,
+				extension: {
+					id: this.productService.defaultChatAgent.chatExtensionId,
+					displayName: 'GitHub Copilot Chat',
+					autoMigrate: { storage: false, donotDisable: true },
+					preRelease: this.productService.quality !== 'stable'
+				}
+			};
+		}
 
 		return { malicious, deprecated, search, autoUpdate };
 	}

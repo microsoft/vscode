@@ -129,7 +129,23 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		@IProductService productService: IProductService,
 	) {
 		super();
-		this.defaultAccountConfig = toDefaultAccountConfig(productService.defaultChatAgent);
+		if (productService.defaultChatAgent) {
+			this.defaultAccountConfig = toDefaultAccountConfig(productService.defaultChatAgent);
+		} else {
+			this.defaultAccountConfig = {
+				preferredExtensions: [],
+				authenticationProvider: {
+					default: { id: '', name: '' },
+					enterprise: { id: '', name: '' },
+					enterpriseProviderConfig: '',
+					enterpriseProviderUriSetting: '',
+					scopes: [],
+				},
+				entitlementUrl: '',
+				tokenEntitlementUrl: '',
+				mcpRegistryDataUrl: '',
+			};
+		}
 	}
 
 	async getDefaultAccount(): Promise<IDefaultAccount | null> {
@@ -848,6 +864,9 @@ class DefaultAccountProviderContribution extends Disposable implements IWorkbenc
 		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
 		super();
+		if (!productService.defaultChatAgent) {
+			return;
+		}
 		const defaultAccountProvider = this._register(instantiationService.createInstance(DefaultAccountProvider, toDefaultAccountConfig(productService.defaultChatAgent)));
 		defaultAccountService.setDefaultAccountProvider(defaultAccountProvider);
 	}

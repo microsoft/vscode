@@ -939,7 +939,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		if (checked.indexOf(extension) !== -1) {
 			return [];
 		}
-		if (areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId })) {
+		if (this.productService.defaultChatAgent && areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId })) {
 			return [];
 		}
 		checked.push(extension);

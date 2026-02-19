@@ -213,6 +213,9 @@ import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 
+// Phonon (Claude)
+import './contrib/phonon/browser/phonon.contribution.js';
+
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
 
