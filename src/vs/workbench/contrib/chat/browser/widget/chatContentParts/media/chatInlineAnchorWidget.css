@@ -12,12 +12,11 @@
 	width: fit-content;
 	font-weight: normal;
 	text-decoration: none;
-	font-size: 12px;
+	font-size: var(--vscode-chat-font-size-body-s);
 }
 
 .chat-inline-anchor-widget .icon-label {
 	padding: 0 3px;
-	text-wrap: nowrap;
 
 	.label-suffix {
 		color: var(--vscode-peekViewTitleDescription-foreground);

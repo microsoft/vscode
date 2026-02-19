@@ -392,7 +392,7 @@
 .interactive-item-container .value .rendered-markdown h1 {
 	font-size: var(--vscode-chat-font-size-body-xxl);
 	font-weight: 600;
-	margin: 16px 0 8px 0;
+	margin: 1.5em 0 0.875em 0;
 	font-family: var(--vscode-chat-font-family, inherit);
 
 }
@@ -407,7 +407,7 @@
 .interactive-item-container .value .rendered-markdown h3 {
 	font-size: var(--vscode-chat-font-size-body-l);
 	font-weight: 600;
-	margin: 16px 0 8px 0;
+	margin: 1.5em 0 0.875em 0;
 	font-family: var(--vscode-chat-font-family, inherit);
 }
 
