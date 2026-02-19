@@ -10,6 +10,8 @@
 	bottom: 25px; /* 22px status bar height + 3px */
 	display: none;
 	overflow: hidden;
+	box-shadow:  0 0 12px rgba(0, 0, 0, 0.14);
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .monaco-workbench.nostatusbar > .notifications-toasts {
