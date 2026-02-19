@@ -92,8 +92,7 @@ registerAction2(InlineChatActions.StartSessionAction);
 registerAction2(InlineChatActions.AskInChatAction);
 registerAction2(InlineChatActions.FocusInlineChat);
 registerAction2(InlineChatActions.SubmitInlineChatInputAction);
-registerAction2(InlineChatActions.SubmitToChatAction);
-registerAction2(InlineChatActions.AttachToChatAction);
+registerAction2(InlineChatActions.QueueInChatAction);
 registerAction2(InlineChatActions.HideInlineChatInputAction);
 
 

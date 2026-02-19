@@ -28,9 +28,6 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatEditingService } from '../../chat/common/editing/chatEditingService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { IAgentFeedbackVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
-import { basename } from '../../../../base/common/resources.js';
 import { ChatRequestQueueKind } from '../../chat/common/chatService/chatService.js';
 
 
@@ -456,13 +453,13 @@ export class AskInChatAction extends EditorAction2 {
 	}
 }
 
-export class SubmitToChatAction extends AbstractInlineChatAction {
+export class QueueInChatAction extends AbstractInlineChatAction {
 
 
 	constructor() {
 		super({
-			id: 'inlineChat.submitToChat',
-			title: localize2('submitToChat', "Send to Chat"),
+			id: 'inlineChat.queueInChat',
+			title: localize2('queueInChat', "Queue in Chat"),
 			icon: Codicon.arrowUp,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, CTX_INLINE_CHAT_INPUT_HAS_TEXT, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT),
 			keybinding: {
@@ -475,11 +472,6 @@ export class SubmitToChatAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 1,
 				when: CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT,
-				alt: {
-					id: AttachToChatAction.Id,
-					title: localize2('attachToChat', "Attach to Chat"),
-					icon: Codicon.attach
-				}
 			}]
 		});
 	}
@@ -511,87 +503,6 @@ export class SubmitToChatAction extends AbstractInlineChatAction {
 		if (selection && !selection.isEmpty()) {
 			await widget.attachmentModel.addFile(editor.getModel().uri, selection);
 		}
-		await widget.acceptInput(value, { queue: ChatRequestQueueKind.Queued });
-	}
-}
-
-export class AttachToChatAction extends AbstractInlineChatAction {
-
-	static readonly Id = 'inlineChat.attachToChat';
-
-	constructor() {
-		super({
-			id: AttachToChatAction.Id,
-			title: localize2('attachToChat', "Attach to Chat"),
-			icon: Codicon.attach,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, CTX_INLINE_CHAT_INPUT_HAS_TEXT, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT),
-			keybinding: {
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED, CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT),
-				weight: KeybindingWeight.EditorCore + 10,
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				secondary: [KeyMod.Alt | KeyCode.Enter]
-			},
-		});
-	}
-
-	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor): Promise<void> {
-		const chatEditingService = accessor.get(IChatEditingService);
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		if (!editor.hasModel()) {
-			return;
-		}
-
-		const value = ctrl.inputWidget.value;
-		const selection = editor.getSelection();
-		ctrl.inputWidget.hide();
-		if (!value || !selection || selection.isEmpty()) {
-			return;
-		}
-
-		const session = chatEditingService.editingSessionsObs.get().find(s => s.getEntry(editor.getModel().uri));
-		if (!session) {
-			return;
-		}
-
-		const widget = await chatWidgetService.openSession(session.chatSessionResource);
-		if (!widget) {
-			return;
-		}
-
-		const uri = editor.getModel().uri;
-		const selectedText = editor.getModel().getValueInRange(selection);
-		const fileName = basename(uri);
-		const lineRef = selection.startLineNumber === selection.endLineNumber
-			? `${selection.startLineNumber}`
-			: `${selection.startLineNumber}-${selection.endLineNumber}`;
-
-		const feedbackValue = [
-			`<context file="${fileName}" lines="${lineRef}">`,
-			`<code>`,
-			selectedText,
-			`</code>`,
-			`<feedback>`,
-			value,
-			`</feedback>`,
-			`</context>`
-		].join('\n');
-
-		const feedbackId = generateUuid();
-		const entry: IAgentFeedbackVariableEntry = {
-			kind: 'agentFeedback',
-			id: `inlineChat.feedback.${feedbackId}`,
-			name: localize('attachToChat.name', "{0}:{1}", fileName, lineRef),
-			icon: Codicon.comment,
-			sessionResource: session.chatSessionResource,
-			feedbackItems: [{
-				id: feedbackId,
-				text: value,
-				resourceUri: uri,
-				range: selection,
-			}],
-			value: feedbackValue,
-		};
-
-		widget.attachmentModel.addContext(entry);
+		await widget.acceptInput(value, { alwaysQueue: true, queue: ChatRequestQueueKind.Queued });
 	}
 }
