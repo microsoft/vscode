@@ -970,6 +970,7 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 
 		// Wrap all sections in a scrollable container for VS Code styled scrollbar
 		const scrollableContent = dom.$('div.chat-element-hover-content');
+		const innerScrollables: DomScrollableElement[] = [];
 
 		// ELEMENT section: show the selected element tag with all attributes
 		{
@@ -982,7 +983,12 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			const tagDisplay = this.formatElementTag(attachment);
 			elementCode.textContent = tagDisplay;
 			elementPre.appendChild(elementCode);
-			section.appendChild(elementPre);
+			const elementScrollable = this._register(new DomScrollableElement(elementPre, {
+				horizontal: ScrollbarVisibility.Auto,
+				vertical: ScrollbarVisibility.Hidden,
+			}));
+			innerScrollables.push(elementScrollable);
+			section.appendChild(elementScrollable.getDomNode());
 			scrollableContent.appendChild(section);
 		}
 
@@ -1018,7 +1024,12 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			const pathCode = dom.$('code');
 			pathCode.textContent = lines.join('\n');
 			pathPre.appendChild(pathCode);
-			section.appendChild(pathPre);
+			const pathScrollable = this._register(new DomScrollableElement(pathPre, {
+				horizontal: ScrollbarVisibility.Auto,
+				vertical: ScrollbarVisibility.Hidden,
+			}));
+			innerScrollables.push(pathScrollable);
+			section.appendChild(pathScrollable.getDomNode());
 			scrollableContent.appendChild(section);
 		}
 
@@ -1044,7 +1055,7 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 				table.appendChild(row);
 			}
 			section.appendChild(table);
-			const showMoreButton = dom.$('button.chat-element-hover-show-more', { type: 'button' }, localize('chat.elementHover.showMore', "Show More"));
+			const showMoreButton = dom.$('button.chat-element-hover-show-more', { type: 'button' }, localize('chat.elementHover.showMore', "Show More..."));
 			this._register(dom.addDisposableListener(showMoreButton, dom.EventType.CLICK, async e => {
 				dom.EventHelper.stop(e, true);
 				await this.openElementAttachment(attachment);
@@ -1097,7 +1108,12 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			...commonHoverOptions,
 			content: hoverElement,
 			additionalClasses: ['chat-element-data-hover'],
-			onDidShow: () => scrollableElement.scanDomNode(),
+			onDidShow: () => {
+				scrollableElement.scanDomNode();
+				for (const s of innerScrollables) {
+					s.scanDomNode();
+				}
+			},
 		};
 	}
 
