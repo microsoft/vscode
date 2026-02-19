@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.110.0",
-  "distro": "3dc22e559f766d4c609a675d88819589e9876d9c",
+  "distro": "85914d5a600261a53306190177be48aa8f0cdfb4",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -16,6 +16,7 @@
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",
     "test-extension": "vscode-test",
     "test-build-scripts": "cd build && npm run test",
+    "check-cyclic-dependencies": "node build/lib/checkCyclicDependencies.ts out",
     "preinstall": "node build/npm/preinstall.ts",
     "postinstall": "node build/npm/postinstall.ts",
     "compile": "npm run gulp compile",
@@ -91,7 +92,7 @@
     "@vscode/sqlite3": "5.1.12-vscode",
     "@vscode/sudo-prompt": "9.3.2",
     "@vscode/tree-sitter-wasm": "^0.3.0",
-    "@vscode/vscode-languagedetection": "1.0.21",
+    "@vscode/vscode-languagedetection": "1.0.23",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",
     "@vscode/windows-registry": "^1.1.0",
@@ -215,7 +216,7 @@
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^3.3.2",
-    "tar": "^7.5.7",
+    "tar": "^7.5.9",
     "ts-loader": "^9.5.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",

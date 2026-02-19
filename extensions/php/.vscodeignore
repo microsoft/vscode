@@ -2,6 +2,6 @@ test/**
 build/**
 out/test/**
 src/**
-tsconfig.json
+tsconfig*.json
 cgmanifest.json
 .vscode

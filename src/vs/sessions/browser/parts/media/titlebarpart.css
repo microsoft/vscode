@@ -38,3 +38,8 @@
 .agent-sessions-workbench:not(.nosidebar) .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container {
 	display: none !important;
 }
+
+/* macOS native: the spacer uses window-controls-container but should not block dragging */
+.agent-sessions-workbench.mac .part.titlebar .window-controls-container {
+	-webkit-app-region: drag;
+}

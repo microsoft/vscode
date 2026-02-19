@@ -39,6 +39,7 @@ import {
 	VSCodeToolReference,
 } from '../languageModelToolsService.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
+import { AskQuestionsToolId } from './askQuestionsTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
 
 const BaseModelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
@@ -241,6 +242,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				modeTools[RunSubagentTool.Id] = false;
 				modeTools[ManageTodoListToolToolId] = false;
 				modeTools['copilot_askQuestions'] = false;
+				modeTools[AskQuestionsToolId] = false;
 			}
 
 			const variableSet = new ChatRequestVariableSet();

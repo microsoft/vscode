@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -50,6 +50,8 @@ import { IExtensionService } from '../../../../../../services/extensions/common/
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
+import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -157,6 +159,8 @@ suite('PromptsService', () => {
 		instaService.stub(IRemoteAgentService, {
 			getEnvironment: () => Promise.resolve(null),
 		});
+
+		instaService.stub(IContextKeyService, new MockContextKeyService());
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
@@ -1909,6 +1913,50 @@ suite('PromptsService', () => {
 
 			registered1.dispose();
 			registered2.dispose();
+		});
+
+		test('Contributed file with when clause is filtered by context key', async () => {
+			const uri = URI.parse('file://extensions/my-extension/conditional.instructions.md');
+			const extension = {} as IExtensionDescription;
+
+			// Create a mock context key service that we can control
+			let matchResult = false;
+			const contextKeyChangeEmitter = disposables.add(new Emitter<IContextKeyChangeEvent>());
+			const testContextKeyService = new class extends MockContextKeyService {
+				override contextMatchesRules(): boolean {
+					return matchResult;
+				}
+				override get onDidChangeContext() {
+					return contextKeyChangeEmitter.event;
+				}
+			}();
+			instaService.stub(IContextKeyService, testContextKeyService);
+			const testService = disposables.add(instaService.createInstance(PromptsService));
+
+			const registered = testService.registerContributedFile(
+				PromptsType.instructions, uri, extension,
+				'Conditional Instructions', 'Only when enabled', 'myFeature.enabled',
+			);
+
+			// When clause is false - should be filtered out
+			const before = await testService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.strictEqual(before.length, 0, 'Should be filtered out when context key is false');
+
+			// Change context to make when clause true
+			matchResult = true;
+			contextKeyChangeEmitter.fire({
+				affectsSome: (keys) => keys.has('myFeature.enabled'),
+				allKeysContainedIn: () => false,
+			});
+
+			const after = await testService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.strictEqual(after.length, 1, 'Should be included when context key is true');
+			assert.strictEqual(after[0].uri.toString(), uri.toString());
+
+			registered.dispose();
+
+			// Restore original stub
+			instaService.stub(IContextKeyService, new MockContextKeyService());
 		});
 	});
 

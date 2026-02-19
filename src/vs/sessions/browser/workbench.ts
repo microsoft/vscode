@@ -1059,12 +1059,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		this.partVisibility.sidebar = !hidden;
-
-		// Adjust CSS - for hiding, defer adding the class until animation
-		// completes so the part stays visible during the exit animation.
-		if (!hidden) {
-			this.mainContainer.classList.remove(LayoutClasses.SIDEBAR_HIDDEN);
-		}
+		this.mainContainer.classList.toggle(LayoutClasses.SIDEBAR_HIDDEN, hidden);
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(
@@ -1087,12 +1082,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		this.partVisibility.auxiliaryBar = !hidden;
-
-		// Adjust CSS - for hiding, defer adding the class until animation
-		// completes so the part stays visible during the exit animation.
-		if (!hidden) {
-			this.mainContainer.classList.remove(LayoutClasses.AUXILIARYBAR_HIDDEN);
-		}
+		this.mainContainer.classList.toggle(LayoutClasses.AUXILIARYBAR_HIDDEN, hidden);
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(
@@ -1115,15 +1105,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		this.partVisibility.editor = !hidden;
-
-		// Adjust CSS for main container
-		if (hidden) {
-			this.mainContainer.classList.add(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN);
-			this.mainContainer.classList.remove(LayoutClasses.EDITOR_MODAL_VISIBLE);
-		} else {
-			this.mainContainer.classList.remove(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN);
-			this.mainContainer.classList.add(LayoutClasses.EDITOR_MODAL_VISIBLE);
-		}
+		this.mainContainer.classList.toggle(LayoutClasses.MAIN_EDITOR_AREA_HIDDEN, hidden);
+		this.mainContainer.classList.toggle(LayoutClasses.EDITOR_MODAL_VISIBLE, !hidden);
 
 		// Show/hide modal
 		if (hidden) {
@@ -1144,13 +1127,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		this.partVisibility.panel = !hidden;
-
-		// Adjust CSS - for hiding, defer adding the class until animation
-		// completes because `.nopanel .part.panel { display: none !important }`
-		// would instantly hide the panel content mid-animation.
-		if (!hidden) {
-			this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
-		}
+		this.mainContainer.classList.toggle(LayoutClasses.PANEL_HIDDEN, hidden);
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(
@@ -1173,13 +1150,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		this.partVisibility.chatBar = !hidden;
-
-		// Adjust CSS
-		if (hidden) {
-			this.mainContainer.classList.add(LayoutClasses.CHATBAR_HIDDEN);
-		} else {
-			this.mainContainer.classList.remove(LayoutClasses.CHATBAR_HIDDEN);
-		}
+		this.mainContainer.classList.toggle(LayoutClasses.CHATBAR_HIDDEN, hidden);
 
 		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.chatBarPartView, !hidden);

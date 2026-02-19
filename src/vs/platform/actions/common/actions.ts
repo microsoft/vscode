@@ -245,7 +245,6 @@ export class MenuId {
 	static readonly MergeInputResultToolbar = new MenuId('MergeToolbarResultToolbar');
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
 	static readonly InlineEditToolbar = new MenuId('InlineEditToolbar');
-	static readonly AgentFeedbackEditorContent = new MenuId('AgentFeedbackEditorContent');
 	static readonly ChatContext = new MenuId('ChatContext');
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
@@ -281,10 +280,11 @@ export class MenuId {
 	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');
 	static readonly ChatMultiDiffContext = new MenuId('ChatMultiDiffContext');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
-	static readonly ChatEditorInlineGutter = new MenuId('ChatEditorInlineGutter');
+	static readonly ChatEditorInlineMenu = new MenuId('ChatEditorInlineGutter');
 	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');
 	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');
 	static readonly InlineChatEditorAffordance = new MenuId('InlineChatEditorAffordance');
+	static readonly InlineChatInput = new MenuId('InlineChatInput');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorContent = new MenuId('MultiDiffEditorContent');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');

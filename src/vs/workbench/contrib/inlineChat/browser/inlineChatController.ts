@@ -39,7 +39,7 @@ import { ISharedWebContentExtractorService } from '../../../../platform/webConte
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
-import { ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
+import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
 import { ChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
@@ -51,13 +51,12 @@ import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../.
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
-import { CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { InlineChatAffordance } from './inlineChatAffordance.js';
 import { InlineChatInputWidget, InlineChatSessionOverlayWidget } from './inlineChatOverlayWidget.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
-
 
 export abstract class InlineChatRunOptions {
 
@@ -117,7 +116,8 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _renderMode: IObservable<'zone' | 'hover'>;
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
-	private readonly _gutterIndicator: InlineChatAffordance;
+	readonly inputOverlayWidget: InlineChatAffordance;
+	private readonly _inputWidget: InlineChatInputWidget;
 
 	private readonly _currentSession: IObservable<IInlineChatSession2 | undefined>;
 
@@ -127,6 +127,10 @@ export class InlineChatController implements IEditorContribution {
 
 	get isActive() {
 		return Boolean(this._currentSession.get());
+	}
+
+	get inputWidget(): InlineChatInputWidget {
+		return this._inputWidget;
 	}
 
 	constructor(
@@ -144,17 +148,42 @@ export class InlineChatController implements IEditorContribution {
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 	) {
 		const editorObs = observableCodeEditor(_editor);
 
-
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
+		const ctxFileBelongsToChat = CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.bindTo(contextKeyService);
 		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
 		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
 
-		const overlayWidget = this._store.add(this._instaService.createInstance(InlineChatInputWidget, editorObs));
+		// Track whether the current editor's file is being edited by any chat editing session
+		this._store.add(autorun(r => {
+			const model = editorObs.model.read(r);
+			if (!model) {
+				ctxFileBelongsToChat.set(false);
+				return;
+			}
+			const sessions = this._chatEditingService.editingSessionsObs.read(r);
+			let hasEdits = false;
+			for (const session of sessions) {
+				const entries = session.entries.read(r);
+				for (const entry of entries) {
+					if (isEqual(entry.modifiedURI, model.uri)) {
+						hasEdits = true;
+						break;
+					}
+				}
+				if (hasEdits) {
+					break;
+				}
+			}
+			ctxFileBelongsToChat.set(hasEdits);
+		}));
+
+		const overlayWidget = this._inputWidget = this._store.add(this._instaService.createInstance(InlineChatInputWidget, editorObs));
 		const sessionOverlayWidget = this._store.add(this._instaService.createInstance(InlineChatSessionOverlayWidget, editorObs));
-		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatAffordance, this._editor, overlayWidget));
+		this.inputOverlayWidget = this._store.add(this._instaService.createInstance(InlineChatAffordance, this._editor, overlayWidget));
 
 		this._zone = new Lazy<InlineChatZoneWidget>(() => {
 
@@ -225,8 +254,6 @@ export class InlineChatController implements IEditorContribution {
 
 			return result;
 		});
-
-
 
 		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessionService.onDidChangeSessions);
 
@@ -469,17 +496,9 @@ export class InlineChatController implements IEditorContribution {
 			existingSession.dispose();
 		}
 
-		// use hover overlay to ask for input
-		if (!arg?.message && this._configurationService.getValue<string>(InlineChatConfigKeys.RenderMode) === 'hover') {
-			// show menu and RETURN because the menu is re-entrant
-			await this._gutterIndicator.showMenuAtSelection();
-			return true;
-		}
-
 		this._isActiveController.set(true, undefined);
 
 		const session = this._inlineChatSessionService.createSession(this._editor);
-
 
 		// Store for tracking model changes during this session
 		const sessionStore = new DisposableStore();

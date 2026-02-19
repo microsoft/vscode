@@ -31,18 +31,27 @@
 /* Sidebar Footer Container */
 .monaco-workbench .part.sidebar > .sidebar-footer {
 	display: flex;
-	align-items: center;
+	align-items: stretch;
+	gap: 4px;
 	padding: 6px;
 	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
 	flex-shrink: 0;
 }
 
-/* Make the toolbar and its action-item fill the full footer width */
+/* Make the toolbar fill the footer width and stack actions vertically */
 .monaco-workbench .part.sidebar > .sidebar-footer .monaco-toolbar,
 .monaco-workbench .part.sidebar > .sidebar-footer .monaco-action-bar,
-.monaco-workbench .part.sidebar > .sidebar-footer .actions-container,
+
+.monaco-workbench .part.sidebar > .sidebar-footer .actions-container {
+	width: 100%;
+	max-width: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	cursor: default;
+}
+
 .monaco-workbench .part.sidebar > .sidebar-footer .action-item {
-	flex: 1;
 	width: 100%;
 	max-width: 100%;
 	cursor: default;

@@ -13,7 +13,6 @@
 	}
 
 	/* Section headers - more prominent than time-based groupings */
-	.ai-customization-header,
 	.agent-sessions-header {
 		font-size: 11px;
 		font-weight: 500;
@@ -23,128 +22,15 @@
 		letter-spacing: 0.05em;
 	}
 
-	/* Customization header - clickable for collapse */
-	.ai-customization-header {
-		display: flex;
-		align-items: center;
-		cursor: pointer;
-		user-select: none;
-		margin: 0 6px;
-		border-radius: 6px;
-	}
-
-	.ai-customization-header:hover {
-		background-color: var(--vscode-list-hoverBackground);
-	}
-
-	.ai-customization-header:focus {
-		outline: 1px solid var(--vscode-focusBorder);
-		outline-offset: -1px;
-	}
-
-	.ai-customization-chevron,
 	.agent-sessions-chevron {
 		flex-shrink: 0;
-		margin-left: auto;
-		padding-right: 4px;
 		opacity: 0;
 		transition: opacity 0.1s ease-in-out;
 	}
 
-	.ai-customization-header:hover .ai-customization-chevron,
-	.ai-customization-header:focus .ai-customization-chevron,
 	.agent-sessions-header:hover .agent-sessions-chevron,
 	.agent-sessions-header:focus .agent-sessions-chevron {
 		opacity: 0.7;
-	}
-
-	/* AI Customization section - pinned to bottom */
-	.ai-customization-shortcuts {
-		display: flex;
-		flex-direction: column;
-		flex-shrink: 0;
-		border-top: 1px solid var(--vscode-widget-border);
-		margin-top: 8px;
-		padding-top: 4px;
-		padding-bottom: 8px;
-	}
-
-	.ai-customization-shortcuts .ai-customization-links {
-		display: flex;
-		flex-direction: column;
-		max-height: 500px;
-		overflow: hidden;
-		transition: max-height 0.2s ease-out;
-	}
-
-	.ai-customization-shortcuts .ai-customization-links.collapsed {
-		max-height: 0;
-	}
-
-	.ai-customization-shortcuts .ai-customization-link {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		font-size: 13px;
-		color: var(--vscode-foreground);
-		cursor: pointer;
-		text-decoration: none;
-		padding: 6px 14px;
-		margin: 0 6px;
-		line-height: 22px;
-		border-radius: 6px;
-	}
-
-	.ai-customization-shortcuts .ai-customization-link:hover {
-		background-color: var(--vscode-list-hoverBackground);
-	}
-
-	.ai-customization-shortcuts .ai-customization-link:focus {
-		outline: 1px solid var(--vscode-focusBorder);
-		outline-offset: -1px;
-	}
-
-	.ai-customization-shortcuts .ai-customization-link .link-icon {
-		flex-shrink: 0;
-		width: 16px;
-		height: 16px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		opacity: 0.85;
-	}
-
-	.ai-customization-shortcuts .ai-customization-link .link-label {
-		flex: 1;
-	}
-
-	.ai-customization-shortcuts .ai-customization-link .link-counts {
-		flex-shrink: 0;
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		margin-left: auto;
-	}
-
-	.ai-customization-shortcuts .ai-customization-link .link-counts.hidden {
-		display: none;
-	}
-
-	.ai-customization-shortcuts .ai-customization-link .source-count-badge {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-	}
-
-	.ai-customization-shortcuts .ai-customization-link .source-count-icon {
-		font-size: 12px;
-		opacity: 0.6;
-	}
-
-	.ai-customization-shortcuts .ai-customization-link .source-count-num {
-		font-size: 11px;
-		color: var(--vscode-descriptionForeground);
-		opacity: 0.8;
 	}
 
 	/* Sessions section - fills remaining space above customizations */
@@ -162,6 +48,7 @@
 		gap: 4px;
 		padding-top: 10px;
 		padding-right: 12px;
+		-webkit-user-select: none;
 		user-select: none;
 	}
 

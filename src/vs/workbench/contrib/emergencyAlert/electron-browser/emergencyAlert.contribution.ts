@@ -11,25 +11,35 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { arch, platform } from '../../../../base/common/process.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { equals } from '../../../../base/common/arrays.js';
+import { IntervalTimer } from '../../../../base/common/async.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 interface IEmergencyAlert {
 	readonly commit: string;
 	readonly platform?: string;
 	readonly arch?: string;
 	readonly message: string;
-	readonly actions?: [{
+	readonly actions?: ReadonlyArray<{
 		readonly label: string;
 		readonly href: string;
-	}];
+	}>;
 }
 
 interface IEmergencyAlerts {
 	readonly alerts: IEmergencyAlert[];
 }
 
-export class EmergencyAlert implements IWorkbenchContribution {
+const POLLING_INTERVAL = 60 * 60 * 1000; // 1 hour
+const BANNER_ID = 'emergencyAlert.banner';
+
+export class EmergencyAlert extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.emergencyAlert';
+
+	private currentAlertMessage: string | undefined;
+	private currentAlertActions: IEmergencyAlert['actions'] | undefined;
 
 	constructor(
 		@IBannerService private readonly bannerService: IBannerService,
@@ -37,9 +47,7 @@ export class EmergencyAlert implements IWorkbenchContribution {
 		@IProductService private readonly productService: IProductService,
 		@ILogService private readonly logService: ILogService
 	) {
-		if (productService.quality !== 'insider') {
-			return; // only enabled in insiders for now
-		}
+		super();
 
 		const emergencyAlertUrl = productService.emergencyAlertUrl;
 		if (!emergencyAlertUrl) {
@@ -47,6 +55,9 @@ export class EmergencyAlert implements IWorkbenchContribution {
 		}
 
 		this.fetchAlerts(emergencyAlertUrl);
+
+		const pollingTimer = this._register(new IntervalTimer());
+		pollingTimer.cancelAndSet(() => this.fetchAlerts(emergencyAlertUrl), POLLING_INTERVAL, mainWindow);
 	}
 
 	private async fetchAlerts(url: string): Promise<void> {
@@ -58,36 +69,56 @@ export class EmergencyAlert implements IWorkbenchContribution {
 	}
 
 	private async doFetchAlerts(url: string): Promise<void> {
-		const requestResult = await this.requestService.request({ type: 'GET', url, disableCache: true }, CancellationToken.None);
+		const requestResult = await this.requestService.request({ type: 'GET', url, disableCache: true, timeout: 20000 }, CancellationToken.None);
 
 		if (requestResult.res.statusCode !== 200) {
 			throw new Error(`Failed to fetch emergency alerts: HTTP ${requestResult.res.statusCode}`);
 		}
 
 		const emergencyAlerts = await asJson<IEmergencyAlerts>(requestResult);
-		if (!emergencyAlerts) {
+		if (!emergencyAlerts || !Array.isArray(emergencyAlerts.alerts)) {
+			this.dismissAlert();
 			return;
 		}
 
-		for (const emergencyAlert of emergencyAlerts.alerts) {
-			if (
-				(emergencyAlert.commit !== this.productService.commit) ||				// version mismatch
-				(emergencyAlert.platform && emergencyAlert.platform !== platform) ||	// platform mismatch
-				(emergencyAlert.arch && emergencyAlert.arch !== arch)					// arch mismatch
-			) {
-				return;
-			}
+		// Find the first matching alert
+		const matchingAlert = emergencyAlerts.alerts.find(alert =>
+			alert.commit === this.productService.commit &&
+			(!alert.platform || alert.platform === platform) &&
+			(!alert.arch || alert.arch === arch)
+		);
 
-			this.bannerService.show({
-				id: 'emergencyAlert.banner',
-				icon: Codicon.warning,
-				message: emergencyAlert.message,
-				actions: emergencyAlert.actions
-			});
+		if (!matchingAlert) {
+			// No matching alert, dismiss the banner if it was shown
+			this.dismissAlert();
+			return;
+		}
 
-			break;
+		// Don't update the banner if message and actions didn't change
+		if (
+			this.currentAlertMessage === matchingAlert.message &&
+			equals(this.currentAlertActions ?? [], matchingAlert.actions ?? [], (a, b) => a.label === b.label && a.href === b.href)
+		) {
+			return;
+		}
+
+		this.currentAlertMessage = matchingAlert.message;
+		this.currentAlertActions = matchingAlert.actions;
+		this.bannerService.show({
+			id: BANNER_ID,
+			icon: Codicon.warning,
+			message: matchingAlert.message,
+			actions: matchingAlert.actions
+		});
+	}
+
+	private dismissAlert(): void {
+		if (this.currentAlertMessage !== undefined) {
+			this.currentAlertMessage = undefined;
+			this.currentAlertActions = undefined;
+			this.bannerService.hide(BANNER_ID);
 		}
 	}
 }
 
-registerWorkbenchContribution2('workbench.emergencyAlert', EmergencyAlert, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(EmergencyAlert.ID, EmergencyAlert, WorkbenchPhase.Eventually);

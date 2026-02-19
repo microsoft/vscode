@@ -224,6 +224,16 @@ declare module 'vscode' {
 		language: string;
 
 		/**
+		 * Overrides for how the command is presented in the UI.
+		 * For example, when a `cd <dir> && <command>` prefix is detected,
+		 * the presentation can show only the actual command.
+		 */
+		presentationOverrides?: {
+			commandLine: string;
+			language?: string;
+		};
+
+		/**
 		 * Terminal command output. Displayed when the terminal is no longer available.
 		 */
 		output?: {
@@ -1020,8 +1030,6 @@ declare module 'vscode' {
 		readonly rawInput?: unknown;
 
 		readonly chatRequestId?: string;
-		/** @deprecated Use {@link chatSessionResource} instead */
-		readonly chatSessionId?: string;
 		readonly chatSessionResource?: Uri;
 		readonly chatInteractionId?: string;
 	}

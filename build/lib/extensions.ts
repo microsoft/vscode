@@ -85,7 +85,7 @@ function fromLocal(extensionPath: string, forWeb: boolean, disableMangle: boolea
 		// Unlike webpack, esbuild only does bundling so we still want to run a separate type check step
 		input = es.merge(
 			fromLocalEsbuild(extensionPath, esbuildConfigFileName),
-			typeCheckExtensionStream(extensionPath, forWeb),
+			...getBuildRootsForExtension(extensionPath).map(root => typeCheckExtensionStream(root, forWeb)),
 		);
 		isBundled = true;
 	} else if (hasWebpack) {
@@ -765,4 +765,16 @@ export function buildExtensionMedia(isWatch: boolean, outputRoot?: string): Prom
 		script: path.join(extensionsPath, p),
 		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
 	})));
+}
+
+export function getBuildRootsForExtension(extensionPath: string): string[] {
+	// These extensions split their code between a client and server folder. We should treat each as build roots
+	if (extensionPath.endsWith('css-language-features') || extensionPath.endsWith('html-language-features') || extensionPath.endsWith('json-language-features')) {
+		return [
+			path.join(extensionPath, 'client'),
+			path.join(extensionPath, 'server'),
+		];
+	}
+
+	return [extensionPath];
 }

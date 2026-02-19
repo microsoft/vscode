@@ -10,7 +10,7 @@ import { isTypeScriptDocument } from '../configuration/languageIds';
 import { API } from '../tsServer/api';
 import type * as Proto from '../tsServer/protocol/protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { readUnifiedConfig } from '../utils/configuration';
+import { readUnifiedConfig, UnifiedConfigurationScope } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
@@ -142,9 +142,7 @@ export default class FileConfigurationManager extends Disposable {
 		document: vscode.TextDocument,
 		options: FormattingOptions
 	): Proto.FormatCodeSettings {
-		const config = vscode.workspace.getConfiguration(
-			isTypeScriptDocument(document) ? 'typescript.format' : 'javascript.format',
-			document.uri);
+		const fallbackSection = isTypeScriptDocument(document) ? 'typescript' : 'javascript';
 
 		return {
 			tabSize: options.tabSize,
@@ -152,24 +150,24 @@ export default class FileConfigurationManager extends Disposable {
 			convertTabsToSpaces: options.insertSpaces,
 			// We can use \n here since the editor normalizes later on to its line endings.
 			newLineCharacter: '\n',
-			insertSpaceAfterCommaDelimiter: config.get<boolean>('insertSpaceAfterCommaDelimiter'),
-			insertSpaceAfterConstructor: config.get<boolean>('insertSpaceAfterConstructor'),
-			insertSpaceAfterSemicolonInForStatements: config.get<boolean>('insertSpaceAfterSemicolonInForStatements'),
-			insertSpaceBeforeAndAfterBinaryOperators: config.get<boolean>('insertSpaceBeforeAndAfterBinaryOperators'),
-			insertSpaceAfterKeywordsInControlFlowStatements: config.get<boolean>('insertSpaceAfterKeywordsInControlFlowStatements'),
-			insertSpaceAfterFunctionKeywordForAnonymousFunctions: config.get<boolean>('insertSpaceAfterFunctionKeywordForAnonymousFunctions'),
-			insertSpaceBeforeFunctionParenthesis: config.get<boolean>('insertSpaceBeforeFunctionParenthesis'),
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis'),
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets'),
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces'),
-			insertSpaceAfterOpeningAndBeforeClosingEmptyBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingEmptyBraces'),
-			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces'),
-			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: config.get<boolean>('insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces'),
-			insertSpaceAfterTypeAssertion: config.get<boolean>('insertSpaceAfterTypeAssertion'),
-			placeOpenBraceOnNewLineForFunctions: config.get<boolean>('placeOpenBraceOnNewLineForFunctions'),
-			placeOpenBraceOnNewLineForControlBlocks: config.get<boolean>('placeOpenBraceOnNewLineForControlBlocks'),
-			semicolons: config.get<Proto.SemicolonPreference>('semicolons'),
-			indentSwitchCase: config.get<boolean>('indentSwitchCase'),
+			insertSpaceAfterCommaDelimiter: readUnifiedConfig<boolean>('format.insertSpaceAfterCommaDelimiter', true, { scope: document, fallbackSection }),
+			insertSpaceAfterConstructor: readUnifiedConfig<boolean>('format.insertSpaceAfterConstructor', false, { scope: document, fallbackSection }),
+			insertSpaceAfterSemicolonInForStatements: readUnifiedConfig<boolean>('format.insertSpaceAfterSemicolonInForStatements', true, { scope: document, fallbackSection }),
+			insertSpaceBeforeAndAfterBinaryOperators: readUnifiedConfig<boolean>('format.insertSpaceBeforeAndAfterBinaryOperators', true, { scope: document, fallbackSection }),
+			insertSpaceAfterKeywordsInControlFlowStatements: readUnifiedConfig<boolean>('format.insertSpaceAfterKeywordsInControlFlowStatements', true, { scope: document, fallbackSection }),
+			insertSpaceAfterFunctionKeywordForAnonymousFunctions: readUnifiedConfig<boolean>('format.insertSpaceAfterFunctionKeywordForAnonymousFunctions', true, { scope: document, fallbackSection }),
+			insertSpaceBeforeFunctionParenthesis: readUnifiedConfig<boolean>('format.insertSpaceBeforeFunctionParenthesis', false, { scope: document, fallbackSection }),
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: readUnifiedConfig<boolean>('format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis', false, { scope: document, fallbackSection }),
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: readUnifiedConfig<boolean>('format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets', false, { scope: document, fallbackSection }),
+			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: readUnifiedConfig<boolean>('format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces', true, { scope: document, fallbackSection }),
+			insertSpaceAfterOpeningAndBeforeClosingEmptyBraces: readUnifiedConfig<boolean>('format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces', true, { scope: document, fallbackSection }),
+			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: readUnifiedConfig<boolean>('format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces', false, { scope: document, fallbackSection }),
+			insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces: readUnifiedConfig<boolean>('format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces', false, { scope: document, fallbackSection }),
+			insertSpaceAfterTypeAssertion: readUnifiedConfig<boolean>('format.insertSpaceAfterTypeAssertion', false, { scope: document, fallbackSection }),
+			placeOpenBraceOnNewLineForFunctions: readUnifiedConfig<boolean>('format.placeOpenBraceOnNewLineForFunctions', false, { scope: document, fallbackSection }),
+			placeOpenBraceOnNewLineForControlBlocks: readUnifiedConfig<boolean>('format.placeOpenBraceOnNewLineForControlBlocks', false, { scope: document, fallbackSection }),
+			semicolons: readUnifiedConfig<Proto.SemicolonPreference>('format.semicolons', 'ignore' as Proto.SemicolonPreference, { scope: document, fallbackSection }),
+			indentSwitchCase: readUnifiedConfig<boolean>('format.indentSwitchCase', true, { scope: document, fallbackSection }),
 		};
 	}
 
@@ -213,7 +211,7 @@ export default class FileConfigurationManager extends Disposable {
 		return preferences;
 	}
 
-	private getAutoImportFileExcludePatternsPreference(scope: vscode.ConfigurationScope, fallbackSection: string, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
+	private getAutoImportFileExcludePatternsPreference(scope: UnifiedConfigurationScope, fallbackSection: string, workspaceFolder: vscode.Uri | undefined): string[] | undefined {
 		const patterns = readUnifiedConfig<string[] | undefined>('preferences.autoImportFileExcludePatterns', undefined, { scope, fallbackSection });
 		return workspaceFolder && patterns?.map(p => {
 			// Normalization rules: https://github.com/microsoft/TypeScript/pull/49578
@@ -256,7 +254,7 @@ export const InlayHintSettingNames = Object.freeze({
 	enumMemberValuesEnabled: 'inlayHints.enumMemberValues.enabled',
 });
 
-export function getInlayHintsPreferences(scope: vscode.ConfigurationScope, fallbackSection: string) {
+export function getInlayHintsPreferences(scope: UnifiedConfigurationScope, fallbackSection: string) {
 	return {
 		includeInlayParameterNameHints: getInlayParameterNameHintsPreference(scope, fallbackSection),
 		includeInlayParameterNameHintsWhenArgumentMatchesName: !readUnifiedConfig<boolean>(InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName, true, { scope, fallbackSection }),
@@ -269,7 +267,7 @@ export function getInlayHintsPreferences(scope: vscode.ConfigurationScope, fallb
 	} as const;
 }
 
-function getInlayParameterNameHintsPreference(scope: vscode.ConfigurationScope, fallbackSection: string) {
+function getInlayParameterNameHintsPreference(scope: UnifiedConfigurationScope, fallbackSection: string) {
 	switch (readUnifiedConfig<string>(InlayHintSettingNames.parameterNamesEnabled, 'none', { scope, fallbackSection })) {
 		case 'none': return 'none';
 		case 'literals': return 'literals';
@@ -278,7 +276,7 @@ function getInlayParameterNameHintsPreference(scope: vscode.ConfigurationScope, 
 	}
 }
 
-function getQuoteStylePreference(scope: vscode.ConfigurationScope, fallbackSection: string) {
+function getQuoteStylePreference(scope: UnifiedConfigurationScope, fallbackSection: string) {
 	switch (readUnifiedConfig<string>('preferences.quoteStyle', 'auto', { scope, fallbackSection })) {
 		case 'single': return 'single';
 		case 'double': return 'double';
@@ -286,7 +284,7 @@ function getQuoteStylePreference(scope: vscode.ConfigurationScope, fallbackSecti
 	}
 }
 
-function getImportModuleSpecifierPreference(scope: vscode.ConfigurationScope, fallbackSection: string) {
+function getImportModuleSpecifierPreference(scope: UnifiedConfigurationScope, fallbackSection: string) {
 	switch (readUnifiedConfig<string>('preferences.importModuleSpecifier', 'shortest', { scope, fallbackSection })) {
 		case 'project-relative': return 'project-relative';
 		case 'relative': return 'relative';
@@ -295,7 +293,7 @@ function getImportModuleSpecifierPreference(scope: vscode.ConfigurationScope, fa
 	}
 }
 
-function getImportModuleSpecifierEndingPreference(scope: vscode.ConfigurationScope, fallbackSection: string) {
+function getImportModuleSpecifierEndingPreference(scope: UnifiedConfigurationScope, fallbackSection: string) {
 	switch (readUnifiedConfig<string>('preferences.importModuleSpecifierEnding', 'auto', { scope, fallbackSection })) {
 		case 'minimal': return 'minimal';
 		case 'index': return 'index';
@@ -304,7 +302,7 @@ function getImportModuleSpecifierEndingPreference(scope: vscode.ConfigurationSco
 	}
 }
 
-function getJsxAttributeCompletionStyle(scope: vscode.ConfigurationScope, fallbackSection: string) {
+function getJsxAttributeCompletionStyle(scope: UnifiedConfigurationScope, fallbackSection: string) {
 	switch (readUnifiedConfig<string>('preferences.jsxAttributeCompletionStyle', 'auto', { scope, fallbackSection })) {
 		case 'braces': return 'braces';
 		case 'none': return 'none';
@@ -312,7 +310,7 @@ function getJsxAttributeCompletionStyle(scope: vscode.ConfigurationScope, fallba
 	}
 }
 
-function getOrganizeImportsPreferences(scope: vscode.ConfigurationScope, fallbackSection: string): Proto.UserPreferences {
+function getOrganizeImportsPreferences(scope: UnifiedConfigurationScope, fallbackSection: string): Proto.UserPreferences {
 	const organizeImportsCollation = readUnifiedConfig<'ordinal' | 'unicode'>('preferences.organizeImports.unicodeCollation', 'ordinal', { scope, fallbackSection });
 	const organizeImportsCaseSensitivity = readUnifiedConfig<'auto' | 'caseInsensitive' | 'caseSensitive'>('preferences.organizeImports.caseSensitivity', 'auto', { scope, fallbackSection });
 	return {

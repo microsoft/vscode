@@ -78,8 +78,8 @@ export class ModalEditorPart {
 			if (e.target === modalElement) {
 				EventHelper.stop(e, true);
 
-				// Guide focus back into the modal when clicking outside modal
-				editorPartContainer.focus();
+				// Close modal when clicking outside the dialog
+				editorPart.close();
 			}
 		}));
 

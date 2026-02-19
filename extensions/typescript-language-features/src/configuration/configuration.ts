@@ -291,8 +291,8 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
 	}
 
-	private readWorkspaceSymbolsExcludeLibrarySymbols(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.workspaceSymbols.excludeLibrarySymbols', true);
+	private readWorkspaceSymbolsExcludeLibrarySymbols(_configuration: vscode.WorkspaceConfiguration): boolean {
+		return readUnifiedConfig<boolean>('workspaceSymbols.excludeLibrarySymbols', true, { scope: null, fallbackSection: 'typescript' });
 	}
 
 	private readWebProjectWideIntellisenseEnable(configuration: vscode.WorkspaceConfiguration): boolean {

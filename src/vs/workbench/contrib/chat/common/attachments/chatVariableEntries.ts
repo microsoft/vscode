@@ -222,8 +222,19 @@ export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry,
 	readonly kind: 'diagnostic';
 }
 
+export interface IElementAncestorData {
+	readonly tagName: string;
+	readonly id?: string;
+	readonly classNames?: string[];
+}
+
 export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
+	readonly ancestors?: IElementAncestorData[];
+	readonly attributes?: Record<string, string>;
+	readonly computedStyles?: Record<string, string>;
+	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
+	readonly innerText?: string;
 }
 
 export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {

@@ -9,6 +9,9 @@
 		"scripts/test-integration.bat": true,
 		"scripts/test-integration.sh": true,
 	},
+	"chat.tools.edits.autoApprove": {
+		".github/skills/azure-pipelines/azure-pipeline.ts": false
+	},
 	"chat.viewSessions.enabled": true,
 	"chat.editing.explainChanges.enabled": true,
 	// --- Editor ---
@@ -70,7 +73,7 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true,
-		"src/vs/sessions/**": true
+		// "src/vs/sessions/**": true
 	},
 	// --- Search ---
 	"search.exclude": {

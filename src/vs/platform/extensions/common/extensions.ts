@@ -203,6 +203,7 @@ export interface IChatFileContribution {
 	readonly path: string;
 	readonly name?: string;
 	readonly description?: string;
+	readonly when?: string;
 }
 
 export interface IExtensionContributions {

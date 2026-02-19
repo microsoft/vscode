@@ -198,6 +198,8 @@ export interface IChatSessionItemController {
 	get items(): readonly IChatSessionItem[];
 
 	refresh(token: CancellationToken): Promise<void>;
+
+	newChatSessionItem?(request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 }
 
 /**
@@ -293,6 +295,12 @@ export interface IChatSessionsService {
 
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined;
+
+	/**
+	 * Creates a new chat session item using the controller's newChatSessionItemHandler.
+	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
+	 */
+	createNewChatSessionItem(chatSessionType: string, request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 }
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {

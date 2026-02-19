@@ -197,9 +197,22 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					const contributedSession = chatSession?.contributedChatSession;
 					let chatSessionContext: IChatSessionContextDto | undefined;
 					if (contributedSession) {
+						let chatSessionResource = contributedSession.chatSessionResource;
+						let isUntitled = contributedSession.isUntitled;
+
+						// For new untitled sessions, invoke the controller's newChatSessionItemHandler
+						// to let the extension create a proper session item before the first request.
+						if (isUntitled) {
+							const newItem = await this._chatSessionService.createNewChatSessionItem(contributedSession.chatSessionType, request, token);
+							if (newItem) {
+								chatSessionResource = newItem.resource;
+								isUntitled = false;
+							}
+						}
+
 						chatSessionContext = {
-							chatSessionResource: contributedSession.chatSessionResource,
-							isUntitled: contributedSession.isUntitled,
+							chatSessionResource,
+							isUntitled,
 							initialSessionOptions: contributedSession.initialSessionOptions?.map(o => ({
 								optionId: o.optionId,
 								value: typeof o.value === 'string' ? o.value : o.value.id,

@@ -1,5 +1,5 @@
 src/**
-tsconfig.json
+tsconfig*.json
 out/**
 extension.webpack.config.js
 package-lock.json

@@ -59,6 +59,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPullRequestContent, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
+import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -464,8 +465,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.hoverHidden(requestHover);
 
 		const checkpointContainer = dom.append(rowContainer, $('.checkpoint-container'));
-		const codiconContainer = dom.append(checkpointContainer, $('.codicon-container'));
-		dom.append(codiconContainer, $('span.codicon.codicon-bookmark'));
+		dom.append(checkpointContainer, $('.checkpoint-line-left'));
 
 		const checkpointToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointContainer, MenuId.ChatMessageCheckpoint, {
 			actionViewItemProvider: (action, options) => {
@@ -483,7 +483,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			},
 		}));
 
-		dom.append(checkpointContainer, $('.checkpoint-divider'));
+		dom.append(checkpointContainer, $('.checkpoint-line-right'));
 
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
@@ -517,10 +517,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		footerDetailsContainer.tabIndex = 0;
 
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
-		const codiconRestoreContainer = dom.append(checkpointRestoreContainer, $('.codicon-container'));
-		dom.append(codiconRestoreContainer, $('span.codicon.codicon-bookmark'));
+		dom.append(checkpointRestoreContainer, $('.checkpoint-line-left'));
 		const label = dom.append(checkpointRestoreContainer, $('span.checkpoint-label-text'));
 		label.textContent = localize('checkpointRestore', 'Checkpoint Restored');
+		const dot = dom.append(checkpointRestoreContainer, $('span.checkpoint-dot-separator'));
+		dot.textContent = '\u00B7';
+		dot.setAttribute('aria-hidden', 'true');
 		const checkpointRestoreToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, checkpointRestoreContainer, MenuId.ChatMessageRestoreCheckpoint, {
 			actionViewItemProvider: (action, options) => {
 				if (action instanceof MenuItemAction) {
@@ -537,7 +539,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			},
 		}));
 
-		dom.append(checkpointRestoreContainer, $('.checkpoint-divider'));
+		dom.append(checkpointRestoreContainer, $('.checkpoint-line-right'));
 
 
 		const agentHover = templateDisposables.add(this.instantiationService.createInstance(ChatAgentHover));
@@ -969,9 +971,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off &&
 			partsToRender.some(part =>
 				(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') &&
-				part.presentation !== 'hidden' &&
 				this.shouldPinPart(part, element)
 			)) {
+			return false;
+		}
+
+
+		const hasRenderedThinkingPart = (templateData.renderedParts ?? []).some(part => part instanceof ChatThinkingContentPart);
+		const hasEditPillMarkdown = partsToRender.some(part => part.kind === 'markdownContent' && this.hasCodeblockUri(part));
+		if (hasRenderedThinkingPart && hasEditPillMarkdown) {
 			return false;
 		}
 
@@ -1469,7 +1477,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// don't pin ask questions tool invocations
-		const isAskQuestionsTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolId === 'copilot_askQuestions';
+		const isAskQuestionsTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (part.toolId === 'copilot_askQuestions' || part.toolId === 'vscode_askQuestions');
 		if (isAskQuestionsTool) {
 			return false;
 		}
@@ -1699,6 +1707,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'markdownContent') {
 				return this.renderMarkdown(content, templateData, context);
 			} else if (content.kind === 'references') {
+				if (isResponseVM(context.element) && context.element.model.request?.modeInfo?.modeId === ChatModeKind.Agent) {
+					return this.renderNoContent(other => other.kind === content.kind);
+				}
 				return this.renderContentReferencesListData(content, undefined, context, templateData);
 			} else if (content.kind === 'codeCitations') {
 				return this.renderCodeCitations(content, context, templateData);
@@ -2085,6 +2096,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				carousel.data = answersRecord;
 			}
 			carousel.isUsed = true;
+			if (carousel instanceof ChatQuestionCarouselData) {
+				carousel.completion.complete({ answers: answersRecord });
+			}
 
 			// Notify the extension about the carousel answers to resolve the deferred promise
 			if (isResponseVM(context.element) && carousel.resolveId) {
@@ -2106,6 +2120,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (responseIsComplete && !carousel.isUsed && isResponseVM(context.element) && carousel.resolveId && carousel.data === undefined) {
 				carousel.data = {};
 				carousel.isUsed = true;
+				if (carousel instanceof ChatQuestionCarouselData) {
+					carousel.completion.complete({ answers: undefined });
+				}
 				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, undefined);
 				this.pendingQuestionCarousels.get(context.element.sessionResource)?.clear();
 			}

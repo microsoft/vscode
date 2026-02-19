@@ -48,7 +48,6 @@ import {
 	SIDEBAR_MIN_WIDTH,
 	SIDEBAR_MAX_WIDTH,
 	CONTENT_MIN_WIDTH,
-	getActiveSessionRoot,
 } from './aiCustomizationManagement.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeViewIcons.js';
 import { ChatModelsWidget } from '../../../../workbench/contrib/chat/browser/chatManagement/chatModelsWidget.js';
@@ -58,9 +57,7 @@ import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, 
 import { showConfigureHooksQuickPick } from '../../../../workbench/contrib/chat/browser/promptSyntax/hookActions.js';
 import { CustomizationCreatorService } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IWorkingCopyService } from '../../../../workbench/services/workingCopy/common/workingCopyService.js';
 
 const $ = DOM.$;
@@ -148,7 +145,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorSaveIndicator!: HTMLElement;
 	private readonly editorModelChangeDisposables = this._register(new DisposableStore());
 	private currentEditingUri: URI | undefined;
-	private currentWorktreeUri: URI | undefined;
+	private currentActiveSession: IActiveSessionItem | undefined;
 	private currentEditingIsWorktree = false;
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
 	private viewMode: 'list' | 'editor' = 'list';
@@ -177,7 +174,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
@@ -192,7 +188,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			if (this.viewMode !== 'editor' || !this.currentEditingIsWorktree) {
 				return;
 			}
-			this.currentWorktreeUri = getActiveSessionRoot(this.activeSessionService);
+			this.currentActiveSession = this.activeSessionService.getActiveSession() ?? undefined;
 		}));
 
 		// Safety disposal for the embedded editor model reference
@@ -547,8 +543,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorItemPathElement.textContent = basename(uri);
 
 		// Track worktree URI for auto-commit on close
-		const worktreeDir = getActiveSessionRoot(this.activeSessionService);
-		this.currentWorktreeUri = isWorktreeFile ? worktreeDir : undefined;
+		this.currentActiveSession = isWorktreeFile ? this.activeSessionService.getActiveSession() ?? undefined : undefined;
 		this.currentEditingIsWorktree = isWorktreeFile;
 
 		// Update visibility
@@ -593,16 +588,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private goBackToList(): void {
 		// Auto-commit worktree files when leaving the embedded editor
 		const fileUri = this.currentEditingUri;
-		const worktreeUri = this.currentWorktreeUri;
-		if (fileUri && worktreeUri) {
-			this.commitWorktreeFile(worktreeUri, fileUri);
+		const session = this.currentActiveSession;
+		if (fileUri && session) {
+			this.commitWorktreeFile(session, fileUri);
 		}
 
 		// Dispose model reference
 		this.currentModelRef?.dispose();
 		this.currentModelRef = undefined;
 		this.currentEditingUri = undefined;
-		this.currentWorktreeUri = undefined;
+		this.currentActiveSession = undefined;
 		this.currentEditingIsWorktree = false;
 		this.editorModelChangeDisposables.clear();
 		this.clearSaveIndicator();
@@ -786,12 +781,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Commits a worktree file via the extension and refreshes the Changes view.
 	 */
-	private async commitWorktreeFile(worktreeUri: URI, fileUri: URI): Promise<void> {
-		await this.commandService.executeCommand(
-			'github.copilot.cli.sessions.commitToWorktree',
-			{ worktreeUri, fileUri }
-		);
-		await this.agentSessionsService.model.resolve(AgentSessionProviders.Background);
+	private async commitWorktreeFile(session: IActiveSessionItem, fileUri: URI): Promise<void> {
+		await this.activeSessionService.commitWorktreeFiles(session, [fileUri]);
 		this.refreshList();
 	}
 

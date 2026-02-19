@@ -1296,8 +1296,8 @@ export class CodeApplication extends Disposable {
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
 
-		// Embedded app launches directly into the sessions window
-		if ((process as INodeProcess).isEmbeddedApp) {
+		// Handle sessions window first based on context
+		if ((process as INodeProcess).isEmbeddedApp || (args['sessions'] && this.productService.quality !== 'stable')) {
 			return windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
 		}
 

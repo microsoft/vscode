@@ -334,7 +334,10 @@ async function buildWebExtensions(isWatch: boolean): Promise<void> {
 		promises.push(
 			ext.esbuildExtensions('packaging web extension (esbuild)', isWatch, esbuildConfigLocations.map(script => ({ script }))),
 			// Also run type check on extensions
-			...esbuildConfigLocations.map(script => ext.typeCheckExtension(path.dirname(script), true))
+			...esbuildConfigLocations.flatMap(script => {
+				const roots = ext.getBuildRootsForExtension(path.dirname(script));
+				return roots.map(root => ext.typeCheckExtension(root, true));
+			})
 		);
 	}
 

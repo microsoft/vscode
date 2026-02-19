@@ -44,6 +44,8 @@ import { IRemoteAgentService } from '../../../../../../workbench/services/remote
 import { basename } from '../../../../../../base/common/resources.js';
 import { match } from '../../../../../../base/common/glob.js';
 import { ChatModeKind } from '../../../common/constants.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 
 suite('ComputeAutomaticInstructions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -174,6 +176,8 @@ suite('ComputeAutomaticInstructions', () => {
 		instaService.stub(IRemoteAgentService, {
 			getEnvironment: () => Promise.resolve(null),
 		});
+
+		instaService.stub(IContextKeyService, new MockContextKeyService());
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);

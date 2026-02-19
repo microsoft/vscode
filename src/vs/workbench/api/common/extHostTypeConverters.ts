@@ -2987,8 +2987,13 @@ export namespace ChatToolInvocationPart {
 				language: data.language
 			};
 		} else if ('commandLine' in data && 'language' in data) {
+			const presentationOverrides = data.presentationOverrides && typeof data.presentationOverrides.commandLine === 'string' ? {
+				commandLine: data.presentationOverrides.commandLine,
+				language: data.presentationOverrides.language
+			} : undefined;
 			const result: IChatTerminalToolInvocationData = {
 				kind: 'terminal',
+				presentationOverrides,
 				commandLine: data.commandLine,
 				language: data.language,
 				terminalCommandOutput: typeof data.output?.text === 'string' ? {

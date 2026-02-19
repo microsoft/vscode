@@ -347,6 +347,21 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		return this._proxy.$refreshChatSessionItems(this._handle, token);
 	}
 
+	async newChatSessionItem(request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		const dto = await raceCancellationError(this._proxy.$newChatSessionItem(this._handle, request, token), token);
+		if (!dto) {
+			return undefined;
+		}
+		const item: IChatSessionItem = {
+			...dto,
+			resource: URI.revive(dto.resource),
+			changes: revive(dto.changes),
+		};
+		this._items.set(item.resource, item);
+		this._onDidChangeChatSessionItems.fire();
+		return item;
+	}
+
 	acceptChange(change: { readonly addedOrUpdated: readonly IChatSessionItem[]; readonly removed: readonly URI[] }): void {
 		for (const item of change.addedOrUpdated) {
 			this._items.set(item.resource, item);

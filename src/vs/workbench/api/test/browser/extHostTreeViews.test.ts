@@ -499,6 +499,30 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
+	test('dispose and re-register tree view', async () => {
+		const disposeTreeSpy = sinon.spy(target, '$disposeTree');
+		const registerSpy = sinon.spy(target, '$registerTreeViewDataProvider');
+
+		// Create, dispose, and re-register a tree view with the same id
+		const treeView1 = testObject.createTreeView('reRegisterTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
+		treeView1.dispose();
+		const treeView2 = testObject.createTreeView('reRegisterTreeProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
+
+		// Let all pending microtasks (the async dispose) settle
+		await new Promise<void>(r => setTimeout(r, 0));
+
+		// The new view should work — $getChildren should return results, not reject
+		const elements = await testObject.$getChildren('reRegisterTreeProvider');
+		assert.deepStrictEqual(unBatchChildren(elements)?.map(e => e.handle), ['0/0:a', '0/0:b']);
+
+		// $registerTreeViewDataProvider should have been called twice (once per createTreeView)
+		assert.strictEqual(registerSpy.callCount, 2);
+		// $disposeTree should NOT have been called — the old async dispose should detect it was replaced
+		assert.strictEqual(disposeTreeSpy.callCount, 0);
+
+		treeView2.dispose();
+	});
+
 	test('reveal will throw an error if getParent is not implemented', () => {
 		const treeView = testObject.createTreeView('treeDataProvider', { treeDataProvider: aNodeTreeDataProvider() }, extensionsDescription);
 		return treeView.reveal({ key: 'a' })

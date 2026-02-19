@@ -126,6 +126,9 @@ class YamlScanner {
 	private readonly tokens: Token[] = [];
 	// Track flow nesting depth so commas and flow indicators are only special inside flow collections
 	private flowDepth = 0;
+	// Track whether we've already seen a block colon on the current line.
+	// After the first key: value colon, subsequent ': ' on the same line is part of the scalar value.
+	private seenBlockColon = false;
 
 	constructor(private readonly input: string) { }
 
@@ -139,6 +142,7 @@ class YamlScanner {
 
 	// Scan a single logical line (up to and including the newline character)
 	private scanLine(): void {
+		this.seenBlockColon = false;
 		// Handle blank lines / lines that are only whitespace
 		if (this.peekChar() === '\n') {
 			this.tokens.push(makeToken(TokenType.Newline, this.pos, this.pos + 1));
@@ -256,6 +260,9 @@ class YamlScanner {
 			} else if (ch === ':' && this.isBlockColon()) {
 				this.tokens.push(makeToken(TokenType.Colon, this.pos, this.pos + 1));
 				this.pos++;
+				if (this.flowDepth === 0) {
+					this.seenBlockColon = true;
+				}
 			} else if (ch === ':' && this.flowDepth > 0 && this.lastTokenIsJsonLike()) {
 				// In flow context, ':' immediately following a JSON-like node (quoted scalar,
 				// flow mapping, or flow sequence) is a value indicator even without trailing space
@@ -280,6 +287,9 @@ class YamlScanner {
 
 	/** Check if ':' acts as a mapping value indicator (followed by space, newline, EOF, or flow indicator) */
 	private isBlockColon(): boolean {
+		// In block context, after the first key-value colon on a line,
+		// subsequent ': ' is part of the scalar value, not a mapping indicator.
+		if (this.seenBlockColon && this.flowDepth === 0) { return false; }
 		const next = this.input[this.pos + 1];
 		if (next === undefined || next === ' ' || next === '\t' || next === '\n' || next === '\r') { return true; }
 		// Flow indicators after colon only count inside flow context
