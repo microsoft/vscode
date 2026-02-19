@@ -187,10 +187,6 @@
 	padding: 0;
 }
 
-/* .monaco-workbench .monaco-editor .suggest-widget .monaco-list {
-	border-radius: var(--radius-lg);
-} */
-
 .monaco-workbench .quick-input-widget .monaco-list-rows {
 	background: transparent !important;
 }
@@ -202,13 +198,9 @@
 
 .monaco-workbench .quick-input-widget .quick-input-filter .monaco-inputbox {
 	background: color-mix(in srgb, var(--vscode-input-background) 60%, transparent) !important;
-	/* border-radius: 6px; */
 }
 
 /* Chat Widget */
-.monaco-workbench .interactive-session .chat-input-container {
-	border-radius: var(--radius-lg);
-}
 
 .monaco-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
 .monaco-workbench .interactive-session .chat-editing-session .chat-editing-session-container {
@@ -217,6 +209,10 @@
 
 .monaco-workbench .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container {
 	border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.monaco-workbench.vs .interactive-session .chat-input-container {
+	box-shadow: inset var(--shadow-sm);
 }
 
 .monaco-workbench .part.panel .interactive-session,
