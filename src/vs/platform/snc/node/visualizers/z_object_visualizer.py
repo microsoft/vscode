@@ -52,6 +52,7 @@ from typing import List, Tuple, Any
 # VS Code theme colors
 BLUE = "#569cd6"
 GRAY = "#808080"
+GRAY_HALF_ALPHA = "rgba(128,128,128,0.5)"
 ADD_GREEN = "#89d185"
 INPUT_BG = "#1e1e1e"
 INPUT_BORDER = "#3c3c3c"
@@ -406,12 +407,12 @@ def visualize(obj, model=None):
             click_event = repr(FieldClick(index=i))
             remove_event = repr(RemoveFieldClick(index=i))
             field_trs.append(
-                f'<tr class="snc-field-row">'
-                f'<td class="snc-remove-btn" snc-mouse-down="{html.escape(remove_event)}" '
+                f'<tr class="snc-hover-hidden-parent">'
+                f'<td snc-mouse-down="{html.escape(remove_event)}" '
                 f'style="color:{GRAY};cursor:pointer;opacity:0.5;user-select:none;'
                 f'padding-right:2px;width:12px;" '
                 f'title="Remove field">'
-                f'\u00d7</td>'
+                f'<span class="snc-hover-hidden">\u00d7</span></td>'
                 f'<td snc-mouse-down="{html.escape(click_event)}" '
                 f'style="color:{BLUE};opacity:0.7;cursor:pointer;padding-right:8px;">'
                 f'{html.escape(display_accessor)}</td>'
@@ -428,10 +429,13 @@ def visualize(obj, model=None):
     # (+) Add field button
     add_event = repr(AddFieldClick())
     add_button = (
-        f'<div snc-mouse-down="{html.escape(add_event)}" '
-        f'style="color:{ADD_GREEN};cursor:pointer;padding:2px 0;font-size:12px;user-select:none;">'
-        f'<span style="font-weight:bold;">+</span> Add field'
-        f'</div>'
+        f'<tr snc-mouse-down="{html.escape(add_event)}" class="snc-hover-hidden-parent">'
+        f'<td></td>'
+        f'<td class="snc-hover-hide-border" colspan=2 style="color:{GRAY};cursor:pointer;text-align:center;opacity:0.5;user-select:none;height:5px;border:1px solid {GRAY_HALF_ALPHA}">'
+            f'<span class="snc-hover-hidden" style="display:inline-block;position:absolute;margin-top:-9px;margin-left:-0.4em;font-size:8px;font-style:normal">+</span>'
+        f'</td>'
+        # f'<td></td>'
+        f'</tr>'
     )
 
     key_handler = repr(KeyDown())
@@ -441,8 +445,8 @@ def visualize(obj, model=None):
         f'<h4 style="color:{BLUE};margin:0">{html.escape(full_class_name)} {html.escape(repr(obj))}</h4>'
         f'<table style="border-collapse:collapse;">'
         f'{field_trs_str}'
-        f'</table>'
         f'{add_button}'
+        f'</table>'
         f'</div>'
     )
 

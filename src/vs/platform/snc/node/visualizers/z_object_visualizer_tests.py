@@ -315,8 +315,8 @@ class TestVisualize(unittest.TestCase):
         self.assertIn('RemoveFieldClick(index=0)', html_output)
         self.assertIn('RemoveFieldClick(index=1)', html_output)
         # Remove button uses CSS class for hover visibility
-        self.assertIn('snc-remove-btn', html_output)
-        self.assertIn('snc-field-row', html_output)
+        self.assertIn('snc-hover-hidden', html_output)
+        self.assertIn('snc-hover-hidden-parent', html_output)
 
     def test_visualize_input_has_autofocus_when_adding(self):
         """Input should have autofocus attribute when adding a field."""

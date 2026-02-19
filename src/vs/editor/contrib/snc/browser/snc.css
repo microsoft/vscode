@@ -48,10 +48,17 @@
 	background-color: #094771;
 }
 
-/* Object visualizer: hide remove button until row is hovered */
-.monaco-editor .snc-field-row .snc-remove-btn {
+/* hide .snc-hover-hidden until .snc-hover-hidden-parent is hovered */
+/* used to show/hide property rows on the generic object visualizer */
+.monaco-editor .snc-hover-hidden-parent .snc-hover-hidden {
 	visibility: hidden;
 }
-.monaco-editor .snc-field-row:hover .snc-remove-btn {
+.monaco-editor .snc-hover-hidden-parent:not(:hover) .snc-hover-hide-border {
+	border-color: transparent !important;
+}
+.monaco-editor .snc-hover-hidden-parent:hover .snc-hover-hidden {
+	visibility: visible;
+}
+.monaco-editor .snc-hover-hidden:hover {
 	visibility: visible;
 }
