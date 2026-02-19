@@ -9,7 +9,7 @@
 	z-index: 2550;
 	left: 50%;
 	-webkit-app-region: no-drag;
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-xLarge);
 }
 
 .quick-input-titlebar {

@@ -125,7 +125,6 @@
 /* Quick Input (Command Palette) */
 .monaco-workbench .quick-input-widget {
 	box-shadow: var(--shadow-xl) !important;
-	border-radius: 12px;
 	background-color: color-mix(in srgb, var(--vscode-quickInput-background) 60%, transparent) !important;
 	backdrop-filter: var(--backdrop-blur-lg);
 	-webkit-backdrop-filter: var(--backdrop-blur-lg);
