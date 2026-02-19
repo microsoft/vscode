@@ -117,7 +117,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			// Other keys should still type normally, but must not bubble to VS Code.
 			const target = ev.target as HTMLElement;
 			if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-				if (ev.key !== 'Enter' && ev.key !== 'Escape' && ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') {
+				if (ev.key !== 'Enter' && ev.key !== 'Escape' && ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown' && ev.key !== 'Tab') {
 					ev.stopPropagation();
 					return;
 				}
@@ -343,10 +343,11 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 					}
 				}
 
-				// Autofocus: focus the [autofocus] element only when no existing focus
-				// to restore (i.e. the input just appeared). When focusedIndex >= 0,
-				// the normal path preserves cursor position in already-focused inputs.
-				if (autoFocusEl && focusedIndex < 0) {
+				// Autofocus: focus the [autofocus] element when it's newly appearing.
+				// If the previously focused element was already an input (savedSelectionStart != null),
+				// use normal focus restoration to preserve cursor position.
+				// Otherwise (e.g. focus was on the outer div), autofocus the new input.
+				if (autoFocusEl && savedSelectionStart === null) {
 					autoFocusEl.focus({ preventScroll: true });
 					// Select all text if requested (e.g. editing an existing field)
 					if (autoFocusEl.hasAttribute('data-snc-select-all') && autoFocusEl instanceof HTMLInputElement) {

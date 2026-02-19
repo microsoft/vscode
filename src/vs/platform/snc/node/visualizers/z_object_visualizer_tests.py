@@ -113,6 +113,7 @@ class TestInitModel(unittest.TestCase):
         self.assertIn('Escape', model['handledKeys'])
         self.assertIn('ArrowUp', model['handledKeys'])
         self.assertIn('ArrowDown', model['handledKeys'])
+        self.assertIn('Tab', model['handledKeys'])
 
     def test_init_model_uses_non_trivial_names_for_unknown_type(self):
         """For a custom object with no DEFAULT_FIELDS_FOR_TYPE, use dir() minus TRIVIAL_NAMES."""
@@ -685,16 +686,61 @@ class TestUpdate(unittest.TestCase):
         self.assertFalse(new_model['adding_field'])
         self.assertIsNone(new_model['selected_suggestion_index'])
 
-    def test_field_input_resets_selected_suggestion(self):
-        """Typing in the input should reset the selected suggestion index."""
+    def test_field_input_auto_highlights_first_suggestion(self):
+        """Typing in the input should auto-highlight the first matching suggestion."""
         obj = TestObj()
         model = init_model(obj)
+        model['fields'] = ['.x']  # .name is NOT already shown
         model['adding_field'] = True
-        model['selected_suggestion_index'] = 2
+        model['selected_suggestion_index'] = None
 
         event = make_input_event('.na')
         new_model, commands = update(event, "x = TestObj()", 1, model, obj)
 
+        # .name matches '.na' and is not in fields, so first suggestion should be selected
+        self.assertEqual(new_model['selected_suggestion_index'], 0)
+
+    def test_field_input_clears_selection_when_no_suggestions(self):
+        """Typing something with no matches should clear the selection."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['adding_field'] = True
+        model['selected_suggestion_index'] = 0
+
+        event = make_input_event('.zzzzz')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIsNone(new_model['selected_suggestion_index'])
+
+    def test_field_input_clears_selection_when_empty(self):
+        """Clearing input should clear the selection."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['adding_field'] = True
+        model['selected_suggestion_index'] = 0
+
+        event = make_input_event('')
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIsNone(new_model['selected_suggestion_index'])
+
+    def test_tab_commits_selected_suggestion(self):
+        """Tab with a selected suggestion commits it like Enter."""
+        obj = TestObj()
+        model = init_model(obj)
+        model['fields'] = []
+        model['adding_field'] = True
+        model['input_value'] = '.'
+        suggestions = _get_autocomplete_suggestions(obj, [], '.')
+        model['selected_suggestion_index'] = 0
+        expected_field = suggestions[0]
+
+        event = make_key_down_event('Tab')
+        with patch('z_object_visualizer.save_fields_to_dotfile'):
+            new_model, commands = update(event, "x = TestObj()", 1, model, obj)
+
+        self.assertIn(expected_field, new_model['fields'])
+        self.assertFalse(new_model['adding_field'])
         self.assertIsNone(new_model['selected_suggestion_index'])
 
     def test_arrow_keys_noop_when_not_input_active(self):

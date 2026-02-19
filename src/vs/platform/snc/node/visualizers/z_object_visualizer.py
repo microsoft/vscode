@@ -213,7 +213,7 @@ def init_model(value):
             "adding_field": False,
             "input_value": "",
             "selected_suggestion_index": None,
-            "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown"],
+            "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"],
         }
 
     full_class_name = _get_full_class_name(value)
@@ -231,7 +231,7 @@ def init_model(value):
         "adding_field": False,
         "input_value": "",
         "selected_suggestion_index": None,
-        "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown"],
+        "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"],
     }
 
 
@@ -270,7 +270,12 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
 
         case FieldInput(value=val):
             model['input_value'] = val
-            model['selected_suggestion_index'] = None  # reset selection on typing
+            # Auto-highlight first matching suggestion so user can Tab/Enter immediately
+            if val and value is not None:
+                suggestions = _get_autocomplete_suggestions(value, model.get('fields', []), val)
+                model['selected_suggestion_index'] = 0 if suggestions else None
+            else:
+                model['selected_suggestion_index'] = None
 
         case FieldSelect(accessor=accessor):
             if model.get('adding_field'):
@@ -334,7 +339,7 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
                     else:
                         model['selected_suggestion_index'] = (cur - 1) % count
 
-            elif key == 'Enter':
+            elif key in ('Enter', 'Tab'):
                 # If a suggestion is selected, commit it
                 sel_idx = model.get('selected_suggestion_index')
                 if sel_idx is not None and is_input_active:
