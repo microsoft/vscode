@@ -654,6 +654,10 @@ export class ActionList<T> extends Disposable {
 		return this._options?.filterPlacement ?? 'top';
 	}
 
+	get filterInput(): HTMLInputElement | undefined {
+		return this._filterInput;
+	}
+
 	private focusCondition(element: IActionListItem<unknown>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}

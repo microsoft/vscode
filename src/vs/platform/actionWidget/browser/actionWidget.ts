@@ -12,7 +12,7 @@ import './actionWidget.css';
 import { localize, localize2 } from '../../../nls.js';
 import { acceptSelectedActionCommand, ActionList, IActionListDelegate, IActionListItem, IActionListOptions, previewSelectedActionCommand } from './actionList.js';
 import { Action2, registerAction2 } from '../../actions/common/actions.js';
-import { IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../contextkey/common/contextkey.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
@@ -28,7 +28,8 @@ registerColor(
 );
 
 const ActionWidgetContextKeys = {
-	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the action widget list is visible"))
+	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the action widget list is visible")),
+	FilterFocused: new RawContextKey<boolean>('codeActionMenuFilterFocused', false, localize('codeActionMenuFilterFocused', "Whether the action widget filter input is focused")),
 };
 
 export const IActionWidgetService = createDecorator<IActionWidgetService>('actionWidgetService');
@@ -162,6 +163,15 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		this._list.value?.focus();
 
+		// Track filter input focus state
+		const filterFocusedContext = ActionWidgetContextKeys.FilterFocused.bindTo(this._contextKeyService);
+		renderDisposables.add({ dispose: () => filterFocusedContext.reset() });
+		if (this._list.value?.filterInput) {
+			const filterInput = this._list.value.filterInput;
+			renderDisposables.add(dom.addDisposableListener(filterInput, 'focus', () => filterFocusedContext.set(true)));
+			renderDisposables.add(dom.addDisposableListener(filterInput, 'blur', () => filterFocusedContext.set(false)));
+		}
+
 		const focusTracker = renderDisposables.add(dom.trackFocus(element));
 		renderDisposables.add(focusTracker.onDidBlur(() => {
 			// Don't hide if focus moved to a hover that belongs to this action widget
@@ -265,7 +275,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'collapseSectionCodeAction',
 			title: localize2('collapseSectionCodeAction.title', "Collapse section"),
-			precondition: ActionWidgetContextKeys.Visible,
+			precondition: ContextKeyExpr.and(ActionWidgetContextKeys.Visible, ActionWidgetContextKeys.FilterFocused.negate()),
 			keybinding: {
 				weight,
 				primary: KeyCode.LeftArrow,
@@ -286,7 +296,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'expandSectionCodeAction',
 			title: localize2('expandSectionCodeAction.title', "Expand section"),
-			precondition: ActionWidgetContextKeys.Visible,
+			precondition: ContextKeyExpr.and(ActionWidgetContextKeys.Visible, ActionWidgetContextKeys.FilterFocused.negate()),
 			keybinding: {
 				weight,
 				primary: KeyCode.RightArrow,
@@ -307,7 +317,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'toggleSectionCodeAction',
 			title: localize2('toggleSectionCodeAction.title', "Toggle section"),
-			precondition: ActionWidgetContextKeys.Visible,
+			precondition: ContextKeyExpr.and(ActionWidgetContextKeys.Visible, ActionWidgetContextKeys.FilterFocused.negate()),
 			keybinding: {
 				weight,
 				primary: KeyCode.Space,
