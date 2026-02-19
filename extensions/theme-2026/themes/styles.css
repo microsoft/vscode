@@ -187,9 +187,9 @@
 	padding: 0;
 }
 
-.monaco-workbench .monaco-editor .suggest-widget .monaco-list {
+/* .monaco-workbench .monaco-editor .suggest-widget .monaco-list {
 	border-radius: var(--radius-lg);
-}
+} */
 
 .monaco-workbench .quick-input-widget .monaco-list-rows {
 	background: transparent !important;
