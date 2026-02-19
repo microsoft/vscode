@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
@@ -80,6 +81,8 @@ function callBuild(
 }
 
 suite('buildModelPickerItems', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('auto model always appears first', () => {
 		const auto = createAutoModel();
