@@ -46,6 +46,7 @@
 		".git": true,
 		".build": true,
 		".profile-oss": true,
+		"**/*.tsbuildinfo": true,
 		"**/.DS_Store": true,
 		".vscode-test": true,
 		"cli/target": true,
