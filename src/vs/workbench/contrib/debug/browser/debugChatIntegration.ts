@@ -271,7 +271,7 @@ class DebugSessionContextPick implements IChatContextPickerItem {
 	}
 }
 
-function createDebugVariableEntry(expression: IExpression, value = formatExpressionValue(expression), didTruncate = false): IDebugVariableEntry {
+function createDebugVariableEntry(expression: IExpression, value = formatExpressionValue(expression)): IDebugVariableEntry {
 	return {
 		kind: 'debugVariable',
 		id: `debug-variable:${expression.getId()}`,
@@ -281,7 +281,7 @@ function createDebugVariableEntry(expression: IExpression, value = formatExpress
 		value,
 		expression: expression.name,
 		type: expression.type,
-		modelDescription: formatModelDescription(expression.name, value, expression.type, didTruncate),
+		modelDescription: formatModelDescription(expression.name, value, expression.type),
 	};
 }
 
@@ -309,7 +309,7 @@ function createDebugAttachments(stackFrame: IStackFrame, variableEntry: IDebugVa
 }
 
 async function createScopeEntry(scope: IScope, variables: IExpression[]): Promise<IDebugVariableEntry> {
-	const { value, didTruncate } = await serializeScopeVariables(variables);
+	const value = await serializeScopeVariables(variables);
 	return {
 		kind: 'debugVariable',
 		id: `debug-scope:${scope.name}`,
@@ -319,7 +319,7 @@ async function createScopeEntry(scope: IScope, variables: IExpression[]): Promis
 		value,
 		expression: scope.name,
 		type: 'scope',
-		modelDescription: formatModelDescription(`Scope: ${scope.name}`, value, 'scope', didTruncate),
+		modelDescription: formatModelDescription(`Scope: ${scope.name}`, value, 'scope'),
 	};
 }
 
@@ -339,15 +339,12 @@ function formatExpressionResult(value: string, type?: string): string {
 	return value || type || '';
 }
 
-function formatModelDescription(name: string, value: string, type?: string, didTruncate = false): string {
+function formatModelDescription(name: string, value: string, type?: string): string {
 	let description = `Debug variable "${name}"`;
 	if (type) {
 		description += ` of type ${type}`;
 	}
 	description += ` with value: ${value}`;
-	if (didTruncate) {
-		description += `\n${truncatedOutputSuffix}`;
-	}
 	return description;
 }
 
@@ -362,16 +359,13 @@ interface IDebugVariableSerializationState {
 }
 
 async function createSerializedDebugVariableEntry(expression: IExpression): Promise<IDebugVariableEntry> {
-	const { value, didTruncate } = await serializeExpressionValue(expression);
-	return createDebugVariableEntry(expression, value, didTruncate);
+	const value = await serializeExpressionValue(expression);
+	return createDebugVariableEntry(expression, value);
 }
 
-async function serializeExpressionValue(expression: IExpression): Promise<{ value: string; didTruncate: boolean }> {
+async function serializeExpressionValue(expression: IExpression): Promise<string> {
 	if (!expression.hasChildren) {
-		return {
-			value: formatExpressionValue(expression),
-			didTruncate: false,
-		};
+		return formatExpressionValue(expression);
 	}
 
 	const state: IDebugVariableSerializationState = {
@@ -381,21 +375,15 @@ async function serializeExpressionValue(expression: IExpression): Promise<{ valu
 	};
 	await appendExpressionLines(expression, 0, state);
 	if (!state.lines.length) {
-		return {
-			value: formatExpressionValue(expression),
-			didTruncate: false,
-		};
+		return formatExpressionValue(expression);
 	}
 	if (state.didTruncate) {
 		state.lines.push(truncatedOutputSuffix);
 	}
-	return {
-		value: state.lines.join('\n'),
-		didTruncate: state.didTruncate,
-	};
+	return state.lines.join('\n');
 }
 
-async function serializeScopeVariables(variables: IExpression[]): Promise<{ value: string; didTruncate: boolean }> {
+async function serializeScopeVariables(variables: IExpression[]): Promise<string> {
 	const state: IDebugVariableSerializationState = {
 		lines: [],
 		nodeCount: 0,
@@ -420,10 +408,7 @@ async function serializeScopeVariables(variables: IExpression[]): Promise<{ valu
 		state.lines.push(truncatedOutputSuffix);
 	}
 
-	return {
-		value: state.lines.join('\n'),
-		didTruncate: state.didTruncate,
-	};
+	return state.lines.join('\n');
 }
 
 async function appendExpressionLines(expression: IExpression, depth: number, state: IDebugVariableSerializationState): Promise<void> {
