@@ -475,9 +475,11 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
             select_event = repr(FieldSelect(accessor=suggestion))
             is_selected = (selected_idx == i)
             bg = '#094771' if is_selected else SUGGESTION_BG
+            scroll_attr = ' data-snc-scroll-into-view' if is_selected else ''
             items.append(
                 f'<div snc-mouse-down="{html.escape(select_event)}" '
-                f'class="snc-dropdown-option" '
+                f'class="snc-dropdown-option"'
+                f'{scroll_attr} '
                 f'style="padding:2px 6px;cursor:pointer;color:{BLUE};white-space:nowrap;'
                 f'background:{bg};"'
                 f'>{html.escape(suggestion)}</div>'

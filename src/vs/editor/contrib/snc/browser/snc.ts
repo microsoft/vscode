@@ -316,6 +316,12 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		this.hoistDropdownPanel();
 		this.updateLayoutMode();
 
+		// Scroll any element marked for scroll-into-view (e.g. selected autocomplete item)
+		const scrollTarget = (this.hoistedDropdown ?? this.domNode).querySelector('[data-snc-scroll-into-view]') as HTMLElement | null;
+		if (scrollTarget) {
+			scrollTarget.scrollIntoView({ block: 'nearest' });
+		}
+
 		// Restore scroll/focus after DOM replacement settles. Restore scroll first
 		// so focus restoration with preventScroll does not fight with scroll offsets.
 		const shouldRestoreScroll = savedWidgetScrollTop !== 0
