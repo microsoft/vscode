@@ -548,10 +548,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 				let metadata: any | undefined;
 				if (ast.header) {
 					const advanced = ast.header.getAttribute(PromptHeaderAttributes.advancedOptions);
-					if (advanced && advanced.value.type === 'object') {
+					if (advanced && advanced.value.type === 'map') {
 						metadata = {};
 						for (const [key, value] of Object.entries(advanced.value)) {
-							if (['string', 'number', 'boolean'].includes(value.type)) {
+							if (value.type === 'scalar') {
 								metadata[key] = value;
 							}
 						}

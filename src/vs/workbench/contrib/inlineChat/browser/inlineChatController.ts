@@ -118,6 +118,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _renderMode: IObservable<'zone' | 'hover'>;
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
 	private readonly _gutterIndicator: InlineChatAffordance;
+	private readonly _inputWidget: InlineChatInputWidget;
 
 	private readonly _currentSession: IObservable<IInlineChatSession2 | undefined>;
 
@@ -127,6 +128,10 @@ export class InlineChatController implements IEditorContribution {
 
 	get isActive() {
 		return Boolean(this._currentSession.get());
+	}
+
+	get inputWidget(): InlineChatInputWidget {
+		return this._inputWidget;
 	}
 
 	constructor(
@@ -152,7 +157,7 @@ export class InlineChatController implements IEditorContribution {
 		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
 		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
 
-		const overlayWidget = this._store.add(this._instaService.createInstance(InlineChatInputWidget, editorObs));
+		const overlayWidget = this._inputWidget = this._store.add(this._instaService.createInstance(InlineChatInputWidget, editorObs));
 		const sessionOverlayWidget = this._store.add(this._instaService.createInstance(InlineChatSessionOverlayWidget, editorObs));
 		this._gutterIndicator = this._store.add(this._instaService.createInstance(InlineChatAffordance, this._editor, overlayWidget));
 

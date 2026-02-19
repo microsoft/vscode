@@ -318,8 +318,8 @@ const MAKE_VISIBLE_BUTTON: IQuickInputButton = {
  * Button that sets a prompt file to be invisible.
  */
 const MAKE_INVISIBLE_BUTTON: IQuickInputButton = {
-	tooltip: localize('makeInvisible', "Hide from agent picker"),
-	iconClass: ThemeIcon.asClassName(Codicon.eyeClosed),
+	tooltip: localize('makeInvisible', "Shown in chat view agent picker. Click to hide."),
+	iconClass: ThemeIcon.asClassName(Codicon.eye),
 };
 
 export class PromptFilePickers {

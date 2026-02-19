@@ -78,7 +78,7 @@ export class ChatViewTitleControl extends Disposable {
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const instantiationService = accessor.get(IInstantiationService);
 
-				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, that.titleLabel.value?.element);
+				const agentSessionsPicker = instantiationService.createInstance(AgentSessionsPicker, that.titleLabel.value?.element, undefined);
 				await agentSessionsPicker.pickAgentSession();
 			}
 		}));

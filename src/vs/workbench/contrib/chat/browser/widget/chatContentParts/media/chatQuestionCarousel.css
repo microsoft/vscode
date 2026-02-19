@@ -60,6 +60,21 @@
 				font-size: var(--vscode-chat-font-size-body-s);
 				margin: 0;
 
+				.rendered-markdown {
+					a {
+						color: var(--vscode-textLink-foreground);
+					}
+
+					a:hover,
+					a:active {
+						color: var(--vscode-textLink-activeForeground);
+					}
+
+					p {
+						margin: 0;
+					}
+				}
+
 				.chat-question-title-main {
 					font-weight: 500;
 				}

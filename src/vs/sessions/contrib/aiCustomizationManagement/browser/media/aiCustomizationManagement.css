@@ -38,11 +38,11 @@
 .ai-customization-management-editor .section-list-item {
 	display: flex;
 	align-items: center;
-	padding: 8px 16px;
+	padding: 4px 8px;
 	gap: 10px;
 	cursor: pointer;
-	margin: 2px 6px;
-	border-radius: 6px;
+	margin: 1px 6px;
+	border-radius: 4px;
 	transition: background-color 0.1s ease, opacity 0.1s ease;
 }
 
@@ -79,7 +79,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	font-size: 13px;
+	font-size: 12px;
 	font-weight: 400;
 }
 

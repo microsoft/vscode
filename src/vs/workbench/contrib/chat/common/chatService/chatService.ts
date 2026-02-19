@@ -1455,3 +1455,21 @@ export interface IChatSessionStartOptions {
 	canUseTools?: boolean;
 	disableBackgroundKeepAlive?: boolean;
 }
+
+export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';
+
+export type ChatStopCancellationNoopEvent = {
+	source: 'cancelAction' | 'chatService';
+	reason: 'noWidget' | 'noViewModel' | 'noPendingRequest' | 'requestAlreadyCanceled' | 'requestIdUnavailable';
+	requestInProgress: 'true' | 'false' | 'unknown';
+	pendingRequests: number;
+};
+
+export type ChatStopCancellationNoopClassification = {
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The layer where stop cancellation no-op occurred.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The no-op reason when stop cancellation did not dispatch fully.' };
+	requestInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether request-in-progress was true, false, or unknown at no-op time.' };
+	pendingRequests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of queued pending requests at no-op time when known.'; isMeasurement: true };
+	owner: 'roblourens';
+	comment: 'Tracks possible no-op stop cancellation paths.';
+};

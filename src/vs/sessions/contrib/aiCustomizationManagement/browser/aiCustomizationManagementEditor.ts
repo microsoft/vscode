@@ -59,7 +59,7 @@ import { showConfigureHooksQuickPick } from '../../../../workbench/contrib/chat/
 import { CustomizationCreatorService } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ISessionsWorkbenchService } from '../../sessions/browser/sessionsWorkbenchService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IWorkingCopyService } from '../../../../workbench/services/workingCopy/common/workingCopyService.js';
 
@@ -176,7 +176,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ISessionsWorkbenchService private readonly activeSessionService: ISessionsWorkbenchService,
+		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 	) {

@@ -8,6 +8,7 @@ import { EventEmitter } from 'events';
 EventEmitter.defaultMaxListeners = 100;
 
 import es from 'event-stream';
+import fancyLog from 'fancy-log';
 import glob from 'glob';
 import gulp from 'gulp';
 import filter from 'gulp-filter';
@@ -26,6 +27,25 @@ import watcher from './lib/watch/index.ts';
 
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+
+// Tracks active extension compilations to emit aggregate
+// "Starting compilation" / "Finished compilation" messages
+// that the problem matcher in tasks.json relies on.
+let activeExtensionCompilations = 0;
+
+function onExtensionCompilationStart(): void {
+	if (activeExtensionCompilations === 0) {
+		fancyLog('Starting compilation');
+	}
+	activeExtensionCompilations++;
+}
+
+function onExtensionCompilationEnd(): void {
+	activeExtensionCompilations--;
+	if (activeExtensionCompilations === 0) {
+		fancyLog('Finished compilation');
+	}
+}
 
 // To save 250ms for each gulp startup, we are caching the result here
 // const compilations = glob.sync('**/tsconfig.json', {
@@ -175,7 +195,25 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts'], { dot: true }));
 		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
 		const watchNonTs = watchInput.pipe(filter(['**', '!**/*.ts'], { dot: true })).pipe(gulp.dest(out));
-		const tsgoStream = watchInput.pipe(util.debounce(() => createTsgoStream(absolutePath, { taskName: 'extensions' }, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl)), 200));
+		const tsgoStream = watchInput.pipe(util.debounce(() => {
+			onExtensionCompilationStart();
+			const stream = createTsgoStream(absolutePath, { taskName: 'extensions' }, () => rewriteTsgoSourceMappingUrlsIfNeeded(false, out, baseUrl));
+			// Wrap in a result stream that always emits 'end' (even on
+			// error) so the debounce resets to idle and can process future
+			// file changes. Errors from tsgo (e.g. type errors causing a
+			// non-zero exit code) are already reported by spawnTsgo's
+			// runReporter, so swallowing the stream error is safe.
+			const result = es.through();
+			stream.on('end', () => {
+				onExtensionCompilationEnd();
+				result.emit('end');
+			});
+			stream.on('error', () => {
+				onExtensionCompilationEnd();
+				result.emit('end');
+			});
+			return result;
+		}, 200));
 		const watchStream = es.merge(nonts.pipe(gulp.dest(out)), watchNonTs, tsgoStream);
 
 		return watchStream;
@@ -296,7 +334,10 @@ async function buildWebExtensions(isWatch: boolean): Promise<void> {
 		promises.push(
 			ext.esbuildExtensions('packaging web extension (esbuild)', isWatch, esbuildConfigLocations.map(script => ({ script }))),
 			// Also run type check on extensions
-			...esbuildConfigLocations.map(script => ext.typeCheckExtension(path.dirname(script), true))
+			...esbuildConfigLocations.flatMap(script => {
+				const roots = ext.getBuildRootsForExtension(path.dirname(script));
+				return roots.map(root => ext.typeCheckExtension(root, true));
+			})
 		);
 	}
 

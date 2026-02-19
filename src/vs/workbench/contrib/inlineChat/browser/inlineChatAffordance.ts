@@ -23,15 +23,18 @@ import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { Event } from '../../../../base/common/event.js';
 
 type InlineChatAffordanceEvent = {
 	mode: string;
 	id: string;
+	commandId: string;
 };
 
 type InlineChatAffordanceClassification = {
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The affordance mode: gutter or editor.' };
 	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'UUID to correlate shown and selected events.' };
+	commandId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The command that was executed.' };
 	owner: 'jrieken';
 	comment: 'Tracks when the inline chat affordance is shown or selected.';
 };
@@ -83,7 +86,7 @@ export class InlineChatAffordance extends Disposable {
 			affordanceId = generateUuid();
 			const mode = affordance.read(undefined);
 			if (mode === 'gutter' || mode === 'editor') {
-				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/shown', { mode, id: affordanceId });
+				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/shown', { mode, id: affordanceId, commandId: '' });
 			}
 			selectionData.set(value, undefined);
 		}));
@@ -106,7 +109,12 @@ export class InlineChatAffordance extends Disposable {
 			}
 		}));
 
-		this._store.add(this.#instantiationService.createInstance(
+		// Hide when the editor context menu shows
+		this._store.add(this.#editor.onContextMenu(() => {
+			selectionData.set(undefined, undefined);
+		}));
+
+		const gutterAffordance = this._store.add(this.#instantiationService.createInstance(
 			InlineChatGutterAffordance,
 			editorObs,
 			derived(r => affordance.read(r) === 'gutter' ? selectionData.read(r) : undefined),
@@ -119,17 +127,19 @@ export class InlineChatAffordance extends Disposable {
 			derived(r => affordance.read(r) === 'editor' ? selectionData.read(r) : undefined)
 		);
 		this._store.add(editorAffordance);
-		this._store.add(editorAffordance.onDidRunAction(() => {
+
+		this._store.add(Event.any(editorAffordance.onDidRunAction, gutterAffordance.onDidRunAction)(commandId => {
 			if (affordanceId) {
-				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/selected', { mode: 'editor', id: affordanceId });
+				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/selected', { mode: affordance.get(), id: affordanceId, commandId });
 			}
 		}));
 
 		this._store.add(autorun(r => {
-			const isEditor = affordance.read(r) === 'editor';
+			const mode = affordance.read(r);
+			const hideWithSelection = mode === 'editor' || mode === 'gutter';
 			const controller = CodeActionController.get(this.#editor);
 			if (controller) {
-				controller.onlyLightBulbWithEmptySelection = isEditor;
+				controller.onlyLightBulbWithEmptySelection = hideWithSelection;
 			}
 		}));
 
@@ -137,10 +147,6 @@ export class InlineChatAffordance extends Disposable {
 			const data = this.#menuData.read(r);
 			if (!data) {
 				return;
-			}
-
-			if (affordanceId) {
-				telemetryService.publicLog2<InlineChatAffordanceEvent, InlineChatAffordanceClassification>('inlineChatAffordance/selected', { mode: 'gutter', id: affordanceId });
 			}
 
 			// Reveal the line in case it's outside the viewport (e.g., when triggered from sticky scroll)

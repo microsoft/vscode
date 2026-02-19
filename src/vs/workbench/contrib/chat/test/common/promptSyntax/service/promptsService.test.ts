@@ -47,6 +47,7 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../pl
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
+import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
 
@@ -153,6 +154,10 @@ suite('PromptsService', () => {
 			}
 		});
 
+		instaService.stub(IRemoteAgentService, {
+			getEnvironment: () => Promise.resolve(null),
+		});
+
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
 	});
@@ -184,7 +189,7 @@ suite('PromptsService', () => {
 					contents: [
 						'---',
 						'description: \'Root prompt description.\'',
-						'tools: [\'my-tool1\', , true]',
+						'tools: [\'my-tool1\', , tool]',
 						'agent: "agent" ',
 						'---',
 						'## Files',
@@ -239,7 +244,7 @@ suite('PromptsService', () => {
 					contents: [
 						'---',
 						'description: "Another file description."',
-						'tools: [\'my-tool3\', false, "my-tool2" ]',
+						'tools: [\'my-tool3\', "my-tool2" ]',
 						'applyTo: "**/*.tsx"',
 						'---',
 						`[](${rootFolder}/folder1/some-other-folder)`,
@@ -263,7 +268,7 @@ suite('PromptsService', () => {
 			const result1 = await service.parseNew(rootFileUri, CancellationToken.None);
 			assert.deepEqual(result1.uri, rootFileUri);
 			assert.deepEqual(result1.header?.description, 'Root prompt description.');
-			assert.deepEqual(result1.header?.tools, ['my-tool1']);
+			assert.deepEqual(result1.header?.tools, ['my-tool1', 'tool']);
 			assert.deepEqual(result1.header?.agent, 'agent');
 			assert.ok(result1.body);
 			assert.deepEqual(

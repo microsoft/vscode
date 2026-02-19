@@ -5,14 +5,13 @@
 
 .action-widget {
 	font-size: 13px;
-	border-radius: 0;
 	min-width: 100px;
 	max-width: 80vw;
 	z-index: 40;
 	display: block;
 	width: 100%;
 	border: 1px solid var(--vscode-editorHoverWidget-border) !important;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
 	padding: 4px;
@@ -61,12 +60,12 @@
 	cursor: pointer;
 	touch-action: none;
 	width: 100%;
-	border-radius: var(--vscode-cornerRadius-small);
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
-	background-color: var(--vscode-list-activeSelectionBackground) !important;
-	color: var(--vscode-list-activeSelectionForeground);
+	background-color: var(--vscode-list-hoverBackground) !important;
+	color: var(--vscode-list-hoverForeground);
 	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 	outline-offset: -1px;
 }
@@ -203,8 +202,9 @@
 }
 
 .action-widget .monaco-list .monaco-list-row .description {
-	opacity: 0.7;
+	color: var(--vscode-descriptionForeground);
 	margin-left: 0.5em;
+	font-size: 12px;
 }
 
 /* Item toolbar - shows on hover/focus */

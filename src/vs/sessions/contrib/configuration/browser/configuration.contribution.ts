@@ -8,7 +8,6 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		'chat.agentsControl.clickBehavior': 'focus',
 		'chat.agentsControl.enabled': true,
 		'chat.agent.maxRequests': 1000,
 		'chat.restoreLastPanelSession': true,
@@ -23,6 +22,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'git.showProgress': false,
 
 		'github.copilot.chat.claudeCode.enabled': true,
+		'github.copilot.chat.cli.branchSupport.enabled': true,
 		'github.copilot.chat.languageContext.typescript.enabled': true,
 
 		'inlineChat.affordance': 'editor',

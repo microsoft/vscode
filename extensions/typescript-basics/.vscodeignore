@@ -1,6 +1,6 @@
 build/**
 src/**
 test/**
-tsconfig.json
+tsconfig*.json
 cgmanifest.json
 syntaxes/Readme.md

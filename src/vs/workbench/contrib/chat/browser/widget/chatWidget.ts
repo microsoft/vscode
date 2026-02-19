@@ -7,6 +7,7 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -20,7 +21,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotD
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { autorun, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -322,6 +323,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private readonly _editingSession = observableValue<IChatEditingSession | undefined>(this, undefined);
+	private readonly _viewModelObs = observableFromEvent(this, this.onDidChangeViewModel, () => this.viewModel);
 
 	private parsedChatRequest: IParsedChatRequest | undefined;
 	get parsedInput() {
@@ -404,7 +406,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.viewContext = viewContext ?? {};
 
-		const viewModelObs = observableFromEvent(this, this.onDidChangeViewModel, () => this.viewModel);
+		const viewModelObs = this._viewModelObs;
 
 		if (typeof location === 'object') {
 			this._location = location;
@@ -1005,7 +1007,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const tipPart = store.add(this.instantiationService.createInstance(ChatTipContentPart,
 			tip,
 			renderer,
-			() => this.chatTipService.getWelcomeTip(this.contextKeyService),
 		));
 		tipContainer.appendChild(tipPart.domNode);
 		this._gettingStartedTipPartRef = tipPart;
@@ -1931,6 +1932,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
 		}));
+		let previousModelIdentifier: string | undefined;
+		this._register(autorun(reader => {
+			const modelIdentifier = this.inputPart.selectedLanguageModel.read(reader)?.identifier;
+			if (previousModelIdentifier === undefined) {
+				previousModelIdentifier = modelIdentifier;
+				return;
+			}
+
+			if (previousModelIdentifier === modelIdentifier) {
+				return;
+			}
+
+			previousModelIdentifier = modelIdentifier;
+			if (!this._gettingStartedTipPartRef) {
+				return;
+			}
+
+			this.chatTipService.getWelcomeTip(this.contextKeyService);
+		}));
 
 		this._register(autorun(r => {
 			const toolSetIds = new Set<string>();
@@ -1988,7 +2008,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._codeBlockModelCollection.clear();
 
-		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection, undefined);
 
 		// Pass input model reference to input part for state syncing
@@ -2036,12 +2055,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
-		const updatePendingRequestKeys = () => {
-			const pendingCount = model.getPendingRequests().length;
+		let lastSteeringCount = 0;
+		const updatePendingRequestKeys = (announceSteering: boolean) => {
+			const pendingRequests = model.getPendingRequests();
+			const pendingCount = pendingRequests.length;
 			this._hasPendingRequestsContextKey.set(pendingCount > 0);
+			const steeringCount = pendingRequests.filter(pending => pending.kind === ChatRequestQueueKind.Steering).length;
+			if (announceSteering && steeringCount > 0 && lastSteeringCount === 0) {
+				status(localize('chat.pendingRequests.steeringQueued', "Steering"));
+			}
+			lastSteeringCount = steeringCount;
 		};
-		updatePendingRequestKeys();
-		this.viewModelDisposables.add(model.onDidChangePendingRequests(() => updatePendingRequestKeys()));
+		updatePendingRequestKeys(false);
+		this.viewModelDisposables.add(model.onDidChangePendingRequests(() => updatePendingRequestKeys(true)));
 
 		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {
@@ -2242,35 +2268,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private hasPendingQuestionCarousel(response: IChatResponseModel | undefined): boolean {
-		return Boolean(response?.response.value.some(part => part.kind === 'questionCarousel' && !part.isUsed));
-	}
-
-
-	private dismissPendingQuestionCarousel(): void {
-		if (!this.viewModel) {
-			return;
-		}
-
-		const inputPart = this.inputPartDisposable.value;
-		if (!inputPart) {
-			return;
-		}
-
-		const responseId = inputPart.questionCarouselResponseId;
-		if (!responseId || this.viewModel.model.lastRequest?.id !== responseId) {
-			return;
-		}
-
-		const carouselPart = inputPart.questionCarousel;
-		if (!carouselPart) {
-			return;
-		}
-
-		carouselPart.ignore();
-		inputPart.clearQuestionCarousel(responseId);
-	}
-
 	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
@@ -2326,16 +2323,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const model = this.viewModel.model;
-
-		// Enable steering while a question carousel is pending, useful for when the questions are off track and the user needs to course correct.
-		const hasPendingQuestionCarousel = this.hasPendingQuestionCarousel(model.lastRequest?.response);
-		const shouldAutoSteer = hasPendingQuestionCarousel && options.queue === undefined;
-		if (shouldAutoSteer) {
-			options.queue = ChatRequestQueueKind.Steering;
-			this.dismissPendingQuestionCarousel();
-		}
-
 		const requestInProgress = model.requestInProgress.get();
+		// Cancel the request if the user chooses to take a different path.
+		// This is a bit of a heuristic for the common case of tool confirmation+reroute.
+		// But we don't do this if there are queued messages, because we would either
+		// discard them or need a prompt (as in `confirmPendingRequestsBeforeSend`)
+		// which could be a surprising behavior if the user finishes typing a steering
+		// request just as confirmation is triggered.
+		if (model.requestNeedsInput.get() && !model.getPendingRequests().length) {
+			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource);
+			options.queue ??= ChatRequestQueueKind.Queued;
+		}
 		if (requestInProgress) {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
@@ -2513,9 +2511,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
+		const sessionResource = this.viewModel?.sessionResource;
+		const userSelectedTools = this.input.selectedToolsModel.userSelectedTools;
+
+		let lastToolsSnapshot = userSelectedTools.get();
+
+		// When the widget has loaded a new session, return a snapshot of the tools for this session.
+		// Only sync with the tools model when this session is shown.
+		const scopedTools = derived(reader => {
+			const activeSession = this._viewModelObs.read(reader)?.sessionResource;
+			if (isEqual(activeSession, sessionResource)) {
+				const tools = userSelectedTools.read(reader);
+				lastToolsSnapshot = tools;
+				return tools;
+			}
+			return lastToolsSnapshot;
+		});
+
 		return {
 			modeInfo: this.input.currentModeInfo,
-			userSelectedTools: this.input.selectedToolsModel.userSelectedTools,
+			userSelectedTools: scopedTools,
 		};
 	}
 

@@ -273,7 +273,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test with invalid model array"',
-				`model: ['MAE 4 (olama)', 123]`,
+				`model: ['MAE 4 (olama)', []]`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -299,7 +299,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test with invalid model type"',
-				`model: 123`,
+				`model: {}`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -312,7 +312,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`tools: ['tool1', 2]`,
+				`tools: ['tool1', {}]`,
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent);
@@ -773,7 +773,7 @@ suite('PromptValidator', () => {
 			{
 				const content = [
 					'---',
-					'name: 123',
+					'name: []',
 					'description: "Test agent"',
 					'target: vscode',
 					'---',
@@ -1005,7 +1005,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				`agents: ['agent', 123]`,
+				`agents: ['agent', {}]`,
 				`tools: ['agent']`,
 				'---',
 			].join('\n');
@@ -1127,7 +1127,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be 'true' or 'false'.`);
 			}
 
 			// Invalid user-invocable: number value
@@ -1143,7 +1143,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be 'true' or 'false'.`);
 			}
 		});
 
@@ -1204,7 +1204,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be 'true' or 'false'.`);
 			}
 
 			// Invalid disable-model-invocation: number value
@@ -1220,7 +1220,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.agent);
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be 'true' or 'false'.`);
 			}
 		});
 	});
@@ -1242,7 +1242,7 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Instr"',
-				'applyTo: 5',
+				'applyTo: []',
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.instructions);
@@ -1646,7 +1646,7 @@ suite('PromptValidator', () => {
 		test('skill with non-string name type does not validate folder match', async () => {
 			const content = [
 				'---',
-				'name: 123',
+				'name: []',
 				'description: Test Skill',
 				'---',
 				'This is a skill.'
@@ -1729,7 +1729,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be 'true' or 'false'.`);
 			}
 
 			// Number value instead of boolean
@@ -1745,7 +1745,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'user-invocable' attribute must be 'true' or 'false'.`);
 			}
 		});
 
@@ -1789,7 +1789,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be 'true' or 'false'.`);
 			}
 
 			// Number value instead of boolean
@@ -1805,7 +1805,7 @@ suite('PromptValidator', () => {
 				const markers = await validate(content, PromptsType.skill, URI.parse('file:///.github/skills/my-skill/SKILL.md'));
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be a boolean.`);
+				assert.strictEqual(markers[0].message, `The 'disable-model-invocation' attribute must be 'true' or 'false'.`);
 			}
 		});
 
@@ -1842,7 +1842,7 @@ suite('PromptValidator', () => {
 				'---',
 				'name: my-skill',
 				'description: Test Skill',
-				'argument-hint: 123',
+				'argument-hint: []',
 				'---',
 				'Body'
 			].join('\n');
@@ -1910,32 +1910,6 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `The 'paths' attribute must be an array of glob patterns.`);
 		});
 
-		test('claude rules paths entries must be strings', async () => {
-			const content = [
-				'---',
-				'description: "Rules"',
-				`paths: [123, '**/*.ts']`,
-				'---',
-			].join('\n');
-			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.strictEqual(markers[0].message, `Each entry in the 'paths' attribute must be a string.`);
-		});
-
-		test('claude rules paths entries must be non-empty', async () => {
-			const content = [
-				'---',
-				'description: "Rules"',
-				`paths: ['']`,
-				'---',
-			].join('\n');
-			const markers = await validate(content, PromptsType.instructions, claudeRulesUri);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.strictEqual(markers[0].message, `Path entries must be non-empty glob patterns.`);
-		});
-
 		test('claude rules with unknown attribute shows warning', async () => {
 			const content = [
 				'---',
@@ -1962,7 +1936,6 @@ suite('PromptValidator', () => {
 				[
 					{ severity: MarkerSeverity.Error, message: `The 'description' attribute should not be empty.` },
 					{ severity: MarkerSeverity.Error, message: `Path entries must be non-empty glob patterns.` },
-					{ severity: MarkerSeverity.Error, message: `Each entry in the 'paths' attribute must be a string.` },
 				]
 			);
 		});
@@ -2047,7 +2020,7 @@ suite('PromptValidator', () => {
 				'---',
 				'name: test-agent',
 				'description: Test',
-				'model: 123',
+				'model: []',
 				'---',
 			].join('\n');
 			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
@@ -2083,21 +2056,6 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, `Unknown value 'allowAll', valid: default, acceptEdits, plan, delegate, dontAsk, bypassPermissions.`);
-		});
-
-		test('Claude agent with non-string permissionMode value', async () => {
-			const content = [
-				'---',
-				'name: test-agent',
-				'description: Test',
-				'model: sonnet',
-				'permissionMode: true',
-				'---',
-			].join('\n');
-			const markers = await validate(content, PromptsType.agent, claudeAgentUri);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-			assert.strictEqual(markers[0].message, `The 'permissionMode' attribute must be a string.`);
 		});
 
 		test('Claude agent with valid memory values', async () => {

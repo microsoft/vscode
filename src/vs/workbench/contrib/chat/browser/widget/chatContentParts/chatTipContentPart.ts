@@ -10,7 +10,6 @@ import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabe
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -18,7 +17,6 @@ import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../.
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -40,7 +38,6 @@ export class ChatTipContentPart extends Disposable {
 	constructor(
 		tip: IChatTip,
 		private readonly _renderer: IMarkdownRenderer,
-		private readonly _getNextTip: () => IChatTip | undefined,
 		@IChatTipService private readonly _chatTipService: IChatTipService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IMenuService private readonly _menuService: IMenuService,
@@ -63,10 +60,10 @@ export class ChatTipContentPart extends Disposable {
 		this._renderTip(tip);
 
 		this._register(this._chatTipService.onDidDismissTip(() => {
-			const nextTip = this._getNextTip();
+			const nextTip = this._chatTipService.navigateToNextTip();
 			if (nextTip) {
 				this._renderTip(nextTip);
-				this.focus();
+				dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => this.focus());
 			} else {
 				this._onDidHide.fire();
 			}
@@ -74,7 +71,7 @@ export class ChatTipContentPart extends Disposable {
 
 		this._register(this._chatTipService.onDidNavigateTip(tip => {
 			this._renderTip(tip);
-			this.focus();
+			dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => this.focus());
 		}));
 
 		this._register(this._chatTipService.onDidHideTip(() => {
@@ -152,8 +149,7 @@ registerAction2(class PreviousTipAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const chatTipService = accessor.get(IChatTipService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		chatTipService.navigateToPreviousTip(contextKeyService);
+		chatTipService.navigateToPreviousTip();
 	}
 });
 
@@ -174,8 +170,7 @@ registerAction2(class NextTipAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const chatTipService = accessor.get(IChatTipService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		chatTipService.navigateToNextTip(contextKeyService);
+		chatTipService.navigateToNextTip();
 	}
 });
 
@@ -242,36 +237,26 @@ registerAction2(class DisableTipsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const dialogService = accessor.get(IDialogService);
 		const chatTipService = accessor.get(IChatTipService);
 		const commandService = accessor.get(ICommandService);
 
-		const { result } = await dialogService.prompt<boolean>({
-			message: localize('chatTip.disableConfirmTitle', "Disable tips?"),
-			custom: {
-				markdownDetails: [{
-					markdown: new MarkdownString(localize('chatTip.disableConfirmDetail', "New tips are added frequently to help you get the most out of Copilot. You can re-enable tips anytime from the `chat.tips.enabled` setting.")),
-				}],
-			},
-			buttons: [
-				{
-					label: localize('chatTip.disableConfirmButton', "Disable tips"),
-					run: () => true,
-				},
-				{
-					label: localize('chatTip.openSettingButton', "Open Setting"),
-					run: () => {
-						commandService.executeCommand('workbench.action.openSettings', 'chat.tips.enabled');
-						return false;
-					},
-				},
-			],
-			cancelButton: true,
-		});
+		await chatTipService.disableTips();
+		await commandService.executeCommand('workbench.action.openSettings', 'chat.tips.enabled');
+	}
+});
 
-		if (result) {
-			await chatTipService.disableTips();
-		}
+registerAction2(class ResetDismissedTipsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.resetDismissedTips',
+			title: localize2('chatTip.resetDismissedTips', "Reset Dismissed Tips"),
+			f1: true,
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		accessor.get(IChatTipService).clearDismissedTips();
 	}
 });
 

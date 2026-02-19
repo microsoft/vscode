@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SequencerByKey } from '../../../../base/common/async.js';
+import { SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
@@ -13,11 +13,12 @@ import { hash } from '../../../../base/common/hash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/objects.js';
 import Severity from '../../../../base/common/severity.js';
 import { format, isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { isString } from '../../../../base/common/types.js';
+import { isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -25,6 +26,8 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../pla
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IQuickInputService, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -363,6 +366,40 @@ export interface ILanguageModelsService {
 	configureLanguageModelsProviderGroup(vendorId: string, name?: string): Promise<void>;
 
 	migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void>;
+
+	/**
+	 * Returns the most recently used model identifiers, ordered by most-recent-first.
+	 * @param maxCount Maximum number of entries to return (default 7).
+	 */
+	getRecentlyUsedModelIds(): string[];
+
+	/**
+	 * Records that a model was used, updating the recently used list.
+	 */
+	recordModelUsage(model: ILanguageModelChatMetadataAndIdentifier): void;
+
+	/**
+	 * Returns the curated models from the models control manifest,
+	 * separated into free and paid tiers.
+	 */
+	getCuratedModels(): ICuratedModels;
+
+	/**
+	 * Observable map of restricted chat participant names to allowed extension publisher/IDs.
+	 * Fetched from the chat control manifest.
+	 */
+	readonly restrictedChatParticipants: IObservable<{ [name: string]: string[] }>;
+}
+
+export interface ICuratedModel {
+	readonly id: string;
+	readonly isNew?: boolean;
+	readonly minVSCodeVersion?: string;
+}
+
+export interface ICuratedModels {
+	readonly free: ICuratedModel[];
+	readonly paid: ICuratedModel[];
 }
 
 const languageModelChatProviderType = {
@@ -451,6 +488,24 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 });
 
 const CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY = 'chatModelPickerPreferences';
+const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
+const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
+const CHAT_CURATED_MODELS_STORAGE_KEY = 'chat.curatedModels';
+
+interface IRawCuratedModel {
+	readonly id: string;
+	readonly isNew?: boolean;
+	readonly minVSCodeVersion?: string;
+}
+
+interface IChatControlResponse {
+	readonly version: number;
+	readonly restrictedChatParticipants: { [name: string]: string[] };
+	readonly curatedModels?: {
+		readonly free?: IRawCuratedModel[];
+		readonly paid?: IRawCuratedModel[];
+	};
+}
 
 export class LanguageModelsService implements ILanguageModelsService {
 
@@ -476,6 +531,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
+	private _recentlyUsedModelIds: string[] = [];
+	private _curatedModels: ICuratedModels = { free: [], paid: [] };
+
+	private _chatControlUrl: string | undefined;
+	private _chatControlDisposed = false;
+
+	private readonly _restrictedChatParticipants = observableValue<{ [name: string]: string[] }>(this, Object.create(null));
+	readonly restrictedChatParticipants: IObservable<{ [name: string]: string[] }> = this._restrictedChatParticipants;
+
 	constructor(
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
@@ -484,9 +548,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@ILanguageModelsConfigurationService private readonly _languageModelsConfigurationService: ILanguageModelsConfigurationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ISecretStorageService private readonly _secretStorageService: ISecretStorageService,
+		@IProductService private readonly _productService: IProductService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._readModelPickerPreferences();
+		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
+		this._initChatControlData();
 		this._store.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, this._store)(() => this._onDidChangeModelPickerPreferences()));
 
 		this._store.add(this.onDidChangeLanguageModels(() => this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable))));
@@ -1293,7 +1361,141 @@ export class LanguageModelsService implements ILanguageModelsService {
 		await this.addLanguageModelsProviderGroup(name, vendor, configuration);
 	}
 
+	//#region Recently used models
+
+	private _readRecentlyUsedModels(): string[] {
+		return this._storageService.getObject<string[]>(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, StorageScope.PROFILE, []);
+	}
+
+	private _saveRecentlyUsedModels(): void {
+		this._storageService.store(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, this._recentlyUsedModelIds, StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	getRecentlyUsedModelIds(): string[] {
+		// Filter to only include models that still exist in the cache
+		return this._recentlyUsedModelIds
+			.filter(id => this._modelCache.has(id))
+			.slice(0, 5);
+	}
+
+	recordModelUsage(model: ILanguageModelChatMetadataAndIdentifier): void {
+		if (model.metadata.id === 'auto' && this._vendors.get(model.metadata.vendor)?.isDefault) {
+			return;
+		}
+
+		// Remove if already present (to move to front)
+		const index = this._recentlyUsedModelIds.indexOf(model.identifier);
+		if (index !== -1) {
+			this._recentlyUsedModelIds.splice(index, 1);
+		}
+		// Add to front
+		this._recentlyUsedModelIds.unshift(model.identifier);
+		// Cap at a reasonable max to avoid unbounded growth
+		if (this._recentlyUsedModelIds.length > 20) {
+			this._recentlyUsedModelIds.length = 20;
+		}
+		this._saveRecentlyUsedModels();
+	}
+
+	//#endregion
+
+	//#region Curated models
+
+	getCuratedModels(): ICuratedModels {
+		return this._curatedModels;
+	}
+
+	private _setCuratedModels(free: IRawCuratedModel[], paid: IRawCuratedModel[]): void {
+		const toPublic = (m: IRawCuratedModel): ICuratedModel => ({ id: m.id, isNew: m.isNew, minVSCodeVersion: m.minVSCodeVersion });
+
+		this._curatedModels = { free: [], paid: [] };
+		const newIds = new Set<string>();
+
+		for (const model of free) {
+			this._curatedModels.free.push(toPublic(model));
+			if (model.isNew) {
+				newIds.add(model.id);
+			}
+		}
+
+		for (const model of paid) {
+			this._curatedModels.paid.push(toPublic(model));
+			if (model.isNew) {
+				newIds.add(model.id);
+			}
+		}
+	}
+
+	//#region Chat control data
+
+	private _initChatControlData(): void {
+		this._chatControlUrl = this._productService.chatParticipantRegistry;
+		if (!this._chatControlUrl) {
+			return;
+		}
+
+		// Restore participant registry from storage
+		const raw = this._storageService.get(CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY, StorageScope.APPLICATION);
+		try {
+			this._restrictedChatParticipants.set(JSON.parse(raw ?? '{}'), undefined);
+		} catch (err) {
+			this._storageService.remove(CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY, StorageScope.APPLICATION);
+		}
+
+		// Restore curated models from storage
+		const rawCurated = this._storageService.get(CHAT_CURATED_MODELS_STORAGE_KEY, StorageScope.APPLICATION);
+		try {
+			const curated = JSON.parse(rawCurated ?? '{}');
+			if (isObject(curated) && Array.isArray(curated.free) && Array.isArray(curated.paid)) {
+				this._setCuratedModels(curated.free, curated.paid);
+			}
+		} catch (err) {
+			this._storageService.remove(CHAT_CURATED_MODELS_STORAGE_KEY, StorageScope.APPLICATION);
+		}
+
+		this._refreshChatControlData();
+	}
+
+	private _refreshChatControlData(): void {
+		if (this._chatControlDisposed) {
+			return;
+		}
+
+		this._fetchChatControlData()
+			.catch(err => this._logService.warn('Failed to fetch chat control data', err))
+			.then(() => timeout(5 * 60 * 1000)) // every 5 minutes
+			.then(() => this._refreshChatControlData());
+	}
+
+	private async _fetchChatControlData(): Promise<void> {
+		const context = await this._requestService.request({ type: 'GET', url: this._chatControlUrl! }, CancellationToken.None);
+
+		if (context.res.statusCode !== 200) {
+			throw new Error('Could not get chat control data.');
+		}
+
+		const result = await asJson<IChatControlResponse>(context);
+
+		if (!result || result.version !== 1) {
+			throw new Error('Unexpected chat control response.');
+		}
+
+		// Update restricted chat participants
+		const registry = result.restrictedChatParticipants;
+		this._restrictedChatParticipants.set(registry, undefined);
+		this._storageService.store(CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY, JSON.stringify(registry), StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		// Update curated models
+		if (result.curatedModels) {
+			this._setCuratedModels(result.curatedModels?.free ?? [], result.curatedModels?.paid ?? []);
+			this._storageService.store(CHAT_CURATED_MODELS_STORAGE_KEY, JSON.stringify(result.curatedModels), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+	}
+
+	//#endregion
+
 	dispose() {
+		this._chatControlDisposed = true;
 		this._store.dispose();
 		this._providers.clear();
 	}

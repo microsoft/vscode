@@ -77,7 +77,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			return;
 		}
 
-		let actionBarActions = this._options.actionBarActions ?? this._options.actionBarActionProvider?.getActions() ?? [];
+		const actionBarActions = this._options.actionBarActions ?? this._options.actionBarActionProvider?.getActions() ?? [];
 		const actions = this._options.actions ?? this._options.actionProvider?.getActions() ?? [];
 
 		// Track the currently selected option before opening
@@ -154,9 +154,13 @@ export class ActionWidgetDropdown extends BaseDropdown {
 		const previouslyFocusedElement = getActiveElement();
 
 
+		const auxiliaryActionIds = new Set(actionBarActions.map(action => action.id));
+
 		const actionWidgetDelegate: IActionListDelegate<IActionWidgetDropdownAction> = {
 			onSelect: (action, preview) => {
-				selectedOption = action;
+				if (!auxiliaryActionIds.has(action.id)) {
+					selectedOption = action;
+				}
 				this.actionWidgetService.hide();
 				action.run();
 			},
@@ -168,13 +172,30 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			}
 		};
 
-		actionBarActions = actionBarActions.map(action => ({
-			...action,
-			run: async (...args: unknown[]) => {
-				this.actionWidgetService.hide();
-				return action.run(...args);
+		if (actionBarActions.length) {
+			if (actionWidgetItems.length) {
+				actionWidgetItems.push({
+					label: '',
+					kind: ActionListItemKind.Separator,
+					canPreview: false,
+					disabled: false,
+					hideIcon: false,
+				});
 			}
-		}));
+
+			for (const action of actionBarActions) {
+				actionWidgetItems.push({
+					item: action,
+					tooltip: action.tooltip,
+					kind: ActionListItemKind.Action,
+					canPreview: false,
+					group: { title: '', icon: ThemeIcon.fromId(Codicon.blank.id) },
+					disabled: !action.enabled,
+					hideIcon: false,
+					label: action.label,
+				});
+			}
+		}
 
 		const accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IActionWidgetDropdownAction>>> = {
 			isChecked(element) {
@@ -183,7 +204,9 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			getRole: (e) => {
 				switch (e.kind) {
 					case ActionListItemKind.Action:
-						return 'menuitemcheckbox';
+						// Auxiliary actions are not checkable options, so use 'menuitem' to
+						// avoid screen readers announcing them as unchecked checkboxes.
+						return e.item && auxiliaryActionIds.has(e.item.id) ? 'menuitem' : 'menuitemcheckbox';
 					case ActionListItemKind.Separator:
 						return 'separator';
 					default:
@@ -200,7 +223,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			actionWidgetDelegate,
 			this._options.getAnchor?.() ?? this.element,
 			undefined,
-			actionBarActions,
+			[],
 			accessibilityProvider
 		);
 	}

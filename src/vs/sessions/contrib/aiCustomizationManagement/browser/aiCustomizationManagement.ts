@@ -5,7 +5,7 @@
 
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ISessionsWorkbenchService } from '../../sessions/browser/sessionsWorkbenchService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 
@@ -96,7 +96,7 @@ export const SIDEBAR_MIN_WIDTH = 150;
 export const SIDEBAR_MAX_WIDTH = 350;
 export const CONTENT_MIN_WIDTH = 400;
 
-export function getActiveSessionRoot(activeSessionService: ISessionsWorkbenchService): URI | undefined {
+export function getActiveSessionRoot(activeSessionService: ISessionsManagementService): URI | undefined {
 	const session = activeSessionService.getActiveSession();
 	return session?.worktree ?? session?.repository;
 }

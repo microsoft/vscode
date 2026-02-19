@@ -13,7 +13,7 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
-import { ISessionsWorkbenchService } from '../../sessions/browser/sessionsWorkbenchService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { Menus } from '../../../browser/menus.js';
 
@@ -54,7 +54,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	constructor(
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ISessionsWorkbenchService activeSessionService: ISessionsWorkbenchService,
+		@ISessionsManagementService activeSessionService: ISessionsManagementService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();

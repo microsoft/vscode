@@ -18,7 +18,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ISessionsWorkbenchService } from './sessionsWorkbenchService.js';
+import { ISessionsManagementService } from './sessionsManagementService.js';
 import { FocusAgentSessionsAction } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsPicker } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsPicker.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -60,7 +60,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		options: IBaseActionViewItemOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@ISessionsWorkbenchService private readonly activeSessionService: ISessionsWorkbenchService,
+		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IChatService private readonly chatService: IChatService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -344,7 +344,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private _showSessionsPicker(): void {
-		const picker = this.instantiationService.createInstance(AgentSessionsPicker, undefined);
+		const picker = this.instantiationService.createInstance(AgentSessionsPicker, undefined, {
+			overrideSessionOpen: (session, openOptions) => this.activeSessionService.openSession(session.resource, openOptions)
+		});
 		picker.pickAgentSession();
 	}
 

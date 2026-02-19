@@ -3,19 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Account Widget */
-.monaco-workbench .part.sidebar > .sidebar-footer .account-widget > .action-label {
-	display: none;
-}
-
-.monaco-workbench .part.sidebar > .sidebar-footer .account-widget {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	width: 100%;
-	gap: 8px;
-}
-
 /* Account Button */
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account {
 	overflow: hidden;
@@ -23,49 +10,9 @@
 	flex: 1;
 }
 
-.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account-button {
-	border: none;
-	padding: 4px 8px;
-	font-size: 12px;
-	height: auto;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	background: transparent;
-	color: var(--vscode-sideBar-foreground);
-	width: 100%;
-	text-align: left;
-	justify-content: flex-start;
-	border-radius: 4px;
-}
-
-.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
 /* Update Button */
-.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update {
+.monaco-workbench .part.sidebar > .sidebar-footer .update-widget-action {
 	overflow: hidden;
 	min-width: 0;
-	flex-shrink: 1;
-}
-
-.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update-button {
-	border: none;
-	padding: 4px 8px;
-	font-size: 12px;
-	height: auto;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	background: transparent;
-	color: var(--vscode-sideBar-foreground);
-	width: 100%;
-	text-align: left;
-	justify-content: flex-start;
-	border-radius: 4px;
-}
-
-.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update-button:hover:not(:disabled) {
-	background-color: var(--vscode-toolbar-hoverBackground);
+	flex: 1;
 }

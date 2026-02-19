@@ -445,6 +445,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (dto.context?.sessionResource) {
 			model = this._chatService.getSession(dto.context.sessionResource);
 			request = model?.getRequests().at(-1);
+			if (request?.response?.isCanceled || request?.response?.isComplete) {
+				this._logService.debug(`[LanguageModelToolsService#invokeTool] Ignoring tool ${dto.toolId} for cancelled/complete request ${request.id}`);
+				throw new CancellationError();
+			}
 		}
 
 		// Check if there's an existing pending tool call from streaming phase BEFORE hook check

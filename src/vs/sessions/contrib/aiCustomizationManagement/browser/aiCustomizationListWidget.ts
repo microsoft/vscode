@@ -39,7 +39,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { parseAllHookFiles } from '../../../../workbench/contrib/chat/browser/promptSyntax/hookUtils.js';
 import { OS } from '../../../../base/common/platform.js';
 import { IRemoteAgentService } from '../../../../workbench/services/remote/common/remoteAgentService.js';
-import { ISessionsWorkbenchService } from '../../sessions/browser/sessionsWorkbenchService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Action, Separator } from '../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
@@ -340,7 +340,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IPathService private readonly pathService: IPathService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ISessionsWorkbenchService private readonly activeSessionService: ISessionsWorkbenchService,
+		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@ILogService private readonly logService: ILogService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ISCMService private readonly scmService: ISCMService,
