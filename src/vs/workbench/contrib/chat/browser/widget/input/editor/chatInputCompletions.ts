@@ -79,7 +79,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				if (widget.lockedAgentId) {
+				if (widget.lockedAgentId && !widget.attachmentCapabilities.supportsPromptAttachments) {
 					return null;
 				}
 
