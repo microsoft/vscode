@@ -1414,14 +1414,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const paid: IStringDictionary<IModelControlEntry> = {};
 
 		if (response?.free) {
-			for (const [key, entry] of Object.entries(response.free)) {
-				free[key] = { id: entry.id, label: entry.label, featured: entry.featured };
+			const freeEntries = Array.isArray(response.free) ? response.free : Object.values(response.free);
+			for (const entry of freeEntries) {
+				if (!entry || !isObject(entry) || typeof entry.id !== 'string') {
+					continue;
+				}
+				free[entry.id] = { id: entry.id, label: entry.label, featured: entry.featured };
 			}
 		}
 
 		if (response?.paid) {
-			for (const [key, entry] of Object.entries(response.paid)) {
-				paid[key] = { id: entry.id, label: entry.label, featured: entry.featured, minVSCodeVersion: entry.minVSCodeVersion };
+			const paidEntries = Array.isArray(response.paid) ? response.paid : Object.values(response.paid);
+			for (const entry of paidEntries) {
+				if (!entry || !isObject(entry) || typeof entry.id !== 'string') {
+					continue;
+				}
+				paid[entry.id] = { id: entry.id, label: entry.label, featured: entry.featured, minVSCodeVersion: entry.minVSCodeVersion };
 			}
 		}
 
