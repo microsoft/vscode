@@ -70,20 +70,26 @@ async function findSuitablePython(): Promise<string> {
 	}
 
 	console.log(`No Python >= ${MIN_PYTHON_VERSION[0]}.${MIN_PYTHON_VERSION[1]} found, installing via Homebrew...`);
-	await spawn('brew', ['install', '--quiet', 'python@3.12'], { stdio: 'inherit' });
+	await spawn('brew', ['install', 'python@3.12'], {
+		stdio: 'inherit',
+		env: { ...process.env, HOMEBREW_NO_AUTO_UPDATE: '1', HOMEBREW_NO_INSTALL_CLEANUP: '1' }
+	});
 
-	const brewPaths = [
-		'/opt/homebrew/opt/python@3.12/bin/python3',
-		'/usr/local/opt/python@3.12/bin/python3',
-	];
-	for (const brewPath of brewPaths) {
-		if (await checkPythonVersion(brewPath)) {
-			console.log(`Using Homebrew Python: ${brewPath}`);
-			return brewPath;
+	// Use `brew --prefix` to reliably locate the installation
+	const brewPrefix = (await spawn('brew', ['--prefix', 'python@3.12'])).trim();
+	const brewBinDir = path.join(brewPrefix, 'bin');
+	console.log(`Homebrew Python prefix: ${brewPrefix}`);
+
+	// Try both python3 and python3.12 (keg-only formulae may only have the versioned name)
+	for (const name of ['python3', 'python3.12']) {
+		const fullPath = path.join(brewBinDir, name);
+		if (await checkPythonVersion(fullPath)) {
+			console.log(`Using Homebrew Python: ${fullPath}`);
+			return fullPath;
 		}
 	}
 
-	throw new Error(`Could not find Python >= ${MIN_PYTHON_VERSION[0]}.${MIN_PYTHON_VERSION[1]} even after Homebrew install.`);
+	throw new Error(`Could not find Python >= ${MIN_PYTHON_VERSION[0]}.${MIN_PYTHON_VERSION[1]} even after Homebrew install at ${brewPrefix}.`);
 }
 
 async function ensureDmgBuild(): Promise<void> {
