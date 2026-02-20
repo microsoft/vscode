@@ -16,12 +16,16 @@ import { buildModelPickerItems } from '../../../../browser/widget/input/chatMode
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IModelControlEntry } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
-const stubChatEntitlementService: Partial<IChatEntitlementService> = {
-	entitlement: ChatEntitlement.Pro,
-	sentiment: { installed: true } as IChatEntitlementService['sentiment'],
-	isInternal: false,
-	anonymous: false,
-};
+function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
+	return {
+		entitlement: opts?.entitlement ?? ChatEntitlement.Pro,
+		sentiment: { installed: true } as IChatEntitlementService['sentiment'],
+		isInternal: opts?.isInternal ?? false,
+		anonymous: opts?.anonymous ?? false,
+	} as IChatEntitlementService;
+}
+
+const stubChatEntitlementService = createStubEntitlementService();
 
 function createModel(id: string, name: string, vendor = 'copilot'): ILanguageModelChatMetadataAndIdentifier {
 	return {
@@ -69,25 +73,29 @@ function callBuild(
 		selectedModelId?: string;
 		recentModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
-		isProUser?: boolean;
+		entitlement?: ChatEntitlement;
 		currentVSCodeVersion?: string;
 		updateStateType?: StateType;
 		manageSettingsUrl?: string;
+		anonymous?: boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
+	const entitlementService = createStubEntitlementService({
+		entitlement: opts.entitlement ?? ChatEntitlement.Pro,
+		anonymous: opts.anonymous ?? false,
+	});
 	return buildModelPickerItems(
 		models,
 		opts.selectedModelId,
 		opts.recentModelIds ?? [],
 		opts.controlModels ?? {},
-		opts.isProUser ?? true,
 		opts.currentVSCodeVersion ?? '1.100.0',
 		opts.updateStateType ?? StateType.Idle,
 		onSelect,
 		opts.manageSettingsUrl,
 		stubCommandService,
-		stubChatEntitlementService as IChatEntitlementService,
+		entitlementService,
 	);
 }
 
@@ -173,7 +181,7 @@ suite('buildModelPickerItems', () => {
 			controlModels: {
 				'missing-model': { label: 'Missing Model', exists: false },
 			},
-			isProUser: false,
+			entitlement: ChatEntitlement.Free,
 		});
 		const actions = getActionItems(items);
 		const unavailable = actions.find(a => a.label === 'Missing Model');
@@ -188,7 +196,6 @@ suite('buildModelPickerItems', () => {
 			controlModels: {
 				'missing-model': { label: 'Missing Model', minVSCodeVersion: '2.0.0', exists: false },
 			},
-			isProUser: true,
 			currentVSCodeVersion: '1.90.0',
 		});
 		const actions = getActionItems(items);
@@ -204,7 +211,6 @@ suite('buildModelPickerItems', () => {
 			controlModels: {
 				'missing-model': { label: 'Missing Model', exists: false },
 			},
-			isProUser: true,
 		});
 		const actions = getActionItems(items);
 		const unavailable = actions.find(a => a.label === 'Missing Model');
@@ -233,7 +239,7 @@ suite('buildModelPickerItems', () => {
 			controlModels: {
 				'premium-model': { label: 'Premium Model', featured: true, exists: false },
 			},
-			isProUser: false,
+			entitlement: ChatEntitlement.Free,
 		});
 		const actions = getActionItems(items);
 		const unavailable = actions.find(a => a.label === 'Premium Model');
@@ -247,7 +253,6 @@ suite('buildModelPickerItems', () => {
 			controlModels: {
 				'premium-model': { label: 'Premium Model', featured: true, exists: false },
 			},
-			isProUser: true,
 		});
 		const actions = getActionItems(items);
 		const unavailable = actions.find(a => a.label === 'Premium Model');
@@ -312,7 +317,7 @@ suite('buildModelPickerItems', () => {
 			controlModels: {
 				'missing-model': { label: 'Missing Model', exists: false },
 			},
-			isProUser: false,
+			entitlement: ChatEntitlement.Free,
 		});
 		const actions = getActionItems(items);
 		// Auto, then GPT-4o (available), then Missing Model (unavailable)
@@ -436,13 +441,12 @@ suite('buildModelPickerItems', () => {
 			undefined,
 			[],
 			{},
-			true,
 			'1.100.0',
 			StateType.Idle,
 			onSelect,
 			undefined,
 			stubCommandService,
-			stubChatEntitlementService as IChatEntitlementService,
+			stubChatEntitlementService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
@@ -518,13 +522,12 @@ suite('buildModelPickerItems', () => {
 			undefined,
 			['missing-model'],
 			{ 'missing-model': { label: 'Missing Model' } as IModelControlEntry },
-			true,
 			'1.100.0',
 			StateType.Idle,
 			() => { },
 			'https://aka.ms/github-copilot-settings',
 			stubCommandService,
-			stubChatEntitlementService as IChatEntitlementService,
+			stubChatEntitlementService,
 		);
 
 		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
@@ -542,12 +545,73 @@ suite('buildModelPickerItems', () => {
 			controlModels: {
 				'missing-model': { label: 'Missing Model' } as IModelControlEntry,
 			},
-			isProUser: false,
+			entitlement: ChatEntitlement.Free,
 		});
 
 		const unavailable = getActionItems(items).find(a => a.label === 'Missing Model');
 		assert.ok(unavailable);
 		assert.strictEqual(unavailable.hideIcon, false);
 		assert.strictEqual(unavailable.group?.icon?.id, Codicon.blank.id);
+	});
+
+	test('anonymous user sees upgrade description only on first unavailable model', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			recentModelIds: ['model-a', 'model-b'],
+			controlModels: {
+				'model-a': { label: 'Model A', featured: true, exists: false },
+				'model-b': { label: 'Model B', featured: true, exists: false },
+			},
+			anonymous: true,
+			entitlement: ChatEntitlement.Unknown,
+		});
+		const actions = getActionItems(items);
+		const disabledItems = actions.filter(a => a.disabled);
+		assert.strictEqual(disabledItems.length, 2);
+		assert.ok(disabledItems[0].description instanceof MarkdownString);
+		assert.ok(disabledItems[0].description.value.includes('Upgrade'));
+		assert.strictEqual(disabledItems[1].description, undefined);
+	});
+
+	test('free user sees upgrade description only on first unavailable model', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			recentModelIds: ['model-a', 'model-b'],
+			controlModels: {
+				'model-a': { label: 'Model A', featured: true, exists: false },
+				'model-b': { label: 'Model B', featured: true, exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+		});
+		const actions = getActionItems(items);
+		const disabledItems = actions.filter(a => a.disabled);
+		assert.strictEqual(disabledItems.length, 2);
+		assert.ok(disabledItems[0].description instanceof MarkdownString);
+		assert.ok(disabledItems[0].description.value.includes('Upgrade'));
+		assert.strictEqual(disabledItems[1].description, undefined);
+	});
+
+	test('anonymous user model selection triggers onSelect normally', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		let selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+		const onSelect = (m: ILanguageModelChatMetadataAndIdentifier) => { selectedModel = m; };
+		const anonymousEntitlementService = createStubEntitlementService({ entitlement: ChatEntitlement.Unknown, anonymous: true });
+		const items = buildModelPickerItems(
+			[auto, modelA],
+			undefined,
+			[],
+			{},
+			'1.100.0',
+			StateType.Idle,
+			onSelect,
+			undefined,
+			stubCommandService,
+			anonymousEntitlementService,
+		);
+		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
+		assert.ok(gptItem?.item);
+		gptItem.item.run();
+		assert.strictEqual(selectedModel?.identifier, modelA.identifier);
 	});
 });

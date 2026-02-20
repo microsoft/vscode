@@ -124,7 +124,6 @@ export function buildModelPickerItems(
 	selectedModelId: string | undefined,
 	recentModelIds: string[],
 	controlModels: IStringDictionary<IModelControlEntry>,
-	isProUser: boolean,
 	currentVSCodeVersion: string,
 	updateStateType: StateType,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
@@ -132,6 +131,7 @@ export function buildModelPickerItems(
 	commandService: ICommandService,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
+	const isPro = isProUser(chatEntitlementService.entitlement);
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 	let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	if (models.length === 0) {
@@ -165,7 +165,7 @@ export function buildModelPickerItems(
 		const resolveModel = (id: string) => allModelsMap.get(id) ?? modelsByMetadataId.get(id);
 
 		const getUnavailableReason = (entry: IModelControlEntry): 'upgrade' | 'update' | 'admin' => {
-			if (!isProUser) {
+			if (!isPro) {
 				return 'upgrade';
 			}
 			if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
@@ -245,6 +245,7 @@ export function buildModelPickerItems(
 		}
 
 		// Render promoted section: sorted alphabetically by name
+		let hasShownActionLink = false;
 		if (promotedItems.length > 0) {
 			promotedItems.sort((a, b) => {
 				const aName = a.kind === 'available' ? a.model.metadata.name : a.entry.label;
@@ -259,7 +260,11 @@ export function buildModelPickerItems(
 				if (item.kind === 'available') {
 					items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model));
 				} else {
-					items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType));
+					const showActionLink = item.reason === 'upgrade' ? !hasShownActionLink : true;
+					if (showActionLink && item.reason === 'upgrade') {
+						hasShownActionLink = true;
+					}
+					items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, showActionLink));
 				}
 			}
 		}
@@ -301,7 +306,7 @@ export function buildModelPickerItems(
 			for (const model of otherModels) {
 				const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
 				if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-					items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other));
+					items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, true));
 				} else {
 					items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other), model));
 				}
@@ -340,35 +345,6 @@ export function buildModelPickerItems(
 		});
 	}
 
-	// Add sign-in / upgrade option if entitlement is anonymous / free / new user
-	const isNewOrAnonymousUser = !chatEntitlementService.sentiment.installed ||
-		chatEntitlementService.entitlement === ChatEntitlement.Available ||
-		chatEntitlementService.anonymous ||
-		chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-	if (isNewOrAnonymousUser || chatEntitlementService.entitlement === ChatEntitlement.Free) {
-		items.push({ kind: ActionListItemKind.Separator });
-		items.push({
-			item: {
-				id: 'moreModels',
-				enabled: true,
-				checked: false,
-				class: undefined,
-				tooltip: isNewOrAnonymousUser ? localize('chat.moreModels.tooltip', "Add Language Models") : localize('chat.morePremiumModels.tooltip', "Add Premium Models"),
-				label: isNewOrAnonymousUser ? localize('chat.moreModels', "Add Language Models") : localize('chat.morePremiumModels', "Add Premium Models"),
-				icon: Codicon.add,
-				run: () => {
-					const commandId = isNewOrAnonymousUser ? 'workbench.action.chat.triggerSetup' : 'workbench.action.chat.upgradePlan';
-					commandService.executeCommand(commandId);
-				}
-			},
-			kind: ActionListItemKind.Action,
-			label: isNewOrAnonymousUser ? localize('chat.moreModels', "Add Language Models") : localize('chat.morePremiumModels', "Add Premium Models"),
-			group: { title: '', icon: Codicon.add },
-			hideIcon: false,
-			showAlways: true,
-		});
-	}
-
 	return items;
 }
 
@@ -379,11 +355,14 @@ function createUnavailableModelItem(
 	manageSettingsUrl: string | undefined,
 	updateStateType: StateType,
 	section?: string,
+	showActionLink: boolean = true,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	let description: string | MarkdownString | undefined;
 
 	if (reason === 'upgrade') {
-		description = new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade your plan](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true });
+		description = showActionLink
+			? new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade your plan](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true })
+			: undefined;
 	} else if (reason === 'update') {
 		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
 	} else {
@@ -542,7 +521,6 @@ export class ModelPickerWidget extends Disposable {
 			this._selectedModel?.identifier,
 			this._languageModelsService.getRecentlyUsedModelIds(),
 			controlModelsForTier,
-			isPro,
 			this._productService.version,
 			this._updateService.state.type,
 			onSelect,
