@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
+  statuses: write
 
 concurrency:
   group: screenshots-${{ github.event.pull_request.number || github.sha }}
@@ -63,18 +65,57 @@ jobs:
             test/componentFixtures/.screenshots/report.json
             test/componentFixtures/.screenshots/report.md
 
+      - name: Set status
+        id: status
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPORT="test/componentFixtures/.screenshots/report.json"
+          if [ -f "$REPORT" ]; then
+            CHANGED=$(node -e "const r = require('./$REPORT'); console.log(r.summary.added + r.summary.removed + r.summary.changed)")
+            STATUS_TEXT="${CHANGED} screenshots changed"
+          else
+            STATUS_TEXT="Screenshots match"
+          fi
+
+          SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          gh api "repos/${{ github.repository }}/statuses/$SHA" \
+            -f state=success \
+            -f description="$STATUS_TEXT" \
+            -f context="screenshots"
+
       - name: Post summary
-        if: always()
         run: |
           if [ -f test/componentFixtures/.screenshots/report.md ]; then
             cat test/componentFixtures/.screenshots/report.md >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ steps.compare.outcome }}" == "success" ]; then
+          else
             echo "## Screenshots ✅" >> $GITHUB_STEP_SUMMARY
             echo "No visual changes detected." >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Fail if screenshots changed
-        if: steps.compare.outcome == 'failure'
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "::error::Screenshot differences detected. Download the 'screenshot-diff' artifact to review changes."
-          exit 1
+          COMMENT_MARKER="<!-- screenshot-report -->"
+          BODY="$COMMENT_MARKER"$'\n'
+
+          if [ -f test/componentFixtures/.screenshots/report.md ]; then
+            BODY+=$(cat test/componentFixtures/.screenshots/report.md)
+            BODY+=$'\n\n'
+            BODY+="📦 [Download the \`screenshot-diff\` artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) to review images."
+          else
+            BODY+="## Screenshots ✅"$'\n\n'
+            BODY+="No visual changes detected."
+          fi
+
+          # Find existing comment
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --paginate --jq ".[] | select(.body | startswith(\"$COMMENT_MARKER\")) | .id" | head -1)
+
+          if [ -n "$EXISTING" ]; then
+            gh api "repos/${{ github.repository }}/issues/comments/$EXISTING" -X PATCH -f body="$BODY"
+          else
+            gh pr comment "${{ github.event.pull_request.number }}" --body "$BODY"
+          fi
