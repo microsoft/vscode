@@ -191,6 +191,9 @@ import './contrib/mcp/electron-browser/mcp.contribution.js';
 // Policy Export
 import './contrib/policyExport/electron-browser/policyExport.contribution.js';
 
+// Phonon CLI (renderer → main process IPC proxy)
+import './contrib/phonon/electron-browser/phononCliService.js';
+
 //#endregion
 
 

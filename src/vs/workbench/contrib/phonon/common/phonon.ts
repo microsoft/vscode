@@ -55,9 +55,14 @@ export interface IPhononService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Whether the service is configured with a valid API key.
+	 * Whether the service is ready (CLI available OR API key configured).
 	 */
 	readonly isConfigured: boolean;
+
+	/**
+	 * Whether the Claude CLI is available on PATH.
+	 */
+	readonly cliAvailable: boolean;
 
 	/**
 	 * The currently selected default model ID.
@@ -65,9 +70,14 @@ export interface IPhononService {
 	readonly defaultModelId: string;
 
 	/**
-	 * Fires when the configuration changes (API key, model, etc.).
+	 * Fires when the configuration changes (API key, model, CLI availability, etc.).
 	 */
 	readonly onDidChangeConfiguration: Event<void>;
+
+	/**
+	 * Mark the CLI as available or unavailable.
+	 */
+	setCliAvailable(available: boolean): void;
 
 	/**
 	 * Get the stored API key, or undefined if not set.

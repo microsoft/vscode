@@ -1,0 +1,26 @@
+{
+  "name": "theme-phonon-calm",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "phonon-ide",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "categories": ["Themes"],
+  "contributes": {
+    "themes": [
+      {
+        "id": "Phonon Calm",
+        "label": "%themeLabel%",
+        "uiTheme": "vs-dark",
+        "path": "./themes/phonon-calm-color-theme.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alemusica/vscode_ale.git"
+  }
+}

@@ -10,6 +10,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IPhononCliService } from '../../../../platform/phonon/common/phononCliService.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
@@ -39,6 +41,8 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IPhononService private readonly phononService: IPhononService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._markChatProviderInstalled();
@@ -48,12 +52,10 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 
 	private _markChatProviderInstalled(): void {
 		// Tell the chat UI that a chat provider is installed (bypasses Copilot extension check).
-		// Without this, the chat panel stays in "new user" setup mode.
 		ChatEntitlementContextKeys.Setup.installed.bindTo(this.contextKeyService).set(true);
 		ChatEntitlementContextKeys.Setup.registered.bindTo(this.contextKeyService).set(true);
 
-		// Enable the chat system. registerDynamicAgent does NOT set this (unlike registerAgentImplementation).
-		// Without this, the model picker dropdown and other chat actions are disabled.
+		// Enable the chat system. registerDynamicAgent does NOT set this.
 		ChatContextKeys.enabled.bindTo(this.contextKeyService).set(true);
 		ChatContextKeys.panelParticipantRegistered.bindTo(this.contextKeyService).set(true);
 	}
@@ -71,17 +73,43 @@ class PhononContribution extends Disposable implements IWorkbenchContribution {
 			[]
 		);
 
-		// Step 2: Register the language model provider
+		// Step 2: Create and register the language model provider
 		const provider = this.instantiationService.createInstance(PhononLanguageModelProvider);
 		this._register(provider);
 		this._register(this.languageModelsService.registerLanguageModelProvider(PHONON_CLAUDE_VENDOR, provider));
 
-		// Step 3: Trigger model cache population (needed on first run when no stored preferences exist)
+		// Step 3: Wire CLI service if available (desktop only - uses Max subscription)
+		this._wireCliService(provider);
+
+		// Step 4: Trigger model cache population
 		provider.triggerInitialModelResolution();
 	}
 
+	private _wireCliService(provider: PhononLanguageModelProvider): void {
+		// Try to get the CLI service. Only available on desktop (registered via
+		// registerMainProcessRemoteService in electron-browser/phononCliService.ts).
+		try {
+			const cliService = this.instantiationService.invokeFunction(accessor => accessor.get(IPhononCliService));
+			provider.setCliService(cliService);
+
+			// Check availability and update PhononService
+			cliService.isAvailable().then(available => {
+				this.phononService.setCliAvailable(available);
+				if (available) {
+					this.logService.info('[Phonon] Claude CLI detected - using subprocess mode (Max subscription)');
+				} else {
+					this.logService.info('[Phonon] Claude CLI not found - using HTTP API mode');
+				}
+			}).catch(() => {
+				this.logService.warn('[Phonon] Failed to check CLI availability');
+			});
+		} catch {
+			// Not on desktop or CLI service not registered - HTTP fallback
+			this.logService.info('[Phonon] CLI service not available (web mode?) - using HTTP API mode');
+		}
+	}
+
 	private _registerChatAgent(): void {
-		// Use registerDynamicAgent - dynamic agents get priority over core setup agents
 		const agentImpl = this.instantiationService.createInstance(PhononChatAgentImpl);
 		this._register(agentImpl);
 		this._register(this.chatAgentService.registerDynamicAgent({

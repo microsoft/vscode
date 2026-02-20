@@ -46,9 +46,9 @@ export class PhononChatAgentImpl extends Disposable implements IChatAgentImpleme
 			progress([{
 				kind: 'markdownContent',
 				content: new MarkdownString(
-					'**Phonon IDE** needs an Anthropic API key to use Claude.\n\n' +
-					'Run the command **Phonon: Set API Key** from the Command Palette (`Cmd+Shift+P`) to configure it.\n\n' +
-					'You can get an API key from [console.anthropic.com](https://console.anthropic.com/).'
+					'**Phonon IDE** needs the Claude CLI or an API key.\n\n' +
+					'**Option 1 (recommended):** Install [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) - uses your Max subscription.\n\n' +
+					'**Option 2:** Run **Phonon: Set API Key** from the Command Palette (`Cmd+Shift+P`) with a key from [console.anthropic.com](https://console.anthropic.com/).'
 				),
 			}]);
 

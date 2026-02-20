@@ -6,8 +6,10 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IPhononCliService } from '../../../../platform/phonon/common/phononCliService.js';
 import { IPhononService, PHONON_CLAUDE_VENDOR, PHONON_MODELS } from '../common/phonon.js';
 import {
 	ChatAgentLocation,
@@ -31,6 +33,14 @@ export class PhononLanguageModelProvider extends Disposable implements ILanguage
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private _cliService: IPhononCliService | undefined;
+
+	// Permanent request dispatch map - avoids per-request IPC subscribe/unsubscribe race
+	private readonly _cliHandlers = new Map<string, {
+		onText: (text: string) => void;
+		onComplete: (e: { error?: string; costUsd?: number; numTurns?: number }) => void;
+	}>();
+
 	constructor(
 		@IPhononService private readonly phononService: IPhononService,
 		@ILogService private readonly logService: ILogService,
@@ -39,6 +49,31 @@ export class PhononLanguageModelProvider extends Disposable implements ILanguage
 
 		this._register(this.phononService.onDidChangeConfiguration(() => {
 			this._onDidChange.fire();
+		}));
+	}
+
+	/**
+	 * Set the CLI service for subprocess-based requests.
+	 * Registers permanent IPC event listeners that dispatch by requestId.
+	 */
+	setCliService(cliService: IPhononCliService): void {
+		this._cliService = cliService;
+
+		// Single permanent listener for text events - dispatches to per-request handlers
+		this._register(cliService.onDidReceiveText(e => {
+			const handler = this._cliHandlers.get(e.requestId);
+			if (handler) {
+				handler.onText(e.text);
+			}
+		}));
+
+		// Single permanent listener for complete events
+		this._register(cliService.onDidComplete(e => {
+			const handler = this._cliHandlers.get(e.requestId);
+			if (handler) {
+				this._cliHandlers.delete(e.requestId);
+				handler.onComplete({ error: e.error, costUsd: e.costUsd, numTurns: e.numTurns });
+			}
 		}));
 	}
 
@@ -94,52 +129,13 @@ export class PhononLanguageModelProvider extends Disposable implements ILanguage
 		options: { [name: string]: unknown },
 		token: CancellationToken
 	): Promise<ILanguageModelChatResponse> {
-		const apiKey = await this.phononService.getApiKey();
-		if (!apiKey) {
-			throw new Error('Anthropic API key not configured. Set it via Phonon: Set API Key command.');
+		// Prefer CLI (uses Max subscription, no API key needed)
+		if (this._cliService && this.phononService.cliAvailable) {
+			return this._sendViaCli(modelId, messages, options, token);
 		}
 
-		const anthropicMessages = this._convertMessages(messages);
-		const systemMessage = this._extractSystemMessage(messages);
-
-		// Strip the "phonon/" prefix - the Anthropic API expects bare model IDs
-		const anthropicModelId = modelId.startsWith('phonon/') ? modelId.slice('phonon/'.length) : modelId;
-
-		const body: Record<string, unknown> = {
-			model: anthropicModelId,
-			max_tokens: (options['maxTokens'] as number) || 8192,
-			messages: anthropicMessages,
-			stream: true,
-		};
-
-		if (systemMessage) {
-			body['system'] = systemMessage;
-		}
-
-		// Add tools if provided
-		if (options['tools'] && Array.isArray(options['tools'])) {
-			body['tools'] = options['tools'];
-		}
-
-		const abortController = new AbortController();
-		const cancelListener = token.onCancellationRequested(() => {
-			abortController.abort();
-		});
-
-		const responsePromise = this._makeStreamingRequest(apiKey, body, abortController.signal);
-
-		const stream = this._createResponseStream(responsePromise, abortController.signal);
-
-		const result = responsePromise.then(() => undefined).catch(err => {
-			if (!token.isCancellationRequested) {
-				this.logService.error('[Phonon] Request failed:', err);
-				throw err;
-			}
-		}).finally(() => {
-			cancelListener.dispose();
-		});
-
-		return { stream, result };
+		// Fallback: direct HTTP (requires API key)
+		return this._sendViaHttp(modelId, messages, options, token);
 	}
 
 	async provideTokenCount(
@@ -158,13 +154,216 @@ export class PhononLanguageModelProvider extends Disposable implements ILanguage
 		return Math.ceil(text.length / 4);
 	}
 
+	// --- CLI path (subprocess via main process IPC) ---
+
+	private _sendViaCli(
+		modelId: string,
+		messages: IChatMessage[],
+		options: { [name: string]: unknown },
+		token: CancellationToken
+	): ILanguageModelChatResponse {
+		const cliService = this._cliService!;
+		const requestId = generateUuid();
+		const anthropicModelId = modelId.startsWith('phonon/') ? modelId.slice('phonon/'.length) : modelId;
+		const prompt = this._serializeMessagesForCli(messages);
+		const systemMessage = this._extractSystemMessage(messages) || '';
+		const maxTokens = (options['maxTokens'] as number) || 8192;
+
+		this.logService.info(`[Phonon] CLI request ${requestId}, model=${anthropicModelId}`);
+
+		// Event→AsyncIterable bridge
+		const textQueue: Array<string | null> = []; // null = stream end
+		let streamError: string | undefined;
+		let resolveNext: (() => void) | undefined;
+
+		let resolveResult: () => void;
+		let rejectResult: (err: Error) => void;
+		const resultPromise = new Promise<void>((resolve, reject) => {
+			resolveResult = resolve;
+			rejectResult = reject;
+		});
+
+		// Register handlers in the permanent dispatch map (no per-request IPC listeners)
+		this._cliHandlers.set(requestId, {
+			onText: (text) => {
+				textQueue.push(text);
+				resolveNext?.();
+			},
+			onComplete: (e) => {
+				streamError = e.error;
+				textQueue.push(null); // signal end
+				resolveNext?.();
+
+				cancelListener.dispose();
+
+				if (e.error && e.error !== 'Request cancelled') {
+					rejectResult(new Error(e.error));
+				} else {
+					resolveResult();
+				}
+
+				if (e.costUsd !== undefined) {
+					this.logService.info(`[Phonon] CLI request ${requestId} cost: $${e.costUsd.toFixed(4)}`);
+				}
+			},
+		});
+
+		const cancelListener = token.onCancellationRequested(() => {
+			cliService.cancelRequest(requestId);
+		});
+
+		// Fire-and-forget: start the CLI process
+		cliService.sendPrompt(requestId, prompt, anthropicModelId, systemMessage, maxTokens).catch(err => {
+			this.logService.error(`[Phonon] CLI sendPrompt failed:`, err);
+			this._cliHandlers.delete(requestId);
+			streamError = err.message;
+			textQueue.push(null);
+			resolveNext?.();
+			cancelListener.dispose();
+			rejectResult(err);
+		});
+
+		const cliHandlers = this._cliHandlers;
+		const cleanup = () => {
+			cliHandlers.delete(requestId);
+			cancelListener.dispose();
+		};
+
+		const stream: AsyncIterable<IChatResponsePart | IChatResponsePart[]> = {
+			[Symbol.asyncIterator]: () => ({
+				async next(): Promise<IteratorResult<IChatResponsePart | IChatResponsePart[]>> {
+					while (true) {
+						if (textQueue.length > 0) {
+							const item = textQueue.shift()!;
+							if (item === null) {
+								if (streamError && streamError !== 'Request cancelled') {
+									throw new Error(streamError);
+								}
+								return { done: true, value: undefined };
+							}
+							return { done: false, value: { type: 'text', value: item } };
+						}
+						await new Promise<void>(resolve => { resolveNext = resolve; });
+					}
+				},
+				async return(): Promise<IteratorResult<IChatResponsePart | IChatResponsePart[]>> {
+					cleanup();
+					return { done: true, value: undefined };
+				},
+				async throw(): Promise<IteratorResult<IChatResponsePart | IChatResponsePart[]>> {
+					cleanup();
+					return { done: true, value: undefined };
+				}
+			})
+		};
+
+		return { stream, result: resultPromise };
+	}
+
+	private _serializeMessagesForCli(messages: IChatMessage[]): string {
+		// Flatten conversation into a single prompt for claude -p.
+		// System messages handled via --append-system-prompt.
+		// For single-turn (most common), just extract the last user message text.
+		// For multi-turn history, concatenate with role labels so Claude understands context.
+		const nonSystemMessages = messages.filter(m => m.role !== 0);
+
+		if (nonSystemMessages.length === 1) {
+			// Single user message - pass raw text
+			return nonSystemMessages[0].content
+				.filter(p => p.type === 'text')
+				.map(p => p.value)
+				.join('\n');
+		}
+
+		// Multi-turn: include role labels for context
+		const parts: string[] = [];
+		for (const msg of nonSystemMessages) {
+			const role = msg.role === 1 ? 'Human' : 'Assistant';
+			const textParts = msg.content
+				.filter(p => p.type === 'text')
+				.map(p => p.value);
+			if (textParts.length > 0) {
+				parts.push(`${role}: ${textParts.join('\n')}`);
+			}
+		}
+		return parts.join('\n\n');
+	}
+
+	// --- HTTP path (direct Anthropic API) ---
+
+	private async _sendViaHttp(
+		modelId: string,
+		messages: IChatMessage[],
+		options: { [name: string]: unknown },
+		token: CancellationToken
+	): Promise<ILanguageModelChatResponse> {
+		const apiKey = await this.phononService.getApiKey();
+		if (!apiKey) {
+			throw new Error('No Claude CLI found and no API key configured. Install Claude CLI or run "Phonon: Set API Key".');
+		}
+
+		const anthropicMessages = this._convertMessages(messages);
+		const systemMessage = this._extractSystemMessage(messages);
+		const anthropicModelId = modelId.startsWith('phonon/') ? modelId.slice('phonon/'.length) : modelId;
+
+		const body: Record<string, unknown> = {
+			model: anthropicModelId,
+			max_tokens: (options['maxTokens'] as number) || 8192,
+			messages: anthropicMessages,
+			stream: true,
+		};
+
+		if (systemMessage) {
+			body['system'] = systemMessage;
+		}
+
+		if (options['tools'] && Array.isArray(options['tools'])) {
+			body['tools'] = options['tools'];
+		}
+
+		const abortController = new AbortController();
+		const cancelListener = token.onCancellationRequested(() => {
+			abortController.abort();
+		});
+
+		const responsePromise = this._makeStreamingRequest(apiKey, body, abortController.signal);
+		const stream = this._createResponseStream(responsePromise, abortController.signal);
+
+		const result = responsePromise.then(() => undefined).catch(err => {
+			if (!token.isCancellationRequested) {
+				this.logService.error('[Phonon] HTTP request failed:', err);
+				throw err;
+			}
+		}).finally(() => {
+			cancelListener.dispose();
+		});
+
+		return { stream, result };
+	}
+
+	// --- Shared helpers ---
+
+	private _extractSystemMessage(messages: IChatMessage[]): string | undefined {
+		const systemParts: string[] = [];
+		for (const msg of messages) {
+			if (msg.role === 0) { // System
+				for (const part of msg.content) {
+					if (part.type === 'text') {
+						systemParts.push(part.value);
+					}
+				}
+			}
+		}
+		return systemParts.length > 0 ? systemParts.join('\n') : undefined;
+	}
+
+	// --- HTTP-specific helpers ---
+
 	private _convertMessages(messages: IChatMessage[]): Array<{ role: string; content: unknown }> {
 		const result: Array<{ role: string; content: unknown }> = [];
 
 		for (const msg of messages) {
-			if (msg.role === 0) { // System - handled separately
-				continue;
-			}
+			if (msg.role === 0) { continue; } // System
 
 			const role = msg.role === 1 ? 'user' : 'assistant';
 			const contentParts: unknown[] = [];
@@ -212,7 +411,6 @@ export class PhononLanguageModelProvider extends Disposable implements ILanguage
 				}
 			}
 
-			// If only one text part, simplify to string content
 			if (contentParts.length === 1 && (contentParts[0] as { type: string }).type === 'text') {
 				result.push({ role, content: (contentParts[0] as { text: string }).text });
 			} else {
@@ -221,20 +419,6 @@ export class PhononLanguageModelProvider extends Disposable implements ILanguage
 		}
 
 		return result;
-	}
-
-	private _extractSystemMessage(messages: IChatMessage[]): string | undefined {
-		const systemParts: string[] = [];
-		for (const msg of messages) {
-			if (msg.role === 0) { // System
-				for (const part of msg.content) {
-					if (part.type === 'text') {
-						systemParts.push(part.value);
-					}
-				}
-			}
-		}
-		return systemParts.length > 0 ? systemParts.join('\n') : undefined;
 	}
 
 	private async _makeStreamingRequest(
@@ -294,7 +478,6 @@ export class PhononLanguageModelProvider extends Disposable implements ILanguage
 						}
 
 						while (true) {
-							// Process buffered SSE events first
 							const eventEnd = buffer.indexOf('\n\n');
 							if (eventEnd !== -1) {
 								const event = buffer.substring(0, eventEnd);
@@ -311,7 +494,6 @@ export class PhononLanguageModelProvider extends Disposable implements ILanguage
 								continue;
 							}
 
-							// Read more data
 							const { done: streamDone, value } = await reader.read();
 							if (streamDone) {
 								done = true;
@@ -370,7 +552,6 @@ function parseSSEEvent(event: string): IChatResponsePart | IChatResponsePart[] |
 				return { type: 'thinking', value: delta.thinking };
 			}
 			if (delta?.type === 'input_json_delta' && delta.partial_json) {
-				// Tool use input streaming - accumulate, don't emit yet
 				return undefined;
 			}
 		}

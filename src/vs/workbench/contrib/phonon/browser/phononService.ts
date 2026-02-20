@@ -16,7 +16,8 @@ export class PhononService extends Disposable implements IPhononService {
 
 	declare readonly _serviceBrand: undefined;
 
-	private _isConfigured = false;
+	private _apiKeySet = false;
+	private _cliAvailable = false;
 
 	private readonly _onDidChangeConfiguration = this._register(new Emitter<void>());
 	readonly onDidChangeConfiguration: Event<void> = this._onDidChangeConfiguration.event;
@@ -35,16 +36,27 @@ export class PhononService extends Disposable implements IPhononService {
 
 		this._register(this.secretStorageService.onDidChangeSecret(key => {
 			if (key === PHONON_API_KEY_SECRET) {
-				this._checkConfigured();
+				this._checkApiKey();
 				this._onDidChangeConfiguration.fire();
 			}
 		}));
 
-		this._checkConfigured();
+		this._checkApiKey();
 	}
 
 	get isConfigured(): boolean {
-		return this._isConfigured;
+		return this._cliAvailable || this._apiKeySet;
+	}
+
+	get cliAvailable(): boolean {
+		return this._cliAvailable;
+	}
+
+	setCliAvailable(available: boolean): void {
+		if (this._cliAvailable !== available) {
+			this._cliAvailable = available;
+			this._onDidChangeConfiguration.fire();
+		}
 	}
 
 	get defaultModelId(): string {
@@ -63,8 +75,8 @@ export class PhononService extends Disposable implements IPhononService {
 		await this.secretStorageService.delete(PHONON_API_KEY_SECRET);
 	}
 
-	private async _checkConfigured(): Promise<void> {
+	private async _checkApiKey(): Promise<void> {
 		const key = await this.getApiKey();
-		this._isConfigured = !!key;
+		this._apiKeySet = !!key;
 	}
 }
