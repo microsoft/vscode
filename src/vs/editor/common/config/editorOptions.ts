@@ -6596,7 +6596,7 @@ export const EditorOptions = {
 	selectionHighlightMaxLength: register(new EditorIntOption(
 		EditorOption.selectionHighlightMaxLength, 'selectionHighlightMaxLength',
 		200, 0, Constants.MAX_SAFE_SMALL_INTEGER,
-		{ description: nls.localize('selectionHighlightMaxLength', "Controls how many characters can be in the selection before similiar matches are not highlighted. Set to zero for unlimited.") }
+		{ description: nls.localize('selectionHighlightMaxLength', "Controls how many characters can be in the selection before similar matches are not highlighted. Set to zero for unlimited.") }
 	)),
 	selectionHighlightMultiline: register(new EditorBooleanOption(
 		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
