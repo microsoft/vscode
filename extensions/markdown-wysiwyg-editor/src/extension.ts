@@ -255,13 +255,53 @@ function resolveLinkTarget(
 		return { isExternal: true, uri: vscode.Uri.parse(href, true) };
 	}
 
-	const baseUri = vscode.Uri.joinPath(documentUri, '..');
-	const targetUri = href.startsWith('/')
-		? (workspaceFolders?.[0]
-			? vscode.Uri.joinPath(workspaceFolders[0].uri, href.substring(1))
-			: vscode.Uri.file(href))
-		: vscode.Uri.joinPath(baseUri, href);
+	// In-document anchor (e.g. "#section")
+	if (href.startsWith('#')) {
+		return { isExternal: false, uri: documentUri.with({ fragment: href.substring(1) }) };
+	}
 
+	let hrefUri: vscode.Uri | undefined;
+	try {
+		hrefUri = vscode.Uri.parse(href, true);
+	} catch {
+		hrefUri = undefined;
+	}
+
+	const baseUri = vscode.Uri.joinPath(documentUri, '..');
+
+	// Fallback to previous behavior if parsing failed
+	if (!hrefUri) {
+		const fallbackTargetUri = href.startsWith('/')
+			? (workspaceFolders?.[0]
+				? vscode.Uri.joinPath(workspaceFolders[0].uri, href.substring(1))
+				: vscode.Uri.file(href))
+			: vscode.Uri.joinPath(baseUri, href);
+
+		return { isExternal: false, uri: fallbackTargetUri };
+	}
+
+	const pathPart = hrefUri.path;
+	const fragment = hrefUri.fragment;
+	const query = hrefUri.query;
+
+	let resolvedPathUri: vscode.Uri;
+
+	if (pathPart && pathPart.startsWith('/')) {
+		const absPath = pathPart.substring(1);
+		resolvedPathUri = workspaceFolders?.[0]
+			? vscode.Uri.joinPath(workspaceFolders[0].uri, absPath)
+			: vscode.Uri.file(pathPart);
+	} else if (pathPart && pathPart.length > 0) {
+		resolvedPathUri = vscode.Uri.joinPath(baseUri, pathPart);
+	} else {
+		// No path component: refer to the current document
+		resolvedPathUri = documentUri;
+	}
+
+	const targetUri = resolvedPathUri.with({
+		fragment: fragment || undefined,
+		query: query || undefined
+	});
 	return { isExternal: false, uri: targetUri };
 }
 
