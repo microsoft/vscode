@@ -12,6 +12,7 @@ const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf
 
 const DMGBUILD_REPO = 'https://github.com/dmgbuild/dmgbuild.git';
 const DMGBUILD_COMMIT = '75c8a6c7835c5b73dfd4510d92a8f357f93a5fbf';
+const MIN_PYTHON_VERSION = [3, 10];
 
 function getDmgBuildPath(): string {
 	return path.join(import.meta.dirname, '.dmgbuild');
@@ -23,6 +24,66 @@ function getVenvPath(): string {
 
 function getPythonPath(): string {
 	return path.join(getVenvPath(), 'bin', 'python3');
+}
+
+async function checkPythonVersion(pythonBin: string): Promise<boolean> {
+	try {
+		const output = await spawn(pythonBin, ['--version']);
+		const match = output.match(/Python (\d+)\.(\d+)/);
+		if (match) {
+			const major = parseInt(match[1], 10);
+			const minor = parseInt(match[2], 10);
+			return major > MIN_PYTHON_VERSION[0] || (major === MIN_PYTHON_VERSION[0] && minor >= MIN_PYTHON_VERSION[1]);
+		}
+	} catch {
+		// not available
+	}
+	return false;
+}
+
+/**
+ * Finds a Python binary that meets the minimum version requirement.
+ * Tries well-known candidates first, and if none are suitable,
+ * installs Python 3.12 via Homebrew.
+ */
+async function findSuitablePython(): Promise<string> {
+	const candidates = [
+		'python3',
+		'python3.12',
+		'python3.11',
+		'python3.10',
+		// Homebrew paths (Apple Silicon)
+		'/opt/homebrew/opt/python@3.12/bin/python3',
+		'/opt/homebrew/opt/python@3.11/bin/python3',
+		'/opt/homebrew/opt/python@3.10/bin/python3',
+		// Homebrew paths (Intel)
+		'/usr/local/opt/python@3.12/bin/python3',
+		'/usr/local/opt/python@3.11/bin/python3',
+		'/usr/local/opt/python@3.10/bin/python3',
+	];
+
+	for (const candidate of candidates) {
+		if (await checkPythonVersion(candidate)) {
+			console.log(`Found suitable Python: ${candidate}`);
+			return candidate;
+		}
+	}
+
+	console.log(`No Python >= ${MIN_PYTHON_VERSION[0]}.${MIN_PYTHON_VERSION[1]} found, installing via Homebrew...`);
+	await spawn('brew', ['install', '--quiet', 'python@3.12'], { stdio: 'inherit' });
+
+	const brewPaths = [
+		'/opt/homebrew/opt/python@3.12/bin/python3',
+		'/usr/local/opt/python@3.12/bin/python3',
+	];
+	for (const brewPath of brewPaths) {
+		if (await checkPythonVersion(brewPath)) {
+			console.log(`Using Homebrew Python: ${brewPath}`);
+			return brewPath;
+		}
+	}
+
+	throw new Error(`Could not find Python >= ${MIN_PYTHON_VERSION[0]}.${MIN_PYTHON_VERSION[1]} even after Homebrew install.`);
 }
 
 async function ensureDmgBuild(): Promise<void> {
@@ -47,12 +108,13 @@ async function ensureDmgBuild(): Promise<void> {
 		stdio: 'inherit'
 	});
 
+	const pythonBin = await findSuitablePython();
 	console.log('Creating Python virtual environment...');
-	await spawn('python3', ['-m', 'venv', venvPath], {
+	await spawn(pythonBin, ['-m', 'venv', venvPath], {
 		stdio: 'inherit'
 	});
 
-	console.log('Installing dmgbuild dependencies...');
+	console.log('Installing dmgbuild and dependencies into venv...');
 	const pipPath = path.join(venvPath, 'bin', 'pip');
 	await spawn(pipPath, ['install', dmgBuildPath], {
 		stdio: 'inherit'
