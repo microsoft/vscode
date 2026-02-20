@@ -49,8 +49,6 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!build/win32/**',
 	'!extensions/markdown-language-features/notebook-out/*.js',
 	'!extensions/markdown-math/notebook-out/**',
-	'!extensions/markdown-wysiwyg-editor/media/**',
-	'!extensions/mermaid-chat-features/chat-webview-out/**',
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/**',
 	'!extensions/php-language-features/src/features/phpGlobalFunctions.ts',
