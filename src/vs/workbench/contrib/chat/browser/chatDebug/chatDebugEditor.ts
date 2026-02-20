@@ -22,6 +22,7 @@ import { ViewState, IChatDebugEditorOptions } from './chatDebugTypes.js';
 import { ChatDebugHomeView } from './chatDebugHomeView.js';
 import { ChatDebugOverviewView, OverviewNavigation } from './chatDebugOverviewView.js';
 import { ChatDebugLogsView, LogsNavigation } from './chatDebugLogsView.js';
+import { ChatDebugFlowChartView, FlowChartNavigation } from './chatDebugFlowChartView.js';
 
 const $ = DOM.$;
 
@@ -37,6 +38,7 @@ export class ChatDebugEditor extends EditorPane {
 	private homeView: ChatDebugHomeView | undefined;
 	private overviewView: ChatDebugOverviewView | undefined;
 	private logsView: ChatDebugLogsView | undefined;
+	private flowChartView: ChatDebugFlowChartView | undefined;
 
 	private readonly sessionModelListener = this._register(new MutableDisposable());
 	private readonly modelChangeListeners = this._register(new DisposableMap<string>());
@@ -73,6 +75,9 @@ export class ChatDebugEditor extends EditorPane {
 				case OverviewNavigation.Logs:
 					this.showView(ViewState.Logs);
 					break;
+				case OverviewNavigation.FlowChart:
+					this.showView(ViewState.FlowChart);
+					break;
 			}
 		}));
 
@@ -89,6 +94,19 @@ export class ChatDebugEditor extends EditorPane {
 			}
 		}));
 
+		this.flowChartView = this._register(this.instantiationService.createInstance(ChatDebugFlowChartView, this.container));
+		this._register(this.flowChartView.onNavigate(nav => {
+			switch (nav) {
+				case FlowChartNavigation.Home:
+					this.chatDebugService.activeSessionId = undefined;
+					this.showView(ViewState.Home);
+					break;
+				case FlowChartNavigation.Overview:
+					this.showView(ViewState.Overview);
+					break;
+			}
+		}));
+
 		// When new debug events arrive, refresh the current view
 		this._register(this.chatDebugService.onDidAddEvent(event => {
 			if (this.viewState === ViewState.Home) {
@@ -98,6 +116,8 @@ export class ChatDebugEditor extends EditorPane {
 					this.overviewView?.refresh();
 				} else if (this.viewState === ViewState.Logs) {
 					this.logsView?.refreshList();
+				} else if (this.viewState === ViewState.FlowChart) {
+					this.flowChartView?.refresh();
 				}
 			}
 		}));
@@ -125,9 +145,10 @@ export class ChatDebugEditor extends EditorPane {
 				if (e.kind === 'setCustomTitle') {
 					if (this.viewState === ViewState.Home) {
 						this.homeView?.render();
-					} else if (this.viewState === ViewState.Overview || this.viewState === ViewState.Logs) {
+					} else if (this.viewState === ViewState.Overview || this.viewState === ViewState.Logs || this.viewState === ViewState.FlowChart) {
 						this.overviewView?.updateBreadcrumb();
 						this.logsView?.updateBreadcrumb();
+						this.flowChartView?.updateBreadcrumb();
 					}
 				}
 			}));
@@ -175,16 +196,23 @@ export class ChatDebugEditor extends EditorPane {
 			this.logsView?.hide();
 		}
 
+		if (state === ViewState.FlowChart) {
+			this.flowChartView?.show();
+		} else {
+			this.flowChartView?.hide();
+		}
+
 	}
 
-	navigateToSession(sessionId: string, view?: 'logs' | 'overview'): void {
+	navigateToSession(sessionId: string, view?: 'logs' | 'overview' | 'flowchart'): void {
 		this.chatDebugService.activeSessionId = sessionId;
 		this.trackSessionModelChanges(sessionId);
 
 		this.overviewView?.setSession(sessionId);
 		this.logsView?.setSession(sessionId);
+		this.flowChartView?.setSession(sessionId);
 
-		this.showView(view === 'logs' ? ViewState.Logs : ViewState.Overview);
+		this.showView(view === 'logs' ? ViewState.Logs : view === 'flowchart' ? ViewState.FlowChart : ViewState.Overview);
 	}
 
 	private trackSessionModelChanges(sessionId: string): void {
@@ -244,6 +272,8 @@ export class ChatDebugEditor extends EditorPane {
 		const { sessionId, viewHint } = options;
 		if (viewHint === 'logs' && sessionId) {
 			this.navigateToSession(sessionId, 'logs');
+		} else if (viewHint === 'flowchart' && sessionId) {
+			this.navigateToSession(sessionId, 'flowchart');
 		} else if (viewHint === 'overview' && sessionId) {
 			this.navigateToSession(sessionId, 'overview');
 		} else if (viewHint === 'home') {

@@ -27,6 +27,7 @@ const $ = DOM.$;
 export const enum OverviewNavigation {
 	Home = 'home',
 	Logs = 'logs',
+	FlowChart = 'flowchart',
 }
 
 export class ChatDebugOverviewView extends Disposable {
@@ -250,6 +251,13 @@ export class ChatDebugOverviewView extends Disposable {
 		viewLogsBtn.append(localize('chatDebug.viewLogs', "View Logs"));
 		this.loadDisposables.add(DOM.addDisposableListener(viewLogsBtn, DOM.EventType.CLICK, () => {
 			this._onNavigate.fire(OverviewNavigation.Logs);
+		}));
+
+		const flowChartBtn = DOM.append(row, $('button.chat-debug-overview-action-button'));
+		DOM.append(flowChartBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.typeHierarchy)}`));
+		flowChartBtn.append(localize('chatDebug.agentFlowChart', "Agent Flow Chart"));
+		this.loadDisposables.add(DOM.addDisposableListener(flowChartBtn, DOM.EventType.CLICK, () => {
+			this._onNavigate.fire(OverviewNavigation.FlowChart);
 		}));
 
 	}

@@ -660,3 +660,44 @@
 .chat-debug-file-list-badge-link {
 	cursor: pointer;
 }
+
+/* ---- Flow chart view ---- */
+.chat-debug-flowchart {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	flex: 1;
+}
+.chat-debug-flowchart-content {
+	flex: 1;
+	overflow: hidden;
+	position: relative;
+	cursor: grab;
+	background: var(--vscode-editor-background);
+}
+.chat-debug-flowchart-content:active {
+	cursor: grabbing;
+}
+.chat-debug-flowchart-svg-wrapper {
+	transform-origin: 0 0;
+	position: absolute;
+	top: 0;
+	left: 0;
+}
+.chat-debug-flowchart-svg {
+	display: block;
+}
+.chat-debug-flowchart-node rect {
+	transition: opacity 0.15s;
+}
+.chat-debug-flowchart-node:hover rect:first-child {
+	opacity: 0.85;
+}
+.chat-debug-flowchart-empty {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}

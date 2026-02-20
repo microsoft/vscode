@@ -16,13 +16,14 @@ const $ = DOM.$;
  */
 export interface IChatDebugEditorOptions extends IEditorOptions {
 	readonly sessionId?: string;
-	readonly viewHint?: 'home' | 'overview' | 'logs';
+	readonly viewHint?: 'home' | 'overview' | 'logs' | 'flowchart';
 }
 
 export const enum ViewState {
 	Home = 'home',
 	Overview = 'overview',
 	Logs = 'logs',
+	FlowChart = 'flowchart',
 }
 
 export const enum LogsViewMode {
