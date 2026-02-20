@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import * as assert from 'assert';
+import 'mocha';
 
-test('extension module exports activate and deactivate', async () => {
-	const extension = await import('../extension');
-	assert.equal(typeof extension.activate, 'function');
-	assert.equal(typeof extension.deactivate, 'function');
+suite('markdown-wysiwyg-editor extension', () => {
+	test('extension module exports activate and deactivate', async () => {
+		const extension = await import('../extension');
+		assert.equal(typeof extension.activate, 'function');
+		assert.equal(typeof extension.deactivate, 'function');
+	});
 });
