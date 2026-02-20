@@ -106,6 +106,10 @@ class MockChatService implements IChatService {
 		return this.sessions.get(sessionResource.toString());
 	}
 
+	getLatestRequest(): IChatRequestModel | undefined {
+		return undefined;
+	}
+
 	getOrRestoreSession(_sessionResource: URI): Promise<any> {
 		throw new Error('Method not implemented.');
 	}

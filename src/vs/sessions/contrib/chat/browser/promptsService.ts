@@ -17,7 +17,7 @@ import { IWorkbenchEnvironmentService } from '../../../../workbench/services/env
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { ISearchService } from '../../../../workbench/services/search/common/search.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
-import { ISessionsWorkbenchService } from '../../sessions/browser/sessionsWorkbenchService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 export class AgenticPromptsService extends PromptsService {
 	protected override createPromptFilesLocator(): PromptFilesLocator {
@@ -36,7 +36,7 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 		@IUserDataProfileService userDataService: IUserDataProfileService,
 		@ILogService logService: ILogService,
 		@IPathService pathService: IPathService,
-		@ISessionsWorkbenchService private readonly activeSessionService: ISessionsWorkbenchService,
+		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 	) {
 		super(
 			fileService,

@@ -21,6 +21,14 @@ class WebBrowserElementsService implements IBrowserElementsService {
 	async startDebugSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void> {
 		throw new Error('Not implemented');
 	}
+
+	async startConsoleSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void> {
+		throw new Error('Not implemented');
+	}
+
+	async getConsoleLogs(locator: IBrowserTargetLocator): Promise<string | undefined> {
+		throw new Error('Not implemented');
+	}
 }
 
 registerSingleton(IBrowserElementsService, WebBrowserElementsService, InstantiationType.Delayed);

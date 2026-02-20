@@ -349,8 +349,6 @@ export interface IToolInvocationStreamContext {
 	toolCallId: string;
 	rawInput: unknown;
 	chatRequestId?: string;
-	/** @deprecated Use {@link chatSessionResource} instead */
-	chatSessionId?: string;
 	chatSessionResource?: URI;
 	chatInteractionId?: string;
 }

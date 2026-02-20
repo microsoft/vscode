@@ -9,6 +9,7 @@ import './sessions.common.main.js';
 //#region --- workbench (agentic desktop main)
 
 import './electron-browser/sessions.main.js';
+import './electron-browser/titleService.js';
 import '../workbench/electron-browser/desktop.contribution.js';
 
 //#endregion
@@ -164,7 +165,10 @@ import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribu
 
 // Chat
 import '../workbench/contrib/chat/electron-browser/chat.contribution.js';
-import '../workbench/contrib/inlineChat/electron-browser/inlineChat.contribution.js';
+//import '../workbench/contrib/inlineChat/electron-browser/inlineChat.contribution.js';
+
+import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
+
 // Encryption
 import '../workbench/contrib/encryption/electron-browser/encryption.contribution.js';
 
@@ -190,7 +194,9 @@ import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contri
 import './contrib/aiCustomizationManagement/browser/aiCustomizationManagement.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
+import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changesView/browser/changesView.contribution.js';
+import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
 import './contrib/configuration/browser/configuration.contribution.js';
 
 //#endregion

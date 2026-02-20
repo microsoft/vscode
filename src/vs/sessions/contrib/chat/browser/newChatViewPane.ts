@@ -8,10 +8,10 @@ import './media/chatWelcomePart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toAction } from '../../../../base/common/actions.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../base/common/observable.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -25,108 +25,43 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { asCSSUrl } from '../../../../base/browser/cssValue.js';
-import { FileAccess } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ISessionsWorkbenchService } from '../../sessions/browser/sessionsWorkbenchService.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
 import { SearchableOptionPickerActionItem } from '../../../../workbench/contrib/chat/browser/chatSessions/searchableOptionPickerActionItem.js';
-import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
-import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
-import { WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
-
-// #region --- Target Config ---
-
-/**
- * Tracks which agent session targets are available and which is selected.
- * Targets are fixed at construction time; only the selection changes.
- */
-export interface ITargetConfig {
-	readonly allowedTargets: IObservable<ReadonlySet<AgentSessionProviders>>;
-	readonly selectedTarget: IObservable<AgentSessionProviders | undefined>;
-	readonly onDidChangeSelectedTarget: Event<AgentSessionProviders | undefined>;
-	readonly onDidChangeAllowedTargets: Event<ReadonlySet<AgentSessionProviders>>;
-	setSelectedTarget(target: AgentSessionProviders): void;
-}
-
-export interface ITargetConfigOptions {
-	allowedTargets: AgentSessionProviders[];
-	defaultTarget?: AgentSessionProviders;
-}
-
-class TargetConfig extends Disposable implements ITargetConfig {
-
-	private readonly _allowedTargets = observableValue<ReadonlySet<AgentSessionProviders>>('allowedTargets', new Set());
-	readonly allowedTargets: IObservable<ReadonlySet<AgentSessionProviders>> = this._allowedTargets;
-
-	private readonly _selectedTarget = observableValue<AgentSessionProviders | undefined>('selectedTarget', undefined);
-	readonly selectedTarget: IObservable<AgentSessionProviders | undefined> = this._selectedTarget;
-
-	private readonly _onDidChangeSelectedTarget = this._register(new Emitter<AgentSessionProviders | undefined>());
-	readonly onDidChangeSelectedTarget = this._onDidChangeSelectedTarget.event;
-
-	private readonly _onDidChangeAllowedTargets = this._register(new Emitter<ReadonlySet<AgentSessionProviders>>());
-	readonly onDidChangeAllowedTargets = this._onDidChangeAllowedTargets.event;
-
-	constructor(options: ITargetConfigOptions) {
-		super();
-		const initialSet = new Set(options.allowedTargets);
-		this._allowedTargets.set(initialSet, undefined);
-		const defaultTarget = options.defaultTarget && initialSet.has(options.defaultTarget)
-			? options.defaultTarget
-			: initialSet.values().next().value;
-		this._selectedTarget.set(defaultTarget, undefined);
-	}
-
-	setSelectedTarget(target: AgentSessionProviders): void {
-		const allowed = this._allowedTargets.get();
-		if (!allowed.has(target)) {
-			throw new Error(`Target "${target}" is not in the allowed set`);
-		}
-		if (this._selectedTarget.get() !== target) {
-			this._selectedTarget.set(target, undefined);
-			this._onDidChangeSelectedTarget.fire(target);
-		}
-	}
-}
-
-// #endregion
+import { isString } from '../../../../base/common/types.js';
+import { NewChatContextAttachments } from './newChatContextAttachments.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
+import { FolderPicker } from './folderPicker.js';
+import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
+import { BranchPicker } from './branchPicker.js';
+import { INewSession } from './newSession.js';
 
 // #region --- Chat Welcome Widget ---
 
 /**
- * Data passed to the `onSendRequest` callback when the user submits a query.
- */
-export interface INewChatSendRequestData {
-	readonly resource: URI;
-	readonly target: AgentSessionProviders;
-	readonly query: string;
-	readonly sendOptions: IChatSendRequestOptions;
-	readonly selectedOptions: ReadonlyMap<string, IChatSessionProviderOptionItem>;
-}
-
-/**
  * Options for creating a `NewChatWidget`.
  */
-export interface INewChatWidgetOptions {
-	readonly targetConfig: ITargetConfigOptions;
-	readonly onSendRequest?: (data: INewChatSendRequestData) => void;
+interface INewChatWidgetOptions {
+	readonly allowedTargets: AgentSessionProviders[];
+	readonly defaultTarget: AgentSessionProviders;
 	readonly sessionPosition?: ChatSessionPosition;
 }
 
@@ -139,28 +74,36 @@ export interface INewChatWidgetOptions {
  */
 class NewChatWidget extends Disposable {
 
-	private readonly _targetConfig: ITargetConfig;
+	private readonly _targetPicker: SessionTargetPicker;
+	private readonly _isolationModePicker: IsolationModePicker;
+	private readonly _branchPicker: BranchPicker;
 	private readonly _options: INewChatWidgetOptions;
 
 	// Input
 	private _editor!: CodeEditorWidget;
 	private readonly _currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentLanguageModel', undefined);
 	private readonly _modelPickerDisposable = this._register(new MutableDisposable());
-	private _pendingSessionResource: URI | undefined;
+
+	// Pending session
+	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
+	private readonly _newSessionListener = this._register(new MutableDisposable());
 
 	// Welcome part
-	private readonly _welcomeContentDisposables = this._register(new DisposableStore());
 	private _pickersContainer: HTMLElement | undefined;
-	private _targetDropdownContainer: HTMLElement | undefined;
 	private _extensionPickersLeftContainer: HTMLElement | undefined;
 	private _extensionPickersRightContainer: HTMLElement | undefined;
 	private _inputSlot: HTMLElement | undefined;
+	private readonly _folderPicker: FolderPicker;
+	private _folderPickerContainer: HTMLElement | undefined;
 	private readonly _pickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
 	private readonly _pickerWidgetDisposables = this._register(new DisposableStore());
 	private readonly _optionEmitters = new Map<string, Emitter<IChatSessionProviderOptionItem>>();
 	private readonly _selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 	private readonly _optionContextKeys = new Map<string, IContextKey<string>>();
 	private readonly _whenClauseKeys = new Set<string>();
+
+	// Attached context
+	private readonly _contextAttachments: NewChatContextAttachments;
 
 	constructor(
 		options: INewChatWidgetOptions,
@@ -170,48 +113,30 @@ class NewChatWidget extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IProductService private readonly productService: IProductService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@ILogService private readonly logService: ILogService,
 		@IHoverService _hoverService: IHoverService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
-		this._targetConfig = this._register(new TargetConfig(options.targetConfig));
+		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
+		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
+		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, options.defaultTarget));
+		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
+		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
 		this._options = options;
 
-		// When target changes, regenerate pending resource
-		this._register(this._targetConfig.onDidChangeSelectedTarget(() => {
-			this._generatePendingSessionResource();
-			this._updateTargetDropdown();
-			this._renderExtensionPickers(true);
+		// When target changes, create new session
+		this._register(this._targetPicker.onDidChangeTarget((target) => {
+			this._createNewSession();
+			const isLocal = target === AgentSessionProviders.Background;
+			this._isolationModePicker.setVisible(isLocal);
+			this._branchPicker.setVisible(isLocal);
 		}));
 
-		this._register(this._targetConfig.onDidChangeAllowedTargets(() => {
-			if (this._targetDropdownContainer) {
-				dom.clearNode(this._targetDropdownContainer);
-				this._renderTargetDropdown(this._targetDropdownContainer);
-			}
-			this._renderExtensionPickers(true);
-		}));
-
-		// Listen for option group changes to re-render pickers
-		this._register(this.chatSessionsService.onDidChangeOptionGroups(() => {
-			this._renderExtensionPickers();
-		}));
-
-		// React to chat session option changes
-		this._register(this.chatSessionsService.onDidChangeSessionOptions((e: URI | undefined) => {
-			if (this._pendingSessionResource && isEqual(this._pendingSessionResource, e)) {
-				this._syncOptionsFromSession(this._pendingSessionResource);
-				this._renderExtensionPickers();
-			}
-		}));
-
-		const workspaceFolderCountKey = new Set([WorkspaceFolderCountContext.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(workspaceFolderCountKey)) {
-				this._renderExtensionPickers(true);
-			}
 			if (this._whenClauseKeys.size > 0 && e.affectsSome(this._whenClauseKeys)) {
 				this._renderExtensionPickers(true);
 			}
@@ -224,23 +149,42 @@ class NewChatWidget extends Disposable {
 		const wrapper = dom.append(container, dom.$('.sessions-chat-widget'));
 		const welcomeElement = dom.append(wrapper, dom.$('.chat-full-welcome'));
 
-		// Mascot
+		// Watermark letterpress
 		const header = dom.append(welcomeElement, dom.$('.chat-full-welcome-header'));
-		const quality = this.productService.quality ?? 'stable';
-		const mascot = dom.append(header, dom.$('.chat-full-welcome-mascot'));
-		mascot.style.backgroundImage = asCSSUrl(FileAccess.asBrowserUri(`vs/sessions/contrib/chat/browser/media/code-icon-agent-sessions-${quality}.svg`));
+		dom.append(header, dom.$('.chat-full-welcome-letterpress'));
+
+		// Option group pickers (above the input)
+		this._pickersContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-pickers-container'));
 
 		// Input slot
 		this._inputSlot = dom.append(welcomeElement, dom.$('.chat-full-welcome-inputSlot'));
 
 		// Input area inside the input slot
 		const inputArea = dom.$('.sessions-chat-input-area');
+		this._contextAttachments.registerDropTarget(inputArea);
+		this._contextAttachments.registerPasteHandler(inputArea);
+
+		// Attachments row (plus button + pills) inside input area, above editor
+		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
+		this._createAttachButton(attachRow);
+		const attachedContextContainer = dom.append(attachRow, dom.$('.sessions-chat-attached-context'));
+		this._contextAttachments.renderAttachedContext(attachedContextContainer);
+
 		this._createEditor(inputArea);
-		this._createToolbar(inputArea);
+		this._createBottomToolbar(inputArea);
 		this._inputSlot.appendChild(inputArea);
 
-		// Option group pickers (below the input)
-		this._pickersContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-pickers-container'));
+		// Isolation mode and branch pickers (below the input, shown when Local target is selected)
+		const isolationContainer = dom.append(welcomeElement, dom.$('.chat-full-welcome-local-mode'));
+		this._isolationModePicker.render(isolationContainer);
+		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
+		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
+		this._branchPicker.render(branchContainer);
+
+		// Set initial visibility based on default target
+		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
+		this._isolationModePicker.setVisible(isLocal);
+		this._branchPicker.setVisible(isLocal);
 
 		// Render target buttons & extension pickers
 		this._renderOptionGroupPickers();
@@ -248,23 +192,74 @@ class NewChatWidget extends Disposable {
 		// Initialize model picker
 		this._initDefaultModel();
 
-		// Generate pending resource for option changes
-		this._generatePendingSessionResource();
+		// Create initial session
+		this._createNewSession();
 
 		// Reveal
 		welcomeElement.classList.add('revealed');
 	}
 
-	private _generatePendingSessionResource(): void {
-		const target = this._targetConfig.selectedTarget.get();
-		if (!target || target === AgentSessionProviders.Local) {
-			this._pendingSessionResource = undefined;
-			return;
-		}
-		this._pendingSessionResource = getResourceForNewChatSession({
+	private async _createNewSession(): Promise<void> {
+		const target = this._targetPicker.selectedTarget;
+		const defaultRepoUri = this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		const resource = getResourceForNewChatSession({
 			type: target,
 			position: this._options.sessionPosition ?? ChatSessionPosition.Sidebar,
 			displayName: '',
+		});
+
+		try {
+			const session = await this.sessionsManagementService.createNewSessionForTarget(target, resource, defaultRepoUri);
+			this._setNewSession(session);
+		} catch (e) {
+			this.logService.error('Failed to create new session:', e);
+		}
+	}
+
+	private _setNewSession(session: INewSession): void {
+		this._newSession.value = session;
+
+		// Wire pickers to the new session
+		this._folderPicker.setNewSession(session);
+		this._isolationModePicker.setNewSession(session);
+		this._branchPicker.setNewSession(session);
+
+		// Set the current model on the session
+		const currentModel = this._currentLanguageModel.get();
+		if (currentModel) {
+			session.setModelId(currentModel.identifier);
+		}
+
+		// Open repository for the session's repoUri
+		if (session.repoUri) {
+			this._openRepository(session.repoUri);
+		}
+
+		// Render extension pickers for the new session
+		this._renderExtensionPickers(true);
+
+		// Listen for session changes
+		this._newSessionListener.value = session.onDidChange((changeType) => {
+			if (changeType === 'repoUri' && session.repoUri) {
+				this._openRepository(session.repoUri);
+			}
+			if (changeType === 'isolationMode') {
+				this._branchPicker.setVisible(session.isolationMode === 'worktree');
+			}
+			if (changeType === 'options') {
+				this._syncOptionsFromSession(session.resource);
+				this._renderExtensionPickers();
+			}
+		});
+	}
+
+	private _openRepository(folderUri: URI): void {
+		this.gitService.openRepository(folderUri).then(repository => {
+			this._isolationModePicker.setRepository(repository);
+			this._branchPicker.setRepository(repository);
+		}).catch(() => {
+			this._isolationModePicker.setRepository(undefined);
+			this._branchPicker.setRepository(undefined);
 		});
 	}
 
@@ -311,14 +306,51 @@ class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._editor.onDidContentSizeChange(() => {
-			const contentHeight = this._editor.getContentHeight();
-			const clampedHeight = Math.min(Math.max(contentHeight, 36), 200);
-			editorContainer.style.height = `${clampedHeight}px`;
 			this._editor.layout();
 		}));
 	}
 
-	private _createToolbar(container: HTMLElement): void {
+	private _createAttachButton(container: HTMLElement): void {
+		const attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
+		attachButton.tabIndex = 0;
+		attachButton.role = 'button';
+		attachButton.title = localize('addContext', "Add Context...");
+		attachButton.ariaLabel = localize('addContext', "Add Context...");
+		dom.append(attachButton, renderIcon(Codicon.add));
+		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
+			this._contextAttachments.showPicker(this._getContextFolderUri());
+		}));
+	}
+
+	/**
+	 * Returns the folder URI for the context picker based on the current target.
+	 * Local targets use the workspace folder; cloud targets construct a github-remote-file:// URI.
+	 */
+	private _getContextFolderUri(): URI | undefined {
+		const target = this._targetPicker.selectedTarget;
+
+		if (target === AgentSessionProviders.Background) {
+			return this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		}
+
+		// For cloud targets, look for a repository option in the selected options
+		for (const [groupId, option] of this._selectedOptions) {
+			if (isRepoOrFolderGroup({ id: groupId, name: groupId, items: [] })) {
+				const nwo = option.id; // e.g. "owner/repo"
+				if (nwo && nwo.includes('/')) {
+					return URI.from({
+						scheme: GITHUB_REMOTE_FILE_SCHEME,
+						authority: 'github',
+						path: `/${nwo}/HEAD`,
+					});
+				}
+			}
+		}
+
+		return undefined;
+	}
+
+	private _createBottomToolbar(container: HTMLElement): void {
 		const toolbar = dom.append(container, dom.$('.sessions-chat-toolbar'));
 
 		const modelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
@@ -341,9 +373,11 @@ class NewChatWidget extends Disposable {
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._currentLanguageModel.set(model, undefined);
+				this._newSession.value?.setModelId(model.identifier);
 			},
 			getModels: () => this._getAvailableModels(),
 			canManageModels: () => true,
+			showCuratedModels: () => false,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -354,7 +388,7 @@ class NewChatWidget extends Disposable {
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 
 		const modelPicker = this.instantiationService.createInstance(
-			ModelPickerActionItem, action, undefined, delegate, pickerOptions,
+			EnhancedModelPickerActionItem, action, delegate, pickerOptions,
 		);
 		this._modelPickerDisposable.value = modelPicker;
 		modelPicker.render(container);
@@ -382,7 +416,14 @@ class NewChatWidget extends Disposable {
 				const metadata = this.languageModelsService.lookupLanguageModel(id);
 				return metadata ? { metadata, identifier: id } : undefined;
 			})
-			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && !!m.metadata.isUserSelectable);
+			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && this.shouldShowModel(m));
+	}
+
+	private shouldShowModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		if (!model.metadata.isUserSelectable) {
+			return false;
+		}
+		return true;
 	}
 
 	// --- Welcome: Target & option pickers (dropdown row below input) ---
@@ -392,88 +433,52 @@ class NewChatWidget extends Disposable {
 			return;
 		}
 
-		this._disposePickerWidgets();
+		this._clearExtensionPickers();
 		dom.clearNode(this._pickersContainer);
 
 		const pickersRow = dom.append(this._pickersContainer, dom.$('.chat-full-welcome-pickers'));
 
-		// Left group: target dropdown + non-repo extension pickers
-		const leftGroup = dom.append(pickersRow, dom.$('.sessions-chat-pickers-left'));
-		this._targetDropdownContainer = dom.append(leftGroup, dom.$('.sessions-chat-dropdown-wrapper'));
-		this._renderTargetDropdown(this._targetDropdownContainer);
-		this._extensionPickersLeftContainer = dom.append(leftGroup, dom.$('.sessions-chat-extension-pickers-left'));
+		// Left half: target switcher (right-justified within its half)
+		const leftHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-left-half'));
+		const targetDropdownContainer = dom.append(leftHalf, dom.$('.sessions-chat-dropdown-wrapper'));
+		this._targetPicker.render(targetDropdownContainer);
 
-		// Spacer
-		dom.append(pickersRow, dom.$('.sessions-chat-pickers-spacer'));
+		// Right half: separator + pickers (left-justified within its half)
+		const rightHalf = dom.append(pickersRow, dom.$('.sessions-chat-pickers-right-half'));
+		this._extensionPickersLeftContainer = dom.append(rightHalf, dom.$('.sessions-chat-pickers-left-separator'));
+		this._extensionPickersRightContainer = dom.append(rightHalf, dom.$('.sessions-chat-extension-pickers-right'));
 
-		// Right group: repo/folder pickers
-		this._extensionPickersRightContainer = dom.append(pickersRow, dom.$('.sessions-chat-extension-pickers-right'));
+		// Folder picker (rendered once, shown/hidden based on target)
+		this._folderPickerContainer = this._folderPicker.render(rightHalf);
+		this._folderPickerContainer.style.display = 'none';
 
 		this._renderExtensionPickers();
 	}
 
-	private _renderTargetDropdown(container: HTMLElement): void {
-		const allowed = this._targetConfig.allowedTargets.get();
-		if (allowed.size === 0) {
-			return;
-		}
-
-		const activeType = this._targetConfig.selectedTarget.get() ?? AgentSessionProviders.Background;
-		const icon = getAgentSessionProviderIcon(activeType);
-		const name = getAgentSessionProviderName(activeType);
-
-		const button = dom.append(container, dom.$('.sessions-chat-dropdown-button'));
-		button.tabIndex = 0;
-		button.role = 'button';
-		button.ariaHasPopup = 'true';
-		dom.append(button, renderIcon(icon));
-		dom.append(button, dom.$('span.sessions-chat-dropdown-label', undefined, name));
-		dom.append(button, renderIcon(Codicon.chevronDown));
-
-		this._welcomeContentDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, () => {
-			const currentAllowed = this._targetConfig.allowedTargets.get();
-			const currentActive = this._targetConfig.selectedTarget.get();
-			const actions = [...currentAllowed]
-				.filter(t => t !== AgentSessionProviders.Local)
-				.map(sessionType => {
-					const label = getAgentSessionProviderName(sessionType);
-					return toAction({
-						id: `target.${sessionType}`,
-						label,
-						checked: sessionType === currentActive,
-						run: () => this._targetConfig.setSelectedTarget(sessionType),
-					});
-				});
-			this.contextMenuService.showContextMenu({
-				getAnchor: () => button,
-				getActions: () => actions,
-			});
-		}));
-	}
-
-	private _updateTargetDropdown(): void {
-		if (!this._targetDropdownContainer) {
-			return;
-		}
-		dom.clearNode(this._targetDropdownContainer);
-		this._renderTargetDropdown(this._targetDropdownContainer);
-	}
-
-	// --- Welcome: Extension option pickers ---
+	// --- Welcome: Extension option pickers (Cloud target only) ---
 
 	private _renderExtensionPickers(force?: boolean): void {
-		if (!this._extensionPickersLeftContainer || !this._extensionPickersRightContainer) {
+		if (!this._extensionPickersRightContainer) {
 			return;
 		}
 
-		const activeSessionType = this._targetConfig.selectedTarget.get();
-		if (!activeSessionType) {
+		const activeSessionType = this._targetPicker.selectedTarget;
+
+		// Extension pickers are only shown for Cloud target
+		if (activeSessionType === AgentSessionProviders.Background) {
 			this._clearExtensionPickers();
+			if (this._folderPickerContainer) {
+				this._folderPickerContainer.style.display = '';
+			}
+			if (this._extensionPickersLeftContainer) {
+				this._extensionPickersLeftContainer.style.display = 'block';
+			}
 			return;
 		}
 
 		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(activeSessionType);
 		if (!optionGroups || optionGroups.length === 0) {
+			this._clearExtensionPickers();
 			return;
 		}
 
@@ -503,8 +508,6 @@ class NewChatWidget extends Disposable {
 			return;
 		}
 
-		visibleGroups.sort((a, b) => (a.when ? 1 : 0) - (b.when ? 1 : 0));
-
 		if (!force && this._pickerWidgets.size === visibleGroups.length) {
 			const allMatch = visibleGroups.every(g => this._pickerWidgets.has(g.id));
 			if (allMatch) {
@@ -513,6 +516,10 @@ class NewChatWidget extends Disposable {
 		}
 
 		this._clearExtensionPickers();
+
+		if (this._extensionPickersLeftContainer) {
+			this._extensionPickersLeftContainer.style.display = 'block';
+		}
 
 		for (const optionGroup of visibleGroups) {
 			const initialItem = this._getDefaultOptionForGroup(optionGroup);
@@ -531,12 +538,7 @@ class NewChatWidget extends Disposable {
 					this._updateOptionContextKey(optionGroup.id, option.id);
 					emitter.fire(option);
 
-					if (this._pendingSessionResource) {
-						this.chatSessionsService.notifySessionOptionsChange(
-							this._pendingSessionResource,
-							[{ optionId: optionGroup.id, value: option }]
-						).catch((err) => this.logService.error(`Failed to notify extension of ${optionGroup.id} change:`, err));
-					}
+					this._newSession.value?.setOption(optionGroup.id, option);
 
 					this._renderExtensionPickers(true);
 				},
@@ -544,7 +546,7 @@ class NewChatWidget extends Disposable {
 					const groups = this.chatSessionsService.getOptionGroupsForSessionType(activeSessionType);
 					return groups?.find((g: { id: string }) => g.id === optionGroup.id);
 				},
-				getSessionResource: () => this._pendingSessionResource,
+				getSessionResource: () => this._newSession.value?.resource,
 			};
 
 			const action = toAction({ id: optionGroup.id, label: optionGroup.name, run: () => { } });
@@ -556,11 +558,7 @@ class NewChatWidget extends Disposable {
 			this._pickerWidgetDisposables.add(widget);
 			this._pickerWidgets.set(optionGroup.id, widget);
 
-			// Repo/folder pickers go to the right; others go to the left
-			const isRightAligned = isRepoOrFolderGroup(optionGroup);
-			const targetContainer = isRightAligned ? this._extensionPickersRightContainer! : this._extensionPickersLeftContainer!;
-
-			const slot = dom.append(targetContainer, dom.$('.sessions-chat-picker-slot'));
+			const slot = dom.append(this._extensionPickersRightContainer!, dom.$('.sessions-chat-picker-slot'));
 			widget.render(slot);
 		}
 	}
@@ -574,11 +572,23 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _getDefaultOptionForGroup(optionGroup: IChatSessionProviderOptionGroup): IChatSessionProviderOptionItem | undefined {
-		return this._selectedOptions.get(optionGroup.id) ?? optionGroup.items.find((item) => item.default === true);
+		const selectedOption = this._selectedOptions.get(optionGroup.id);
+		if (selectedOption) {
+			return selectedOption;
+		}
+
+		if (this._newSession.value) {
+			const sessionOption = this.chatSessionsService.getSessionOption(this._newSession.value.resource, optionGroup.id);
+			if (!isString(sessionOption)) {
+				return sessionOption;
+			}
+		}
+
+		return optionGroup.items.find((item) => item.default === true);
 	}
 
 	private _syncOptionsFromSession(sessionResource: URI): void {
-		const activeSessionType = this._targetConfig.selectedTarget.get();
+		const activeSessionType = this._targetPicker.selectedTarget;
 		if (!activeSessionType) {
 			return;
 		}
@@ -629,18 +639,15 @@ class NewChatWidget extends Disposable {
 		return emitter;
 	}
 
-	private _disposePickerWidgets(): void {
-		this._pickerWidgetDisposables.clear();
-		this._pickerWidgets.clear();
-		this._optionEmitters.clear();
-	}
-
 	private _clearExtensionPickers(): void {
 		this._pickerWidgetDisposables.clear();
 		this._pickerWidgets.clear();
 		this._optionEmitters.clear();
+		if (this._folderPickerContainer) {
+			this._folderPickerContainer.style.display = 'none';
+		}
 		if (this._extensionPickersLeftContainer) {
-			dom.clearNode(this._extensionPickersLeftContainer);
+			this._extensionPickersLeftContainer.style.display = 'none';
 		}
 		if (this._extensionPickersRightContainer) {
 			dom.clearNode(this._extensionPickersRightContainer);
@@ -651,44 +658,24 @@ class NewChatWidget extends Disposable {
 
 	private _send(): void {
 		const query = this._editor.getModel()?.getValue().trim();
-		if (!query) {
+		const session = this._newSession.value;
+		if (!query || !session) {
 			return;
 		}
 
-		const target = this._targetConfig.selectedTarget.get();
-		if (!target) {
-			this.logService.warn('ChatWelcomeWidget: No target selected, cannot create session');
-			return;
-		}
+		session.setQuery(query);
+		session.setAttachedContext(
+			this._contextAttachments.attachments.length > 0 ? [...this._contextAttachments.attachments] : undefined
+		);
 
-		const position = this._options.sessionPosition ?? ChatSessionPosition.Sidebar;
-		const resource = this._pendingSessionResource
-			?? getResourceForNewChatSession({ type: target, position, displayName: '' });
+		this.sessionsManagementService.sendRequestForNewSession(
+			session.resource
+		).catch(e => this.logService.error('Failed to send request:', e));
 
-		const contribution = target !== AgentSessionProviders.Local
-			? this.chatSessionsService.getChatSessionContribution(target)
-			: undefined;
-
-		const sendOptions: IChatSendRequestOptions = {
-			location: ChatAgentLocation.Chat,
-			userSelectedModelId: this._currentLanguageModel.get()?.identifier,
-			modeInfo: {
-				kind: ChatModeKind.Agent,
-				isBuiltin: true,
-				modeInstructions: undefined,
-				modeId: 'agent',
-				applyCodeBlockSuggestionId: undefined,
-			},
-			agentIdSilent: contribution?.type,
-		};
-
-		this._options.onSendRequest?.({
-			resource,
-			target,
-			query,
-			sendOptions,
-			selectedOptions: new Map(this._selectedOptions),
-		});
+		// Clear sent session so a fresh one is created next time
+		this._newSession.clear();
+		this._newSessionListener.clear();
+		this._contextAttachments.clear();
 	}
 
 	// --- Layout ---
@@ -697,12 +684,12 @@ class NewChatWidget extends Disposable {
 		this._editor?.layout();
 	}
 
-	setVisible(_visible: boolean): void {
-		// no-op
-	}
-
 	focusInput(): void {
 		this._editor?.focus();
+	}
+
+	updateAllowedTargets(targets: AgentSessionProviders[]): void {
+		this._targetPicker.updateAllowedTargets(targets);
 	}
 }
 
@@ -730,8 +717,7 @@ export class NewChatViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@ISessionsWorkbenchService private readonly activeSessionService: ISessionsWorkbenchService,
-		@ILogService private readonly logService: ILogService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -742,20 +728,22 @@ export class NewChatViewPane extends ViewPane {
 		this._widget = this._register(this.instantiationService.createInstance(
 			NewChatWidget,
 			{
-				targetConfig: {
-					allowedTargets: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
-					defaultTarget: AgentSessionProviders.Background,
-				},
-				onSendRequest: (data) => {
-					this.activeSessionService.openSessionAndSend(
-						data.resource, data.query, data.sendOptions, data.selectedOptions
-					).catch(e => this.logService.error('NewChatViewPane: Failed to open session and send request', e));
-				},
+				allowedTargets: this.computeAllowedTargets(),
+				defaultTarget: AgentSessionProviders.Background,
 			} satisfies INewChatWidgetOptions,
 		));
 
 		this._widget.render(container);
 		this._widget.focusInput();
+
+		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => {
+			this._widget?.updateAllowedTargets(this.computeAllowedTargets());
+		}));
+	}
+
+	private computeAllowedTargets(): AgentSessionProviders[] {
+		const targets: AgentSessionProviders[] = [AgentSessionProviders.Background, AgentSessionProviders.Cloud];
+		return targets;
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -770,7 +758,9 @@ export class NewChatViewPane extends ViewPane {
 
 	override setVisible(visible: boolean): void {
 		super.setVisible(visible);
-		this._widget?.setVisible(visible);
+		if (visible) {
+			this._widget?.focusInput();
+		}
 	}
 }
 
@@ -799,21 +789,4 @@ function isRepoOrFolderGroup(group: IChatSessionProviderOptionGroup): boolean {
 	return idLower === 'repositories' || idLower === 'folders' ||
 		nameLower === 'repository' || nameLower === 'repositories' ||
 		nameLower === 'folder' || nameLower === 'folders';
-}
-
-function getAgentSessionProviderName(provider: AgentSessionProviders): string {
-	switch (provider) {
-		case AgentSessionProviders.Local:
-			return localize('chat.session.providerLabel.local', "Local");
-		case AgentSessionProviders.Background:
-			return localize('chat.session.providerLabel.background', "Worktree");
-		case AgentSessionProviders.Cloud:
-			return localize('chat.session.providerLabel.cloud', "Cloud");
-		case AgentSessionProviders.Claude:
-			return 'Claude';
-		case AgentSessionProviders.Codex:
-			return 'Codex';
-		case AgentSessionProviders.Growth:
-			return 'Growth';
-	}
 }

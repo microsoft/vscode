@@ -30,6 +30,11 @@ export interface IModelPickerDelegate {
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 	canManageModels(): boolean;
+	/**
+	 * Whether to show curated models from the control manifest (featured, unavailable, upgrade prompts, etc.).
+	 * Defaults to `true`.
+	 */
+	showCuratedModels?(): boolean;
 }
 
 type ChatModelChangeClassification = {

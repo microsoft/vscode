@@ -9,10 +9,21 @@ import { IRectangle } from '../../window/common/window.js';
 
 export const INativeBrowserElementsService = createDecorator<INativeBrowserElementsService>('nativeBrowserElementsService');
 
+export interface IElementAncestor {
+	readonly tagName: string;
+	readonly id?: string;
+	readonly classNames?: string[];
+}
+
 export interface IElementData {
 	readonly outerHTML: string;
 	readonly computedStyle: string;
 	readonly bounds: IRectangle;
+	readonly ancestors?: IElementAncestor[];
+	readonly attributes?: Record<string, string>;
+	readonly computedStyles?: Record<string, string>;
+	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
+	readonly innerText?: string;
 }
 
 /**
@@ -46,6 +57,10 @@ export interface INativeBrowserElementsService {
 	getElementData(rect: IRectangle, token: CancellationToken, locator: IBrowserTargetLocator, cancellationId?: number): Promise<IElementData | undefined>;
 
 	startDebugSession(token: CancellationToken, locator: IBrowserTargetLocator, cancelAndDetachId?: number): Promise<void>;
+
+	startConsoleSession(token: CancellationToken, locator: IBrowserTargetLocator, cancelAndDetachId?: number): Promise<void>;
+
+	getConsoleLogs(locator: IBrowserTargetLocator): Promise<string | undefined>;
 }
 
 /**

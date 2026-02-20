@@ -54,7 +54,7 @@ export class MockPromptsService implements IPromptsService {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parseNew(_uri: URI, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile { throw new Error('Not implemented'); }
-	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined): IDisposable { throw new Error('Not implemented'); }
+	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined, when?: string): IDisposable { throw new Error('Not implemented'); }
 	getPromptLocationLabel(promptPath: IPromptPath): string { throw new Error('Not implemented'); }
 	listNestedAgentMDs(token: CancellationToken): Promise<IResolvedAgentFile[]> { throw new Error('Not implemented'); }
 	listAgentInstructions(token: CancellationToken): Promise<IResolvedAgentFile[]> { throw new Error('Not implemented'); }

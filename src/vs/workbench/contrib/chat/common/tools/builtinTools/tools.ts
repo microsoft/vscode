@@ -7,6 +7,7 @@ import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ILanguageModelToolsService } from '../languageModelToolsService.js';
+import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
 import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
@@ -24,6 +25,10 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 
 		const editTool = instantiationService.createInstance(EditTool);
 		this._register(toolsService.registerTool(EditToolData, editTool));
+
+		const askQuestionsTool = this._register(instantiationService.createInstance(AskQuestionsTool));
+		this._register(toolsService.registerTool(AskQuestionsToolData, askQuestionsTool));
+		this._register(toolsService.agentToolSet.addTool(AskQuestionsToolData));
 
 		const todoToolData = createManageTodoListToolData();
 		const manageTodoListTool = this._register(instantiationService.createInstance(ManageTodoListTool));

@@ -5,6 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import * as paths from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 import { DEFAULT_TERMINAL_OSX, IExternalTerminalSettings } from '../../../../platform/externalTerminal/common/externalTerminal.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
@@ -19,6 +20,9 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 
 const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -32,8 +36,29 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const terminalService = accessor.get(IExternalTerminalService);
 		const configurationService = accessor.get(IConfigurationService);
 		const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
-		const root = historyService.getLastActiveWorkspaceRoot();
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const labelService = accessor.get(ILabelService);
 		const config = configurationService.getValue<IExternalTerminalSettings>('terminal.external');
+
+		// When there are multiple workspace folders, let the user pick one
+		const folders = workspaceContextService.getWorkspace().folders;
+		let root: URI | undefined;
+		if (folders.length > 1) {
+			const folderPicks: IQuickPickItem[] = folders.map(folder => ({
+				label: folder.name,
+				description: labelService.getUriLabel(folder.uri, { relative: true })
+			}));
+			const pick = await quickInputService.pick(folderPicks, {
+				placeHolder: nls.localize('selectWorkspace', "Select workspace folder")
+			});
+			if (!pick) {
+				return;
+			}
+			root = folders[folderPicks.indexOf(pick)].uri;
+		} else {
+			root = historyService.getLastActiveWorkspaceRoot();
+		}
 
 		// It's a local workspace, open the root
 		if (root?.scheme === Schemas.file) {

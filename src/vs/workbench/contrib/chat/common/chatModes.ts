@@ -111,6 +111,10 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		for (const cachedMode of cachedCustomModes) {
 			if (isCachedChatModeData(cachedMode) && cachedMode.uri) {
 				try {
+					const visibility = cachedMode.visibility ?? { userInvocable: true, agentInvocable: cachedMode.infer !== false };
+					if (!visibility.userInvocable) {
+						continue;
+					}
 					const uri = URI.revive(cachedMode.uri);
 					const customChatMode: ICustomAgent = {
 						uri,
@@ -122,7 +126,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
 						target: cachedMode.target ?? Target.Undefined,
-						visibility: cachedMode.visibility ?? { userInvocable: true, agentInvocable: cachedMode.infer !== false },
+						visibility,
 						agents: cachedMode.agents,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
 					};

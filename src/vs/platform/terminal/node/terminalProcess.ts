@@ -515,7 +515,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 	}
 
-	resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
 		if (this._store.isDisposed) {
 			return;
 		}
@@ -537,7 +537,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 			this._logService.trace('node-pty.IPty#resize', cols, rows);
 			try {
-				this._ptyProcess.resize(cols, rows);
+				const pixelSize = pixelWidth !== undefined && pixelHeight !== undefined
+					? { width: pixelWidth, height: pixelHeight }
+					: undefined;
+				this._ptyProcess.resize(cols, rows, pixelSize);
 			} catch (e) {
 				// Swallow error if the pty has already exited
 				this._logService.trace('node-pty.IPty#resize exception ' + e.message);

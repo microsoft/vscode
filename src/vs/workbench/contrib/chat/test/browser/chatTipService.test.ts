@@ -9,24 +9,34 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ChatTipService, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
+import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ChatTipService, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
 import { AgentFileType, IPromptPath, IPromptsService, IResolvedAgentFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModelToolsService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { TestChatEntitlementService } from '../../../../test/common/workbenchTestServices.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { MockChatService } from '../common/chatService/mockChatService.js';
+import { CreateSlashCommandsUsageTracker } from '../../browser/createSlashCommandsUsageTracker.js';
+import { ChatRequestSlashCommandPart } from '../../common/requestParser/chatParserTypes.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
-	override contextMatchesRules(): boolean {
-		return true;
+	override contextMatchesRules(rules: ContextKeyExpression): boolean {
+		return rules.evaluate({ getValue: (key: string) => this.getContextKeyValue(key) });
 	}
 }
 
@@ -89,6 +99,9 @@ suite('ChatTipService', () => {
 			onDidChangeCustomAgents: Event.None,
 		} as Partial<IPromptsService> as IPromptsService);
 		instantiationService.stub(ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService()));
+		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 	});
 
 	test('returns a welcome tip', () => {
@@ -98,6 +111,73 @@ suite('ChatTipService', () => {
 		assert.ok(tip, 'Should return a welcome tip');
 		assert.ok(tip.id.startsWith('tip.'), 'Tip should have a valid ID');
 		assert.ok(tip.content.value.length > 0, 'Tip should have content');
+	});
+
+	test('returns Auto switch tip when current model is gpt-4.1', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'gpt-4.1');
+
+		const tip = service.getWelcomeTip(contextKeyService);
+
+		assert.ok(tip);
+		assert.strictEqual(tip.id, 'tip.switchToAuto');
+	});
+
+	test('does not return Auto switch tip when current model is not gpt-4.1', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
+
+		const tip = service.getWelcomeTip(contextKeyService);
+
+		assert.ok(tip);
+		assert.notStrictEqual(tip.id, 'tip.switchToAuto');
+	});
+
+	test('does not return Auto switch tip when current model context key is empty and no fallback is available', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, '');
+
+		const tip = service.getWelcomeTip(contextKeyService);
+
+		assert.ok(tip);
+		assert.notStrictEqual(tip.id, 'tip.switchToAuto');
+	});
+
+	test('returns Auto switch tip when current model is persisted and context key is empty', () => {
+		storageService.store('chat.currentLanguageModel.panel', 'copilot/gpt-4.1-2025-04-14', StorageScope.APPLICATION, StorageTarget.USER);
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, '');
+
+		const tip = service.getWelcomeTip(contextKeyService);
+
+		assert.ok(tip);
+		assert.strictEqual(tip.id, 'tip.switchToAuto');
+	});
+
+	test('returns Auto switch tip when current model is versioned gpt-4.1', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'gpt-4.1-2025-04-14');
+
+		const tip = service.getWelcomeTip(contextKeyService);
+
+		assert.ok(tip);
+		assert.strictEqual(tip.id, 'tip.switchToAuto');
+	});
+
+	test('switching models advances away from gpt-4.1 tip', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'gpt-4.1');
+
+		const firstTip = service.getWelcomeTip(contextKeyService);
+		assert.ok(firstTip);
+		assert.strictEqual(firstTip.id, 'tip.switchToAuto');
+
+		const switchedContextKeyService = new MockContextKeyServiceWithRulesMatching();
+		switchedContextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
+		const nextTip = service.getWelcomeTip(switchedContextKeyService);
+
+		assert.ok(nextTip);
+		assert.notStrictEqual(nextTip.id, 'tip.switchToAuto');
 	});
 
 	test('returns same welcome tip on rerender', () => {
@@ -160,6 +240,20 @@ suite('ChatTipService', () => {
 		}
 	});
 
+	test('dismissTip keeps navigation context for next tip traversal', () => {
+		const service = createService();
+
+		const tip1 = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip1);
+
+		service.dismissTip();
+
+		const tip2 = service.navigateToNextTip();
+		if (tip2) {
+			assert.notStrictEqual(tip1.id, tip2.id, 'Dismissed tip should not be returned by next navigation');
+		}
+	});
+
 	test('dismissTip fires onDidDismissTip event', () => {
 		const service = createService();
 
@@ -212,6 +306,62 @@ suite('ChatTipService', () => {
 		assert.ok(tip2, 'Should return a tip after disabling and re-enabling');
 	});
 
+	test('dismissed tips stay dismissed after disabling and re-enabling tips', async () => {
+		const service = createService();
+
+		// Flush microtask queue so async file-check exclusions resolve before
+		// we start dismissing tips (otherwise excludeUntilChecked tips are
+		// temporarily excluded and never get dismissed in the loop below).
+		await new Promise<void>(r => queueMicrotask(r));
+
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+
+			service.dismissTip();
+		}
+
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'No tip should remain once all tips are dismissed');
+
+		await service.disableTips();
+		configurationService.setUserConfiguration('chat.tips.enabled', true);
+
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'Dismissed tips should remain dismissed after re-enabling tips');
+	});
+
+	test('clearDismissedTips restores tip visibility', () => {
+		const service = createService();
+
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+
+			service.dismissTip();
+		}
+
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'No tip should remain once all tips are dismissed');
+
+		service.clearDismissedTips();
+
+		assert.ok(service.getWelcomeTip(contextKeyService), 'A tip should be visible again after clearing dismissed tips');
+	});
+
+	test('migrates dismissed tips from profile to application storage', () => {
+		storageService.store('chat.tip.dismissed', JSON.stringify(['tip.switchToAuto']), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'gpt-4.1');
+
+		const tip = service.getWelcomeTip(contextKeyService);
+
+		assert.ok(tip);
+		assert.notStrictEqual(tip.id, 'tip.switchToAuto', 'Should honor profile-stored dismissed tip id');
+		assert.ok(storageService.get('chat.tip.dismissed', StorageScope.APPLICATION), 'Expected dismissed tips to migrate to application storage');
+	});
+
 	function createMockPromptsService(
 		agentInstructions: IResolvedAgentFile[] = [],
 		promptInstructions: IPromptPath[] = [],
@@ -249,6 +399,51 @@ suite('ChatTipService', () => {
 		commandExecutedEmitter.fire({ commandId: 'workbench.action.chat.restoreCheckpoint', args: [] });
 
 		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after command is executed');
+	});
+
+	test('persists executed command exclusions in application storage', () => {
+		const tip: ITipDefinition = {
+			id: 'tip.undoChanges',
+			message: 'test',
+			excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint'],
+		};
+
+		testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: commandExecutedEmitter.event, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			createMockPromptsService() as IPromptsService,
+			createMockToolsService(),
+			new NullLogService(),
+		));
+
+		commandExecutedEmitter.fire({ commandId: 'workbench.action.chat.restoreCheckpoint', args: [] });
+
+		assert.ok(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION), 'Expected executed command exclusions in application storage');
+		assert.strictEqual(storageService.get('chat.tips.executedCommands', StorageScope.PROFILE), undefined, 'Did not expect executed command exclusions in profile storage');
+		assert.strictEqual(storageService.get('chat.tips.executedCommands', StorageScope.WORKSPACE), undefined, 'Did not expect executed command exclusions in workspace storage');
+	});
+
+	test('migrates executed command exclusions from profile to application storage', () => {
+		const tip: ITipDefinition = {
+			id: 'tip.undoChanges',
+			message: 'test',
+			excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint'],
+		};
+
+		storageService.store('chat.tips.executedCommands', JSON.stringify(['workbench.action.chat.restoreCheckpoint']), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		const tracker = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: commandExecutedEmitter.event, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			createMockPromptsService() as IPromptsService,
+			createMockToolsService(),
+			new NullLogService(),
+		));
+
+		assert.strictEqual(tracker.isExcluded(tip), true, 'Should honor profile-stored exclusions');
+		assert.ok(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION), 'Expected migrated exclusion data in application storage');
 	});
 
 	test('excludes tip.customInstructions when copilot-instructions.md exists in workspace', async () => {
@@ -571,6 +766,314 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded when no skill files exist');
 	});
 
+	test('shows tip.createSlashCommands when context key is false', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.hasUsedCreateSlashCommands.key, false);
+
+		// Dismiss tips until we find createSlashCommands or run out
+		let found = false;
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+			if (tip.id === 'tip.createSlashCommands') {
+				found = true;
+				break;
+			}
+			service.dismissTip();
+		}
+
+		assert.ok(found, 'Should eventually show tip.createSlashCommands when context key is false');
+	});
+
+	test('does not show tip.createSlashCommands when context key is true', () => {
+		storageService.store('chat.tips.usedCreateSlashCommands', true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const service = createService();
+
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+			assert.notStrictEqual(tip.id, 'tip.createSlashCommands', 'Should not show tip.createSlashCommands when context key is true');
+			service.dismissTip();
+		}
+	});
+
+	test('does not show tip.yoloMode after auto-approve has ever been enabled', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+
+		// Enable auto-approve so the service records yoloModeEverEnabled
+		configurationService.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, true);
+		(configurationService as TestConfigurationService).onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => key === ChatConfiguration.GlobalAutoApprove,
+			affectedKeys: new Set([ChatConfiguration.GlobalAutoApprove]),
+			change: { keys: [], overrides: [] },
+			source: ConfigurationTarget.USER,
+		});
+
+		// Turn auto-approve back off
+		configurationService.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, false);
+
+		// The yoloMode tip should never appear since it was ever enabled
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+			assert.notStrictEqual(tip.id, 'tip.yoloMode', 'tip.yoloMode should not be shown after auto-approve was ever enabled');
+			service.dismissTip();
+		}
+
+		// Verify the flag was persisted
+		assert.strictEqual(
+			storageService.getBoolean('chat.tip.yoloModeEverEnabled', StorageScope.APPLICATION, false),
+			true,
+			'yoloModeEverEnabled should be persisted in application storage',
+		);
+	});
+
+	test('does not show tip.yoloMode when yoloModeEverEnabled is already persisted in storage', () => {
+		// Simulate a previous session having set the flag
+		storageService.store('chat.tip.yoloModeEverEnabled', true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+			assert.notStrictEqual(tip.id, 'tip.yoloMode', 'tip.yoloMode should not be shown when yoloModeEverEnabled is already in storage');
+			service.dismissTip();
+		}
+	});
+
+	test('does not show tip.yoloMode when policy restricts auto-approve', () => {
+		const policyConfigService = new TestConfigurationService();
+		const originalInspect = policyConfigService.inspect.bind(policyConfigService);
+		policyConfigService.inspect = <T>(key: string, overrides?: any) => {
+			if (key === ChatConfiguration.GlobalAutoApprove) {
+				return { ...originalInspect(key, overrides), policyValue: false } as unknown as T;
+			}
+			return originalInspect(key, overrides);
+		};
+		configurationService = policyConfigService;
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+			assert.notStrictEqual(tip.id, 'tip.yoloMode', 'tip.yoloMode should not be shown when policy restricts auto-approve');
+			service.dismissTip();
+		}
+	});
+
+	function findTipById(service: ChatTipService, tipId: string, ckService: MockContextKeyServiceWithRulesMatching = contextKeyService): IChatTip | undefined {
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(ckService);
+			if (!tip) {
+				return undefined;
+			}
+			if (tip.id === tipId) {
+				return tip;
+			}
+			service.dismissTip();
+		}
+		return undefined;
+	}
+
+	function assertTipNeverShown(service: ChatTipService, tipId: string, ckService: MockContextKeyServiceWithRulesMatching = contextKeyService): void {
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(ckService);
+			if (!tip) {
+				break;
+			}
+			assert.notStrictEqual(tip.id, tipId, `${tipId} should not be shown`);
+			service.dismissTip();
+		}
+	}
+
+	for (const { tipId, settingKey } of [
+		{ tipId: 'tip.thinkingStyle', settingKey: 'chat.agent.thinking.style' },
+		{ tipId: 'tip.thinkingPhrases', settingKey: 'chat.agent.thinking.phrases' },
+	]) {
+		test(`shows ${tipId} with correct setting link when setting is at default`, async () => {
+			const service = createService();
+			contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+			await new Promise<void>(r => queueMicrotask(r));
+
+			const tip = findTipById(service, tipId);
+			assert.ok(tip, `Should show ${tipId} when setting is at default`);
+			assert.ok(tip.content.value.includes(settingKey), `Tip should reference ${settingKey}`);
+			assert.ok(tip.enabledCommands?.includes('workbench.action.openSettings'), 'Tip should enable the openSettings command');
+		});
+
+		test(`excludes ${tipId} when setting has been changed from default`, async () => {
+			configurationService.setUserConfiguration(settingKey, 'changed');
+			const service = createService();
+			contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+			await new Promise<void>(r => queueMicrotask(r));
+
+			assertTipNeverShown(service, tipId);
+		});
+	}
+
+	test('logs telemetry when tip is shown', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		const shownEvents = events.filter(e => e.data.action === 'shown');
+		assert.strictEqual(shownEvents.length, 1, 'Should log exactly one shown event');
+		assert.strictEqual(shownEvents[0].eventName, 'chatTip');
+		assert.strictEqual(shownEvents[0].data.tipId, tip.id);
+	});
+
+	test('logs telemetry when tip is dismissed', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		service.dismissTip();
+
+		const dismissEvents = events.filter(e => e.data.action === 'dismissed');
+		assert.strictEqual(dismissEvents.length, 1, 'Should log exactly one dismissed event');
+		assert.strictEqual(dismissEvents[0].data.tipId, tip.id);
+	});
+
+	test('logs telemetry when navigating tips', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		const nextTip = service.navigateToNextTip();
+		assert.ok(nextTip);
+
+		const navigateEvents = events.filter(e => e.data.action === 'navigateNext');
+		assert.strictEqual(navigateEvents.length, 1, 'Should log one navigateNext event');
+		assert.strictEqual(navigateEvents[0].data.tipId, tip.id, 'navigateNext should log the tip being navigated away from');
+
+		const shownEvents = events.filter(e => e.data.action === 'shown');
+		assert.strictEqual(shownEvents.length, 2, 'Should log shown for initial and navigated tip');
+		assert.strictEqual(shownEvents[1].data.tipId, nextTip.id);
+	});
+
+	test('logs telemetry when tip command is clicked', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		if (tip.enabledCommands?.length) {
+			commandExecutedEmitter.fire({ commandId: tip.enabledCommands[0], args: [] });
+
+			const clickEvents = events.filter(e => e.data.action === 'commandClicked');
+			assert.strictEqual(clickEvents.length, 1, 'Should log one commandClicked event');
+			assert.strictEqual(clickEvents[0].data.tipId, tip.id);
+			assert.strictEqual(clickEvents[0].data.commandId, tip.enabledCommands[0]);
+		} else {
+			assert.fail('Tip has no enabled commands; cannot test command click telemetry');
+		}
+	});
+
+	test('logs telemetry when tip is hidden', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		service.hideTip();
+
+		const hiddenEvents = events.filter(e => e.data.action === 'hidden');
+		assert.strictEqual(hiddenEvents.length, 1, 'Should log one hidden event');
+		assert.strictEqual(hiddenEvents[0].data.tipId, tip.id);
+	});
+
+	test('logs telemetry when tips are disabled', async () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		await service.disableTips();
+
+		const disabledEvents = events.filter(e => e.data.action === 'disabled');
+		assert.strictEqual(disabledEvents.length, 1, 'Should log one disabled event');
+		assert.strictEqual(disabledEvents[0].data.tipId, tip.id);
+	});
+
+	test('excludeWhenSettingsChanged checks workspaceValue', () => {
+		const workspaceConfigService = new TestConfigurationService();
+		const originalInspect = workspaceConfigService.inspect.bind(workspaceConfigService);
+		workspaceConfigService.inspect = <T>(key: string, overrides?: any) => {
+			if (key === 'chat.agent.thinking.style') {
+				return { ...originalInspect(key, overrides), userValue: undefined, userLocalValue: undefined, workspaceValue: 'compact' } as unknown as T;
+			}
+			return originalInspect(key, overrides);
+		};
+		configurationService = workspaceConfigService;
+		instantiationService.stub(IConfigurationService, configurationService);
+
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+
+		assertTipNeverShown(service, 'tip.thinkingStyle');
+	});
+
 	test('re-checks agent file exclusion when onDidChangeCustomAgents fires', async () => {
 		const agentChangeEmitter = testDisposables.add(new Emitter<void>());
 		let agentFiles: IPromptPath[] = [];
@@ -603,5 +1106,191 @@ suite('ChatTipService', () => {
 		await new Promise(r => setTimeout(r, 0));
 
 		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after onDidChangeCustomAgents fires and agent files exist');
+	});
+});
+
+suite('CreateSlashCommandsUsageTracker', () => {
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let storageService: InMemoryStorageService;
+	let contextKeyService: MockContextKeyService;
+	let submitRequestEmitter: Emitter<{ readonly chatSessionResource: URI }>;
+	let sessions: Map<string, { lastRequest: { message: { text: string; parts: readonly { kind: string }[] } } | undefined }>;
+
+	setup(() => {
+		storageService = testDisposables.add(new InMemoryStorageService());
+		contextKeyService = new MockContextKeyService();
+		submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI }>());
+		sessions = new Map();
+	});
+
+	function createMockChatServiceForTracker(): IChatService {
+		return {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: (resource: URI) => sessions.get(resource.toString()),
+		} as Partial<IChatService> as IChatService;
+	}
+
+	function createTracker(chatService?: IChatService): CreateSlashCommandsUsageTracker {
+		return testDisposables.add(new CreateSlashCommandsUsageTracker(
+			chatService ?? createMockChatServiceForTracker(),
+			storageService,
+			() => contextKeyService,
+		));
+	}
+
+	test('syncContextKey sets context key to false when storage is empty', () => {
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
+		assert.strictEqual(value, false, 'Context key should be false when no create commands have been used');
+	});
+
+	test('syncContextKey sets context key to true when storage has recorded usage', () => {
+		storageService.store('chat.tips.usedCreateSlashCommands', true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
+		assert.strictEqual(value, true, 'Context key should be true when create commands have been used');
+	});
+
+	test('detects create-instruction slash command via text fallback', () => {
+		const sessionResource = URI.parse('chat:session1');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: {
+					text: '/create-instruction test',
+					parts: [],
+				},
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
+		assert.strictEqual(value, true, 'Context key should be true after /create-instruction is used');
+		assert.strictEqual(
+			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
+			true,
+			'Storage should persist the create slash command usage',
+		);
+	});
+
+	test('detects create-prompt slash command via text fallback', () => {
+		const sessionResource = URI.parse('chat:session2');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: {
+					text: '/create-prompt my-prompt',
+					parts: [],
+				},
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		assert.strictEqual(
+			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
+			true,
+			'Storage should persist the create-prompt usage',
+		);
+	});
+
+	test('detects create-agent slash command via parsed part', () => {
+		const sessionResource = URI.parse('chat:session3');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: {
+					text: '/create-agent test',
+					parts: [
+						new ChatRequestSlashCommandPart(
+							new OffsetRange(0, 13),
+							new Range(1, 1, 1, 14),
+							{ command: 'create-agent', detail: '', locations: [] },
+						),
+					],
+				},
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		assert.strictEqual(
+			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
+			true,
+			'Storage should persist when create-agent slash command part is detected',
+		);
+	});
+
+	test('does not mark used for non-create slash commands', () => {
+		const sessionResource = URI.parse('chat:session4');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: {
+					text: '/help test',
+					parts: [],
+				},
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
+		assert.strictEqual(value, false, 'Context key should remain false for non-create slash commands');
+	});
+
+	test('does not mark used when session has no last request', () => {
+		const sessionResource = URI.parse('chat:session5');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), { lastRequest: undefined });
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+
+		assert.strictEqual(
+			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
+			false,
+			'Should not mark used when there is no last request',
+		);
+	});
+
+	test('only marks used once even with multiple create commands', () => {
+		const sessionResource = URI.parse('chat:session6');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: { text: '/create-skill test', parts: [] },
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+		assert.strictEqual(storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false), true);
+
+		// Fire again — should be a no-op
+		sessions.set(sessionResource.toString(), {
+			lastRequest: {
+				message: { text: '/create-prompt test', parts: [] },
+			},
+		});
+
+		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
+		assert.strictEqual(storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false), true);
 	});
 });

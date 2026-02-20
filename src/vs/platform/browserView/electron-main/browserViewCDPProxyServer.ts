@@ -22,44 +22,60 @@ export interface IBrowserViewCDPProxyServer {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Returns a debug endpoint with a short-lived, single-use token.
+	 * Returns a debug endpoint with a short-lived, single-use token for a specific browser target.
 	 */
-	getWebSocketEndpoint(): Promise<string>;
+	getWebSocketEndpointForTarget(target: ICDPBrowserTarget): Promise<string>;
+
+	/**
+	 * Unregister a previously registered browser target.
+	 */
+	removeTarget(target: ICDPBrowserTarget): Promise<void>;
 }
 
 /**
  * WebSocket server that provides CDP debugging for browser views.
+ *
+ * Manages a registry of {@link ICDPBrowserTarget} instances, each reachable
+ * at its own `/devtools/browser/{id}` WebSocket endpoint.
  */
 export class BrowserViewCDPProxyServer extends Disposable implements IBrowserViewCDPProxyServer {
 	declare readonly _serviceBrand: undefined;
 
 	private server: http.Server | undefined;
 	private port: number | undefined;
-	private readonly tokens: TokenManager;
+
+	private readonly tokens = this._register(new TokenManager<string>());
+	private readonly targets = new Map<string, ICDPBrowserTarget>();
 
 	constructor(
-		private readonly browserTarget: ICDPBrowserTarget,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
-
-		this.tokens = this._register(new TokenManager());
 	}
 
 	/**
-	 * Returns a debug endpoint with a short-lived, single-use token in the
-	 * WebSocket URL. The token is revoked once a WebSocket connection is made
-	 * or after 30 seconds, whichever comes first.
+	 * Register a browser target and return a WebSocket endpoint URL for it.
+	 * The target is reachable at `/devtools/browser/{targetId}`.
 	 */
-	async getWebSocketEndpoint(): Promise<string> {
+	async getWebSocketEndpointForTarget(target: ICDPBrowserTarget): Promise<string> {
 		await this.ensureServerStarted();
 
-		const token = await this.tokens.issueToken();
-		return this.getWebSocketUrl(token);
+		const targetInfo = await target.getTargetInfo();
+		const targetId = targetInfo.targetId;
+
+		// Register (or re-register) the target
+		this.targets.set(targetId, target);
+
+		const token = await this.tokens.issueToken(targetId);
+		return `ws://localhost:${this.port}/devtools/browser/${targetId}?token=${token}`;
 	}
 
-	private getWebSocketUrl(token: string): string {
-		return `ws://localhost:${this.port}/devtools/browser?token=${token}`;
+	/**
+	 * Unregister a previously registered browser target.
+	 */
+	async removeTarget(target: ICDPBrowserTarget): Promise<void> {
+		const targetInfo = await target.getTargetInfo();
+		this.targets.delete(targetInfo.targetId);
 	}
 
 	private async ensureServerStarted(): Promise<void> {
@@ -93,19 +109,30 @@ export class BrowserViewCDPProxyServer extends Disposable implements IBrowserVie
 	private handleWebSocketUpgrade(req: http.IncomingMessage, socket: Socket): void {
 		const [pathname, params] = (req.url || '').split('?');
 
-		const token = new URLSearchParams(params).get('token');
-		if (!token || !this.tokens.consumeToken(token)) {
-			socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-			socket.end();
-			return;
-		}
-
-		const browserMatch = pathname.match(/^\/devtools\/browser(\/.*)?$/);
+		const browserMatch = pathname.match(/^\/devtools\/browser\/([^/?]+)$/);
 
 		this.logService.debug(`[BrowserViewDebugProxy] WebSocket upgrade requested: ${pathname}`);
 
 		if (!browserMatch) {
 			this.logService.warn(`[BrowserViewDebugProxy] Rejecting WebSocket on unknown path: ${pathname}`);
+			socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
+			socket.end();
+			return;
+		}
+
+		const targetId = browserMatch[1];
+
+		const token = new URLSearchParams(params).get('token');
+		const tokenTargetId = token && this.tokens.consumeToken(token);
+		if (!tokenTargetId || tokenTargetId !== targetId) {
+			socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+			socket.end();
+			return;
+		}
+
+		const target = this.targets.get(targetId);
+		if (!target) {
+			this.logService.warn(`[BrowserViewDebugProxy] Browser target not found: ${targetId}`);
 			socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
 			socket.end();
 			return;
@@ -122,7 +149,7 @@ export class BrowserViewCDPProxyServer extends Disposable implements IBrowserVie
 			return;
 		}
 
-		const proxy = new CDPBrowserProxy(this.browserTarget);
+		const proxy = new CDPBrowserProxy(target);
 		const disposables = this.wireWebSocket(upgraded, proxy);
 		this._register(disposables);
 		this._register(upgraded);
@@ -200,31 +227,35 @@ export class BrowserViewCDPProxyServer extends Disposable implements IBrowserVie
 	}
 }
 
-class TokenManager extends Disposable {
-	/** Map of currently valid single-use tokens. Each expires after 30 seconds. */
-	private readonly tokens = new Map<string, { expiresAt: number }>();
+class TokenManager<TDetails> extends Disposable {
+	/** Map of currently valid single-use tokens to their associated details. */
+	private readonly tokens = new Map<string, { details: TDetails; expiresAt: number }>();
 
 	/**
-	 * Creates a short-lived, single-use token.
+	 * Creates a short-lived, single-use token bound to a specific target.
 	 * The token is revoked once consumed or after 30 seconds.
 	 */
-	async issueToken(): Promise<string> {
+	async issueToken(details: TDetails): Promise<string> {
 		const token = this.makeToken();
-		this.tokens.set(token, { expiresAt: Date.now() + 30_000 });
+		this.tokens.set(token, { details: Object.freeze(details), expiresAt: Date.now() + 30_000 });
 		this._register(disposableTimeout(() => this.tokens.delete(token), 30_000));
 		return token;
 	}
 
-	consumeToken(token: string): boolean {
+	/**
+	 * Consume a token. Returns the details it was issued with, or
+	 * `undefined` if the token is invalid or expired.
+	 */
+	consumeToken(token: string): TDetails | undefined {
 		if (!token) {
-			return false;
+			return undefined;
 		}
 		const info = this.tokens.get(token);
 		if (!info) {
-			return false;
+			return undefined;
 		}
 		this.tokens.delete(token);
-		return Date.now() <= info.expiresAt;
+		return Date.now() <= info.expiresAt ? info.details : undefined;
 	}
 
 	private makeToken(): string {

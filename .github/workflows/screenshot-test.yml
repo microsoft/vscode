@@ -1,0 +1,125 @@
+name: Screenshot Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: screenshots-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build/vite dependencies
+        run: rm -f package-lock.json && npm install
+        working-directory: build/vite
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Capture screenshots
+        run: npx component-explorer screenshot --project ./test/componentFixtures/component-explorer.json
+
+      - name: Compare screenshots
+        id: compare
+        run: |
+          npx component-explorer screenshot:compare \
+            --project ./test/componentFixtures \
+            --report ./test/componentFixtures/.screenshots/report.json \
+            --report-markdown ./test/componentFixtures/.screenshots/report.md
+        continue-on-error: true
+
+      - name: Upload screenshot report
+        if: steps.compare.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-diff
+          path: |
+            test/componentFixtures/.screenshots/current/
+            test/componentFixtures/.screenshots/report.json
+            test/componentFixtures/.screenshots/report.md
+
+      - name: Set check title
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPORT="test/componentFixtures/.screenshots/report.json"
+          if [ -f "$REPORT" ]; then
+            CHANGED=$(node -e "const r = require('./$REPORT'); console.log(r.summary.added + r.summary.removed + r.summary.changed)")
+            TITLE="${CHANGED} screenshots changed"
+          else
+            TITLE="Screenshots match"
+          fi
+
+          SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          CHECK_RUN_ID=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs" \
+            --jq '.check_runs[] | select(.name == "screenshots") | .id')
+
+          if [ -n "$CHECK_RUN_ID" ]; then
+            gh api "repos/${{ github.repository }}/check-runs/$CHECK_RUN_ID" \
+              -X PATCH --input - <<EOF
+          {"output":{"title":"$TITLE","summary":"$TITLE"}}
+          EOF
+          fi
+
+      - name: Post summary
+        run: |
+          if [ -f test/componentFixtures/.screenshots/report.md ]; then
+            cat test/componentFixtures/.screenshots/report.md >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## Screenshots ✅" >> $GITHUB_STEP_SUMMARY
+            echo "No visual changes detected." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # - name: Post PR comment
+      #   if: github.event_name == 'pull_request'
+      #   env:
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   run: |
+      #     COMMENT_MARKER="<!-- screenshot-report -->"
+      #     BODY="$COMMENT_MARKER"$'\n'
+      #
+      #     if [ -f test/componentFixtures/.screenshots/report.md ]; then
+      #       BODY+=$(cat test/componentFixtures/.screenshots/report.md)
+      #       BODY+=$'\n\n'
+      #       BODY+="📦 [Download the \`screenshot-diff\` artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) to review images."
+      #     else
+      #       BODY+="## Screenshots ✅"$'\n\n'
+      #       BODY+="No visual changes detected."
+      #     fi
+      #
+      #     # Find existing comment
+      #     EXISTING=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+      #       --paginate --jq ".[] | select(.body | startswith(\"$COMMENT_MARKER\")) | .id" | head -1)
+      #
+      #     if [ -n "$EXISTING" ]; then
+      #       gh api "repos/${{ github.repository }}/issues/comments/$EXISTING" -X PATCH -f body="$BODY"
+      #     else
+      #       gh pr comment "${{ github.event.pull_request.number }}" --body "$BODY"
+      #     fi

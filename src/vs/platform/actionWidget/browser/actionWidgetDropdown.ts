@@ -6,7 +6,7 @@
 import { IActionWidgetService } from './actionWidget.js';
 import { IAction } from '../../../base/common/actions.js';
 import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover } from './actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListOptions } from './actionList.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
@@ -52,6 +52,11 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
 	 * provided, no telemetry will be sent.
 	 */
 	readonly reporter?: { id: string; name?: string; includeOptions?: boolean };
+
+	/**
+	 * Options for the underlying ActionList (filter, collapsible sections).
+	 */
+	readonly listOptions?: IActionListOptions;
 }
 
 /**
@@ -201,7 +206,8 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			this._options.getAnchor?.() ?? this.element,
 			undefined,
 			actionBarActions,
-			accessibilityProvider
+			accessibilityProvider,
+			this._options.listOptions
 		);
 	}
 

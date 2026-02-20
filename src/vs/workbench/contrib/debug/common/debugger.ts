@@ -118,7 +118,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		throw new Error(nls.localize('cannot.find.da', "Cannot find debug adapter for type '{0}'.", this.type));
 	}
 
-	async substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
+	async substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig | undefined> {
 		const substitutedConfig = await this.adapterManager.substituteVariables(this.type, folder, config);
 		return await this.configurationResolverService.resolveWithInteractionReplace(folder, substitutedConfig, 'launch', this.variables, substitutedConfig.__configurationTarget);
 	}

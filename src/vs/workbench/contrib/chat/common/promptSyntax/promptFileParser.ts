@@ -7,8 +7,9 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { dirname, joinPath } from '../../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
+import { parse, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffsetImpl.js';
 import { Target } from './service/promptsService.js';
 
 export class PromptFileParser {
@@ -107,19 +108,38 @@ export class PromptHeader {
 	private get _parsedHeader(): ParsedHeader {
 		if (this._parsed === undefined) {
 			const yamlErrors: YamlParseError[] = [];
-			const lines = this.linesWithEOL.slice(this.range.startLineNumber - 1, this.range.endLineNumber - 1).join('');
-			const node = parse(lines, yamlErrors);
+			const headerContent = this.linesWithEOL.slice(this.range.startLineNumber - 1, this.range.endLineNumber - 1).join('');
+			const node = parse(headerContent, yamlErrors);
+			const transformer = new PositionOffsetTransformer(headerContent);
+			const asRange = ({ startOffset, endOffset }: { startOffset: number; endOffset: number }): Range => {
+				const startPos = transformer.getPosition(startOffset), endPos = transformer.getPosition(endOffset);
+				const headerDelta = this.range.startLineNumber - 1;
+				return new Range(startPos.lineNumber + headerDelta, startPos.column, endPos.lineNumber + headerDelta, endPos.column);
+			};
+			const asValue = (node: YamlNode): IValue => {
+				switch (node.type) {
+					case 'scalar':
+						return { type: 'scalar', value: node.value, range: asRange(node), format: node.format };
+					case 'sequence':
+						return { type: 'sequence', items: node.items.map(item => asValue(item)), range: asRange(node) };
+					case 'map': {
+						const properties = node.properties.map(property => ({ key: asValue(property.key) as IScalarValue, value: asValue(property.value) }));
+						return { type: 'map', properties, range: asRange(node) };
+					}
+				}
+			};
+
 			const attributes = [];
-			const errors: ParseError[] = yamlErrors.map(err => ({ message: err.message, range: this.asRange(err), code: err.code }));
+			const errors: ParseError[] = yamlErrors.map(err => ({ message: err.message, range: asRange(err), code: err.code }));
 			if (node) {
-				if (node.type !== 'object') {
+				if (node.type !== 'map') {
 					errors.push({ message: 'Invalid header, expecting <key: value> pairs', range: this.range, code: 'INVALID_YAML' });
 				} else {
 					for (const property of node.properties) {
 						attributes.push({
 							key: property.key.value,
-							range: this.asRange({ start: property.key.start, end: property.value.end }),
-							value: this.asValue(property.value)
+							range: asRange({ startOffset: property.key.startOffset, endOffset: property.value.endOffset }),
+							value: asValue(property.value)
 						});
 					}
 				}
@@ -127,29 +147,6 @@ export class PromptHeader {
 			this._parsed = { node, attributes, errors };
 		}
 		return this._parsed;
-	}
-
-	private asRange({ start, end }: { start: YamlPosition; end: YamlPosition }): Range {
-		return new Range(this.range.startLineNumber + start.line, start.character + 1, this.range.startLineNumber + end.line, end.character + 1);
-	}
-
-	private asValue(node: YamlNode): IValue {
-		switch (node.type) {
-			case 'string':
-				return { type: 'string', value: node.value, range: this.asRange(node) };
-			case 'number':
-				return { type: 'number', value: node.value, range: this.asRange(node) };
-			case 'boolean':
-				return { type: 'boolean', value: node.value, range: this.asRange(node) };
-			case 'null':
-				return { type: 'null', value: node.value, range: this.asRange(node) };
-			case 'array':
-				return { type: 'array', items: node.items.map(item => this.asValue(item)), range: this.asRange(node) };
-			case 'object': {
-				const properties = node.properties.map(property => ({ key: this.asValue(property.key) as IStringValue, value: this.asValue(property.value) }));
-				return { type: 'object', properties, range: this.asRange(node) };
-			}
-		}
 	}
 
 	public get attributes(): IHeaderAttribute[] {
@@ -166,7 +163,7 @@ export class PromptHeader {
 
 	private getStringAttribute(key: string): string | undefined {
 		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
-		if (attribute?.value.type === 'string') {
+		if (attribute?.value.type === 'scalar') {
 			return attribute.value.value;
 		}
 		return undefined;
@@ -210,11 +207,7 @@ export class PromptHeader {
 	}
 
 	public get infer(): boolean | undefined {
-		const attribute = this._parsedHeader.attributes.find(attr => attr.key === PromptHeaderAttributes.infer);
-		if (attribute?.value.type === 'boolean') {
-			return attribute.value.value;
-		}
-		return undefined;
+		return this.getBooleanAttribute(PromptHeaderAttributes.infer);
 	}
 
 	public get tools(): string[] | undefined {
@@ -223,13 +216,13 @@ export class PromptHeader {
 			return undefined;
 		}
 		let value = toolsAttribute.value;
-		if (value.type === 'string') {
+		if (value.type === 'scalar') {
 			value = parseCommaSeparatedList(value);
 		}
-		if (value.type === 'array') {
+		if (value.type === 'sequence') {
 			const tools: string[] = [];
 			for (const item of value.items) {
-				if (item.type === 'string' && item.value) {
+				if (item.type === 'scalar' && item.value) {
 					tools.push(item.value);
 				}
 			}
@@ -243,11 +236,11 @@ export class PromptHeader {
 		if (!handoffsAttribute) {
 			return undefined;
 		}
-		if (handoffsAttribute.value.type === 'array') {
+		if (handoffsAttribute.value.type === 'sequence') {
 			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn?, model? }
 			const handoffs: IHandOff[] = [];
 			for (const item of handoffsAttribute.value.items) {
-				if (item.type === 'object') {
+				if (item.type === 'map') {
 					let agent: string | undefined;
 					let label: string | undefined;
 					let prompt: string | undefined;
@@ -255,17 +248,17 @@ export class PromptHeader {
 					let showContinueOn: boolean | undefined;
 					let model: string | undefined;
 					for (const prop of item.properties) {
-						if (prop.key.value === 'agent' && prop.value.type === 'string') {
+						if (prop.key.value === 'agent' && prop.value.type === 'scalar') {
 							agent = prop.value.value;
-						} else if (prop.key.value === 'label' && prop.value.type === 'string') {
+						} else if (prop.key.value === 'label' && prop.value.type === 'scalar') {
 							label = prop.value.value;
-						} else if (prop.key.value === 'prompt' && prop.value.type === 'string') {
+						} else if (prop.key.value === 'prompt' && prop.value.type === 'scalar') {
 							prompt = prop.value.value;
-						} else if (prop.key.value === 'send' && prop.value.type === 'boolean') {
-							send = prop.value.value;
-						} else if (prop.key.value === 'showContinueOn' && prop.value.type === 'boolean') {
-							showContinueOn = prop.value.value;
-						} else if (prop.key.value === 'model' && prop.value.type === 'string') {
+						} else if (prop.key.value === 'send' && prop.value.type === 'scalar') {
+							send = parseBoolean(prop.value);
+						} else if (prop.key.value === 'showContinueOn' && prop.value.type === 'scalar') {
+							showContinueOn = parseBoolean(prop.value);
+						} else if (prop.key.value === 'model' && prop.value.type === 'scalar') {
 							model = prop.value.value;
 						}
 					}
@@ -292,10 +285,10 @@ export class PromptHeader {
 		if (!attribute) {
 			return undefined;
 		}
-		if (attribute.value.type === 'array') {
+		if (attribute.value.type === 'sequence') {
 			const result: string[] = [];
 			for (const item of attribute.value.items) {
-				if (item.type === 'string' && item.value) {
+				if (item.type === 'scalar' && item.value) {
 					result.push(item.value);
 				}
 			}
@@ -309,13 +302,13 @@ export class PromptHeader {
 		if (!attribute) {
 			return undefined;
 		}
-		if (attribute.value.type === 'string') {
+		if (attribute.value.type === 'scalar') {
 			return [attribute.value.value];
 		}
-		if (attribute.value.type === 'array') {
+		if (attribute.value.type === 'sequence') {
 			const result: string[] = [];
 			for (const item of attribute.value.items) {
-				if (item.type === 'string') {
+				if (item.type === 'scalar') {
 					result.push(item.value);
 				}
 			}
@@ -339,11 +332,20 @@ export class PromptHeader {
 
 	private getBooleanAttribute(key: string): boolean | undefined {
 		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
-		if (attribute?.value.type === 'boolean') {
-			return attribute.value.value;
+		if (attribute?.value.type === 'scalar') {
+			return parseBoolean(attribute.value);
 		}
 		return undefined;
 	}
+}
+
+function parseBoolean(stringValue: IScalarValue): boolean | undefined {
+	if (stringValue.value === 'true') {
+		return true;
+	} else if (stringValue.value === 'false') {
+		return false;
+	}
+	return undefined;
 }
 
 export interface IHandOff {
@@ -361,24 +363,26 @@ export interface IHeaderAttribute {
 	readonly value: IValue;
 }
 
-export interface IStringValue { readonly type: 'string'; readonly value: string; readonly range: Range }
-export interface INumberValue { readonly type: 'number'; readonly value: number; readonly range: Range }
-export interface INullValue { readonly type: 'null'; readonly value: null; readonly range: Range }
-export interface IBooleanValue { readonly type: 'boolean'; readonly value: boolean; readonly range: Range }
+export interface IScalarValue {
+	readonly type: 'scalar';
+	readonly value: string;
+	readonly range: Range;
+	readonly format: 'single' | 'double' | 'none' | 'literal' | 'folded';
+}
 
-export interface IArrayValue {
-	readonly type: 'array';
+export interface ISequenceValue {
+	readonly type: 'sequence';
 	readonly items: readonly IValue[];
 	readonly range: Range;
 }
 
-export interface IObjectValue {
-	readonly type: 'object';
-	readonly properties: { key: IStringValue; value: IValue }[];
+export interface IMapValue {
+	readonly type: 'map';
+	readonly properties: { key: IScalarValue; value: IValue }[];
 	readonly range: Range;
 }
 
-export type IValue = IStringValue | INumberValue | IBooleanValue | IArrayValue | IObjectValue | INullValue;
+export type IValue = IScalarValue | ISequenceValue | IMapValue;
 
 
 interface ParsedBody {
@@ -492,10 +496,10 @@ export interface IBodyVariableReference {
  * Values can be unquoted or quoted (single or double quotes).
  *
  * @param input A string containing comma-separated values
- * @returns An IArrayValue containing the parsed values and their ranges
+ * @returns An ISequenceValue containing the parsed values and their ranges
  */
-export function parseCommaSeparatedList(stringValue: IStringValue): IArrayValue {
-	const result: IStringValue[] = [];
+export function parseCommaSeparatedList(stringValue: IScalarValue): ISequenceValue {
+	const result: IScalarValue[] = [];
 	const input = stringValue.value;
 	const positionOffset = stringValue.range.getStartPosition();
 	let pos = 0;
@@ -514,6 +518,7 @@ export function parseCommaSeparatedList(stringValue: IStringValue): IArrayValue 
 		const startPos = pos;
 		let value = '';
 		let endPos: number;
+		let quoteStyle: 'single' | 'double' | 'none';
 
 		const char = input[pos];
 		if (char === '"' || char === `'`) {
@@ -530,7 +535,7 @@ export function parseCommaSeparatedList(stringValue: IStringValue): IArrayValue 
 			if (pos < input.length) {
 				pos++;
 			}
-
+			quoteStyle = quote === '"' ? 'double' : 'single';
 		} else {
 			// Unquoted string - read until comma or end
 			const startPos = pos;
@@ -540,9 +545,10 @@ export function parseCommaSeparatedList(stringValue: IStringValue): IArrayValue 
 			}
 			value = value.trimEnd();
 			endPos = startPos + value.length;
+			quoteStyle = 'none';
 		}
 
-		result.push({ type: 'string', value: value, range: new Range(positionOffset.lineNumber, positionOffset.column + startPos, positionOffset.lineNumber, positionOffset.column + endPos) });
+		result.push({ type: 'scalar', value: value, range: new Range(positionOffset.lineNumber, positionOffset.column + startPos, positionOffset.lineNumber, positionOffset.column + endPos), format: quoteStyle });
 
 		// Skip whitespace after value
 		while (pos < input.length && isWhitespace(input[pos])) {
@@ -555,7 +561,7 @@ export function parseCommaSeparatedList(stringValue: IStringValue): IArrayValue 
 		}
 	}
 
-	return { type: 'array', items: result, range: stringValue.range };
+	return { type: 'sequence', items: result, range: stringValue.range };
 }
 
 

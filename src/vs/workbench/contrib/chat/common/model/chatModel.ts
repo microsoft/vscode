@@ -2652,7 +2652,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._timestamp,
 			customTitle: this._customTitle,
 			inputState: this.inputModel.toJSON(),
-			repoData: this._repoData,
 		};
 	}
 

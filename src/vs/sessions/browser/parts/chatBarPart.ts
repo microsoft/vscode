@@ -31,7 +31,7 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 
 	static readonly activeViewSettingsKey = 'workbench.chatbar.activepanelid';
 	static readonly pinnedViewsKey = 'workbench.chatbar.pinnedPanels';
-	static readonly placeholdeViewContainersKey = 'workbench.chatbar.placeholderPanels';
+	static readonly placeholderViewContainersKey = 'workbench.chatbar.placeholderPanels';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.chatbar.viewContainersWorkspaceState';
 
 	// Use the side bar dimensions
@@ -120,7 +120,7 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 		return {
 			partContainerClass: 'chatbar',
 			pinnedViewContainersKey: ChatBarPart.pinnedViewsKey,
-			placeholderViewContainersKey: ChatBarPart.placeholdeViewContainersKey,
+			placeholderViewContainersKey: ChatBarPart.placeholderViewContainersKey,
 			viewContainersWorkspaceStateKey: ChatBarPart.viewContainersWorkspaceStateKey,
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,

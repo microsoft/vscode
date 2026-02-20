@@ -27,7 +27,7 @@ import { AICustomizationManagementEditorInput } from './aiCustomizationManagemen
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeViewIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ISessionsWorkbenchService } from '../../sessions/browser/sessionsWorkbenchService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 const $ = DOM.$;
 
@@ -66,7 +66,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ISessionsWorkbenchService private readonly activeSessionService: ISessionsWorkbenchService,
+		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 

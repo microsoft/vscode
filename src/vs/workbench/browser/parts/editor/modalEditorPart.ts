@@ -25,7 +25,8 @@ import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext } from '../../../common/contextkeys.js';
-import { Verbosity } from '../../../common/editor.js';
+import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
+import { ResourceLabel } from '../../labels.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -78,8 +79,8 @@ export class ModalEditorPart {
 			if (e.target === modalElement) {
 				EventHelper.stop(e, true);
 
-				// Guide focus back into the modal when clicking outside modal
-				editorPartContainer.focus();
+				// Close modal when clicking outside the dialog
+				editorPart.close();
 			}
 		}));
 
@@ -123,7 +124,7 @@ export class ModalEditorPart {
 		const headerElement = editorPartContainer.appendChild($('.modal-editor-header'));
 
 		// Title element
-		const titleElement = append(headerElement, $('div.modal-editor-title'));
+		const titleElement = append(headerElement, $('div.modal-editor-title.show-file-icons'));
 		titleElement.id = titleId;
 		titleElement.textContent = '';
 
@@ -194,15 +195,30 @@ export class ModalEditorPart {
 			menuOptions: { shouldForwardArgs: true }
 		}));
 
-		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, (() => {
-
-			// Update title when active editor changes
+		// Create label
+		const label = disposables.add(scopedInstantiationService.createInstance(ResourceLabel, titleElement, {}));
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
-			titleElement.textContent = activeEditor?.getTitle(Verbosity.MEDIUM) ?? '';
+			if (activeEditor) {
+				const { labelFormat } = editorPart.partOptions;
 
-			// Notify editor part that active editor changed
+				label.element.setResource(
+					{
+						resource: EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.BOTH }),
+						name: activeEditor.getName(),
+						description: activeEditor.getDescription(labelFormat === 'short' ? Verbosity.SHORT : labelFormat === 'long' ? Verbosity.LONG : Verbosity.MEDIUM) || ''
+					},
+					{
+						icon: activeEditor.getIcon(),
+						extraClasses: activeEditor.getLabelExtraClasses(),
+					}
+				);
+			} else {
+				label.element.clear();
+			}
+
 			editorPart.notifyActiveEditorChanged();
-		})));
+		}));
 
 		// Handle double-click on header to toggle maximize
 		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {

@@ -26,7 +26,7 @@
 					"message": 4
 				},
 				"background": {
-					"beginsPattern": "Starting transpilation...",
+					"beginsPattern": "Starting transpilation\\.\\.\\.",
 					"endsPattern": "Finished transpilation with"
 				}
 			}
@@ -54,7 +54,7 @@
 					"message": 3
 				},
 				"background": {
-					"beginsPattern": "Starting compilation...",
+					"beginsPattern": "Starting compilation\\.\\.\\.",
 					"endsPattern": "Finished compilation with"
 				}
 			}
@@ -73,10 +73,11 @@
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
 				"fileLocation": [
-					"absolute"
+					"relative",
+					"${workspaceFolder}"
 				],
 				"pattern": {
-					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"regexp": "\\] ([^(]+)\\((\\d+,\\d+)\\): (.*)$",
 					"file": 1,
 					"location": 2,
 					"message": 3

@@ -4,29 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
-import { ISessionsWorkbenchService, IsNewChatSessionContext } from '../../sessions/browser/sessionsWorkbenchService.js';
-import { ITerminalService, ITerminalGroupService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
+import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AgenticPromptsService } from './promptsService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ISessionsConfigurationService, SessionsConfigurationService } from './sessionsConfigurationService.js';
 import { ChatViewContainerId, ChatViewId } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -44,11 +54,12 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor,): Promise<void> {
-		const hostService = accessor.get(IHostService);
-		const agentSessionsService = accessor.get(ISessionsWorkbenchService);
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const openerService = accessor.get(IOpenerService);
+		const productService = accessor.get(IProductService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 
-		const activeSession = agentSessionsService.activeSession.get();
+		const activeSession = sessionsManagementService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}
@@ -59,10 +70,48 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			return;
 		}
 
-		await hostService.openWindow([{ folderUri }], { forceNewWindow: true });
+		const scheme = productService.quality === 'stable'
+			? 'vscode'
+			: productService.quality === 'exploration'
+				? 'vscode-exploration'
+				: 'vscode-insiders';
+
+		await openerService.open(URI.from({
+			scheme,
+			authority: Schemas.file,
+			path: folderUri.path,
+			query: 'windowId=_blank',
+		}), { openExternal: true });
 	}
 }
 registerAction2(OpenSessionWorktreeInVSCodeAction);
+
+class NewChatInSessionsWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.newChat',
+			title: localize2('chat.newEdits.label', "New Chat"),
+			category: CHAT_CATEGORY,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 2,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+				secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+					secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
+				},
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		sessionsManagementService.openNewSession();
+	}
+}
+
+registerAction2(NewChatInSessionsWindowAction);
 
 export class OpenSessionInTerminalAction extends Action2 {
 
@@ -81,10 +130,10 @@ export class OpenSessionInTerminalAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor,): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
-		const terminalGroupService = accessor.get(ITerminalGroupService);
-		const agentSessionsService = accessor.get(ISessionsWorkbenchService);
+		const viewsService = accessor.get(IViewsService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 
-		const activeSession = agentSessionsService.activeSession.get();
+		const activeSession = sessionsManagementService.activeSession.get();
 		const repository = isAgentSession(activeSession) && activeSession.providerType !== AgentSessionProviders.Cloud
 			? activeSession.worktree
 			: undefined;
@@ -94,7 +143,7 @@ export class OpenSessionInTerminalAction extends Action2 {
 				terminalService.setActiveInstance(instance);
 			}
 		}
-		terminalGroupService.showPanel(true);
+		await viewsService.openView(TERMINAL_VIEW_ID, true);
 	}
 }
 
@@ -108,6 +157,7 @@ MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
 	icon: Codicon.folderOpened,
 	group: 'navigation',
 	order: 9,
+	when: IsAuxiliaryWindowContext.toNegated()
 });
 
 
@@ -181,3 +231,4 @@ registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, 
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
+registerSingleton(ISessionsConfigurationService, SessionsConfigurationService, InstantiationType.Delayed);

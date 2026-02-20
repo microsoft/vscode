@@ -118,6 +118,7 @@ import { IExtHostPower } from './extHostPower.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 import { ExtHostChatContext } from './extHostChatContext.js';
 import { IExtHostMeteredConnection } from './extHostMeteredConnection.js';
+import { IExtHostGitExtensionService } from './extHostGitExtensionService.js';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -161,6 +162,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostMcp = accessor.get(IExtHostMpcService);
 	const extHostDataChannels = accessor.get(IExtHostDataChannels);
 	const extHostMeteredConnection = accessor.get(IExtHostMeteredConnection);
+	const extHostGitExtensionService = accessor.get(IExtHostGitExtensionService);
 
 	// register addressable instances
 	rpcProtocol.set(ExtHostContext.ExtHostFileSystemInfo, extHostFileSystemInfo);
@@ -183,6 +185,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostChatProvider, extHostLanguageModels);
 	rpcProtocol.set(ExtHostContext.ExtHostDataChannels, extHostDataChannels);
 	rpcProtocol.set(ExtHostContext.ExtHostMeteredConnection, extHostMeteredConnection);
+	rpcProtocol.set(ExtHostContext.ExtHostGitExtension, extHostGitExtensionService);
 
 	// automatically create and register addressable instances
 	const extHostDecorations = rpcProtocol.set(ExtHostContext.ExtHostDecorations, accessor.get(IExtHostDecorations));

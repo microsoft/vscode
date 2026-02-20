@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-feedback-input-widget {
+	position: absolute;
+	z-index: 100;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	border-radius: 4px;
+	padding: 4px;
+}
+
+.agent-feedback-input-widget input {
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	color: var(--vscode-input-foreground);
+	border-radius: 2px;
+	padding: 2px 6px;
+	outline: none;
+	width: 240px;
+}
+
+.agent-feedback-input-widget input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.agent-feedback-input-widget input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}

@@ -118,6 +118,10 @@ export interface IMainContext extends IRPCProtocol {
 
 // --- main thread
 
+export interface MainThreadGitExtensionShape extends IDisposable {
+	$onDidChangeRepository(handle: number): Promise<void>;
+}
+
 export interface MainThreadClipboardShape extends IDisposable {
 	$readText(): Promise<string>;
 	$writeText(value: string): Promise<void>;
@@ -3442,6 +3446,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 export interface ExtHostChatSessionsShape {
 	$refreshChatSessionItems(providerHandle: number, token: CancellationToken): Promise<void>;
 	$onDidChangeChatSessionItemState(providerHandle: number, sessionResource: UriComponents, archived: boolean): void;
+	$newChatSessionItem(controllerHandle: number, request: Dto<IChatAgentRequest>, token: CancellationToken): Promise<Dto<IChatSessionItem> | undefined>;
 
 	$provideChatSessionContent(providerHandle: number, sessionResource: UriComponents, token: CancellationToken): Promise<ChatSessionDto>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionResource: UriComponents, requestId: string): Promise<void>;
@@ -3450,6 +3455,53 @@ export interface ExtHostChatSessionsShape {
 	$provideChatSessionProviderOptions(providerHandle: number, token: CancellationToken): Promise<IChatSessionProviderOptions | undefined>;
 	$invokeOptionGroupSearch(providerHandle: number, optionGroupId: string, query: string, token: CancellationToken): Promise<IChatSessionProviderOptionItem[]>;
 	$provideHandleOptionsChange(providerHandle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
+}
+
+export interface GitRefQueryDto {
+	readonly contains?: string;
+	readonly count?: number;
+	readonly pattern?: string | string[];
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
+}
+
+export enum GitRefTypeDto {
+	Head,
+	RemoteHead,
+	Tag
+}
+
+export interface GitRefDto {
+	readonly id: string;
+	readonly name: string;
+	readonly type: GitRefTypeDto;
+	readonly revision: string;
+}
+
+export interface GitRepositoryStateDto {
+	readonly HEAD?: GitBranchDto;
+}
+
+export interface GitBranchDto {
+	readonly name?: string;
+	readonly commit?: string;
+	readonly type: GitRefTypeDto;
+	readonly remote?: string;
+	readonly upstream?: GitUpstreamRefDto;
+	readonly ahead?: number;
+	readonly behind?: number;
+}
+
+export interface GitUpstreamRefDto {
+	readonly remote: string;
+	readonly name: string;
+	readonly commit?: string;
+}
+
+export interface ExtHostGitExtensionShape {
+	$isGitExtensionAvailable(): Promise<boolean>;
+	$openRepository(root: UriComponents): Promise<{ handle: number; rootUri: UriComponents; state: GitRepositoryStateDto } | undefined>;
+	$getRefs(handle: number, query: GitRefQueryDto, token?: CancellationToken): Promise<GitRefDto[]>;
+	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
 }
 
 // --- proxy identifiers
@@ -3462,6 +3514,7 @@ export const MainContext = {
 	MainThreadChatAgents2: createProxyIdentifier<MainThreadChatAgentsShape2>('MainThreadChatAgents2'),
 	MainThreadCodeMapper: createProxyIdentifier<MainThreadCodeMapperShape>('MainThreadCodeMapper'),
 	MainThreadLanguageModelTools: createProxyIdentifier<MainThreadLanguageModelToolsShape>('MainThreadChatSkills'),
+	MainThreadGitExtension: createProxyIdentifier<MainThreadGitExtensionShape>('MainThreadGitExtension'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
@@ -3612,4 +3665,5 @@ export const ExtHostContext = {
 	ExtHostMcp: createProxyIdentifier<ExtHostMcpShape>('ExtHostMcp'),
 	ExtHostDataChannels: createProxyIdentifier<ExtHostDataChannelsShape>('ExtHostDataChannels'),
 	ExtHostChatSessions: createProxyIdentifier<ExtHostChatSessionsShape>('ExtHostChatSessions'),
+	ExtHostGitExtension: createProxyIdentifier<ExtHostGitExtensionShape>('ExtHostGitExtension'),
 };

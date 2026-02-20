@@ -52,7 +52,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IProductService private readonly productService: IProductService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 	}
@@ -362,9 +362,5 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			this.environmentMainService.workspaceStorageHome
 		);
 		await browserSession.electronSession.clearData();
-	}
-
-	async getDebugWebSocketEndpoint(): Promise<string> {
-		return this.cdpProxyServer.getWebSocketEndpoint();
 	}
 }

@@ -214,11 +214,11 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const agentMode = modes.builtin.find(mode => mode.id === ChatMode.Agent.id);
 
 				const otherBuiltinModes = modes.builtin.filter(mode => {
-					return mode.id !== ChatMode.Agent.id && shouldShowBuiltInMode(mode, assignments.get());
+					return mode.id !== ChatMode.Agent.id && shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 				});
 				const filteredCustomModes = modes.custom.filter(mode => {
 					if (isModeConsideredBuiltIn(mode, this._productService)) {
-						return shouldShowBuiltInMode(mode, assignments.get());
+						return shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 					}
 					return true;
 				});
@@ -335,19 +335,24 @@ function isModeConsideredBuiltIn(mode: IChatMode, productService: IProductServic
 	return !isOrganizationPromptFile(modeUri, mode.source.extensionId, productService);
 }
 
-function shouldShowBuiltInMode(mode: IChatMode, assignments: { showOldAskMode: boolean }): boolean {
-	// The built-in "Edit" mode is deprecated, but still supported for older conversations.
-	if (mode.id === ChatMode.Edit.id) {
-		return false;
+function shouldShowBuiltInMode(mode: IChatMode, assignments: { showOldAskMode: boolean }, agentModeDisabledViaPolicy: boolean): boolean {
+	// The built-in "Edit" mode is deprecated, but still supported for older conversations and agent disablement.
+	if (mode.id === ChatMode.Edit.id || mode.name.get().toLowerCase() === 'edit') {
+		if (mode.id === ChatMode.Edit.id) {
+			return agentModeDisabledViaPolicy;
+		} else {
+			return !agentModeDisabledViaPolicy;
+		}
 	}
 
-	// The "Ask" mode is a special case - we want to show either the old or new version based on the assignment, but not both
+	// The "Ask" mode is a special case - we want to show either the old or new version based on the assignment or agent disablement, but not both
 	// We still support the old "Ask" mode for conversations that already use it.
-	if (mode.id === ChatMode.Ask.id) {
-		return assignments.showOldAskMode;
-	}
-	if (mode.name.get().toLowerCase() === 'ask') {
-		return !assignments.showOldAskMode;
+	if (mode.id === ChatMode.Ask.id || mode.name.get().toLowerCase() === 'ask') {
+		if (mode.id === ChatMode.Ask.id) {
+			return assignments.showOldAskMode || agentModeDisabledViaPolicy;
+		} else {
+			return !(assignments.showOldAskMode || agentModeDisabledViaPolicy);
+		}
 	}
 
 	return true;

@@ -13,7 +13,7 @@ import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { AuxiliaryBarVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 
 // Register Icons
@@ -52,7 +52,8 @@ class ToggleSidebarVisibilityAction extends Action2 {
 				{
 					id: Menus.TitleBarLeft,
 					group: 'navigation',
-					order: 0
+					order: 0,
+					when: IsAuxiliaryWindowContext.toNegated()
 				}
 			]
 		});
@@ -97,7 +98,8 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 				{
 					id: Menus.TitleBarRight,
 					group: 'navigation',
-					order: 10
+					order: 10,
+					when: IsAuxiliaryWindowContext.toNegated()
 				}
 			]
 		});
@@ -132,7 +134,8 @@ class TogglePanelVisibilityAction extends Action2 {
 				{
 					id: Menus.PanelTitle,
 					group: 'navigation',
-					order: 2
+					order: 2,
+					when: IsAuxiliaryWindowContext.toNegated()
 				}
 			]
 		});

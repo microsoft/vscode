@@ -264,7 +264,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		const options: vscode.LanguageModelToolInvocationStreamOptions<any> = {
 			rawInput: context.rawInput,
 			chatRequestId: context.chatRequestId,
-			chatSessionId: context.chatSessionId,
 			chatSessionResource: context.chatSessionResource,
 			chatInteractionId: context.chatInteractionId
 		};

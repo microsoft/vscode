@@ -8,7 +8,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { IStringValue, parseCommaSeparatedList, PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
+import { IScalarValue, parseCommaSeparatedList, PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
 
 suite('PromptFileParser', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,12 +30,12 @@ suite('PromptFileParser', () => {
 		assert.ok(result.body);
 		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 5, endColumn: 1 });
 		assert.deepEqual(result.header.attributes, [
-			{ key: 'description', range: new Range(2, 1, 2, 26), value: { type: 'string', value: 'Agent test', range: new Range(2, 14, 2, 26) } },
-			{ key: 'model', range: new Range(3, 1, 3, 15), value: { type: 'string', value: 'GPT 4.1', range: new Range(3, 8, 3, 15) } },
+			{ key: 'description', range: new Range(2, 1, 2, 26), value: { type: 'scalar', value: 'Agent test', range: new Range(2, 14, 2, 26), format: 'double' } },
+			{ key: 'model', range: new Range(3, 1, 3, 15), value: { type: 'scalar', value: 'GPT 4.1', range: new Range(3, 8, 3, 15), format: 'none' } },
 			{
 				key: 'tools', range: new Range(4, 1, 4, 26), value: {
-					type: 'array',
-					items: [{ type: 'string', value: 'tool1', range: new Range(4, 9, 4, 16) }, { type: 'string', value: 'tool2', range: new Range(4, 18, 4, 25) }],
+					type: 'sequence',
+					items: [{ type: 'scalar', value: 'tool1', range: new Range(4, 9, 4, 16), format: 'single' }, { type: 'scalar', value: 'tool2', range: new Range(4, 18, 4, 25), format: 'single' }],
 					range: new Range(4, 8, 4, 26)
 				}
 			},
@@ -80,29 +80,29 @@ suite('PromptFileParser', () => {
 		assert.ok(result.header);
 		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 13, endColumn: 1 });
 		assert.deepEqual(result.header.attributes, [
-			{ key: 'description', range: new Range(2, 1, 2, 26), value: { type: 'string', value: 'Agent test', range: new Range(2, 14, 2, 26) } },
-			{ key: 'model', range: new Range(3, 1, 3, 15), value: { type: 'string', value: 'GPT 4.1', range: new Range(3, 8, 3, 15) } },
+			{ key: 'description', range: new Range(2, 1, 2, 26), value: { type: 'scalar', value: 'Agent test', range: new Range(2, 14, 2, 26), format: 'double' } },
+			{ key: 'model', range: new Range(3, 1, 3, 15), value: { type: 'scalar', value: 'GPT 4.1', range: new Range(3, 8, 3, 15), format: 'none' } },
 			{
 				key: 'handoffs', range: new Range(4, 1, 12, 15), value: {
-					type: 'array',
-					range: new Range(5, 3, 12, 15),
+					type: 'sequence',
+					range: new Range(5, 1, 12, 15),
 					items: [
 						{
-							type: 'object', range: new Range(5, 5, 8, 16),
+							type: 'map', range: new Range(5, 5, 8, 16),
 							properties: [
-								{ key: { type: 'string', value: 'label', range: new Range(5, 5, 5, 10) }, value: { type: 'string', value: 'Implement', range: new Range(5, 12, 5, 23) } },
-								{ key: { type: 'string', value: 'agent', range: new Range(6, 5, 6, 10) }, value: { type: 'string', value: 'Default', range: new Range(6, 12, 6, 19) } },
-								{ key: { type: 'string', value: 'prompt', range: new Range(7, 5, 7, 11) }, value: { type: 'string', value: 'Implement the plan', range: new Range(7, 13, 7, 33) } },
-								{ key: { type: 'string', value: 'send', range: new Range(8, 5, 8, 9) }, value: { type: 'boolean', value: false, range: new Range(8, 11, 8, 16) } },
+								{ key: { type: 'scalar', value: 'label', range: new Range(5, 5, 5, 10), format: 'none' }, value: { type: 'scalar', value: 'Implement', range: new Range(5, 12, 5, 23), format: 'double' } },
+								{ key: { type: 'scalar', value: 'agent', range: new Range(6, 5, 6, 10), format: 'none' }, value: { type: 'scalar', value: 'Default', range: new Range(6, 12, 6, 19), format: 'none' } },
+								{ key: { type: 'scalar', value: 'prompt', range: new Range(7, 5, 7, 11), format: 'none' }, value: { type: 'scalar', value: 'Implement the plan', range: new Range(7, 13, 7, 33), format: 'double' } },
+								{ key: { type: 'scalar', value: 'send', range: new Range(8, 5, 8, 9), format: 'none' }, value: { type: 'scalar', value: 'false', range: new Range(8, 11, 8, 16), format: 'none' } },
 							]
 						},
 						{
-							type: 'object', range: new Range(9, 5, 12, 15),
+							type: 'map', range: new Range(9, 5, 12, 15),
 							properties: [
-								{ key: { type: 'string', value: 'label', range: new Range(9, 5, 9, 10) }, value: { type: 'string', value: 'Save', range: new Range(9, 12, 9, 18) } },
-								{ key: { type: 'string', value: 'agent', range: new Range(10, 5, 10, 10) }, value: { type: 'string', value: 'Default', range: new Range(10, 12, 10, 19) } },
-								{ key: { type: 'string', value: 'prompt', range: new Range(11, 5, 11, 11) }, value: { type: 'string', value: 'Save the plan to a file', range: new Range(11, 13, 11, 38) } },
-								{ key: { type: 'string', value: 'send', range: new Range(12, 5, 12, 9) }, value: { type: 'boolean', value: true, range: new Range(12, 11, 12, 15) } },
+								{ key: { type: 'scalar', value: 'label', range: new Range(9, 5, 9, 10), format: 'none' }, value: { type: 'scalar', value: 'Save', range: new Range(9, 12, 9, 18), format: 'double' } },
+								{ key: { type: 'scalar', value: 'agent', range: new Range(10, 5, 10, 10), format: 'none' }, value: { type: 'scalar', value: 'Default', range: new Range(10, 12, 10, 19), format: 'none' } },
+								{ key: { type: 'scalar', value: 'prompt', range: new Range(11, 5, 11, 11), format: 'none' }, value: { type: 'scalar', value: 'Save the plan to a file', range: new Range(11, 13, 11, 38), format: 'double' } },
+								{ key: { type: 'scalar', value: 'send', range: new Range(12, 5, 12, 9), format: 'none' }, value: { type: 'scalar', value: 'true', range: new Range(12, 11, 12, 15), format: 'none' } },
 							]
 						},
 					]
@@ -180,8 +180,8 @@ suite('PromptFileParser', () => {
 		assert.ok(result.body);
 		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 4, endColumn: 1 });
 		assert.deepEqual(result.header.attributes, [
-			{ key: 'description', range: new Range(2, 1, 2, 54), value: { type: 'string', value: 'Code style instructions for TypeScript', range: new Range(2, 14, 2, 54) } },
-			{ key: 'applyTo', range: new Range(3, 1, 3, 14), value: { type: 'string', value: '*.ts', range: new Range(3, 10, 3, 14) } },
+			{ key: 'description', range: new Range(2, 1, 2, 54), value: { type: 'scalar', value: 'Code style instructions for TypeScript', range: new Range(2, 14, 2, 54), format: 'double' } },
+			{ key: 'applyTo', range: new Range(3, 1, 3, 14), value: { type: 'scalar', value: '*.ts', range: new Range(3, 10, 3, 14), format: 'none' } },
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 5, startColumn: 1, endLineNumber: 6, endColumn: 1 });
 		assert.equal(result.body.offset, 76);
@@ -212,13 +212,13 @@ suite('PromptFileParser', () => {
 		assert.ok(result.body);
 		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 6, endColumn: 1 });
 		assert.deepEqual(result.header.attributes, [
-			{ key: 'description', range: new Range(2, 1, 2, 48), value: { type: 'string', value: 'General purpose coding assistant', range: new Range(2, 14, 2, 48) } },
-			{ key: 'agent', range: new Range(3, 1, 3, 13), value: { type: 'string', value: 'agent', range: new Range(3, 8, 3, 13) } },
-			{ key: 'model', range: new Range(4, 1, 4, 15), value: { type: 'string', value: 'GPT 4.1', range: new Range(4, 8, 4, 15) } },
+			{ key: 'description', range: new Range(2, 1, 2, 48), value: { type: 'scalar', value: 'General purpose coding assistant', range: new Range(2, 14, 2, 48), format: 'double' } },
+			{ key: 'agent', range: new Range(3, 1, 3, 13), value: { type: 'scalar', value: 'agent', range: new Range(3, 8, 3, 13), format: 'none' } },
+			{ key: 'model', range: new Range(4, 1, 4, 15), value: { type: 'scalar', value: 'GPT 4.1', range: new Range(4, 8, 4, 15), format: 'none' } },
 			{
 				key: 'tools', range: new Range(5, 1, 5, 30), value: {
-					type: 'array',
-					items: [{ type: 'string', value: 'search', range: new Range(5, 9, 5, 17) }, { type: 'string', value: 'terminal', range: new Range(5, 19, 5, 29) }],
+					type: 'sequence',
+					items: [{ type: 'scalar', value: 'search', range: new Range(5, 9, 5, 17), format: 'single' }, { type: 'scalar', value: 'terminal', range: new Range(5, 19, 5, 29), format: 'single' }],
 					range: new Range(5, 8, 5, 30)
 				}
 			},
@@ -306,53 +306,53 @@ suite('PromptFileParser', () => {
 
 	suite('parseCommaSeparatedList', () => {
 
-		function assertCommaSeparatedList(input: string, expected: IStringValue[]): void {
-			const actual = parseCommaSeparatedList({ type: 'string', value: input, range: new Range(1, 1, 1, input.length + 1) });
+		function assertCommaSeparatedList(input: string, expected: IScalarValue[]): void {
+			const actual = parseCommaSeparatedList({ type: 'scalar', value: input, range: new Range(1, 1, 1, input.length + 1), format: 'none' });
 			assert.deepStrictEqual(actual.items, expected);
 		}
 
 		test('simple unquoted values', () => {
 			assertCommaSeparatedList('a, b, c', [
-				{ type: 'string', value: 'a', range: new Range(1, 1, 1, 2) },
-				{ type: 'string', value: 'b', range: new Range(1, 4, 1, 5) },
-				{ type: 'string', value: 'c', range: new Range(1, 7, 1, 8) }
+				{ type: 'scalar', value: 'a', range: new Range(1, 1, 1, 2), format: 'none' },
+				{ type: 'scalar', value: 'b', range: new Range(1, 4, 1, 5), format: 'none' },
+				{ type: 'scalar', value: 'c', range: new Range(1, 7, 1, 8), format: 'none' }
 			]);
 		});
 
 		test('unquoted values without spaces', () => {
 			assertCommaSeparatedList('foo,bar,baz', [
-				{ type: 'string', value: 'foo', range: new Range(1, 1, 1, 4) },
-				{ type: 'string', value: 'bar', range: new Range(1, 5, 1, 8) },
-				{ type: 'string', value: 'baz', range: new Range(1, 9, 1, 12) }
+				{ type: 'scalar', value: 'foo', range: new Range(1, 1, 1, 4), format: 'none' },
+				{ type: 'scalar', value: 'bar', range: new Range(1, 5, 1, 8), format: 'none' },
+				{ type: 'scalar', value: 'baz', range: new Range(1, 9, 1, 12), format: 'none' }
 			]);
 		});
 
 		test('double quoted values', () => {
 			assertCommaSeparatedList('"hello", "world"', [
-				{ type: 'string', value: 'hello', range: new Range(1, 1, 1, 8) },
-				{ type: 'string', value: 'world', range: new Range(1, 10, 1, 17) }
+				{ type: 'scalar', value: 'hello', range: new Range(1, 1, 1, 8), format: 'double' },
+				{ type: 'scalar', value: 'world', range: new Range(1, 10, 1, 17), format: 'double' }
 			]);
 		});
 
 		test('single quoted values', () => {
 			assertCommaSeparatedList(`'one', 'two'`, [
-				{ type: 'string', value: 'one', range: new Range(1, 1, 1, 6) },
-				{ type: 'string', value: 'two', range: new Range(1, 8, 1, 13) }
+				{ type: 'scalar', value: 'one', range: new Range(1, 1, 1, 6), format: 'single' },
+				{ type: 'scalar', value: 'two', range: new Range(1, 8, 1, 13), format: 'single' }
 			]);
 		});
 
 		test('mixed quoted and unquoted values', () => {
 			assertCommaSeparatedList('unquoted, "double", \'single\'', [
-				{ type: 'string', value: 'unquoted', range: new Range(1, 1, 1, 9) },
-				{ type: 'string', value: 'double', range: new Range(1, 11, 1, 19) },
-				{ type: 'string', value: 'single', range: new Range(1, 21, 1, 29) }
+				{ type: 'scalar', value: 'unquoted', range: new Range(1, 1, 1, 9), format: 'none' },
+				{ type: 'scalar', value: 'double', range: new Range(1, 11, 1, 19), format: 'double' },
+				{ type: 'scalar', value: 'single', range: new Range(1, 21, 1, 29), format: 'single' }
 			]);
 		});
 
 		test('quoted values with commas inside', () => {
 			assertCommaSeparatedList('"a,b", "c,d"', [
-				{ type: 'string', value: 'a,b', range: new Range(1, 1, 1, 6) },
-				{ type: 'string', value: 'c,d', range: new Range(1, 8, 1, 13) }
+				{ type: 'scalar', value: 'a,b', range: new Range(1, 1, 1, 6), format: 'double' },
+				{ type: 'scalar', value: 'c,d', range: new Range(1, 8, 1, 13), format: 'double' }
 			]);
 		});
 
@@ -362,46 +362,46 @@ suite('PromptFileParser', () => {
 
 		test('single value', () => {
 			assertCommaSeparatedList('single', [
-				{ type: 'string', value: 'single', range: new Range(1, 1, 1, 7) }
+				{ type: 'scalar', value: 'single', range: new Range(1, 1, 1, 7), format: 'none' }
 			]);
 		});
 
 		test('values with extra whitespace', () => {
 			assertCommaSeparatedList('  a  ,  b  ,  c  ', [
-				{ type: 'string', value: 'a', range: new Range(1, 3, 1, 4) },
-				{ type: 'string', value: 'b', range: new Range(1, 9, 1, 10) },
-				{ type: 'string', value: 'c', range: new Range(1, 15, 1, 16) }
+				{ type: 'scalar', value: 'a', range: new Range(1, 3, 1, 4), format: 'none' },
+				{ type: 'scalar', value: 'b', range: new Range(1, 9, 1, 10), format: 'none' },
+				{ type: 'scalar', value: 'c', range: new Range(1, 15, 1, 16), format: 'none' }
 			]);
 		});
 
 		test('quoted value with spaces', () => {
 			assertCommaSeparatedList('"hello world", "foo bar"', [
-				{ type: 'string', value: 'hello world', range: new Range(1, 1, 1, 14) },
-				{ type: 'string', value: 'foo bar', range: new Range(1, 16, 1, 25) }
+				{ type: 'scalar', value: 'hello world', range: new Range(1, 1, 1, 14), format: 'double' },
+				{ type: 'scalar', value: 'foo bar', range: new Range(1, 16, 1, 25), format: 'double' }
 			]);
 		});
 
 		test('with position offset', () => {
 			// Simulate parsing a list that starts at line 5, character 10
-			const result = parseCommaSeparatedList({ type: 'string', value: 'a, b, c', range: new Range(6, 11, 6, 18) });
+			const result = parseCommaSeparatedList({ type: 'scalar', value: 'a, b, c', range: new Range(6, 11, 6, 18), format: 'none' });
 			assert.deepStrictEqual(result.items, [
-				{ type: 'string', value: 'a', range: new Range(6, 11, 6, 12) },
-				{ type: 'string', value: 'b', range: new Range(6, 14, 6, 15) },
-				{ type: 'string', value: 'c', range: new Range(6, 17, 6, 18) }
+				{ type: 'scalar', value: 'a', range: new Range(6, 11, 6, 12), format: 'none' },
+				{ type: 'scalar', value: 'b', range: new Range(6, 14, 6, 15), format: 'none' },
+				{ type: 'scalar', value: 'c', range: new Range(6, 17, 6, 18), format: 'none' }
 			]);
 		});
 
 		test('entire input wrapped in double quotes', () => {
 			// When the entire input is wrapped in quotes, it should be treated as a single quoted value
 			assertCommaSeparatedList('"a, b, c"', [
-				{ type: 'string', value: 'a, b, c', range: new Range(1, 1, 1, 10) }
+				{ type: 'scalar', value: 'a, b, c', range: new Range(1, 1, 1, 10), format: 'double' }
 			]);
 		});
 
 		test('entire input wrapped in single quotes', () => {
 			// When the entire input is wrapped in single quotes, it should be treated as a single quoted value
 			assertCommaSeparatedList(`'a, b, c'`, [
-				{ type: 'string', value: 'a, b, c', range: new Range(1, 1, 1, 10) }
+				{ type: 'scalar', value: 'a, b, c', range: new Range(1, 1, 1, 10), format: 'single' }
 			]);
 		});
 
@@ -449,6 +449,90 @@ suite('PromptFileParser', () => {
 		].join('\n');
 		const result4 = new PromptFileParser().parse(uri, content4);
 		assert.strictEqual(result4.header?.userInvocable, undefined);
+	});
+
+	test('agent with all header fields including colons in description', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			'name: Explore',
+			'description: Fast read-only codebase exploration and Q&A subagent. Prefer over manually chaining multiple search and file-reading operations to avoid cluttering the main conversation. Safe to call in parallel. Specify thoroughness: quick, medium, or thorough.',
+			`argument-hint: Describe WHAT you're looking for and desired thoroughness (quick/medium/thorough)`,
+			`model: ['Claude Haiku 4.5 (copilot)', 'Gemini 3 Flash (Preview) (copilot)', 'Auto (copilot)']`,
+			'target: vscode',
+			'user-invocable: false',
+			`tools: ['search', 'read', 'web', 'vscode/memory', 'github/issue_read', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/activePullRequest', 'execute/getTerminalOutput', 'execute/testFailure']`,
+			'agents: []',
+			'---',
+			'You are an exploration agent specialized in rapid codebase analysis and answering questions efficiently.',
+			'',
+			'## Search Strategy',
+			'',
+			'- Go **broad to narrow**:',
+			'\t1. Start with glob patterns or semantic codesearch to discover relevant areas',
+			'\t2. Narrow with text search (regex) or usages (LSP) for specific symbols or patterns',
+			'\t3. Read files only when you know the path or need full context',
+			'- Pay attention to provided agent instructions/rules/skills as they apply to areas of the codebase to better understand architecture and best practices.',
+			'- Use the github repo tool to search references in external dependencies.',
+			'',
+			'## Speed Principles',
+			'',
+			'Adapt search strategy based on the requested thoroughness level.',
+			'',
+			'**Bias for speed** — return findings as quickly as possible:',
+			'- Parallelize independent tool calls (multiple greps, multiple reads)',
+			'- Stop searching once you have sufficient context',
+			'- Make targeted searches, not exhaustive sweeps',
+			'',
+			'## Output',
+			'',
+			'Report findings directly as a message. Include:',
+			'- Files with absolute links',
+			'- Specific functions, types, or patterns that can be reused',
+			'- Analogous existing features that serve as implementation templates',
+			'- Clear answers to what was asked, not comprehensive overviews',
+			'',
+			'Remember: Your goal is searching efficiently through MAXIMUM PARALLELISM to report concise and clear answers.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.ok(result.body);
+
+		// Verify all header attributes are identified
+		assert.deepEqual(result.header.name, 'Explore');
+		assert.deepEqual(result.header.description, 'Fast read-only codebase exploration and Q&A subagent. Prefer over manually chaining multiple search and file-reading operations to avoid cluttering the main conversation. Safe to call in parallel. Specify thoroughness: quick, medium, or thorough.');
+		assert.deepEqual(result.header.argumentHint, `Describe WHAT you're looking for and desired thoroughness (quick/medium/thorough)`);
+		assert.deepEqual(result.header.model, ['Claude Haiku 4.5 (copilot)', 'Gemini 3 Flash (Preview) (copilot)', 'Auto (copilot)']);
+		assert.deepEqual(result.header.target, 'vscode');
+		assert.deepEqual(result.header.userInvocable, false);
+		assert.deepEqual(result.header.tools, ['search', 'read', 'web', 'vscode/memory', 'github/issue_read', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/activePullRequest', 'execute/getTerminalOutput', 'execute/testFailure']);
+		assert.deepEqual(result.header.agents, []);
+
+		// Verify all 8 header attributes are present
+		assert.deepEqual(result.header.attributes.length, 8);
+		assert.deepEqual(result.header.attributes.map(a => a.key), [
+			'name', 'description', 'argument-hint', 'model', 'target', 'user-invocable', 'tools', 'agents'
+		]);
+	});
+
+	test('agent with unquoted description containing colon-space', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			'name: Test',
+			'description: This has a colon: in the middle',
+			'target: vscode',
+			'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+
+		// The description contains ": " which could interfere with YAML parsing.
+		// All headers after it should still be identified.
+		assert.deepEqual(result.header.name, 'Test');
+		assert.deepEqual(result.header.description, 'This has a colon: in the middle');
+		assert.deepEqual(result.header.target, 'vscode');
 	});
 
 });

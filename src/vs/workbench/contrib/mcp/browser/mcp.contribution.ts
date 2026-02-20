@@ -35,6 +35,7 @@ import { McpService } from '../common/mcpService.js';
 import { IMcpElicitationService, IMcpSamplingService, IMcpService, IMcpWorkbenchService } from '../common/mcpTypes.js';
 import { IWorkbenchMcpGatewayService } from '../common/mcpGatewayService.js';
 import { BrowserMcpGatewayService } from './mcpGatewayService.js';
+import { McpGatewayToolBrokerContribution } from './mcpGatewayToolBrokerContribution.js';
 import { McpAddContextContribution } from './mcpAddContextContribution.js';
 import { AddConfigurationAction, EditStoredInput, InstallFromManifestAction, ListMcpServerCommand, McpBrowseCommand, McpBrowseResourcesCommand, McpConfigureSamplingModels, McpConfirmationServerOptionsCommand, MCPServerActionRendering, McpServerOptionsCommand, McpSkipCurrentAutostartCommand, McpStartPromptingServerCommand, OpenRemoteUserMcpResourceCommand, OpenUserMcpResourceCommand, OpenWorkspaceFolderMcpResourceCommand, OpenWorkspaceMcpResourceCommand, RemoveStoredInput, ResetMcpCachedTools, ResetMcpTrustCommand, RestartServer, ShowConfiguration, ShowInstalledMcpServersCommand, ShowOutput, StartServer, StopServer } from './mcpCommands.js';
 import { McpDiscovery } from './mcpDiscovery.js';
@@ -65,6 +66,7 @@ registerWorkbenchContribution2('mcpContextKeys', McpContextKeysController, Workb
 registerWorkbenchContribution2('mcpLanguageFeatures', McpLanguageFeatures, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2('mcpResourceFilesystem', McpResourceFilesystem, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(McpLanguageModelToolContribution.ID, McpLanguageModelToolContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2('mcpGatewayToolBrokerRemote', McpGatewayToolBrokerContribution, WorkbenchPhase.AfterRestored);
 
 registerAction2(ListMcpServerCommand);
 registerAction2(McpServerOptionsCommand);

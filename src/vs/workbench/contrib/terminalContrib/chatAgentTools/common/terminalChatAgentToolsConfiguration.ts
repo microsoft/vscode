@@ -551,7 +551,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem]: {
-		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap**, **socat** and **ripgrep** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		markdownDescription: localize('terminalSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
 			denyRead: {
@@ -582,7 +582,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem]: {
-		markdownDescription: localize('terminalSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on macOS.Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt). **ripgrep** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
+		markdownDescription: localize('terminalSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in the terminal sandbox on macOS. Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${TerminalChatAgentToolsSettingId.TerminalSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
 			denyRead: {

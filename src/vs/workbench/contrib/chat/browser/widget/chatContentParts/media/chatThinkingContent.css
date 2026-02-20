@@ -233,6 +233,10 @@
 
 	.rendered-markdown > p {
 		margin: 0;
+
+		& + p {
+			margin-top: 5px;
+		}
 	}
 }
 

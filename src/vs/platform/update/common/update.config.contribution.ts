@@ -67,8 +67,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates on Windows"),
-			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background on Windows."),
+			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates"),
+			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),
 			included: isWindows && !isWeb
 		},
 		'update.showReleaseNotes': {

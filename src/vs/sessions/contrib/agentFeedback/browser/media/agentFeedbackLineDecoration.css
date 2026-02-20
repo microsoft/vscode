@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .agent-feedback-line-decoration,
+.monaco-editor .agent-feedback-add-hint {
+	border-radius: 3px;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-editor .agent-feedback-line-decoration {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-editor .agent-feedback-add-hint {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	opacity: 0.7;
+}
+
+.monaco-editor .agent-feedback-add-hint:hover {
+	opacity: 1;
+}

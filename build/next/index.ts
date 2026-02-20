@@ -15,6 +15,7 @@ import { getVersion } from '../lib/getVersion.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
+import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 
 const globAsync = promisify(glob);
 
@@ -378,33 +379,43 @@ async function cleanDir(dir: string): Promise<void> {
  * Scan for built-in extensions in the given directory.
  * Returns an array of extension entries for the builtinExtensionsScannerService.
  */
-function scanBuiltinExtensions(extensionsRoot: string): Array<{ extensionPath: string; packageJSON: unknown }> {
-	const result: Array<{ extensionPath: string; packageJSON: unknown }> = [];
+function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExtension> {
+	const scannedExtensions: Array<IScannedBuiltinExtension> = [];
 	const extensionsPath = path.join(REPO_ROOT, extensionsRoot);
 
 	if (!fs.existsSync(extensionsPath)) {
-		return result;
+		return scannedExtensions;
 	}
 
-	for (const entry of fs.readdirSync(extensionsPath, { withFileTypes: true })) {
-		if (!entry.isDirectory()) {
+	for (const extensionFolder of fs.readdirSync(extensionsPath)) {
+		const packageJSONPath = path.join(extensionsPath, extensionFolder, 'package.json');
+		if (!fs.existsSync(packageJSONPath)) {
 			continue;
 		}
-		const packageJsonPath = path.join(extensionsPath, entry.name, 'package.json');
-		if (fs.existsSync(packageJsonPath)) {
-			try {
-				const packageJSON = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-				result.push({
-					extensionPath: entry.name,
-					packageJSON
-				});
-			} catch (e) {
-				// Skip invalid extensions
+		try {
+			const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
+			if (!isWebExtension(packageJSON)) {
+				continue;
 			}
+			const children = fs.readdirSync(path.join(extensionsPath, extensionFolder));
+			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
+			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsPath, extensionFolder, packageNLSPath), 'utf8')) : undefined;
+			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+
+			scannedExtensions.push({
+				extensionPath: extensionFolder,
+				packageJSON,
+				packageNLS,
+				readmePath: readme ? path.join(extensionFolder, readme) : undefined,
+				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+			});
+		} catch (e) {
+			// Skip invalid extensions
 		}
 	}
 
-	return result;
+	return scannedExtensions;
 }
 
 /**

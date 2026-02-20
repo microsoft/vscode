@@ -60,11 +60,14 @@ import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet } from '../../common/tools/languageModelToolsService.js';
-import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -602,14 +605,6 @@ export function registerChatActions() {
 			const chatVisible = viewsService.isViewVisible(ChatViewId);
 			const clickBehavior = configurationService.getValue<AgentsControlClickBehavior>(ChatConfiguration.AgentsControlClickBehavior);
 			switch (clickBehavior) {
-				case AgentsControlClickBehavior.Focus:
-					if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
-						layoutService.setAuxiliaryBarMaximized(true);
-					} else {
-						this.updatePartVisibility(layoutService, chatLocation, true);
-					}
-					(await widgetService.revealWidget())?.focusInput();
-					break;
 				case AgentsControlClickBehavior.Cycle:
 					if (chatVisible) {
 						if (
@@ -898,7 +893,7 @@ export function registerChatActions() {
 				f1: true,
 				precondition: ChatContextKeys.inChatSession,
 				keybinding: [{
-					weight: KeybindingWeight.WorkbenchContrib,
+					weight: KeybindingWeight.ExternalExtension + 1,
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasQuestionCarousel),
 				}]
@@ -1522,6 +1517,25 @@ export interface IClearEditingSessionConfirmationOptions {
 	titleOverride?: string;
 	messageOverride?: string;
 	isArchiveAction?: boolean;
+}
+
+/**
+ * Clears the current chat session and starts a new one, preserving
+ * the session type (e.g. Claude, Cloud, Background) for non-local sessions
+ * in the sidebar.
+ */
+export async function clearChatSessionPreservingType(widget: IChatWidget, viewsService: IViewsService, sessionType?: string): Promise<void> {
+	const currentResource = widget.viewModel?.model.sessionResource;
+	const newSessionType = sessionType ?? (currentResource ? getChatSessionType(currentResource) : localChatSessionType);
+	if (isIChatViewViewContext(widget.viewContext) && newSessionType !== localChatSessionType) {
+		// For the sidebar, we need to explicitly load a session with the same type
+		const newResource = URI.from({ scheme: newSessionType, path: `/untitled-${generateUuid()}` });
+		const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+		await view.loadSession(newResource);
+	} else {
+		// For the editor, widget.clear() already preserves the session type via clearChatEditor
+		await widget.clear();
+	}
 }
 
 

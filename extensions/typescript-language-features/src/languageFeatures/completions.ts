@@ -16,7 +16,7 @@ import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import TypingsStatus from '../ui/typingsStatus';
 import { nulToken } from '../utils/cancellation';
-import { readUnifiedConfig } from '../utils/configuration';
+import { readUnifiedConfig, UnifiedConfigurationScope } from '../utils/configuration';
 import FileConfigurationManager from './fileConfigurationManager';
 import { applyCodeAction } from './util/codeAction';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
@@ -667,14 +667,14 @@ namespace CompletionConfiguration {
 
 	export function getConfigurationForResource(
 		modeId: string,
-		resource: vscode.Uri
+		scope: UnifiedConfigurationScope
 	): CompletionConfiguration {
-		const config = vscode.workspace.getConfiguration(modeId, resource);
+		const config = vscode.workspace.getConfiguration(modeId, scope);
 		return {
-			completeFunctionCalls: readUnifiedConfig<boolean>(CompletionConfiguration.completeFunctionCalls, false, { scope: resource, fallbackSection: modeId }),
-			pathSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.pathSuggestions, true, { scope: resource, fallbackSection: modeId }),
-			autoImportSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.autoImportSuggestions, true, { scope: resource, fallbackSection: modeId }),
-			nameSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.nameSuggestions, true, { scope: resource, fallbackSection: modeId }),
+			completeFunctionCalls: readUnifiedConfig<boolean>(CompletionConfiguration.completeFunctionCalls, false, { scope: scope, fallbackSection: modeId }),
+			pathSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.pathSuggestions, true, { scope: scope, fallbackSection: modeId }),
+			autoImportSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.autoImportSuggestions, true, { scope: scope, fallbackSection: modeId }),
+			nameSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.nameSuggestions, true, { scope: scope, fallbackSection: modeId }),
 			importStatementSuggestions: config.get<boolean>(CompletionConfiguration.importStatementSuggestions, true),
 		};
 	}
@@ -727,7 +727,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		}
 
 		const line = document.lineAt(position.line);
-		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.language.id, document.uri);
+		const completionConfiguration = CompletionConfiguration.getConfigurationForResource(this.language.id, document);
 
 		if (!this.shouldTrigger(context, line, position, completionConfiguration)) {
 			return undefined;

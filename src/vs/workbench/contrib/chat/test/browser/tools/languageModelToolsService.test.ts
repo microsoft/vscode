@@ -620,6 +620,40 @@ suite('LanguageModelToolsService', () => {
 		}, 'Expected tool call to be cancelled');
 	});
 
+	test('rejects tool invocation for cancelled request id', async () => {
+		let invoked = false;
+		const tool = registerToolForTest(service, store, 'testTool', {
+			invoke: async () => {
+				invoked = true;
+				return { content: [{ kind: 'text', value: 'done' }] };
+			}
+		});
+
+		const sessionId = 'sessionId-cancelled-request';
+		const requestId = 'requestId-cancelled-request';
+		const fakeModel = {
+			sessionId,
+			sessionResource: LocalChatSessionUri.forSession(sessionId),
+			getRequests: () => [{
+				id: requestId,
+				modelId: 'test-model',
+				response: { isCanceled: true },
+			}],
+		} as ChatModel;
+		chatService.addSession(fakeModel);
+
+		const dto: IToolInvocation = {
+			...tool.makeDto({ a: 1 }, { sessionId }),
+			chatRequestId: requestId,
+		};
+
+		await assert.rejects(service.invokeTool(dto, async () => 0, CancellationToken.None), err => {
+			return isCancellationError(err);
+		}, 'Expected tool invocation to be rejected for cancelled request id');
+
+		assert.strictEqual(invoked, false, 'Tool implementation should not run after request cancellation');
+	});
+
 	test('toFullReferenceNames', () => {
 		setupToolsForTest(service, store);
 
@@ -2208,6 +2242,30 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(deprecatedNames.get('Tool2 Display Name'), undefined);
 		assert.strictEqual(deprecatedNames.get('tool1RefName'), undefined);
 		assert.strictEqual(deprecatedNames.get('userToolSetRefName'), undefined);
+	});
+
+	test('getDeprecatedFullReferenceNames includes namespaced legacy names for tools in toolsets', () => {
+		// When a tool is in a toolset and has legacy names, the deprecated names map
+		// should also include the namespaced form (e.g. 'vscode/oldName' → 'vscode/newName')
+		const toolWithLegacy: IToolData = {
+			id: 'myNewBrowser',
+			toolReferenceName: 'openIntegratedBrowser',
+			legacyToolReferenceFullNames: ['openSimpleBrowser'],
+			modelDescription: 'Open browser',
+			displayName: 'Open Integrated Browser',
+			source: ToolDataSource.Internal,
+			canBeReferencedInPrompt: true,
+		};
+		store.add(service.registerToolData(toolWithLegacy));
+		store.add(service.vscodeToolSet.addTool(toolWithLegacy));
+
+		const deprecated = service.getDeprecatedFullReferenceNames();
+
+		// The simple legacy name should map to the full reference name
+		assert.deepStrictEqual(deprecated.get('openSimpleBrowser'), new Set(['vscode/openIntegratedBrowser']));
+
+		// The namespaced legacy name should also map to the full reference name
+		assert.deepStrictEqual(deprecated.get('vscode/openSimpleBrowser'), new Set(['vscode/openIntegratedBrowser']));
 	});
 
 	test('getToolByFullReferenceName', () => {

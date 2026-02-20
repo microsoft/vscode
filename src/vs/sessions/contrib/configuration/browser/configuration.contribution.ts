@@ -8,7 +8,6 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		'chat.agentsControl.clickBehavior': 'focus',
 		'chat.agentsControl.enabled': true,
 		'chat.agent.maxRequests': 1000,
 		'chat.restoreLastPanelSession': true,
@@ -20,10 +19,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'files.autoSave': 'afterDelay',
 
+		'git.autofetch': true,
+		'git.detectWorktrees': false,
 		'git.showProgress': false,
 
 		'github.copilot.chat.claudeCode.enabled': true,
+		'github.copilot.chat.cli.branchSupport.enabled': true,
 		'github.copilot.chat.languageContext.typescript.enabled': true,
+		'github.copilot.chat.cli.mcp.enabled': true,
 
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',
@@ -33,7 +36,12 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
-		'workbench.editor.allowOpenInModalEditor': false
+		'workbench.editor.useModal': 'on',
+		'workbench.editor.labelFormat': 'short',
+		'window.menuStyle': 'custom',
+		'window.dialogStyle': 'custom',
+
+		'terminal.integrated.initialHint': false
 	},
 	donotCache: true
 }]);
