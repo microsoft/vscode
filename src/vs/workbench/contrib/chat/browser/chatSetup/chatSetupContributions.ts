@@ -6,7 +6,7 @@
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -24,6 +24,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -323,10 +324,13 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			override async run(accessor: ServicesAccessor): Promise<unknown> {
 				const commandService = accessor.get(ICommandService);
 				const telemetryService = accessor.get(ITelemetryService);
+				const chatEntitlementService = accessor.get(IChatEntitlementService);
 
 				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
-				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceAnonymous: ChatSetupAnonymous.EnabledWithoutDialog });
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, {
+					forceAnonymous: chatEntitlementService.anonymous ? ChatSetupAnonymous.EnabledWithDialog : undefined
+				});
 			}
 		}
 
@@ -465,44 +469,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		//#region Editor Context Menu
 
-		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.generateDocs' | 'chat.internal.generateTests', actualCommand: string): void {
-
-			CommandsRegistry.registerCommand(coreCommand, async accessor => {
-				const commandService = accessor.get(ICommandService);
-				const codeEditorService = accessor.get(ICodeEditorService);
-				const markerService = accessor.get(IMarkerService);
-
-				switch (coreCommand) {
-					case 'chat.internal.explain':
-					case 'chat.internal.fix': {
-						const textEditor = codeEditorService.getActiveCodeEditor();
-						const uri = textEditor?.getModel()?.uri;
-						const range = textEditor?.getSelection();
-						if (!uri || !range) {
-							return;
-						}
-
-						const markers = AICodeActionsHelper.warningOrErrorMarkersAtRange(markerService, uri, range);
-
-						const actualCommand = coreCommand === 'chat.internal.explain'
-							? AICodeActionsHelper.explainMarkers(markers)
-							: AICodeActionsHelper.fixMarkers(markers, range);
-
-						await commandService.executeCommand(actualCommand.id, ...(actualCommand.arguments ?? []));
-
-						break;
-					}
-					case 'chat.internal.review':
-					case 'chat.internal.generateDocs':
-					case 'chat.internal.generateTests': {
-						const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
-						if (result) {
-							await commandService.executeCommand(actualCommand);
-						}
-					}
-				}
-			});
-		}
 		registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
 		registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
 		registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
@@ -783,6 +749,63 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 }
 
 //#endregion
+
+export function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.generateDocs' | 'chat.internal.generateTests', actualCommand: string): IDisposable {
+
+	return CommandsRegistry.registerCommand(coreCommand, async accessor => {
+		const commandService = accessor.get(ICommandService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+		const markerService = accessor.get(IMarkerService);
+
+		switch (coreCommand) {
+			case 'chat.internal.explain':
+			case 'chat.internal.fix': {
+				const textEditor = codeEditorService.getActiveCodeEditor();
+				const uri = textEditor?.getModel()?.uri;
+				const range = textEditor?.getSelection();
+				if (!uri || !range) {
+					accessor.get(INotificationService).info(localize('explainFixRequiresEditor', "Open a file in the editor to use this command."));
+					return;
+				}
+
+				const markers = AICodeActionsHelper.warningOrErrorMarkersAtRange(markerService, uri, range);
+
+				const actualCommand = coreCommand === 'chat.internal.explain'
+					? AICodeActionsHelper.explainMarkers(markers)
+					: AICodeActionsHelper.fixMarkers(markers, range);
+
+				await commandService.executeCommand(actualCommand.id, ...(actualCommand.arguments ?? []));
+
+				break;
+			}
+			case 'chat.internal.review': {
+				const editor = codeEditorService.getActiveCodeEditor();
+				const selection = editor?.getSelection();
+				if (!editor || !selection || selection.isEmpty()) {
+					accessor.get(INotificationService).info(localize('reviewRequiresSelection', "Select code in the editor to review."));
+					return;
+				}
+				const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
+				if (result) {
+					await commandService.executeCommand(actualCommand);
+				} else {
+					accessor.get(INotificationService).info(localize('reviewRequiresSetup', "Sign in to use Copilot Code Review."));
+				}
+				break;
+			}
+			case 'chat.internal.generateDocs':
+			case 'chat.internal.generateTests': {
+				const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
+				if (result) {
+					await commandService.executeCommand(actualCommand);
+				} else {
+					accessor.get(INotificationService).info(localize('generateRequiresSetup', "Sign in to use this Copilot feature."));
+				}
+				break;
+			}
+		}
+	});
+}
 
 export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
