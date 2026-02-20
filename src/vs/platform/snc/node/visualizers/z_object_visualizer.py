@@ -192,26 +192,26 @@ def _eval_field(obj, accessor_code: str):
     """
     Evaluate an accessor code against an object.
 
-    Returns (display_accessor, value_str) tuple.
-    display_accessor may differ from accessor_code for callables.
+    Returns (placeholder_args, value_str) tuple.
+    placeholder_args suggest what the arguments are for callables
     """
     try:
         val = eval(f"obj{accessor_code}")
         val_str = None
     except Exception as e:
-        return (accessor_code, str(e))
+        return ('', str(e))
 
     if callable(val):
-        display_accessor = accessor_code + (getattr(val, '__text_signature__', None) or '(...)')
+        placeholder_args = getattr(val, '__text_signature__', None) or '(...)'
         val_str = val.__doc__.split('\n', 1)[0] if val.__doc__ else None
 
     else:
-        display_accessor = accessor_code
+        placeholder_args = ''
 
     if val_str is None:
         val_str = repr(val)[:200]
 
-    return (display_accessor, val_str)
+    return (placeholder_args, val_str)
 
 
 # === Elm architecture functions ===
@@ -236,7 +236,6 @@ def init_model(value):
 
     full_class_name = _get_full_class_name(value)
 
-    # Priority: dotfile > DEFAULT_FIELDS_FOR_TYPE > non-trivial names
     fields = load_fields_from_dotfile(full_class_name)
     if fields is None:
         fields = DEFAULT_FIELDS_FOR_TYPE.get(full_class_name)
@@ -425,7 +424,7 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
     return (model, commands)
 
 
-def visualize(obj, model=None):
+def visualize(obj, model, get_visualizer):
     """
     Render the object as HTML with configurable field inspection.
 
@@ -434,9 +433,6 @@ def visualize(obj, model=None):
     """
     if obj is None or isinstance(obj, int) or isinstance(obj, float):
         return repr(obj)
-
-    if model is None:
-        model = init_model(obj)
 
     full_class_name = _get_full_class_name(obj)
 
@@ -448,7 +444,7 @@ def visualize(obj, model=None):
             field_trs.append(_render_input_row(obj, model, is_editing=True, editing_index=i))
         else:
             # Normal display: double-clickable field name with remove/drag handles
-            display_accessor, val_str = _eval_field(obj, accessor_code)
+            placeholder_args, val_str = _eval_field(obj, accessor_code)
             click_event = repr(FieldClick(index=i))
             remove_event = repr(RemoveFieldClick(index=i))
             drag_start_event = repr(DragStart(index=i))
@@ -489,7 +485,7 @@ def visualize(obj, model=None):
                 f'<span class="snc-hover-hidden">\u00d7</span></td>'
                 f'<td snc-mouse-down="{html.escape(click_event)}" '
                 f'style="color:{BLUE};opacity:0.7;cursor:pointer;padding-right:8px;">'
-                f'{html.escape(display_accessor)}</td>'
+                f'{html.escape(accessor_code)}<span style="opacity:0.4">{html.escape(placeholder_args)}</span></td>'
                 f'<td>{html.escape(val_str)}</td>'
                 f'</tr>'
             )
@@ -504,8 +500,8 @@ def visualize(obj, model=None):
     add_event = repr(AddFieldClick())
     add_button = (
         f'<tr snc-mouse-down="{html.escape(add_event)}" class="snc-hover-hidden-parent">'
-        f'<td></td><td></td>'
-        f'<td class="snc-hover-hide-border full-opacity-on-hover" colspan=2 style="color:{GRAY};cursor:pointer;text-align:center;opacity:0.5;user-select:none;height:5px;border:1px solid {GRAY_HALF_ALPHA}">'
+        f'<td style="min-width:0.8em"></td><td style="min-width:1em"></td>' # need min widths in case there are no property rows above
+        f'<td class="snc-hover-hide-border full-opacity-on-hover" colspan=2 style="color:{GRAY};cursor:pointer;text-align:center;opacity:0.5;user-select:none;height:5px;min-width:6em;border:1px solid {GRAY_HALF_ALPHA}">'
             f'<span class="snc-hover-hidden" style="display:inline-block;position:absolute;margin-top:-9px;margin-left:-0.4em;font-size:8px;font-style:normal">+</span>'
         f'</td>'
         # f'<td></td>'
@@ -604,5 +600,5 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
 
 def field_to_tr(obj, accessor_code):
     """Legacy field rendering (kept for reference, used by visualize internally)."""
-    display_accessor, val_str = _eval_field(obj, accessor_code)
-    return f'<tr><td style="color:{BLUE};opacity:0.7;">{html.escape(display_accessor)}</td><td>{html.escape(val_str)}</td></tr>\n'
+    placeholder_args, val_str = _eval_field(obj, accessor_code)
+    return f'<tr><td style="color:{BLUE};opacity:0.7;">{html.escape(accessor_code)}<span style="opacity:0.4">{html.escape(placeholder_args)}</span></td><td>{html.escape(val_str)}</td></tr>\n'

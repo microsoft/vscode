@@ -1,42 +1,31 @@
 """List visualizer for Sculpt-n-Code."""
 
 import html
+from typing import Any, List, Tuple
 
 # VS Code theme colors
 BLUE = "#569cd6"
 STRING = "#ce9178"
 GRAY = "#808080"
 
-def safe_repr(value):
-    try:
-        return html.escape(repr(value))
-    except Exception:
-        return '<span style="color: #f44747;">[Error]</span>'
 
-def span(text, color):
-    return f'<span style="color: {color};">{text}</span>'
+def item_html(item, get_visualizer):
+    vis = get_visualizer(item)
 
-def truncate_container(items, limit, show_first=12):
-    if len(items) <= limit:
-        return list(items), 0
-    remaining = len(items) - show_first
-    return list(items)[:show_first], remaining
-
-def format_elements(items, color=GRAY):
-    return [span(safe_repr(item), color) for item in items]
+    return vis.visualize(item, vis.init_model(item), get_visualizer)
 
 def can_visualize(value):
     return isinstance(value, list)
 
-def visualize(value):
-    if not value:
-        return span("[]", GRAY)
+def init_model(lst):
+    return None
 
-    items, remaining = truncate_container(value, 5)
-    elements = format_elements(items)
+def visualize(lst: list, model, get_visualizer):
+    items_html = '\n'.join(item_html(item, get_visualizer) for item in lst)
 
-    if remaining:
-        elements.append(span(f"... +{remaining} more", GRAY))
+    return f'[{items_html}]'
 
-    content = ", ".join(elements)
-    return f'{span("[", GRAY)}{content}{span("]", GRAY)}'
+def update(event, source_code: str, source_line: int, model: Any, value) -> Tuple[Any, List[Any]]:
+    return (model, [])
+
+# START HERE start the composition process. work on ORFs

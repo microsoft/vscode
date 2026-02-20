@@ -10,7 +10,7 @@ ARCHITECTURE OVERVIEW
 
 This visualizer follows the Elm architecture with three core functions:
 
-1. visualize(value, model) -> HTML string
+1. visualize(value, model, get_visualizer) -> HTML string
    - Renders the string value as interactive HTML
    - Each character is wrapped in a <span> with mouse event handlers
    - Selection highlighting is applied based on model state
@@ -59,7 +59,7 @@ MODEL STATE:
 - dragging: Whether a drag is in progress
 
 Note: The string value is NOT stored in the model. Instead, it is passed as
-a parameter to init_model(value), update(..., value), and visualize(value, model).
+a parameter to init_model(value), update(..., value), and visualize(value, model, ...).
 
 COMMANDS:
 - NewCode(code): Tells VS Code to replace the file contents with new code
@@ -2237,9 +2237,7 @@ def build_preview_regex(model, string_value: str) -> str | None:
             return append_segment_to_regex(current_regex, 'literal', selected_text)
 
 
-def visualize(value, model=None) -> str:
-    if model is None:
-        model = init_model(value)
+def visualize(value, model, get_visualizer) -> str:
 
     # Build highlight_by_index from highlights (uses preview regex to include in-progress selection)
     preview_regex = build_preview_regex(model, value)
