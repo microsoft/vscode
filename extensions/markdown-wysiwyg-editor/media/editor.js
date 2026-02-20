@@ -75,7 +75,7 @@
 			mermaid.initialize({
 				startOnLoad: false,
 				theme: 'default',
-				securityLevel: 'loose',
+				securityLevel: 'strict',
 				suppressErrorRendering: true
 			});
 			mermaidReady = true;
