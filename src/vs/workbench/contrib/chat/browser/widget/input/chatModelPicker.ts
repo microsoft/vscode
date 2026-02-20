@@ -47,7 +47,7 @@ function getUpdateHoverContent(updateState: StateType): MarkdownString {
 			hoverContent.appendMarkdown(localize('chat.modelPicker.restartUpdateHover', "This model requires a newer version of VS Code. [Restart to Update](command:update.restartToUpdate) to access it."));
 			break;
 		default:
-			hoverContent.appendMarkdown(localize('chat.modelPicker.checkUpdateHover', "This model requires a newer version of VS Code. [Check for Updates](command:update.checkForUpdate) to access it."));
+			hoverContent.appendMarkdown(localize('chat.modelPicker.checkUpdateHover', "This model requires a newer version of VS Code. [Update VS Code](command:update.checkForUpdate) to access it."));
 			break;
 	}
 	return hoverContent;
@@ -386,7 +386,11 @@ function createUnavailableModelItem(
 		description = upgradePlanUrl
 			? new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade your plan]({0})", upgradePlanUrl), { isTrusted: true })
 			: localize('chat.modelPicker.upgrade', "Upgrade");
+	} else if (reason === 'update') {
+		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
+		icon = Codicon.warning;
 	} else {
+		description = localize('chat.modelPicker.adminDescription', "Contact admin");
 		icon = Codicon.warning;
 	}
 
