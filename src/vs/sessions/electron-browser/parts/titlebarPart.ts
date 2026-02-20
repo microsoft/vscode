@@ -106,7 +106,6 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 
 	constructor(
 		readonly container: HTMLElement,
-		editorGroupsContainer: IEditorGroupsContainer,
 		private readonly mainTitlebar: TitlebarPart,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -133,7 +132,7 @@ export class NativeTitleService extends TitleService {
 		return this.instantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
-	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
-		return instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart);
+	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
+		return instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, this.mainPart);
 	}
 }
