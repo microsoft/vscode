@@ -253,9 +253,6 @@ export function buildModelPickerItems(
 				return aName.localeCompare(bName);
 			});
 
-			if (items.length > 0) {
-				items.push({ kind: ActionListItemKind.Separator });
-			}
 			for (const item of promotedItems) {
 				if (item.kind === 'available') {
 					items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model));
@@ -322,9 +319,7 @@ export function buildModelPickerItems(
 		chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
 		chatEntitlementService.isInternal
 	) {
-		if (!otherModels.length) {
-			items.push({ kind: ActionListItemKind.Separator });
-		}
+		items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
 		items.push({
 			item: {
 				id: 'manageModels',
@@ -333,12 +328,11 @@ export function buildModelPickerItems(
 				class: undefined,
 				tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
 				label: localize('chat.manageModels', "Manage Models..."),
-				icon: Codicon.settingsGear,
 				run: () => { commandService.executeCommand(MANAGE_CHAT_COMMAND_ID); }
 			},
 			kind: ActionListItemKind.Action,
 			label: localize('chat.manageModels', "Manage Models..."),
-			group: { title: '', icon: Codicon.settingsGear },
+			group: { title: '', icon: Codicon.blank },
 			hideIcon: false,
 			section: otherModels.length ? ModelPickerSection.Other : undefined,
 			showAlways: true,
@@ -532,6 +526,7 @@ export class ModelPickerWidget extends Disposable {
 		const listOptions = {
 			showFilter: models.length >= 10,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
+			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			minWidth: 300,
 		};

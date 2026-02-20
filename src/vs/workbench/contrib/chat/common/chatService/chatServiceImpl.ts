@@ -356,7 +356,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 			sessionResource ??= LocalChatSessionUri.forSession(session.sessionId);
 
-			const sessionRef = await this.getOrRestoreSession(sessionResource);
+			const sessionRef = await this.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 			if (sessionRef?.object.editingSession) {
 				await chatEditingSessionIsReady(sessionRef.object.editingSession);
 				// the session will hold a self-reference as long as there are modified files
@@ -444,10 +444,9 @@ export class ChatService extends Disposable implements IChatService {
 		await this._chatSessionStore.clearAllSessions();
 	}
 
-	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
-		this.trace('startSession');
-		const sessionId = generateUuid();
-		const sessionResource = LocalChatSessionUri.forSession(sessionId);
+	startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
+		this.trace('startNewLocalSession');
+		const sessionResource = LocalChatSessionUri.forSession(generateUuid());
 		return this._sessionModels.acquireOrCreate({
 			initialData: undefined,
 			location,
@@ -506,13 +505,13 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.get(sessionResource);
 	}
 
-	getActiveSessionReference(sessionResource: URI): IChatModelReference | undefined {
+	acquireExistingSession(sessionResource: URI): IChatModelReference | undefined {
 		return this._sessionModels.acquireExisting(sessionResource);
 	}
 
-	async getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
-		this.trace('getOrRestoreSession', `${sessionResource}`);
-		const existingRef = this._sessionModels.acquireExisting(sessionResource);
+	private async acquireOrRestoreLocalSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
+		this.trace('acquireOrRestoreSession', `${sessionResource}`);
+		const existingRef = this.acquireExistingSession(sessionResource);
 		if (existingRef) {
 			return existingRef;
 		}
@@ -525,8 +524,6 @@ export class ChatService extends Disposable implements IChatService {
 			const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 			if (localSessionId) {
 				sessionData = await this._chatSessionStore.readSession(localSessionId);
-			} else {
-				return this.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 			}
 		}
 
@@ -556,7 +553,7 @@ export class ChatService extends Disposable implements IChatService {
 			this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.title;
 	}
 
-	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModelReference | undefined {
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference {
 		const sessionId = (data as ISerializableChatData).sessionId ?? generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
 		return this._sessionModels.acquireOrCreate({
@@ -567,43 +564,52 @@ export class ChatService extends Disposable implements IChatService {
 		});
 	}
 
-	async loadSessionForResource(chatSessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
-		// TODO: Move this into a new ChatModelService
+	async acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
+		if (sessionResource.scheme === Schemas.vscodeLocalChatSession) {
+			return this.acquireOrRestoreLocalSession(sessionResource);
+		} else {
+			return this.loadRemoteSession(sessionResource, location, token);
+		}
+	}
 
-		if (chatSessionResource.scheme === Schemas.vscodeLocalChatSession) {
-			return this.getOrRestoreSession(chatSessionResource);
+	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
+		await this.chatSessionService.canResolveChatSession(sessionResource);
+
+		// Check if session already exists
+		{
+			const existingRef = this.acquireExistingSession(sessionResource);
+			if (existingRef) {
+				return existingRef;
+			}
 		}
 
-		const existingRef = this._sessionModels.acquireExisting(chatSessionResource);
-		if (existingRef) {
-			return existingRef;
-		}
-
-		const providedSession = await this.chatSessionService.getOrCreateChatSession(chatSessionResource, CancellationToken.None);
+		const providedSession = await this.chatSessionService.getOrCreateChatSession(sessionResource, token);
 
 		// Make sure we haven't created this in the meantime
-		const existingRefAfterProvision = this._sessionModels.acquireExisting(chatSessionResource);
-		if (existingRefAfterProvision) {
-			providedSession.dispose();
-			return existingRefAfterProvision;
+		{
+			const existingRef = this.acquireExistingSession(sessionResource);
+			if (existingRef) {
+				providedSession.dispose();
+				return existingRef;
+			}
 		}
 
-		const chatSessionType = chatSessionResource.scheme;
+		const chatSessionType = sessionResource.scheme;
 
 		// Contributed sessions do not use UI tools
 		const modelRef = this._sessionModels.acquireOrCreate({
 			initialData: undefined,
 			location,
-			sessionResource: chatSessionResource,
+			sessionResource: sessionResource,
 			canUseTools: false,
 			transferEditingSession: providedSession.transferredState?.editingSession,
 			inputState: providedSession.transferredState?.inputState,
 		});
 
 		modelRef.object.setContributedChatSession({
-			chatSessionResource,
+			chatSessionResource: sessionResource,
 			chatSessionType,
-			isUntitled: chatSessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
+			isUntitled: sessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
 		});
 
 		const model = modelRef.object;
@@ -1489,7 +1495,7 @@ export class ChatService extends Disposable implements IChatService {
 		this._chatSessionStore.logIndex();
 	}
 
-	setTitle(sessionResource: URI, title: string): void {
+	setSessionTitle(sessionResource: URI, title: string): void {
 		this._sessionModels.get(sessionResource)?.setCustomTitle(title);
 	}
 

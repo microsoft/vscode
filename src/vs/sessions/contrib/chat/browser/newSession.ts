@@ -11,7 +11,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsolationMode } from './sessionTargetPicker.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IActiveSessionItem } from '../../sessions/browser/sessionsManagementService.js';
 
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -25,7 +24,6 @@ export type NewSessionChangeType = 'repoUri' | 'isolationMode' | 'branch' | 'opt
 export interface INewSession extends IDisposable {
 	readonly resource: URI;
 	readonly target: AgentSessionProviders;
-	readonly activeSessionItem: IActiveSessionItem;
 	readonly repoUri: URI | undefined;
 	readonly isolationMode: IsolationMode;
 	readonly branch: string | undefined;
@@ -67,7 +65,6 @@ export class LocalNewSession extends Disposable implements INewSession {
 	readonly target = AgentSessionProviders.Background;
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
-	get resource(): URI { return this.activeSessionItem.resource; }
 	get repoUri(): URI | undefined { return this._repoUri; }
 	get isolationMode(): IsolationMode { return this._isolationMode; }
 	get branch(): string | undefined { return this._branch; }
@@ -76,7 +73,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 
 	constructor(
-		readonly activeSessionItem: IActiveSessionItem,
+		readonly resource: URI,
 		defaultRepoUri: URI | undefined,
 		private readonly chatSessionsService: IChatSessionsService,
 		private readonly logService: ILogService,
@@ -155,7 +152,6 @@ export class RemoteNewSession extends Disposable implements INewSession {
 
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
-	get resource(): URI { return this.activeSessionItem.resource; }
 	get repoUri(): URI | undefined { return this._repoUri; }
 	get isolationMode(): IsolationMode { return this._isolationMode; }
 	get branch(): string | undefined { return undefined; }
@@ -164,7 +160,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 
 	constructor(
-		readonly activeSessionItem: IActiveSessionItem,
+		readonly resource: URI,
 		readonly target: AgentSessionProviders,
 		private readonly chatSessionsService: IChatSessionsService,
 		private readonly logService: ILogService,

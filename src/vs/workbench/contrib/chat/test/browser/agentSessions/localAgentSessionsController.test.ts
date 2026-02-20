@@ -98,7 +98,7 @@ class MockChatService implements IChatService {
 		return [];
 	}
 
-	startSession(_location: ChatAgentLocation, _options?: IChatSessionStartOptions): any {
+	startNewLocalSession(_location: ChatAgentLocation, _options?: IChatSessionStartOptions): any {
 		throw new Error('Method not implemented.');
 	}
 
@@ -110,7 +110,7 @@ class MockChatService implements IChatService {
 		return undefined;
 	}
 
-	getOrRestoreSession(_sessionResource: URI): Promise<any> {
+	acquireOrRestoreSession(_sessionResource: URI): Promise<any> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -118,19 +118,19 @@ class MockChatService implements IChatService {
 		return undefined;
 	}
 
-	loadSessionFromContent(_data: any): any {
+	loadSessionFromData(_data: any): any {
 		throw new Error('Method not implemented.');
 	}
 
-	loadSessionForResource(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken): Promise<any> {
+	acquireOrLoadSession(_resource: URI, _position: ChatAgentLocation, _token: CancellationToken): Promise<any> {
 		throw new Error('Method not implemented.');
 	}
 
-	getActiveSessionReference(_sessionResource: URI): any {
+	acquireExistingSession(_sessionResource: URI): any {
 		return undefined;
 	}
 
-	setTitle(_sessionResource: URI, _title: string): void { }
+	setSessionTitle(_sessionResource: URI, _title: string): void { }
 
 	appendProgress(_request: IChatRequestModel, _progress: any): void { }
 

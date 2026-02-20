@@ -529,7 +529,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
-		const originalModel = this._chatService.getActiveSessionReference(originalResource);
+		const originalModel = this._chatService.acquireExistingSession(originalResource);
 		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
 
 		try {
@@ -584,7 +584,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				await this._chatWidgetService.openSession(modifiedResource, undefined, { preserveFocus: true });
 			} else {
 				// Loading the session to ensure the session is created and editing session is transferred.
-				const ref = await this._chatService.loadSessionForResource(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
+				const ref = await this._chatService.acquireOrLoadSession(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
 				ref?.dispose();
 			}
 		} finally {

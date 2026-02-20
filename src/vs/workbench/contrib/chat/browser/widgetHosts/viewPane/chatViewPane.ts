@@ -248,7 +248,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (!this._widget?.viewModel && !this.restoringSession) {
 				const sessionResource = this.getTransferredOrPersistedSessionInfo();
 				this.restoringSession =
-					(sessionResource ? this.chatService.getOrRestoreSession(sessionResource) : Promise.resolve(undefined)).then(async modelRef => {
+					(sessionResource ? this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None) : Promise.resolve(undefined)).then(async modelRef => {
 						if (!this._widget) {
 							return; // renderBody has not been called yet
 						}
@@ -675,7 +675,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async _applyModel(): Promise<void> {
 		const sessionResource = this.getTransferredOrPersistedSessionInfo();
-		const modelRef = sessionResource ? await this.chatService.getOrRestoreSession(sessionResource) : undefined;
+		const modelRef = sessionResource ? await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None) : undefined;
 		await this.showModel(modelRef);
 	}
 
@@ -686,8 +686,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
 			ref = modelRef ?? (this.chatService.transferredSessionResource
-				? await this.chatService.getOrRestoreSession(this.chatService.transferredSessionResource)
-				: this.chatService.startSession(ChatAgentLocation.Chat));
+				? await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, CancellationToken.None)
+				: this.chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			if (!ref) {
 				throw new Error('Could not start chat session');
 			}
@@ -773,12 +773,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}, 100);
 
 			try {
-				const sessionType = getChatSessionType(sessionResource);
-				if (sessionType !== localChatSessionType) {
-					await this.chatSessionsService.canResolveChatSession(sessionResource);
-				}
-
-				const newModelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+				const newModelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 				clearWidget.dispose();
 				await queue;
 
