@@ -1054,20 +1054,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				const freeformTextarea = this._freeformTextareas.get(question.id);
 				const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
 
-				// Only include defaults if nothing selected AND no freeform input
-				let finalSelectedValues = selectedValues;
-				if (selectedValues.length === 0 && !freeformValue && question.defaultValue !== undefined) {
-					const defaultIds = Array.isArray(question.defaultValue)
-						? question.defaultValue
-						: [question.defaultValue];
-					const defaultValues = question.options
-						?.filter(opt => defaultIds.includes(opt.id))
-						.map(opt => opt.value);
-					finalSelectedValues = defaultValues?.filter(v => v !== undefined) || [];
-				}
-
-				if (freeformValue || finalSelectedValues.length > 0) {
-					return { selectedValues: finalSelectedValues, freeformValue };
+				// Return whatever was selected - defaults are applied at render time when
+				// checkboxes are initially checked, so empty selection means user unchecked all
+				if (freeformValue || selectedValues.length > 0) {
+					return { selectedValues, freeformValue };
 				}
 				return undefined;
 			}

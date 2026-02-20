@@ -405,6 +405,7 @@ export interface IModelControlEntry {
 	readonly label: string;
 	readonly featured?: boolean;
 	readonly minVSCodeVersion?: string;
+	readonly exists: boolean;
 }
 
 export interface IModelsControlManifest {
@@ -541,6 +542,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 	readonly onDidChangeModelsControlManifest = this._onDidChangeModelsControlManifest.event;
 
 	private _modelsControlManifest: IModelsControlManifest = { free: {}, paid: {} };
+	private _modelsControlRawResponse: IChatControlResponse['models'] | undefined;
 
 	private _chatControlUrl: string | undefined;
 	private _chatControlDisposed = false;
@@ -565,7 +567,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._initChatControlData();
 		this._store.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_MODEL_PICKER_PREFERENCES_STORAGE_KEY, this._store)(() => this._onDidChangeModelPickerPreferences()));
 
-		this._store.add(this.onDidChangeLanguageModels(() => this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable))));
+		this._store.add(this.onDidChangeLanguageModels(() => {
+			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));
+			this._refreshModelsControlManifest();
+		}));
 		this._store.add(this._languageModelsConfigurationService.onDidChangeLanguageModelGroups(changedGroups => this._onDidChangeLanguageModelGroups(changedGroups)));
 
 		this._store.add(languageModelChatProviderExtensionPoint.setHandler((extensions, { added, removed }) => {
@@ -1419,6 +1424,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	private _setModelsControlManifest(response: IChatControlResponse['models']): void {
+		this._modelsControlRawResponse = response;
+		this._refreshModelsControlManifest();
+	}
+
+	private _refreshModelsControlManifest(): void {
+		const response = this._modelsControlRawResponse;
 		const free: IStringDictionary<IModelControlEntry> = {};
 		const paid: IStringDictionary<IModelControlEntry> = {};
 
@@ -1428,7 +1439,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!entry || !isObject(entry)) {
 					continue;
 				}
-				free[entry.id] = { label: entry.label, featured: entry.featured };
+				free[entry.id] = { label: entry.label, featured: entry.featured, exists: this._modelExistsInCache(entry.id) };
 			}
 		}
 
@@ -1438,12 +1449,21 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!entry || !isObject(entry)) {
 					continue;
 				}
-				paid[entry.id] = { label: entry.label, featured: entry.featured, minVSCodeVersion: entry.minVSCodeVersion };
+				paid[entry.id] = { label: entry.label, featured: entry.featured, minVSCodeVersion: entry.minVSCodeVersion, exists: this._modelExistsInCache(entry.id) };
 			}
 		}
 
 		this._modelsControlManifest = { free, paid };
 		this._onDidChangeModelsControlManifest.fire(this._modelsControlManifest);
+	}
+
+	private _modelExistsInCache(metadataId: string): boolean {
+		for (const model of this._modelCache.values()) {
+			if (model.id === metadataId) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	//#region Chat control data
