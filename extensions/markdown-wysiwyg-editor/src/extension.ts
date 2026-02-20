@@ -179,7 +179,7 @@ function buildWebviewHtml(options: {
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${options.cspSource} https: data:; style-src ${options.cspSource} 'unsafe-inline'; script-src 'nonce-${options.nonce}' 'unsafe-eval';">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${options.cspSource} https: data:; style-src ${options.cspSource} 'unsafe-inline'; script-src 'nonce-${options.nonce}';">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<base href="${options.baseHref}">
 	<link href="${options.styleUri}" rel="stylesheet">
