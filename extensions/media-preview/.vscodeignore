@@ -1,6 +1,7 @@
 test/**
 src/**
 tsconfig*.json
+**/*.tsbuildinfo
 esbuild*
 out/test/**
 out/**

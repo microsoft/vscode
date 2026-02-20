@@ -8,6 +8,7 @@
 		"allowJs": true,
 		"resolveJsonModule": true,
 		"isolatedModules": false,
+		"skipLibCheck": true,
 		"outDir": "../out/vs",
 		"types": [
 			"@webgpu/types",

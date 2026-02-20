@@ -2,6 +2,7 @@ src/**
 test/**
 out/**
 tsconfig*.json
+**/*.tsbuildinfo
 build/**
 extension.webpack.config.js
 package-lock.json

@@ -4,5 +4,6 @@ out/**
 build/**
 extension.webpack.config.js
 tsconfig*.json
+**/*.tsbuildinfo
 package-lock.json
 testWorkspace/**

@@ -23,6 +23,7 @@ import watch from './watch/index.ts';
 import bom from 'gulp-bom';
 import * as tsb from './tsb/index.ts';
 import sourcemaps from 'gulp-sourcemaps';
+import { createTsgoStream } from './tsgo.ts';
 
 
 import { extractExtensionPointNamesFromFile } from './extractExtensionPoints.ts';
@@ -188,6 +189,28 @@ export function watchTask(out: string, build: boolean, srcPath: string = 'src', 
 	};
 	task.taskName = `watch-${path.basename(out)}`;
 	return task;
+}
+
+export function watchTypeCheckTask(src: string): task.StreamTask {
+	const theTask = () => {
+		const projectPath = path.join(import.meta.dirname, '../../', src, 'tsconfig.json');
+		const generator = new MonacoGenerator(true);
+		generator.execute();
+		const watchInput = watch(`${src}/**`, { base: src, readDelay: 200 });
+		const tsgoStream = watchInput.pipe(generator.stream).pipe(util.debounce(() => {
+			const stream = createTsgoStream(projectPath, { taskName: 'watch-client-noEmit', noEmit: true });
+			const result = es.through();
+			stream.on('end', () => result.emit('end'));
+			stream.on('error', err => {
+				fancyLog.error(ansiColors.red('[tsgo] watch-client-noEmit failed'), err);
+				result.emit('end');
+			});
+			return result;
+		}));
+		return tsgoStream;
+	};
+	theTask.taskName = `watch-typecheck-${path.basename(src)}`;
+	return theTask;
 }
 
 const REPO_SRC_FOLDER = path.join(import.meta.dirname, '../../src');

@@ -3,6 +3,7 @@ src/**
 notebook-src/**
 out/**
 tsconfig*.json
+**/*.tsbuildinfo
 extension.webpack.config.js
 extension-browser.webpack.config.js
 package-lock.json
