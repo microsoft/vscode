@@ -172,10 +172,18 @@ class DropOverlay extends Themable {
 					const sourceGroupView = this.findSourceGroupView();
 					if (sourceGroupView === this.groupView) {
 						if (isDraggingGroup || (isDraggingEditor && sourceGroupView.count < 2)) {
+							if (e.dataTransfer) {
+								e.dataTransfer.dropEffect = 'none';
+							}
+
 							this.hideOverlay();
 							return; // do not allow to drop group/editor on itself if this results in an empty group
 						}
 					}
+				}
+
+				if (e.dataTransfer && (isDraggingGroup || isDraggingEditor)) {
+					e.dataTransfer.dropEffect = isCopy ? 'copy' : 'move';
 				}
 
 				// Position overlay and conditionally enable or disable
