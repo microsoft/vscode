@@ -195,6 +195,8 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		const servers = this._mcpService.servers.get();
 
 		await Promise.all(servers.map(async server => {
+			await this._ensureServerReady(server);
+
 			const capabilities = server.capabilities.get();
 			if (!capabilities || !(capabilities & McpCapability.Resources)) {
 				return;
