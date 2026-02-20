@@ -682,6 +682,21 @@ export const enum Verbosity {
 	LONG
 }
 
+export type TabHoverMode = 'default' | 'short' | 'medium' | 'long';
+
+export function getEditorHoverVerbosity(tabHoverMode: TabHoverMode): Verbosity {
+	switch (tabHoverMode) {
+		case 'short':
+			return Verbosity.SHORT;
+		case 'medium':
+			return Verbosity.MEDIUM;
+		case 'default':
+		case 'long':
+		default:
+			return Verbosity.LONG;
+	}
+}
+
 export const enum SaveReason {
 
 	/**
@@ -1257,6 +1272,7 @@ interface IEditorPartConfiguration {
 	swipeToNavigate?: boolean;
 	mouseBackForwardToNavigate?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	tabHoverMode?: TabHoverMode;
 	restoreViewState?: boolean;
 	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'auto' | 'split' | 'distribute';

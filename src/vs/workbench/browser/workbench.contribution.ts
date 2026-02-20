@@ -150,6 +150,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'default',
 				'description': localize('tabDescription', "Controls the format of the label for an editor."),
 			},
+			'workbench.editor.tabHoverMode': {
+				'type': 'string',
+				'enum': ['default', 'short', 'medium', 'long'],
+				'enumDescriptions': [
+					localize('workbench.editor.tabHoverMode.default', "Show the absolute file path (default)."),
+					localize('workbench.editor.tabHoverMode.short', "Show the file name."),
+					localize('workbench.editor.tabHoverMode.medium', "Show the file path relative to the workspace folder."),
+					localize('workbench.editor.tabHoverMode.long', "Show the absolute file path.")
+				],
+				'default': 'default',
+				'description': localize('workbench.editor.tabHoverMode', "Controls the format of the title shown when hovering over editor tabs."),
+			},
 			'workbench.editor.untitled.labelFormat': {
 				'type': 'string',
 				'enum': ['content', 'name'],
