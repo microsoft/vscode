@@ -352,7 +352,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 				const isReadOnly = item.storage === PromptsStorage.extension;
 				this.showEmbeddedEditor(item.uri, item.name, isWorkspaceFile, isReadOnly);
 			} else {
-				this.close();
 				this.editorService.openEditor({ resource: item.uri });
 			}
 		}));
@@ -491,10 +490,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user'): Promise<void> {
 		const useEmbeddedEditor = this.workspaceService.preferManualCreation;
-
-		if (!useEmbeddedEditor) {
-			this.close();
-		}
 
 		if (type === PromptsType.hook) {
 			const isWorkspace = target === 'workspace';
