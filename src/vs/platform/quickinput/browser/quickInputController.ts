@@ -45,6 +45,7 @@ const VIEWSTATE_STORAGE_KEY = 'workbench.quickInput.viewState';
 type QuickInputViewState = {
 	readonly top?: number;
 	readonly left?: number;
+	readonly width?: number; // custom width in pixels
 };
 
 export class QuickInputController extends Disposable {
@@ -78,6 +79,7 @@ export class QuickInputController extends Disposable {
 
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
+	private resizeController: QuickInputResizeController | undefined;
 
 	private readonly inQuickInputContext: IContextKey<boolean>;
 	private readonly quickInputTypeContext: IContextKey<QuickInputType>;
@@ -394,6 +396,34 @@ export class QuickInputController extends Disposable {
 
 			// Save position
 			if (dndViewState.done) {
+				this.saveViewState(this.viewState);
+			}
+		}));
+
+		// Resize support
+		this.resizeController = this._register(new QuickInputResizeController(
+			this._container,
+			container,
+			this.viewState?.width
+		));
+
+		// Resize update layout
+		this._register(autorun(reader => {
+			const resizeState = this.resizeController?.resizeViewState.read(reader);
+			if (!resizeState) {
+				return;
+			}
+
+			this.viewState = {
+				...this.viewState,
+				width: resizeState.width,
+				left: resizeState.newLeftRatio ?? this.viewState?.left
+			};
+
+			this.updateLayout();
+
+			// Save width and position
+			if (resizeState.done) {
 				this.saveViewState(this.viewState);
 			}
 		}));
@@ -858,10 +888,19 @@ export class QuickInputController extends Disposable {
 		this.updateLayout();
 	}
 
+	private getDefaultWidth(): number {
+		return Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+	}
+
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+			const defaultWidth = this.getDefaultWidth();
+			const customWidth = this.viewState?.width;
+			// Use custom width if set, but clamp to valid range
+			const width = customWidth !== undefined
+				? Math.max(QuickInputResizeController.MIN_WIDTH, Math.min(customWidth, this.dimension!.width - 20))
+				: defaultWidth;
 			style.width = width + 'px';
 
 			// Position
@@ -938,7 +977,7 @@ export class QuickInputController extends Disposable {
 	private loadViewState(): QuickInputViewState | undefined {
 		try {
 			const data = JSON.parse(this.storageService.get(VIEWSTATE_STORAGE_KEY, StorageScope.APPLICATION, '{}'));
-			if (data.top !== undefined || data.left !== undefined) {
+			if (data.top !== undefined || data.left !== undefined || data.width !== undefined) {
 				return data;
 			}
 		} catch { }
@@ -1150,5 +1189,128 @@ class QuickInputDragAndDropController extends Disposable {
 
 	private _getCenterXSnapValue() {
 		return Math.round(this._container.clientWidth / 2) - Math.round(this._quickInputContainer.clientWidth / 2);
+	}
+}
+
+class QuickInputResizeController extends Disposable {
+	static readonly MIN_WIDTH = 300;
+	static readonly MAX_WIDTH = 900;
+
+	/**
+	 * Observable resize state. `newLeftRatio` is the new absolute center-x ratio
+	 * for the widget so that the opposite edge stays anchored during resize.
+	 */
+	readonly resizeViewState = observableValue<{ width?: number; newLeftRatio?: number; done: boolean } | undefined>(this, undefined);
+
+	private readonly _leftHandle: HTMLElement;
+	private readonly _rightHandle: HTMLElement;
+
+	constructor(
+		private _container: HTMLElement,
+		private readonly _quickInputContainer: HTMLElement,
+		initialWidth: number | undefined
+	) {
+		super();
+
+		// Create resize handles
+		this._leftHandle = dom.append(this._quickInputContainer, $('.quick-input-widget-resize.left'));
+		this._rightHandle = dom.append(this._quickInputContainer, $('.quick-input-widget-resize.right'));
+
+		this._registerMouseListeners();
+
+		if (initialWidth !== undefined) {
+			this.resizeViewState.set({ width: initialWidth, done: true }, undefined);
+		}
+	}
+
+	private _registerMouseListeners(): void {
+		// Left handle
+		this._registerHandleListeners(this._leftHandle, 'left');
+
+		// Right handle
+		this._registerHandleListeners(this._rightHandle, 'right');
+
+		// Double-click on either handle resets width to default
+		for (const handle of [this._leftHandle, this._rightHandle]) {
+			this._register(dom.addDisposableGenericMouseUpListener(handle, (event: MouseEvent) => {
+				const originEvent = new StandardMouseEvent(dom.getWindow(handle), event);
+				if (originEvent.detail !== 2) {
+					return;
+				}
+				originEvent.preventDefault();
+				originEvent.stopPropagation();
+
+				// Reset width to default
+				this.resizeViewState.set({ width: undefined, done: true }, undefined);
+			}));
+		}
+	}
+
+	private _registerHandleListeners(handle: HTMLElement, side: 'left' | 'right'): void {
+		this._register(dom.addDisposableGenericMouseDownListener(handle, (e: MouseEvent) => {
+			const activeWindow = dom.getWindow(this._container);
+			const originEvent = new StandardMouseEvent(activeWindow, e);
+			originEvent.preventDefault();
+			originEvent.stopPropagation();
+
+			const startX = originEvent.browserEvent.clientX;
+			const startRect = this._quickInputContainer.getBoundingClientRect();
+			const startWidth = startRect.width;
+			const containerWidth = this._container.clientWidth;
+			// Capture the original center position at drag start
+			const startCenterX = startRect.left + startWidth / 2;
+
+			let isResizing = false;
+			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
+				const mouseMoveEvent = new StandardMouseEvent(activeWindow, e);
+				mouseMoveEvent.preventDefault();
+
+				if (!isResizing) {
+					isResizing = true;
+				}
+
+				const deltaX = mouseMoveEvent.browserEvent.clientX - startX;
+				let newWidth: number;
+
+				if (side === 'right') {
+					newWidth = startWidth + deltaX;
+				} else {
+					// For left handle, dragging left increases width
+					newWidth = startWidth - deltaX;
+				}
+
+				// Clamp to min/max
+				newWidth = Math.max(QuickInputResizeController.MIN_WIDTH, Math.min(newWidth, QuickInputResizeController.MAX_WIDTH));
+				// Also clamp to container width
+				newWidth = Math.min(newWidth, containerWidth - 20);
+
+				// Compute the new center-x ratio so the opposite edge stays anchored.
+				// updateLayout uses: leftPx = (containerWidth * leftRatio) - (width / 2)
+				const widthDelta = newWidth - startWidth;
+				let newLeftRatio: number;
+				if (side === 'right') {
+					// Anchor left edge: left edge = startCenterX - startWidth/2
+					// New center = leftEdge + newWidth/2 = startCenterX - startWidth/2 + newWidth/2
+					newLeftRatio = (startCenterX + widthDelta / 2) / containerWidth;
+				} else {
+					// Anchor right edge: right edge = startCenterX + startWidth/2
+					// New center = rightEdge - newWidth/2 = startCenterX + startWidth/2 - newWidth/2
+					newLeftRatio = (startCenterX - widthDelta / 2) / containerWidth;
+				}
+
+				this.resizeViewState.set({ width: newWidth, newLeftRatio, done: false }, undefined);
+			});
+
+			const mouseUpListener = dom.addDisposableGenericMouseUpListener(activeWindow, (e: MouseEvent) => {
+				if (isResizing) {
+					// Persist the width
+					const state = this.resizeViewState.get();
+					this.resizeViewState.set({ width: state?.width, newLeftRatio: state?.newLeftRatio, done: true }, undefined);
+				}
+
+				mouseMoveListener.dispose();
+				mouseUpListener.dispose();
+			});
+		}));
 	}
 }

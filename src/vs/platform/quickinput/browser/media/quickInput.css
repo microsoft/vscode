@@ -12,6 +12,24 @@
 	border-radius: 8px;
 }
 
+/* Resize handles */
+.quick-input-widget-resize {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 6px;
+	cursor: ew-resize;
+	z-index: 1;
+}
+
+.quick-input-widget-resize.left {
+	left: -3px;
+}
+
+.quick-input-widget-resize.right {
+	right: -3px;
+}
+
 .quick-input-titlebar {
 	cursor: grab;
 	display: flex;
