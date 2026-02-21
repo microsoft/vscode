@@ -18,11 +18,6 @@ import {
 	GENERATE_SKILL_COMMAND_ID,
 } from '../actions/chatActions.js';
 
-/**
- * Core VS Code implementation of IAICustomizationWorkspaceService.
- * Uses the workspace context service to provide the first workspace folder
- * as the active project root. No commit support.
- */
 class AICustomizationWorkspaceService implements IAICustomizationWorkspaceService {
 	declare readonly _serviceBrand: undefined;
 

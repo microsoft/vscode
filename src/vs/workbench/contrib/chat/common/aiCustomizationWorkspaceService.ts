@@ -38,8 +38,6 @@ export interface IAICustomizationWorkspaceService {
 
 	/**
 	 * Returns the current active project root, if any.
-	 * In core VS Code this is the first workspace folder.
-	 * In agent sessions this is the active session's repository.
 	 */
 	getActiveProjectRoot(): URI | undefined;
 
