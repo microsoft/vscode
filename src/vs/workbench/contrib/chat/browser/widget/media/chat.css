@@ -929,7 +929,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-editing-session .working-set-title {
 
 	.monaco-button {
-		padding: 4px 6px 4px 0px;
+		padding: 4px 6px 0 0;
 		border-radius: 2px;
 		border: none;
 		background-color: unset;
@@ -2214,6 +2214,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-used-context-label .monaco-button:hover .chat-collapsible-hover-chevron {
 	opacity: 1;
+}
+
+.chat-tool-invocation-part .progress-container > .codicon-check {
+	display: none;
 }
 
 .interactive-item-container .progress-container {
