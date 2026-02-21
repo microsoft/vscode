@@ -517,4 +517,62 @@ export class Range {
 	public toJSON(): IRange {
 		return this;
 	}
+
+	/**
+	 * Subtracts a set of ranges from a given range, returning the remaining parts.
+	 * The resulting ranges are the parts of `range` that are not covered by any range in `rangesToSubtract`.
+	 * @param range The range to subtract from.
+	 * @param rangesToSubtract The ranges to subtract. These do not need to be sorted.
+	 * @returns The remaining ranges after subtraction, sorted by start position.
+	 */
+	public static subtractRanges(range: IRange, rangesToSubtract: IRange[]): Range[] {
+		if (rangesToSubtract.length === 0) {
+			return [Range.lift(range)!];
+		}
+
+		// Sort the ranges to subtract by start position
+		const sorted = rangesToSubtract.slice().sort(Range.compareRangesUsingStarts);
+
+		const result: Range[] = [];
+		let currentStartLine = range.startLineNumber;
+		let currentStartColumn = range.startColumn;
+
+		for (const sub of sorted) {
+			// Skip ranges that end before our current position
+			if (sub.endLineNumber < currentStartLine ||
+				(sub.endLineNumber === currentStartLine && sub.endColumn <= currentStartColumn)) {
+				continue;
+			}
+
+			// Skip ranges that start after the input range ends
+			if (sub.startLineNumber > range.endLineNumber ||
+				(sub.startLineNumber === range.endLineNumber && sub.startColumn >= range.endColumn)) {
+				break;
+			}
+
+			// If there's a gap before this subtraction range, emit it
+			if (sub.startLineNumber > currentStartLine ||
+				(sub.startLineNumber === currentStartLine && sub.startColumn > currentStartColumn)) {
+				const endLine = Math.min(sub.startLineNumber, range.endLineNumber);
+				const endColumn = sub.startLineNumber < range.endLineNumber ? sub.startColumn :
+					(sub.startLineNumber === range.endLineNumber ? Math.min(sub.startColumn, range.endColumn) : sub.startColumn);
+				result.push(new Range(currentStartLine, currentStartColumn, endLine, endColumn));
+			}
+
+			// Move current position past this subtraction range
+			if (sub.endLineNumber > currentStartLine ||
+				(sub.endLineNumber === currentStartLine && sub.endColumn > currentStartColumn)) {
+				currentStartLine = sub.endLineNumber;
+				currentStartColumn = sub.endColumn;
+			}
+		}
+
+		// Emit any remaining part after all subtractions
+		if (currentStartLine < range.endLineNumber ||
+			(currentStartLine === range.endLineNumber && currentStartColumn < range.endColumn)) {
+			result.push(new Range(currentStartLine, currentStartColumn, range.endLineNumber, range.endColumn));
+		}
+
+		return result;
+	}
 }

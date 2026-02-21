@@ -639,6 +639,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		return this._lines.getHiddenAreas();
 	}
 
+	public getNonHiddenAreas(): Range[] {
+		return this._lines.getNonHiddenAreas();
+	}
+
 	private _toModelVisibleRanges(visibleViewRange: Range): Range[] {
 		const visibleRange = this.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
 		const hiddenAreas = this._lines.getHiddenAreas();

@@ -26,6 +26,7 @@ export interface IViewModelLines extends IDisposable {
 	setWrappingSettings(fontInfo: FontInfo, wrappingStrategy: 'simple' | 'advanced', wrappingColumn: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): boolean;
 	setTabSize(newTabSize: number): boolean;
 	getHiddenAreas(): Range[];
+	getNonHiddenAreas(): Range[];
 	setHiddenAreas(_ranges: readonly Range[]): boolean;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
@@ -167,10 +168,51 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
 	}
 
+	/**
+	 * Gets the hidden areas as line ranges.
+	 * @returns Line ranges that represent the hidden areas in the model.
+	*/
 	public getHiddenAreas(): Range[] {
 		return this.hiddenAreasDecorationIds.map(
 			(decId) => this.model.getDecorationRange(decId)!
 		);
+	}
+
+	/**
+	 * Gets the non-hidden areas as position ranges.
+	 * These ranges span the visible portions of the model content,
+	 * such that concatenating their value would give the full visible content (including line breaks).
+	 * @returns Position ranges (line and column based) that represent all visible areas in the model.
+	*/
+	public getNonHiddenAreas(): Range[] {
+		const lineCount = this.model.getLineCount();
+		if (lineCount === 0) {
+			return [];
+		}
+
+		const hiddenAreas = this.getHiddenAreas()
+			.slice()
+			.sort(Range.compareRangesUsingStarts);
+
+		const fullRange = new Range(1, 1, lineCount, this.model.getLineMaxColumn(lineCount));
+
+		if (hiddenAreas.length === 0) {
+			return [fullRange];
+		}
+
+		// Convert line-based hidden areas to position-based ranges.
+		// A hidden area for lines [start, end] hides from (start, 1) to (end+1, 1)
+		// unless end is the last line, then to (end, maxCol).
+		const hiddenRanges = hiddenAreas.map(area => {
+			if (area.endLineNumber < lineCount) {
+				return new Range(area.startLineNumber, 1, area.endLineNumber + 1, 1);
+			} else {
+				return new Range(area.startLineNumber, 1, lineCount, this.model.getLineMaxColumn(lineCount));
+			}
+		});
+
+		const result = Range.subtractRanges(fullRange, hiddenRanges);
+		return result;
 	}
 
 	public setHiddenAreas(_ranges: Range[]): boolean {
@@ -1129,6 +1171,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public getHiddenAreas(): Range[] {
 		return [];
+	}
+
+	public getNonHiddenAreas(): Range[] {
+		return [this.model.getFullModelRange()];
 	}
 
 	public setHiddenAreas(_ranges: Range[]): boolean {

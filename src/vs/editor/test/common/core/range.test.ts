@@ -129,4 +129,81 @@ suite('Editor Core - Range', () => {
 		assert.strictEqual(Range.areIntersecting(new Range(2, 2, 2, 7), new Range(2, 4, 2, 9)), true);
 		assert.strictEqual(Range.areIntersecting(new Range(2, 4, 2, 9), new Range(2, 2, 2, 7)), true);
 	});
+
+	test('subtractRanges - no subtraction', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(1, 1, 5, 10), []),
+			[new Range(1, 1, 5, 10)]
+		);
+	});
+
+	test('subtractRanges - single subtraction in middle', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(1, 1, 5, 10), [new Range(2, 1, 3, 1)]),
+			[new Range(1, 1, 2, 1), new Range(3, 1, 5, 10)]
+		);
+	});
+
+	test('subtractRanges - single subtraction at start', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(1, 1, 5, 10), [new Range(1, 1, 2, 5)]),
+			[new Range(2, 5, 5, 10)]
+		);
+	});
+
+	test('subtractRanges - single subtraction at end', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(1, 1, 5, 10), [new Range(4, 5, 5, 10)]),
+			[new Range(1, 1, 4, 5)]
+		);
+	});
+
+	test('subtractRanges - complete overlap', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(2, 1, 4, 1), [new Range(1, 1, 5, 1)]),
+			[]
+		);
+	});
+
+	test('subtractRanges - multiple subtractions', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(1, 1, 10, 1), [new Range(2, 1, 3, 1), new Range(5, 1, 6, 1)]),
+			[new Range(1, 1, 2, 1), new Range(3, 1, 5, 1), new Range(6, 1, 10, 1)]
+		);
+	});
+
+	test('subtractRanges - unsorted subtractions', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(1, 1, 10, 1), [new Range(5, 1, 6, 1), new Range(2, 1, 3, 1)]),
+			[new Range(1, 1, 2, 1), new Range(3, 1, 5, 1), new Range(6, 1, 10, 1)]
+		);
+	});
+
+	test('subtractRanges - overlapping subtractions', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(1, 1, 10, 1), [new Range(2, 1, 5, 1), new Range(4, 1, 7, 1)]),
+			[new Range(1, 1, 2, 1), new Range(7, 1, 10, 1)]
+		);
+	});
+
+	test('subtractRanges - subtraction outside range', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(3, 1, 7, 1), [new Range(1, 1, 2, 1), new Range(8, 1, 10, 1)]),
+			[new Range(3, 1, 7, 1)]
+		);
+	});
+
+	test('subtractRanges - same line with columns', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(1, 1, 1, 20), [new Range(1, 5, 1, 10)]),
+			[new Range(1, 1, 1, 5), new Range(1, 10, 1, 20)]
+		);
+	});
+
+	test('subtractRanges - adjacent subtractions', () => {
+		assert.deepStrictEqual(
+			Range.subtractRanges(new Range(1, 1, 10, 1), [new Range(2, 1, 3, 1), new Range(3, 1, 4, 1)]),
+			[new Range(1, 1, 2, 1), new Range(4, 1, 10, 1)]
+		);
+	});
 });

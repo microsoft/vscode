@@ -426,4 +426,142 @@ suite('ViewModel', () => {
 			}
 		);
 	});
+
+	suite('getVisibleAreas', () => {
+
+		test('returns entire document when no hidden areas', () => {
+			testViewModel(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5'
+				],
+				{},
+				(viewModel, model) => {
+					const visibleAreas = viewModel.getNonHiddenAreas();
+					assert.strictEqual(visibleAreas.length, 1);
+					assert.deepStrictEqual(visibleAreas[0], new Range(1, 1, 5, 6));
+				}
+			);
+		});
+
+		test('returns visible areas with single hidden area in middle', () => {
+			testViewModel(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5'
+				],
+				{},
+				(viewModel, model) => {
+					viewModel.setHiddenAreas([new Range(3, 1, 3, 1)]);
+					const visibleAreas = viewModel.getNonHiddenAreas();
+					assert.strictEqual(visibleAreas.length, 2);
+					assert.deepStrictEqual(visibleAreas[0], new Range(1, 1, 2, 6));
+					assert.deepStrictEqual(visibleAreas[1], new Range(4, 1, 5, 6));
+				}
+			);
+		});
+
+		test('returns visible areas with hidden area at start', () => {
+			testViewModel(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5'
+				],
+				{},
+				(viewModel, model) => {
+					viewModel.setHiddenAreas([new Range(1, 1, 2, 1)]);
+					const visibleAreas = viewModel.getNonHiddenAreas();
+					assert.strictEqual(visibleAreas.length, 1);
+					assert.deepStrictEqual(visibleAreas[0], new Range(3, 1, 5, 6));
+				}
+			);
+		});
+
+		test('returns visible areas with hidden area at end', () => {
+			testViewModel(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5'
+				],
+				{},
+				(viewModel, model) => {
+					viewModel.setHiddenAreas([new Range(4, 1, 5, 1)]);
+					const visibleAreas = viewModel.getNonHiddenAreas();
+					assert.strictEqual(visibleAreas.length, 1);
+					assert.deepStrictEqual(visibleAreas[0], new Range(1, 1, 3, 6));
+				}
+			);
+		});
+
+		test('returns visible areas with multiple hidden areas', () => {
+			testViewModel(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5',
+					'line6',
+					'line7'
+				],
+				{},
+				(viewModel, model) => {
+					viewModel.setHiddenAreas([
+						new Range(2, 1, 2, 1),
+						new Range(5, 1, 6, 1)
+					]);
+					const visibleAreas = viewModel.getNonHiddenAreas();
+					assert.strictEqual(visibleAreas.length, 3);
+					assert.deepStrictEqual(visibleAreas[0], new Range(1, 1, 1, 6));
+					assert.deepStrictEqual(visibleAreas[1], new Range(3, 1, 4, 6));
+					assert.deepStrictEqual(visibleAreas[2], new Range(7, 1, 7, 6));
+				}
+			);
+		});
+
+		test('getVisibleAreas is inverse of getHiddenAreas', () => {
+			testViewModel(
+				[
+					'line1',
+					'line2',
+					'line3',
+					'line4',
+					'line5'
+				],
+				{},
+				(viewModel, model) => {
+					viewModel.setHiddenAreas([new Range(2, 1, 3, 1)]);
+
+					const hiddenAreas = viewModel.getHiddenAreas();
+					const visibleAreas = viewModel.getNonHiddenAreas();
+
+					assert.strictEqual(hiddenAreas.length, 1);
+					assert.strictEqual(visibleAreas.length, 2);
+
+					// Verify hidden area
+					assert.strictEqual(hiddenAreas[0].startLineNumber, 2);
+					assert.strictEqual(hiddenAreas[0].endLineNumber, 3);
+
+					// Verify visible areas cover the rest
+					assert.strictEqual(visibleAreas[0].startLineNumber, 1);
+					assert.strictEqual(visibleAreas[0].endLineNumber, 1);
+					assert.strictEqual(visibleAreas[1].startLineNumber, 4);
+					assert.strictEqual(visibleAreas[1].endLineNumber, 5);
+				}
+			);
+		});
+
+	});
 });
