@@ -8,7 +8,7 @@ import { app } from 'electron';
 import { existsSync, unlinkSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
-import { Delayer, timeout } from '../../../base/common/async.js';
+import { Delayer, ProcessTimeRunOnceScheduler, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { memoize } from '../../../base/common/decorators.js';
@@ -99,9 +99,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		if (this.productService.win32VersionedUpdate) {
 			const cachePath = await this.cachePath;
 			app.setPath('appUpdate', cachePath);
-			try {
-				await unlink(path.join(cachePath, 'session-ending.flag'));
-			} catch { }
+			await this.unlink(path.join(cachePath, 'session-ending.flag'));
 		}
 
 		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
@@ -304,14 +302,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const cachePath = await this.cachePath;
 		const versions = await pfs.Promises.readdir(cachePath);
 
-		const promises = versions.filter(filter).map(async one => {
-			try {
-				await unlink(path.join(cachePath, one));
-			} catch (err) {
-				// ignore
-			}
-		});
-
+		const promises = versions.filter(filter).map(one => this.unlink(path.join(cachePath, one)));
 		await Promise.all(promises);
 	}
 
@@ -331,18 +322,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const cachePath = await this.cachePath;
 		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 		const cancelFilePath = path.join(cachePath, `cancel.flag`);
-		try {
-			await unlink(cancelFilePath);
-		} catch {
-			// ignore
-		}
+		await this.unlink(cancelFilePath);
 
 		const progressFilePath = path.join(cachePath, `update-progress`);
-		try {
-			await unlink(progressFilePath);
-		} catch {
-			// ignore
-		}
+		await this.unlink(progressFilePath);
 
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 		this.availableUpdate.cancelFilePath = cancelFilePath;
@@ -377,10 +360,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
 		const mutex = await import('@vscode/windows-mutex');
 
-		// Poll for progress and ready mutex (timeout after 30 minutes)
-		const pollTimeoutMs = 30 * 60 * 1000;
-		const pollStartTime = Date.now();
-
 		this.updateCancellationTokenSource?.dispose(true);
 		const cts = this.updateCancellationTokenSource = new CancellationTokenSource();
 		const token = cts.token;
@@ -389,12 +368,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
 				if (mutex.isActive(readyMutexName)) {
 					this.setState(State.Ready(update, explicit, this._overwrite));
-					return;
-				}
-
-				if (Date.now() - pollStartTime > pollTimeoutMs) {
-					this.logService.warn('update#doApplyUpdate: polling timed out waiting for update to be ready');
-					this.setState(State.Idle(getUpdateType(), 'Update did not complete within expected time'));
 					return;
 				}
 
@@ -418,7 +391,15 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			}
 		};
 
+		const cancelTimeout = new ProcessTimeRunOnceScheduler(() => {
+			this.logService.warn('update#doApplyUpdate: polling timed out waiting for update to be ready');
+			this.setState(State.Idle(getUpdateType(), 'Update did not complete within expected time'));
+		}, 60 * 60 * 1000);
+
+		// Poll for progress and ready mutex for 1 hour.
+		cancelTimeout.schedule();
 		poll().finally(() => {
+			cancelTimeout.dispose();
 			if (this.updateCancellationTokenSource === cts) {
 				this.updateCancellationTokenSource = undefined;
 			}
@@ -462,22 +443,10 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		}
 
 		// Clean up the flag file
-		if (updateFilePath) {
-			try {
-				await unlink(updateFilePath);
-			} catch (err) {
-				// ignore
-			}
-		}
+		await this.unlink(updateFilePath);
 
 		// Clean up the cancel file
-		if (cancelFilePath) {
-			try {
-				await unlink(cancelFilePath);
-			} catch (err) {
-				// ignore
-			}
-		}
+		await this.unlink(cancelFilePath);
 
 		this.availableUpdate = undefined;
 	}
@@ -490,7 +459,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
-			unlinkSync(this.availableUpdate.updateFilePath);
+			try {
+				unlinkSync(this.availableUpdate.updateFilePath);
+			} catch {
+				// ignore
+			}
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
@@ -543,6 +516,16 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.doApplyUpdate();
 		} else {
 			this.setState(State.Ready(update, true, false));
+		}
+	}
+
+	private async unlink(path: string | undefined): Promise<void> {
+		if (path) {
+			try {
+				await unlink(path);
+			} catch (err) {
+				this.logService.warn(`update#unlink: failed to unlink ${path}`, err);
+			}
 		}
 	}
 }
