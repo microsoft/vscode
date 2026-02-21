@@ -258,6 +258,7 @@ class NewChatWidget extends Disposable {
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
 		}).catch(() => {
+			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`);
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
 		});
