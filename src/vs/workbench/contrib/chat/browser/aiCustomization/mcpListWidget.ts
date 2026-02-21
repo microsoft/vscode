@@ -4,27 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/aiCustomizationManagement.css';
-import * as DOM from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, isDisposable } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
-import { McpCommandIds } from '../../../../workbench/contrib/mcp/common/mcpCommandIds.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { URI } from '../../../../base/common/uri.js';
-import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
-import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { Delayer } from '../../../../base/common/async.js';
-import { IAction, Separator } from '../../../../base/common/actions.js';
-import { getContextMenuActions } from '../../../../workbench/contrib/mcp/browser/mcpServerActions.js';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { Disposable, DisposableStore, isDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, IMcpService } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { Delayer } from '../../../../../base/common/async.js';
+import { IAction, Separator } from '../../../../../base/common/actions.js';
+import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
 
 const $ = DOM.$;
 

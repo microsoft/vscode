@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
-import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { getPromptFileDefaultLocations } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
-import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { localize } from '../../../../nls.js';
-import { getActiveSessionRoot } from './aiCustomizationManagement.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { IChatWidgetService } from '../chat.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { ChatModeKind } from '../../common/constants.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { getPromptFileDefaultLocations } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
+import { localize } from '../../../../../nls.js';
 
 /**
  * Service that opens an AI-guided chat session to help the user create
@@ -30,7 +29,7 @@ export class CustomizationCreatorService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) { }
@@ -54,11 +53,11 @@ export class CustomizationCreatorService {
 		const trimmedName = name.trim();
 
 		// TODO: The 'Generate X' flow currently opens a new chat that is not connected
-		// to the active worktree. For this to fully work, the background agent needs to
-		// accept a worktree parameter so the new session can write files into the correct
-		// worktree directory and have those changes tracked in the session's diff view.
+		// to the active workspace. For this to fully work, the background agent needs to
+		// accept a workspace parameter so the new session can write files into the correct
+		// directory and have those changes tracked.
 
-		// Capture worktree BEFORE opening new chat (which changes active session)
+		// Capture project root BEFORE opening new chat (which may change active session)
 		const targetDir = this.resolveTargetDirectory(type);
 		const systemInstructions = buildAgentInstructions(type, targetDir, trimmedName);
 		const userMessage = buildUserMessage(type, targetDir, trimmedName);
@@ -89,40 +88,44 @@ export class CustomizationCreatorService {
 	}
 
 	/**
-	 * Returns the worktree and repository URIs from the active session.
-	 */
-	/**
-	 * Resolves the worktree directory for a new customization file based on the
-	 * active session's worktree (preferred) or repository path.
-	 * Falls back to the first local source folder from promptsService.getSourceFolders()
-	 * if there's no active worktree.
+	 * Resolves the workspace directory for a new customization file based on the
+	 * active project root.
 	 */
 	resolveTargetDirectory(type: PromptsType): URI | undefined {
-		const basePath = getActiveSessionRoot(this.activeSessionService);
-		if (!basePath) {
-			return undefined;
-		}
-
-		// Compute the path within the worktree using default locations
-		const defaultLocations = getPromptFileDefaultLocations(type);
-		const localLocation = defaultLocations.find(loc => loc.storage === PromptsStorage.local);
-		if (!localLocation) {
-			return basePath;
-		}
-
-		return URI.joinPath(basePath, localLocation.path);
+		return resolveWorkspaceTargetDirectory(this.workspaceService, type);
 	}
 
 	/**
 	 * Resolves the user-level directory for a new customization file.
-	 * Delegates to IPromptsService.getSourceFolders() which knows the correct
-	 * user data profile path.
 	 */
 	async resolveUserDirectory(type: PromptsType): Promise<URI | undefined> {
-		const folders = await this.promptsService.getSourceFolders(type);
-		const userFolder = folders.find(f => f.storage === PromptsStorage.user);
-		return userFolder?.uri;
+		return resolveUserTargetDirectory(this.promptsService, type);
 	}
+}
+
+/**
+ * Resolves the workspace directory for a new customization file based on the active project root.
+ */
+export function resolveWorkspaceTargetDirectory(workspaceService: IAICustomizationWorkspaceService, type: PromptsType): URI | undefined {
+	const basePath = workspaceService.getActiveProjectRoot();
+	if (!basePath) {
+		return undefined;
+	}
+	const defaultLocations = getPromptFileDefaultLocations(type);
+	const localLocation = defaultLocations.find(loc => loc.storage === PromptsStorage.local);
+	if (!localLocation) {
+		return basePath;
+	}
+	return URI.joinPath(basePath, localLocation.path);
+}
+
+/**
+ * Resolves the user-level directory for a new customization file.
+ */
+export async function resolveUserTargetDirectory(promptsService: IPromptsService, type: PromptsType): Promise<URI | undefined> {
+	const folders = await promptsService.getSourceFolders(type);
+	const userFolder = folders.find(f => f.storage === PromptsStorage.user);
+	return userFolder?.uri;
 }
 
 //#region Agent Instructions

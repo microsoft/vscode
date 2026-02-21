@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { localize } from '../../../../nls.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+
+// Re-export for convenience — consumers import from this file
+export { AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 
 /**
  * Editor pane ID for the AI Customizations Management Editor.
@@ -29,21 +31,6 @@ export const AICustomizationManagementCommands = {
 	CreateNewInstructions: 'aiCustomization.createNewInstructions',
 	CreateNewPrompt: 'aiCustomization.createNewPrompt',
 } as const;
-
-/**
- * Section IDs for the sidebar navigation.
- */
-export const AICustomizationManagementSection = {
-	Agents: 'agents',
-	Skills: 'skills',
-	Instructions: 'instructions',
-	Prompts: 'prompts',
-	Hooks: 'hooks',
-	McpServers: 'mcpServers',
-	Models: 'models',
-} as const;
-
-export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
 
 /**
  * Context key indicating the AI Customization Management Editor is focused.
@@ -95,8 +82,3 @@ export const SIDEBAR_DEFAULT_WIDTH = 200;
 export const SIDEBAR_MIN_WIDTH = 150;
 export const SIDEBAR_MAX_WIDTH = 350;
 export const CONTENT_MIN_WIDTH = 400;
-
-export function getActiveSessionRoot(activeSessionService: ISessionsManagementService): URI | undefined {
-	const session = activeSessionService.getActiveSession();
-	return session?.worktree ?? session?.repository;
-}
