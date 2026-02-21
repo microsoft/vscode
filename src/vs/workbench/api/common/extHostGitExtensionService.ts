@@ -154,8 +154,15 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			};
 		}
 
-		// Update repository state
-		await repository.status();
+		let repositoryState = repository.state;
+		if (repositoryState.HEAD === undefined) {
+			// Opening the repository does not wait for the repository state to be
+			// initialized so we need to wait for the first change event to ensure
+			// that the repository state is fully loaded before we return it to the
+			// main thread.
+			await Event.toPromise(repositoryState.onDidChange, this._disposables);
+			repositoryState = repository.state;
+		}
 
 		// Store the repository and its handle in the maps
 		const handle = ExtHostGitExtensionService._handlePool++;
