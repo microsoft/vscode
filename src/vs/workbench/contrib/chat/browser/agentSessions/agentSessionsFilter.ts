@@ -11,7 +11,7 @@ import { registerAction2, Action2, MenuId } from '../../../../../platform/action
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionStatus, IAgentSession } from './agentSessionsModel.js';
 import { IAgentSessionsFilter, IAgentSessionsFilterExcludes } from './agentSessionsViewer.js';
 
@@ -127,17 +127,21 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private registerProviderActions(disposables: DisposableStore, menuId: MenuId): void {
-		const providers: { id: string; label: string }[] = Object.values(AgentSessionProviders).map(provider => ({
-			id: provider,
-			label: getAgentSessionProviderName(provider)
-		}));
+		const providers: { id: string; label: string }[] = [{
+			id: AgentSessionProviders.Local,
+			label: getAgentSessionProviderName(AgentSessionProviders.Local)
+		}];
 
-		for (const provider of this.chatSessionsService.getAllChatSessionContributions()) {
-			if (providers.find(p => p.id === provider.type)) {
+		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
+			if (providers.find(p => p.id === contribution.type)) {
 				continue; // already added
 			}
 
-			providers.push({ id: provider.type, label: provider.name });
+			const knownProvider = getAgentSessionProvider(contribution.type);
+			providers.push({
+				id: contribution.type,
+				label: knownProvider ? getAgentSessionProviderName(knownProvider) : contribution.displayName
+			});
 		}
 
 		const that = this;

@@ -18,11 +18,9 @@ import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import TypingsStatus from './ui/typingsStatus';
 import { Disposable } from './utils/dispose';
+import { readUnifiedConfig } from './utils/configuration';
 import { isWeb, isWebAndHasSharedArrayBuffers, supportsReadableByteStreams } from './utils/platform';
 
-
-const validateSetting = 'validate.enable';
-const suggestionSetting = 'suggestionActions.enabled';
 
 export default class LanguageProvider extends Disposable {
 
@@ -94,9 +92,9 @@ export default class LanguageProvider extends Disposable {
 	}
 
 	private configurationChanged(): void {
-		const config = vscode.workspace.getConfiguration(this.id, null);
-		this.updateValidate(config.get(validateSetting, true));
-		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
+		const scope: vscode.ConfigurationScope = { languageId: this.description.languageIds[0] };
+		this.updateValidate(readUnifiedConfig<boolean>('validate.enabled', true, { scope, fallbackSection: this.id, fallbackSubSectionNameOverride: 'validate.enable' }));
+		this.updateSuggestionDiagnostics(readUnifiedConfig<boolean>('suggestionActions.enabled', true, { scope, fallbackSection: this.id }));
 	}
 
 	public handlesUri(resource: vscode.Uri): boolean {

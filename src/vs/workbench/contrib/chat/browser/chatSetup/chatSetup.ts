@@ -4,11 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import product from '../../../../../platform/product/common/product.js';
+import { localize } from '../../../../../nls.js';
+import { EnablementState } from '../../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 const defaultChat = {
 	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
+	providerExtensionId: product.defaultChatAgent?.providerExtensionId ?? '',
 };
 
 export type InstallChatClassification = {
@@ -58,4 +64,45 @@ export function refreshTokens(commandService: ICommandService): void {
 	// ugly, but we need to signal to the extension that entitlements changed
 	commandService.executeCommand(defaultChat.completionsRefreshTokenCommand);
 	commandService.executeCommand(defaultChat.chatRefreshTokenCommand);
+}
+
+/**
+ * Ensures the authentication provider extension is enabled.
+ * If the extension is found locally but disabled, it will be
+ * re-enabled and running extensions will be updated.
+ *
+ * @returns `true` if the extension was re-enabled, `false` otherwise.
+ */
+export async function maybeEnableAuthExtension(
+	extensionsWorkbenchService: IExtensionsWorkbenchService,
+	logService: ILogService
+): Promise<boolean> {
+	if (!defaultChat.providerExtensionId) {
+		return false;
+	}
+
+	const providerExtension = extensionsWorkbenchService.local.find(
+		e => ExtensionIdentifier.equals(e.identifier.id, defaultChat.providerExtensionId)
+	);
+
+	if (!providerExtension) {
+		return false;
+	}
+
+	if (
+		providerExtension.enablementState === EnablementState.DisabledGlobally ||
+		providerExtension.enablementState === EnablementState.DisabledWorkspace
+	) {
+		logService.info(`[chat setup] auth provider extension '${defaultChat.providerExtensionId}' is disabled, re-enabling it`);
+		try {
+			await extensionsWorkbenchService.setEnablement([providerExtension], EnablementState.EnabledGlobally);
+			await extensionsWorkbenchService.updateRunningExtensions(localize('enableAuthExtension', "Enabling GitHub Authentication"));
+			return true;
+		} catch (error) {
+			logService.error(`[chat setup] failed to re-enable auth provider extension '${defaultChat.providerExtensionId}'`, error);
+			return false;
+		}
+	}
+
+	return false;
 }

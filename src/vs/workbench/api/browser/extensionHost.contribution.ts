@@ -98,7 +98,7 @@ import './mainThreadChatOutputRenderer.js';
 import './mainThreadChatSessions.js';
 import './mainThreadDataChannels.js';
 import './mainThreadMeteredConnection.js';
-import './mainThreadHooks.js';
+import './mainThreadGitExtensionService.js';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

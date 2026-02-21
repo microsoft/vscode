@@ -1,0 +1,102 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-viewpane {
+
+	.agent-sessions-container {
+		display: flex;
+		flex-direction: column;
+		height: 100%;
+		overflow: hidden;
+	}
+
+	/* Section headers - more prominent than time-based groupings */
+	.agent-sessions-header {
+		font-size: 11px;
+		font-weight: 500;
+		text-transform: uppercase;
+		color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+		padding: 6px 20px 6px 12px;
+		letter-spacing: 0.05em;
+	}
+
+	.agent-sessions-chevron {
+		flex-shrink: 0;
+		opacity: 0;
+		transition: opacity 0.1s ease-in-out;
+	}
+
+	.agent-sessions-header:hover .agent-sessions-chevron,
+	.agent-sessions-header:focus .agent-sessions-chevron {
+		opacity: 0.7;
+	}
+
+	/* Sessions section - fills remaining space above customizations */
+	.agent-sessions-section {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		overflow: hidden;
+		min-height: 0;
+	}
+
+	.agent-sessions-header {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding-top: 10px;
+		padding-right: 12px;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	.agent-sessions-header .agent-sessions-header-toolbar {
+		margin-left: auto;
+	}
+
+	.agent-sessions-header:focus {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+
+	.agent-sessions-content {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		overflow: hidden;
+	}
+
+	.agent-sessions-content.collapsed {
+		display: none;
+	}
+
+	.agent-sessions-new-button-container {
+		padding: 6px 12px 8px 12px;
+	}
+
+	.agent-sessions-new-button-container .monaco-button {
+		position: relative;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.agent-sessions-new-button-container .monaco-button .new-session-keybinding-hint {
+		position: absolute;
+		right: 10px;
+		font-size: 11px;
+		opacity: 0.5;
+	}
+
+	.agent-sessions-control-container {
+		flex: 1;
+		overflow: hidden;
+
+		/* Override section header padding to align with dot indicators */
+		.agent-session-section {
+			padding-left: 12px;
+		}
+	}
+}

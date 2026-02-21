@@ -1,0 +1,765 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* AI Customization Management Editor */
+.ai-customization-management-editor {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+}
+
+/* Sidebar */
+.ai-customization-management-editor .management-sidebar {
+	background-color: var(--vscode-sideBar-background);
+	height: 100%;
+	overflow: hidden;
+}
+
+.ai-customization-management-editor .sidebar-content {
+	height: 100%;
+	padding: 4px;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .sidebar-sections-list {
+	flex: 1;
+	overflow: hidden;
+}
+
+
+
+/* Section list items */
+.ai-customization-management-editor .section-list-item {
+	display: flex;
+	align-items: center;
+	padding: 4px 8px;
+	gap: 10px;
+	cursor: pointer;
+	border-radius: 4px;
+	transition: background-color 0.1s ease, opacity 0.1s ease;
+}
+
+.ai-customization-management-editor .section-list-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Selected section - using list selection */
+.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-icon {
+	color: var(--vscode-list-activeSelectionIconForeground, var(--vscode-list-activeSelectionForeground));
+}
+
+.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-label {
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.ai-customization-management-editor .section-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.85;
+}
+
+.ai-customization-management-editor .section-label {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	font-weight: 400;
+}
+
+/* Content area */
+.ai-customization-management-editor .management-content {
+	background-color: var(--vscode-editor-background);
+	height: 100%;
+	overflow: hidden;
+}
+
+.ai-customization-management-editor .content-inner {
+	height: 100%;
+	padding: 8px 12px;
+	box-sizing: border-box;
+}
+
+/* List Widget */
+.ai-customization-list-widget {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+/* Search and button container - consistent with Models view */
+.ai-customization-list-widget .list-search-and-button-container,
+.mcp-list-widget .list-search-and-button-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-shrink: 0;
+	margin: 6px 0px;
+}
+
+.ai-customization-list-widget .list-search-container,
+.mcp-list-widget .list-search-container {
+	flex: 1;
+}
+
+.ai-customization-list-widget .list-search-container .monaco-inputbox,
+.mcp-list-widget .list-search-container .monaco-inputbox {
+	width: 100%;
+}
+
+.ai-customization-list-widget .list-add-button-container,
+.mcp-list-widget .list-add-button-container {
+	flex-shrink: 0;
+}
+
+.ai-customization-list-widget .list-add-button,
+.mcp-list-widget .list-add-button {
+	white-space: nowrap;
+}
+
+.ai-customization-list-widget .list-add-button .monaco-button-dropdown .monaco-button:first-child {
+	flex: 1;
+}
+
+.ai-customization-list-widget .list-container {
+	flex: 1;
+	overflow: hidden;
+}
+
+.ai-customization-list-widget .list-empty-message {
+	padding: 12px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+/* Empty state - engaging design */
+.ai-customization-list-widget .list-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	gap: 12px;
+	text-align: center;
+	flex: 1;
+}
+
+.ai-customization-list-widget .list-empty-state .empty-state-icon {
+	font-size: 48px;
+	opacity: 0.4;
+	margin-bottom: 8px;
+}
+
+.ai-customization-list-widget .list-empty-state .empty-state-text {
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.ai-customization-list-widget .list-empty-state .empty-state-subtext {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	max-width: 300px;
+	line-height: 1.4;
+}
+
+.ai-customization-list-widget .list-empty-state .empty-state-button {
+	margin-top: 16px;
+}
+
+/* Group header styling */
+.ai-customization-group-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 8px 4px 8px;
+	cursor: pointer;
+	user-select: none;
+	border-radius: 4px;
+}
+
+/* Separator line above non-first group headers */
+.ai-customization-group-header.has-previous-group {
+	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
+	margin-top: 4px;
+	padding-top: 12px;
+}
+
+.ai-customization-group-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-group-header .group-chevron {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	opacity: 0.7;
+}
+
+.ai-customization-group-header .group-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.8;
+}
+
+.ai-customization-group-header .group-label {
+	flex: 1;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground));
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-group-header .group-count {
+	flex-shrink: 0;
+	font-size: 10px;
+	font-weight: 500;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	padding: 0 5px;
+	border-radius: 8px;
+	min-width: 14px;
+	text-align: center;
+	line-height: 16px;
+}
+
+.ai-customization-group-header.collapsed .group-label {
+	opacity: 0.7;
+}
+
+/* List item styling */
+.ai-customization-list-item {
+	display: flex;
+	align-items: flex-start;
+	padding: 6px 8px 6px 24px;
+	cursor: pointer;
+	border-radius: 4px;
+	margin: 2px 0;
+	min-height: 32px;
+}
+
+.ai-customization-list-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-list-item .item-left {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	overflow: hidden;
+	gap: 10px;
+	min-width: 0;
+}
+
+.ai-customization-list-item .storage-badge {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.7;
+}
+
+.ai-customization-list-item:hover .storage-badge {
+	opacity: 1;
+}
+
+.ai-customization-list-item .git-status-badge {
+	flex-shrink: 0;
+	font-size: 10px;
+	font-weight: 600;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 3px;
+	margin-right: 4px;
+	opacity: 1;
+}
+
+.ai-customization-list-item .git-status-badge.committed {
+	color: var(--vscode-charts-green, #89d185);
+	opacity: 0.6;
+}
+
+.ai-customization-list-item .item-text {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	flex: 1;
+	min-width: 0;
+}
+
+.ai-customization-list-item .item-name {
+	font-size: 13px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 18px;
+}
+
+.ai-customization-list-item .item-description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	line-height: 14px;
+}
+
+.ai-customization-list-item .item-description.is-filename {
+	font-family: monospace;
+	font-size: 10px;
+	opacity: 0.7;
+}
+
+.ai-customization-list-item .item-right {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: 8px;
+	gap: 4px;
+	opacity: 0;
+	transition: opacity 0.1s ease;
+}
+
+.ai-customization-list-item:hover .item-right,
+.ai-customization-list-item:focus-within .item-right {
+	opacity: 1;
+}
+
+/* Highlighted matches */
+.ai-customization-list-item .highlight {
+	font-weight: bold;
+	color: var(--vscode-list-highlightForeground);
+}
+
+/* Section footer at bottom of list widget */
+.ai-customization-list-widget .section-footer {
+	flex-shrink: 0;
+	padding: 12px 4px 6px 4px;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.ai-customization-list-widget .section-footer .section-footer-description {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+	margin: 0 0 8px 0;
+}
+
+.ai-customization-list-widget .section-footer .section-footer-link {
+	font-size: 13px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.ai-customization-list-widget .section-footer .section-footer-link:hover {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+/* Overview View (compact snapshot) */
+.ai-customization-overview {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 8px;
+}
+
+.ai-customization-overview .overview-sections {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+
+.ai-customization-overview .overview-section {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 12px;
+	background-color: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background-color 0.1s ease;
+	flex: 1 1 120px;
+	min-width: 100px;
+}
+
+.ai-customization-overview .overview-section:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	border-color: var(--vscode-focusBorder);
+}
+
+.ai-customization-overview .overview-section:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-overview .overview-section .section-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	opacity: 0.9;
+}
+
+.ai-customization-overview .overview-section .section-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.ai-customization-overview .overview-section .section-label {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+
+
+.ai-customization-overview .overview-section .section-count {
+	flex-shrink: 0;
+	font-size: 9px;
+	font-weight: 600;
+	padding: 1px 5px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 8px;
+	border: 1px solid transparent;
+	min-width: 14px;
+	text-align: center;
+}
+
+/* Content container visibility */
+.ai-customization-management-editor .prompts-content-container,
+.ai-customization-management-editor .mcp-content-container,
+.ai-customization-management-editor .models-content-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+/* Models section footer */
+.ai-customization-management-editor .models-content-container .section-footer {
+	flex-shrink: 0;
+	padding: 12px 4px 6px 4px;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.ai-customization-management-editor .models-content-container .section-footer-description {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+	margin: 0 0 8px 0;
+}
+
+.ai-customization-management-editor .models-content-container .section-footer-link {
+	font-size: 13px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.ai-customization-management-editor .models-content-container .section-footer-link:hover {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+/* Override models widget padding when embedded in management editor */
+.ai-customization-management-editor .models-content-container .models-widget {
+	padding-right: 0;
+	flex: 1;
+	overflow: hidden;
+}
+
+/* MCP List Widget */
+.mcp-list-widget {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.mcp-list-widget .section-footer {
+	flex-shrink: 0;
+	padding: 12px 4px 6px 4px;
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.mcp-list-widget .section-footer .section-footer-description {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+	margin: 0 0 8px 0;
+}
+
+.mcp-list-widget .section-footer .section-footer-link {
+	font-size: 13px;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.mcp-list-widget .section-footer .section-footer-link:hover {
+	text-decoration: underline;
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.mcp-list-widget .mcp-list-container {
+	flex: 1;
+	overflow: hidden;
+}
+
+/* MCP Empty State */
+.mcp-list-widget .mcp-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	gap: 12px;
+	text-align: center;
+	flex: 1;
+}
+
+.mcp-list-widget .mcp-empty-state .empty-icon {
+	font-size: 48px;
+	opacity: 0.4;
+	margin-bottom: 8px;
+}
+
+.mcp-list-widget .mcp-empty-state .empty-text {
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.mcp-list-widget .mcp-empty-state .empty-subtext {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	max-width: 300px;
+	line-height: 1.4;
+}
+
+.mcp-list-widget .mcp-empty-state .monaco-button {
+	margin-top: 16px;
+}
+
+/* MCP Server Item */
+.mcp-server-item {
+	display: flex;
+	align-items: center;
+	padding: 8px 12px;
+	cursor: pointer;
+	border-radius: 4px;
+	margin: 2px 0;
+	gap: 12px;
+}
+
+.mcp-server-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.mcp-server-item .mcp-server-icon {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.8;
+}
+
+.mcp-server-item .mcp-server-details {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	min-width: 0;
+}
+
+.mcp-server-item .mcp-server-name {
+	font-size: 13px;
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mcp-server-item .mcp-server-description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.mcp-server-item .mcp-server-status {
+	flex-shrink: 0;
+	font-size: 11px;
+	padding: 2px 8px;
+	border-radius: 10px;
+	font-weight: 500;
+}
+
+.mcp-server-item .mcp-server-status.running {
+	background-color: var(--vscode-terminal-ansiGreen);
+	color: var(--vscode-editor-background);
+}
+
+.mcp-server-item .mcp-server-status.starting {
+	background-color: var(--vscode-terminal-ansiYellow);
+	color: var(--vscode-editor-background);
+}
+
+.mcp-server-item .mcp-server-status.error {
+	background-color: var(--vscode-terminal-ansiRed);
+	color: var(--vscode-editor-background);
+}
+
+.mcp-server-item .mcp-server-status.stopped {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+/* Embedded Editor View */
+.ai-customization-management-editor .editor-content-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .editor-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 4px 12px 4px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .editor-back-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border-radius: 4px;
+	cursor: pointer;
+	background: transparent;
+	border: none;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+	transition: background-color 0.1s ease, opacity 0.1s ease;
+}
+
+.ai-customization-management-editor .editor-back-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
+
+.ai-customization-management-editor .editor-back-button:active {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.ai-customization-management-editor .editor-item-info {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	flex: 1;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .editor-item-name {
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.ai-customization-management-editor .editor-item-path {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: var(--monaco-monospace-font);
+}
+
+.ai-customization-management-editor .editor-save-indicator {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+	line-height: 16px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0;
+	transition: opacity 0.2s ease;
+	margin-right: 4px;
+}
+
+.ai-customization-management-editor .editor-save-indicator.visible {
+	opacity: 0.7;
+}
+
+.ai-customization-management-editor .editor-save-indicator.saved {
+	color: var(--vscode-testing-iconPassed, #73c991);
+	opacity: 1;
+}
+
+.ai-customization-management-editor .embedded-editor-container {
+	flex: 1;
+	overflow: hidden;
+	margin-top: 8px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 4px;
+}
+
+.ai-customization-management-editor .embedded-editor-container .monaco-editor {
+	border-radius: 4px;
+}

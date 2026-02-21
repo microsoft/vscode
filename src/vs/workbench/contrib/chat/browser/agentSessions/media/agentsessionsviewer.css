@@ -9,18 +9,12 @@
 	height: 100%;
 	min-height: 0;
 
-	.monaco-scrollable-element {
+	.pane-body & .monaco-scrollable-element {
 		padding: 0 6px;
 	}
 
 	.monaco-list-row {
 		border-radius: 6px;
-	}
-
-	/* Hide focus outlines on mouse click, preserve for keyboard navigation */
-	&.mouse-focused .monaco-list-row.focused,
-	&.mouse-focused .monaco-list-row.focused.selected {
-		outline: none !important;
 	}
 
 	.monaco-list-row .force-no-twistie {
@@ -50,10 +44,6 @@
 		color: unset;
 	}
 
-	.monaco-list-row.selected .agent-session-status {
-		color: unset;
-	}
-
 	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row {
 		color: var(--vscode-descriptionForeground);
 	}
@@ -72,23 +62,23 @@
 		}
 	}
 
-	/* On hover or keyboard focus: show toolbar, hide status */
+	/* On hover or keyboard focus: show toolbar */
 	.monaco-list-row:hover,
-	&:not(.mouse-focused) .monaco-list-row.focused {
+	.monaco-list-row.focused {
 
 		.agent-session-title-toolbar {
 			display: block;
 		}
 
-		.agent-session-status {
-			display: none;
+		.agent-session-title {
+			margin-right: 8px;
 		}
 	}
 
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 4px 6px;
+		padding: 8px 6px;
 
 		&.archived {
 			color: var(--vscode-descriptionForeground);
@@ -104,7 +94,7 @@
 		.agent-session-icon-col {
 			display: flex;
 			align-items: flex-start;
-			line-height: 16px;
+			line-height: 17px;
 
 			.agent-session-icon {
 				flex-shrink: 0;
@@ -148,16 +138,16 @@
 		}
 
 		.agent-session-title-row {
-			line-height: 16px;
-			padding-bottom: 2px;
+			line-height: 17px;
+			padding-bottom: 6px;
 		}
 
 		.agent-session-details-row {
 			gap: 4px;
-			font-size: 11px;
-			line-height: 14px;
-			max-height: 14px;
-			color: var(--vscode-disabledForeground);
+			font-size: 12px;
+			line-height: 15px;
+			max-height: 15px;
+			color: var(--vscode-descriptionForeground);
 
 			.rendered-markdown {
 				p {
@@ -233,22 +223,25 @@
 			flex: 1;
 			overflow: hidden;
 			white-space: nowrap;
-			margin-right: 16px;
-			mask-image: linear-gradient(to right, black calc(100% - 32px), transparent);
-			-webkit-mask-image: linear-gradient(to right, black calc(100% - 32px), transparent);
 		}
 
 		.agent-session-title {
-			font-size: 12px;
-			color: var(--vscode-descriptionForeground);
+			font-size: 13px;
+		}
+
+		.agent-session-details-right {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			margin-left: auto;
+			white-space: nowrap;
+			flex-shrink: 0;
 		}
 
 		.agent-session-status {
 			display: flex;
 			align-items: center;
 			font-variant-numeric: tabular-nums;
-			font-size: 11px;
-			color: var(--vscode-disabledForeground);
 			white-space: nowrap;
 
 			.agent-session-status-provider-icon {

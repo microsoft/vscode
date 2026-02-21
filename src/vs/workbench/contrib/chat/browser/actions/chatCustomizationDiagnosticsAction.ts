@@ -27,6 +27,8 @@ import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platf
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { parseAllHookFiles, IParsedHook } from '../promptSyntax/hookUtils.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { OS } from '../../../../../base/common/platform.js';
 
 /**
  * URL encodes path segments for use in markdown links.
@@ -85,8 +87,8 @@ export interface IFileStatusInfo {
 	overwrittenBy?: string;
 	/** Extension ID if this file comes from an extension */
 	extensionId?: string;
-	/** If true, hidden from / menu (user-invokable: false) */
-	userInvokable?: boolean;
+	/** If false, hidden from / menu (user-invocable: false) */
+	userInvocable?: boolean;
 	/** If true, won't be auto-loaded by agent (disable-model-invocation: true) */
 	disableModelInvocation?: boolean;
 }
@@ -155,6 +157,7 @@ export function registerChatCustomizationDiagnosticsAction() {
 			const commandService = accessor.get(ICommandService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const labelService = accessor.get(ILabelService);
+			const remoteAgentService = accessor.get(IRemoteAgentService);
 
 			const token = CancellationToken.None;
 			const workspaceFolders = workspaceContextService.getWorkspace().folders;
@@ -180,7 +183,7 @@ export function registerChatCustomizationDiagnosticsAction() {
 			statusInfos.push(skillsStatus);
 
 			// 5. Hooks
-			const hooksStatus = await collectHooksStatus(promptsService, fileService, labelService, pathService, workspaceContextService, token);
+			const hooksStatus = await collectHooksStatus(promptsService, fileService, labelService, pathService, workspaceContextService, remoteAgentService, token);
 			statusInfos.push(hooksStatus);
 
 			// 6. Special files (AGENTS.md, copilot-instructions.md)
@@ -308,6 +311,7 @@ async function collectHooksStatus(
 	labelService: ILabelService,
 	pathService: IPathService,
 	workspaceContextService: IWorkspaceContextService,
+	remoteAgentService: IRemoteAgentService,
 	token: CancellationToken
 ): Promise<ITypeStatusInfo> {
 	const type = PromptsType.hook;
@@ -321,8 +325,13 @@ async function collectHooksStatus(
 	const discoveryInfo = await promptsService.getPromptDiscoveryInfo(type, token);
 	const files = discoveryInfo.files.map(convertDiscoveryResultToFileStatus);
 
+	// Collect URIs of files skipped due to disableAllHooks so we can show their hidden hooks
+	const disabledFileUris = discoveryInfo.files
+		.filter(f => f.status === 'skipped' && f.skipReason === 'all-hooks-disabled')
+		.map(f => f.uri);
+
 	// Parse hook files to extract individual hooks grouped by lifecycle
-	const parsedHooks = await parseHookFiles(promptsService, fileService, labelService, pathService, workspaceContextService, token);
+	const parsedHooks = await parseHookFiles(promptsService, fileService, labelService, pathService, workspaceContextService, remoteAgentService, token, disabledFileUris);
 
 	return { type, paths, files, enabled, parsedHooks };
 }
@@ -336,7 +345,9 @@ async function parseHookFiles(
 	labelService: ILabelService,
 	pathService: IPathService,
 	workspaceContextService: IWorkspaceContextService,
-	token: CancellationToken
+	remoteAgentService: IRemoteAgentService,
+	token: CancellationToken,
+	additionalDisabledFileUris?: URI[]
 ): Promise<IParsedHook[]> {
 	// Get workspace root and user home for path resolution
 	const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
@@ -344,8 +355,12 @@ async function parseHookFiles(
 	const userHomeUri = await pathService.userHome();
 	const userHome = userHomeUri.fsPath ?? userHomeUri.path;
 
+	// Get the remote OS (or fall back to local OS)
+	const remoteEnv = await remoteAgentService.getEnvironment();
+	const targetOS = remoteEnv?.os ?? OS;
+
 	// Use the shared helper
-	return parseAllHookFiles(promptsService, fileService, labelService, workspaceRootUri, userHome, token);
+	return parseAllHookFiles(promptsService, fileService, labelService, workspaceRootUri, userHome, targetOS, token, { additionalDisabledFileUris });
 }
 
 /**
@@ -433,6 +448,10 @@ function getSkipReasonMessage(skipReason: PromptFileSkipReason | undefined, erro
 			return errorMessage ?? nls.localize('status.parseError', 'Parse error');
 		case 'disabled':
 			return nls.localize('status.typeDisabled', 'Disabled');
+		case 'all-hooks-disabled':
+			return nls.localize('status.allHooksDisabled', 'All hooks disabled via disableAllHooks');
+		case 'claude-hooks-disabled':
+			return nls.localize('status.claudeHooksDisabled', 'Claude hooks disabled via chat.useClaudeHooks setting');
 		default:
 			return errorMessage ?? nls.localize('status.unknownError', 'Unknown error');
 	}
@@ -449,7 +468,7 @@ function convertDiscoveryResultToFileStatus(result: IPromptFileDiscoveryResult):
 			name: result.name,
 			storage: result.storage,
 			extensionId: result.extensionId,
-			userInvokable: result.userInvokable,
+			userInvocable: result.userInvocable,
 			disableModelInvocation: result.disableModelInvocation
 		};
 	}
@@ -726,16 +745,22 @@ export function formatStatusOutput(
 				const fileHooks = hooksByFile.get(fileKey)!;
 				const firstHook = fileHooks[0];
 				const filePath = getRelativePath(firstHook.fileUri, workspaceFolders);
+				const fileDisabled = fileHooks[0].disabled;
 
-				// File as clickable link
-				lines.push(`[${firstHook.filePath}](${filePath})<br>`);
+				// File as clickable link, with note if hooks are disabled via flag
+				if (fileDisabled) {
+					lines.push(`[${firstHook.filePath}](${filePath}) - *${nls.localize('status.allHooksDisabledLabel', 'all hooks disabled via disableAllHooks')}*<br>`);
+				} else {
+					lines.push(`[${firstHook.filePath}](${filePath})<br>`);
+				}
 
 				// Flatten hooks with their lifecycle label
 				for (let i = 0; i < fileHooks.length; i++) {
 					const hook = fileHooks[i];
 					const isLast = i === fileHooks.length - 1;
 					const prefix = isLast ? TREE_END : TREE_BRANCH;
-					lines.push(`${prefix} ${hook.hookTypeLabel}: \`${hook.commandLabel}\`<br>`);
+					const disabledPrefix = hook.disabled ? `${ICON_ERROR} ` : '';
+					lines.push(`${prefix} ${disabledPrefix}${hook.hookTypeLabel}: \`${hook.commandLabel}\`<br>`);
 				}
 			}
 			hasContent = true;
@@ -766,8 +791,8 @@ function getSkillFlags(file: IFileStatusInfo, type: PromptsType): string {
 		flags.push(`${ICON_MANUAL} *${nls.localize('status.skill.manualOnly', 'manual only')}*`);
 	}
 
-	// userInvokable: false means hidden from / menu
-	if (file.userInvokable === false) {
+	// userInvocable: false means hidden from / menu
+	if (file.userInvocable === false) {
 		flags.push(`${ICON_HIDDEN} *${nls.localize('status.skill.hiddenFromMenu', 'hidden from menu')}*`);
 	}
 

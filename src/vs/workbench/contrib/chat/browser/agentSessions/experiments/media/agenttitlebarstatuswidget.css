@@ -247,7 +247,12 @@
 }
 
 .agent-status-badge-section.filtered {
+	color: var(--vscode-inputOption-activeForeground);
 	background-color: var(--vscode-inputOption-activeBackground);
+}
+
+.agent-status-badge-section.filtered .agent-status-icon .codicon {
+	color: var(--vscode-inputOption-activeForeground);
 }
 
 .agent-status-badge-section.filtered:hover {

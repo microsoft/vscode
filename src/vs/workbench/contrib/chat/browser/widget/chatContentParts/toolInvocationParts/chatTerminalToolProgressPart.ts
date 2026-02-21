@@ -366,7 +366,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		if (terminalToolsInThinking && !requiresConfirmation) {
 			this._isInThinkingContainer = true;
-			this.domNode = this._createCollapsibleWrapper(progressPart.domNode, command, toolInvocation, context);
+			this.domNode = this._createCollapsibleWrapper(progressPart.domNode, displayCommand, toolInvocation, context);
 		} else {
 			this.domNode = progressPart.domNode;
 		}

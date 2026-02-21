@@ -1,0 +1,329 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-full-welcome {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	overflow-x: hidden;
+	padding-bottom: 10%;
+}
+
+.chat-full-welcome.revealed {
+	justify-content: center;
+}
+
+/* Header */
+.chat-full-welcome-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: 100%;
+	max-width: 800px;
+	overflow: visible;
+}
+
+/* Watermark letterpress */
+.chat-full-welcome-letterpress {
+	width: 100%;
+	max-width: 200px;
+	aspect-ratio: 1/1;
+	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-dark.svg');
+	background-size: contain;
+	background-position: center;
+	background-repeat: no-repeat;
+	margin-top: 8px;
+	margin-bottom: 20px;
+}
+
+.vs .chat-full-welcome-letterpress {
+	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-light.svg');
+}
+
+.hc-light .chat-full-welcome-letterpress {
+	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-hcLight.svg');
+}
+
+.hc-black .chat-full-welcome-letterpress {
+	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-hcDark.svg');
+}
+
+/* Input slot */
+.chat-full-welcome-inputSlot {
+	width: 100%;
+	max-width: 800px;
+	margin-top: 12px;
+	box-sizing: border-box;
+	display: none;
+}
+
+.chat-full-welcome.revealed .chat-full-welcome-inputSlot {
+	display: block;
+	animation: chat-full-welcome-fade-in 0.35s ease 0.15s both;
+}
+
+/* Option group pickers container (above the input) */
+.chat-full-welcome-pickers-container {
+	display: none;
+	width: 100%;
+	max-width: 800px;
+	margin: 0 0 24px 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+
+.chat-full-welcome.revealed .chat-full-welcome-pickers-container {
+	display: block;
+	animation: chat-full-welcome-fade-in 0.35s ease 0.1s both;
+}
+
+@keyframes chat-full-welcome-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(12px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.chat-full-welcome-pickers-container:empty {
+	display: none;
+	margin-bottom: 0;
+}
+
+/* Local mode picker (Workspace / Worktree) below input */
+.chat-full-welcome-local-mode {
+	width: 100%;
+	max-width: 800px;
+	margin-top: 8px;
+	box-sizing: border-box;
+	display: none;
+	flex-direction: row;
+	align-items: center;
+	min-height: 28px;
+}
+
+.chat-full-welcome.revealed .chat-full-welcome-local-mode {
+	display: flex;
+}
+
+.sessions-chat-local-mode-left {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.sessions-chat-local-mode-spacer {
+	flex: 1;
+}
+
+.sessions-chat-local-mode-right {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	min-width: 0;
+}
+
+/* Ensure the input editor fits properly */
+.chat-full-welcome-inputSlot .interactive-input-part {
+	margin: 0;
+	padding: 0;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+.chat-full-welcome-inputSlot .interactive-input-part .monaco-editor {
+	min-height: 0;
+}
+
+.chat-full-welcome-inputSlot .interactive-input-part .monaco-editor .view-lines {
+	min-height: 0;
+}
+
+.chat-full-welcome-inputSlot .chat-input-container {
+	overflow: hidden;
+	border-color: var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+}
+
+.chat-controls-container .monaco-editor-background {
+	background-color: var(--vscode-input-background) !important;
+}
+
+/* Pickers row - two equal halves */
+.chat-full-welcome-pickers {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0;
+}
+
+.chat-full-welcome-pickers:empty {
+	display: none;
+}
+
+/* Left half: target switcher, right-justified */
+.sessions-chat-pickers-left-half {
+	flex: 1;
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	min-width: 0;
+}
+
+/* Right half: pickers, left-justified */
+.sessions-chat-pickers-right-half {
+	flex: 1;
+	display: flex;
+	justify-content: flex-start;
+	align-items: center;
+	min-width: 0;
+}
+
+/* Separator between switcher and folder picker */
+.sessions-chat-pickers-left-separator {
+	width: 1px;
+	height: 22px;
+	background-color: var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	margin: 0 12px;
+	flex-shrink: 0;
+	display: none;
+}
+
+/* Target switcher radio buttons - bigger and fancier */
+.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button {
+	font-size: 13px;
+	line-height: 1.4em;
+	padding: 4px 14px;
+}
+
+.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button:first-child {
+	border-top-left-radius: 6px;
+	border-bottom-left-radius: 6px;
+}
+
+.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button:last-child {
+	border-top-right-radius: 6px;
+	border-bottom-right-radius: 6px;
+}
+
+.sessions-chat-dropdown-wrapper .monaco-custom-radio > .monaco-button:focus {
+	outline: none;
+}
+
+/* Folder label next to the picker */
+.sessions-chat-folder-label {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	margin-right: 6px;
+}
+
+/* Target dropdown button */
+.sessions-chat-dropdown-button {
+	display: flex;
+	align-items: center;
+	height: 16px;
+	padding: 3px 3px 3px 6px;
+	cursor: pointer;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	background-color: transparent;
+	border: none;
+	white-space: nowrap;
+	border-radius: 4px;
+}
+
+.sessions-chat-dropdown-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-chat-dropdown-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-chat-dropdown-button .codicon {
+	font-size: 14px;
+	flex-shrink: 0;
+}
+
+.sessions-chat-dropdown-button .codicon.codicon-chevron-down {
+	font-size: 12px;
+	margin-left: 2px;
+}
+
+.sessions-chat-dropdown-label {
+	margin-left: 4px;
+}
+
+/* Extension picker slots (rendered inline in the row) */
+.sessions-chat-picker-slot {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.sessions-chat-picker-slot .action-label {
+	display: flex;
+	align-items: center;
+	height: 16px;
+	padding: 3px 3px 3px 6px;
+	background-color: transparent;
+	border: none;
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	cursor: pointer;
+	white-space: nowrap;
+	border-radius: 4px;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.sessions-chat-picker-slot .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-chat-picker-slot.disabled .action-label {
+	opacity: 0.5;
+	cursor: default;
+	pointer-events: none;
+}
+
+.sessions-chat-picker-slot.disabled .action-label:hover {
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-chat-picker-slot .action-label .codicon {
+	font-size: 14px;
+	flex-shrink: 0;
+}
+
+.sessions-chat-picker-slot .action-label .codicon-chevron-down {
+	font-size: 12px;
+	margin-left: 2px;
+}
+
+.sessions-chat-picker-slot .action-label .chat-session-option-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sessions-chat-picker-slot .action-label span + .chat-session-option-label {
+	margin-left: 2px;
+}

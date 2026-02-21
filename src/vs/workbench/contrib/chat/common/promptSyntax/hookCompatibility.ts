@@ -5,8 +5,8 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
-import { HookType, IHookCommand, toHookType, resolveHookCommand } from './hookSchema.js';
-import { parseClaudeHooks } from './hookClaudeCompat.js';
+import { HookType, IHookCommand, toHookType } from './hookSchema.js';
+import { parseClaudeHooks, extractHookCommandsFromItem } from './hookClaudeCompat.js';
 import { resolveCopilotCliHookType } from './hookCopilotCliCompat.js';
 
 /**
@@ -30,7 +30,7 @@ export interface IResolvedHookEntry {
  * Supported hook file formats.
  */
 export enum HookSourceFormat {
-	/** GitHub Copilot hooks.json format */
+	/** GitHub Copilot hooks .json format */
 	Copilot = 'copilot',
 	/** Claude settings.json / settings.local.json format */
 	Claude = 'claude',
@@ -48,11 +48,6 @@ export function getHookSourceFormat(fileUri: URI): HookSourceFormat {
 		return HookSourceFormat.Claude;
 	}
 
-	// Copilot format: hooks.json (typically in .github/hooks/)
-	if (filename === 'hooks.json') {
-		return HookSourceFormat.Copilot;
-	}
-
 	// Default to Copilot format
 	return HookSourceFormat.Copilot;
 }
@@ -66,7 +61,7 @@ export function isReadOnlyHookSource(format: HookSourceFormat): boolean {
 }
 
 /**
- * Parses hooks from a Copilot hooks.json file (our native format).
+ * Parses hooks from a Copilot hooks .json file (our native format).
  */
 export function parseCopilotHooks(
 	json: unknown,
@@ -102,10 +97,9 @@ export function parseCopilotHooks(
 		const commands: IHookCommand[] = [];
 
 		for (const item of hookArray) {
-			const resolved = resolveHookCommand(item as Record<string, unknown>, workspaceRootUri, userHome);
-			if (resolved) {
-				commands.push(resolved);
-			}
+			// Use helper that handles both direct commands and Claude-style nested matcher structures
+			const extracted = extractHookCommandsFromItem(item, workspaceRootUri, userHome);
+			commands.push(...extracted);
 		}
 
 		if (commands.length > 0) {
@@ -117,6 +111,18 @@ export function parseCopilotHooks(
 }
 
 /**
+ * Result of parsing hooks from a file.
+ */
+export interface IParseHooksFromFileResult {
+	readonly format: HookSourceFormat;
+	readonly hooks: Map<HookType, { hooks: IHookCommand[]; originalId: string }>;
+	/**
+	 * Whether all hooks from this file were disabled via `disableAllHooks: true`.
+	 */
+	readonly disabledAllHooks: boolean;
+}
+
+/**
  * Parses hooks from any supported format, auto-detecting the format from the file URI.
  */
 export function parseHooksFromFile(
@@ -124,22 +130,61 @@ export function parseHooksFromFile(
 	json: unknown,
 	workspaceRootUri: URI | undefined,
 	userHome: string
-): { format: HookSourceFormat; hooks: Map<HookType, { hooks: IHookCommand[]; originalId: string }> } {
+): IParseHooksFromFileResult {
 	const format = getHookSourceFormat(fileUri);
 
 	let hooks: Map<HookType, { hooks: IHookCommand[]; originalId: string }>;
+	let disabledAllHooks = false;
 
 	switch (format) {
-		case HookSourceFormat.Claude:
-			hooks = parseClaudeHooks(json, workspaceRootUri, userHome);
+		case HookSourceFormat.Claude: {
+			const result = parseClaudeHooks(json, workspaceRootUri, userHome);
+			hooks = result.hooks;
+			disabledAllHooks = result.disabledAllHooks;
 			break;
+		}
 		case HookSourceFormat.Copilot:
 		default:
 			hooks = parseCopilotHooks(json, workspaceRootUri, userHome);
 			break;
 	}
 
-	return { format, hooks };
+	return { format, hooks, disabledAllHooks };
+}
+
+/**
+ * Parses hooks from a file, ignoring the `disableAllHooks` flag.
+ * Used by diagnostics to show which hooks are hidden when `disableAllHooks: true` is set.
+ */
+export function parseHooksIgnoringDisableAll(
+	fileUri: URI,
+	json: unknown,
+	workspaceRootUri: URI | undefined,
+	userHome: string
+): IParseHooksFromFileResult {
+	const format = getHookSourceFormat(fileUri);
+
+	let hooks: Map<HookType, { hooks: IHookCommand[]; originalId: string }>;
+
+	switch (format) {
+		case HookSourceFormat.Claude: {
+			// Strip `disableAllHooks` before parsing so the hooks are still extracted
+			if (json && typeof json === 'object') {
+				const { disableAllHooks: _, ...rest } = json as Record<string, unknown>;
+				const result = parseClaudeHooks(rest, workspaceRootUri, userHome);
+				hooks = result.hooks;
+			} else {
+				hooks = new Map();
+			}
+			break;
+		}
+		case HookSourceFormat.Copilot:
+		default:
+			hooks = parseCopilotHooks(json, workspaceRootUri, userHome);
+			break;
+	}
+
+	return { format, hooks, disabledAllHooks: true };
 }
 
 /**
@@ -152,4 +197,17 @@ export function getHookSourceFormatLabel(format: HookSourceFormat): string {
 		case HookSourceFormat.Copilot:
 			return 'GitHub Copilot';
 	}
+}
+
+/**
+ * Builds a new hook entry object in the appropriate format for the given source format.
+ * - Copilot format: `{ type: 'command', command: '' }`
+ * - Claude format: `{ matcher: '', hooks: [{ type: 'command', command: '' }] }`
+ */
+export function buildNewHookEntry(format: HookSourceFormat): Record<string, unknown> {
+	const commandEntry = { type: 'command', command: '' };
+	if (format === HookSourceFormat.Claude) {
+		return { matcher: '', hooks: [commandEntry] };
+	}
+	return commandEntry;
 }

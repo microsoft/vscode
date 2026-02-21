@@ -162,6 +162,16 @@ export namespace ToolDataSource {
 	}
 }
 
+/**
+ * Pre-tool-use hook result passed from the extension when the hook was executed externally.
+ */
+export interface IExternalPreToolUseHookResult {
+	permissionDecision?: 'allow' | 'deny' | 'ask';
+	permissionDecisionReason?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	updatedInput?: Record<string, any>;
+}
+
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
@@ -184,17 +194,17 @@ export interface IToolInvocation {
 	userSelectedTools?: UserSelectedTools;
 	/** The label of the custom button selected by the user during confirmation, if custom buttons were used. */
 	selectedCustomButton?: string;
+	/** Pre-tool-use hook result passed from the extension, if the hook was already executed externally. */
+	preToolUseResult?: IExternalPreToolUseHookResult;
 }
 
 export interface IToolInvocationContext {
-	/** @deprecated Use {@link sessionResource} instead */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
-	return typeof obj === 'object' && typeof obj.sessionId === 'string' && URI.isUri(obj.sessionResource);
+	return obj !== null && typeof obj === 'object' && URI.isUri(obj.sessionResource);
 }
 
 export interface IToolInvocationPreparationContext {
@@ -202,8 +212,6 @@ export interface IToolInvocationPreparationContext {
 	parameters: any;
 	toolCallId: string;
 	chatRequestId?: string;
-	/** @deprecated Use {@link chatSessionResource} instead */
-	chatSessionId?: string;
 	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
 	modelId?: string;
@@ -341,8 +349,6 @@ export interface IToolInvocationStreamContext {
 	toolCallId: string;
 	rawInput: unknown;
 	chatRequestId?: string;
-	/** @deprecated Use {@link chatSessionResource} instead */
-	chatSessionId?: string;
 	chatSessionResource?: URI;
 	chatInteractionId?: string;
 }
@@ -573,15 +579,10 @@ export interface ILanguageModelToolsService {
 	/**
 	 * Gets the enablement maps based on the given set of references.
 	 * @param fullReferenceNames The full reference names of the tools and tool sets to enable.
-	 * @param target Optional target to filter tools by.
 	 * @param model Optional language model metadata to filter tools by.
 	 * If undefined is passed, all tools will be returned, even if normally disabled.
 	 */
-	toToolAndToolSetEnablementMap(
-		fullReferenceNames: readonly string[],
-		target: string | undefined,
-		model: ILanguageModelChatMetadata | undefined,
-	): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(fullReferenceNames: readonly string[], model: ILanguageModelChatMetadata | undefined): IToolAndToolSetEnablementMap;
 
 	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];

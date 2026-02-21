@@ -1,0 +1,16 @@
+{
+	"screenshotDir": ".screenshots",
+	"sessions": [
+		{
+			"name": "current"
+		}
+	],
+	"viteConfig": "../../build/vite/vite.config.ts",
+	"vite": {
+		"hmr": {
+			"allowedPaths": [
+				"*.css"
+			]
+		}
+	}
+}

@@ -229,6 +229,7 @@ export class ChatMultiDiffData implements IChatMultiDiffData {
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
+	shimmer?: boolean;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -434,7 +435,11 @@ export interface IChatHookPart {
 	stopReason?: string;
 	/** Warning/system message from the hook, shown to the user */
 	systemMessage?: string;
+	/** Display name of the tool that was affected by the hook */
+	toolDisplayName?: string;
 	metadata?: { readonly [key: string]: unknown };
+	/** If set, this hook was executed within a subagent invocation and should be grouped with it. */
+	subAgentInvocationId?: string;
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -855,6 +860,23 @@ export interface IChatSubagentToolInvocationData {
 	modelName?: string;
 }
 
+/**
+ * Progress type for external tool invocation updates from extensions.
+ * When isComplete is false, creates or updates a tool invocation.
+ * When isComplete is true, completes an existing tool invocation.
+ */
+export interface IChatExternalToolInvocationUpdate {
+	kind: 'externalToolInvocationUpdate';
+	toolCallId: string;
+	toolName: string;
+	isComplete: boolean;
+	errorMessage?: string;
+	invocationMessage?: string | IMarkdownString;
+	pastTenseMessage?: string | IMarkdownString;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData;
+	subagentInvocationId?: string;
+}
+
 export interface IChatTodoListContent {
 	kind: 'todoList';
 	todoList: Array<{
@@ -886,6 +908,10 @@ export interface IChatMcpServersStartingSerialized {
 	readonly kind: 'mcpServersStarting';
 	readonly state?: undefined;
 	didStartServerIds?: string[];
+}
+
+export interface IChatDisabledClaudeHooksPart {
+	readonly kind: 'disabledClaudeHooks';
 }
 
 export class ChatMcpServersStarting implements IChatMcpServersStarting {
@@ -951,7 +977,9 @@ export type IChatProgress =
 	| IChatElicitationRequestSerialized
 	| IChatMcpServersStarting
 	| IChatMcpServersStartingSerialized
-	| IChatHookPart;
+	| IChatHookPart
+	| IChatExternalToolInvocationUpdate
+	| IChatDisabledClaudeHooksPart;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -1282,6 +1310,7 @@ export interface IChatSendRequestOptions {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
+	resolvedVariables?: IChatRequestVariableEntry[];
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
@@ -1299,6 +1328,12 @@ export interface IChatSendRequestOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+
+	/**
+	 * When true, the queued request will not be processed immediately even if no request is active.
+	 * The request stays in the queue until `processPendingRequests` is called explicitly.
+	 */
+	pauseQueue?: boolean;
 
 }
 
@@ -1319,25 +1354,46 @@ export interface IChatService {
 	 */
 	readonly chatModels: IObservable<Iterable<IChatModel>>;
 
+	readonly editingSessions: readonly IChatEditingSession[];
+
 	isEnabled(location: ChatAgentLocation): boolean;
+
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference;
+
+	/**
+	 * Starts a new chat session at the given location.
+	 *
+	 * @returns A reference to the session's model.
+	 */
+	startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference;
 
 	/**
 	 * Get an active session without holding a reference to it.
+	 *
+	 * @returns The session's model, or undefined if no active session exists.
 	 */
 	getSession(sessionResource: URI): IChatModel | undefined;
 
 	/**
 	 * Acquire a reference to an active session.
+	 *
+	 * @returns A reference to the session's model or undefined if there is no active session for the given resource.
 	 */
-	getActiveSessionReference(sessionResource: URI): IChatModelReference | undefined;
+	acquireExistingSession(sessionResource: URI): IChatModelReference | undefined;
 
-	getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined>;
-	getSessionTitle(sessionResource: URI): string | undefined;
-	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModelReference | undefined;
-	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined>;
-	readonly editingSessions: IChatEditingSession[];
+	/**
+	 * Tries to acquire an existing a chat session for the resource. If no session exists, tries to load one for the given
+	 * session resource and location. This may load the session from an external provider.
+	 *
+	 * @returns A reference to the session's model, or undefined if the session could not be loaded
+	 */
+	acquireOrLoadSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined>;
+
+	/**
+	 * Loads a session from exported chat data
+	 */
+	loadSessionFromData(data: IExportableChatData | ISerializableChatData): IChatModelReference;
+
 	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined;
 
 	/**
@@ -1346,10 +1402,9 @@ export interface IChatService {
 	 */
 	sendRequest(sessionResource: URI, message: string, options?: IChatSendRequestOptions): Promise<ChatSendResult>;
 
-	/**
-	 * Sets a custom title for a chat model.
-	 */
-	setTitle(sessionResource: URI, title: string): void;
+	getSessionTitle(sessionResource: URI): string | undefined;
+	setSessionTitle(sessionResource: URI, title: string): void;
+
 	appendProgress(request: IChatRequestModel, progress: IChatProgress): void;
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
@@ -1417,6 +1472,7 @@ export interface IChatSessionContext {
 	readonly chatSessionType: string;
 	readonly chatSessionResource: URI;
 	readonly isUntitled: boolean;
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
@@ -1425,3 +1481,21 @@ export interface IChatSessionStartOptions {
 	canUseTools?: boolean;
 	disableBackgroundKeepAlive?: boolean;
 }
+
+export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';
+
+export type ChatStopCancellationNoopEvent = {
+	source: 'cancelAction' | 'chatService';
+	reason: 'noWidget' | 'noViewModel' | 'noPendingRequest' | 'requestAlreadyCanceled' | 'requestIdUnavailable';
+	requestInProgress: 'true' | 'false' | 'unknown';
+	pendingRequests: number;
+};
+
+export type ChatStopCancellationNoopClassification = {
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The layer where stop cancellation no-op occurred.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The no-op reason when stop cancellation did not dispatch fully.' };
+	requestInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether request-in-progress was true, false, or unknown at no-op time.' };
+	pendingRequests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of queued pending requests at no-op time when known.'; isMeasurement: true };
+	owner: 'roblourens';
+	comment: 'Tracks possible no-op stop cancellation paths.';
+};

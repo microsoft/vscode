@@ -347,4 +347,97 @@ suite('ChatRequestParser', () => {
 		const result = parser.parseChatRequest(testSessionUri, '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
 		await assertSnapshot(result);
 	});
+
+	test('prompt slash command with agent and supportsPromptAttachments', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		slashCommandService.getCommands.returns([]);
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+
+		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
+		});
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '@agent /myPrompt do something', undefined, {
+			attachmentCapabilities: { supportsPromptAttachments: true }
+		});
+		await assertSnapshot(result);
+	});
+
+	test('prompt slash command with agent but no supportsPromptAttachments', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		slashCommandService.getCommands.returns([]);
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+
+		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
+		});
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '@agent /myPrompt do something', undefined, {
+			attachmentCapabilities: { supportsPromptAttachments: false }
+		});
+		await assertSnapshot(result);
+	});
+
+	test('agent subcommand still takes priority with supportsPromptAttachments', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		slashCommandService.getCommands.returns([]);
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+
+		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
+		});
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '@agent /subCommand do something', undefined, {
+			attachmentCapabilities: { supportsPromptAttachments: true }
+		});
+		await assertSnapshot(result);
+	});
+
+	test('slash command with agent and supportsPromptAttachments', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		slashCommandService.getCommands.returns([{ command: 'fix' }]);
+		// eslint-disable-next-line local/code-no-any-casts
+		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '@agent /fix this', undefined, {
+			attachmentCapabilities: { supportsPromptAttachments: true }
+		});
+		await assertSnapshot(result);
+	});
 });

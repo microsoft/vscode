@@ -240,15 +240,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _waitForAllSupportedExecutions: Promise<void>;
-	private _onDidRegisterSupportedExecutions: Emitter<void> = new Emitter();
-	private _onDidRegisterAllSupportedExecutions: Emitter<void> = new Emitter();
-	private _onDidChangeTaskSystemInfo: Emitter<void> = new Emitter();
+	private _onDidRegisterSupportedExecutions = this._register(new Emitter<void>());
+	private _onDidRegisterAllSupportedExecutions = this._register(new Emitter<void>());
+	private _onDidChangeTaskSystemInfo = this._register(new Emitter<void>());
 	private _willRestart: boolean = false;
-	public onDidChangeTaskSystemInfo: Event<void> = this._onDidChangeTaskSystemInfo.event;
-	private _onDidReconnectToTasks: Emitter<void> = new Emitter();
-	public onDidReconnectToTasks: Event<void> = this._onDidReconnectToTasks.event;
-	private _onDidChangeTaskConfig: Emitter<void> = new Emitter();
-	public onDidChangeTaskConfig: Event<void> = this._onDidChangeTaskConfig.event;
+	public onDidChangeTaskSystemInfo = this._onDidChangeTaskSystemInfo.event;
+	private _onDidReconnectToTasks = this._register(new Emitter<void>());
+	public onDidReconnectToTasks = this._onDidReconnectToTasks.event;
+	private _onDidChangeTaskConfig = this._register(new Emitter<void>());
+	public onDidChangeTaskConfig = this._onDidChangeTaskConfig.event;
 	public get isReconnected(): boolean { return this._tasksReconnected; }
 	private _onDidChangeTaskProviders = this._register(new Emitter<void>());
 	public onDidChangeTaskProviders = this._onDidChangeTaskProviders.event;

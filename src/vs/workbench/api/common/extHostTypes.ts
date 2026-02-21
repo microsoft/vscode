@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -3176,6 +3174,19 @@ export class McpToolInvocationContentData {
 	}
 }
 
+export class ChatSubagentToolInvocationData {
+	description?: string;
+	agentName?: string;
+	prompt?: string;
+	result?: string;
+	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
+		this.description = description;
+		this.agentName = agentName;
+		this.prompt = prompt;
+		this.result = result;
+	}
+}
+
 export class ChatResponseExternalEditPart {
 	applied: Thenable<string>;
 	didGetApplied!: (value: string) => void;
@@ -3477,7 +3488,7 @@ export enum ChatTodoStatus {
 export class ChatToolInvocationPart {
 	toolName: string;
 	toolCallId: string;
-	isError?: boolean;
+	errorMessage?: string;
 	invocationMessage?: string | vscode.MarkdownString;
 	originMessage?: string | vscode.MarkdownString;
 	pastTenseMessage?: string | vscode.MarkdownString;
@@ -3490,10 +3501,10 @@ export class ChatToolInvocationPart {
 
 	constructor(toolName: string,
 		toolCallId: string,
-		isError?: boolean) {
+		errorMessage?: string) {
 		this.toolName = toolName;
 		this.toolCallId = toolCallId;
-		this.isError = isError;
+		this.errorMessage = errorMessage;
 	}
 }
 
@@ -3505,7 +3516,8 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly participant: string,
 		readonly toolReferences: vscode.ChatLanguageModelToolReference[],
 		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
-		readonly id?: string
+		readonly id?: string,
+		readonly modelId?: string,
 	) { }
 }
 
@@ -3539,7 +3551,8 @@ export enum ChatLocation {
 export enum ChatSessionStatus {
 	Failed = 0,
 	Completed = 1,
-	InProgress = 2
+	InProgress = 2,
+	NeedsInput = 3
 }
 
 export class ChatSessionChangedFile {

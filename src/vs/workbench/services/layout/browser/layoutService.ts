@@ -25,6 +25,7 @@ export const enum Parts {
 	SIDEBAR_PART = 'workbench.parts.sidebar',
 	PANEL_PART = 'workbench.parts.panel',
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
+	CHATBAR_PART = 'workbench.parts.chatbar',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -43,6 +44,7 @@ export const enum ZenModeSettings {
 export const enum LayoutSettings {
 	ACTIVITY_BAR_LOCATION = 'workbench.activityBar.location',
 	ACTIVITY_BAR_AUTO_HIDE = 'workbench.activityBar.autoHide',
+	ACTIVITY_BAR_COMPACT = 'workbench.activityBar.compact',
 	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
 	EDITOR_ACTIONS_LOCATION = 'workbench.editor.editorActionsLocation',
 	COMMAND_CENTER = 'window.commandCenter',

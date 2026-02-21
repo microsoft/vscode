@@ -7,9 +7,11 @@ import './media/inlineChatEditorAffordance.css';
 import { IDimension } from '../../../../base/browser/dom.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
+import { computeIndentLevel } from '../../../../editor/common/model/utils.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -26,6 +28,8 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ACTION_START, ACTION_ASK_IN_CHAT } from '../common/inlineChat.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 class QuickFixActionViewItem extends MenuEntryActionViewItem {
 
@@ -40,9 +44,30 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@ICommandService commandService: ICommandService
 	) {
-		super(action, { draggable: false }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+		const wrappedAction = new class extends MenuItemAction {
+			constructor() {
+				super(action.item, action.alt?.item, {}, action.hideActions, action.menuKeybinding, contextKeyService, commandService);
+			}
+
+			elementGetter: () => HTMLElement | undefined = () => undefined;
+
+			override async run(...args: unknown[]): Promise<void> {
+				const controller = CodeActionController.get(_editor);
+				const info = controller?.lightBulbState.get();
+				const element = this.elementGetter();
+				if (controller && info && element) {
+					const { bottom, left } = element.getBoundingClientRect();
+					await controller.showCodeActions(info.trigger, info.actions, { x: left, y: bottom });
+				}
+			}
+		};
+
+		super(wrappedAction, { draggable: false }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+
+		wrappedAction.elementGetter = () => this.element;
 	}
 
 	override render(container: HTMLElement): void {
@@ -70,13 +95,42 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 				const icon = info?.icon ?? Codicon.lightBulb;
 				const iconClasses = ThemeIcon.asClassNameArray(icon);
 				this.label.className = '';
-				this.label.classList.add('codicon', ...iconClasses);
+				this.label.classList.add('codicon', 'action-label', ...iconClasses);
 			}
 
 			// Update tooltip
 			this._currentTitle = info?.title;
 			this.updateTooltip();
 		}));
+	}
+}
+
+class LabelWithKeybindingActionViewItem extends MenuEntryActionViewItem {
+
+	private readonly _kbLabel: string | undefined;
+
+	constructor(
+		action: MenuItemAction,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@INotificationService notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAccessibilityService accessibilityService: IAccessibilityService
+	) {
+		super(action, { draggable: false }, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
+		this.options.label = true;
+		this.options.icon = false;
+		this._kbLabel = keybindingService.lookupKeybinding(action.id)?.getLabel() ?? undefined;
+	}
+
+	protected override updateLabel(): void {
+		if (this.label) {
+			dom.reset(this.label,
+				this.action.label,
+				...(this._kbLabel ? [dom.$('span.inline-chat-keybinding', undefined, this._kbLabel)] : [])
+			);
+		}
 	}
 }
 
@@ -93,6 +147,9 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 	private _position: IContentWidgetPosition | null = null;
 	private _isVisible = false;
 
+	private readonly _onDidRunAction = this._store.add(new Emitter<string>());
+	readonly onDidRunAction: Event<string> = this._onDidRunAction.event;
+
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
@@ -107,17 +164,24 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 		this._domNode = dom.$('.inline-chat-content-widget');
 
 		// Create toolbar with the inline chat start action
-		this._store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.InlineChatEditorAffordance, {
+		const toolbar = this._store.add(instantiationService.createInstance(MenuWorkbenchToolBar, this._domNode, MenuId.InlineChatEditorAffordance, {
 			telemetrySource: 'inlineChatEditorAffordance',
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { renderShortTitle: true },
-			toolbarOptions: { primaryGroup: () => true },
+			toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			actionViewItemProvider: (action: IAction) => {
 				if (action instanceof MenuItemAction && action.id === quickFixCommandId) {
 					return instantiationService.createInstance(QuickFixActionViewItem, action, this._editor);
 				}
+				if (action instanceof MenuItemAction && (action.id === ACTION_START || action.id === ACTION_ASK_IN_CHAT)) {
+					return instantiationService.createInstance(LabelWithKeybindingActionViewItem, action);
+				}
 				return undefined;
 			}
+		}));
+		this._store.add(toolbar.actionRunner.onDidRun((e) => {
+			this._onDidRunAction.fire(e.action.id);
+			this._hide();
 		}));
 
 		this._store.add(autorun(r => {
@@ -132,11 +196,24 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 
 	private _show(selection: Selection): void {
 
-		// Position at the cursor (active end of selection)
+		if (selection.isEmpty()) {
+			this._showAtLineStart(selection.getPosition().lineNumber);
+		} else {
+			this._showAtSelection(selection);
+		}
+
+		if (this._isVisible) {
+			this._editor.layoutContentWidget(this);
+		} else {
+			this._editor.addContentWidget(this);
+			this._isVisible = true;
+		}
+	}
+
+	private _showAtSelection(selection: Selection): void {
 		const cursorPosition = selection.getPosition();
 		const direction = selection.getDirection();
 
-		// Show above for RTL (selection going up), below for LTR (selection going down)
 		const preference = direction === SelectionDirection.RTL
 			? ContentWidgetPositionPreference.ABOVE
 			: ContentWidgetPositionPreference.BELOW;
@@ -145,13 +222,42 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 			position: cursorPosition,
 			preference: [preference],
 		};
+	}
 
-		if (this._isVisible) {
-			this._editor.layoutContentWidget(this);
-		} else {
-			this._editor.addContentWidget(this);
-			this._isVisible = true;
+	private _showAtLineStart(lineNumber: number): void {
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
 		}
+
+		const tabSize = model.getOptions().tabSize;
+		const fontInfo = this._editor.getOptions().get(EditorOption.fontInfo);
+		const lineContent = model.getLineContent(lineNumber);
+		const indent = computeIndentLevel(lineContent, tabSize);
+		const lineHasSpace = indent < 0 ? true : fontInfo.spaceWidth * indent > 22;
+
+		let effectiveLineNumber = lineNumber;
+
+		if (!lineHasSpace) {
+			const isLineEmptyOrIndented = (ln: number): boolean => {
+				const content = model.getLineContent(ln);
+				return /^\s*$|^\s+/.test(content);
+			};
+
+			const lineCount = model.getLineCount();
+			if (lineNumber > 1 && isLineEmptyOrIndented(lineNumber - 1)) {
+				effectiveLineNumber = lineNumber - 1;
+			} else if (lineNumber < lineCount && isLineEmptyOrIndented(lineNumber + 1)) {
+				effectiveLineNumber = lineNumber + 1;
+			}
+		}
+
+		const effectiveColumnNumber = /^\S\s*$/.test(model.getLineContent(effectiveLineNumber)) ? 2 : 1;
+
+		this._position = {
+			position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
+			preference: [ContentWidgetPositionPreference.EXACT],
+		};
 	}
 
 	private _hide(): void {

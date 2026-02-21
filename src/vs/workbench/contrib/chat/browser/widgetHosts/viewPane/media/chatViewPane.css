@@ -127,7 +127,7 @@
 	}
 
 	.agent-session-section {
-		padding: 0 12px;
+		padding: 0 6px 0 14px;
 	}
 
 	/* Right position: symmetric padding */
@@ -138,7 +138,7 @@
 		}
 
 		.agent-session-section {
-			padding: 0 12px 0 8px;
+			padding: 0 6px 0 8px;
 		}
 	}
 

@@ -1,0 +1,18 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Account Button */
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account {
+	overflow: hidden;
+	min-width: 0;
+	flex: 1;
+}
+
+/* Update Button */
+.monaco-workbench .part.sidebar > .sidebar-footer .update-widget-action {
+	overflow: hidden;
+	min-width: 0;
+	flex: 1;
+}

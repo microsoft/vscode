@@ -1,0 +1,28 @@
+{
+	"scripts": [
+		{
+			"name": "Run (Windows)",
+			"command": ".\\scripts\\code.bat"
+		},
+		{
+			"name": "Run (macOS)",
+			"command": "./scripts/code.sh"
+		},
+		{
+			"name": "Run (Linux)",
+			"command": "./scripts/code.sh"
+		},
+		{
+			"name": "Tests (Windows)",
+			"command": ".\\scripts\\test.bat"
+		},
+		{
+			"name": "Tests (macOS)",
+			"command": "./scripts/test.sh"
+		},
+		{
+			"name": "Tests (Linux)",
+			"command": "./scripts/test.sh"
+		}
+	]
+}

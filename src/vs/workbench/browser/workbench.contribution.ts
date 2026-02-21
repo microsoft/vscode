@@ -349,10 +349,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('revealIfOpen', "Controls whether an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, such as when forcing an editor to open in a specific group or to the side of the currently active group."),
 				'default': false
 			},
-			'workbench.editor.allowOpenInModalEditor': {
-				'type': 'boolean',
-				'description': localize('allowOpenInModalEditor', "Controls whether editors can be opened in a modal overlay. When enabled, certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay instead of as a regular editor tab."),
-				'default': product.quality !== 'stable', // TODO@bpasero figure out the default for stable
+			'workbench.editor.useModal': {
+				'type': 'string',
+				'enum': ['off', 'some', 'all'],
+				'enumDescriptions': [
+					localize('useModal.off', "Editors never open in a modal overlay."),
+					localize('useModal.some', "Certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay."),
+					localize('useModal.all', "All editors open in a centered modal overlay."),
+				],
+				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
+				'default': product.quality !== 'stable' ? 'some' : 'off',
 				tags: ['experimental'],
 				experiment: {
 					mode: 'auto'
@@ -627,6 +633,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': false,
 				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarAutoHide' }, "Controls whether the Activity Bar is automatically hidden when there is only one view container to show. This applies to the Primary and Secondary Side Bars when {0} is set to {1} or {2}.", '`#workbench.activityBar.location#`', '`top`', '`bottom`'),
 			},
+			[LayoutSettings.ACTIVITY_BAR_COMPACT]: {
+				'type': 'boolean',
+				'default': false,
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarCompact' }, "Controls whether the Activity Bar uses a compact layout with smaller icons and reduced width. This setting only applies when {0} is set to {1}.", '`#workbench.activityBar.location#`', '`default`'),
+			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
 				'enum': ['toggle', 'focus'],
@@ -707,6 +718,18 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.reduceMotion.auto', "Render with reduced motion based on OS configuration."),
 				],
 				default: 'auto',
+				tags: ['accessibility'],
+				enum: ['on', 'off', 'auto']
+			},
+			'workbench.reduceTransparency': {
+				type: 'string',
+				description: localize('workbench.reduceTransparency', "Controls whether the workbench should render with fewer transparency and blur effects for improved performance."),
+				'enumDescriptions': [
+					localize('workbench.reduceTransparency.on', "Always render without transparency and blur effects."),
+					localize('workbench.reduceTransparency.off', "Do not reduce transparency and blur effects."),
+					localize('workbench.reduceTransparency.auto', "Reduce transparency and blur effects based on OS configuration."),
+				],
+				default: 'off',
 				tags: ['accessibility'],
 				enum: ['on', 'off', 'auto']
 			},
@@ -1008,6 +1031,19 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
 				result.push(['zenMode.showTabs', { value: 'single' }]);
+			}
+			return result;
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.editor.useModal', migrateFn: (value: unknown) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value === 'default') {
+				result.push(['workbench.editor.useModal', { value: 'some' }]);
+			} else if (value === 'on') {
+				result.push(['workbench.editor.useModal', { value: 'all' }]);
 			}
 			return result;
 		}

@@ -3,12 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { MCP } from './modelContextProtocol.js';
 
 export const IMcpGatewayService = createDecorator<IMcpGatewayService>('IMcpGatewayService');
 
 export const McpGatewayChannelName = 'mcpGateway';
+export const McpGatewayToolBrokerChannelName = 'mcpGatewayToolBroker';
+
+export interface IGatewayCallToolResult {
+	result: MCP.CallToolResult;
+	serverIndex: number;
+}
+
+export interface IGatewayServerResources {
+	serverIndex: number;
+	resources: readonly MCP.Resource[];
+}
+
+export interface IGatewayServerResourceTemplates {
+	serverIndex: number;
+	resourceTemplates: readonly MCP.ResourceTemplate[];
+}
+
+export interface IMcpGatewayToolInvoker {
+	readonly onDidChangeTools: Event<void>;
+	readonly onDidChangeResources: Event<void>;
+	listTools(): Promise<readonly MCP.Tool[]>;
+	callTool(name: string, args: Record<string, unknown>): Promise<IGatewayCallToolResult>;
+	listResources(): Promise<readonly IGatewayServerResources[]>;
+	readResource(serverIndex: number, uri: string): Promise<MCP.ReadResourceResult>;
+	listResourceTemplates(): Promise<readonly IGatewayServerResourceTemplates[]>;
+}
 
 /**
  * Result of creating an MCP gateway.
@@ -52,7 +80,7 @@ export interface IMcpGatewayService {
 	 * @param context Optional context (e.g., client ID) to associate with the gateway for cleanup purposes.
 	 * @returns A promise that resolves to the gateway info if successful.
 	 */
-	createGateway<TContext>(context: TContext): Promise<IMcpGatewayInfo>;
+	createGateway<TContext>(context: TContext, toolInvoker?: IMcpGatewayToolInvoker): Promise<IMcpGatewayInfo>;
 
 	/**
 	 * Disposes a previously created gateway.

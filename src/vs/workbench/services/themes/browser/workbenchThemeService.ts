@@ -39,10 +39,10 @@ import { IHostColorSchemeService } from '../common/hostColorSchemeService.js';
 import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
-import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
-import { asCssVariableName as asSizeCssVariableName, getSizeRegistry, sizeValueToCss } from '../../../../platform/theme/common/sizeRegistry.js';
+import { getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { generateColorThemeCSS } from './colorThemeCss.js';
 
 // implementation
 
@@ -118,20 +118,20 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		this.colorThemeRegistry = this._register(new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme));
 		this.colorThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this)));
-		this.onColorThemeChange = new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 });
+		this.onColorThemeChange = this._register(new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 }));
 		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
 		this.colorThemeSequencer = new Sequencer();
 
 		this.fileIconThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this)));
 		this.fileIconThemeRegistry = this._register(new ThemeRegistry(fileIconThemesExtPoint, FileIconThemeData.fromExtensionTheme, true, FileIconThemeData.noIconTheme));
 		this.fileIconThemeLoader = new FileIconThemeLoader(extensionResourceLoaderService, languageService);
-		this.onFileIconThemeChange = new Emitter<IWorkbenchFileIconTheme>({ leakWarningThreshold: 400 });
+		this.onFileIconThemeChange = this._register(new Emitter<IWorkbenchFileIconTheme>({ leakWarningThreshold: 400 }));
 		this.currentFileIconTheme = FileIconThemeData.createUnloadedTheme('');
 		this.fileIconThemeSequencer = new Sequencer();
 
 		this.productIconThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentProductIconTheme.bind(this)));
 		this.productIconThemeRegistry = this._register(new ThemeRegistry(productIconThemesExtPoint, ProductIconThemeData.fromExtensionTheme, true, ProductIconThemeData.defaultTheme));
-		this.onProductIconThemeChange = new Emitter<IWorkbenchProductIconTheme>();
+		this.onProductIconThemeChange = this._register(new Emitter<IWorkbenchProductIconTheme>());
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
 
@@ -460,36 +460,13 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	private updateDynamicCSSRules(themeData: IColorTheme) {
-		const cssRules = new Set<string>();
-		const ruleCollector = {
-			addRule: (rule: string) => {
-				if (!cssRules.has(rule)) {
-					cssRules.add(rule);
-				}
-			}
-		};
-		ruleCollector.addRule(`.monaco-workbench { forced-color-adjust: none; }`);
-		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
-
-		const colorVariables: string[] = [];
-		for (const item of getColorRegistry().getColors()) {
-			const color = themeData.getColor(item.id, true);
-			if (color) {
-				colorVariables.push(`${asCssVariableName(item.id)}: ${color.toString()};`);
-			}
-		}
-
-		const sizeVariables: string[] = [];
-		for (const item of getSizeRegistry().getSizes()) {
-			const sizeValue = getSizeRegistry().resolveDefaultSize(item.id, themeData);
-			if (sizeValue) {
-				sizeVariables.push(`${asSizeCssVariableName(item.id)}: ${sizeValueToCss(sizeValue)};`);
-			}
-		}
-
-		ruleCollector.addRule(`.monaco-workbench { ${(colorVariables.concat(sizeVariables)).join('\n')} }`);
-
-		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
+		const css = generateColorThemeCSS(
+			themeData,
+			'.monaco-workbench',
+			themingRegistry.getThemingParticipants(),
+			this.environmentService
+		);
+		_applyRules(css.code, colorThemeRulesClassName);
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {

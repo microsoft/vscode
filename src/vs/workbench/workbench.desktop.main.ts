@@ -91,6 +91,7 @@ import '../platform/userDataProfile/electron-browser/userDataProfileStorageServi
 import './services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
+import './services/browserView/electron-browser/playwrightWorkbenchService.js';
 import './services/process/electron-browser/processService.js';
 import './services/power/electron-browser/powerService.js';
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions, IEditorPart, IModalEditorPart, IEditorGroupActivationEvent } from '../../../services/editor/common/editorGroupsService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { GroupIdentifier, IEditorPartOptions } from '../../../common/editor.js';
@@ -28,6 +28,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { DeepPartial } from '../../../../base/common/types.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -155,15 +156,18 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	//#region Modal Editor Part
 
 	private modalEditorPart: IModalEditorPart | undefined;
+	get activeModalEditorPart(): IModalEditorPart | undefined { return this.modalEditorPart; }
 
-	async createModalEditorPart(): Promise<IModalEditorPart> {
+	async createModalEditorPart(options?: IModalEditorPartOptions): Promise<IModalEditorPart> {
 
 		// Reuse existing modal editor part if it exists
 		if (this.modalEditorPart) {
+			this.modalEditorPart.updateOptions(options);
+
 			return this.modalEditorPart;
 		}
 
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create();
+		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create(options);
 
 		// Keep instantiation service and reference to reuse
 		this.modalEditorPart = part;
@@ -233,7 +237,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));
 		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
-		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
+		disposables.add(part.onDidActivateGroup(e => this._onDidActivateGroup.fire(e)));
 		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
@@ -557,7 +561,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidMoveGroup = this._onDidMoveGroup.event;
 
-	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
+	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupActivationEvent>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
 	private readonly _onDidChangeGroupIndex = this._register(new Emitter<IEditorGroupView>());

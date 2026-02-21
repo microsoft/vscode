@@ -67,7 +67,7 @@ export interface ITerminalProfileResolverService {
 export const ShellIntegrationExitCode = 633;
 
 export interface IRegisterContributedProfileArgs {
-	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions;
+	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions; titleTemplate?: string;
 }
 
 export const ITerminalProfileService = createDecorator<ITerminalProfileService>('terminalProfileService');
@@ -300,9 +300,9 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined>;
 	write(data: string): Promise<void>;
 	sendSignal(signal: string): Promise<void>;
-	setDimensions(cols: number, rows: number): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: true): void;
+	setDimensions(cols: number, rows: number, sync?: undefined, pixelWidth?: number, pixelHeight?: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: false, pixelWidth?: number, pixelHeight?: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: true, pixelWidth?: number, pixelHeight?: number): void;
 	clearBuffer(): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
 	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
@@ -692,6 +692,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 									}
 								}
 							}]
+						},
+						titleTemplate: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.titleTemplate', "A title template string for the terminal tab. Supports variables like $\{sequence}, $\{process}, $\{cwd}, etc. Overrides the default terminal.integrated.tabs.title setting for terminals created with this profile."),
+							type: 'string',
 						},
 					},
 				},

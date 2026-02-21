@@ -231,8 +231,8 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 	shutdown(id: number, immediate: boolean): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.Shutdown, [id, immediate]);
 	}
-	resize(id: number, cols: number, rows: number): Promise<void> {
-		return this._channel.call(RemoteTerminalChannelRequest.Resize, [id, cols, rows]);
+	resize(id: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): Promise<void> {
+		return this._channel.call(RemoteTerminalChannelRequest.Resize, [id, cols, rows, pixelWidth, pixelHeight]);
 	}
 	clearBuffer(id: number): Promise<void> {
 		return this._channel.call(RemoteTerminalChannelRequest.ClearBuffer, [id]);

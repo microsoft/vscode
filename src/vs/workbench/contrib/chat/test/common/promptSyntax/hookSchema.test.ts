@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { resolveHookCommand, resolveEffectiveCommand, formatHookCommandLabel, IHookCommand } from '../../../common/promptSyntax/hookSchema.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import * as platform from '../../../../../../base/common/platform.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 
 suite('HookSchema', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -35,14 +35,14 @@ suite('HookSchema', () => {
 					command: './scripts/validate.sh',
 					cwd: 'src',
 					env: { NODE_ENV: 'test' },
-					timeoutSec: 60
+					timeout: 60
 				}, workspaceRoot, userHome);
 				assert.deepStrictEqual(result, {
 					type: 'command',
 					command: './scripts/validate.sh',
 					cwd: URI.file('/workspace/src'),
 					env: { NODE_ENV: 'test' },
-					timeoutSec: 60
+					timeout: 60
 				});
 			});
 
@@ -118,18 +118,18 @@ suite('HookSchema', () => {
 				});
 			});
 
-			test('powershell with timeoutSec', () => {
+			test('powershell with timeout', () => {
 				const result = resolveHookCommand({
 					type: 'command',
 					powershell: 'Get-Process',
-					timeoutSec: 30
+					timeout: 30
 				}, workspaceRoot, userHome);
 				assert.deepStrictEqual(result, {
 					type: 'command',
 					windows: 'Get-Process',
 					windowsSource: 'powershell',
 					cwd: workspaceRoot,
-					timeoutSec: 30
+					timeout: 30
 				});
 			});
 
@@ -277,11 +277,11 @@ suite('HookSchema', () => {
 				});
 			});
 
-			test('ignores non-number timeoutSec', () => {
+			test('ignores non-number timeout', () => {
 				const result = resolveHookCommand({
 					type: 'command',
 					command: 'echo hello',
-					timeoutSec: '30'
+					timeout: '30'
 				}, workspaceRoot, userHome);
 				assert.deepStrictEqual(result, {
 					type: 'command',
@@ -408,11 +408,12 @@ suite('HookSchema', () => {
 				type: 'command',
 				command: 'default-command'
 			};
-			const result = resolveEffectiveCommand(hook);
-			assert.strictEqual(result, 'default-command');
+			assert.strictEqual(resolveEffectiveCommand(hook, OperatingSystem.Windows), 'default-command');
+			assert.strictEqual(resolveEffectiveCommand(hook, OperatingSystem.Macintosh), 'default-command');
+			assert.strictEqual(resolveEffectiveCommand(hook, OperatingSystem.Linux), 'default-command');
 		});
 
-		test('applies current platform override', () => {
+		test('applies platform override for each platform', () => {
 			const hook: IHookCommand = {
 				type: 'command',
 				command: 'default-command',
@@ -420,15 +421,9 @@ suite('HookSchema', () => {
 				linux: 'linux-command',
 				osx: 'osx-command'
 			};
-			const result = resolveEffectiveCommand(hook);
-			// Result depends on the current platform
-			if (platform.isWindows) {
-				assert.strictEqual(result, 'win-command');
-			} else if (platform.isMacintosh) {
-				assert.strictEqual(result, 'osx-command');
-			} else if (platform.isLinux) {
-				assert.strictEqual(result, 'linux-command');
-			}
+			assert.strictEqual(resolveEffectiveCommand(hook, OperatingSystem.Windows), 'win-command');
+			assert.strictEqual(resolveEffectiveCommand(hook, OperatingSystem.Macintosh), 'osx-command');
+			assert.strictEqual(resolveEffectiveCommand(hook, OperatingSystem.Linux), 'linux-command');
 		});
 
 		test('falls back to command when no platform-specific override', () => {
@@ -436,16 +431,14 @@ suite('HookSchema', () => {
 				type: 'command',
 				command: 'default-command'
 			};
-			const result = resolveEffectiveCommand(hook);
-			assert.strictEqual(result, 'default-command');
+			assert.strictEqual(resolveEffectiveCommand(hook, OperatingSystem.Windows), 'default-command');
 		});
 
 		test('returns undefined when no command at all', () => {
 			const hook: IHookCommand = {
 				type: 'command'
 			};
-			const result = resolveEffectiveCommand(hook);
-			assert.strictEqual(result, undefined);
+			assert.strictEqual(resolveEffectiveCommand(hook, OperatingSystem.Windows), undefined);
 		});
 	});
 
@@ -456,14 +449,16 @@ suite('HookSchema', () => {
 				command: 'echo hello'
 			};
 			// No platform badge when using default command
-			assert.strictEqual(formatHookCommandLabel(hook), 'echo hello');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), 'echo hello');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Macintosh), 'echo hello');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Linux), 'echo hello');
 		});
 
 		test('returns empty string when no command', () => {
 			const hook: IHookCommand = {
 				type: 'command'
 			};
-			assert.strictEqual(formatHookCommandLabel(hook), '');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), '');
 		});
 
 		test('applies platform override for display with platform badge', () => {
@@ -474,15 +469,10 @@ suite('HookSchema', () => {
 				linux: 'linux-command',
 				osx: 'osx-command'
 			};
-			const label = formatHookCommandLabel(hook);
 			// Should include platform badge when using platform-specific override
-			if (platform.isWindows) {
-				assert.strictEqual(label, '[Windows] win-command');
-			} else if (platform.isMacintosh) {
-				assert.strictEqual(label, '[macOS] osx-command');
-			} else if (platform.isLinux) {
-				assert.strictEqual(label, '[Linux] linux-command');
-			}
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), '[Windows] win-command');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Macintosh), '[macOS] osx-command');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Linux), '[Linux] linux-command');
 		});
 
 		test('no platform badge when falling back to default command', () => {
@@ -492,7 +482,7 @@ suite('HookSchema', () => {
 				// No platform-specific overrides
 			};
 			// Should not include badge when using default command
-			assert.strictEqual(formatHookCommandLabel(hook), 'default-command');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), 'default-command');
 		});
 	});
 });

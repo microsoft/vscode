@@ -6,10 +6,11 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
 import { relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -38,16 +39,21 @@ import { TestContextService, TestUserDataProfileService } from '../../../../../.
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
-import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
+import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
+import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
+import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IAgentPluginService } from '../../../../common/plugins/agentPluginService.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -74,6 +80,7 @@ suite('PromptsService', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
+		testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, { [AGENTS_SOURCE_FOLDER]: true });
 
 		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IWorkbenchEnvironmentService, {});
@@ -151,6 +158,18 @@ suite('PromptsService', () => {
 			}
 		});
 
+		instaService.stub(IRemoteAgentService, {
+			getEnvironment: () => Promise.resolve(null),
+		});
+
+		instaService.stub(IContextKeyService, new MockContextKeyService());
+
+		instaService.stub(IAgentPluginService, {
+			plugins: observableValue('testPlugins', []),
+			allPlugins: observableValue('testAllPlugins', []),
+			setPluginEnabled: () => { },
+		});
+
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
 	});
@@ -182,7 +201,7 @@ suite('PromptsService', () => {
 					contents: [
 						'---',
 						'description: \'Root prompt description.\'',
-						'tools: [\'my-tool1\', , true]',
+						'tools: [\'my-tool1\', , tool]',
 						'agent: "agent" ',
 						'---',
 						'## Files',
@@ -237,7 +256,7 @@ suite('PromptsService', () => {
 					contents: [
 						'---',
 						'description: "Another file description."',
-						'tools: [\'my-tool3\', false, "my-tool2" ]',
+						'tools: [\'my-tool3\', "my-tool2" ]',
 						'applyTo: "**/*.tsx"',
 						'---',
 						`[](${rootFolder}/folder1/some-other-folder)`,
@@ -261,7 +280,7 @@ suite('PromptsService', () => {
 			const result1 = await service.parseNew(rootFileUri, CancellationToken.None);
 			assert.deepEqual(result1.uri, rootFileUri);
 			assert.deepEqual(result1.header?.description, 'Root prompt description.');
-			assert.deepEqual(result1.header?.tools, ['my-tool1']);
+			assert.deepEqual(result1.header?.tools, ['my-tool1', 'tool']);
 			assert.deepEqual(result1.header?.agent, 'agent');
 			assert.ok(result1.body);
 			assert.deepEqual(
@@ -767,8 +786,8 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					target: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -823,8 +842,8 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
-					target: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
@@ -841,7 +860,8 @@ suite('PromptsService', () => {
 					},
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local },
-					visibility: { userInvokable: true, agentInvokable: true }
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true }
 				}
 			];
 
@@ -897,8 +917,8 @@ suite('PromptsService', () => {
 					},
 					handOffs: undefined,
 					model: undefined,
-					target: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -915,8 +935,8 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					tools: undefined,
-					target: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -976,7 +996,7 @@ suite('PromptsService', () => {
 				{
 					name: 'github-agent',
 					description: 'GitHub Copilot specialized agent.',
-					target: 'github-copilot',
+					target: Target.GitHubCopilot,
 					tools: ['github-api', 'code-search'],
 					agentInstructions: {
 						content: 'I am optimized for GitHub Copilot workflows.',
@@ -986,7 +1006,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -994,7 +1014,7 @@ suite('PromptsService', () => {
 				{
 					name: 'vscode-agent',
 					description: 'VS Code specialized agent.',
-					target: 'vscode',
+					target: Target.VSCode,
 					model: ['gpt-4'],
 					agentInstructions: {
 						content: 'I am specialized for VS Code editor tasks.',
@@ -1004,7 +1024,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1021,8 +1041,8 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					target: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1033,6 +1053,122 @@ suite('PromptsService', () => {
 				result,
 				expected,
 				'Must get custom agents with target attribute.',
+			);
+		});
+
+		test('claude agent maps tools and model to vscode equivalents', async () => {
+			const rootFolderName = 'claude-agent-mapping';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					// Claude agent with tools and model that should be mapped
+					path: `${rootFolder}/.claude/agents/claude-agent.md`,
+					contents: [
+						'---',
+						'description: \'Claude agent with tools and model.\'',
+						'tools: [ Read, Edit, Bash ]',
+						'model: opus',
+						'---',
+						'I am a Claude agent.',
+					]
+				},
+				{
+					// Claude agent with more tools, some with empty equivalents
+					path: `${rootFolder}/.claude/agents/claude-agent2.md`,
+					contents: [
+						'---',
+						'description: \'Claude agent with various tools.\'',
+						'tools: [ Glob, Grep, Write, Task, Skill ]',
+						'model: sonnet',
+						'---',
+						'I am another Claude agent.',
+					]
+				},
+				{
+					// Non-Claude agent should NOT have tools/model mapped
+					path: `${rootFolder}/.github/agents/copilot-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Copilot agent with same tool names.\'',
+						'target: \'github-copilot\'',
+						'tools: [ Read, Edit ]',
+						'model: gpt-4',
+						'---',
+						'I am a Copilot agent.',
+					]
+				},
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'copilot-agent',
+					description: 'Copilot agent with same tool names.',
+					target: Target.GitHubCopilot,
+					// Non-Claude agent: tools and model stay as-is
+					tools: ['Read', 'Edit'],
+					model: ['gpt-4'],
+					agentInstructions: {
+						content: 'I am a Copilot agent.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					argumentHint: undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
+					agents: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/copilot-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'claude-agent',
+					description: 'Claude agent with tools and model.',
+					target: Target.Claude,
+					// Claude tools mapped to vscode equivalents
+					tools: ['read/readFile', 'read/getNotebookSummary', 'edit/editNotebook', 'edit/editFiles', 'execute'],
+					// Claude model mapped to vscode equivalent
+					model: ['Claude Opus 4.6 (copilot)'],
+					agentInstructions: {
+						content: 'I am a Claude agent.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					argumentHint: undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
+					agents: undefined,
+					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'claude-agent2',
+					description: 'Claude agent with various tools.',
+					target: Target.Claude,
+					// Tools mapped: Glob->search/fileSearch, Grep->search/textSearch, Write->edit/create*, Task->agent, Skill->[] (empty)
+					tools: ['search/fileSearch', 'search/textSearch', 'edit/createDirectory', 'edit/createFile', 'edit/createJupyterNotebook', 'agent'],
+					model: ['Claude Sonnet 4.5 (copilot)'],
+					agentInstructions: {
+						content: 'I am another Claude agent.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					argumentHint: undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
+					agents: undefined,
+					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md'),
+					source: { storage: PromptsStorage.local }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Claude tools and models must be mapped to VS Code equivalents; non-Claude agents must remain unchanged.',
 			);
 		});
 
@@ -1076,8 +1212,8 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
-					target: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local }
@@ -1147,8 +1283,8 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
-					target: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1165,8 +1301,8 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					target: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1183,8 +1319,8 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					tools: undefined,
-					target: undefined,
-					visibility: { userInvokable: true, agentInvokable: true },
+					target: Target.Undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1504,7 +1640,7 @@ suite('PromptsService', () => {
 			const copilotSkill = personalSkills.find(s => s.uri.path.includes('.copilot'));
 			assert.ok(copilotSkill, 'Should find copilot personal skill');
 
-			const claudeSkill = personalSkills.find(s => s.uri.path.includes('.claude'));
+			const claudeSkill = personalSkills.find(s => s.uri.path.includes(CLAUDE_CONFIG_FOLDER));
 			assert.ok(claudeSkill, 'Should find claude personal skill');
 		});
 
@@ -1785,6 +1921,50 @@ suite('PromptsService', () => {
 
 			registered1.dispose();
 			registered2.dispose();
+		});
+
+		test('Contributed file with when clause is filtered by context key', async () => {
+			const uri = URI.parse('file://extensions/my-extension/conditional.instructions.md');
+			const extension = {} as IExtensionDescription;
+
+			// Create a mock context key service that we can control
+			let matchResult = false;
+			const contextKeyChangeEmitter = disposables.add(new Emitter<IContextKeyChangeEvent>());
+			const testContextKeyService = new class extends MockContextKeyService {
+				override contextMatchesRules(): boolean {
+					return matchResult;
+				}
+				override get onDidChangeContext() {
+					return contextKeyChangeEmitter.event;
+				}
+			}();
+			instaService.stub(IContextKeyService, testContextKeyService);
+			const testService = disposables.add(instaService.createInstance(PromptsService));
+
+			const registered = testService.registerContributedFile(
+				PromptsType.instructions, uri, extension,
+				'Conditional Instructions', 'Only when enabled', 'myFeature.enabled',
+			);
+
+			// When clause is false - should be filtered out
+			const before = await testService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.strictEqual(before.length, 0, 'Should be filtered out when context key is false');
+
+			// Change context to make when clause true
+			matchResult = true;
+			contextKeyChangeEmitter.fire({
+				affectsSome: (keys) => keys.has('myFeature.enabled'),
+				allKeysContainedIn: () => false,
+			});
+
+			const after = await testService.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.strictEqual(after.length, 1, 'Should be included when context key is true');
+			assert.strictEqual(after[0].uri.toString(), uri.toString());
+
+			registered.dispose();
+
+			// Restore original stub
+			instaService.stub(IContextKeyService, new MockContextKeyService());
 		});
 	});
 
@@ -2983,22 +3163,22 @@ suite('PromptsService', () => {
 		});
 	});
 
-	suite('getPromptSlashCommands - userInvokable filtering', () => {
+	suite('getPromptSlashCommands - userInvocable filtering', () => {
 		teardown(() => {
 			sinon.restore();
 		});
 
-		test('should return correct userInvokable value for skills with user-invokable: false', async () => {
+		test('should return correct userInvocable value for skills with user-invocable: false', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
-			const rootFolderName = 'user-invokable-false';
+			const rootFolderName = 'user-invocable-false';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create a skill with user-invokable: false (should be hidden from / menu)
+			// Create a skill with user-invocable: false (should be hidden from / menu)
 			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/skills/hidden-skill/SKILL.md`,
@@ -3006,7 +3186,7 @@ suite('PromptsService', () => {
 						'---',
 						'name: "hidden-skill"',
 						'description: "A skill hidden from the / menu"',
-						'user-invokable: false',
+						'user-invocable: false',
 						'---',
 						'Hidden skill content',
 					],
@@ -3017,27 +3197,27 @@ suite('PromptsService', () => {
 
 			const hiddenSkillCommand = slashCommands.find(cmd => cmd.name === 'hidden-skill');
 			assert.ok(hiddenSkillCommand, 'Should find hidden skill in slash commands');
-			assert.strictEqual(hiddenSkillCommand.parsedPromptFile?.header?.userInvokable, false,
-				'Should have userInvokable=false in parsed header');
+			assert.strictEqual(hiddenSkillCommand.parsedPromptFile?.header?.userInvocable, false,
+				'Should have userInvocable=false in parsed header');
 
 			// Verify the filtering logic would correctly exclude this skill
-			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
 			const hiddenSkillInFiltered = filteredCommands.find(cmd => cmd.name === 'hidden-skill');
 			assert.strictEqual(hiddenSkillInFiltered, undefined,
-				'Hidden skill should be filtered out when applying userInvokable filter');
+				'Hidden skill should be filtered out when applying userInvocable filter');
 		});
 
-		test('should return correct userInvokable value for skills with user-invokable: true', async () => {
+		test('should return correct userInvocable value for skills with user-invocable: true', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
-			const rootFolderName = 'user-invokable-true';
+			const rootFolderName = 'user-invocable-true';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create a skill with explicit user-invokable: true
+			// Create a skill with explicit user-invocable: true
 			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/skills/visible-skill/SKILL.md`,
@@ -3045,7 +3225,7 @@ suite('PromptsService', () => {
 						'---',
 						'name: "visible-skill"',
 						'description: "A skill visible in the / menu"',
-						'user-invokable: true',
+						'user-invocable: true',
 						'---',
 						'Visible skill content',
 					],
@@ -3056,34 +3236,34 @@ suite('PromptsService', () => {
 
 			const visibleSkillCommand = slashCommands.find(cmd => cmd.name === 'visible-skill');
 			assert.ok(visibleSkillCommand, 'Should find visible skill in slash commands');
-			assert.strictEqual(visibleSkillCommand.parsedPromptFile?.header?.userInvokable, true,
-				'Should have userInvokable=true in parsed header');
+			assert.strictEqual(visibleSkillCommand.parsedPromptFile?.header?.userInvocable, true,
+				'Should have userInvocable=true in parsed header');
 
 			// Verify the filtering logic would correctly include this skill
-			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
 			const visibleSkillInFiltered = filteredCommands.find(cmd => cmd.name === 'visible-skill');
 			assert.ok(visibleSkillInFiltered,
-				'Visible skill should be included when applying userInvokable filter');
+				'Visible skill should be included when applying userInvocable filter');
 		});
 
-		test('should default to true for skills without user-invokable attribute', async () => {
+		test('should default to true for skills without user-invocable attribute', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
-			const rootFolderName = 'user-invokable-undefined';
+			const rootFolderName = 'user-invocable-undefined';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create a skill without user-invokable attribute (should default to true)
+			// Create a skill without user-invocable attribute (should default to true)
 			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/skills/default-skill/SKILL.md`,
 					contents: [
 						'---',
 						'name: "default-skill"',
-						'description: "A skill without explicit user-invokable"',
+						'description: "A skill without explicit user-invocable"',
 						'---',
 						'Default skill content',
 					],
@@ -3094,24 +3274,24 @@ suite('PromptsService', () => {
 
 			const defaultSkillCommand = slashCommands.find(cmd => cmd.name === 'default-skill');
 			assert.ok(defaultSkillCommand, 'Should find default skill in slash commands');
-			assert.strictEqual(defaultSkillCommand.parsedPromptFile?.header?.userInvokable, undefined,
-				'Should have userInvokable=undefined when attribute is not specified');
+			assert.strictEqual(defaultSkillCommand.parsedPromptFile?.header?.userInvocable, undefined,
+				'Should have userInvocable=undefined when attribute is not specified');
 
 			// Verify the filtering logic would correctly include this skill (undefined !== false is true)
-			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
 			const defaultSkillInFiltered = filteredCommands.find(cmd => cmd.name === 'default-skill');
 			assert.ok(defaultSkillInFiltered,
-				'Skill without user-invokable attribute should be included when applying userInvokable filter');
+				'Skill without user-invocable attribute should be included when applying userInvocable filter');
 		});
 
-		test('should handle prompts with user-invokable: false', async () => {
-			const rootFolderName = 'prompt-user-invokable-false';
+		test('should handle prompts with user-invocable: false', async () => {
+			const rootFolderName = 'prompt-user-invocable-false';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create a prompt with user-invokable: false
+			// Create a prompt with user-invocable: false
 			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/prompts/hidden-prompt.prompt.md`,
@@ -3119,7 +3299,7 @@ suite('PromptsService', () => {
 						'---',
 						'name: "hidden-prompt"',
 						'description: "A prompt hidden from the / menu"',
-						'user-invokable: false',
+						'user-invocable: false',
 						'---',
 						'Hidden prompt content',
 					],
@@ -3130,27 +3310,27 @@ suite('PromptsService', () => {
 
 			const hiddenPromptCommand = slashCommands.find(cmd => cmd.name === 'hidden-prompt');
 			assert.ok(hiddenPromptCommand, 'Should find hidden prompt in slash commands');
-			assert.strictEqual(hiddenPromptCommand.parsedPromptFile?.header?.userInvokable, false,
-				'Should have userInvokable=false in parsed header');
+			assert.strictEqual(hiddenPromptCommand.parsedPromptFile?.header?.userInvocable, false,
+				'Should have userInvocable=false in parsed header');
 
 			// Verify the filtering logic would correctly exclude this prompt
-			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
 			const hiddenPromptInFiltered = filteredCommands.find(cmd => cmd.name === 'hidden-prompt');
 			assert.strictEqual(hiddenPromptInFiltered, undefined,
-				'Hidden prompt should be filtered out when applying userInvokable filter');
+				'Hidden prompt should be filtered out when applying userInvocable filter');
 		});
 
-		test('should correctly filter mixed user-invokable values', async () => {
+		test('should correctly filter mixed user-invocable values', async () => {
 			testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_SKILLS, true);
 			testConfigService.setUserConfiguration(PromptsConfig.SKILLS_LOCATION_KEY, {});
 
-			const rootFolderName = 'mixed-user-invokable';
+			const rootFolderName = 'mixed-user-invocable';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Create a mix of skills and prompts with different user-invokable values
+			// Create a mix of skills and prompts with different user-invocable values
 			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/prompts/visible-prompt.prompt.md`,
@@ -3168,7 +3348,7 @@ suite('PromptsService', () => {
 						'---',
 						'name: "hidden-prompt"',
 						'description: "A hidden prompt"',
-						'user-invokable: false',
+						'user-invocable: false',
 						'---',
 						'Hidden prompt content',
 					],
@@ -3179,7 +3359,7 @@ suite('PromptsService', () => {
 						'---',
 						'name: "visible-skill"',
 						'description: "A visible skill"',
-						'user-invokable: true',
+						'user-invocable: true',
 						'---',
 						'Visible skill content',
 					],
@@ -3190,7 +3370,7 @@ suite('PromptsService', () => {
 						'---',
 						'name: "hidden-skill"',
 						'description: "A hidden skill"',
-						'user-invokable: false',
+						'user-invocable: false',
 						'---',
 						'Hidden skill content',
 					],
@@ -3203,7 +3383,7 @@ suite('PromptsService', () => {
 			assert.strictEqual(slashCommands.length, 4, 'Should find all 4 commands');
 
 			// Apply the same filtering logic as chatInputCompletions.ts
-			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
 
 			assert.strictEqual(filteredCommands.length, 2, 'Should have 2 commands after filtering');
 			assert.ok(filteredCommands.find(c => c.name === 'visible-prompt'), 'visible-prompt should be included');
@@ -3243,13 +3423,66 @@ suite('PromptsService', () => {
 				'Should have undefined header');
 
 			// Verify the filtering logic handles missing header correctly
-			// parsedPromptFile?.header?.userInvokable !== false
+			// parsedPromptFile?.header?.userInvocable !== false
 			// When header is undefined: undefined !== false is true, so skill is included
-			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvokable !== false);
+			const filteredCommands = slashCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
 			const noHeaderSkillInFiltered = filteredCommands.find(cmd =>
 				cmd.promptPath.uri.path.includes('no-header-skill'));
 			assert.ok(noHeaderSkillInFiltered,
-				'Skill without header should be included when applying userInvokable filter (defaults to true)');
+				'Skill without header should be included when applying userInvocable filter (defaults to true)');
+		});
+	});
+
+	suite('hooks', () => {
+		test('multi-root workspace resolves cwd to per-hook-file workspace folder', async function () {
+			const folder1Uri = URI.file('/workspace-a');
+			const folder2Uri = URI.file('/workspace-b');
+
+			workspaceContextService.setWorkspace(testWorkspace(folder1Uri, folder2Uri));
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, { [HOOKS_SOURCE_FOLDER]: true });
+
+			await mockFiles(fileService, [
+				{
+					path: '/workspace-a/.github/hooks/my-hook.json',
+					contents: [
+						JSON.stringify({
+							hooks: {
+								[HookType.PreToolUse]: [
+									{ type: 'command', command: 'echo folder-a' },
+								],
+							},
+						}),
+					],
+				},
+				{
+					path: '/workspace-b/.github/hooks/my-hook.json',
+					contents: [
+						JSON.stringify({
+							hooks: {
+								[HookType.PreToolUse]: [
+									{ type: 'command', command: 'echo folder-b' },
+								],
+							},
+						}),
+					],
+				},
+			]);
+
+			const result = await service.getHooks(CancellationToken.None);
+			assert.ok(result, 'Expected hooks result');
+
+			const preToolUseHooks = result.hooks[HookType.PreToolUse];
+			assert.ok(preToolUseHooks, 'Expected PreToolUse hooks');
+			assert.strictEqual(preToolUseHooks.length, 2, 'Expected two PreToolUse hooks');
+
+			const hookA = preToolUseHooks.find(h => h.command === 'echo folder-a');
+			const hookB = preToolUseHooks.find(h => h.command === 'echo folder-b');
+			assert.ok(hookA, 'Expected hook from folder-a');
+			assert.ok(hookB, 'Expected hook from folder-b');
+
+			assert.strictEqual(hookA.cwd?.path, folder1Uri.path, 'Hook from folder-a should have cwd pointing to workspace-a');
+			assert.strictEqual(hookB.cwd?.path, folder2Uri.path, 'Hook from folder-b should have cwd pointing to workspace-b');
 		});
 	});
 });

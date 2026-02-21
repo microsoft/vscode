@@ -11,6 +11,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HoverStyle, IDelayedHoverOptions, type IHoverLifecycleOptions, type IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import * as event from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -19,6 +20,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
@@ -76,6 +78,17 @@ const commonHoverOptions: Partial<IHoverOptions> = {
 const commonHoverLifecycleOptions: IHoverLifecycleOptions = {
 	groupId: 'chat-attachments',
 };
+
+const KEY_ELEMENT_HOVER_COMPUTED_STYLE_PROPERTIES = [
+	'display',
+	'position',
+	'margin',
+	'padding',
+	'font-size',
+	'font-family',
+	'color',
+	'background-color'
+];
 
 abstract class AbstractChatAttachmentWidget extends Disposable {
 	public readonly element: HTMLElement;
@@ -614,8 +627,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 
 		if (attachment.kind === 'symbol') {
-			const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
-			this._register(this.instantiationService.invokeFunction(hookUpSymbolAttachmentDragAndContextMenu, this.element, scopedContextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext));
+			this._register(this.instantiationService.invokeFunction(hookUpSymbolAttachmentDragAndContextMenu, this.element, this.contextKeyService, { ...attachment, kind: attachment.symbolKind }, MenuId.ChatInputSymbolAttachmentContext));
 		}
 
 		// Handle click for string context attachments with context commands
@@ -928,7 +940,8 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		@ICommandService commandService: ICommandService,
 		@IOpenerService openerService: IOpenerService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(attachment, options, container, contextResourceLabels, currentLanguageModel, commandService, openerService, configurationService);
 
@@ -941,16 +954,282 @@ export class ElementChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		const withIcon = attachment.icon?.id ? `$(${attachment.icon.id})\u00A0${attachmentLabel}` : attachmentLabel;
 		this.label.setLabel(withIcon, undefined, { title: localize('chat.clickToViewContents', "Click to view the contents of: {0}", attachmentLabel) });
 
+		this._register(this.hoverService.setupDelayedHover(this.element, this.getHoverContent(attachment), commonHoverLifecycleOptions));
+
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, async () => {
-			const content = attachment.value?.toString() || '';
-			await editorService.openEditor({
-				resource: undefined,
-				contents: content,
-				options: {
-					pinned: true
-				}
-			});
+			await this.openElementAttachment(attachment);
 		}));
+	}
+
+	private getHoverContent(attachment: IElementVariableEntry): IDelayedHoverOptions {
+		if (!this.shouldRenderRichElementHover(attachment)) {
+			return this.getSimpleHoverContent(attachment);
+		}
+
+		const hoverElement = dom.$('div.chat-attached-context-hover.chat-element-hover');
+
+		// Wrap all sections in a scrollable container for VS Code styled scrollbar
+		const scrollableContent = dom.$('div.chat-element-hover-content');
+		const innerScrollables: DomScrollableElement[] = [];
+
+		// ELEMENT section: show the selected element tag with all attributes
+		{
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.element', "ELEMENT"));
+			section.appendChild(header);
+			const elementPre = dom.$('pre.chat-element-hover-code');
+			const elementCode = dom.$('code');
+			// Build the element tag from the outerHTML (just the opening tag)
+			const tagDisplay = this.formatElementTag(attachment);
+			elementCode.textContent = tagDisplay;
+			elementPre.appendChild(elementCode);
+			const elementScrollable = this._register(new DomScrollableElement(elementPre, {
+				horizontal: ScrollbarVisibility.Auto,
+				vertical: ScrollbarVisibility.Hidden,
+			}));
+			innerScrollables.push(elementScrollable);
+			section.appendChild(elementScrollable.getDomNode());
+			scrollableContent.appendChild(section);
+		}
+
+		// KEY COMPUTED STYLES section
+		const computedStyleEntries = this.getComputedStyleEntriesForHover(attachment.computedStyles);
+		if (computedStyleEntries.length > 0) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.computedStyles', "KEY COMPUTED STYLES"));
+			section.appendChild(header);
+			const table = dom.$('div.chat-element-hover-table');
+			for (const [name, value] of computedStyleEntries) {
+				const row = dom.$('div.chat-element-hover-row');
+				row.appendChild(dom.$('span.chat-element-hover-label', {}, `${name}:`));
+				const valueContainer = dom.$('span.chat-element-hover-value');
+				// Show color swatch for color properties
+				if ((name === 'color' || name === 'background-color') && value) {
+					const swatch = dom.$('span.chat-element-hover-color-swatch');
+					swatch.style.backgroundColor = value;
+					valueContainer.appendChild(swatch);
+				}
+				valueContainer.appendChild(document.createTextNode(value));
+				row.appendChild(valueContainer);
+				table.appendChild(row);
+			}
+			section.appendChild(table);
+			const showMoreButton = dom.$('button.chat-element-hover-show-more', { type: 'button' }, localize('chat.elementHover.showMore', "Show More..."));
+			this._register(dom.addDisposableListener(showMoreButton, dom.EventType.CLICK, async e => {
+				dom.EventHelper.stop(e, true);
+				await this.openElementAttachment(attachment);
+			}));
+			section.appendChild(showMoreButton);
+			scrollableContent.appendChild(section);
+		}
+
+		// HTML PATH section: render ancestor chain as indented HTML tree
+		if (attachment.ancestors && attachment.ancestors.length > 1) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.htmlPath', "HTML PATH"));
+			section.appendChild(header);
+			const lines: string[] = [];
+			for (let i = 0; i < attachment.ancestors.length; i++) {
+				const ancestor = attachment.ancestors[i];
+				const indent = '  '.repeat(i);
+				const tag = this.formatAncestorTag(ancestor);
+				lines.push(`${indent}${tag}`);
+			}
+			const pathPre = dom.$('pre.chat-element-hover-code');
+			const pathCode = dom.$('code');
+			pathCode.textContent = lines.join('\n');
+			pathPre.appendChild(pathCode);
+			const pathScrollable = this._register(new DomScrollableElement(pathPre, {
+				horizontal: ScrollbarVisibility.Auto,
+				vertical: ScrollbarVisibility.Hidden,
+			}));
+			innerScrollables.push(pathScrollable);
+			section.appendChild(pathScrollable.getDomNode());
+			scrollableContent.appendChild(section);
+		}
+
+		// ATTRIBUTES section
+		if (attachment.attributes && Object.keys(attachment.attributes).length > 0) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.attributes', "ATTRIBUTES"));
+			section.appendChild(header);
+			const table = dom.$('div.chat-element-hover-table');
+			for (const [name, value] of Object.entries(attachment.attributes)) {
+				const row = dom.$('div.chat-element-hover-row');
+				row.appendChild(dom.$('span.chat-element-hover-label', {}, `${name}:`));
+				row.appendChild(dom.$('span.chat-element-hover-value', {}, value));
+				table.appendChild(row);
+			}
+			section.appendChild(table);
+			scrollableContent.appendChild(section);
+		}
+
+		// POSITION & SIZE section
+		if (attachment.dimensions) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.positionSize', "POSITION & SIZE"));
+			section.appendChild(header);
+			const table = dom.$('div.chat-element-hover-table');
+			const dims: [string, number][] = [
+				['top:', attachment.dimensions.top],
+				['left:', attachment.dimensions.left],
+				['width:', attachment.dimensions.width],
+				['height:', attachment.dimensions.height],
+			];
+			for (const [label, val] of dims) {
+				const row = dom.$('div.chat-element-hover-row');
+				row.appendChild(dom.$('span.chat-element-hover-label', {}, label));
+				row.appendChild(dom.$('span.chat-element-hover-value', {}, `${Math.round(val)}px`));
+				table.appendChild(row);
+			}
+			section.appendChild(table);
+			scrollableContent.appendChild(section);
+		}
+
+		// INNER TEXT section
+		if (attachment.innerText) {
+			const section = dom.$('div.chat-element-hover-section');
+			const header = dom.$('div.chat-element-hover-header', {}, localize('chat.elementHover.innerText', "INNER TEXT"));
+			section.appendChild(header);
+			section.appendChild(dom.$('div.chat-element-hover-text', {}, attachment.innerText));
+			scrollableContent.appendChild(section);
+		}
+
+		const scrollableElement = this._register(new DomScrollableElement(scrollableContent, {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Hidden,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		const scrollableDomNode = scrollableElement.getDomNode();
+		scrollableDomNode.classList.add('chat-element-hover-scrollable');
+		hoverElement.appendChild(scrollableDomNode);
+
+		return {
+			...commonHoverOptions,
+			content: hoverElement,
+			additionalClasses: ['chat-element-data-hover'],
+			onDidShow: () => {
+				for (const s of innerScrollables) {
+					s.scanDomNode();
+				}
+				scrollableElement.scanDomNode();
+			},
+		};
+	}
+
+	private shouldRenderRichElementHover(attachment: IElementVariableEntry): boolean {
+		if (attachment.dimensions || attachment.innerText) {
+			return true;
+		}
+
+		if (attachment.ancestors && attachment.ancestors.length > 0) {
+			return true;
+		}
+
+		if (attachment.attributes && Object.keys(attachment.attributes).length > 0) {
+			return true;
+		}
+
+		if (attachment.computedStyles && Object.keys(attachment.computedStyles).length > 0) {
+			return true;
+		}
+
+		return false;
+	}
+
+	private getSimpleHoverContent(attachment: IElementVariableEntry): IDelayedHoverOptions {
+		const content = attachment.value?.toString() ?? '';
+		const hoverContent = new MarkdownString();
+		hoverContent.appendText(attachment.fullName ?? attachment.name);
+		if (content.trim().length > 0) {
+			hoverContent.appendMarkdown('\n\n');
+			hoverContent.appendCodeblock('text', content);
+		}
+
+		return {
+			...commonHoverOptions,
+			content: hoverContent,
+		};
+	}
+
+	private getComputedStyleEntriesForHover(computedStyles: Readonly<Record<string, string>> | undefined): ReadonlyArray<[string, string]> {
+		if (!computedStyles) {
+			return [];
+		}
+
+		const keyEntries: Array<[string, string]> = [];
+		for (const property of KEY_ELEMENT_HOVER_COMPUTED_STYLE_PROPERTIES) {
+			if (property === 'margin' || property === 'padding') {
+				const shorthand = this.getBoxShorthandValue(computedStyles, property);
+				if (typeof shorthand === 'string') {
+					keyEntries.push([property, shorthand]);
+					continue;
+				}
+			}
+
+			const value = computedStyles[property];
+			if (typeof value === 'string') {
+				keyEntries.push([property, value]);
+			}
+		}
+
+		// Fallback for older payloads that might not include the key properties.
+		if (keyEntries.length > 0) {
+			return keyEntries;
+		}
+
+		return Object.entries(computedStyles).slice(0, KEY_ELEMENT_HOVER_COMPUTED_STYLE_PROPERTIES.length);
+	}
+
+	private getBoxShorthandValue(computedStyles: Readonly<Record<string, string>>, propertyName: 'margin' | 'padding'): string | undefined {
+		const top = computedStyles[`${propertyName}-top`];
+		const right = computedStyles[`${propertyName}-right`];
+		const bottom = computedStyles[`${propertyName}-bottom`];
+		const left = computedStyles[`${propertyName}-left`];
+
+		if (typeof top === 'string' && typeof right === 'string' && typeof bottom === 'string' && typeof left === 'string') {
+			return `${top} ${right} ${bottom} ${left}`;
+		}
+
+		return computedStyles[propertyName];
+	}
+
+	private async openElementAttachment(attachment: IElementVariableEntry): Promise<void> {
+		const content = attachment.value?.toString() || '';
+		await this.editorService.openEditor({
+			resource: undefined,
+			contents: content,
+			options: {
+				pinned: true
+			}
+		});
+	}
+
+	private formatElementTag(attachment: IElementVariableEntry): string {
+		// Extract the opening tag from the outerHTML within the value string
+		// Value format: "Attached HTML and CSS Context\n\n<tag ...>...</tag>\n\n..."
+		const content = attachment.value?.toString() ?? '';
+		const htmlMatch = content.match(/\n\n(<[^>]+>)/);
+		if (htmlMatch) {
+			return htmlMatch[1];
+		}
+		// Fallback: try first tag in content
+		const fallback = content.match(/<([^>]+)>/);
+		if (fallback) {
+			return `<${fallback[1]}>`;
+		}
+		return `<${attachment.name}>`;
+	}
+
+	private formatAncestorTag(ancestor: { tagName: string; id?: string; classNames?: string[] }): string {
+		const parts = [`<${ancestor.tagName}`];
+		if (ancestor.classNames?.length) {
+			parts.push(` class="${ancestor.classNames.join(' ')}"`);
+		}
+		if (ancestor.id) {
+			parts.push(` id="${ancestor.id}"`);
+		}
+		return parts.join('') + '>';
 	}
 }
 
@@ -1115,18 +1394,14 @@ export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAcc
 	return store;
 }
 
-export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, attachment: { name: string; value: Location; kind: SymbolKind }, contextMenuId: MenuId): IDisposable {
+export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAccessor, widget: HTMLElement, parentContextKeyService: IContextKeyService, attachment: { name: string; value: Location; kind: SymbolKind }, contextMenuId: MenuId): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 	const textModelService = accessor.get(ITextModelService);
+	const contextMenuService = accessor.get(IContextMenuService);
+	const menuService = accessor.get(IMenuService);
 
 	const store = new DisposableStore();
-
-	// Context
-	store.add(setResourceContext(accessor, scopedContextKeyService, attachment.value.uri));
-
-	const chatResourceContext = chatAttachmentResourceContextKey.bindTo(scopedContextKeyService);
-	chatResourceContext.set(attachment.value.uri.toString());
 
 	// Drag and drop
 	widget.draggable = true;
@@ -1143,26 +1418,57 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 		e.dataTransfer?.setDragImage(widget, 0, 0);
 	}));
 
-	// Context menu
-	const providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> = [
-		[EditorContextKeys.hasDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.definitionProvider],
-		[EditorContextKeys.hasReferenceProvider.bindTo(scopedContextKeyService), languageFeaturesService.referenceProvider],
-		[EditorContextKeys.hasImplementationProvider.bindTo(scopedContextKeyService), languageFeaturesService.implementationProvider],
-		[EditorContextKeys.hasTypeDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.typeDefinitionProvider],
-	];
+	// Context menu (context key service created eagerly for keybinding preconditions,
+	// but resource context and provider contexts are initialized lazily on first use)
+	const scopedContextKeyService = store.add(parentContextKeyService.createScoped(widget));
+	chatAttachmentResourceContextKey.bindTo(scopedContextKeyService).set(attachment.value.uri.toString());
+	store.add(setResourceContext(accessor, scopedContextKeyService, attachment.value.uri));
+
+	let providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> | undefined;
+
+	const ensureProviderContexts = () => {
+		if (!providerContexts) {
+			providerContexts = [
+				[EditorContextKeys.hasDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.definitionProvider],
+				[EditorContextKeys.hasReferenceProvider.bindTo(scopedContextKeyService), languageFeaturesService.referenceProvider],
+				[EditorContextKeys.hasImplementationProvider.bindTo(scopedContextKeyService), languageFeaturesService.implementationProvider],
+				[EditorContextKeys.hasTypeDefinitionProvider.bindTo(scopedContextKeyService), languageFeaturesService.typeDefinitionProvider],
+			];
+		}
+	};
 
 	const updateContextKeys = async () => {
+		ensureProviderContexts();
 		const modelRef = await textModelService.createModelReference(attachment.value.uri);
 		try {
 			const model = modelRef.object.textEditorModel;
-			for (const [contextKey, registry] of providerContexts) {
+			for (const [contextKey, registry] of providerContexts!) {
 				contextKey.set(registry.has(model));
 			}
 		} finally {
 			modelRef.dispose();
 		}
 	};
-	store.add(addBasicContextMenu(accessor, widget, scopedContextKeyService, contextMenuId, attachment.value, updateContextKeys));
+
+	store.add(dom.addDisposableListener(widget, dom.EventType.CONTEXT_MENU, async domEvent => {
+		const event = new StandardMouseEvent(dom.getWindow(domEvent), domEvent);
+		dom.EventHelper.stop(domEvent, true);
+
+		try {
+			await updateContextKeys();
+		} catch (e) {
+			console.error(e);
+		}
+
+		contextMenuService.showContextMenu({
+			contextKeyService: scopedContextKeyService,
+			getAnchor: () => event,
+			getActions: () => {
+				const menu = menuService.getMenuActions(contextMenuId, scopedContextKeyService, { arg: attachment.value });
+				return getFlatContextMenuActions(menu);
+			},
+		});
+	}));
 
 	return store;
 }

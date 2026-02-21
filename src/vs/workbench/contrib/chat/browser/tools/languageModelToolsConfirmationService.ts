@@ -267,6 +267,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				label: localize('allowSession', 'Allow in this Session'),
 				detail: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
 				divider: !!actions.length,
+				scope: 'session',
 				select: async () => {
 					this._preExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'session');
 					return true;
@@ -275,6 +276,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			{
 				label: localize('allowWorkspace', 'Allow in this Workspace'),
 				detail: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.'),
+				scope: 'workspace',
 				select: async () => {
 					this._preExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'workspace');
 					return true;
@@ -283,6 +285,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			{
 				label: localize('allowGlobally', 'Always Allow'),
 				detail: localize('allowGloballyTooltip', 'Always allow this tool to run without confirmation.'),
+				scope: 'profile',
 				select: async () => {
 					this._preExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'profile');
 					return true;
@@ -298,6 +301,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					label: localize('allowServerSession', 'Allow Tools from {0} in this Session', serverLabel),
 					detail: localize('allowServerSessionTooltip', 'Allow all tools from this server to run in this session without confirmation.'),
 					divider: true,
+					scope: 'session',
 					select: async () => {
 						this._preExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'session');
 						return true;
@@ -306,6 +310,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				{
 					label: localize('allowServerWorkspace', 'Allow Tools from {0} in this Workspace', serverLabel),
 					detail: localize('allowServerWorkspaceTooltip', 'Allow all tools from this server to run in this workspace without confirmation.'),
+					scope: 'workspace',
 					select: async () => {
 						this._preExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'workspace');
 						return true;
@@ -314,6 +319,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				{
 					label: localize('allowServerGlobally', 'Always Allow Tools from {0}', serverLabel),
 					detail: localize('allowServerGloballyTooltip', 'Always allow all tools from this server to run without confirmation.'),
+					scope: 'profile',
 					select: async () => {
 						this._preExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'profile');
 						return true;
@@ -345,6 +351,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				label: localize('allowSessionPost', 'Allow Without Review in this Session'),
 				detail: localize('allowSessionPostTooltip', 'Allow results from this tool to be sent without confirmation in this session.'),
 				divider: !!actions.length,
+				scope: 'session',
 				select: async () => {
 					this._postExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'session');
 					return true;
@@ -353,6 +360,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			{
 				label: localize('allowWorkspacePost', 'Allow Without Review in this Workspace'),
 				detail: localize('allowWorkspacePostTooltip', 'Allow results from this tool to be sent without confirmation in this workspace.'),
+				scope: 'workspace',
 				select: async () => {
 					this._postExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'workspace');
 					return true;
@@ -361,6 +369,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			{
 				label: localize('allowGloballyPost', 'Always Allow Without Review'),
 				detail: localize('allowGloballyPostTooltip', 'Always allow results from this tool to be sent without confirmation.'),
+				scope: 'profile',
 				select: async () => {
 					this._postExecutionToolConfirmStore.setAutoConfirmation(ref.toolId, 'profile');
 					return true;
@@ -376,6 +385,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					label: localize('allowServerSessionPost', 'Allow Tools from {0} Without Review in this Session', serverLabel),
 					detail: localize('allowServerSessionPostTooltip', 'Allow results from all tools from this server to be sent without confirmation in this session.'),
 					divider: true,
+					scope: 'session',
 					select: async () => {
 						this._postExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'session');
 						return true;
@@ -384,6 +394,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				{
 					label: localize('allowServerWorkspacePost', 'Allow Tools from {0} Without Review in this Workspace', serverLabel),
 					detail: localize('allowServerWorkspacePostTooltip', 'Allow results from all tools from this server to be sent without confirmation in this workspace.'),
+					scope: 'workspace',
 					select: async () => {
 						this._postExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'workspace');
 						return true;
@@ -392,6 +403,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 				{
 					label: localize('allowServerGloballyPost', 'Always Allow Tools from {0} Without Review', serverLabel),
 					detail: localize('allowServerGloballyPostTooltip', 'Always allow results from all tools from this server to be sent without confirmation.'),
+					scope: 'profile',
 					select: async () => {
 						this._postExecutionServerConfirmStore.setAutoConfirmation(definitionId, 'profile');
 						return true;

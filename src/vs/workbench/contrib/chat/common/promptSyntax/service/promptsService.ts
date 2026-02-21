@@ -38,6 +38,14 @@ export interface IPromptFileResource {
 	 * The URI to the agent or prompt resource file.
 	 */
 	readonly uri: URI;
+	/**
+	 * Optional externally provided prompt command name.
+	 */
+	readonly name?: string;
+	/**
+	 * Optional externally provided prompt command description.
+	 */
+	readonly description?: string;
 }
 
 /**
@@ -101,6 +109,7 @@ export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly source: ExtensionAgentSourceType;
 	readonly name?: string;
 	readonly description?: string;
+	readonly when?: string;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
@@ -125,16 +134,23 @@ export type IAgentSource = {
  * - 'hidden': neither in picker nor usable as subagent
  */
 export type ICustomAgentVisibility = {
-	readonly userInvokable: boolean;
-	readonly agentInvokable: boolean;
+	readonly userInvocable: boolean;
+	readonly agentInvocable: boolean;
 };
 
 export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibility {
 	if (typeof obj !== 'object' || obj === null) {
 		return false;
 	}
-	const v = obj as { userInvokable?: unknown; agentInvokable?: unknown };
-	return typeof v.userInvokable === 'boolean' && typeof v.agentInvokable === 'boolean';
+	const v = obj as { userInvocable?: unknown; agentInvocable?: unknown };
+	return typeof v.userInvocable === 'boolean' && typeof v.agentInvocable === 'boolean';
+}
+
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot',
+	Claude = 'claude',
+	Undefined = 'undefined',
 }
 
 export interface ICustomAgent {
@@ -169,12 +185,12 @@ export interface ICustomAgent {
 	readonly argumentHint?: string;
 
 	/**
-	 * Target metadata in the prompt header.
+	 * Target of the agent: Copilot, VSCode, Claude, or undefined if not specified.
 	 */
-	readonly target?: string;
+	readonly target: Target;
 
 	/**
-	 * What visibility the agent has (user invokable, subagent invokable).
+	 * What visibility the agent has (user invocable, subagent invocable).
 	 */
 	readonly visibility: ICustomAgentVisibility;
 
@@ -228,7 +244,7 @@ export interface IAgentSkill {
 	 * If false, the skill is hidden from the / menu.
 	 * Use for background knowledge users shouldn't invoke directly.
 	 */
-	readonly userInvokable: boolean;
+	readonly userInvocable: boolean;
 }
 
 /**
@@ -266,7 +282,9 @@ export type PromptFileSkipReason =
 	| 'name-mismatch'
 	| 'duplicate-name'
 	| 'parse-error'
-	| 'disabled';
+	| 'disabled'
+	| 'all-hooks-disabled'
+	| 'claude-hooks-disabled';
 
 /**
  * Result of discovering a single prompt file.
@@ -283,8 +301,8 @@ export interface IPromptFileDiscoveryResult {
 	readonly duplicateOf?: URI;
 	/** Extension ID if from extension */
 	readonly extensionId?: string;
-	/** If true, the skill is hidden from the / menu (user-invokable: false) */
-	readonly userInvokable?: boolean;
+	/** Whether the skill is user-invocable in the / menu (set user-invocable: false to hide it) */
+	readonly userInvocable?: boolean;
 	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */
 	readonly disableModelInvocation?: boolean;
 }
@@ -295,6 +313,11 @@ export interface IPromptFileDiscoveryResult {
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
+}
+
+export interface IConfiguredHooksInfo {
+	readonly hooks: IChatRequestHooks;
+	readonly hasDisabledClaudeHooks: boolean;
 }
 
 /**
@@ -377,7 +400,7 @@ export interface IPromptsService extends IDisposable {
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
 	 * Not intended for extension authors; used by contribution point handler.
 	 */
-	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined): IDisposable;
+	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined, when?: string): IDisposable;
 
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;
@@ -437,5 +460,5 @@ export interface IPromptsService extends IDisposable {
 	 * Gets all hooks collected from hooks.json files.
 	 * The result is cached and invalidated when hook files change.
 	 */
-	getHooks(token: CancellationToken): Promise<IChatRequestHooks | undefined>;
+	getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined>;
 }

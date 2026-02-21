@@ -13,17 +13,12 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
-const queueingEnabledCondition = ContextKeyExpr.equals(`config.${ChatConfiguration.RequestQueueingEnabled}`, true);
-const requestInProgressOrPendingToolCall = ContextKeyExpr.or(ChatContextKeys.requestInProgress, ChatContextKeys.Editing.hasToolConfirmation);
-
 const queuingActionsPresent = ContextKeyExpr.and(
-	queueingEnabledCondition,
-	ContextKeyExpr.or(requestInProgressOrPendingToolCall, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.QueueOrSteer)),
+	ContextKeyExpr.or(ChatContextKeys.requestInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.QueueOrSteer)),
 	ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Sent),
 );
 
@@ -141,7 +136,6 @@ export class ChatRemovePendingRequestAction extends Action2 {
 				group: 'navigation',
 				order: 4,
 				when: ContextKeyExpr.and(
-					queueingEnabledCondition,
 					ChatContextKeys.isRequest,
 					ChatContextKeys.isPendingRequest
 				)
@@ -181,7 +175,6 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 				group: 'navigation',
 				order: 3,
 				when: ContextKeyExpr.and(
-					queueingEnabledCondition,
 					ChatContextKeys.isRequest,
 					ChatContextKeys.isPendingRequest
 				)
@@ -239,11 +232,8 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 				id: MenuId.ChatContext,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(
-					queueingEnabledCondition,
-					ChatContextKeys.hasPendingRequests
-				)
-			}]
+				when: ChatContextKeys.hasPendingRequests,
+			}],
 		});
 	}
 

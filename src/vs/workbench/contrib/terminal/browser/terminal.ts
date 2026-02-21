@@ -164,13 +164,6 @@ export interface ITerminalChatService {
 	 * @returns The chat session resource if found, undefined otherwise
 	 */
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined;
-	/**
-	 * @deprecated Use getChatSessionResourceForInstance instead
-	 * Returns the chat session ID for a given terminal instance, if it has been registered.
-	 * @param instance The terminal instance to look up
-	 * @returns The chat session ID if found, undefined otherwise
-	 */
-	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
 	/**
 	 * Check if a terminal is a background terminal (tool-driven terminal that may be hidden from
@@ -834,6 +827,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	readonly fixedCols?: number;
 	readonly fixedRows?: number;
 	readonly domElement: HTMLElement;
+	readonly isVisible: boolean;
 	readonly icon?: TerminalIcon;
 	readonly color?: string;
 	readonly reconnectionProperties?: IReconnectionProperties;

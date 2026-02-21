@@ -122,6 +122,17 @@ export interface IChatWidgetService {
 	readonly onDidBackgroundSession: Event<URI>;
 
 	/**
+	 * Fires when the focused chat widget changes.
+	 */
+	readonly onDidChangeFocusedWidget: Event<IChatWidget | undefined>;
+
+	/**
+	 * Fires when the focused chat session changes, either because the focused widget
+	 * changed or because the focused widget loaded a different session.
+	 */
+	readonly onDidChangeFocusedSession: Event<void>;
+
+	/**
 	 * Reveals the widget, focusing its input unless `preserveFocus` is true.
 	 */
 	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean>;
@@ -311,6 +322,11 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	/**
+	 * When true, always queues the request regardless of whether a request is currently in progress.
+	 * The request stays in the pending queue until explicitly processed.
+	 */
+	alwaysQueue?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -386,6 +402,22 @@ export interface IChatWidget {
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
 	 */
 	toggleQuestionCarouselFocus(): boolean;
+	/**
+	 * Navigates to the previous question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a previous question exists).
+	 */
+	navigateToPreviousQuestion(): boolean;
+	/**
+	 * Navigates to the next question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a next question exists).
+	 */
+	navigateToNextQuestion(): boolean;
+	/**
+	 * Toggles focus between the tip widget and the chat input.
+	 * Returns false if no tip is visible.
+	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
+	 */
+	toggleTipFocus(): boolean;
 	hasInputFocus(): boolean;
 	getModeRequestOptions(): Partial<IChatSendRequestOptions>;
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined;

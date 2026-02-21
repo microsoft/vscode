@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { findHookCommandSelection } from '../../../browser/promptSyntax/hookUtils.js';
 import { ITextEditorSelection } from '../../../../../../platform/editor/common/editor.js';
+import { buildNewHookEntry, HookSourceFormat } from '../../../common/promptSyntax/hookCompatibility.js';
 
 /**
  * Helper to extract the selected text from content using a selection range.
@@ -649,6 +650,75 @@ suite('hookUtils', () => {
 					endLineNumber: 10,
 					endColumn: 35
 				});
+			});
+		});
+	});
+
+	suite('findHookCommandSelection with buildNewHookEntry', () => {
+
+		test('finds command in Copilot-format generated JSON', () => {
+			const entry = buildNewHookEntry(HookSourceFormat.Copilot);
+			const content = JSON.stringify({ hooks: { SessionStart: [entry] } }, null, '\t');
+			const result = findHookCommandSelection(content, 'SessionStart', 0, 'command');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), '');
+		});
+
+		test('finds command in Claude-format generated JSON', () => {
+			const entry = buildNewHookEntry(HookSourceFormat.Claude);
+			const content = JSON.stringify({ hooks: { PreToolUse: [entry] } }, null, '\t');
+			const result = findHookCommandSelection(content, 'PreToolUse', 0, 'command');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), '');
+		});
+
+		test('finds command when appending Claude entry to existing hooks', () => {
+			const entry1 = buildNewHookEntry(HookSourceFormat.Claude);
+			const entry2 = buildNewHookEntry(HookSourceFormat.Claude);
+			const content = JSON.stringify({ hooks: { PreToolUse: [entry1, entry2] } }, null, '\t');
+
+			const result0 = findHookCommandSelection(content, 'PreToolUse', 0, 'command');
+			const result1 = findHookCommandSelection(content, 'PreToolUse', 1, 'command');
+			assert.ok(result0);
+			assert.ok(result1);
+			assert.strictEqual(getSelectedText(content, result0), '');
+			assert.strictEqual(getSelectedText(content, result1), '');
+			// Second entry should be on a later line
+			assert.ok(result1.startLineNumber > result0.startLineNumber);
+		});
+
+		test('Claude format JSON has correct structure', () => {
+			const entry = buildNewHookEntry(HookSourceFormat.Claude);
+			const content = JSON.stringify({ hooks: { SubagentStart: [entry] } }, null, '\t');
+			const parsed = JSON.parse(content);
+			assert.deepStrictEqual(parsed, {
+				hooks: {
+					SubagentStart: [
+						{
+							matcher: '',
+							hooks: [{
+								type: 'command',
+								command: ''
+							}]
+						}
+					]
+				}
+			});
+		});
+
+		test('Copilot format JSON has correct structure', () => {
+			const entry = buildNewHookEntry(HookSourceFormat.Copilot);
+			const content = JSON.stringify({ hooks: { SubagentStart: [entry] } }, null, '\t');
+			const parsed = JSON.parse(content);
+			assert.deepStrictEqual(parsed, {
+				hooks: {
+					SubagentStart: [
+						{
+							type: 'command',
+							command: ''
+						}
+					]
+				}
 			});
 		});
 	});

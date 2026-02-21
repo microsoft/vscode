@@ -1,0 +1,237 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.flex-grow {
+	flex-grow: 1;
+}
+
+.changes-view-body {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 8px;
+		box-sizing: border-box;
+}
+
+/* Welcome/Empty state */
+.changes-view-body .changes-welcome {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+		flex: 1;
+		padding: 20px;
+		text-align: center;
+		gap: 8px;
+}
+
+.changes-view-body .changes-welcome-icon.codicon {
+	font-size: 48px !important;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.6;
+}
+
+.changes-view-body .changes-welcome-message {
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+/* Main container - matches chat editing session styling */
+.changes-view-body .chat-editing-session-container {
+	padding: 4px 3px;
+	box-sizing: border-box;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	overflow: hidden;
+}
+
+/* Overview section (header) - hidden since actions moved outside card */
+.changes-view-body .chat-editing-session-overview {
+	display: none;
+}
+
+/* Summary container */
+.changes-view-body .changes-summary {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+	padding: 0 6px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+}
+
+/* Line counts in header */
+.changes-view-body .changes-summary .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+	font-size: 11px;
+		font-weight: 500;
+}
+
+.changes-view-body .changes-summary .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+	font-size: 11px;
+		font-weight: 500;
+}
+
+/* Actions container */
+.changes-view-body .chat-editing-session-actions {
+	display: flex;
+	flex-direction: row;
+		flex-wrap: nowrap;
+		gap: 6px;
+	align-items: center;
+}
+
+/* Actions container outside the card - new layout experiment */
+.changes-view-body .chat-editing-session-actions.outside-card {
+	margin-bottom: 8px;
+	justify-content: flex-end;
+}
+
+/* Larger action buttons matching SCM ActionButton style */
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button {
+	height: 26px;
+	padding: 4px 14px;
+	border-radius: 4px;
+	font-size: 12px;
+	line-height: 18px;
+}
+
+/* Primary button grows to fill available space */
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button:not(.secondary) {
+	flex: 1;
+}
+
+.changes-view-body .chat-editing-session-actions.outside-card .monaco-button.secondary.monaco-text-button.codicon {
+	padding: 4px 8px;
+	font-size: 16px !important;
+}
+.changes-view-body .chat-editing-session-actions .monaco-button {
+	width: fit-content;
+	overflow: hidden;
+	text-wrap: nowrap;
+}
+
+.changes-view-body .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
+	cursor: pointer;
+	padding: 2px;
+	border-radius: 4px;
+	display: inline-flex;
+}
+
+.changes-view-body .chat-editing-session-actions .monaco-button.secondary.monaco-text-button {
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.changes-view-body .chat-editing-session-actions .monaco-button.secondary:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+/* List container */
+.changes-view-body .chat-editing-session-list {
+	overflow: hidden;
+}
+
+/* Make the vertical scrollbar overlay on top of content instead of shifting it */
+.changes-view-body .chat-editing-session-list .monaco-scrollable-element > .scrollbar.vertical {
+	z-index: 1;
+}
+
+.changes-view-body .chat-editing-session-list .monaco-scrollable-element > .monaco-list-rows {
+	width: 100% !important;
+}
+
+/* Remove tree indentation padding for hidden twisties (both list and tree mode) */
+.changes-view-body .chat-editing-session-list .monaco-tl-twistie.force-no-twistie {
+	padding-left: 0 !important;
+}
+/* List rows */
+.changes-view-body .chat-editing-session-container:not(.has-file-icons) .monaco-list-row .monaco-icon-label {
+	margin-left: 6px;
+}
+
+.changes-view-body .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
+	border-radius: 2px;
+}
+
+/* Action bar in list rows */
+.changes-view-body .monaco-list-row .chat-collapsible-list-action-bar {
+	padding-left: 5px;
+	display: none;
+}
+
+.changes-view-body .monaco-list-row:hover .chat-collapsible-list-action-bar:not(.has-no-actions),
+.changes-view-body .monaco-list-row.focused .chat-collapsible-list-action-bar:not(.has-no-actions),
+.changes-view-body .monaco-list-row.selected .chat-collapsible-list-action-bar:not(.has-no-actions) {
+	display: inherit;
+}
+
+/* Decoration badges (A/M/D) */
+.changes-view-body .chat-editing-session-list .changes-decoration-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	min-width: 16px;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1;
+	margin-right: 2px;
+	opacity: 0.9;
+}
+
+.changes-view-body .chat-editing-session-list .changes-decoration-badge.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.changes-view-body .chat-editing-session-list .changes-decoration-badge.modified {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.changes-view-body .chat-editing-session-list .changes-decoration-badge.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+/* Line counts in list items */
+.changes-view-body .chat-editing-session-list .working-set-line-counts {
+	margin: 0 6px;
+	display: inline-flex;
+	gap: 4px;
+	font-size: 11px;
+}
+
+.changes-view-body .chat-editing-session-list .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.changes-view-body .chat-editing-session-list .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}
+
+/* Line counts in buttons */
+.changes-view-body .chat-editing-session-actions .monaco-button.working-set-diff-stats {
+	flex-shrink: 0;
+	padding-left: 4px;
+	padding-right: 8px;
+}
+
+.changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-added {
+	color: var(--vscode-chat-linesAddedForeground);
+}
+
+.changes-view-body .chat-editing-session-actions .monaco-button .working-set-lines-removed {
+	color: var(--vscode-chat-linesRemovedForeground);
+}

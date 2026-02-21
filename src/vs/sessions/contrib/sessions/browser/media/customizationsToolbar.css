@@ -1,0 +1,134 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-viewpane {
+
+	/* AI Customization section - pinned to bottom */
+	.ai-customization-toolbar {
+		display: flex;
+		flex-direction: column;
+		flex-shrink: 0;
+		border-top: 1px solid var(--vscode-widget-border);
+		padding: 6px;
+	}
+
+	/* Make the toolbar, action bar, and items fill full width and stack vertically */
+	.ai-customization-toolbar .ai-customization-toolbar-content .monaco-toolbar,
+	.ai-customization-toolbar .ai-customization-toolbar-content .monaco-action-bar {
+		width: 100%;
+	}
+
+	.ai-customization-toolbar .ai-customization-toolbar-content .monaco-action-bar .actions-container {
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+	}
+
+	.ai-customization-toolbar .ai-customization-toolbar-content .monaco-action-bar .action-item {
+		width: 100%;
+		max-width: 100%;
+	}
+
+	.ai-customization-toolbar .customization-link-widget {
+		width: 100%;
+	}
+
+	/* Customization header - clickable for collapse */
+	.ai-customization-toolbar .ai-customization-header {
+		display: flex;
+		align-items: center;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	.ai-customization-toolbar .ai-customization-header:not(.collapsed) {
+		margin-bottom: 4px;
+	}
+
+	.ai-customization-toolbar .ai-customization-chevron {
+		flex-shrink: 0;
+		opacity: 0;
+	}
+
+	.ai-customization-toolbar .ai-customization-header:not(.collapsed) .customization-link-button:hover .ai-customization-chevron,
+	.ai-customization-toolbar .ai-customization-header:not(.collapsed) .customization-link-button:focus-within .ai-customization-chevron,
+	.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:hover .ai-customization-chevron,
+	.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:focus-within .ai-customization-chevron {
+		opacity: 0.7;
+	}
+
+	.ai-customization-toolbar .ai-customization-header-total {
+		display: none;
+		opacity: 0.7;
+		font-size: 11px;
+		line-height: 1;
+	}
+
+	.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:not(:hover):not(:focus-within) .ai-customization-header-total:not(.hidden) {
+		display: inline;
+	}
+
+	.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:hover .ai-customization-header-total,
+	.ai-customization-toolbar .ai-customization-header.collapsed .customization-link-button:focus-within .ai-customization-header-total,
+	.ai-customization-toolbar .ai-customization-header:not(.collapsed) .customization-link-button .ai-customization-header-total {
+		display: none;
+	}
+
+	/* Button container - fills available space */
+	.ai-customization-toolbar .customization-link-button-container {
+		overflow: hidden;
+		min-width: 0;
+		flex: 1;
+	}
+
+	/* Button needs relative positioning for counts overlay */
+	.ai-customization-toolbar .customization-link-button {
+		position: relative;
+	}
+
+	/* Counts - floating right inside the button */
+	.ai-customization-toolbar .customization-link-counts {
+		position: absolute;
+		right: 8px;
+		top: 50%;
+		transform: translateY(-50%);
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+
+	.ai-customization-toolbar .customization-link-counts.hidden {
+		display: none;
+	}
+
+	.ai-customization-toolbar .source-count-badge {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+	}
+
+	.ai-customization-toolbar .source-count-icon {
+		font-size: 12px;
+		opacity: 0.6;
+	}
+
+	.ai-customization-toolbar .source-count-num {
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+		opacity: 0.8;
+	}
+
+	/* Collapsed state */
+	.ai-customization-toolbar .ai-customization-toolbar-content {
+		max-height: 500px;
+		overflow: hidden;
+		transition: max-height 0.2s ease-out, display 0s linear 0.2s;
+	}
+
+	.ai-customization-toolbar.collapsed .ai-customization-toolbar-content {
+		max-height: 0;
+		display: none;
+	}
+}
