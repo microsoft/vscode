@@ -581,23 +581,19 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private updateAddButton(): void {
 		const typeLabel = this.getTypeLabel();
-		if (this.currentSection === AICustomizationManagementSection.Hooks) {
-			this.addButton.label = `$(${Codicon.add.id}) New ${typeLabel}`;
-			const hasWorkspace = this.hasActiveWorkspace();
-			this.addButton.enabled = hasWorkspace;
-			const disabledTitle = hasWorkspace
-				? ''
-				: localize('hooksCreateDisabled', "Open a workspace folder to configure hooks.");
-			this.addButton.primaryButton.setTitle(disabledTitle);
-			this.addButton.dropdownButton.setTitle(disabledTitle);
-			return;
-		}
 		this.addButton.primaryButton.setTitle('');
 		this.addButton.dropdownButton.setTitle('');
 		this.addButton.enabled = true;
 		if (this.workspaceService.preferManualCreation) {
 			// Sessions: primary is workspace creation
+			const hasWorkspace = this.hasActiveWorkspace();
 			this.addButton.label = `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`;
+			this.addButton.enabled = hasWorkspace;
+			if (!hasWorkspace) {
+				const disabledTitle = localize('createDisabled', "Open a workspace folder to create customizations.");
+				this.addButton.primaryButton.setTitle(disabledTitle);
+				this.addButton.dropdownButton.setTitle(disabledTitle);
+			}
 		} else {
 			// Core: primary is AI generation
 			this.addButton.label = `$(${Codicon.sparkle.id}) Generate ${typeLabel}`;
@@ -613,16 +609,29 @@ export class AICustomizationListWidget extends Disposable {
 		const actions: Action[] = [];
 		const promptType = sectionToPromptType(this.currentSection);
 
-		if (this.workspaceService.preferManualCreation) {
-			// Sessions: primary is workspace, dropdown has user only
-			if (promptType !== PromptsType.hook) {
-				actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
-					this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
-				})));
+		// Hooks: no user-scoped creation
+		if (promptType === PromptsType.hook) {
+			if (this.workspaceService.preferManualCreation) {
+				// Sessions: no dropdown for hooks
+			} else {
+				// Core: primary is generate, dropdown has configure quick pick
+				if (this.hasActiveWorkspace()) {
+					actions.push(this.dropdownActionDisposables.add(new Action('configureHooks', `$(${Codicon.add.id}) Configure Hooks`, undefined, true, () => {
+						this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
+					})));
+				}
 			}
+			return actions;
+		}
+
+		if (this.workspaceService.preferManualCreation) {
+			// Sessions: primary is workspace, dropdown has user
+			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
+				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
+			})));
 		} else {
 			// Core: primary is generate, dropdown has workspace + user
-			if (this.hasActiveWorkspace() && promptType !== PromptsType.hook) {
+			if (this.hasActiveWorkspace()) {
 				actions.push(this.dropdownActionDisposables.add(new Action('createWorkspace', `$(${Codicon.folder.id}) New ${typeLabel} (Workspace)`, undefined, true, () => {
 					this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
 				})));
@@ -649,7 +658,7 @@ export class AICustomizationListWidget extends Disposable {
 		const promptType = sectionToPromptType(this.currentSection);
 		if (this.workspaceService.preferManualCreation) {
 			// Sessions: primary creates in workspace
-			if (promptType === PromptsType.hook && !this.hasActiveWorkspace()) {
+			if (!this.hasActiveWorkspace()) {
 				return;
 			}
 			this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });

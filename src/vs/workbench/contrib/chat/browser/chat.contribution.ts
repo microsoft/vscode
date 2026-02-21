@@ -114,7 +114,6 @@ import { ChatLanguageModelsDataContribution, LanguageModelsConfigurationService 
 import './chatManagement/chatManagement.contribution.js';
 import './aiCustomization/aiCustomizationWorkspaceService.js';
 import './aiCustomization/aiCustomizationManagement.contribution.js';
-import './aiCustomization/aiCustomizationTreeView.contribution.js';
 
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';

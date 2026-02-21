@@ -4,30 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/aiCustomizationManagement.css';
-import * as DOM from '../../../../../base/browser/dom.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { autorun } from '../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { localize } from '../../../../../nls.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
-import { IViewDescriptorService } from '../../../../common/views.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
-import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon } from './aiCustomizationIcons.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import * as DOM from '../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
+import { IViewDescriptorService } from '../../../../workbench/common/views.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 const $ = DOM.$;
 

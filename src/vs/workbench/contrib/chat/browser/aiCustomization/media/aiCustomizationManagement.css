@@ -131,6 +131,10 @@
 	white-space: nowrap;
 }
 
+.ai-customization-list-widget .list-add-button .monaco-button-dropdown .monaco-button:first-child {
+	flex: 1;
+}
+
 .ai-customization-list-widget .list-container {
 	flex: 1;
 	overflow: hidden;

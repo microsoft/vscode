@@ -12,6 +12,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
+	GENERATE_HOOK_COMMAND_ID,
 	GENERATE_INSTRUCTION_COMMAND_ID,
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
@@ -67,6 +68,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 			[PromptsType.skill]: GENERATE_SKILL_COMMAND_ID,
 			[PromptsType.instructions]: GENERATE_INSTRUCTION_COMMAND_ID,
 			[PromptsType.prompt]: GENERATE_PROMPT_COMMAND_ID,
+			[PromptsType.hook]: GENERATE_HOOK_COMMAND_ID,
 		};
 		const commandId = commandIds[type];
 		if (commandId) {
