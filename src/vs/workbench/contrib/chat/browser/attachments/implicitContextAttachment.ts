@@ -88,6 +88,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	private renderMainContext(context: ChatImplicitContext, isSelection?: boolean) {
 		const contextNode = dom.$('.chat-attached-context-attachment.show-file-icons.implicit');
 		this.domNode.appendChild(contextNode);
+		contextNode.tabIndex = 0;
 
 		contextNode.classList.toggle('disabled', !context.enabled);
 		const file: URI | undefined = context.uri;
@@ -158,7 +159,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			markdownTooltip = context.value.tooltip;
 			title = this.renderString(label, context.name, context.icon, context.value.resourceUri, markdownTooltip, localize('openFile', "Current file context"));
 		} else {
-			title = this.renderResource(context.value, context.isSelection, context.enabled, label);
+			title = this.renderResource(context.value, context.isSelection, context.enabled, label, contextNode);
 		}
 
 		if (markdownTooltip || title) {
@@ -204,7 +205,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		return title;
 	}
 
-	private renderResource(attachmentValue: Location | URI | undefined, isSelection: boolean, enabled: boolean, label: IResourceLabel): string {
+	private renderResource(attachmentValue: Location | URI | undefined, isSelection: boolean, enabled: boolean, label: IResourceLabel, contextNode: HTMLElement): string {
 		const file = URI.isUri(attachmentValue) ? attachmentValue : attachmentValue!.uri;
 		const range = URI.isUri(attachmentValue) || !isSelection ? undefined : attachmentValue!.range;
 
@@ -227,8 +228,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			range,
 			title
 		});
-		this.domNode.ariaLabel = ariaLabel;
-		this.domNode.tabIndex = 0;
+		contextNode.ariaLabel = ariaLabel;
 
 		return title;
 	}

@@ -76,11 +76,6 @@ export interface ISessionsManagementService {
 	openNewSession(): void;
 
 	/**
-	 * Create a new session and set it as active, without opening a chat view.
-	 */
-	createNewPendingSession(pendingSessionResource: URI): Promise<IActiveSessionItem>;
-
-	/**
 	 * Create a pending session object for the given target type.
 	 * Local sessions collect options locally; remote sessions notify the extension.
 	 */
@@ -244,31 +239,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	async createNewPendingSession(pendingSessionResource: URI): Promise<IActiveSessionItem> {
-		const chatsSession = await this.chatSessionsService.getOrCreateChatSession(pendingSessionResource, CancellationToken.None);
-		const chatSessionItem: IChatSessionItem = {
-			resource: chatsSession.sessionResource,
-			label: '',
-			timing: {
-				created: Date.now(),
-				lastRequestStarted: undefined,
-				lastRequestEnded: undefined,
-			}
-		};
-		const repository = this.getRepositoryFromSessionOption(chatsSession.sessionResource);
-		const activeSessionItem = { ...chatSessionItem, repository, worktree: undefined };
-		this._activeSession.set(activeSessionItem, undefined);
-		return activeSessionItem;
-	}
-
 	async createNewSessionForTarget(target: AgentSessionProviders, sessionResource: URI, defaultRepoUri?: URI): Promise<INewSession> {
-		const activeSessionItem = await this.createNewPendingSession(sessionResource);
-
 		let newSession: INewSession;
 		if (target === AgentSessionProviders.Background || target === AgentSessionProviders.Local) {
-			newSession = new LocalNewSession(activeSessionItem, defaultRepoUri, this.chatSessionsService, this.logService);
+			newSession = new LocalNewSession(sessionResource, defaultRepoUri, this.chatSessionsService, this.logService);
 		} else {
-			newSession = new RemoteNewSession(activeSessionItem, target, this.chatSessionsService, this.logService);
+			newSession = new RemoteNewSession(sessionResource, target, this.chatSessionsService, this.logService);
 		}
 		this._newSessions.set(newSession.resource.toString(), newSession);
 		return newSession;
@@ -307,7 +283,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Open a new remote session - load the model first, then show it in the ChatViewPane.
 	 */
 	private async openNewRemoteSession(sessionResource: URI): Promise<void> {
-		const modelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		if (!chatWidget?.viewModel) {
 			this.logService.warn(`[ActiveSessionService] Failed to open session: ${sessionResource.toString()}`);
@@ -372,7 +348,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// 2. Apply selected options (repository, branch, etc.) to the contributed session
 		if (selectedOptions && selectedOptions.size > 0) {
-			const modelRef = this.chatService.getActiveSessionReference(sessionResource);
+			const modelRef = this.chatService.acquireExistingSession(sessionResource);
 			if (modelRef) {
 				const model = modelRef.object;
 				const contributedSession = model.contributedChatSession;

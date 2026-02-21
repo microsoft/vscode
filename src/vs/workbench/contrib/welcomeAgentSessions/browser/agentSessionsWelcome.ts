@@ -323,8 +323,8 @@ export class AgentSessionsWelcomePage extends EditorPane {
 					position: ChatSessionPosition.Sidebar,
 					displayName: ''
 				});
-				const ref = await this.chatService.loadSessionForResource(newResource, ChatAgentLocation.Chat, CancellationToken.None);
-				this.chatModelRef = ref ?? this.chatService.startSession(ChatAgentLocation.Chat);
+				const ref = await this.chatService.acquireOrLoadSession(newResource, ChatAgentLocation.Chat, CancellationToken.None);
+				this.chatModelRef = ref ?? this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
 				this.contentDisposables.add(this.chatModelRef);
 				if (this.chatModelRef.object) {
 					this.chatWidget.setModel(this.chatModelRef.object);
@@ -404,7 +404,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 
 		// Start a chat session so the widget has a viewModel
 		// This is necessary for actions like mode switching to work properly
-		this.chatModelRef = this.chatService.startSession(ChatAgentLocation.Chat);
+		this.chatModelRef = this.chatService.startNewLocalSession(ChatAgentLocation.Chat);
 		this.contentDisposables.add(this.chatModelRef);
 		if (this.chatModelRef.object) {
 			this.chatWidget.setModel(this.chatModelRef.object);

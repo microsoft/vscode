@@ -286,8 +286,8 @@ suite('buildModelPickerItems', () => {
 		});
 		// With no selected, no recent, and no featured, both models should be in Other
 		const seps = items.filter(i => i.kind === ActionListItemKind.Separator);
-		// One separator before Other Models section
-		assert.strictEqual(seps.length, 1);
+		// One separator before Other Models section, one before Manage Models
+		assert.strictEqual(seps.length, 2);
 		const actions = getActionItems(items);
 		assert.strictEqual(actions[0].label, 'Auto');
 		// Next should be "Other Models" toggle
