@@ -3410,6 +3410,7 @@ export interface ChatSessionOptionUpdateDto2 {
 export interface ChatSessionDto {
 	id: string;
 	resource: UriComponents;
+	title?: string;
 	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;

@@ -612,6 +612,10 @@ export class ChatService extends Disposable implements IChatService {
 			isUntitled: sessionResource.path.startsWith('/untitled-')  //TODO(jospicer)
 		});
 
+		if (providedSession.title) {
+			modelRef.object.setCustomTitle(providedSession.title);
+		}
+
 		const model = modelRef.object;
 		const disposables = new DisposableStore();
 		disposables.add(modelRef.object.onDidDispose(() => {

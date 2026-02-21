@@ -347,6 +347,15 @@ declare module 'vscode' {
 
 	export interface ChatSession {
 		/**
+		 * An optional title for the chat session.
+		 *
+		 * When provided, this title is used as the display name for the session
+		 * (e.g. in the editor tab). When not provided, the title defaults to
+		 * the first user message in the session history.
+		 */
+		readonly title?: string;
+
+		/**
 		 * The full history of the session
 		 *
 		 * This should not include any currently active responses

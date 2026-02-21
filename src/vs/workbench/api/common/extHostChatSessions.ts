@@ -546,6 +546,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return {
 			id: sessionId + '',
 			resource: URI.revive(sessionResource),
+			title: session.title,
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,

@@ -40,6 +40,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 	readonly sessionResource: URI;
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
+	title?: string;
 	private _options?: Record<string, string | IChatSessionProviderOptionItem>;
 	public get options(): Record<string, string | IChatSessionProviderOptionItem> | undefined {
 		return this._options;
@@ -111,6 +112,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 			);
 
 			this._options = sessionContent.options;
+			this.title = sessionContent.title;
 			this.history.length = 0;
 			this.history.push(...sessionContent.history.map((turn: IChatSessionHistoryItemDto) => {
 				if (turn.type === 'request') {
