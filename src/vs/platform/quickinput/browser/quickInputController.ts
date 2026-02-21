@@ -417,7 +417,6 @@ export class QuickInputController extends Disposable {
 			this.viewState = {
 				...this.viewState,
 				width: resizeState.width,
-				left: resizeState.newLeftRatio ?? this.viewState?.left
 			};
 
 			this.updateLayout();
@@ -1196,11 +1195,7 @@ class QuickInputResizeController extends Disposable {
 	static readonly MIN_WIDTH = 300;
 	static readonly MAX_WIDTH = 900;
 
-	/**
-	 * Observable resize state. `newLeftRatio` is the new absolute center-x ratio
-	 * for the widget so that the opposite edge stays anchored during resize.
-	 */
-	readonly resizeViewState = observableValue<{ width?: number; newLeftRatio?: number; done: boolean } | undefined>(this, undefined);
+	readonly resizeViewState = observableValue<{ width?: number; done: boolean } | undefined>(this, undefined);
 
 	private readonly _leftHandle: HTMLElement;
 	private readonly _rightHandle: HTMLElement;
@@ -1230,20 +1225,6 @@ class QuickInputResizeController extends Disposable {
 		// Right handle
 		this._registerHandleListeners(this._rightHandle, 'right');
 
-		// Double-click on either handle resets width to default
-		for (const handle of [this._leftHandle, this._rightHandle]) {
-			this._register(dom.addDisposableGenericMouseUpListener(handle, (event: MouseEvent) => {
-				const originEvent = new StandardMouseEvent(dom.getWindow(handle), event);
-				if (originEvent.detail !== 2) {
-					return;
-				}
-				originEvent.preventDefault();
-				originEvent.stopPropagation();
-
-				// Reset width to default
-				this.resizeViewState.set({ width: undefined, done: true }, undefined);
-			}));
-		}
 	}
 
 	private _registerHandleListeners(handle: HTMLElement, side: 'left' | 'right'): void {
@@ -1254,11 +1235,8 @@ class QuickInputResizeController extends Disposable {
 			originEvent.stopPropagation();
 
 			const startX = originEvent.browserEvent.clientX;
-			const startRect = this._quickInputContainer.getBoundingClientRect();
-			const startWidth = startRect.width;
+			const startWidth = this._quickInputContainer.getBoundingClientRect().width;
 			const containerWidth = this._container.clientWidth;
-			// Capture the original center position at drag start
-			const startCenterX = startRect.left + startWidth / 2;
 
 			let isResizing = false;
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(activeWindow, (e: MouseEvent) => {
@@ -1273,39 +1251,21 @@ class QuickInputResizeController extends Disposable {
 				let newWidth: number;
 
 				if (side === 'right') {
-					newWidth = startWidth + deltaX;
+					newWidth = startWidth + deltaX * 2;
 				} else {
-					// For left handle, dragging left increases width
-					newWidth = startWidth - deltaX;
+					newWidth = startWidth - deltaX * 2;
 				}
 
-				// Clamp to min/max
 				newWidth = Math.max(QuickInputResizeController.MIN_WIDTH, Math.min(newWidth, QuickInputResizeController.MAX_WIDTH));
-				// Also clamp to container width
 				newWidth = Math.min(newWidth, containerWidth - 20);
 
-				// Compute the new center-x ratio so the opposite edge stays anchored.
-				// updateLayout uses: leftPx = (containerWidth * leftRatio) - (width / 2)
-				const widthDelta = newWidth - startWidth;
-				let newLeftRatio: number;
-				if (side === 'right') {
-					// Anchor left edge: left edge = startCenterX - startWidth/2
-					// New center = leftEdge + newWidth/2 = startCenterX - startWidth/2 + newWidth/2
-					newLeftRatio = (startCenterX + widthDelta / 2) / containerWidth;
-				} else {
-					// Anchor right edge: right edge = startCenterX + startWidth/2
-					// New center = rightEdge - newWidth/2 = startCenterX + startWidth/2 - newWidth/2
-					newLeftRatio = (startCenterX - widthDelta / 2) / containerWidth;
-				}
-
-				this.resizeViewState.set({ width: newWidth, newLeftRatio, done: false }, undefined);
+				this.resizeViewState.set({ width: newWidth, done: false }, undefined);
 			});
 
 			const mouseUpListener = dom.addDisposableGenericMouseUpListener(activeWindow, (e: MouseEvent) => {
 				if (isResizing) {
-					// Persist the width
 					const state = this.resizeViewState.get();
-					this.resizeViewState.set({ width: state?.width, newLeftRatio: state?.newLeftRatio, done: true }, undefined);
+					this.resizeViewState.set({ width: state?.width, done: true }, undefined);
 				}
 
 				mouseMoveListener.dispose();
