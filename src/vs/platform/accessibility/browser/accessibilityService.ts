@@ -24,6 +24,10 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	protected _systemMotionReduced: boolean;
 	protected readonly _onDidChangeReducedMotion = this._register(new Emitter<void>());
 
+	protected _configTransparencyReduced: 'auto' | 'on' | 'off';
+	protected _systemTransparencyReduced: boolean;
+	protected readonly _onDidChangeReducedTransparency = this._register(new Emitter<void>());
+
 	private _linkUnderlinesEnabled: boolean;
 	protected readonly _onDidChangeLinkUnderline = this._register(new Emitter<void>());
 
@@ -45,6 +49,10 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 				this._configMotionReduced = this._configurationService.getValue('workbench.reduceMotion');
 				this._onDidChangeReducedMotion.fire();
 			}
+			if (e.affectsConfiguration('workbench.reduceTransparency')) {
+				this._configTransparencyReduced = this._configurationService.getValue('workbench.reduceTransparency');
+				this._onDidChangeReducedTransparency.fire();
+			}
 		}));
 		updateContextKey();
 		this._register(this.onDidChangeScreenReaderOptimized(() => updateContextKey()));
@@ -53,9 +61,14 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		this._systemMotionReduced = reduceMotionMatcher.matches;
 		this._configMotionReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceMotion');
 
+		const reduceTransparencyMatcher = mainWindow.matchMedia(`(prefers-reduced-transparency: reduce)`);
+		this._systemTransparencyReduced = reduceTransparencyMatcher.matches;
+		this._configTransparencyReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceTransparency');
+
 		this._linkUnderlinesEnabled = this._configurationService.getValue('accessibility.underlineLinks');
 
 		this.initReducedMotionListeners(reduceMotionMatcher);
+		this.initReducedTransparencyListeners(reduceTransparencyMatcher);
 		this.initLinkUnderlineListeners();
 	}
 
@@ -76,6 +89,24 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 		updateRootClasses();
 		this._register(this.onDidChangeReducedMotion(() => updateRootClasses()));
+	}
+
+	private initReducedTransparencyListeners(reduceTransparencyMatcher: MediaQueryList) {
+
+		this._register(addDisposableListener(reduceTransparencyMatcher, 'change', () => {
+			this._systemTransparencyReduced = reduceTransparencyMatcher.matches;
+			if (this._configTransparencyReduced === 'auto') {
+				this._onDidChangeReducedTransparency.fire();
+			}
+		}));
+
+		const updateRootClasses = () => {
+			const reduce = this.isTransparencyReduced();
+			this._layoutService.mainContainer.classList.toggle('monaco-reduce-transparency', reduce);
+		};
+
+		updateRootClasses();
+		this._register(this.onDidChangeReducedTransparency(() => updateRootClasses()));
 	}
 
 	private initLinkUnderlineListeners() {
@@ -117,6 +148,15 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	isMotionReduced(): boolean {
 		const config = this._configMotionReduced;
 		return config === 'on' || (config === 'auto' && this._systemMotionReduced);
+	}
+
+	get onDidChangeReducedTransparency(): Event<void> {
+		return this._onDidChangeReducedTransparency.event;
+	}
+
+	isTransparencyReduced(): boolean {
+		const config = this._configTransparencyReduced;
+		return config === 'on' || (config === 'auto' && this._systemTransparencyReduced);
 	}
 
 	alwaysUnderlineAccessKeys(): Promise<boolean> {

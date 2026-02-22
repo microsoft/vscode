@@ -81,6 +81,10 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 
+		// Add hover chevron indicator on the right (decorative, hide from screen readers)
+		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right', { 'aria-hidden': 'true' });
+		collapseButton.element.appendChild(hoverChevron);
+
 		if (this.hoverMessage) {
 			this._register(this.hoverService.setupDelayedHover(collapseButton.iconElement, {
 				content: this.hoverMessage,
@@ -98,7 +102,21 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 
 		this._register(autorun(r => {
 			const expanded = this._isExpanded.read(r);
-			collapseButton.icon = this._overrideIcon.read(r) ?? (expanded ? Codicon.chevronDown : Codicon.chevronRight);
+			const overrideIcon = this._overrideIcon.read(r);
+			const isErrorIcon = overrideIcon?.id === Codicon.error.id || overrideIcon?.id === Codicon.warning.id;
+
+			if (isErrorIcon && overrideIcon) {
+				collapseButton.icon = overrideIcon;
+				collapseButton.iconElement.style.display = '';
+			} else {
+				collapseButton.icon = Codicon.blank;
+				collapseButton.iconElement.style.display = 'none';
+			}
+
+			// Update hover chevron direction
+			hoverChevron.classList.toggle('codicon-chevron-right', !expanded);
+			hoverChevron.classList.toggle('codicon-chevron-down', expanded);
+
 			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
 			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
 

@@ -1,0 +1,228 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-chat-widget {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+}
+
+/* Welcome container fills available space and centers content */
+.sessions-chat-widget .agent-chat-welcome-container {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Input area */
+.sessions-chat-input-area {
+	position: relative;
+	width: 100%;
+	max-width: 800px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	border-radius: 8px;
+	background-color: var(--vscode-input-background);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.sessions-chat-input-area:focus-within {
+	border-color: var(--vscode-focusBorder);
+}
+
+/* Editor */
+.sessions-chat-editor {
+	padding: 0 6px 6px 6px;
+	height: 50px;
+	min-height: 36px;
+	max-height: 200px;
+	flex-shrink: 1;
+}
+
+.sessions-chat-editor .monaco-editor,
+.sessions-chat-editor .monaco-editor .overflow-guard,
+.sessions-chat-editor .monaco-editor-background {
+	background-color: var(--vscode-input-background) !important;
+	border-radius: 8px 8px 0 0;
+}
+
+/* Toolbar */
+.sessions-chat-toolbar {
+	display: flex;
+	align-items: center;
+	padding: 4px 8px;
+	gap: 4px;
+}
+
+.sessions-chat-toolbar-spacer {
+	flex: 1;
+}
+
+/* Model picker - uses workbench ModelPickerActionItem */
+.sessions-chat-model-picker {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-model-picker .action-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 8px;
+	border-radius: 4px;
+	font-size: 12px;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-chat-model-picker .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-chat-model-picker .action-label .codicon {
+	font-size: 12px;
+}
+
+/* Send button */
+.sessions-chat-send-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	border: none;
+	outline: none;
+}
+
+.sessions-chat-send-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-chat-send-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-chat-send-button .codicon {
+	font-size: 16px;
+}
+
+/* Attach row (above editor, inside input area) */
+.sessions-chat-attach-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 6px 0 6px;
+}
+
+/* Attach context button */
+.sessions-chat-attach-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	border: none;
+	outline: none;
+}
+
+.sessions-chat-attach-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-chat-attach-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-chat-attach-button .codicon {
+	font-size: 16px;
+}
+
+/* Attached context container */
+.sessions-chat-attached-context {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	align-items: center;
+}
+
+.sessions-chat-attached-context:empty,
+.sessions-chat-attached-context[style*="display: none"] {
+	display: none !important;
+}
+
+/* Attachment pills */
+.sessions-chat-attachment-pill {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 4px 2px 6px;
+	border-radius: 4px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 12px;
+	line-height: 18px;
+	max-width: 200px;
+}
+
+.sessions-chat-attachment-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sessions-chat-attachment-pill .codicon {
+	font-size: 12px;
+	flex-shrink: 0;
+}
+
+.sessions-chat-attachment-remove {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	border-radius: 2px;
+	cursor: pointer;
+	flex-shrink: 0;
+}
+
+.sessions-chat-attachment-remove:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Drag and drop */
+.sessions-chat-drop-overlay {
+	display: none;
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 10;
+}
+
+.sessions-chat-input-area.sessions-chat-drop-active {
+	border-color: var(--vscode-focusBorder);
+	background-color: var(--vscode-list-dropBackground);
+}

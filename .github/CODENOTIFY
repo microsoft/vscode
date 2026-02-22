@@ -65,7 +65,6 @@ src/vs/code/** @bpasero @deepak1556
 src/vs/workbench/services/activity/** @bpasero
 src/vs/workbench/services/authentication/** @TylerLeonhardt
 src/vs/workbench/services/auxiliaryWindow/** @bpasero
-src/vs/workbench/services/chat/** @bpasero
 src/vs/workbench/services/contextmenu/** @bpasero
 src/vs/workbench/services/dialogs/** @alexr00 @bpasero
 src/vs/workbench/services/editor/** @bpasero
@@ -100,15 +99,6 @@ src/vs/workbench/electron-browser/** @bpasero
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
 src/vs/workbench/contrib/files/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
-src/vs/workbench/contrib/chat/browser/chatSetup/** @bpasero
-src/vs/workbench/contrib/chat/browser/chatStatus/** @bpasero
-src/vs/workbench/contrib/chat/browser/chatViewPane.ts @bpasero
-src/vs/workbench/contrib/chat/browser/media/chatViewPane.css @bpasero
-src/vs/workbench/contrib/chat/browser/chatViewTitleControl.ts @bpasero
-src/vs/workbench/contrib/chat/browser/media/chatViewTitleControl.css @bpasero
-src/vs/workbench/contrib/chat/browser/chatManagement/chatUsageWidget.ts @bpasero
-src/vs/workbench/contrib/chat/browser/chatManagement/media/chatUsageWidget.css @bpasero
-src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/scm/** @lszomoru

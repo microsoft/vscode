@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import * as nls from '../../../nls.js';
 import * as path from '../../../base/common/path.js';
 import * as performance from '../../../base/common/performance.js';

@@ -3,8 +3,38 @@
 	"tasks": [
 		{
 			"type": "npm",
+			"script": "watch-client-transpiled",
+			"label": "Core - Transpile",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "esbuild",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"relative",
+					"${workspaceFolder}/src"
+				],
+				"pattern": {
+					"regexp": "^(.+?):(\\d+):(\\d+): ERROR: (.+)$",
+					"file": 1,
+					"line": 2,
+					"column": 3,
+					"message": 4
+				},
+				"background": {
+					"beginsPattern": "Starting transpilation\\.\\.\\.",
+					"endsPattern": "Finished transpilation with"
+				}
+			}
+		},
+		{
+			"type": "npm",
 			"script": "watch-clientd",
-			"label": "Core - Build",
+			"label": "Core - Typecheck",
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never",
@@ -24,7 +54,7 @@
 					"message": 3
 				},
 				"background": {
-					"beginsPattern": "Starting compilation...",
+					"beginsPattern": "Starting compilation\\.\\.\\.",
 					"endsPattern": "Finished compilation with"
 				}
 			}
@@ -43,10 +73,11 @@
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
 				"fileLocation": [
-					"absolute"
+					"relative",
+					"${workspaceFolder}"
 				],
 				"pattern": {
-					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"regexp": "\\] ([^(]+)\\((\\d+,\\d+)\\): (.*)$",
 					"file": 1,
 					"location": 2,
 					"message": 3
@@ -60,7 +91,8 @@
 		{
 			"label": "VS Code - Build",
 			"dependsOn": [
-				"Core - Build",
+				"Core - Transpile",
+				"Core - Typecheck",
 				"Ext - Build"
 			],
 			"group": {
@@ -71,8 +103,20 @@
 		},
 		{
 			"type": "npm",
+			"script": "kill-watch-client-transpiled",
+			"label": "Kill Core - Transpile",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
 			"script": "kill-watch-clientd",
-			"label": "Kill Core - Build",
+			"label": "Kill Core - Typecheck",
 			"group": "build",
 			"presentation": {
 				"reveal": "never",
@@ -96,7 +140,8 @@
 		{
 			"label": "Kill VS Code - Build",
 			"dependsOn": [
-				"Kill Core - Build",
+				"Kill Core - Transpile",
+				"Kill Core - Typecheck",
 				"Kill Ext - Build"
 			],
 			"group": "build",

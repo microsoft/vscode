@@ -18,7 +18,8 @@ export interface IMeteredConnectionService {
 
 	/**
 	 * Whether the current network connection is metered.
-	 * Always returns `false` if the `network.respectMeteredConnections` setting is disabled.
+	 * Always returns `false` if the `network.meteredConnection` setting is `off`.
+	 * Always returns `true` if the `network.meteredConnection` setting is `on`.
 	 */
 	readonly isConnectionMetered: boolean;
 
@@ -28,7 +29,9 @@ export interface IMeteredConnectionService {
 	readonly onDidChangeIsConnectionMetered: Event<boolean>;
 }
 
-export const METERED_CONNECTION_SETTING_KEY = 'network.respectMeteredConnections';
+export const METERED_CONNECTION_SETTING_KEY = 'network.meteredConnection';
+
+export type MeteredConnectionSettingValue = 'on' | 'off' | 'auto';
 
 /**
  * Network Information API
@@ -77,20 +80,20 @@ export abstract class AbstractMeteredConnectionService extends Disposable implem
 
 	private _isConnectionMetered: boolean;
 	private _isBrowserConnectionMetered: boolean;
-	private _respectMeteredConnections: boolean;
+	private _meteredConnectionSetting: MeteredConnectionSettingValue;
 
 	constructor(configurationService: IConfigurationService, isBrowserConnectionMetered: boolean) {
 		super();
 
 		this._isBrowserConnectionMetered = isBrowserConnectionMetered;
-		this._respectMeteredConnections = configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
-		this._isConnectionMetered = this._respectMeteredConnections && this._isBrowserConnectionMetered;
+		this._meteredConnectionSetting = configurationService.getValue<MeteredConnectionSettingValue>(METERED_CONNECTION_SETTING_KEY);
+		this._isConnectionMetered = this._meteredConnectionSetting === 'on' || (this._meteredConnectionSetting !== 'off' && this._isBrowserConnectionMetered);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(METERED_CONNECTION_SETTING_KEY)) {
-				const value = configurationService.getValue<boolean>(METERED_CONNECTION_SETTING_KEY);
-				if (value !== this._respectMeteredConnections) {
-					this._respectMeteredConnections = value;
+				const value = configurationService.getValue<MeteredConnectionSettingValue>(METERED_CONNECTION_SETTING_KEY);
+				if (value !== this._meteredConnectionSetting) {
+					this._meteredConnectionSetting = value;
 					this.onUpdated();
 				}
 			}
@@ -117,7 +120,7 @@ export abstract class AbstractMeteredConnectionService extends Disposable implem
 	}
 
 	protected onUpdated() {
-		const value = this._respectMeteredConnections && this._isBrowserConnectionMetered;
+		const value = this._meteredConnectionSetting === 'on' || (this._meteredConnectionSetting !== 'off' && this._isBrowserConnectionMetered);
 		if (value !== this._isConnectionMetered) {
 			this._isConnectionMetered = value;
 			this.onChangeIsConnectionMetered();

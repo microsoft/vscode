@@ -11,10 +11,16 @@ import type * as Proto from '../../tsServer/protocol/protocol';
 import * as PConst from '../../tsServer/protocol/protocol.const';
 import * as typeConverters from '../../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { conditionalRegistration, requireGlobalConfiguration, requireSomeCapability } from '../util/dependentRegistration';
+import { readUnifiedConfig, unifiedConfigSection } from '../../utils/configuration';
+import { conditionalRegistration, requireHasModifiedUnifiedConfig, requireSomeCapability } from '../util/dependentRegistration';
 import { ReferencesCodeLens, TypeScriptBaseCodeLensProvider, getSymbolRange } from './baseCodeLensProvider';
 import { ExecutionTarget } from '../../tsServer/server';
 
+const Config = Object.freeze({
+	enabled: 'implementationsCodeLens.enabled',
+	showOnInterfaceMethods: 'implementationsCodeLens.showOnInterfaceMethods',
+	showOnAllClassMethods: 'implementationsCodeLens.showOnAllClassMethods',
+});
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
@@ -25,12 +31,28 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		super(client, _cachedResponse);
 		this._register(
 			vscode.workspace.onDidChangeConfiguration(evt => {
-				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`) ||
-					evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnAllClassMethods`)) {
+				if (
+					evt.affectsConfiguration(`${unifiedConfigSection}.${Config.enabled}`) ||
+					evt.affectsConfiguration(`${language.id}.${Config.enabled}`) ||
+					evt.affectsConfiguration(`${unifiedConfigSection}.${Config.showOnInterfaceMethods}`) ||
+					evt.affectsConfiguration(`${language.id}.${Config.showOnInterfaceMethods}`) ||
+					evt.affectsConfiguration(`${unifiedConfigSection}.${Config.showOnAllClassMethods}`) ||
+					evt.affectsConfiguration(`${language.id}.${Config.showOnAllClassMethods}`)
+				) {
 					this.changeEmitter.fire();
 				}
 			})
 		);
+	}
+
+
+	override async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<ReferencesCodeLens[]> {
+		const enabled = readUnifiedConfig<boolean>(Config.enabled, false, { scope: document, fallbackSection: this.language.id });
+		if (!enabled) {
+			return [];
+		}
+
+		return super.provideCodeLenses(document, token);
 	}
 
 	public async resolveCodeLens(
@@ -88,8 +110,6 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		item: Proto.NavigationTree,
 		parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
-		const cfg = vscode.workspace.getConfiguration(this.language.id);
-
 		// Always show on interfaces
 		if (item.kind === PConst.Kind.interface) {
 			return getSymbolRange(document, item);
@@ -111,7 +131,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		if (
 			item.kind === PConst.Kind.method &&
 			parent?.kind === PConst.Kind.interface &&
-			cfg.get<boolean>('implementationsCodeLens.showOnInterfaceMethods', false)
+			readUnifiedConfig<boolean>('implementationsCodeLens.showOnInterfaceMethods', false, { scope: document, fallbackSection: this.language.id })
 		) {
 			return getSymbolRange(document, item);
 		}
@@ -121,7 +141,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		if (
 			item.kind === PConst.Kind.method &&
 			parent?.kind === PConst.Kind.class &&
-			cfg.get<boolean>('implementationsCodeLens.showOnAllClassMethods', false)
+			readUnifiedConfig<boolean>('implementationsCodeLens.showOnAllClassMethods', false, { scope: document, fallbackSection: this.language.id })
 		) {
 			// But not private ones as these can never be overridden
 			if (/\bprivate\b/.test(item.kindModifiers ?? '')) {
@@ -141,7 +161,7 @@ export function register(
 	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return conditionalRegistration([
-		requireGlobalConfiguration(language.id, 'implementationsCodeLens.enabled'),
+		requireHasModifiedUnifiedConfig(Config.enabled, language.id),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
 		return vscode.languages.registerCodeLensProvider(selector.semantic,

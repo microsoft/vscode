@@ -21,8 +21,8 @@ export interface IChatContextUsagePromptTokenDetail {
 }
 
 export interface IChatContextUsageData {
-	promptTokens: number;
-	maxInputTokens: number;
+	usedTokens: number;
+	totalContextWindow: number;
 	percentage: number;
 	promptTokenDetails?: readonly IChatContextUsagePromptTokenDetail[];
 }
@@ -102,14 +102,14 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	update(data: IChatContextUsageData): void {
-		const { percentage, promptTokens, maxInputTokens, promptTokenDetails } = data;
+		const { percentage, usedTokens, totalContextWindow, promptTokenDetails } = data;
 
 		// Update token count and percentage on same line
 		this.tokenCountLabel.textContent = localize(
 			'tokenCount',
 			"{0} / {1} tokens",
-			this.formatTokenCount(promptTokens, 1),
-			this.formatTokenCount(maxInputTokens, 0)
+			this.formatTokenCount(usedTokens, 1),
+			this.formatTokenCount(totalContextWindow, 0)
 		);
 		this.percentageLabel.textContent = `• ${percentage.toFixed(0)}%`;
 
@@ -132,7 +132,10 @@ export class ChatContextUsageDetails extends Disposable {
 	}
 
 	private formatTokenCount(count: number, decimals: number): string {
-		if (count >= 1000000) {
+		// Use M when count is >= 1M, or when K representation would round to 1000K
+		const mThreshold = 1000000 - 500 * Math.pow(10, -decimals);
+
+		if (count >= mThreshold) {
 			return `${(count / 1000000).toFixed(decimals)}M`;
 		} else if (count >= 1000) {
 			return `${(count / 1000).toFixed(decimals)}K`;
@@ -172,6 +175,16 @@ export class ChatContextUsageDetails extends Disposable {
 
 		// Render each category
 		for (const [category, items] of categoryMap) {
+			// Filter out items with 0% usage
+			const visibleItems = items.filter(item => {
+				const contextRelativePercentage = (item.percentageOfPrompt / 100) * contextWindowPercentage;
+				return contextRelativePercentage >= 0.05; // Show if at least 0.1% when rounded
+			});
+
+			if (visibleItems.length === 0) {
+				continue;
+			}
+
 			const categorySection = this.tokenDetailsContainer.appendChild($('.token-category'));
 
 			// Category header
@@ -179,7 +192,7 @@ export class ChatContextUsageDetails extends Disposable {
 			categoryHeader.textContent = category;
 
 			// Category items
-			for (const item of items) {
+			for (const item of visibleItems) {
 				const itemRow = categorySection.appendChild($('.token-detail-item'));
 
 				const itemLabel = itemRow.appendChild($('.token-detail-label'));

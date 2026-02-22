@@ -102,7 +102,7 @@ export class UITest {
 		await page.getByText(/Start typing/).focus();
 
 		this.context.log('Typing some content into the file');
-		await page.keyboard.type('Hello, World!');
+		await page.keyboard.type('Hello, World!', { delay: 100 });
 
 		await this.runCommand(page, 'File: Save');
 	}
@@ -125,7 +125,7 @@ export class UITest {
 
 		this.context.log('Typing extension name to search for');
 		await page.getByText('Search Extensions in Marketplace').focus();
-		await page.keyboard.type('GitHub Pull Requests');
+		await page.keyboard.insertText('GitHub Pull Requests');
 
 		this.context.log('Clicking Install on the first extension in the list');
 		await page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/).waitFor();

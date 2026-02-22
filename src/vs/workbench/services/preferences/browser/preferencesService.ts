@@ -372,7 +372,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private getEditorGroupFromOptions(isTextual: boolean, options: { groupId?: number; openToSide?: boolean }): PreferredGroup {
-		if (!isTextual && this.configurationService.getValue<boolean>('workbench.editor.allowOpenInModalEditor')) {
+		if (!isTextual && this.configurationService.getValue<string>('workbench.editor.useModal') !== 'off') {
 			return MODAL_GROUP;
 		}
 		if (options.openToSide) {

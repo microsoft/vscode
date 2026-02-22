@@ -29,6 +29,12 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
+	canManageModels(): boolean;
+	/**
+	 * Whether to show curated models from the control manifest (featured, unavailable, upgrade prompts, etc.).
+	 * Defaults to `true`.
+	 */
+	showCuratedModels?(): boolean;
 }
 
 type ChatModelChangeClassification = {
@@ -165,9 +171,10 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 			run: () => { }
 		};
 
+		const baseActionBarActionProvider = getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService);
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate, telemetryService, pickerOptions),
-			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService, productService),
+			actionBarActionProvider: { getActions: () => delegate.canManageModels() ? baseActionBarActionProvider.getActions() : [] },
 			reporter: { id: 'ChatModelPicker', name: 'ChatModelPicker', includeOptions: true },
 		};
 

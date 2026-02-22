@@ -5,9 +5,10 @@
 
 import { createLogger, defineConfig, Plugin } from 'vite';
 import path, { join } from 'path';
-import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
+import { componentExplorer } from '@vscode/component-explorer-vite-plugin';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
+import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
 
 function injectBuiltinExtensionsPlugin(): Plugin {
 	let builtinExtensionsCache: unknown[] | null = null;
@@ -166,9 +167,18 @@ export default defineConfig({
 	plugins: [
 		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
-		createHotClassSupport()
+		createHotClassSupport(),
+		componentExplorer({
+			logLevel: 'verbose',
+			include: join(__dirname, '../../src/**/*.fixture.ts'),
+		}),
 	],
 	customLogger: logger,
+	resolve: {
+		alias: {
+			'~@vscode/codicons': join(__dirname, '../../node_modules/@vscode/codicons'),
+		}
+	},
 	esbuild: {
 		tsconfigRaw: {
 			compilerOptions: {
@@ -188,7 +198,6 @@ export default defineConfig({
 	server: {
 		cors: true,
 		port: 5199,
-		origin: 'http://localhost:5199',
 		fs: {
 			allow: [
 				// To allow loading from sources, not needed when loading monaco-editor from npm package

@@ -6,12 +6,16 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { IEditorMouseEvent } from '../../../browser/editorBrowser.js';
 
+const enum PADDING {
+	VALUE = 3
+}
+
 export function isMousePositionWithinElement(element: HTMLElement, posx: number, posy: number): boolean {
 	const elementRect = dom.getDomNodePagePosition(element);
-	if (posx < elementRect.left
-		|| posx > elementRect.left + elementRect.width
-		|| posy < elementRect.top
-		|| posy > elementRect.top + elementRect.height) {
+	if (posx < elementRect.left + PADDING.VALUE
+		|| posx > elementRect.left + elementRect.width - PADDING.VALUE
+		|| posy < elementRect.top + PADDING.VALUE
+		|| posy > elementRect.top + elementRect.height - PADDING.VALUE) {
 		return false;
 	}
 	return true;

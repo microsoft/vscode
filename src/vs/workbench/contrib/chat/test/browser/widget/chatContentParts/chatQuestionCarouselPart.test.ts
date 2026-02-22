@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
@@ -83,6 +84,25 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(title, 'title element should exist when only title is provided');
 			// Title should fall back to title property when message is not provided
 			assert.ok(title?.textContent?.includes('Fallback title text'));
+		});
+
+		test('renders markdown in question message', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Question',
+					message: new MarkdownString('Please review **details** in [docs](https://example.com)')
+				}
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title, 'title element should exist');
+			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
+			assert.strictEqual(title?.textContent?.includes('**details**'), false, 'markdown syntax should not be shown as raw text');
+			const link = title?.querySelector('a') as HTMLAnchorElement | null;
+			assert.ok(link, 'markdown link should render as anchor');
 		});
 
 		test('renders progress indicator correctly', () => {

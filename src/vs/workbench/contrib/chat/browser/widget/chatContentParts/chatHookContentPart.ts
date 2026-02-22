@@ -9,7 +9,7 @@ import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IChatHookPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
-import { HOOK_TYPES, HookTypeValue } from '../../../common/promptSyntax/hookSchema.js';
+import { HookType, HOOK_TYPES, HookTypeValue } from '../../../common/promptSyntax/hookSchema.js';
 import { ChatTreeItem } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -29,16 +29,23 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 		const hookTypeLabel = getHookTypeLabel(hookPart.hookType);
 		const isStopped = !!hookPart.stopReason;
 		const isWarning = !!hookPart.systemMessage;
+		const toolName = hookPart.toolDisplayName;
 		const title = isStopped
-			? localize('hook.title.stopped', "Blocked by {0} hook", hookTypeLabel)
-			: localize('hook.title.warning', "Warning from {0} hook", hookTypeLabel);
+			? (toolName
+				? localize('hook.title.stoppedWithTool', "Blocked {0} - {1} hook", toolName, hookTypeLabel)
+				: localize('hook.title.stopped', "Blocked by {0} hook", hookTypeLabel))
+			: (toolName
+				? localize('hook.title.warningWithTool', "Warning for {0} - {1} hook", toolName, hookTypeLabel)
+				: localize('hook.title.warning', "Warning from {0} hook", hookTypeLabel));
 
 		super(title, context, undefined, hoverService);
 
-		this.icon = isStopped ? Codicon.circleSlash : isWarning ? Codicon.warning : Codicon.check;
+		this.icon = isStopped ? Codicon.error : isWarning ? Codicon.warning : Codicon.check;
 
 		if (isStopped) {
 			this.domNode.classList.add('chat-hook-outcome-blocked');
+		} else if (isWarning) {
+			this.domNode.classList.add('chat-hook-outcome-warning');
 		}
 
 		this.setExpanded(false);
@@ -50,7 +57,10 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 		if (this.hookPart.stopReason) {
 			const reasonElement = $('.chat-hook-reason', undefined, this.hookPart.stopReason);
 			content.appendChild(reasonElement);
-		} else if (this.hookPart.systemMessage) {
+		}
+
+		const isToolHook = this.hookPart.hookType === HookType.PreToolUse || this.hookPart.hookType === HookType.PostToolUse;
+		if (this.hookPart.systemMessage && (isToolHook || !this.hookPart.stopReason)) {
 			const messageElement = $('.chat-hook-message', undefined, this.hookPart.systemMessage);
 			content.appendChild(messageElement);
 		}
@@ -64,6 +74,7 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 		}
 		return other.hookType === this.hookPart.hookType &&
 			other.stopReason === this.hookPart.stopReason &&
-			other.systemMessage === this.hookPart.systemMessage;
+			other.systemMessage === this.hookPart.systemMessage &&
+			other.toolDisplayName === this.hookPart.toolDisplayName;
 	}
 }

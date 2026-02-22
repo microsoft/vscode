@@ -92,7 +92,7 @@ export interface IHookCommand {
 	/** Resolved working directory URI. */
 	readonly cwd?: URI;
 	readonly env?: Record<string, string>;
-	readonly timeoutSec?: number;
+	readonly timeout?: number;
 	/** Original JSON field name that provided the windows command. */
 	readonly windowsSource?: 'windows' | 'powershell';
 	/** Original JSON field name that provided the linux command. */
@@ -164,10 +164,10 @@ const hookCommandSchema: IJSONSchema = {
 			additionalProperties: { type: 'string' },
 			description: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.')
 		},
-		timeoutSec: {
+		timeout: {
 			type: 'number',
 			default: 30,
-			description: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 30).')
+			description: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).')
 		}
 	}
 };
@@ -240,7 +240,7 @@ export const hookFileSchema: IJSONSchema = {
 						{
 							type: 'command',
 							command: '${2:./scripts/validate.sh}',
-							timeoutSec: 15
+							timeout: 15
 						}
 					]
 				}
@@ -278,7 +278,7 @@ export function toHookType(rawHookTypeId: string): HookType | undefined {
  * - powershell -> windows
  * This is an internal helper - use resolveHookCommand for the full resolution.
  */
-function normalizeHookCommand(raw: Record<string, unknown>): { command?: string; windows?: string; linux?: string; osx?: string; windowsSource?: 'windows' | 'powershell'; linuxSource?: 'linux' | 'bash'; osxSource?: 'osx' | 'bash'; cwd?: string; env?: Record<string, string>; timeoutSec?: number } | undefined {
+function normalizeHookCommand(raw: Record<string, unknown>): { command?: string; windows?: string; linux?: string; osx?: string; windowsSource?: 'windows' | 'powershell'; linuxSource?: 'linux' | 'bash'; osxSource?: 'osx' | 'bash'; cwd?: string; env?: Record<string, string>; timeout?: number } | undefined {
 	if (raw.type !== 'command') {
 		return undefined;
 	}
@@ -313,7 +313,8 @@ function normalizeHookCommand(raw: Record<string, unknown>): { command?: string;
 		...(osxSource && { osxSource }),
 		...(typeof raw.cwd === 'string' && { cwd: raw.cwd }),
 		...(typeof raw.env === 'object' && raw.env !== null && { env: raw.env as Record<string, string> }),
-		...(typeof raw.timeoutSec === 'number' && { timeoutSec: raw.timeoutSec }),
+		...(typeof raw.timeout !== 'number' && typeof raw.timeoutSec === 'number' && { timeout: raw.timeoutSec }),
+		...(typeof raw.timeout === 'number' && { timeout: raw.timeout }),
 	};
 }
 
@@ -456,6 +457,6 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 		...(normalized.osxSource && { osxSource: normalized.osxSource }),
 		...(cwdUri && { cwd: cwdUri }),
 		...(normalized.env && { env: normalized.env }),
-		...(normalized.timeoutSec !== undefined && { timeoutSec: normalized.timeoutSec }),
+		...(normalized.timeout !== undefined && { timeout: normalized.timeout }),
 	};
 }

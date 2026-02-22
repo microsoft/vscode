@@ -120,7 +120,7 @@ suite('ChatModeService', () => {
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
 			source: workspaceSource,
 			target: Target.Undefined,
-			visibility: { userInvokable: true, agentInvokable: true }
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -158,7 +158,7 @@ suite('ChatModeService', () => {
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
 			source: workspaceSource,
 			target: Target.Undefined,
-			visibility: { userInvokable: true, agentInvokable: true }
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -178,7 +178,7 @@ suite('ChatModeService', () => {
 			agentInstructions: { content: 'Findable mode body', toolReferences: [] },
 			source: workspaceSource,
 			target: Target.Undefined,
-			visibility: { userInvokable: true, agentInvokable: true }
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -204,7 +204,7 @@ suite('ChatModeService', () => {
 			model: ['gpt-4'],
 			source: workspaceSource,
 			target: Target.Undefined,
-			visibility: { userInvokable: true, agentInvokable: true }
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([initialMode]);
@@ -249,7 +249,7 @@ suite('ChatModeService', () => {
 			agentInstructions: { content: 'Mode 1 body', toolReferences: [] },
 			source: workspaceSource,
 			target: Target.Undefined,
-			visibility: { userInvokable: true, agentInvokable: true }
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		const mode2: ICustomAgent = {
@@ -260,7 +260,7 @@ suite('ChatModeService', () => {
 			agentInstructions: { content: 'Mode 2 body', toolReferences: [] },
 			source: workspaceSource,
 			target: Target.Undefined,
-			visibility: { userInvokable: true, agentInvokable: true }
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		// Add both modes

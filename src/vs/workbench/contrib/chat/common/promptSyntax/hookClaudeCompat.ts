@@ -54,6 +54,20 @@ export function getClaudeHookTypeName(hookType: HookType): string | undefined {
 }
 
 /**
+ * Result of parsing Claude hooks file.
+ */
+export interface IParseClaudeHooksResult {
+	/**
+	 * The parsed hooks by type.
+	 */
+	readonly hooks: Map<HookType, { hooks: IHookCommand[]; originalId: string }>;
+	/**
+	 * Whether all hooks from this file were disabled via `disableAllHooks: true`.
+	 */
+	readonly disabledAllHooks: boolean;
+}
+
+/**
  * Parses hooks from a Claude settings.json file.
  * Claude format:
  * {
@@ -70,23 +84,31 @@ export function getClaudeHookTypeName(hookType: HookType): string | undefined {
  *     "PreToolUse": [{ "type": "command", "command": "..." }]
  *   }
  * }
+ *
+ * If the file has `disableAllHooks: true` at the top level, all hooks are filtered out.
  */
 export function parseClaudeHooks(
 	json: unknown,
 	workspaceRootUri: URI | undefined,
 	userHome: string
-): Map<HookType, { hooks: IHookCommand[]; originalId: string }> {
+): IParseClaudeHooksResult {
 	const result = new Map<HookType, { hooks: IHookCommand[]; originalId: string }>();
 
 	if (!json || typeof json !== 'object') {
-		return result;
+		return { hooks: result, disabledAllHooks: false };
 	}
 
 	const root = json as Record<string, unknown>;
+
+	// Check for disableAllHooks property at the top level
+	if (root.disableAllHooks === true) {
+		return { hooks: result, disabledAllHooks: true };
+	}
+
 	const hooks = root.hooks;
 
 	if (!hooks || typeof hooks !== 'object') {
-		return result;
+		return { hooks: result, disabledAllHooks: false };
 	}
 
 	const hooksObj = hooks as Record<string, unknown>;
@@ -106,28 +128,9 @@ export function parseClaudeHooks(
 		const commands: IHookCommand[] = [];
 
 		for (const item of hookArray) {
-			if (!item || typeof item !== 'object') {
-				continue;
-			}
-
-			const itemObj = item as Record<string, unknown>;
-
-			// Claude can have nested hooks with matchers: { matcher: "Bash", hooks: [...] }
-			const nestedHooks = (itemObj as { hooks?: unknown }).hooks;
-			if (nestedHooks !== undefined && Array.isArray(nestedHooks)) {
-				for (const nestedHook of nestedHooks) {
-					const resolved = resolveClaudeCommand(nestedHook as Record<string, unknown>, workspaceRootUri, userHome);
-					if (resolved) {
-						commands.push(resolved);
-					}
-				}
-			} else {
-				// Direct hook command
-				const resolved = resolveClaudeCommand(itemObj, workspaceRootUri, userHome);
-				if (resolved) {
-					commands.push(resolved);
-				}
-			}
+			// Use shared helper that handles both direct commands and nested matcher structures
+			const extracted = extractHookCommandsFromItem(item, workspaceRootUri, userHome);
+			commands.push(...extracted);
 		}
 
 		if (commands.length > 0) {
@@ -140,25 +143,63 @@ export function parseClaudeHooks(
 		}
 	}
 
-	return result;
+	return { hooks: result, disabledAllHooks: false };
 }
 
 /**
- * Resolves a Claude hook command to our IHookCommand format.
- * Claude commands can be: { type: "command", command: "..." } or { command: "..." }
+ * Helper to extract hook commands from an item that could be:
+ * 1. A direct command object: { type: 'command', command: '...' }
+ * 2. A nested structure with matcher (Claude style): { matcher: '...', hooks: [{ type: 'command', command: '...' }] }
+ *
+ * This allows Copilot format to handle Claude-style entries if pasted.
+ * Also handles Claude's leniency where 'type' field can be omitted.
  */
-function resolveClaudeCommand(
-	raw: Record<string, unknown>,
+export function extractHookCommandsFromItem(
+	item: unknown,
 	workspaceRootUri: URI | undefined,
 	userHome: string
-): IHookCommand | undefined {
-	// Claude might not require 'type' field, so we're more lenient
-	const hasValidType = raw.type === undefined || raw.type === 'command';
-	if (!hasValidType) {
-		return undefined;
+): IHookCommand[] {
+	if (!item || typeof item !== 'object') {
+		return [];
 	}
 
-	// Add type if missing for resolveHookCommand
-	const normalized = { ...raw, type: 'command' };
-	return resolveHookCommand(normalized, workspaceRootUri, userHome);
+	const itemObj = item as Record<string, unknown>;
+	const commands: IHookCommand[] = [];
+
+	// Check for nested hooks with matcher (Claude style): { matcher: "...", hooks: [...] }
+	const nestedHooks = itemObj.hooks;
+	if (nestedHooks !== undefined && Array.isArray(nestedHooks)) {
+		for (const nestedHook of nestedHooks) {
+			if (!nestedHook || typeof nestedHook !== 'object') {
+				continue;
+			}
+			const normalized = normalizeForResolve(nestedHook as Record<string, unknown>);
+			const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
+			if (resolved) {
+				commands.push(resolved);
+			}
+		}
+	} else {
+		// Direct command object
+		const normalized = normalizeForResolve(itemObj);
+		const resolved = resolveHookCommand(normalized, workspaceRootUri, userHome);
+		if (resolved) {
+			commands.push(resolved);
+		}
+	}
+
+	return commands;
+}
+
+/**
+ * Normalizes a hook command object for resolving.
+ * Claude format allows omitting the 'type' field, treating it as 'command'.
+ * This ensures compatibility when Claude-style hooks are pasted into Copilot format.
+ */
+function normalizeForResolve(raw: Record<string, unknown>): Record<string, unknown> {
+	// If type is missing or already 'command', ensure it's set to 'command'
+	if (raw.type === undefined || raw.type === 'command') {
+		return { ...raw, type: 'command' };
+	}
+	return raw;
 }

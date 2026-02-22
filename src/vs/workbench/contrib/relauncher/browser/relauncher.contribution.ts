@@ -238,8 +238,8 @@ export class WorkspaceChangeExtHostRelauncher extends Disposable implements IWor
 				return; // no restart when in tests: see https://github.com/microsoft/vscode/issues/66936
 			}
 
-			if (contextService.getWorkspace().isAgentSessionsWorkspace) {
-				return; // no restart for agent sessions workspace
+			if (environmentService.isSessionsWindow) {
+				return; // no restart for sessions window
 			}
 
 			if (environmentService.remoteAuthority) {

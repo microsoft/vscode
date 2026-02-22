@@ -148,6 +148,12 @@ export class ToolTerminalCreator {
 		const env: Record<string, string> = {
 			// Avoid making `git diff` interactive when called from copilot
 			GIT_PAGER: 'cat',
+			// Prevent git from opening an editor for merge commits
+			GIT_MERGE_AUTOEDIT: 'no',
+			// Prevent git from opening an editor (e.g. for commit --amend, rebase -i).
+			// `:` is a POSIX shell built-in no-op (returns 0), works cross-platform
+			// since git always invokes the editor via `sh -c`.
+			GIT_EDITOR: ':',
 		};
 
 		const preventShellHistory = this._configurationService.getValue(TerminalChatAgentToolsSettingId.PreventShellHistory) === true;
