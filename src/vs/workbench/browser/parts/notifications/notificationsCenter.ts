@@ -19,9 +19,9 @@ import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, positionIcon, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction } from './notificationsActions.js';
+import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, ConfigureNotificationsPositionAction, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction } from './notificationsActions.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
-import { IMenuService, MenuId, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
@@ -213,6 +213,17 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			ariaLabel: localize('notificationsToolbar', "Notification Center Actions"),
 			actionRunner,
 			actionViewItemProvider: (action, options) => {
+				if (action.id === ConfigureNotificationsPositionAction.ID) {
+					return this._register(this.instantiationService.createInstance(DropdownMenuActionViewItem, action, {
+						getActions: () => Separator.join(...this.menuService.getMenuActions(MenuId.NotificationsCenterPositionMenu, this.contextKeyService).map(([, actions]) => actions)),
+					}, this.contextMenuService, {
+						...options,
+						actionRunner,
+						classNames: action.class,
+						keybindingProvider: action => this.keybindingService.lookupKeybinding(action.id)
+					}));
+				}
+
 				if (action.id === ConfigureDoNotDisturbAction.ID) {
 					return this._register(this.instantiationService.createInstance(DropdownMenuActionViewItem, action, {
 						getActions() {
@@ -264,9 +275,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.configureDoNotDisturbAction = this._register(this.instantiationService.createInstance(ConfigureDoNotDisturbAction, ConfigureDoNotDisturbAction.ID, ConfigureDoNotDisturbAction.LABEL));
 		notificationsToolBar.push(this.configureDoNotDisturbAction, { icon: true, label: false });
 
-		const positionMenuActions = Separator.join(...this.menuService.getMenuActions(MenuId.NotificationsCenterPositionMenu, this.contextKeyService).map(([, actions]) => actions));
-		const positionAction = new SubmenuItemAction({ title: localize('configureNotificationsPosition', "Configure Notifications Position..."), submenu: MenuId.NotificationsCenterPositionMenu, icon: positionIcon }, undefined, positionMenuActions);
-		notificationsToolBar.push(positionAction, { icon: true, label: false });
+		const configureNotificationsPositionAction = this._register(this.instantiationService.createInstance(ConfigureNotificationsPositionAction, ConfigureNotificationsPositionAction.ID, ConfigureNotificationsPositionAction.LABEL));
+		notificationsToolBar.push(configureNotificationsPositionAction, { icon: true, label: false });
 
 		const hideAllAction = this._register(this.instantiationService.createInstance(HideNotificationsCenterAction, HideNotificationsCenterAction.ID, HideNotificationsCenterAction.LABEL));
 		notificationsToolBar.push(hideAllAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(hideAllAction) });

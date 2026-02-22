@@ -108,6 +108,19 @@ export class ConfigureDoNotDisturbAction extends Action {
 	}
 }
 
+export class ConfigureNotificationsPositionAction extends Action {
+
+	static readonly ID = 'workbench.action.configureNotificationsPosition';
+	static readonly LABEL = localize('configureNotificationsPosition', "Configure Notifications Position...");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label, ThemeIcon.asClassName(positionIcon));
+	}
+}
+
 export class HideNotificationsCenterAction extends Action {
 
 	static readonly ID = HIDE_NOTIFICATIONS_CENTER;
