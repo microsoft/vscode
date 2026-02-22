@@ -51,22 +51,6 @@ export class NotificationsStatus extends Disposable {
 		}));
 	}
 
-	private getNotificationsPosition(): NotificationsPosition {
-		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
-	}
-
-	private getDesiredAlignment(): StatusbarAlignment {
-		const position = this.getNotificationsPosition();
-		switch (position) {
-			case NotificationsPosition.BOTTOM_LEFT:
-				return StatusbarAlignment.LEFT;
-			case NotificationsPosition.TOP_RIGHT:
-			case NotificationsPosition.BOTTOM_RIGHT:
-			default:
-				return StatusbarAlignment.RIGHT;
-		}
-	}
-
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
 
 		// Consider a notification as unread as long as it only
@@ -121,35 +105,52 @@ export class NotificationsStatus extends Disposable {
 		// (it is shown in the title bar instead via menu registration)
 		const position = this.getNotificationsPosition();
 		if (position === NotificationsPosition.TOP_RIGHT) {
-			if (this.notificationsCenterStatusItem) {
-				this.notificationsCenterStatusItem.dispose();
-				this.notificationsCenterStatusItem = undefined;
-				this.currentAlignment = undefined;
-			}
-			return;
-		}
-
-		const desiredAlignment = this.getDesiredAlignment();
-
-		// If alignment changed, dispose old entry and create a new one
-		if (this.notificationsCenterStatusItem && this.currentAlignment !== desiredAlignment) {
-			this.notificationsCenterStatusItem.dispose();
+			this.notificationsCenterStatusItem?.dispose();
 			this.notificationsCenterStatusItem = undefined;
+
+			this.currentAlignment = undefined;
 		}
 
-		if (!this.notificationsCenterStatusItem) {
-			this.currentAlignment = desiredAlignment;
-			const priority = desiredAlignment === StatusbarAlignment.LEFT
-				? Number.MAX_SAFE_INTEGER /* leftmost on the left side (higher priority = further left) */
-				: Number.NEGATIVE_INFINITY /* rightmost on the right side */;
-			this.notificationsCenterStatusItem = this.statusbarService.addEntry(
-				statusProperties,
-				'status.notifications',
-				desiredAlignment,
-				priority
-			);
-		} else {
-			this.notificationsCenterStatusItem.update(statusProperties);
+		// For other positions, figure out the desired alignment
+		else {
+			const desiredAlignment = this.getDesiredAlignment();
+
+			// If alignment changed, dispose old entry and create a new one
+			if (this.currentAlignment !== desiredAlignment) {
+				this.notificationsCenterStatusItem?.dispose();
+				this.notificationsCenterStatusItem = undefined;
+
+				this.currentAlignment = desiredAlignment;
+			}
+
+			if (!this.notificationsCenterStatusItem) {
+				this.notificationsCenterStatusItem = this.statusbarService.addEntry(
+					statusProperties,
+					'status.notifications',
+					this.currentAlignment,
+					this.currentAlignment === StatusbarAlignment.LEFT
+						? Number.MAX_SAFE_INTEGER 	// almost leftmost on the left side
+						: Number.NEGATIVE_INFINITY 	// rightmost on the right side
+				);
+			} else {
+				this.notificationsCenterStatusItem.update(statusProperties);
+			}
+		}
+	}
+
+	private getNotificationsPosition(): NotificationsPosition {
+		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
+	}
+
+	private getDesiredAlignment(): StatusbarAlignment {
+		const position = this.getNotificationsPosition();
+		switch (position) {
+			case NotificationsPosition.BOTTOM_LEFT:
+				return StatusbarAlignment.LEFT;
+			case NotificationsPosition.TOP_RIGHT:
+			case NotificationsPosition.BOTTOM_RIGHT:
+			default:
+				return StatusbarAlignment.RIGHT;
 		}
 	}
 
