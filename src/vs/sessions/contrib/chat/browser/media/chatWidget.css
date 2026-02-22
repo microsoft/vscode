@@ -34,7 +34,7 @@
 }
 
 .sessions-chat-input-area:focus-within {
-	border-color: var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	border-color: var(--vscode-focusBorder);
 }
 
 /* Editor */
