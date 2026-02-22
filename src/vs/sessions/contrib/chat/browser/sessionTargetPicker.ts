@@ -170,6 +170,7 @@ export class IsolationModePicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _container: HTMLElement | undefined;
 	private _dropdownContainer: HTMLElement | undefined;
+	private _slotElement: HTMLElement | undefined;
 
 	get isolationMode(): IsolationMode {
 		return this._isolationMode;
@@ -224,7 +225,7 @@ export class IsolationModePicker extends Disposable {
 	 * Shows or hides the loading state on the picker.
 	 */
 	setLoading(loading: boolean): void {
-		this._dropdownContainer?.querySelector('.sessions-chat-picker-slot')?.classList.toggle('loading', loading);
+		this._slotElement?.classList.toggle('loading', loading);
 	}
 
 	private _renderDropdown(): void {
@@ -263,7 +264,7 @@ export class IsolationModePicker extends Disposable {
 			this.contextMenuService,
 			{ classNames: [...ThemeIcon.asClassNameArray(modeIcon)] }
 		));
-		const modeSlot = dom.append(this._dropdownContainer, dom.$('.sessions-chat-picker-slot'));
+		const modeSlot = this._slotElement = dom.append(this._dropdownContainer, dom.$('.sessions-chat-picker-slot'));
 		modeDropdown.render(modeSlot);
 		modeSlot.classList.toggle('disabled', isDisabled);
 	}
