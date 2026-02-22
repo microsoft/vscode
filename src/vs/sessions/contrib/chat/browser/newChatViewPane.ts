@@ -271,6 +271,8 @@ class NewChatWidget extends Disposable {
 		const cts = this._openRepositoryCts.value = new CancellationTokenSource();
 
 		this._isolationModePicker.setLoading(true);
+		this._branchPicker.setRepository(undefined);
+
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
 				return;
