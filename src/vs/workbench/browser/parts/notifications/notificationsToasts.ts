@@ -106,7 +106,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		// Position changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
-				this.updatePositionClass();
+				this.updateNotificationPosition();
 			}
 		}));
 
@@ -135,11 +135,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}));
 	}
 
-	private getNotificationsPosition(): NotificationsPosition {
-		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
-	}
-
-	private updatePositionClass(): void {
+	private updateNotificationPosition(): void {
 		if (!this.notificationsToastsContainer) {
 			return;
 		}
@@ -148,7 +144,6 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		this.notificationsToastsContainer.classList.remove('bottom-right', 'bottom-left', 'top-right');
 		this.notificationsToastsContainer.classList.add(position);
 
-		// Set initial top offset for top-right to avoid jump on first render
 		if (position === NotificationsPosition.TOP_RIGHT) {
 			let topOffset = 3;
 			if (this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
@@ -158,6 +153,10 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		} else {
 			this.notificationsToastsContainer.style.top = '';
 		}
+	}
+
+	private getNotificationsPosition(): NotificationsPosition {
+		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
 	}
 
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
@@ -237,7 +236,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 
 		// Apply position class
-		this.updatePositionClass();
+		this.updateNotificationPosition();
 
 		// Make Visible
 		notificationsToastsContainer.classList.add('visible');
@@ -586,8 +585,8 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		const maxDimensions = this.computeMaxDimensions();
 
-		// Update top offset for top-right position
-		this.updatePositionClass();
+		// Update position
+		this.updateNotificationPosition();
 
 		// Hide toasts that exceed height
 		if (maxDimensions.height) {
