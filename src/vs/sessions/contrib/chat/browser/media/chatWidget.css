@@ -37,6 +37,24 @@
 	border-color: var(--vscode-focusBorder);
 }
 
+/* Loading progress bar */
+.sessions-chat-input-area.loading::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	height: 2px;
+	width: 30%;
+	background-color: var(--vscode-progressBar-background);
+	animation: sessions-chat-input-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes sessions-chat-input-loading {
+	0% { left: 0; width: 30%; }
+	50% { left: 40%; width: 40%; }
+	100% { left: 100%; width: 0%; }
+}
+
 /* Editor */
 .sessions-chat-editor {
 	padding: 0 6px 6px 6px;

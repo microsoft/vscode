@@ -96,6 +96,7 @@ class NewChatWidget extends Disposable {
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private _inputArea: HTMLElement | undefined;
 
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
@@ -169,7 +170,7 @@ class NewChatWidget extends Disposable {
 		this._inputSlot = dom.append(welcomeElement, dom.$('.chat-full-welcome-inputSlot'));
 
 		// Input area inside the input slot
-		const inputArea = dom.$('.sessions-chat-input-area');
+		const inputArea = this._inputArea = dom.$('.sessions-chat-input-area');
 		this._contextAttachments.registerDropTarget(inputArea);
 		this._contextAttachments.registerPasteHandler(inputArea);
 
@@ -270,14 +271,14 @@ class NewChatWidget extends Disposable {
 		this._openRepositoryCts.value?.cancel();
 		const cts = this._openRepositoryCts.value = new CancellationTokenSource();
 
-		this._isolationModePicker.setLoading(true);
+		this._inputArea?.classList.add('loading');
 		this._branchPicker.setRepository(undefined);
 
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
-			this._isolationModePicker.setLoading(false);
+			this._inputArea?.classList.remove('loading');
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
 		}).catch(e => {
@@ -285,7 +286,7 @@ class NewChatWidget extends Disposable {
 				return;
 			}
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
-			this._isolationModePicker.setLoading(false);
+			this._inputArea?.classList.remove('loading');
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
 		});
