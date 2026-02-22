@@ -351,14 +351,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.useModal': {
 				'type': 'string',
-				'enum': ['off', 'default', 'on'],
+				'enum': ['off', 'some', 'all'],
 				'enumDescriptions': [
 					localize('useModal.off', "Editors never open in a modal overlay."),
-					localize('useModal.default', "Certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay."),
-					localize('useModal.on', "All editors open in a centered modal overlay."),
+					localize('useModal.some', "Certain editors such as Settings and Keyboard Shortcuts may open in a centered modal overlay."),
+					localize('useModal.all', "All editors open in a centered modal overlay."),
 				],
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
-				'default': product.quality !== 'stable' ? 'default' : 'off',
+				'default': product.quality !== 'stable' ? 'some' : 'off',
 				tags: ['experimental'],
 				experiment: {
 					mode: 'auto'
@@ -1031,6 +1031,19 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
 				result.push(['zenMode.showTabs', { value: 'single' }]);
+			}
+			return result;
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.editor.useModal', migrateFn: (value: unknown) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value === 'default') {
+				result.push(['workbench.editor.useModal', { value: 'some' }]);
+			} else if (value === 'on') {
+				result.push(['workbench.editor.useModal', { value: 'all' }]);
 			}
 			return result;
 		}

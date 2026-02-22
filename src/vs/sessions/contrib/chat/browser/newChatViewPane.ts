@@ -53,6 +53,7 @@ import { IGitService } from '../../../../workbench/contrib/git/common/gitService
 import { IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { INewSession } from './newSession.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 
 // #region --- Chat Welcome Widget ---
 
@@ -257,7 +258,8 @@ class NewChatWidget extends Disposable {
 		this.gitService.openRepository(folderUri).then(repository => {
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
-		}).catch(() => {
+		}).catch(e => {
+			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
 		});

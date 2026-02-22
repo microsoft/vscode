@@ -13,11 +13,12 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsConfigurationService, ISessionScript } from './sessionsConfigurationService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+
 
 
 // Menu IDs - exported for use in auxiliary bar part
@@ -43,6 +44,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>;
 
+	/** Maps `cwd.toString() + '\n' + script.command` to the terminal instance for reuse. */
+	private readonly _scriptTerminals = new Map<string, number>();
+
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ISessionsManagementService private readonly _activeSessionService: ISessionsManagementService,
@@ -61,6 +65,15 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			const scripts = this._sessionsConfigService.getScripts(activeSession).read(reader);
 			return { session: activeSession, scripts, cwd };
 		});
+
+		this._register(this._terminalService.onDidDisposeInstance(instance => {
+			for (const [key, id] of this._scriptTerminals) {
+				if (id === instance.instanceId) {
+					this._scriptTerminals.delete(key);
+					break;
+				}
+			}
+		}));
 
 		this._registerActions();
 	}
@@ -170,16 +183,48 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private async _runScript(cwd: URI, script: ISessionScript): Promise<void> {
-		const terminal = await this._terminalService.createTerminal({
-			location: TerminalLocation.Panel,
-			config: {
-				name: script.name
-			},
-			cwd
-		});
+		const key = this._terminalKey(cwd, script);
+		let terminal = this._getReusableTerminal(key);
 
-		terminal.sendText(script.command, true);
-		await this._terminalService.revealTerminal(terminal);
+		if (!terminal) {
+			terminal = await this._terminalService.createTerminal({
+				location: TerminalLocation.Panel,
+				config: {
+					name: script.name
+				},
+				cwd
+			});
+			this._scriptTerminals.set(key, terminal.instanceId);
+		}
+
+		await terminal.sendText(script.command, true);
+		this._terminalService.setActiveInstance(terminal);
+		await this._terminalService.revealActiveTerminal();
+	}
+
+	private _terminalKey(cwd: URI, script: ISessionScript): string {
+		return `${cwd.toString()}\n${script.command}`;
+	}
+
+	private _getReusableTerminal(key: string): ITerminalInstance | undefined {
+		const instanceId = this._scriptTerminals.get(key);
+		if (instanceId === undefined) {
+			return undefined;
+		}
+
+		const instance = this._terminalService.getInstanceFromId(instanceId);
+		if (!instance || instance.isDisposed || instance.exitCode !== undefined) {
+			this._scriptTerminals.delete(key);
+			return undefined;
+		}
+
+		// Only reuse if the cwd hasn't changed from the initial cwd and nothing is actively running
+		if (instance.cwd !== instance.initialCwd || instance.hasChildProcesses) {
+			this._scriptTerminals.delete(key);
+			return undefined;
+		}
+
+		return instance;
 	}
 }
 

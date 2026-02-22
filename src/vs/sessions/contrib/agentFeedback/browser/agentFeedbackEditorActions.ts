@@ -131,7 +131,6 @@ class NavigateFeedbackAction extends AgentFeedbackEditorAction {
 		editorService.openEditor({
 			resource: feedback.resourceUri,
 			options: {
-				selection: feedback.range,
 				preserveFocus: false,
 				revealIfVisible: true,
 			}

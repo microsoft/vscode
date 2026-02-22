@@ -1680,10 +1680,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
 		for (const viewModel of this._viewModels) {
-			viewModel.onDidChangeContentOrInjectedText(e);
+			try {
+				viewModel.onDidChangeContentOrInjectedText(e);
+			} catch (error) {
+				onUnexpectedError(error);
+			}
 		}
 		for (const viewModel of this._viewModels) {
-			viewModel.emitContentChangeEvent(e);
+			try {
+				viewModel.emitContentChangeEvent(e);
+			} catch (error) {
+				onUnexpectedError(error);
+			}
 		}
 	}
 
