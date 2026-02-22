@@ -10,7 +10,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -100,7 +100,7 @@ class NewChatWidget extends Disposable {
 	private _repositoryLoading = false;
 	private _branchLoading = false;
 	private _loadingSpinner: HTMLElement | undefined;
-	private _loadingDelayTimer: ReturnType<typeof setTimeout> | undefined;
+	private readonly _loadingDelayDisposable = this._register(new MutableDisposable());
 
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
@@ -326,19 +326,17 @@ class NewChatWidget extends Disposable {
 	private _updateInputLoadingState(): void {
 		const loading = this._repositoryLoading || this._branchLoading;
 		if (loading) {
-			if (!this._loadingDelayTimer) {
-				this._loadingDelayTimer = setTimeout(() => {
-					this._loadingDelayTimer = undefined;
+			if (!this._loadingDelayDisposable.value) {
+				const timer = setTimeout(() => {
+					this._loadingDelayDisposable.clear();
 					if (this._repositoryLoading || this._branchLoading) {
 						this._loadingSpinner?.classList.add('visible');
 					}
 				}, 500);
+				this._loadingDelayDisposable.value = toDisposable(() => clearTimeout(timer));
 			}
 		} else {
-			if (this._loadingDelayTimer) {
-				clearTimeout(this._loadingDelayTimer);
-				this._loadingDelayTimer = undefined;
-			}
+			this._loadingDelayDisposable.clear();
 			this._loadingSpinner?.classList.remove('visible');
 		}
 	}
