@@ -53,7 +53,6 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	private clearAllAction: ClearAllNotificationsAction | undefined;
 	private configureDoNotDisturbAction: ConfigureDoNotDisturbAction | undefined;
 
-
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly model: INotificationsModel,
