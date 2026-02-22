@@ -209,4 +209,17 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"debug.breakpointsView.presentation": "tree",
+	// --- Agent Sessions ---
+	"agentSessions.runScripts": [
+		{
+			"name": "Run",
+			"command": "./scripts/code.sh",
+			"commandWindows": ".\\scripts\\code.bat"
+		},
+		{
+			"name": "Tests",
+			"command": "./scripts/test.sh",
+			"commandWindows": ".\\scripts\\test.bat"
+		}
+	],
 }
