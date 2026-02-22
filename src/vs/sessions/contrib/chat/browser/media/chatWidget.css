@@ -125,6 +125,7 @@
 	display: none;
 	width: 12px;
 	height: 12px;
+	margin-right: 4px;
 	border: 1.5px solid var(--vscode-icon-foreground);
 	border-top-color: transparent;
 	border-radius: 50%;
