@@ -5,13 +5,13 @@
 
 import './media/notificationsToasts.css';
 import { localize } from '../../../../nls.js';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind, NotificationsSettings, NotificationsPosition } from '../../../common/notifications.js';
 import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $, isHTMLElement, isEditableElement, getActiveElement, getDomNodePagePosition, getClientArea } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { NotificationsList } from './notificationsList.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { IWorkbenchLayoutService, LayoutSettings, NotificationsPosition, Parts } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
 import { widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
@@ -105,7 +105,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		// Position changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.NOTIFICATIONS_POSITION)) {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
 				this.updatePositionClass();
 			}
 		}));
@@ -136,7 +136,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private getNotificationsPosition(): NotificationsPosition {
-		return this.configurationService.getValue<NotificationsPosition>(LayoutSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
+		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
 	}
 
 	private updatePositionClass(): void {

@@ -14,6 +14,7 @@ import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activi
 import { IAction } from '../../../../base/common/actions.js';
 import { IsMainWindowFullscreenContext, IsCompactTitleBarContext, TitleBarStyleContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { CustomTitleBarVisibility, TitleBarSetting, TitlebarStyle } from '../../../../platform/window/common/window.js';
+import { NotificationsSettings } from '../../../common/notifications.js';
 
 // --- Context Menu Actions --- //
 
@@ -70,7 +71,7 @@ registerAction2(class ToggleLayoutControl extends ToggleTitleBarConfigAction {
 
 registerAction2(class ToggleNotificationsButton extends ToggleTitleBarConfigAction {
 	constructor() {
-		super(LayoutSettings.NOTIFICATIONS_BUTTON, localize('toggle.notifications', 'Notifications'), localize('toggle.notificationsDescription', "Toggle visibility of the Notifications button in title bar"), 5, ContextKeyExpr.equals(`config.${LayoutSettings.NOTIFICATIONS_POSITION}`, 'top-right'));
+		super(NotificationsSettings.NOTIFICATIONS_BUTTON, localize('toggle.notifications', 'Notifications'), localize('toggle.notificationsDescription', "Toggle visibility of the Notifications button in title bar"), 5, ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, 'top-right'));
 	}
 });
 

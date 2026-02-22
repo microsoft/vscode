@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { LayoutSettings, NotificationsPosition } from '../../services/layout/browser/layoutService.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../platform/window/common/window.js';
+import { NotificationsPosition, NotificationsSettings } from '../../common/notifications.js';
 
 suite('Notifications Position', () => {
 
@@ -17,28 +17,28 @@ suite('Notifications Position', () => {
 
 		test('defaults to bottom-right when no configuration is set', () => {
 			const configurationService = new TestConfigurationService();
-			const position = configurationService.getValue<NotificationsPosition>(LayoutSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
+			const position = configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
 			assert.strictEqual(position, NotificationsPosition.BOTTOM_RIGHT);
 		});
 
 		test('returns bottom-left when configured', async () => {
 			const configurationService = new TestConfigurationService();
-			await configurationService.setUserConfiguration(LayoutSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_LEFT);
-			const position = configurationService.getValue<NotificationsPosition>(LayoutSettings.NOTIFICATIONS_POSITION);
+			await configurationService.setUserConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_LEFT);
+			const position = configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION);
 			assert.strictEqual(position, NotificationsPosition.BOTTOM_LEFT);
 		});
 
 		test('returns top-right when configured', async () => {
 			const configurationService = new TestConfigurationService();
-			await configurationService.setUserConfiguration(LayoutSettings.NOTIFICATIONS_POSITION, NotificationsPosition.TOP_RIGHT);
-			const position = configurationService.getValue<NotificationsPosition>(LayoutSettings.NOTIFICATIONS_POSITION);
+			await configurationService.setUserConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION, NotificationsPosition.TOP_RIGHT);
+			const position = configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION);
 			assert.strictEqual(position, NotificationsPosition.TOP_RIGHT);
 		});
 
 		test('returns bottom-right when configured', async () => {
 			const configurationService = new TestConfigurationService();
-			await configurationService.setUserConfiguration(LayoutSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_RIGHT);
-			const position = configurationService.getValue<NotificationsPosition>(LayoutSettings.NOTIFICATIONS_POSITION);
+			await configurationService.setUserConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_RIGHT);
+			const position = configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION);
 			assert.strictEqual(position, NotificationsPosition.BOTTOM_RIGHT);
 		});
 	});
@@ -109,11 +109,11 @@ suite('Notifications Position', () => {
 		});
 
 		test('setting key is correct', () => {
-			assert.strictEqual(LayoutSettings.NOTIFICATIONS_POSITION, 'workbench.notifications.position');
+			assert.strictEqual(NotificationsSettings.NOTIFICATIONS_POSITION, 'workbench.notifications.position');
 		});
 
 		test('button setting key is correct', () => {
-			assert.strictEqual(LayoutSettings.NOTIFICATIONS_BUTTON, 'workbench.notifications.showInTitleBar');
+			assert.strictEqual(NotificationsSettings.NOTIFICATIONS_BUTTON, 'workbench.notifications.showInTitleBar');
 		});
 	});
 });

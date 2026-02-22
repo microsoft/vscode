@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem } from '../../../common/notifications.js';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem, NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
 import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
 import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from './notificationsCommands.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { LayoutSettings, NotificationsPosition } from '../../../services/layout/browser/layoutService.js';
 
 export class NotificationsStatus extends Disposable {
 
@@ -46,14 +45,14 @@ export class NotificationsStatus extends Disposable {
 		this._register(this.model.onDidChangeStatusMessage(e => this.onDidChangeStatusMessage(e)));
 		this._register(this.notificationService.onDidChangeFilter(() => this.updateNotificationsCenterStatusItem()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.NOTIFICATIONS_POSITION)) {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
 				this.updateNotificationsCenterStatusItem();
 			}
 		}));
 	}
 
 	private getNotificationsPosition(): NotificationsPosition {
-		return this.configurationService.getValue<NotificationsPosition>(LayoutSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
+		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
 	}
 
 	private getDesiredAlignment(): StatusbarAlignment {

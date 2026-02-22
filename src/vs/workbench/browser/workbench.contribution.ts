@@ -11,8 +11,9 @@ import product from '../../platform/product/common/product.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution, DynamicWindowConfiguration, DynamicWorkbenchSecurityConfiguration, Extensions, IConfigurationMigrationRegistry, problemsConfigurationNodeBase, windowConfigurationNodeBase, workbenchConfigurationNodeBase } from '../common/configuration.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
+import { NotificationsPosition, NotificationsSettings } from '../common/notifications.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
-import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings, NotificationsPosition } from '../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -616,7 +617,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
 			},
-			[LayoutSettings.NOTIFICATIONS_POSITION]: {
+			[NotificationsSettings.NOTIFICATIONS_POSITION]: {
 				'type': 'string',
 				'enum': [NotificationsPosition.BOTTOM_RIGHT, NotificationsPosition.BOTTOM_LEFT, NotificationsPosition.TOP_RIGHT],
 				'default': NotificationsPosition.BOTTOM_RIGHT,
@@ -627,7 +628,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.notifications.position.top-right', "Show notifications in the top right corner, similar to OS-level notifications.")
 				]
 			},
-			[LayoutSettings.NOTIFICATIONS_BUTTON]: {
+			[NotificationsSettings.NOTIFICATIONS_BUTTON]: {
 				'type': 'boolean',
 				'default': true,
 				'description': localize('notificationsButton', "Controls the visibility of the Notifications button in the title bar. Only applies when notifications are positioned at the top right.")

@@ -794,3 +794,14 @@ class StatusMessageViewItem {
 		return { message, options };
 	}
 }
+
+export const enum NotificationsSettings {
+	NOTIFICATIONS_POSITION = 'workbench.notifications.position',
+	NOTIFICATIONS_BUTTON = 'workbench.notifications.showInTitleBar'
+}
+
+export const enum NotificationsPosition {
+	BOTTOM_RIGHT = 'bottom-right',
+	BOTTOM_LEFT = 'bottom-left',
+	TOP_RIGHT = 'top-right'
+}

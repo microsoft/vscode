@@ -7,8 +7,8 @@ import './media/notificationsCenter.css';
 import './media/notificationsActions.css';
 import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from '../../../common/theme.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
-import { IWorkbenchLayoutService, LayoutSettings, NotificationsPosition, Parts } from '../../../services/layout/browser/layoutService.js';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, NotificationsSettings, NotificationsPosition } from '../../../common/notifications.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { INotificationsCenterController, NotificationActionRunner } from './notificationsCommands.js';
@@ -78,14 +78,14 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
 		this._register(this.notificationService.onDidChangeFilter(() => this.onDidChangeFilter()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.NOTIFICATIONS_POSITION)) {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
 				this.updatePositionClass();
 			}
 		}));
 	}
 
 	private getNotificationsPosition(): NotificationsPosition {
-		return this.configurationService.getValue<NotificationsPosition>(LayoutSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
+		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
 	}
 
 	private updatePositionClass(): void {
@@ -257,19 +257,19 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 									id: 'workbench.action.setNotificationsPosition.bottomRight',
 									label: localize('positionBottomRight', "Bottom Right"),
 									checked: currentPosition === NotificationsPosition.BOTTOM_RIGHT,
-									run: () => that.configurationService.updateValue(LayoutSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_RIGHT)
+									run: () => that.configurationService.updateValue(NotificationsSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_RIGHT)
 								}),
 								toAction({
 									id: 'workbench.action.setNotificationsPosition.bottomLeft',
 									label: localize('positionBottomLeft', "Bottom Left"),
 									checked: currentPosition === NotificationsPosition.BOTTOM_LEFT,
-									run: () => that.configurationService.updateValue(LayoutSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_LEFT)
+									run: () => that.configurationService.updateValue(NotificationsSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_LEFT)
 								}),
 								toAction({
 									id: 'workbench.action.setNotificationsPosition.topRight',
 									label: localize('positionTopRight', "Top Right"),
 									checked: currentPosition === NotificationsPosition.TOP_RIGHT,
-									run: () => that.configurationService.updateValue(LayoutSettings.NOTIFICATIONS_POSITION, NotificationsPosition.TOP_RIGHT)
+									run: () => that.configurationService.updateValue(NotificationsSettings.NOTIFICATIONS_POSITION, NotificationsPosition.TOP_RIGHT)
 								})
 							];
 						},

@@ -7,7 +7,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { INotificationViewItem, isNotificationViewItem, NotificationsModel } from '../../../common/notifications.js';
+import { INotificationViewItem, isNotificationViewItem, NotificationsModel, NotificationsSettings } from '../../../common/notifications.js';
 import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
@@ -20,7 +20,6 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -336,8 +335,8 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		group: 'navigation',
 		order: 10000,
 		when: ContextKeyExpr.and(
-			ContextKeyExpr.equals(`config.${LayoutSettings.NOTIFICATIONS_POSITION}`, 'top-right'),
-			ContextKeyExpr.equals(`config.${LayoutSettings.NOTIFICATIONS_BUTTON}`, true)
+			ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, 'top-right'),
+			ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_BUTTON}`, true)
 		)
 	});
 }
