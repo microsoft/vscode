@@ -1,28 +1,28 @@
 {
 	"scripts": [
 		{
-			"name": "run Windows",
-			"command": "code.bat"
+			"name": "Run (Windows)",
+			"command": ".\\scripts\\code.bat"
 		},
 		{
-			"name": "run macOS",
-			"command": "code.sh"
+			"name": "Run (macOS)",
+			"command": "./scripts/code.sh"
 		},
 		{
-			"name": "run Linux",
-			"command": "code.sh"
+			"name": "Run (Linux)",
+			"command": "./scripts/code.sh"
 		},
 		{
-			"name": "run tests Windows",
-			"command": "test.bat"
+			"name": "Tests (Windows)",
+			"command": ".\\scripts\\test.bat"
 		},
 		{
-			"name": "run tests macOS",
-			"command": "test.sh"
+			"name": "Tests (macOS)",
+			"command": "./scripts/test.sh"
 		},
 		{
-			"name": "run tests Linux",
-			"command": "test.sh"
+			"name": "Tests (Linux)",
+			"command": "./scripts/test.sh"
 		}
 	]
 }

@@ -84,7 +84,6 @@ src/vs/sessions/
 │       ├── auxiliaryBarPart.ts             # Auxiliary Bar (with run script dropdown)
 │       ├── panelPart.ts                    # Panel (terminal, output, etc.)
 │       ├── projectBarPart.ts              # Project bar (folder entries)
-│       ├── editorModal.ts                  # Editor modal overlay
 │       ├── agentSessionsChatInputPart.ts   # Chat input part adapter
 │       ├── agentSessionsChatWelcomePart.ts # Welcome view (mascot + target buttons + pickers)
 │       └── media/                          # Part CSS files
@@ -134,13 +133,13 @@ Use the `agent-sessions-layout` skill for detailed guidance on the layout. Key p
 | Chat Bar | Visible | Primary chat widget |
 | Auxiliary Bar | Visible | Changes view, etc. |
 | Panel | Hidden | Terminal, output |
-| Editor | Hidden | Modal overlay, auto-shows on editor open |
+| Editor | Hidden | Main part hidden; editors open via `MODAL_GROUP` into `ModalEditorPart` |
 
 **Not included:** Activity Bar, Status Bar, Banner.
 
 ### 4.3 Editor Modal
 
-Editors appear as modal overlays (80% of workbench, min 400×300, max 1200×900). The modal auto-shows when an editor opens and auto-hides when all editors close. Click backdrop, press Escape, or click X to dismiss.
+The main editor part is hidden (`display:none`). All editors open via `MODAL_GROUP` into the standard `ModalEditorPart` overlay (created on-demand by `EditorParts.createModalEditorPart`). The sessions configuration sets `workbench.editor.useModal` to `'all'`, which causes `findGroup()` to redirect all editor opens to the modal. Click backdrop or press Escape to dismiss.
 
 ## 5. Chat Widget
 

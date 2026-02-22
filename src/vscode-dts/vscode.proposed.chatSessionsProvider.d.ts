@@ -347,6 +347,15 @@ declare module 'vscode' {
 
 	export interface ChatSession {
 		/**
+		 * An optional title for the chat session.
+		 *
+		 * When provided, this title is used as the display name for the session
+		 * (e.g. in the editor tab). When not provided, the title defaults to
+		 * the first user message in the session history.
+		 */
+		readonly title?: string;
+
+		/**
 		 * The full history of the session
 		 *
 		 * This should not include any currently active responses
@@ -482,7 +491,10 @@ declare module 'vscode' {
 
 	export interface ChatSessionContext {
 		readonly chatSessionItem: ChatSessionItem; // Maps to URI of chat session editor (could be 'untitled-1', etc..)
+
+		/** @deprecated This will be removed along with the concept of `untitled-` sessions.  */
 		readonly isUntitled: boolean;
+
 		/**
 		 * The initial option selections for the session, provided with the first request.
 		 * Contains the options the user selected (or defaults) before the session was created.

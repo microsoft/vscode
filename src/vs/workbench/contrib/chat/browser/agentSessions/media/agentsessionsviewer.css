@@ -44,10 +44,6 @@
 		color: unset;
 	}
 
-	.monaco-list-row.selected .agent-session-status {
-		color: unset;
-	}
-
 	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row {
 		color: var(--vscode-descriptionForeground);
 	}
@@ -66,7 +62,7 @@
 		}
 	}
 
-	/* On hover or keyboard focus: show toolbar, hide status */
+	/* On hover or keyboard focus: show toolbar */
 	.monaco-list-row:hover,
 	.monaco-list-row.focused {
 
@@ -74,15 +70,15 @@
 			display: block;
 		}
 
-		.agent-session-status {
-			display: none;
+		.agent-session-title {
+			margin-right: 8px;
 		}
 	}
 
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 6px 6px;
+		padding: 8px 6px;
 
 		&.archived {
 			color: var(--vscode-descriptionForeground);
@@ -143,7 +139,7 @@
 
 		.agent-session-title-row {
 			line-height: 17px;
-			padding-bottom: 4px;
+			padding-bottom: 6px;
 		}
 
 		.agent-session-details-row {
@@ -227,21 +223,25 @@
 			flex: 1;
 			overflow: hidden;
 			white-space: nowrap;
-			margin-right: 16px;
-			mask-image: linear-gradient(to right, black calc(100% - 32px), transparent);
-			-webkit-mask-image: linear-gradient(to right, black calc(100% - 32px), transparent);
 		}
 
 		.agent-session-title {
 			font-size: 13px;
 		}
 
+		.agent-session-details-right {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			margin-left: auto;
+			white-space: nowrap;
+			flex-shrink: 0;
+		}
+
 		.agent-session-status {
 			display: flex;
 			align-items: center;
 			font-variant-numeric: tabular-nums;
-			font-size: 12px;
-			color: var(--vscode-descriptionForeground);
 			white-space: nowrap;
 
 			.agent-session-status-provider-icon {

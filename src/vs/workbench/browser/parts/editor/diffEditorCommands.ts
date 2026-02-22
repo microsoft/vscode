@@ -18,7 +18,6 @@ import { DiffEditorInput } from '../../../common/editor/diffEditorInput.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 
@@ -40,7 +39,6 @@ export function registerDiffEditorCommands(): void {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.KeyO),
 		handler: async accessor => {
 			const editorService = accessor.get(IEditorService);
-			const editorGroupsService = accessor.get(IEditorGroupsService);
 
 			const activeEditor = editorService.activeEditor;
 			const activeTextEditorControl = editorService.activeTextEditorControl;
@@ -56,7 +54,7 @@ export function registerDiffEditorCommands(): void {
 				editor = activeEditor.modified;
 			}
 
-			return editorGroupsService.activeGroup.openEditor(editor);
+			return editorService.openEditor(editor);
 		}
 	});
 

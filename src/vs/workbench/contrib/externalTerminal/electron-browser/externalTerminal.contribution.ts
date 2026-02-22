@@ -5,8 +5,7 @@
 
 import * as nls from '../../../../nls.js';
 import * as paths from '../../../../base/common/path.js';
-import { URI } from '../../../../base/common/uri.js';
-import { DEFAULT_TERMINAL_OSX, IExternalTerminalSettings } from '../../../../platform/externalTerminal/common/externalTerminal.js';
+import { IExternalTerminalSettings } from '../../../../platform/externalTerminal/common/externalTerminal.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
@@ -23,6 +22,7 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { URI } from '../../../../base/common/uri.js';
 
 const OPEN_NATIVE_CONSOLE_COMMAND_ID = 'workbench.action.terminal.openNativeConsole';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -153,7 +153,7 @@ export class ExternalTerminalContribution implements IWorkbenchContribution {
 				'terminal.external.osxExec': {
 					type: 'string',
 					description: nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on macOS."),
-					default: DEFAULT_TERMINAL_OSX,
+					default: terminals.osx,
 					scope: ConfigurationScope.APPLICATION
 				},
 				'terminal.external.linuxExec': {

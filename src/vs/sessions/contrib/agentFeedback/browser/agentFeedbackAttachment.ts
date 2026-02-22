@@ -14,7 +14,7 @@ import { IAgentFeedbackService, IAgentFeedback } from './agentFeedbackService.js
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
-const ATTACHMENT_ID_PREFIX = 'agentFeedback:';
+export const ATTACHMENT_ID_PREFIX = 'agentFeedback:';
 
 /**
  * Keeps the "N feedback items" attachment in the chat input in sync with the

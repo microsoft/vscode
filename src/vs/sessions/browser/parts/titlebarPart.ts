@@ -348,7 +348,6 @@ export class AuxiliaryTitlebarPart extends TitlebarPart implements IAuxiliaryTit
 
 	constructor(
 		readonly container: HTMLElement,
-		editorGroupsContainer: IEditorGroupsContainer,
 		private readonly mainTitlebar: TitlebarPart,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -418,8 +417,8 @@ export class TitleService extends MultiWindowParts<TitlebarPart> implements ITit
 		return titlebarPart;
 	}
 
-	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): TitlebarPart & IAuxiliaryTitlebarPart {
-		return instantiationService.createInstance(AuxiliaryTitlebarPart, container, editorGroupsContainer, this.mainPart);
+	protected doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): TitlebarPart & IAuxiliaryTitlebarPart {
+		return instantiationService.createInstance(AuxiliaryTitlebarPart, container, this.mainPart);
 	}
 
 	//#endregion

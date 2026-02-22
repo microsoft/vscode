@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 
-export type UnifiedConfigurationScope = vscode.TextDocument | null | undefined;
+export type UnifiedConfigurationScope = vscode.ConfigurationScope | null | undefined;
 
 export const unifiedConfigSection = 'js/ts';
 

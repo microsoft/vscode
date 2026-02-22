@@ -307,7 +307,6 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 						when: ContextKeyExpr.or(
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload),
-							CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates),
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading),
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded),
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating),

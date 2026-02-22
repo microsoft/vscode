@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun, derivedOpts } from '../../../../base/common/observable.js';
+import { autorun, derivedOpts, IReader } from '../../../../base/common/observable.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -68,7 +68,7 @@ export class SessionsAuxiliaryBarContribution extends Disposable {
 				return;
 			}
 
-			const hasChangesAfterTurn = this.hasSessionChanges(activeSessionResource);
+			const hasChangesAfterTurn = this.hasSessionChanges(activeSessionResource, reader);
 			if (!pendingTurnState.hadChangesBeforeSend && hasChangesAfterTurn) {
 				this.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			}
@@ -84,19 +84,19 @@ export class SessionsAuxiliaryBarContribution extends Disposable {
 				return;
 			}
 
-			const hasChanges = this.hasSessionChanges(sessionResource);
+			const hasChanges = this.hasSessionChanges(sessionResource, reader);
 			this.syncAuxiliaryBarVisibility(hasChanges);
 		}));
 	}
 
-	private hasSessionChanges(sessionResource: URI): boolean {
+	private hasSessionChanges(sessionResource: URI, reader?: IReader): boolean {
 		const isBackgroundSession = getChatSessionType(sessionResource) === AgentSessionProviders.Background;
 
 		let editingSessionCount = 0;
 		if (!isBackgroundSession) {
-			const sessions = this.chatEditingService.editingSessionsObs.read(undefined);
+			const sessions = this.chatEditingService.editingSessionsObs.read(reader);
 			const editingSession = sessions.find(candidate => isEqual(candidate.chatSessionResource, sessionResource));
-			editingSessionCount = editingSession ? editingSession.entries.read(undefined).length : 0;
+			editingSessionCount = editingSession ? editingSession.entries.read(reader).length : 0;
 		}
 
 		const session = this.agentSessionsService.getSession(sessionResource);

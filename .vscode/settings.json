@@ -100,10 +100,10 @@
 	// --- TypeScript ---
 	"typescript.experimental.useTsgo": true,
 	"typescript.tsdk": "node_modules/typescript/lib",
-	"typescript.preferences.importModuleSpecifier": "relative",
-	"typescript.preferences.quoteStyle": "single",
+	"js/ts.preferences.importModuleSpecifier": "relative",
+	"js/ts.preferences.quoteStyle": "single",
 	"typescript.tsc.autoDetect": "off",
-	"typescript.preferences.autoImportFileExcludePatterns": [
+	"js/ts.preferences.autoImportFileExcludePatterns": [
 		"@xterm/xterm",
 		"@xterm/headless",
 		"node-pty",
@@ -144,6 +144,9 @@
 		"ts": "warning",
 		"eslint": "warning"
 	},
+	"git.worktreeIncludeFiles": [
+		"product.overrides.json"
+	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,
 	"githubPullRequests.assignCreated": "${user}",
@@ -199,12 +202,11 @@
 		"sash"
 	],
 	// --- Workbench ---
-	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
 	"azureMcp.enabledServices": [
 		"kusto" // Needed for kusto tool in data.prompt.md
 	],
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
-	"debug.breakpointsView.presentation": "tree"
+	"debug.breakpointsView.presentation": "tree",
 }

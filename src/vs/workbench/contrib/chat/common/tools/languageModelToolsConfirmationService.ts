@@ -17,6 +17,8 @@ export interface ILanguageModelToolConfirmationActions {
 	detail?: string;
 	/** Show a separator before this action */
 	divider?: boolean;
+	/** The scope of this action, if applicable */
+	scope?: 'session' | 'workspace' | 'profile';
 	/** Selects this action. Resolves true if the action should be confirmed after selection */
 	select(): Promise<boolean>;
 }

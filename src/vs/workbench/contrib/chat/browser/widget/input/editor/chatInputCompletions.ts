@@ -60,6 +60,17 @@ import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 
+/**
+ * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
+ * letter matching, consistent with `isValidSlashCommandName`.
+ */
+const SlashCommandWord = /\/[\p{L}0-9_.:-]*/gu;
+
+/**
+ * Regex matching an agent-or-slash command word (e.g. `@agent` or `/cmd`).
+ */
+const AgentOrSlashCommandWord = /(@|\/)[\p{L}0-9_.:-]*/gu;
+
 class SlashCommandCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
@@ -83,7 +94,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return null;
 				}
@@ -175,7 +186,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return null;
 				}
@@ -234,7 +245,7 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				// regex is the opposite of `mcpPromptReplaceSpecialChars` found in `mcpTypes.ts`
-				const range = computeCompletionRanges(model, position, /\/[a-z0-9_.-]*/g);
+				const range = computeCompletionRanges(model, position, /\/[\p{L}0-9_.-]*/gu);
 				if (!range) {
 					return null;
 				}
@@ -291,7 +302,7 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return;
 				}
@@ -332,7 +343,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
+				const range = computeCompletionRanges(model, position, AgentOrSlashCommandWord);
 				if (!range) {
 					return null;
 				}
@@ -432,7 +443,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
+				const range = computeCompletionRanges(model, position, AgentOrSlashCommandWord);
 				if (!range) {
 					return null;
 				}
@@ -499,7 +510,7 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
+				const range = computeCompletionRanges(model, position, AgentOrSlashCommandWord);
 				if (!range) {
 					return;
 				}
@@ -552,7 +563,7 @@ class AgentCompletions extends Disposable {
 
 		for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
 			// Could allow text after 'position'
-			if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/\w*)?$/)) {
+			if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/[\p{L}0-9_.:-]*)?$/u)) {
 				// No text allowed between agent and subcommand
 				return;
 			}

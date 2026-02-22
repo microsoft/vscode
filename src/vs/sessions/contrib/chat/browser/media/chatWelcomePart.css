@@ -298,6 +298,17 @@
 	color: var(--vscode-foreground);
 }
 
+.sessions-chat-picker-slot.disabled .action-label {
+	opacity: 0.5;
+	cursor: default;
+	pointer-events: none;
+}
+
+.sessions-chat-picker-slot.disabled .action-label:hover {
+	background-color: transparent;
+	color: var(--vscode-descriptionForeground);
+}
+
 .sessions-chat-picker-slot .action-label .codicon {
 	font-size: 14px;
 	flex-shrink: 0;

@@ -52,7 +52,7 @@ import { chatEditingWidgetFileStateContextKey, hasAppliedChatEditsContextKey, ha
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -656,39 +656,53 @@ export class ChangesViewPane extends ViewPane {
 		if (this.tree) {
 			const tree = this.tree;
 
-			this.renderDisposables.add(tree.onDidOpen(async (e) => {
-				if (!e.element) {
-					return;
-				}
+			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean) => {
+				const { uri: modifiedFileUri, originalUri, isDeletion } = item;
+				const currentIndex = items.indexOf(item);
 
-				// Ignore folder elements - only open files
-				if (!isChangesFileItem(e.element)) {
-					return;
-				}
+				const navigation = {
+					total: items.length,
+					current: currentIndex,
+					navigate: (index: number) => {
+						const target = items[index];
+						if (target) {
+							openFileItem(target, items, false);
+						}
+					}
+				};
 
-				const { uri: modifiedFileUri, originalUri, isDeletion } = e.element;
+				const group = sideBySide ? SIDE_GROUP : MODAL_GROUP;
 
 				if (isDeletion && originalUri) {
-					await this.editorService.openEditor({
+					this.editorService.openEditor({
 						resource: originalUri,
-						options: e.editorOptions
-					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+						options: { modal: { navigation } }
+					}, group);
 					return;
 				}
 
 				if (originalUri) {
-					await this.editorService.openEditor({
+					this.editorService.openEditor({
 						original: { resource: originalUri },
 						modified: { resource: modifiedFileUri },
-						options: e.editorOptions
-					}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+						options: { modal: { navigation } }
+					}, group);
 					return;
 				}
 
-				await this.editorService.openEditor({
+				this.editorService.openEditor({
 					resource: modifiedFileUri,
-					options: e.editorOptions
-				}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+					options: { modal: { navigation } }
+				}, group);
+			};
+
+			this.renderDisposables.add(tree.onDidOpen((e) => {
+				if (!e.element || !isChangesFileItem(e.element)) {
+					return;
+				}
+
+				const items = combinedEntriesObs.get();
+				openFileItem(e.element, items, e.sideBySide);
 			}));
 		}
 

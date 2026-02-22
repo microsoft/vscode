@@ -1,0 +1,190 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Main widget container - speech bubble style */
+.agent-feedback-widget {
+	position: absolute;
+	max-width: 280px;
+	min-width: 180px;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	border-radius: 8px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	font-size: 12px;
+	line-height: 1.4;
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+	z-index: 10;
+}
+
+.agent-feedback-widget.visible {
+	opacity: 1;
+}
+
+.agent-feedback-widget.fadeOut {
+	animation: agentFeedbackFadeOut 150ms ease-out forwards;
+}
+
+@keyframes agentFeedbackFadeOut {
+	from { opacity: 1; }
+	to { opacity: 0; }
+}
+
+/* Arrow pointer pointing left toward the code */
+.agent-feedback-widget-arrow {
+	position: absolute;
+	left: -8px;
+	top: 12px;
+	width: 0;
+	height: 0;
+	border-top: 8px solid transparent;
+	border-bottom: 8px solid transparent;
+	border-right: 8px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+}
+
+.agent-feedback-widget.collapsed .agent-feedback-widget-arrow {
+	display: none;
+}
+
+.agent-feedback-widget-arrow::after {
+	content: '';
+	position: absolute;
+	left: 2px;
+	top: -7px;
+	width: 0;
+	height: 0;
+	border-top: 7px solid transparent;
+	border-bottom: 7px solid transparent;
+	border-right: 7px solid var(--vscode-editorWidget-background);
+}
+
+/* Header */
+.agent-feedback-widget-header {
+	display: flex;
+	align-items: center;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	border-radius: 8px 8px 0 0;
+	overflow: hidden;
+	cursor: pointer;
+	gap: 6px;
+}
+
+.agent-feedback-widget.collapsed .agent-feedback-widget-header {
+	border-bottom: none;
+}
+
+.agent-feedback-widget-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Title */
+.agent-feedback-widget-title {
+	font-weight: 500;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+}
+
+/* Spacer to push buttons to the right */
+.agent-feedback-widget-spacer {
+	flex: 1;
+}
+
+/* Toggle button */
+.agent-feedback-widget-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	transition: opacity 0.1s;
+}
+
+.agent-feedback-widget-toggle:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Dismiss button */
+.agent-feedback-widget-dismiss {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	opacity: 0.7;
+	transition: opacity 0.1s;
+}
+
+.agent-feedback-widget-dismiss:hover {
+	opacity: 1;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Body - collapsible */
+.agent-feedback-widget-body {
+	transition: max-height 0.2s ease-in-out, padding 0.2s ease-in-out;
+	border-radius: 0 0 8px 8px;
+	overflow: hidden;
+}
+
+.agent-feedback-widget-body.collapsed {
+	max-height: 0;
+	overflow: hidden;
+	padding: 0;
+}
+
+/* Individual feedback item */
+.agent-feedback-widget-item {
+	display: flex;
+	flex-direction: column;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border));
+	cursor: pointer;
+	position: relative;
+}
+
+.agent-feedback-widget-item:last-child {
+	border-bottom: none;
+}
+
+.agent-feedback-widget-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.agent-feedback-widget-item.focused {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* Line info */
+.agent-feedback-widget-line-info {
+	font-size: 10px;
+	font-weight: 600;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* Feedback text */
+.agent-feedback-widget-text {
+	color: var(--vscode-foreground);
+	word-wrap: break-word;
+}
+
+/* Gutter decoration for range indicator on hover */
+.agent-feedback-widget-range-glyph {
+	margin-left: 8px;
+	z-index: 5;
+	border-left: 2px solid var(--vscode-editorGutter-modifiedBackground);
+}

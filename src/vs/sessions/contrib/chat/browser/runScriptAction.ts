@@ -13,10 +13,12 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsConfigurationService, ISessionScript } from './sessionsConfigurationService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+
 
 
 // Menu IDs - exported for use in auxiliary bar part
@@ -42,6 +44,9 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>;
 
+	/** Maps `cwd.toString() + '\n' + script.command` to the terminal instance for reuse. */
+	private readonly _scriptTerminals = new Map<string, number>();
+
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ISessionsManagementService private readonly _activeSessionService: ISessionsManagementService,
@@ -61,6 +66,15 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			return { session: activeSession, scripts, cwd };
 		});
 
+		this._register(this._terminalService.onDidDisposeInstance(instance => {
+			for (const [key, id] of this._scriptTerminals) {
+				if (id === instance.instanceId) {
+					this._scriptTerminals.delete(key);
+					break;
+				}
+			}
+		}));
+
 		this._registerActions();
 	}
 
@@ -75,15 +89,16 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 			const { scripts, cwd, session } = activeSession;
 			const configureScriptPrecondition = session.worktree ? ContextKeyExpr.true() : ContextKeyExpr.false();
+			const addRunActionDisabledTooltip = session.worktree ? undefined : localize('configureScriptTooltipDisabled', "Actions can not be added in empty sessions");
 
 			if (scripts.length === 0) {
-				// No scripts configured - show a "Run Script" button that opens the configure quick pick
+				// No scripts configured - show a "Run Action" button that opens the configure quick pick
 				reader.store.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
 							id: RUN_SCRIPT_ACTION_ID,
-							title: localize('runScriptNoAction', "Run Script"),
-							tooltip: localize('runScriptTooltipNoAction', "Configure run action"),
+							title: localize('runScriptNoAction', "Run Action..."),
+							tooltip: localize('runScriptTooltipNoAction', "Configure action"),
 							icon: Codicon.play,
 							category: localize2('agentSessions', 'Agent Sessions'),
 							precondition: configureScriptPrecondition,
@@ -111,7 +126,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 							super({
 								id: actionId,
 								title: script.name,
-								tooltip: localize('runScriptTooltip', "Run '{0}' in terminal", script.name),
+								tooltip: localize('runActionTooltip', "Run '{0}' in terminal", script.name),
 								icon: Codicon.play,
 								category: localize2('agentSessions', 'Agent Sessions'),
 								menu: [{
@@ -134,9 +149,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				constructor() {
 					super({
 						id: CONFIGURE_DEFAULT_RUN_ACTION_ID,
-						title: localize2('configureDefaultRunAction', "Add Run Script..."),
+						title: localize2('configureDefaultRunAction', "Add Action..."),
+						tooltip: addRunActionDisabledTooltip,
 						category: localize2('agentSessions', 'Agent Sessions'),
-						icon: Codicon.add,
+						icon: Codicon.play,
 						precondition: configureScriptPrecondition,
 						menu: [{
 							id: RunScriptDropdownMenuId,
@@ -167,16 +183,48 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private async _runScript(cwd: URI, script: ISessionScript): Promise<void> {
-		const terminal = await this._terminalService.createTerminal({
-			location: TerminalLocation.Panel,
-			config: {
-				name: script.name
-			},
-			cwd
-		});
+		const key = this._terminalKey(cwd, script);
+		let terminal = this._getReusableTerminal(key);
 
-		terminal.sendText(script.command, true);
-		await this._terminalService.revealTerminal(terminal);
+		if (!terminal) {
+			terminal = await this._terminalService.createTerminal({
+				location: TerminalLocation.Panel,
+				config: {
+					name: script.name
+				},
+				cwd
+			});
+			this._scriptTerminals.set(key, terminal.instanceId);
+		}
+
+		await terminal.sendText(script.command, true);
+		this._terminalService.setActiveInstance(terminal);
+		await this._terminalService.revealActiveTerminal();
+	}
+
+	private _terminalKey(cwd: URI, script: ISessionScript): string {
+		return `${cwd.toString()}\n${script.command}`;
+	}
+
+	private _getReusableTerminal(key: string): ITerminalInstance | undefined {
+		const instanceId = this._scriptTerminals.get(key);
+		if (instanceId === undefined) {
+			return undefined;
+		}
+
+		const instance = this._terminalService.getInstanceFromId(instanceId);
+		if (!instance || instance.isDisposed || instance.exitCode !== undefined) {
+			this._scriptTerminals.delete(key);
+			return undefined;
+		}
+
+		// Only reuse if the cwd hasn't changed from the initial cwd and nothing is actively running
+		if (instance.cwd !== instance.initialCwd || instance.hasChildProcesses) {
+			this._scriptTerminals.delete(key);
+			return undefined;
+		}
+
+		return instance;
 	}
 }
 
@@ -188,4 +236,5 @@ MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 8,
+	when: IsAuxiliaryWindowContext.toNegated()
 });

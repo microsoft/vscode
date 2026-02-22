@@ -123,6 +123,11 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		btn.element.classList.add('chat-confirmation-widget-title', 'monaco-text-button');
 		btn.labelElement.append(titleEl.root);
 
+		// Add hover chevron indicator on the right (decorative, hide from screen readers)
+		const hoverChevron = dom.$('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right');
+		hoverChevron.setAttribute('aria-hidden', 'true');
+		btn.element.appendChild(hoverChevron);
+
 		const check = dom.h(isError
 			? ThemeIcon.asCSSSelector(Codicon.error)
 			: output
@@ -137,15 +142,22 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			}));
 		}
 
+		// Only show leading icon for errors
+		if (isError) {
+			btn.icon = Codicon.error;
+		} else {
+			btn.icon = Codicon.blank;
+			btn.iconElement.style.display = 'none';
+		}
+
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		this._register(autorun(r => {
 			const value = expanded.read(r);
-			btn.icon = isError
-				? Codicon.error
-				: output
-					? Codicon.check
-					: ThemeIcon.modify(Codicon.loading, 'spin');
 			elements.root.classList.toggle('collapsed', !value);
+
+			// Update hover chevron direction
+			hoverChevron.classList.toggle('codicon-chevron-right', !value);
+			hoverChevron.classList.toggle('codicon-chevron-down', value);
 
 			// Lazy initialization: render content only when expanded for the first time
 			if (value && !this._contentInitialized) {

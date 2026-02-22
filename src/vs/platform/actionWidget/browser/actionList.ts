@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
@@ -13,6 +15,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../base/common
 import { Codicon } from '../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
@@ -89,6 +92,10 @@ export interface IActionListItem<T> {
 	 * Optional badge text to display after the label (e.g., "New").
 	 */
 	readonly badge?: string;
+	/**
+	 * When true, this item is always shown when filtering produces no other results.
+	 */
+	readonly showAlways?: boolean;
 }
 
 interface IActionMenuTemplateData {
@@ -325,9 +332,14 @@ function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undef
  */
 export interface IActionListOptions {
 	/**
-	 * When true, shows a filter input at the bottom of the list.
+	 * When true, shows a filter input.
 	 */
 	readonly showFilter?: boolean;
+
+	/**
+	 * Placeholder text for the filter input.
+	 */
+	readonly filterPlaceholder?: string;
 
 	/**
 	 * Section IDs that should be collapsed by default.
@@ -338,6 +350,13 @@ export interface IActionListOptions {
 	 * Minimum width for the action list.
 	 */
 	readonly minWidth?: number;
+
+
+
+	/**
+	 * When true and filtering is enabled, focuses the filter input when the list opens.
+	 */
+	readonly focusFilterOnOpen?: boolean;
 }
 
 export class ActionList<T> extends Disposable {
@@ -358,11 +377,24 @@ export class ActionList<T> extends Disposable {
 
 	private readonly _collapsedSections = new Set<string>();
 	private _filterText = '';
+	private _suppressHover = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
 	private _lastMinWidth = 0;
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
+	private _showAbove: boolean | undefined;
+
+	/**
+	 * Returns the resolved anchor position after the first layout.
+	 * Used by the context view delegate to lock the dropdown direction.
+	 */
+	get anchorPosition(): AnchorPosition | undefined {
+		if (this._showAbove === undefined) {
+			return undefined;
+		}
+		return this._showAbove ? AnchorPosition.ABOVE : AnchorPosition.BELOW;
+	}
 
 	constructor(
 		user: string,
@@ -371,6 +403,7 @@ export class ActionList<T> extends Disposable {
 		private readonly _delegate: IActionListDelegate<T>,
 		accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<T>>> | undefined,
 		private readonly _options: IActionListOptions | undefined,
+		private readonly _anchor: HTMLElement | StandardMouseEvent | IAnchor,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
@@ -459,7 +492,7 @@ export class ActionList<T> extends Disposable {
 			this._filterInput = document.createElement('input');
 			this._filterInput.type = 'text';
 			this._filterInput.className = 'action-list-filter-input';
-			this._filterInput.placeholder = localize('actionList.filter.placeholder', "Search...");
+			this._filterInput.placeholder = this._options?.filterPlaceholder ?? localize('actionList.filter.placeholder', "Search...");
 			this._filterInput.setAttribute('aria-label', localize('actionList.filter.ariaLabel', "Filter items"));
 			this._filterContainer.appendChild(this._filterInput);
 
@@ -467,39 +500,28 @@ export class ActionList<T> extends Disposable {
 				this._filterText = this._filterInput!.value;
 				this._applyFilter();
 			}));
-
-			// Keyboard navigation from filter input
-			this._register(dom.addDisposableListener(this._filterInput, 'keydown', (e: KeyboardEvent) => {
-				if (e.key === 'ArrowUp') {
-					e.preventDefault();
-					this._list.domFocus();
-					const lastIndex = this._list.length - 1;
-					if (lastIndex >= 0) {
-						this._list.focusLast(undefined, this.focusCondition);
-					}
-				} else if (e.key === 'ArrowDown') {
-					e.preventDefault();
-					this._list.domFocus();
-					this.focusNext();
-				} else if (e.key === 'Enter') {
-					e.preventDefault();
-					this.acceptSelected();
-				} else if (e.key === 'Escape') {
-					if (this._filterText) {
-						e.preventDefault();
-						e.stopPropagation();
-						this._filterInput!.value = '';
-						this._filterText = '';
-						this._applyFilter();
-					}
-				}
-			}));
 		}
 
 		this._applyFilter();
 
 		if (this._list.length) {
-			this.focusNext();
+			this._focusCheckedOrFirst();
+		}
+
+		// When the list has focus and user types a printable character,
+		// forward it to the filter input so search begins automatically.
+		if (this._filterInput) {
+			this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
+				if (this._filterInput && !dom.isActiveElement(this._filterInput)
+					&& e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+					this._filterInput.focus();
+					this._filterInput.value = e.key;
+					this._filterText = e.key;
+					this._applyFilter();
+					e.preventDefault();
+					e.stopPropagation();
+				}
+			}));
 		}
 	}
 
@@ -509,13 +531,20 @@ export class ActionList<T> extends Disposable {
 		} else {
 			this._collapsedSections.add(section);
 		}
-		this._applyFilter(true);
+		this._applyFilter();
 	}
 
-	private _applyFilter(reposition?: boolean): void {
+	private _applyFilter(): void {
 		const filterLower = this._filterText.toLowerCase();
 		const isFiltering = filterLower.length > 0;
 		const visible: IActionListItem<T>[] = [];
+
+		// Remember the focused item before splice
+		const focusedIndexes = this._list.getFocus();
+		let focusedItem: IActionListItem<T> | undefined;
+		if (focusedIndexes.length > 0) {
+			focusedItem = this._list.element(focusedIndexes[0]);
+		}
 
 		for (const item of this._allMenuItems) {
 			if (item.kind === ActionListItemKind.Header) {
@@ -531,12 +560,20 @@ export class ActionList<T> extends Disposable {
 				if (isFiltering) {
 					continue;
 				}
+				if (item.section && this._collapsedSections.has(item.section)) {
+					continue;
+				}
 				visible.push(item);
 				continue;
 			}
 
 			// Action item
 			if (isFiltering) {
+				// Always show items tagged with showAlways
+				if (item.showAlways) {
+					visible.push(item);
+					continue;
+				}
 				// When filtering, skip section toggle items and only match content
 				if (item.isSectionToggle) {
 					continue;
@@ -582,11 +619,23 @@ export class ActionList<T> extends Disposable {
 				this._filterInput?.focus();
 			} else {
 				this._list.domFocus();
+				// Restore focus to the previously focused item
+				if (focusedItem) {
+					const focusedItemId = (focusedItem.item as { id?: string })?.id;
+					if (focusedItemId) {
+						for (let i = 0; i < this._list.length; i++) {
+							const el = this._list.element(i);
+							if ((el.item as { id?: string })?.id === focusedItemId) {
+								this._list.setFocus([i]);
+								this._list.reveal(i);
+								break;
+							}
+						}
+					}
+				}
 			}
 			// Reposition the context view so the widget grows in the correct direction
-			if (reposition) {
-				this._contextViewService.layout();
-			}
+			this._contextViewService.layout();
 		}
 	}
 
@@ -598,15 +647,40 @@ export class ActionList<T> extends Disposable {
 		return this._filterContainer;
 	}
 
+
+
+	get filterInput(): HTMLInputElement | undefined {
+		return this._filterInput;
+	}
+
 	private focusCondition(element: IActionListItem<unknown>): boolean {
 		return !element.disabled && element.kind === ActionListItemKind.Action;
 	}
 
 	focus(): void {
-		if (this._filterInput) {
+		if (this._filterInput && this._options?.focusFilterOnOpen) {
 			this._filterInput.focus();
-		} else {
-			this._list.domFocus();
+			return;
+		}
+		this._list.domFocus();
+		this._focusCheckedOrFirst();
+	}
+
+	private _focusCheckedOrFirst(): void {
+		this._suppressHover = true;
+		try {
+			// Try to focus the checked item first
+			for (let i = 0; i < this._list.length; i++) {
+				const element = this._list.element(i);
+				if (element.kind === ActionListItemKind.Action && (element.item as { checked?: boolean })?.checked) {
+					this._list.setFocus([i]);
+					this._list.reveal(i);
+					return;
+				}
+			}
+			this.focusNext();
+		} finally {
+			this._suppressHover = false;
 		}
 	}
 
@@ -615,6 +689,23 @@ export class ActionList<T> extends Disposable {
 		this.cts.cancel();
 		this._hover.clear();
 		this._contextViewService.hideContextView();
+	}
+
+	clearFilter(): boolean {
+		if (this._filterInput && this._filterText) {
+			this._filterInput.value = '';
+			this._filterText = '';
+			this._applyFilter();
+			return true;
+		}
+		return false;
+	}
+
+	private hasDynamicHeight(): boolean {
+		if (this._options?.showFilter) {
+			return true;
+		}
+		return this._allMenuItems.some(item => item.isSectionToggle);
 	}
 
 	private computeHeight(): number {
@@ -639,9 +730,36 @@ export class ActionList<T> extends Disposable {
 		const filterHeight = this._filterContainer ? 36 : 0;
 		const padding = 10;
 		const targetWindow = dom.getWindow(this.domNode);
-		const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;
-		const widgetTop = this.domNode.getBoundingClientRect().top;
-		const availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
+		let availableHeight;
+
+		if (this.hasDynamicHeight()) {
+			const viewportHeight = targetWindow.innerHeight;
+			const anchorRect = getAnchorRect(this._anchor);
+			const anchorTopInViewport = anchorRect.top - targetWindow.pageYOffset;
+			const spaceBelow = viewportHeight - anchorTopInViewport - anchorRect.height - padding;
+			const spaceAbove = anchorTopInViewport - padding;
+
+			// Lock the direction on first layout based on whether the full
+			// unconstrained list fits below. Once decided, the dropdown stays
+			// in the same position even when the visible item count changes.
+			if (this._showAbove === undefined) {
+				let fullHeight = filterHeight;
+				for (const item of this._allMenuItems) {
+					switch (item.kind) {
+						case ActionListItemKind.Header: fullHeight += this._headerLineHeight; break;
+						case ActionListItemKind.Separator: fullHeight += this._separatorLineHeight; break;
+						default: fullHeight += this._actionLineHeight; break;
+					}
+				}
+				this._showAbove = fullHeight > spaceBelow && spaceAbove > spaceBelow;
+			}
+			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
+		} else {
+			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;
+			const widgetTop = this.domNode.getBoundingClientRect().top;
+			availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
+		}
+
 		const maxHeight = Math.max(availableHeight, this._actionLineHeight * 3 + filterHeight);
 		const height = Math.min(listHeight + filterHeight, maxHeight);
 		return height - filterHeight;
@@ -723,23 +841,92 @@ export class ActionList<T> extends Disposable {
 		this._cachedMaxWidth = this.computeMaxWidth(minWidth);
 		this._list.layout(listHeight, this._cachedMaxWidth);
 		this.domNode.style.height = `${listHeight}px`;
+
+		// Place filter container on the preferred side.
+		if (this._filterContainer && this._filterContainer.parentElement) {
+			this._filterContainer.parentElement.insertBefore(this._filterContainer, this.domNode);
+		}
+
 		return this._cachedMaxWidth;
 	}
 
 	focusPrevious() {
+		if (this._filterInput && dom.isActiveElement(this._filterInput)) {
+			this._list.domFocus();
+			this._list.focusLast(undefined, this.focusCondition);
+			return;
+		}
+		const previousFocus = this._list.getFocus();
 		this._list.focusPrevious(1, true, undefined, this.focusCondition);
 		const focused = this._list.getFocus();
 		if (focused.length > 0) {
+			// If focus wrapped (was at first focusable, now at last), move to filter instead
+			if (this._filterInput && previousFocus.length > 0 && focused[0] > previousFocus[0]) {
+				this._list.setFocus([]);
+				this._filterInput.focus();
+				return;
+			}
 			this._list.reveal(focused[0]);
 		}
 	}
 
 	focusNext() {
+		if (this._filterInput && dom.isActiveElement(this._filterInput)) {
+			this._list.domFocus();
+			this._list.focusFirst(undefined, this.focusCondition);
+			return;
+		}
+		const previousFocus = this._list.getFocus();
 		this._list.focusNext(1, true, undefined, this.focusCondition);
 		const focused = this._list.getFocus();
 		if (focused.length > 0) {
+			// If focus wrapped (was at last focusable, now at first), move to filter instead
+			if (this._filterInput && previousFocus.length > 0 && focused[0] < previousFocus[0]) {
+				this._list.setFocus([]);
+				this._filterInput.focus();
+				return;
+			}
 			this._list.reveal(focused[0]);
 		}
+	}
+
+	collapseFocusedSection() {
+		const section = this._getFocusedSection();
+		if (section && !this._collapsedSections.has(section)) {
+			this._toggleSection(section);
+		}
+	}
+
+	expandFocusedSection() {
+		const section = this._getFocusedSection();
+		if (section && this._collapsedSections.has(section)) {
+			this._toggleSection(section);
+		}
+	}
+
+	toggleFocusedSection(): boolean {
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return false;
+		}
+		const element = this._list.element(focused[0]);
+		if (element.isSectionToggle && element.section) {
+			this._toggleSection(element.section);
+			return true;
+		}
+		return false;
+	}
+
+	private _getFocusedSection(): string | undefined {
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return undefined;
+		}
+		const element = this._list.element(focused[0]);
+		if (element.isSectionToggle && element.section) {
+			return element.section;
+		}
+		return element.section;
 	}
 
 	acceptSelected(preview?: boolean) {
@@ -784,8 +971,10 @@ export class ActionList<T> extends Disposable {
 		const element = this._list.element(focusIndex);
 		this._delegate.onFocus?.(element.item);
 
-		// Show hover on focus change
-		this._showHoverForElement(element, focusIndex);
+		// Show hover on focus change (suppress during programmatic initial focus)
+		if (!this._suppressHover) {
+			this._showHoverForElement(element, focusIndex);
+		}
 	}
 
 	private _getRowElement(index: number): HTMLElement | null {

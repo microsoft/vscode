@@ -94,5 +94,3 @@ MenuRegistry.appendMenuItem(AICustomizationItemMenuId, {
 });
 
 //#endregion
-
-//#endregion

@@ -492,10 +492,10 @@
 	color: var(--vscode-icon-foreground) !important;
 }
 
-/* Chat input toolbar icons should use proper foreground color, not the muted icon.foreground */
+/* Chat input toolbar icons should follow icon foreground token */
 .monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item .codicon,
 .monaco-workbench .interactive-session .chat-input-toolbars .action-label .codicon {
-	color: var(--vscode-foreground) !important;
+	color: var(--vscode-icon-foreground) !important;
 }
 
 /* Buttons */

@@ -575,9 +575,17 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 					if (chatOptions) {
 						const resource = URI.revive(chatOptions.resource);
-						const ref = await chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
-						await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
-						ref?.dispose();
+						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+						try {
+							const result = await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+							if (result.kind === 'queued') {
+								await result.deferred;
+							} else if (result.kind === 'sent') {
+								await result.data.responseCompletePromise;
+							}
+						} finally {
+							ref?.dispose();
+						}
 					}
 				}
 			}),

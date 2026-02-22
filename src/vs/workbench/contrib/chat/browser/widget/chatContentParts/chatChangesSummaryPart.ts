@@ -21,7 +21,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
-import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -53,7 +52,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -139,7 +137,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				}),
 				false
 			);
-			this.editorGroupsService.activeGroup.openEditor(input);
+			this.editorService.openEditor(input);
 			dom.EventHelper.stop(e, true);
 		}));
 	}

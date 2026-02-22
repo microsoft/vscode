@@ -274,7 +274,7 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	function getCollapseButtonLabel(button: HTMLElement): HTMLElement | undefined {
-		const label = button.lastElementChild;
+		const label = button.querySelector('.monaco-button-mdlabel');
 		return isHTMLElement(label) ? label : undefined;
 	}
 

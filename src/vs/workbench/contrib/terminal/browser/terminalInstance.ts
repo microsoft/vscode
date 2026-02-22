@@ -518,7 +518,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// When a custom pty is used set the name immediately so it gets passed over to the exthost
 		// and is available when Pseudoterminal.open fires.
-		if (this.shellLaunchConfig.customPtyImplementation) {
+		if (this.shellLaunchConfig.customPtyImplementation && !this._shellLaunchConfig.titleTemplate) {
 			this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		}
 
@@ -1471,7 +1471,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					}
 				}));
 			}
-			if (this._shellLaunchConfig.name) {
+			if (this._shellLaunchConfig.name && !this._shellLaunchConfig.titleTemplate) {
 				this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
 				// Listen to xterm.js' sequence title change event, trigger this async to ensure
@@ -1483,7 +1483,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						}
 					});
 				});
-				this._setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
+				// When a title template is provided, use the name as the initial process name
+				// so it can be referenced via ${process} in the template
+				if (this._shellLaunchConfig.titleTemplate && this._shellLaunchConfig.name) {
+					this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Process);
+				} else {
+					this._setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
+				}
 			}
 		}));
 		this._register(processManager.onProcessExit(exitCode => this._onProcessExit(exitCode)));
@@ -2633,7 +2639,8 @@ export class TerminalLabelComputer extends Disposable {
 	}
 
 	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
-		this._title = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.title, TerminalLabelType.Title, reset);
+		const titleTemplate = instance.shellLaunchConfig.titleTemplate ?? this._terminalConfigurationService.config.tabs.title;
+		this._title = this.computeLabel(instance, titleTemplate, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.description, TerminalLabelType.Description);
 		if (this._title !== instance.title || this._description !== instance.description || reset) {
 			this._onDidChangeLabel.fire({ title: this._title, description: this._description });

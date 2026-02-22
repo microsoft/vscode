@@ -51,6 +51,10 @@ export class NativeTitlebarPart extends TitlebarPart {
 					this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
 					this.cachedWindowControlStyles.fgColor !== this.element.style.color
 				) {
+					this.cachedWindowControlStyles = {
+						bgColor: this.element.style.backgroundColor,
+						fgColor: this.element.style.color
+					};
 					this.nativeHostService.updateWindowControls({
 						targetWindowId: getWindowId(getWindow(this.element)),
 						backgroundColor: this.element.style.backgroundColor,
@@ -102,7 +106,6 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 
 	constructor(
 		readonly container: HTMLElement,
-		editorGroupsContainer: IEditorGroupsContainer,
 		private readonly mainTitlebar: TitlebarPart,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -129,7 +132,7 @@ export class NativeTitleService extends TitleService {
 		return this.instantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
-	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
-		return instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart);
+	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
+		return instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, this.mainPart);
 	}
 }

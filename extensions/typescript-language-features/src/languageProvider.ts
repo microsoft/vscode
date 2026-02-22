@@ -22,9 +22,6 @@ import { readUnifiedConfig } from './utils/configuration';
 import { isWeb, isWebAndHasSharedArrayBuffers, supportsReadableByteStreams } from './utils/platform';
 
 
-const validateSetting = 'validate.enable';
-const suggestionSetting = 'suggestionActions.enabled';
-
 export default class LanguageProvider extends Disposable {
 
 	constructor(
@@ -95,9 +92,9 @@ export default class LanguageProvider extends Disposable {
 	}
 
 	private configurationChanged(): void {
-		const config = vscode.workspace.getConfiguration(this.id, null);
-		this.updateValidate(config.get(validateSetting, true));
-		this.updateSuggestionDiagnostics(readUnifiedConfig<boolean>(suggestionSetting, true, { scope: null, fallbackSection: this.id }));
+		const scope: vscode.ConfigurationScope = { languageId: this.description.languageIds[0] };
+		this.updateValidate(readUnifiedConfig<boolean>('validate.enabled', true, { scope, fallbackSection: this.id, fallbackSubSectionNameOverride: 'validate.enable' }));
+		this.updateSuggestionDiagnostics(readUnifiedConfig<boolean>('suggestionActions.enabled', true, { scope, fallbackSection: this.id }));
 	}
 
 	public handlesUri(resource: vscode.Uri): boolean {

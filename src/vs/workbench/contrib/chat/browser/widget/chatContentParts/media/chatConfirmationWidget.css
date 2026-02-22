@@ -83,13 +83,6 @@
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.monaco-button {
-	&:hover {
-		background: var(--vscode-toolbar-hoverBackground);
-	}
-
-	&:active {
-		background: var(--vscode-toolbar-activeBackground);
-	}
 
 	.monaco-button-mdlabel {
 		display: flex;
@@ -319,7 +312,7 @@
 	}
 
 	.chat-confirmation-widget-container .chat-confirmation-widget .chat-confirmation-widget-title {
-		padding: 2px 6px 2px 2px;
+		padding: 2px 6px 2px 0px;
 
 		&.monaco-button {
 
@@ -332,8 +325,20 @@
 			font-size: 12px;
 		}
 
-		&:hover {
-			background: var(--vscode-list-hoverBackground);
+		&:hover  {
+			p, .rendered-markdown {
+				color: var(--vscode-foreground);
+			}
+
+			.chat-collapsible-hover-chevron {
+				opacity: 1;
+			}
+		}
+	}
+
+	.chat-confirmation-widget:not(.collapsed) .chat-confirmation-widget-title {
+		p, .rendered-markdown {
+			color: var(--vscode-foreground);
 		}
 	}
 

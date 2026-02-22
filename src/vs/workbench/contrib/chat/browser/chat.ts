@@ -403,6 +403,16 @@ export interface IChatWidget {
 	 */
 	toggleQuestionCarouselFocus(): boolean;
 	/**
+	 * Navigates to the previous question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a previous question exists).
+	 */
+	navigateToPreviousQuestion(): boolean;
+	/**
+	 * Navigates to the next question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a next question exists).
+	 */
+	navigateToNextQuestion(): boolean;
+	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).

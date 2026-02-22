@@ -8,8 +8,10 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
-import { IMcpServer, IMcpService, McpServerCacheState, McpToolVisibility } from './mcpTypes.js';
+import { IGatewayCallToolResult, IGatewayServerResources, IGatewayServerResourceTemplates } from '../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../../../platform/mcp/common/modelContextProtocol.js';
+import { McpServer } from './mcpServer.js';
+import { IMcpServer, IMcpService, McpCapability, McpServerCacheState, McpToolVisibility } from './mcpTypes.js';
 import { startServerAndWaitForLiveTools } from './mcpTypesUtils.js';
 
 interface ICallToolArgs {
@@ -17,32 +19,74 @@ interface ICallToolArgs {
 	args: Record<string, unknown>;
 }
 
+interface IReadResourceArgs {
+	serverIndex: number;
+	uri: string;
+}
+
 export class McpGatewayToolBrokerChannel extends Disposable implements IServerChannel<unknown> {
 	private readonly _onDidChangeTools = this._register(new Emitter<void>());
+	private readonly _onDidChangeResources = this._register(new Emitter<void>());
+	private readonly _serverIdMap = new Map<string, number>();
+	private _nextServerIndex = 0;
 
 	constructor(
 		private readonly _mcpService: IMcpService,
 	) {
 		super();
 
-		let initialized = false;
+		let toolsInitialized = false;
 		this._register(autorun(reader => {
 			for (const server of this._mcpService.servers.read(reader)) {
 				server.tools.read(reader);
 			}
 
-			if (initialized) {
+			if (toolsInitialized) {
 				this._onDidChangeTools.fire();
 			} else {
-				initialized = true;
+				toolsInitialized = true;
 			}
 		}));
+
+		let resourcesInitialized = false;
+		this._register(autorun(reader => {
+			for (const server of this._mcpService.servers.read(reader)) {
+				server.capabilities.read(reader);
+			}
+
+			if (resourcesInitialized) {
+				this._onDidChangeResources.fire();
+			} else {
+				resourcesInitialized = true;
+			}
+		}));
+	}
+
+	private _getServerIndex(server: IMcpServer): number {
+		const defId = server.definition.id;
+		let index = this._serverIdMap.get(defId);
+		if (index === undefined) {
+			index = this._nextServerIndex++;
+			this._serverIdMap.set(defId, index);
+		}
+		return index;
+	}
+
+	private _getServerByIndex(serverIndex: number): IMcpServer | undefined {
+		for (const server of this._mcpService.servers.get()) {
+			if (this._getServerIndex(server) === serverIndex) {
+				return server;
+			}
+		}
+		return undefined;
 	}
 
 	listen<T>(_ctx: unknown, event: string): Event<T> {
 		switch (event) {
 			case 'onDidChangeTools':
 				return this._onDidChangeTools.event as Event<T>;
+			case 'onDidChangeResources':
+				return this._onDidChangeResources.event as Event<T>;
 		}
 
 		throw new Error(`Invalid listen: ${event}`);
@@ -58,6 +102,19 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 				const { name, args } = arg as ICallToolArgs;
 				const result = await this._callTool(name, args || {}, cancellationToken);
 				return result as T;
+			}
+			case 'listResources': {
+				const resources = await this._listResources();
+				return resources as T;
+			}
+			case 'readResource': {
+				const { serverIndex, uri } = arg as IReadResourceArgs;
+				const result = await this._readResource(serverIndex, uri, cancellationToken);
+				return result as T;
+			}
+			case 'listResourceTemplates': {
+				const templates = await this._listResourceTemplates();
+				return templates as T;
 			}
 		}
 
@@ -87,18 +144,73 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		return mcpTools;
 	}
 
-	private async _callTool(name: string, args: Record<string, unknown>, token: CancellationToken = CancellationToken.None): Promise<MCP.CallToolResult> {
+	private async _callTool(name: string, args: Record<string, unknown>, token: CancellationToken = CancellationToken.None): Promise<IGatewayCallToolResult> {
 		for (const server of this._mcpService.servers.get()) {
 			const tool = server.tools.get().find(t =>
 				t.definition.name === name && (t.visibility & McpToolVisibility.Model)
 			);
 
 			if (tool) {
-				return tool.call(args, undefined, token);
+				const result = await tool.call(args, undefined, token);
+				return { result, serverIndex: this._getServerIndex(server) };
 			}
 		}
 
 		throw new Error(`Unknown tool: ${name}`);
+	}
+
+	private async _listResources(): Promise<readonly IGatewayServerResources[]> {
+		const results: IGatewayServerResources[] = [];
+		const servers = this._mcpService.servers.get();
+		await Promise.all(servers.map(async server => {
+			await this._ensureServerReady(server);
+
+			const capabilities = server.capabilities.get();
+			if (!capabilities || !(capabilities & McpCapability.Resources)) {
+				return;
+			}
+
+			try {
+				const resources = await McpServer.callOn(server, h => h.listResources());
+				results.push({ serverIndex: this._getServerIndex(server), resources });
+			} catch {
+				// Server failed; skip
+			}
+		}));
+
+		return results;
+	}
+
+	private async _readResource(serverIndex: number, uri: string, token: CancellationToken = CancellationToken.None): Promise<MCP.ReadResourceResult> {
+		const server = this._getServerByIndex(serverIndex);
+		if (!server) {
+			throw new Error(`Unknown server index: ${serverIndex}`);
+		}
+
+		return McpServer.callOn(server, h => h.readResource({ uri }, token), token);
+	}
+
+	private async _listResourceTemplates(): Promise<readonly IGatewayServerResourceTemplates[]> {
+		const results: IGatewayServerResourceTemplates[] = [];
+		const servers = this._mcpService.servers.get();
+
+		await Promise.all(servers.map(async server => {
+			await this._ensureServerReady(server);
+
+			const capabilities = server.capabilities.get();
+			if (!capabilities || !(capabilities & McpCapability.Resources)) {
+				return;
+			}
+
+			try {
+				const resourceTemplates = await McpServer.callOn(server, h => h.listResourceTemplates());
+				results.push({ serverIndex: this._getServerIndex(server), resourceTemplates });
+			} catch {
+				// Server failed; skip
+			}
+		}));
+
+		return results;
 	}
 
 	private async _ensureServerReady(server: IMcpServer): Promise<boolean> {

@@ -153,7 +153,6 @@ interface IAgentSessionState {
 export const enum AgentSessionSection {
 
 	// Default Grouping (by date)
-	InProgress = 'inProgress',
 	Today = 'today',
 	Yesterday = 'yesterday',
 	Week = 'week',

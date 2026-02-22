@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IGatewayCallToolResult } from '../../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { McpGatewayToolBrokerChannel } from '../../common/mcpGatewayToolBrokerChannel.js';
 import { IMcpIcons, IMcpServer, IMcpTool, McpConnectionState, McpServerCacheState, McpToolVisibility } from '../../common/mcpTypes.js';
@@ -60,18 +61,18 @@ suite('McpGatewayToolBrokerChannel', () => {
 
 		mcpService.servers.set([serverA, serverB], undefined);
 
-		const resultA = await channel.call<MCP.CallToolResult>(undefined, 'callTool', {
+		const resultA = await channel.call<IGatewayCallToolResult>(undefined, 'callTool', {
 			name: 'mcp_serverA_echo',
 			args: { name: 'one' },
 		});
-		const resultB = await channel.call<MCP.CallToolResult>(undefined, 'callTool', {
+		const resultB = await channel.call<IGatewayCallToolResult>(undefined, 'callTool', {
 			name: 'mcp_serverB_echo',
 			args: { name: 'two' },
 		});
 
 		assert.deepStrictEqual(invoked, ['A:one', 'B:two']);
-		assert.strictEqual((resultA.content[0] as MCP.TextContent).text, 'from A');
-		assert.strictEqual((resultB.content[0] as MCP.TextContent).text, 'from B');
+		assert.strictEqual((resultA.result.content[0] as MCP.TextContent).text, 'from A');
+		assert.strictEqual((resultB.result.content[0] as MCP.TextContent).text, 'from B');
 
 		channel.dispose();
 	});

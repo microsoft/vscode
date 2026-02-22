@@ -6,7 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IPCServer, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IMcpGatewayService, McpGatewayToolBrokerChannelName } from '../common/mcpGateway.js';
+import { IGatewayCallToolResult, IGatewayServerResources, IGatewayServerResourceTemplates, IMcpGatewayService, McpGatewayToolBrokerChannelName } from '../common/mcpGateway.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
 /**
@@ -35,8 +35,12 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 				const brokerChannel = ipcChannelForContext(this._ipcServer, ctx);
 				const result = await this.mcpGatewayService.createGateway(ctx, {
 					onDidChangeTools: brokerChannel.listen<void>('onDidChangeTools'),
+					onDidChangeResources: brokerChannel.listen<void>('onDidChangeResources'),
 					listTools: () => brokerChannel.call<readonly MCP.Tool[]>('listTools'),
-					callTool: (name, callArgs) => brokerChannel.call<MCP.CallToolResult>('callTool', { name, args: callArgs }),
+					callTool: (name, callArgs) => brokerChannel.call<IGatewayCallToolResult>('callTool', { name, args: callArgs }),
+					listResources: () => brokerChannel.call<readonly IGatewayServerResources[]>('listResources'),
+					readResource: (serverIndex, uri) => brokerChannel.call<MCP.ReadResourceResult>('readResource', { serverIndex, uri }),
+					listResourceTemplates: () => brokerChannel.call<readonly IGatewayServerResourceTemplates[]>('listResourceTemplates'),
 				});
 				return result as T;
 			}

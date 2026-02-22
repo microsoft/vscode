@@ -181,7 +181,11 @@ abstract class SubmitAction extends Action2 {
 	}
 }
 
-const requestInProgressOrPendingToolCall = ContextKeyExpr.or(ChatContextKeys.requestInProgress, ChatContextKeys.Editing.hasToolConfirmation);
+const requestInProgressOrPendingToolCall = ContextKeyExpr.or(
+	ChatContextKeys.requestInProgress,
+	ChatContextKeys.Editing.hasToolConfirmation,
+	ChatContextKeys.Editing.hasQuestionCarousel,
+);
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
 
 export class ChatSubmitAction extends SubmitAction {

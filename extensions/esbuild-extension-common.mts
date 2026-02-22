@@ -44,6 +44,7 @@ function resolveOptions(config: RunConfig, outdir: string): BuildOptions {
 		platform: config.platform,
 		bundle: true,
 		minify: true,
+		treeShaking: true,
 		sourcemap: true,
 		target: ['es2024'],
 		external: ['vscode'],

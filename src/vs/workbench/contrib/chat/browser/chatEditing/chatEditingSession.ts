@@ -442,7 +442,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			if (this._editorPane.isVisible()) {
 				return;
 			} else if (this._editorPane.input) {
-				await this._editorGroupsService.activeGroup.openEditor(this._editorPane.input, { pinned: true, activation: EditorActivation.ACTIVATE });
+				await this._editorService.openEditor(this._editorPane.input, { pinned: true, activation: EditorActivation.ACTIVATE });
 				return;
 			}
 		}
@@ -451,7 +451,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 
-		this._editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
+		this._editorPane = await this._editorService.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 	}
 
 	private _stopPromise: Promise<void> | undefined;

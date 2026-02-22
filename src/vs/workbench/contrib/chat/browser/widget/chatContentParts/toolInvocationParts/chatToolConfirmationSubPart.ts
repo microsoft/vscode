@@ -104,6 +104,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				actions.push({
 					label: action.label,
 					tooltip: action.detail,
+					scope: action.scope,
 					data: async () => {
 						const shouldConfirm = await action.select();
 						if (shouldConfirm) {

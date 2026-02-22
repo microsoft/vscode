@@ -240,8 +240,15 @@
 
 /* Filter input */
 .action-widget .action-list-filter {
+	padding: 2px 2px 4px 2px
+}
+
+.action-widget .action-list-filter:first-child {
+	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+.action-widget .action-list-filter:last-child {
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
-	padding: 4px;
 }
 
 .action-widget .action-list-filter-input {
@@ -252,7 +259,6 @@
 	border-radius: 3px;
 	background-color: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
-	font-size: 12px;
 	outline: none;
 }
 
