@@ -10,8 +10,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import { IPointerHandlerHelper, MouseHandler } from './mouseHandler.js';
-import { NavigationCommandRevealType } from '../coreCommands.js';
-import { IMouseTarget, MouseTargetType } from '../editorBrowser.js';
+import { IMouseTarget } from '../editorBrowser.js';
 import { EditorMouseEvent, EditorPointerEventFactory } from '../editorDom.js';
 import { ViewController } from '../view/viewController.js';
 import { ViewContext } from '../../common/viewModel/viewContext.js';
@@ -80,27 +79,6 @@ export class PointerEventHandler extends MouseHandler {
 		}
 	}
 
-	private _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
-		if (target.position) {
-			this.viewController.dispatchMouse({
-				position: target.position,
-				mouseColumn: target.position.column,
-				startedOnLineNumbers: false,
-				revealType: NavigationCommandRevealType.Minimal,
-				mouseDownCount: event.tapCount,
-				inSelectionMode,
-				altKey: false,
-				ctrlKey: false,
-				metaKey: false,
-				shiftKey: false,
-				leftButton: false,
-				middleButton: false,
-				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
-			});
-		}
-	}
-
 	protected override _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
 		if ((e.browserEvent as PointerEvent).pointerType === 'touch') {
 			return;
@@ -125,31 +103,13 @@ class TouchHandler extends MouseHandler {
 	private onTap(event: GestureEvent): void {
 		event.preventDefault();
 
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		// Send the tap event also to the <textarea> (for input purposes)
+		const syntheticEvent = document.createEvent('CustomEvent');
+		syntheticEvent.initEvent(TextAreaSyntethicEvents.Tap, false, true);
+		this.viewHelper.dispatchTextAreaEvent(syntheticEvent);
 
-		if (target.position) {
-			// Send the tap event also to the <textarea> (for input purposes)
-			const syntheticEvent = document.createEvent('CustomEvent');
-			syntheticEvent.initEvent(TextAreaSyntethicEvents.Tap, false, true);
-			this.viewHelper.dispatchTextAreaEvent(syntheticEvent);
-
-			// Dispatch mouse event with tapCount to support double-tap word selection
-			this.viewController.dispatchMouse({
-				position: target.position,
-				mouseColumn: target.position.column,
-				startedOnLineNumbers: false,
-				revealType: NavigationCommandRevealType.Minimal,
-				mouseDownCount: event.tapCount,
-				inSelectionMode: false,
-				altKey: false,
-				ctrlKey: false,
-				metaKey: false,
-				shiftKey: false,
-				leftButton: false,
-				middleButton: false,
-				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
-			});
-		}
+		// Dispatch gesture to handle cursor positioning and word selection
+		this._dispatchGesture(event, /*inSelectionMode*/false);
 
 		// Focus the textarea after dispatching the gesture.
 		// This ensures double-tap word selection works correctly,
