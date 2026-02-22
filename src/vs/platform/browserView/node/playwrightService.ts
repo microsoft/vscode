@@ -115,16 +115,14 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	async openPage(url: string): Promise<{ pageId: string; summary: string }> {
 		await this.initialize();
-		const { page, viewId } = await this._pages.newPage();
-		await page.goto(url, { waitUntil: 'domcontentloaded' });
-		const summary = await this._pages.getSummary(page);
-		return { pageId: viewId, summary };
+		const pageId = await this._pages.newPage(url);
+		const summary = await this._pages.getSummary(pageId);
+		return { pageId, summary };
 	}
 
 	async getSummary(pageId: string): Promise<string> {
 		await this.initialize();
-		const page = await this._pages.getPage(pageId);
-		return this._pages.getSummary(page, true);
+		return this._pages.getSummary(pageId, true);
 	}
 
 	async invokeFunction(pageId: string, fnDef: string, ...args: unknown[]): Promise<{ result: unknown; summary: string }> {
@@ -132,19 +130,18 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 		try {
 			await this.initialize();
-			const page = await this._pages.getPage(pageId);
 
 			const vm = await import('vm');
 			const fn = vm.compileFunction(`return (${fnDef})(page, ...args)`, ['page', 'args'], { parsingContext: vm.createContext() });
 
 			let result;
 			try {
-				result = await this._pages.runAndWaitForCompletion(page, () => fn(page, args));
+				result = await this._pages.runAgainstPage(pageId, (page) => fn(page, args));
 			} catch (err: unknown) {
 				result = err instanceof Error ? err.message : String(err);
 			}
 
-			const summary = await this._pages.getSummary(page);
+			const summary = await this._pages.getSummary(pageId);
 			return { result, summary };
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
@@ -155,27 +152,23 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	async captureScreenshot(pageId: string, selector?: string, fullPage?: boolean): Promise<VSBuffer> {
 		await this.initialize();
-		const page = await this._pages.getPage(pageId);
-		if (selector) {
-			const element = page.locator(selector);
-			const screenshotBuffer = await element.screenshot({ type: 'jpeg', quality: 80 });
+		return this._pages.runAgainstPage(pageId, async page => {
+			const screenshotBuffer = selector
+				? await page.locator(selector).screenshot({ type: 'jpeg', quality: 80 })
+				: await page.screenshot({ type: 'jpeg', quality: 80, fullPage: fullPage ?? false });
 			return VSBuffer.wrap(screenshotBuffer);
-		}
-		const screenshotBuffer = await page.screenshot({ type: 'jpeg', quality: 80, fullPage: fullPage ?? false });
-		return VSBuffer.wrap(screenshotBuffer);
+		});
 	}
 
 	async replyToFileChooser(pageId: string, files: string[]): Promise<{ summary: string }> {
 		await this.initialize();
-		const page = await this._pages.getPage(pageId);
-		const summary = await this._pages.replyToFileChooser(page, files);
+		const summary = await this._pages.replyToFileChooser(pageId, files);
 		return { summary };
 	}
 
 	async replyToDialog(pageId: string, accept: boolean, promptText?: string): Promise<{ summary: string }> {
 		await this.initialize();
-		const page = await this._pages.getPage(pageId);
-		const summary = await this._pages.replyToDialog(page, accept, promptText);
+		const summary = await this._pages.replyToDialog(pageId, accept, promptText);
 		return { summary };
 	}
 
@@ -285,10 +278,10 @@ class PlaywrightPageManager extends Disposable {
 	// --- Public: Playwright operations (require initialization) ---
 
 	/**
-	 * Create a new page in the browser and return its associated page and view ID.
+	 * Create a new page in the browser and return its associated page ID.
 	 * The page is automatically added to the tracked set.
 	 */
-	async newPage(): Promise<{ viewId: string; page: Page }> {
+	async newPage(url: string): Promise<string> {
 		if (!this._browser) {
 			throw new Error('PlaywrightPageManager has not been initialized');
 		}
@@ -299,41 +292,22 @@ class PlaywrightPageManager extends Disposable {
 		this._trackedPages.add(viewId);
 		this._fireTrackedPagesChanged();
 
-		return { viewId, page };
+		await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+		return viewId;
 	}
 
-	/**
-	 * Get the Playwright {@link Page} for a browser view.
-	 * If the view is tracked but not yet connected, it is added to the group
-	 * automatically. Throws if the view has not been added.
-	 */
-	async getPage(viewId: string): Promise<Page> {
-		const resolved = this._viewIdToPage.get(viewId);
-		if (resolved) {
-			return resolved;
-		}
-		const queued = this._viewIdQueue.find(item => item.viewId === viewId);
-		if (queued) {
-			return queued.page.p;
-		}
-
-		if (this._trackedPages.has(viewId) && this._group) {
-			await this._addPageToGroup(viewId);
-			return this.getPage(viewId);
-		}
-
-		throw new Error(`Page "${viewId}" has not been added to the Playwright service`);
-	}
-
-	async runAndWaitForCompletion<T>(page: Page, callback: () => T | Promise<T>): Promise<T> {
+	async runAgainstPage<T>(pageId: string, callback: (page: Page) => T | Promise<T>): Promise<T> {
+		const page = await this.getPage(pageId);
 		const tab = this._tabs.get(page);
 		if (!tab) {
 			throw new Error('Failed to execute function against page');
 		}
-		return tab.runAndWaitForCompletion(async () => callback());
+		return tab.safeRunAgainstPage(async () => callback(page));
 	}
 
-	getSummary(page: Page, full = false): Promise<string> {
+	async getSummary(pageId: string, full = false): Promise<string> {
+		const page = await this.getPage(pageId);
 		const tab = this._tabs.get(page);
 		if (!tab) {
 			throw new Error('Failed to get page summary');
@@ -341,7 +315,8 @@ class PlaywrightPageManager extends Disposable {
 		return tab.getSummary(full);
 	}
 
-	async replyToDialog(page: Page, accept: boolean, promptText?: string): Promise<string> {
+	async replyToDialog(pageId: string, accept: boolean, promptText?: string): Promise<string> {
+		const page = await this.getPage(pageId);
 		const tab = this._tabs.get(page);
 		if (!tab) {
 			throw new Error('Failed to reply to dialog');
@@ -350,7 +325,8 @@ class PlaywrightPageManager extends Disposable {
 		return tab.getSummary();
 	}
 
-	async replyToFileChooser(page: Page, files: string[]): Promise<string> {
+	async replyToFileChooser(pageId: string, files: string[]): Promise<string> {
+		const page = await this.getPage(pageId);
 		const tab = this._tabs.get(page);
 		if (!tab) {
 			throw new Error('Failed to reply to file chooser');
@@ -442,6 +418,29 @@ class PlaywrightPageManager extends Disposable {
 	}
 
 	// --- Page matching (view ↔ page pairing) ---
+
+	/**
+	 * Get the Playwright {@link Page} for a browser view.
+	 * If the view is tracked but not yet connected, it is added to the group
+	 * automatically. Throws if the view has not been added.
+	 */
+	private async getPage(viewId: string): Promise<Page> {
+		const resolved = this._viewIdToPage.get(viewId);
+		if (resolved) {
+			return resolved;
+		}
+		const queued = this._viewIdQueue.find(item => item.viewId === viewId);
+		if (queued) {
+			return queued.page.p;
+		}
+
+		if (this._trackedPages.has(viewId) && this._group) {
+			await this._addPageToGroup(viewId);
+			return this.getPage(viewId);
+		}
+
+		throw new Error(`Page "${viewId}" has not been added to the Playwright service`);
+	}
 
 	/**
 	 * Called when the group fires onDidAddView. Creates a deferred entry in
