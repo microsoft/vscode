@@ -13,6 +13,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -91,6 +92,9 @@ class NewChatWidget extends Disposable {
 
 	// Send button
 	private _sendButton: HTMLElement | undefined;
+
+	// Repository loading
+	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
@@ -262,12 +266,21 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _openRepository(folderUri: URI): void {
+		this._openRepositoryCts.value?.cancel();
+		const cts = this._openRepositoryCts.value = new CancellationTokenSource();
+
 		this._isolationModePicker.setLoading(true);
 		this.gitService.openRepository(folderUri).then(repository => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
 			this._isolationModePicker.setLoading(false);
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
 		}).catch(e => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
 			this._isolationModePicker.setLoading(false);
 			this._isolationModePicker.setRepository(undefined);
