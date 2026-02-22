@@ -75,23 +75,25 @@ export class BranchPicker extends Disposable {
 
 		this._setLoading(true);
 
-		const refs = await repository.getRefs({ pattern: 'refs/heads' });
-		this._branches = refs
-			.map(ref => ref.name)
-			.filter((name): name is string => !!name)
-			.filter(name => !name.includes(COPILOT_WORKTREE_PATTERN));
+		try {
+			const refs = await repository.getRefs({ pattern: 'refs/heads' });
+			this._branches = refs
+				.map(ref => ref.name)
+				.filter((name): name is string => !!name)
+				.filter(name => !name.includes(COPILOT_WORKTREE_PATTERN));
 
-		// Select active branch, main, master, or the first branch by default
-		const defaultBranch = this._branches.find(b => b === repository.state.get().HEAD?.name)
-			?? this._branches.find(b => b === 'main')
-			?? this._branches.find(b => b === 'master')
-			?? this._branches[0];
-		if (defaultBranch) {
-			this._selectBranch(defaultBranch);
+			// Select active branch, main, master, or the first branch by default
+			const defaultBranch = this._branches.find(b => b === repository.state.get().HEAD?.name)
+				?? this._branches.find(b => b === 'main')
+				?? this._branches.find(b => b === 'master')
+				?? this._branches[0];
+			if (defaultBranch) {
+				this._selectBranch(defaultBranch);
+			}
+		} finally {
+			this._setLoading(false);
+			this._updateTriggerLabel();
 		}
-
-		this._setLoading(false);
-		this._updateTriggerLabel();
 	}
 
 	/**
