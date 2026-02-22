@@ -17,19 +17,12 @@
 	bottom: 11px; /* attempt to position at same location as a toast */
 }
 
-/* Position: bottom-left */
 .monaco-workbench > .notifications-center.bottom-left {
 	right: auto;
 	left: 7px;
 }
 
-/* Position: top-right */
 .monaco-workbench > .notifications-center.top-right {
-	bottom: auto;
-	top: 7px;
-}
-
-.monaco-workbench.nostatusbar > .notifications-center.top-right {
 	bottom: auto;
 	top: 7px;
 }

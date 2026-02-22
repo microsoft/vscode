@@ -16,19 +16,12 @@
 	bottom: 3px;
 }
 
-/* Position: bottom-left */
 .monaco-workbench > .notifications-toasts.bottom-left {
 	right: auto;
 	left: 3px;
 }
 
-/* Position: top-right */
 .monaco-workbench > .notifications-toasts.top-right {
-	bottom: auto;
-	top: 3px;
-}
-
-.monaco-workbench.nostatusbar > .notifications-toasts.top-right {
 	bottom: auto;
 	top: 3px;
 }
