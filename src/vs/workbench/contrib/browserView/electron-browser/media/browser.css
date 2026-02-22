@@ -102,12 +102,11 @@
 		margin: 0 2px 2px;
 		overflow: visible;
 		position: relative;
+		z-index: 0; /* Important: creates a new stacking context for the gradient border trick */
 		outline: none !important;
 		border-radius: 2px;
 
 		&.shared {
-			position: relative;
-
 			&::before {
 				content: '';
 				position: absolute;
@@ -115,12 +114,24 @@
 				left: -2px;
 				right: -2px;
 				bottom: -2px;
+				z-index: -2;
 				background: linear-gradient(135deg in lab,
 					color-mix(in srgb, #51a2ff 100%, transparent),
 					color-mix(in srgb, #4af0c0 100%, transparent),
 					color-mix(in srgb, #b44aff 100%, transparent)
 				) !important;
-				padding: 1px;
+				pointer-events: none;
+			}
+
+			&::after {
+				content: '';
+				position: absolute;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				z-index: -1;
+				background-color: var(--vscode-editor-background);
 				pointer-events: none;
 			}
 		}

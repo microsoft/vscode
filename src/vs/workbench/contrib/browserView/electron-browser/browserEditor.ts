@@ -76,8 +76,7 @@ class BrowserNavigationBar extends Disposable {
 		container: HTMLElement,
 		instantiationService: IInstantiationService,
 		scopedContextKeyService: IContextKeyService,
-		configurationService: IConfigurationService,
-		contextKeyService: IContextKeyService
+		configurationService: IConfigurationService
 	) {
 		super();
 
@@ -123,9 +122,6 @@ class BrowserNavigationBar extends Disposable {
 			supportIcons: true,
 			title: localize('browser.shareWithAgent', "Share with Agent"),
 			small: true,
-			buttonBackground: 'transparent',
-			buttonHoverBackground: 'transparent',
-			buttonForeground: 'inherit',
 			hoverDelegate
 		}));
 		this._shareButton.element.classList.add('browser-share-toggle');
@@ -178,7 +174,7 @@ class BrowserNavigationBar extends Disposable {
 
 		// Show share button only when chat is enabled and browser tools are enabled
 		const updateShareButtonVisibility = () => {
-			const chatEnabled = contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
+			const chatEnabled = scopedContextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
 			const browserToolsEnabled = configurationService.getValue<boolean>('workbench.browser.enableChatTools');
 			this._shareButtonContainer.style.display = chatEnabled && browserToolsEnabled ? '' : 'none';
 		};
@@ -188,7 +184,7 @@ class BrowserNavigationBar extends Disposable {
 				updateShareButtonVisibility();
 			}
 		}));
-		this._register(contextKeyService.onDidChangeContext(e => {
+		this._register(scopedContextKeyService.onDidChangeContext(e => {
 			if (e.affectsSome(new Set([ChatContextKeys.enabled.key]))) {
 				updateShareButtonVisibility();
 			}
@@ -305,7 +301,7 @@ export class BrowserEditor extends EditorPane {
 		const toolbar = $('.browser-toolbar');
 
 		// Create navigation bar widget with scoped context
-		this._navigationBar = this._register(new BrowserNavigationBar(this, toolbar, this.instantiationService, contextKeyService, this.configurationService, this.contextKeyService));
+		this._navigationBar = this._register(new BrowserNavigationBar(this, toolbar, this.instantiationService, contextKeyService, this.configurationService));
 
 		root.appendChild(toolbar);
 

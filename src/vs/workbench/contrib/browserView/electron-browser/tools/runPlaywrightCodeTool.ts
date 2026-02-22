@@ -9,7 +9,6 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { IChatTerminalToolInvocationData } from '../../../chat/common/chatService/chatService.js';
 import { errorResult } from './browserToolHelpers.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 
@@ -30,7 +29,7 @@ export const RunPlaywrightCodeToolData: IToolData = {
 			},
 			code: {
 				type: 'string',
-				description: `The Playwright code to execute. Only the Playwright "page" object is available in scope. No direct DOM access is available. Correct example: "return await page.title()". Incorrect example: "document.querySelector('h1').innerText". The code should be as minimal as possible and self-contained. Don't include helper functions or variables that aren't defined within the code itself.`
+				description: `The Playwright code to execute. The code must be concise, serve one clear purpose, and be self-contained. You **must not** directly access \`document\` or \`window\` using this tool. You must access it via the provided \`page\` object, e.g. "return page.evaluate(() => document.title)".`
 			},
 		},
 		required: ['pageId', 'code'],
@@ -50,21 +49,15 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const params = context.parameters as IRunPlaywrightCodeToolParams;
 		const code = params.code ?? '';
-		const toolSpecificData: IChatTerminalToolInvocationData = {
-			kind: 'terminal',
-			commandLine: { original: code },
-			presentationOverrides: { commandLine: code, language: 'javascript' },
-			language: 'javascript',
-		};
 		return {
 			invocationMessage: new MarkdownString(localize('browser.runCode.invocation', "Running Playwright code...")),
 			pastTenseMessage: new MarkdownString(localize('browser.runCode.past', "Ran Playwright code")),
 			confirmationMessages: {
 				title: localize('browser.runCode.confirmTitle', 'Run Playwright Code?'),
-				message: localize('browser.runCode.confirmMessage', 'This will execute the following code against the browser.'),
+				message: new MarkdownString(`\`\`\`javascript\n${code.trim()}\n\`\`\``),
+				disclaimer: localize('browser.runCode.confirmDisclaimer', 'Make sure you trust the code before continuing.'),
 				allowAutoConfirm: true,
-			},
-			toolSpecificData,
+			}
 		};
 	}
 
@@ -102,7 +95,13 @@ export class RunPlaywrightCodeTool implements IToolImpl {
 				{ kind: 'text', value: result.result ? json : 'Code executed successfully' },
 				{ kind: 'text', value: result.summary }
 			],
-			toolResultMessage: outputMessage,
+			toolResultDetails: {
+				input: params.code.trim(),
+				output: result.result
+					? [{ type: 'embed', isText: true, value: JSON.stringify(result.result, null, 2) }]
+					: [],
+				isError: false,
+			},
 		};
 	}
 }

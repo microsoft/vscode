@@ -5,7 +5,9 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
+import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { errorResult } from './browserToolHelpers.js';
@@ -41,9 +43,10 @@ export class ReadBrowserTool implements IToolImpl {
 	) { }
 
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const link = `[browser page](${BrowserViewUri.forUrl('', _context.parameters.pageId).toString()})`;
 		return {
-			invocationMessage: localize('browser.read.invocation', "Reading browser page content"),
-			pastTenseMessage: localize('browser.read.past', "Read browser page content"),
+			invocationMessage: new MarkdownString(localize('browser.read.invocation', "Reading {0}", link)),
+			pastTenseMessage: new MarkdownString(localize('browser.read.past', "Read {0}", link)),
 		};
 	}
 
