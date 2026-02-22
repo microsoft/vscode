@@ -583,5 +583,35 @@ suite('Modal Editor Group', () => {
 		});
 	});
 
+	test('modal editor part editors can be moved to another group', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		// Create modal and open editors
+		const modalPart = await parts.createModalEditorPart();
+		const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+		await modalPart.activeGroup.openEditor(input1, { pinned: true });
+		await modalPart.activeGroup.openEditor(input2, { pinned: true });
+
+		assert.strictEqual(modalPart.activeGroup.count, 2);
+
+		// Move editors from modal to main part group
+		const targetGroup = parts.mainPart.activeGroup;
+		for (const group of modalPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			group.moveEditors(group.editors.map(editor => ({ editor, options: { preserveFocus: true } })), targetGroup);
+		}
+
+		// Editors should be in the target group now
+		assert.strictEqual(targetGroup.count, 2);
+		assert.strictEqual(modalPart.activeGroup.count, 0);
+
+		// Close modal
+		modalPart.close();
+		assert.strictEqual(parts.activeModalEditorPart, undefined);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

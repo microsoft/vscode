@@ -107,6 +107,7 @@ export const NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID = 'workbench.action.newEmptyEdit
 
 export const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
 export const MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID = 'workbench.action.moveModalEditorToMain';
+export const MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID = 'workbench.action.moveModalEditorToWindow';
 export const TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID = 'workbench.action.toggleModalEditorMaximized';
 export const NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID = 'workbench.action.navigateModalEditorPrevious';
 export const NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID = 'workbench.action.navigateModalEditorNext';
@@ -1433,6 +1434,42 @@ function registerModalEditorCommands(): void {
 			for (const part of editorGroupsService.parts) {
 				if (isModalEditorPart(part)) {
 					part.close({ mergeAllEditorsToMainPart: true });
+					break;
+				}
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID,
+				title: localize2('moveModalEditorToWindow', 'Open Modal Editor in New Window'),
+				category: Categories.View,
+				f1: true,
+				icon: Codicon.emptyWindow,
+				precondition: EditorPartModalContext,
+				menu: {
+					id: MenuId.ModalEditorTitle,
+					group: 'navigation',
+					order: 0,
+					when: IsSessionsWindowContext
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
+
+					for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+						group.moveEditors(group.editors.map(editor => ({ editor, options: { preserveFocus: true } })), auxiliaryEditorPart.activeGroup);
+					}
+
+					auxiliaryEditorPart.activeGroup.focus();
+					part.close();
 					break;
 				}
 			}

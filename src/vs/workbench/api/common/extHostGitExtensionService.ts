@@ -6,7 +6,6 @@
 import type * as vscode from 'vscode';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { observableFromEvent, waitForState } from '../../../base/common/observable.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -50,6 +49,7 @@ interface Repository {
 	readonly rootUri: vscode.Uri;
 	readonly state: RepositoryState;
 
+	status(): Promise<void>;
 	getRefs(query: GitRefQuery, token?: vscode.CancellationToken): Promise<GitRef[]>;
 }
 
@@ -154,12 +154,15 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			};
 		}
 
-		// Ensure that the repository state is initialized
-		const repositoryStateObs = observableFromEvent(this,
-			repository.state.onDidChange, () => repository.state);
-		await waitForState(repositoryStateObs, state => !!state.HEAD);
-
-		const repositoryState = repositoryStateObs.get();
+		let repositoryState = repository.state;
+		if (repositoryState.HEAD === undefined) {
+			// Opening the repository does not wait for the repository state to be
+			// initialized so we need to wait for the first change event to ensure
+			// that the repository state is fully loaded before we return it to the
+			// main thread.
+			await Event.toPromise(repositoryState.onDidChange, this._disposables);
+			repositoryState = repository.state;
+		}
 
 		// Store the repository and its handle in the maps
 		const handle = ExtHostGitExtensionService._handlePool++;
@@ -176,8 +179,8 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			handle,
 			rootUri: repository.rootUri,
 			state: {
-				HEAD: repositoryState.HEAD
-					? toGitBranchDto(repositoryState.HEAD)
+				HEAD: repository.state.HEAD
+					? toGitBranchDto(repository.state.HEAD)
 					: undefined
 			}
 		};
