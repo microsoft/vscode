@@ -172,7 +172,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 	get disabled(): boolean {
-		return !this._repoUri;
+		return !this._repoUri && !this._hasRepositoryOption();
 	}
 
 	constructor(
@@ -226,9 +226,14 @@ export class RemoteNewSession extends Disposable implements INewSession {
 			this.selectedOptions.set(optionId, value);
 		}
 		this._onDidChange.fire('options');
+		this._onDidChange.fire('disabled');
 		this.chatSessionsService.notifySessionOptionsChange(
 			this.resource,
 			[{ optionId, value }]
 		).catch((err) => this.logService.error(`Failed to notify extension of ${optionId} change:`, err));
+	}
+
+	private _hasRepositoryOption(): boolean {
+		return this.selectedOptions.has('repositories');
 	}
 }
