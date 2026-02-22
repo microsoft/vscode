@@ -1503,8 +1503,8 @@ export type ChatStopCancellationNoopClassification = {
 export const ChatPendingRequestChangeEventName = 'chat.pendingRequestChange';
 
 export type ChatPendingRequestChangeEvent = {
-	action: 'add' | 'remove';
-	source: 'sendRequest' | 'sendRequestComplete' | 'removeRequest' | 'cancelRequest' | 'adoptRequest';
+	action: 'add' | 'remove' | 'notCancelable';
+	source: 'sendRequest' | 'sendRequestComplete' | 'removeRequest' | 'cancelRequest' | 'adoptRequest' | 'remoteSession';
 };
 
 export type ChatPendingRequestChangeClassification = {
