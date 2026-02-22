@@ -100,6 +100,7 @@ class NewChatWidget extends Disposable {
 	private _repositoryLoading = false;
 	private _branchLoading = false;
 	private _loadingSpinner: HTMLElement | undefined;
+	private _loadingDelayTimer: ReturnType<typeof setTimeout> | undefined;
 
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
@@ -324,7 +325,22 @@ class NewChatWidget extends Disposable {
 
 	private _updateInputLoadingState(): void {
 		const loading = this._repositoryLoading || this._branchLoading;
-		this._loadingSpinner?.classList.toggle('visible', loading);
+		if (loading) {
+			if (!this._loadingDelayTimer) {
+				this._loadingDelayTimer = setTimeout(() => {
+					this._loadingDelayTimer = undefined;
+					if (this._repositoryLoading || this._branchLoading) {
+						this._loadingSpinner?.classList.add('visible');
+					}
+				}, 500);
+			}
+		} else {
+			if (this._loadingDelayTimer) {
+				clearTimeout(this._loadingDelayTimer);
+				this._loadingDelayTimer = undefined;
+			}
+			this._loadingSpinner?.classList.remove('visible');
+		}
 	}
 
 	// --- Editor ---
