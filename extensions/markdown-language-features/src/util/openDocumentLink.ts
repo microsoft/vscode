@@ -80,12 +80,16 @@ function getSelectionFromLocationFragment(fragment: string): vscode.Range | unde
 	}
 
 	const startLineNumber = parseInt(match[1], 10);
-	if (isNaN(startLineNumber)) {
+	if (isNaN(startLineNumber) || startLineNumber <= 0) {
 		return undefined;
 	}
 
 	const startColumn = match[2] ? parseInt(match[2], 10) : 1;
-	const endLineNumber = match[3] ? parseInt(match[3], 10) : undefined;
+	const endLineNumberRaw = match[3] ? parseInt(match[3], 10) : undefined;
+	if (typeof endLineNumberRaw !== 'undefined' && endLineNumberRaw <= 0) {
+		return undefined;
+	}
+	const endLineNumber = endLineNumberRaw;
 	const endColumn = match[3] ? (match[4] ? parseInt(match[4], 10) : 1) : undefined;
 
 	const start = new vscode.Position(startLineNumber - 1, Math.max(0, startColumn - 1));
