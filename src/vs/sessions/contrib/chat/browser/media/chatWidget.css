@@ -120,6 +120,12 @@
 	font-size: 16px;
 }
 
+.sessions-chat-send-button.disabled {
+	opacity: 0.4;
+	cursor: default;
+	pointer-events: none;
+}
+
 /* Attach row (pills only, above editor, inside input area) */
 .sessions-chat-attach-row {
 	display: flex;

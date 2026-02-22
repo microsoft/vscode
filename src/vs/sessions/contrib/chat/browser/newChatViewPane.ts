@@ -89,6 +89,9 @@ class NewChatWidget extends Disposable {
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
 	private readonly _newSessionListener = this._register(new MutableDisposable());
 
+	// Send button
+	private _sendButton: HTMLElement | undefined;
+
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
 	private _extensionPickersLeftContainer: HTMLElement | undefined;
@@ -250,7 +253,12 @@ class NewChatWidget extends Disposable {
 				this._syncOptionsFromSession(session.resource);
 				this._renderExtensionPickers();
 			}
+			if (changeType === 'disabled') {
+				this._updateSendButtonState();
+			}
 		});
+
+		this._updateSendButtonState();
 	}
 
 	private _openRepository(folderUri: URI): void {
@@ -361,12 +369,13 @@ class NewChatWidget extends Disposable {
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
-		const sendButton = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
+		const sendButton = this._sendButton = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
 		sendButton.tabIndex = 0;
 		sendButton.role = 'button';
 		sendButton.title = localize('send', "Send");
 		dom.append(sendButton, renderIcon(Codicon.send));
 		this._register(dom.addDisposableListener(sendButton, dom.EventType.CLICK, () => this._send()));
+		this._updateSendButtonState();
 	}
 
 	// --- Model picker ---
@@ -659,10 +668,19 @@ class NewChatWidget extends Disposable {
 
 	// --- Send ---
 
+	private _updateSendButtonState(): void {
+		if (!this._sendButton) {
+			return;
+		}
+		const disabled = this._newSession.value?.disabled ?? true;
+		this._sendButton.classList.toggle('disabled', disabled);
+		this._sendButton.ariaDisabled = disabled ? 'true' : 'false';
+	}
+
 	private _send(): void {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
-		if (!query || !session) {
+		if (!query || !session || session.disabled) {
 			return;
 		}
 
