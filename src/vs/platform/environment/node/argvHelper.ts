@@ -66,10 +66,11 @@ export function parseMainProcessArgv(processArgv: string[]): NativeParsedArgs {
 
 	// When code.exe is configured to 'Run as administrator' on Windows, the CLI launcher (code.cmd) sets ELECTRON_RUN_AS_NODE=1 and passes
 	// cli.js as the first argument. The elevated process does not inherit the environment variable so Electron starts as a GUI app with cli.js
-	// as a stray positional argument. Detect and strip it.
+	// as a stray positional argument. Detect and strip it. The path may include a version subdirectory (e.g., 2ca3b2734b\resources\app\out\cli.js).
 	if (isWindows && args.length > 0) {
-		const expectedCliJsPath = resolve(dirname(process.execPath), 'resources', 'app', 'out', 'cli.js');
-		if (resolve(args[0]).toLowerCase() === expectedCliJsPath.toLowerCase()) {
+		const resolvedArg = resolve(args[0]).toLowerCase();
+		const installDir = dirname(process.execPath).toLowerCase() + '\\';
+		if (resolvedArg.startsWith(installDir) && resolvedArg.endsWith('\\resources\\app\\out\\cli.js')) {
 			args.shift();
 		}
 	}
