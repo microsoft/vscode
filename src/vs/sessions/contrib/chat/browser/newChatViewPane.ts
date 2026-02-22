@@ -97,6 +97,8 @@ class NewChatWidget extends Disposable {
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private _inputArea: HTMLElement | undefined;
+	private _repositoryLoading = false;
+	private _branchLoading = false;
 
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
@@ -153,7 +155,8 @@ class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._branchPicker.onDidChangeLoading(loading => {
-			this._inputArea?.classList.toggle('loading', loading);
+			this._branchLoading = loading;
+			this._updateInputLoadingState();
 		}));
 	}
 
@@ -275,14 +278,17 @@ class NewChatWidget extends Disposable {
 		this._openRepositoryCts.value?.cancel();
 		const cts = this._openRepositoryCts.value = new CancellationTokenSource();
 
-		this._inputArea?.classList.add('loading');
+		this._repositoryLoading = true;
+		this._updateInputLoadingState();
 		this._branchPicker.setRepository(undefined);
+		this._isolationModePicker.setRepository(undefined);
 
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
-			this._inputArea?.classList.remove('loading');
+			this._repositoryLoading = false;
+			this._updateInputLoadingState();
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
 		}).catch(e => {
@@ -290,10 +296,15 @@ class NewChatWidget extends Disposable {
 				return;
 			}
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
-			this._inputArea?.classList.remove('loading');
+			this._repositoryLoading = false;
+			this._updateInputLoadingState();
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
 		});
+	}
+
+	private _updateInputLoadingState(): void {
+		this._inputArea?.classList.toggle('loading', this._repositoryLoading || this._branchLoading);
 	}
 
 	// --- Editor ---
