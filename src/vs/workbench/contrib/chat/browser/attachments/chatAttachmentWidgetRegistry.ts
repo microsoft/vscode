@@ -5,7 +5,7 @@
 
 import * as event from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
 /**
@@ -19,10 +19,8 @@ export interface IChatAttachmentWidgetInstance extends IDisposable {
 
 /**
  * Factory function type for creating attachment widgets.
- * Receives the instantiation service so it can create DI-injected widget instances.
  */
 export type ChatAttachmentWidgetFactory = (
-	instantiationService: IInstantiationService,
 	attachment: IChatRequestVariableEntry,
 	options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 	container: HTMLElement,
@@ -43,7 +41,6 @@ export interface IChatAttachmentWidgetRegistry {
 	 * Returns undefined if no factory is registered for the attachment's kind.
 	 */
 	createWidget(
-		instantiationService: IInstantiationService,
 		attachment: IChatRequestVariableEntry,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
@@ -68,7 +65,6 @@ export class ChatAttachmentWidgetRegistry implements IChatAttachmentWidgetRegist
 	}
 
 	createWidget(
-		instantiationService: IInstantiationService,
 		attachment: IChatRequestVariableEntry,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
@@ -77,6 +73,6 @@ export class ChatAttachmentWidgetRegistry implements IChatAttachmentWidgetRegist
 		if (!factory) {
 			return undefined;
 		}
-		return factory(instantiationService, attachment, options, container);
+		return factory(attachment, options, container);
 	}
 }

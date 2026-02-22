@@ -310,6 +310,7 @@ export enum RenderIndentGuides {
 
 interface ITreeRendererOptions<T> {
 	readonly indent?: number;
+	readonly defaultIndent?: number;
 	readonly renderIndentGuides?: RenderIndentGuides;
 	// TODO@joao replace this with collapsible: boolean | 'ondemand'
 	readonly hideTwistiesOfChildlessElements?: boolean;
@@ -347,6 +348,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	private renderedElements = new Map<T, ITreeNode<T, TFilterData>>();
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
+	private defaultIndent: number = TreeRenderer.DefaultIndent;
 	private hideTwistiesOfChildlessElements: boolean = false;
 	private twistieAdditionalCssClass?: (element: T) => string | undefined;
 
@@ -372,14 +374,19 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	updateOptions(options: ITreeRendererOptions<T> = {}): void {
-		if (typeof options.indent !== 'undefined') {
-			const indent = clamp(options.indent, 0, 40);
+		if (typeof options.defaultIndent !== 'undefined') {
+			this.defaultIndent = options.defaultIndent;
+		}
 
-			if (indent !== this.indent) {
+		if (typeof options.indent !== 'undefined' || typeof options.defaultIndent !== 'undefined') {
+			const indent = typeof options.indent !== 'undefined' ? clamp(options.indent, 0, 40) : this.indent;
+			const needsRerender = indent !== this.indent || typeof options.defaultIndent !== 'undefined';
+
+			if (needsRerender) {
 				this.indent = indent;
 
 				for (const [node, templateData] of this.renderedNodes) {
-					templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+					templateData.indentSize = this.defaultIndent + (node.depth - 1) * this.indent;
 					this.renderTreeElement(node, templateData);
 				}
 			}
@@ -427,7 +434,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	renderElement(node: ITreeNode<T, TFilterData>, index: number, templateData: ITreeListTemplateData<TTemplateData>, details?: IListElementRenderDetails): void {
-		templateData.indentSize = TreeRenderer.DefaultIndent + (node.depth - 1) * this.indent;
+		templateData.indentSize = this.defaultIndent + (node.depth - 1) * this.indent;
 
 		this.renderedNodes.set(node, templateData);
 		this.renderedElements.set(node.element, node);
@@ -2192,6 +2199,7 @@ function asTreeContextMenuEvent<T, TFilterData = void>(event: IListContextMenuEv
 }
 
 export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions<T> {
+	readonly defaultIndent?: number; // Only recommended for compact layouts. Leave unchanged otherwise
 	readonly multipleSelectionSupport?: boolean;
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;

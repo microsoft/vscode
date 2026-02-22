@@ -165,6 +165,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		this._validModelVersionId = this.model.getVersionId();
 
 		this.projectedModelLineLineCounts = new ConstantTimePrefixSumComputer(values);
+
+		this._ensureAtLeastOneVisibleLine();
 	}
 
 	public getHiddenAreas(): Range[] {
@@ -423,9 +425,13 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	public acceptVersionId(versionId: number): void {
 		this._validModelVersionId = versionId;
-		if (this.modelLineProjections.length === 1 && !this.modelLineProjections[0].isVisible()) {
-			// At least one line must be visible => reset hidden areas
-			this.setHiddenAreas([]);
+		this._ensureAtLeastOneVisibleLine();
+	}
+
+	private _ensureAtLeastOneVisibleLine(): void {
+		if (this.getViewLineCount() === 0 && this.modelLineProjections.length > 0) {
+			this.modelLineProjections[0] = this.modelLineProjections[0].setVisible(true);
+			this.projectedModelLineLineCounts.setValue(0, this.modelLineProjections[0].getViewLineCount());
 		}
 	}
 
