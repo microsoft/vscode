@@ -247,8 +247,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		const firstToast = notificationsToastsContainer.firstChild;
 		if (firstToast) {
-			// Always insert new toasts at the top
-			notificationsToastsContainer.insertBefore(notificationToastContainer, firstToast);
+			notificationsToastsContainer.insertBefore(notificationToastContainer, firstToast); // always first
 		} else {
 			notificationsToastsContainer.appendChild(notificationToastContainer);
 		}
