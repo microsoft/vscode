@@ -7,19 +7,20 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { INotificationViewItem, isNotificationViewItem, NotificationsModel, NotificationsSettings } from '../../../common/notifications.js';
-import { MenuRegistry, MenuId } from '../../../../platform/actions/common/actions.js';
+import { INotificationViewItem, isNotificationViewItem, NotificationsModel, NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
+import { Action2, MenuRegistry, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NotificationFocusedContext, NotificationsCenterVisibleContext, NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
 import { INotificationService, INotificationSourceFilter, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../base/common/actions.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -340,6 +341,59 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		)
 	});
 }
+
+// Notification Position Actions
+
+registerAction2(class SetNotificationsPositionBottomRight extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.setNotificationsPosition.bottomRight',
+			title: localize2('positionBottomRight', 'Bottom Right'),
+			toggled: ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, NotificationsPosition.BOTTOM_RIGHT),
+			menu: {
+				id: MenuId.NotificationsCenterPositionMenu,
+				order: 1
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IConfigurationService).updateValue(NotificationsSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_RIGHT);
+	}
+});
+
+registerAction2(class SetNotificationsPositionBottomLeft extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.setNotificationsPosition.bottomLeft',
+			title: localize2('positionBottomLeft', 'Bottom Left'),
+			toggled: ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, NotificationsPosition.BOTTOM_LEFT),
+			menu: {
+				id: MenuId.NotificationsCenterPositionMenu,
+				order: 2
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IConfigurationService).updateValue(NotificationsSettings.NOTIFICATIONS_POSITION, NotificationsPosition.BOTTOM_LEFT);
+	}
+});
+
+registerAction2(class SetNotificationsPositionTopRight extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.setNotificationsPosition.topRight',
+			title: localize2('positionTopRight', 'Top Right'),
+			toggled: ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, NotificationsPosition.TOP_RIGHT),
+			menu: {
+				id: MenuId.NotificationsCenterPositionMenu,
+				order: 3
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IConfigurationService).updateValue(NotificationsSettings.NOTIFICATIONS_POSITION, NotificationsPosition.TOP_RIGHT);
+	}
+});
 
 
 export class NotificationActionRunner extends ActionRunner {

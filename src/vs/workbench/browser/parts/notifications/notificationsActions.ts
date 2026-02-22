@@ -21,7 +21,7 @@ const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, local
 const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
 const configureIcon = registerIcon('notifications-configure', Codicon.gear, localize('configureIcon', 'Icon for the configure action in notifications.'));
 const doNotDisturbIcon = registerIcon('notifications-do-not-disturb', Codicon.bellSlash, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
-const positionIcon = registerIcon('notifications-position', Codicon.move, localize('positionIcon', 'Icon for the position action in notifications.'));
+export const positionIcon = registerIcon('notifications-position', Codicon.move, localize('positionIcon', 'Icon for the position action in notifications.'));
 
 export class ClearNotificationAction extends Action {
 
@@ -105,19 +105,6 @@ export class ConfigureDoNotDisturbAction extends Action {
 		label: string
 	) {
 		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
-	}
-}
-
-export class ConfigureNotificationsPositionAction extends Action {
-
-	static readonly ID = 'workbench.action.configureNotificationsPosition';
-	static readonly LABEL = localize('configureNotificationsPosition', "Configure Notifications Position...");
-
-	constructor(
-		id: string,
-		label: string
-	) {
-		super(id, label, ThemeIcon.asClassName(positionIcon));
 	}
 }
 

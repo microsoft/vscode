@@ -122,6 +122,7 @@ export class MenuId {
 	static readonly PanelAlignmentMenu = new MenuId('PanelAlignmentMenu');
 	static readonly PanelPositionMenu = new MenuId('PanelPositionMenu');
 	static readonly ActivityBarPositionMenu = new MenuId('ActivityBarPositionMenu');
+	static readonly NotificationsCenterPositionMenu = new MenuId('NotificationsCenterPositionMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
