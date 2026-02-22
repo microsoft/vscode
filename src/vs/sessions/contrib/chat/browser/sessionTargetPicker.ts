@@ -220,6 +220,13 @@ export class IsolationModePicker extends Disposable {
 		}
 	}
 
+	/**
+	 * Shows or hides the loading state on the picker.
+	 */
+	setLoading(loading: boolean): void {
+		this._dropdownContainer?.querySelector('.sessions-chat-picker-slot')?.classList.toggle('loading', loading);
+	}
+
 	private _renderDropdown(): void {
 		if (!this._dropdownContainer) {
 			return;

@@ -262,11 +262,14 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _openRepository(folderUri: URI): void {
+		this._isolationModePicker.setLoading(true);
 		this.gitService.openRepository(folderUri).then(repository => {
+			this._isolationModePicker.setLoading(false);
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
 		}).catch(e => {
 			this.logService.warn(`Failed to open repository at ${folderUri.toString()}`, getErrorMessage(e));
+			this._isolationModePicker.setLoading(false);
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
 		});

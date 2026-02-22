@@ -68,9 +68,12 @@ export class BranchPicker extends Disposable {
 
 		if (!repository) {
 			this._newSession?.setBranch(undefined);
+			this._setLoading(false);
 			this._updateTriggerLabel();
 			return;
 		}
+
+		this._setLoading(true);
 
 		const refs = await repository.getRefs({ pattern: 'refs/heads' });
 		this._branches = refs
@@ -87,6 +90,7 @@ export class BranchPicker extends Disposable {
 			this._selectBranch(defaultBranch);
 		}
 
+		this._setLoading(false);
 		this._updateTriggerLabel();
 	}
 
@@ -194,5 +198,9 @@ export class BranchPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 		this._slotElement?.classList.toggle('disabled', isDisabled);
+	}
+
+	private _setLoading(loading: boolean): void {
+		this._slotElement?.classList.toggle('loading', loading);
 	}
 }
