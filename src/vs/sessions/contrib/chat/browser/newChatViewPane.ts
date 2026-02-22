@@ -227,6 +227,11 @@ class NewChatWidget extends Disposable {
 
 		// Reveal
 		welcomeElement.classList.add('revealed');
+
+		// Layout editor after the input slot fade-in animation completes
+		this._register(dom.addDisposableListener(this._inputSlot, 'animationend', () => {
+			this._editor?.layout();
+		}, { once: true }));
 	}
 
 	private async _createNewSession(): Promise<void> {
