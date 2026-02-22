@@ -59,8 +59,16 @@ export class PointerEventHandler extends MouseHandler {
 		}
 
 		event.preventDefault();
-		this.viewHelper.focusTextArea();
+
+		// Dispatch the gesture first to handle cursor positioning and word selection
+		// before focusing the textarea. This ensures double-tap word selection works
+		// correctly on iOS/iPadOS.
 		this._dispatchGesture(event, /*inSelectionMode*/false);
+
+		// Focus the textarea after dispatching the gesture.
+		// On iOS/iPadOS, this focus call happens in direct response to user touch,
+		// which is required for the on-screen keyboard to appear.
+		this.viewHelper.focusTextArea();
 	}
 
 	private onChange(event: GestureEvent): void {
@@ -117,18 +125,36 @@ class TouchHandler extends MouseHandler {
 	private onTap(event: GestureEvent): void {
 		event.preventDefault();
 
-		this.viewHelper.focusTextArea();
-
 		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
 			// Send the tap event also to the <textarea> (for input purposes)
-			const event = document.createEvent('CustomEvent');
-			event.initEvent(TextAreaSyntethicEvents.Tap, false, true);
-			this.viewHelper.dispatchTextAreaEvent(event);
+			const syntheticEvent = document.createEvent('CustomEvent');
+			syntheticEvent.initEvent(TextAreaSyntethicEvents.Tap, false, true);
+			this.viewHelper.dispatchTextAreaEvent(syntheticEvent);
 
-			this.viewController.moveTo(target.position, NavigationCommandRevealType.Minimal);
+			// Dispatch mouse event with tapCount to support double-tap word selection
+			this.viewController.dispatchMouse({
+				position: target.position,
+				mouseColumn: target.position.column,
+				startedOnLineNumbers: false,
+				revealType: NavigationCommandRevealType.Minimal,
+				mouseDownCount: event.tapCount,
+				inSelectionMode: false,
+				altKey: false,
+				ctrlKey: false,
+				metaKey: false,
+				shiftKey: false,
+				leftButton: false,
+				middleButton: false,
+				onInjectedText: target.type === MouseTargetType.CONTENT_TEXT && target.detail.injectedText !== null
+			});
 		}
+
+		// Focus the textarea after dispatching the gesture.
+		// This ensures double-tap word selection works correctly,
+		// and the keyboard appears on touch devices.
+		this.viewHelper.focusTextArea();
 	}
 
 	private onChange(e: GestureEvent): void {
