@@ -8,6 +8,8 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../platform/window/common/window.js';
 import { NotificationsPosition, NotificationsSettings } from '../../common/notifications.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { hideIcon, hideUpIcon } from '../../browser/parts/notifications/notificationsActions.js';
 
 suite('Notifications Position', () => {
 
@@ -114,6 +116,30 @@ suite('Notifications Position', () => {
 
 		test('button setting key is correct', () => {
 			assert.strictEqual(NotificationsSettings.NOTIFICATIONS_BUTTON, 'workbench.notifications.showInTitleBar');
+		});
+	});
+
+	suite('Hide Notifications Icon', () => {
+
+		function getHideIcon(position: NotificationsPosition) {
+			return position === NotificationsPosition.TOP_RIGHT ? hideUpIcon : hideIcon;
+		}
+
+		test('bottom-right uses chevron down icon', () => {
+			assert.strictEqual(getHideIcon(NotificationsPosition.BOTTOM_RIGHT).id, hideIcon.id);
+		});
+
+		test('bottom-left uses chevron down icon', () => {
+			assert.strictEqual(getHideIcon(NotificationsPosition.BOTTOM_LEFT).id, hideIcon.id);
+		});
+
+		test('top-right uses chevron up icon', () => {
+			assert.strictEqual(getHideIcon(NotificationsPosition.TOP_RIGHT).id, hideUpIcon.id);
+		});
+
+		test('hide icon defaults use correct codicons', () => {
+			assert.strictEqual(Codicon.chevronDown.id, 'chevron-down');
+			assert.strictEqual(Codicon.chevronUp.id, 'chevron-up');
 		});
 	});
 });
