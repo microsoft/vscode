@@ -96,9 +96,9 @@ class NewChatWidget extends Disposable {
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
-	private _inputArea: HTMLElement | undefined;
 	private _repositoryLoading = false;
 	private _branchLoading = false;
+	private _loadingSpinner: HTMLElement | undefined;
 
 	// Welcome part
 	private _pickersContainer: HTMLElement | undefined;
@@ -190,7 +190,7 @@ class NewChatWidget extends Disposable {
 		this._inputSlot = dom.append(welcomeElement, dom.$('.chat-full-welcome-inputSlot'));
 
 		// Input area inside the input slot
-		const inputArea = this._inputArea = dom.$('.sessions-chat-input-area');
+		const inputArea = dom.$('.sessions-chat-input-area');
 		this._contextAttachments.registerDropTarget(inputArea);
 		this._contextAttachments.registerPasteHandler(inputArea);
 
@@ -317,7 +317,8 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _updateInputLoadingState(): void {
-		this._inputArea?.classList.toggle('loading', this._repositoryLoading || this._branchLoading);
+		const loading = this._repositoryLoading || this._branchLoading;
+		this._loadingSpinner?.classList.toggle('visible', loading);
 	}
 
 	// --- Editor ---
@@ -424,6 +425,8 @@ class NewChatWidget extends Disposable {
 		this._createModelPicker(modelPickerContainer);
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
+
+		this._loadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
 
 		const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
 		const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {

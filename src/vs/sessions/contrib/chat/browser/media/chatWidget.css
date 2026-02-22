@@ -37,24 +37,6 @@
 	border-color: var(--vscode-focusBorder);
 }
 
-/* Loading progress bar */
-.sessions-chat-input-area.loading::after {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 0;
-	height: 2px;
-	width: 30%;
-	background-color: var(--vscode-progressBar-background);
-	animation: sessions-chat-input-loading 1.5s ease-in-out infinite;
-}
-
-@keyframes sessions-chat-input-loading {
-	0% { left: 0; width: 30%; }
-	50% { left: 40%; width: 40%; }
-	100% { left: 100%; width: 0%; }
-}
-
 /* Editor */
 .sessions-chat-editor {
 	padding: 0 6px 6px 6px;
@@ -136,6 +118,27 @@
 
 .sessions-chat-send-button .monaco-button .codicon {
 	font-size: 16px;
+}
+
+/* Loading spinner in toolbar */
+.sessions-chat-loading-spinner {
+	display: none;
+	width: 16px;
+	height: 16px;
+	border: 1.5px solid var(--vscode-icon-foreground);
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: sessions-chat-spin 0.8s linear infinite;
+	opacity: 0.6;
+	flex-shrink: 0;
+}
+
+.sessions-chat-loading-spinner.visible {
+	display: block;
+}
+
+@keyframes sessions-chat-spin {
+	to { transform: rotate(360deg); }
 }
 
 /* Attach row (pills only, above editor, inside input area) */
