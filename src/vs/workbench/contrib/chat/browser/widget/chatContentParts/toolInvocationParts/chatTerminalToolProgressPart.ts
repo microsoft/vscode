@@ -360,11 +360,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this._decoration.update();
 
-		// wrap terminal when thinking setting enabled
+		// wrap terminal when thinking setting enabled or simple collapsible setting enabled
 		const terminalToolsInThinking = this._configurationService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);
+		const isSimpleTerminal = this._configurationService.getValue<boolean>(ChatConfiguration.SimpleTerminalCollapsible);
 		const requiresConfirmation = toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.getConfirmationMessages(toolInvocation);
 
-		if (terminalToolsInThinking && !requiresConfirmation) {
+		if ((terminalToolsInThinking && !requiresConfirmation) || isSimpleTerminal) {
 			this._isInThinkingContainer = true;
 			this.domNode = this._createCollapsibleWrapper(progressPart.domNode, displayCommand, toolInvocation, context);
 		} else {

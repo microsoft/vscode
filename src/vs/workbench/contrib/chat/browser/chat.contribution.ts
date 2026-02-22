@@ -1125,6 +1125,12 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.agent.thinking.terminalTools', "When enabled, terminal tool calls are displayed inside the thinking dropdown with a simplified view."),
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.SimpleTerminalCollapsible]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('chat.tools.terminal.simpleCollapsible', "When enabled, terminal tool calls are always displayed in a collapsible container with a simplified view."),
+			tags: ['experimental'],
+		},
 		'chat.tools.usagesTool.enabled': {
 			type: 'boolean',
 			default: true,
