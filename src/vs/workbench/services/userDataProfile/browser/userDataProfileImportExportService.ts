@@ -61,6 +61,9 @@ function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTem
 		&& (candidate.name && typeof candidate.name === 'string')
 		&& (isUndefined(candidate.icon) || typeof candidate.icon === 'string')
 		&& (isUndefined(candidate.settings) || typeof candidate.settings === 'string')
+		&& (isUndefined(candidate.keybindings) || typeof candidate.keybindings === 'string')
+		&& (isUndefined(candidate.tasks) || typeof candidate.tasks === 'string')
+		&& (isUndefined(candidate.snippets) || typeof candidate.snippets === 'string')
 		&& (isUndefined(candidate.globalState) || typeof candidate.globalState === 'string')
 		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string')
 		&& (isUndefined(candidate.mcp) || typeof candidate.mcp === 'string'));
@@ -209,7 +212,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (profileTemplate.globalState && !profile.useDefaultFlags?.globalState) {
+		if (profileTemplate.globalState && (options.resourceTypeFlags?.globalState ?? true) && !profile.useDefaultFlags?.globalState) {
 			reportProgress(localize('applying global state', "Applying UI State..."));
 			await this.instantiationService.createInstance(GlobalStateResource).apply(profileTemplate.globalState, profile);
 		}
