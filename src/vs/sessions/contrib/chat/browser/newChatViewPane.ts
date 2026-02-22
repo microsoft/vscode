@@ -378,7 +378,6 @@ class NewChatWidget extends Disposable {
 				this._newSession.value?.setModelId(model.identifier);
 			},
 			getModels: () => this._getAvailableModels(),
-			canManageModels: () => true,
 			showCuratedModels: () => false,
 		};
 
