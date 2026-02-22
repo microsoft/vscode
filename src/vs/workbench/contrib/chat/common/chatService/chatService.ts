@@ -1499,3 +1499,17 @@ export type ChatStopCancellationNoopClassification = {
 	owner: 'roblourens';
 	comment: 'Tracks possible no-op stop cancellation paths.';
 };
+
+export const ChatPendingRequestChangeEventName = 'chat.pendingRequestChange';
+
+export type ChatPendingRequestChangeEvent = {
+	action: 'add' | 'remove' | 'notCancelable';
+	source: 'sendRequest' | 'sendRequestComplete' | 'removeRequest' | 'cancelRequest' | 'adoptRequest' | 'remoteSession';
+};
+
+export type ChatPendingRequestChangeClassification = {
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a pending request was added or removed.' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The method that triggered the pending request change.' };
+	owner: 'roblourens';
+	comment: 'Tracks pending request lifecycle changes in the chat service.';
+};

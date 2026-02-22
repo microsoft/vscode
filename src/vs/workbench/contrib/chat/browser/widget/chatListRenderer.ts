@@ -109,6 +109,7 @@ import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookSchema.js';
 import { ChatQuestionCarouselAutoReply } from './chatQuestionCarouselAutoReply.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 const $ = dom.$;
 
@@ -266,6 +267,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IChatService private readonly chatService: IChatService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -732,8 +734,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.username.textContent = element.username;
-		templateData.username.classList.toggle('hidden', element.username === COPILOT_USERNAME);
-		templateData.avatarContainer.classList.toggle('hidden', element.username === COPILOT_USERNAME);
+		templateData.username.classList.toggle('hidden', element.username === COPILOT_USERNAME || this.environmentService.isSessionsWindow);
+		templateData.avatarContainer.classList.toggle('hidden', element.username === COPILOT_USERNAME || this.environmentService.isSessionsWindow);
 
 		this.hoverHidden(templateData.requestHover);
 		dom.clearNode(templateData.detail);

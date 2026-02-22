@@ -39,7 +39,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
-import { ChatMcpServersStarting, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
@@ -675,6 +675,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
+			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession' });
 			const cancellationListener = disposables.add(new MutableDisposable());
 
 			const createCancellationListener = (token: CancellationToken) => {
@@ -684,6 +685,7 @@ export class ChatService extends Disposable implements IChatService {
 							// User cancelled the interruption
 							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 							this._pendingRequests.set(model.sessionResource, newCancellationRequest);
+							this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'remoteSession' });
 							cancellationListener.value = createCancellationListener(newCancellationRequest.cancellationTokenSource.token);
 						}
 					});
@@ -713,6 +715,7 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}));
 		} else {
+			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'notCancelable', source: 'remoteSession' });
 			if (lastRequest && model.editingSession) {
 				// wait for timeline to load so that a 'changes' part is added when the response completes
 				await chatEditingSessionIsReady(model.editingSession);
@@ -1200,9 +1203,11 @@ export class ChatService extends Disposable implements IChatService {
 		// Note- requestId is not known at this point, assigned later
 		const cancellableRequest = this.instantiationService.createInstance(CancellableRequest, source, undefined);
 		this._pendingRequests.set(model.sessionResource, cancellableRequest);
+		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'sendRequest' });
 		rawResponsePromise.finally(() => {
 			if (this._pendingRequests.get(model.sessionResource) === cancellableRequest) {
 				this._pendingRequests.deleteAndDispose(model.sessionResource);
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'sendRequestComplete' });
 			}
 			// Process the next pending request from the queue if any
 			if (shouldProcessPending) {
@@ -1362,6 +1367,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (pendingRequest?.requestId === requestId) {
 			pendingRequest.cancel();
 			this._pendingRequests.deleteAndDispose(sessionResource);
+			this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'removeRequest' });
 		}
 
 		model.removeRequest(requestId);
@@ -1384,6 +1390,8 @@ export class ChatService extends Disposable implements IChatService {
 			if (cts) {
 				cts.requestId = request.id;
 				this._pendingRequests.set(target.sessionResource, cts);
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'adoptRequest' });
+				this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'add', source: 'adoptRequest' });
 			}
 		}
 	}
@@ -1434,6 +1442,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		pendingRequest.cancel();
 		this._pendingRequests.deleteAndDispose(sessionResource);
+		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'cancelRequest' });
 	}
 
 	setYieldRequested(sessionResource: URI): void {
