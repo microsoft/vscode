@@ -34,7 +34,7 @@
 }
 
 .monaco-workbench > .notifications-toasts.top-right .notification-toast-container > .notification-toast {
-	transform: translate3d(0px, -100%, 0px); /* slide down from top */
+	transform: translate3d(100%, 0px, 0px); /* slide in from right */
 }
 
 .monaco-workbench > .notifications-toasts.visible {
