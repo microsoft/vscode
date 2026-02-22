@@ -28,7 +28,20 @@ export class MdLinkOpener {
 			return;
 		}
 
-		const uri = vscode.Uri.from(resolved.uri);
+		let uri = vscode.Uri.from(resolved.uri);
+		let rangeSelection: vscode.Range | undefined;
+		if (resolved.kind === 'file' && !resolved.position) {
+			if (uri.fragment) {
+				rangeSelection = getSelectionFromLocationFragment(uri.fragment);
+			} else {
+				const locationFragment = getLocationFragmentFromLinkText(linkText);
+				if (locationFragment) {
+					uri = uri.with({ fragment: locationFragment });
+					rangeSelection = getSelectionFromLocationFragment(locationFragment);
+				}
+			}
+		}
+
 		switch (resolved.kind) {
 			case 'external':
 				return vscode.commands.executeCommand('vscode.open', uri);
@@ -50,12 +63,55 @@ export class MdLinkOpener {
 				}
 
 				return vscode.commands.executeCommand('vscode.open', uri, {
-					selection: resolved.position ? new vscode.Range(resolved.position.line, resolved.position.character, resolved.position.line, resolved.position.character) : undefined,
+					selection: resolved.position
+						? new vscode.Range(resolved.position.line, resolved.position.character, resolved.position.line, resolved.position.character)
+						: rangeSelection,
 					viewColumn: viewColumn ?? getViewColumn(fromResource),
 				} satisfies vscode.TextDocumentShowOptions);
 			}
 		}
 	}
+}
+
+function getSelectionFromLocationFragment(fragment: string): vscode.Range | undefined {
+	const match = /^L?(\d+)(?:,(\d+))?(?:-L?(\d+)(?:,(\d+))?)?$/i.exec(fragment);
+	if (!match) {
+		return undefined;
+	}
+
+	const startLineNumber = parseInt(match[1], 10);
+	if (isNaN(startLineNumber)) {
+		return undefined;
+	}
+
+	const startColumn = match[2] ? parseInt(match[2], 10) : 1;
+	const endLineNumber = match[3] ? parseInt(match[3], 10) : undefined;
+	const endColumn = match[3] ? (match[4] ? parseInt(match[4], 10) : 1) : undefined;
+
+	const start = new vscode.Position(startLineNumber - 1, Math.max(0, startColumn - 1));
+	const end = endLineNumber
+		? new vscode.Position(endLineNumber - 1, Math.max(0, (endColumn ?? 1) - 1))
+		: start;
+
+	return new vscode.Range(start, end);
+}
+
+function getLocationFragmentFromLinkText(linkText: string): string | undefined {
+	const fragmentStart = linkText.indexOf('#');
+	if (fragmentStart < 0) {
+		return undefined;
+	}
+
+	const fragment = decodeURIComponent(linkText.slice(fragmentStart + 1));
+	if (!fragment) {
+		return undefined;
+	}
+
+	if (/^L?\d+(?:,\d+)?(?:-L?\d+(?:,\d+)?)?$/i.test(fragment)) {
+		return fragment;
+	}
+
+	return undefined;
 }
 
 function getViewColumn(resource: vscode.Uri): vscode.ViewColumn {
