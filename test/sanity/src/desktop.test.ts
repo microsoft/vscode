@@ -168,9 +168,11 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-arm64', ['windows', 'arm64', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('win32-arm64');
 		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('system', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
 			await context.uninstallWindowsApp('system');
 		}
@@ -179,6 +181,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-arm64-archive', ['windows', 'arm64', 'desktop'], async () => {
 		const dir = await context.downloadAndUnpack('win32-arm64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
@@ -189,9 +192,11 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-arm64-user', ['windows', 'arm64', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('win32-arm64-user');
 		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('user', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
 			await context.uninstallWindowsApp('user');
 		}
@@ -200,9 +205,11 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-x64', ['windows', 'x64', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('win32-x64');
 		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('system', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
 			await context.uninstallWindowsApp('system');
 		}
@@ -211,6 +218,7 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-x64-archive', ['windows', 'x64', 'desktop'], async () => {
 		const dir = await context.downloadAndUnpack('win32-x64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
@@ -221,9 +229,11 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-x64-user', ['windows', 'x64', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('win32-x64-user');
 		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('user', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
 			await context.uninstallWindowsApp('user');
 		}

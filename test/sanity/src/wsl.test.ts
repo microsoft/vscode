@@ -36,6 +36,7 @@ export function setup(context: TestContext) {
 	context.test('wsl-desktop-arm64', ['windows', 'arm64', 'wsl', 'desktop'], async () => {
 		const dir = await context.downloadAndUnpack('win32-arm64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
@@ -46,6 +47,7 @@ export function setup(context: TestContext) {
 	context.test('wsl-desktop-x64', ['windows', 'x64', 'wsl', 'desktop'], async () => {
 		const dir = await context.downloadAndUnpack('win32-x64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);

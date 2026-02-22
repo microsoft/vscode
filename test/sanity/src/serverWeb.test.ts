@@ -54,6 +54,7 @@ export function setup(context: TestContext) {
 	context.test('server-web-win32-arm64', ['windows', 'arm64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-win32-arm64-web');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});
@@ -61,6 +62,7 @@ export function setup(context: TestContext) {
 	context.test('server-web-win32-x64', ['windows', 'x64', 'browser'], async () => {
 		const dir = await context.downloadAndUnpack('server-win32-x64-web');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getServerEntryPoint(dir);
 		await testServer(entryPoint);
 	});

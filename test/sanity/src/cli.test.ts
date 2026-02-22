@@ -57,6 +57,7 @@ export function setup(context: TestContext) {
 	context.test('cli-win32-arm64', ['windows', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-arm64');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getCliEntryPoint(dir);
 		await testCliApp(entryPoint);
 	});
@@ -64,6 +65,7 @@ export function setup(context: TestContext) {
 	context.test('cli-win32-x64', ['windows', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-x64');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getCliEntryPoint(dir);
 		await testCliApp(entryPoint);
 	});
