@@ -5,7 +5,7 @@
 
 import './media/notificationsToasts.css';
 import { localize } from '../../../../nls.js';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind, NotificationsSettings, NotificationsPosition } from '../../../common/notifications.js';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind, NotificationsSettings, NotificationsPosition, getNotificationsPosition } from '../../../common/notifications.js';
 import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $, isHTMLElement, isEditableElement, getActiveElement, getDomNodePagePosition, getClientArea } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -140,10 +140,19 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			return;
 		}
 
-		const position = this.getNotificationsPosition();
+		const position = getNotificationsPosition(this.configurationService);
 		this.notificationsToastsContainer.classList.remove('bottom-right', 'bottom-left', 'top-right');
 		this.notificationsToastsContainer.classList.add(position);
 
+		this.updateTopOffset();
+	}
+
+	private updateTopOffset(): void {
+		if (!this.notificationsToastsContainer) {
+			return;
+		}
+
+		const position = getNotificationsPosition(this.configurationService);
 		if (position === NotificationsPosition.TOP_RIGHT) {
 			let topOffset = 3;
 			if (this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
@@ -153,10 +162,6 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		} else {
 			this.notificationsToastsContainer.style.top = '';
 		}
-	}
-
-	private getNotificationsPosition(): NotificationsPosition {
-		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
 	}
 
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
@@ -210,7 +215,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private isElementInNotificationQuarter(element: HTMLElement): boolean {
-		const position = this.getNotificationsPosition();
+		const position = getNotificationsPosition(this.configurationService);
 		const domPosition = getDomNodePagePosition(element);
 		const clientArea = getClientArea(this.layoutService.mainContainer);
 
@@ -585,8 +590,8 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		const maxDimensions = this.computeMaxDimensions();
 
-		// Update position
-		this.updateNotificationPosition();
+		// Update position offset
+		this.updateTopOffset();
 
 		// Hide toasts that exceed height
 		if (maxDimensions.height) {

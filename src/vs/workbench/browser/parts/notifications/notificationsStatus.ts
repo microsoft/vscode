@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem, NotificationsPosition, NotificationsSettings } from '../../../common/notifications.js';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, IStatusMessageChangeEvent, StatusMessageChangeType, IStatusMessageViewItem, NotificationsPosition, NotificationsSettings, getNotificationsPosition } from '../../../common/notifications.js';
 import { IStatusbarService, StatusbarAlignment, IStatusbarEntryAccessor, IStatusbarEntry } from '../../../services/statusbar/browser/statusbar.js';
 import { Disposable, IDisposable, dispose } from '../../../../base/common/lifecycle.js';
 import { HIDE_NOTIFICATIONS_CENTER, SHOW_NOTIFICATIONS_CENTER } from './notificationsCommands.js';
@@ -103,7 +103,7 @@ export class NotificationsStatus extends Disposable {
 
 		// For top-right position, hide the status bar bell entirely
 		// (it is shown in the title bar instead via menu registration)
-		const position = this.getNotificationsPosition();
+		const position = getNotificationsPosition(this.configurationService);
 		if (position === NotificationsPosition.TOP_RIGHT) {
 			this.notificationsCenterStatusItem?.dispose();
 			this.notificationsCenterStatusItem = undefined;
@@ -138,12 +138,8 @@ export class NotificationsStatus extends Disposable {
 		}
 	}
 
-	private getNotificationsPosition(): NotificationsPosition {
-		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
-	}
-
 	private getDesiredAlignment(): StatusbarAlignment {
-		const position = this.getNotificationsPosition();
+		const position = getNotificationsPosition(this.configurationService);
 		switch (position) {
 			case NotificationsPosition.BOTTOM_LEFT:
 				return StatusbarAlignment.LEFT;

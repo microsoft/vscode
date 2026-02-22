@@ -7,7 +7,7 @@ import './media/notificationsCenter.css';
 import './media/notificationsActions.css';
 import { NOTIFICATIONS_CENTER_HEADER_FOREGROUND, NOTIFICATIONS_CENTER_HEADER_BACKGROUND, NOTIFICATIONS_CENTER_BORDER } from '../../../common/theme.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, NotificationsSettings, NotificationsPosition } from '../../../common/notifications.js';
+import { INotificationsModel, INotificationChangeEvent, NotificationChangeType, NotificationViewItemContentChangeKind, NotificationsSettings, NotificationsPosition, getNotificationsPosition } from '../../../common/notifications.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -86,20 +86,24 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		}));
 	}
 
-	private getNotificationsPosition(): NotificationsPosition {
-		return this.configurationService.getValue<NotificationsPosition>(NotificationsSettings.NOTIFICATIONS_POSITION) ?? NotificationsPosition.BOTTOM_RIGHT;
-	}
-
 	private updatePositionClass(): void {
 		if (!this.notificationsCenterContainer) {
 			return;
 		}
 
-		const position = this.getNotificationsPosition();
+		const position = getNotificationsPosition(this.configurationService);
 		this.notificationsCenterContainer.classList.remove('bottom-right', 'bottom-left', 'top-right');
 		this.notificationsCenterContainer.classList.add(position);
 
-		// Set initial top offset for top-right to avoid jump on first render
+		this.updateTopOffset();
+	}
+
+	private updateTopOffset(): void {
+		if (!this.notificationsCenterContainer) {
+			return;
+		}
+
+		const position = getNotificationsPosition(this.configurationService);
 		if (position === NotificationsPosition.TOP_RIGHT) {
 			let topOffset = 7;
 			if (this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
@@ -407,8 +411,8 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 				availableHeight -= (2 * 12); // adjust for paddings top and bottom
 			}
 
-			// Update top offset for top-right position
-			this.updatePositionClass();
+			// Update position offset
+			this.updateTopOffset();
 
 			// Apply to list
 			const notificationsList = assertReturnsDefined(this.notificationsList);
