@@ -206,7 +206,6 @@ export class BranchPicker extends Disposable {
 	}
 
 	private _setLoading(loading: boolean): void {
-		this._slotElement?.classList.toggle('loading', loading);
 		this._onDidChangeLoading.fire(loading);
 	}
 }
