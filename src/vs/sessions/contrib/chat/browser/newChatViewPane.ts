@@ -14,6 +14,7 @@ import { Disposable, DisposableStore, MutableDisposable } from '../../../../base
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
@@ -91,7 +92,7 @@ class NewChatWidget extends Disposable {
 	private readonly _newSessionListener = this._register(new MutableDisposable());
 
 	// Send button
-	private _sendButton: HTMLElement | undefined;
+	private _sendButton: Button | undefined;
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -389,12 +390,14 @@ class NewChatWidget extends Disposable {
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 
-		const sendButton = this._sendButton = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
-		sendButton.tabIndex = 0;
-		sendButton.role = 'button';
-		sendButton.title = localize('send', "Send");
-		dom.append(sendButton, renderIcon(Codicon.send));
-		this._register(dom.addDisposableListener(sendButton, dom.EventType.CLICK, () => this._send()));
+		const sendButtonContainer = dom.append(toolbar, dom.$('.sessions-chat-send-button'));
+		const sendButton = this._sendButton = this._register(new Button(sendButtonContainer, {
+			secondary: true,
+			title: localize('send', "Send"),
+			ariaLabel: localize('send', "Send"),
+		}));
+		sendButton.icon = Codicon.send;
+		this._register(sendButton.onDidClick(() => this._send()));
 		this._updateSendButtonState();
 	}
 
@@ -693,9 +696,7 @@ class NewChatWidget extends Disposable {
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		const disabled = !hasText || (this._newSession.value?.disabled ?? true);
-		this._sendButton.classList.toggle('disabled', disabled);
-		this._sendButton.ariaDisabled = disabled ? 'true' : 'false';
+		this._sendButton.enabled = hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
 	private _send(): void {
