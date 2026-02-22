@@ -123,8 +123,8 @@
 /* Loading spinner in toolbar */
 .sessions-chat-loading-spinner {
 	display: none;
-	width: 16px;
-	height: 16px;
+	width: 12px;
+	height: 12px;
 	border: 1.5px solid var(--vscode-icon-foreground);
 	border-top-color: transparent;
 	border-radius: 50%;
