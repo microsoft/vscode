@@ -623,12 +623,16 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	const cwd = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
-		const deps = await glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' });
+		const [nativeDeps, exeDeps] = await Promise.all([
+			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
+			glob('**/node_modules*/**/*.exe', { cwd }),
+		]);
+		const deps = [...nativeDeps, ...exeDeps];
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');
 
-		const patchPromises = deps.map(async dep => {
+		const patchPromises = deps.map<Promise<unknown>>(async dep => {
 			const basename = path.basename(dep);
 
 			await rcedit(path.join(cwd, dep), {
@@ -646,28 +650,34 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 			});
 		});
 
-		// Patch the tunnel CLI binary with version metadata
-		const tunnelExe = path.join(cwd, 'bin', `${product.tunnelApplicationName}.exe`);
-		const tunnelExists = await fs.promises.access(tunnelExe).then(() => true, () => false);
-		if (tunnelExists) {
-			const tunnelBasename = `${product.tunnelApplicationName}.exe`;
-			patchPromises.push(rcedit(tunnelExe, {
-				'file-version': baseVersion,
-				'product-version': baseVersion,
-				'version-string': {
-					'CompanyName': 'Microsoft Corporation',
-					'FileDescription': product.nameLong,
-					'FileVersion': packageJson.version,
-					'InternalName': tunnelBasename,
-					'LegalCopyright': 'Copyright (C) 2026 Microsoft. All rights reserved',
-					'OriginalFilename': tunnelBasename,
-					'ProductName': product.nameLong,
-					'ProductVersion': packageJson.version,
-				}
-			}) as Promise<void>);
-		}
-
 		await Promise.all(patchPromises);
+	};
+}
+
+function patchWin32TunnelCLITask(destinationFolderName: string) {
+	const cwd = path.join(path.dirname(root), destinationFolderName);
+
+	return async () => {
+		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
+		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
+		const baseVersion = packageJson.version.replace(/-.*$/, '');
+
+		const tunnelExe = path.join(cwd, 'bin', `${product.tunnelApplicationName}.exe`);
+		const tunnelBasename = `${product.tunnelApplicationName}.exe`;
+		await rcedit(tunnelExe, {
+			'file-version': baseVersion,
+			'product-version': baseVersion,
+			'version-string': {
+				'CompanyName': 'Microsoft Corporation',
+				'FileDescription': product.nameLong,
+				'FileVersion': packageJson.version,
+				'InternalName': tunnelBasename,
+				'LegalCopyright': 'Copyright (C) 2026 Microsoft. All rights reserved',
+				'OriginalFilename': tunnelBasename,
+				'ProductName': product.nameLong,
+				'ProductVersion': packageJson.version,
+			}
+		});
 	};
 }
 
@@ -704,6 +714,10 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 		gulp.task(vscodeTaskCI);
+
+		if (platform === 'win32') {
+			gulp.task(task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-tunnel-cli-patch`, patchWin32TunnelCLITask(destinationFolderName)));
+		}
 
 		let vscodeTask: task.Task;
 		if (useEsbuildTranspile) {
