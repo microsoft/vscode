@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ConfirmedReason } from '../chatService/chatService.js';
@@ -16,6 +17,8 @@ export interface ILanguageModelToolConfirmationActions {
 	detail?: string;
 	/** Show a separator before this action */
 	divider?: boolean;
+	/** The scope of this action, if applicable */
+	scope?: 'session' | 'workspace' | 'profile';
 	/** Selects this action. Resolves true if the action should be confirmed after selection */
 	select(): Promise<boolean>;
 }
@@ -24,6 +27,7 @@ export interface ILanguageModelToolConfirmationRef {
 	toolId: string;
 	source: ToolDataSource;
 	parameters: unknown;
+	chatSessionResource?: URI;
 }
 
 export interface ILanguageModelToolConfirmationActionProducer {

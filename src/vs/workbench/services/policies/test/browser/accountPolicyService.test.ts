@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { IDefaultAccount, IDefaultAccountAuthenticationProvider } from '../../../../../base/common/defaultAccount.js';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 
@@ -23,6 +23,7 @@ const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 		name: 'GitHub',
 		enterprise: false,
 	},
+	accountName: 'testuser',
 	sessionId: 'abc123',
 	enterprise: false,
 };
@@ -30,9 +31,11 @@ const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 class DefaultAccountProvider implements IDefaultAccountProvider {
 
 	readonly onDidChangeDefaultAccount = Event.None;
+	readonly onDidChangePolicyData = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
+		readonly policyData: IPolicyData = {},
 	) { }
 
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
@@ -46,6 +49,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	async signIn(): Promise<IDefaultAccount | null> {
 		return null;
 	}
+
+	async signOut(): Promise<void> { }
 }
 
 suite('AccountPolicyService', () => {
@@ -81,7 +86,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.policyData?.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
+					value: policyData => policyData.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
 			},
 			'setting.C': {
@@ -92,7 +97,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.policyData?.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
+					value: policyData => policyData.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
 			},
 			'setting.D': {
@@ -103,7 +108,7 @@ suite('AccountPolicyService', () => {
 					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
 					localization: { description: { key: '', value: '' } },
-					value: account => account.policyData?.chat_preview_features_enabled === false ? false : undefined,
+					value: policyData => policyData.chat_preview_features_enabled === false ? false : undefined,
 				}
 			},
 			'setting.E': {
@@ -127,8 +132,8 @@ suite('AccountPolicyService', () => {
 
 	});
 
-	async function assertDefaultBehavior(defaultAccount: IDefaultAccount) {
-		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+	async function assertDefaultBehavior(policyData: IPolicyData | undefined) {
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
 		await defaultAccountService.refresh();
 
 		await policyConfiguration.initialize();
@@ -159,18 +164,16 @@ suite('AccountPolicyService', () => {
 
 
 	test('should initialize with default account', async () => {
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT };
-		await assertDefaultBehavior(defaultAccount);
+		await assertDefaultBehavior(undefined);
 	});
 
 	test('should initialize with default account and preview features enabled', async () => {
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: true } };
-		await assertDefaultBehavior(defaultAccount);
+		await assertDefaultBehavior({ chat_preview_features_enabled: true });
 	});
 
 	test('should initialize with default account and preview features disabled', async () => {
-		const defaultAccount = { ...BASE_DEFAULT_ACCOUNT, policyData: { chat_preview_features_enabled: false } };
-		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(defaultAccount));
+		const policyData: IPolicyData = { chat_preview_features_enabled: false };
+		defaultAccountService.setDefaultAccountProvider(new DefaultAccountProvider(BASE_DEFAULT_ACCOUNT, policyData));
 		await defaultAccountService.refresh();
 
 		await policyConfiguration.initialize();

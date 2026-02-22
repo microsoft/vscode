@@ -10,7 +10,7 @@ import { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ITextEditorService } from '../../../services/textfile/common/textEditorService.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -20,7 +20,8 @@ import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../common/languageModelsConfiguration.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { ConfigureLanguageModelsOptions, ILanguageModelsConfigurationService, ILanguageModelsProviderGroup } from '../common/languageModelsConfiguration.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -36,7 +37,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 	private readonly modelsConfigurationFile: URI;
 	get configurationFile(): URI { return this.modelsConfigurationFile; }
 
-	private readonly _onDidChangeLanguageModelGroups = new Emitter<readonly ILanguageModelsProviderGroup[]>();
+	private readonly _onDidChangeLanguageModelGroups = this._register(new Emitter<readonly ILanguageModelsProviderGroup[]>());
 	readonly onDidChangeLanguageModelGroups: Event<readonly ILanguageModelsProviderGroup[]> = this._onDidChangeLanguageModelGroups.event;
 
 	private languageModelsProviderGroups: LanguageModelsProviderGroups = [];
@@ -45,7 +46,7 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
@@ -148,9 +149,9 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 		await this.updateLanguageModelsConfiguration();
 	}
 
-	async configureLanguageModels(range?: IRange): Promise<void> {
-		const editor = await this.editorGroupsService.activeGroup.openEditor(this.textEditorService.createTextEditor({ resource: this.modelsConfigurationFile }));
-		if (!editor || !range) {
+	async configureLanguageModels(options?: ConfigureLanguageModelsOptions): Promise<void> {
+		const editor = await this.editorService.openEditor(this.textEditorService.createTextEditor({ resource: this.modelsConfigurationFile }));
+		if (!editor || !options?.group) {
 			return;
 		}
 
@@ -159,10 +160,29 @@ export class LanguageModelsConfigurationService extends Disposable implements IL
 			return;
 		}
 
-		const position = { lineNumber: range.startLineNumber, column: range.startColumn };
-		codeEditor.setPosition(position);
-		codeEditor.revealPositionNearTop(position);
-		codeEditor.focus();
+		if (!options.group.range) {
+			return;
+		}
+
+		if (options.snippet) {
+			// Insert snippet at the end of the last property line (before the closing brace line), with comma prepended
+			const model = codeEditor.getModel();
+			if (!model) {
+				return;
+			}
+			const lastPropertyLine = options.group.range.endLineNumber - 1;
+			const lastPropertyLineLength = model.getLineLength(lastPropertyLine);
+			const insertPosition = { lineNumber: lastPropertyLine, column: lastPropertyLineLength + 1 };
+			codeEditor.setPosition(insertPosition);
+			codeEditor.revealPositionNearTop(insertPosition);
+			codeEditor.focus();
+			SnippetController2.get(codeEditor)?.insert(',\n' + options.snippet);
+		} else {
+			const position = { lineNumber: options.group.range.startLineNumber, column: options.group.range.startColumn };
+			codeEditor.setPosition(position);
+			codeEditor.revealPositionNearTop(position);
+			codeEditor.focus();
+		}
 	}
 
 	private async withLanguageModelsProviderGroups(update?: (languageModelsProviderGroups: LanguageModelsProviderGroups) => Promise<LanguageModelsProviderGroups>): Promise<LanguageModelsProviderGroups> {

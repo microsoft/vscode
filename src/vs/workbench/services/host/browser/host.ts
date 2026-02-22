@@ -4,12 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
 
 export const IHostService = createDecorator<IHostService>('hostService');
+
+export interface IToastOptions {
+	readonly title: string;
+	readonly body?: string;
+
+	readonly actions?: readonly string[];
+
+	readonly silent?: boolean;
+}
+
+export interface IToastResult {
+	readonly supported: boolean;
+
+	readonly clicked: boolean;
+	readonly actionIndex?: number;
+}
 
 /**
  * A set of methods supported in both web and native environments.
@@ -89,6 +106,12 @@ export interface IHostService {
 	moveTop(targetWindow: Window): Promise<void>;
 
 	/**
+	 * Toggle dimming of window control overlays (e.g. when showing
+	 * a modal dialog or modal editor part).
+	 */
+	setWindowDimmed(targetWindow: Window, dimmed: boolean): Promise<void>;
+
+	/**
 	 * Get the location of the mouse cursor and its display bounds or `undefined` if unavailable.
 	 */
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle } | undefined>;
@@ -141,6 +164,15 @@ export interface IHostService {
 	 * Get the native handle of the window.
 	 */
 	getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined>;
+
+	//#endregion
+
+	//#region Toast Notifications
+
+	/**
+	 * Show an OS-level toast notification.
+	 */
+	showToast(options: IToastOptions, token: CancellationToken): Promise<IToastResult>;
 
 	//#endregion
 }

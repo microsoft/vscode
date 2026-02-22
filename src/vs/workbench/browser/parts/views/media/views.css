@@ -63,6 +63,7 @@
 .monaco-workbench .tree-explorer-viewlet-tree-view .message .button-container:not(:last-child) {
 	padding-bottom: 8px;
 }
+
 .monaco-workbench .tree-explorer-viewlet-tree-view .message.hide {
 	display: none;
 }
@@ -179,6 +180,7 @@
 	font-size: 13px;
 	line-height: 15px;
 }
+
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-inputbox {
 	line-height: normal;
 	flex: 1;
@@ -218,6 +220,7 @@
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon.disabled {
 	opacity: 0.6;
 }
+
 /* makes spinning icons square */
 .customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .custom-view-tree-node-item-icon.codicon.codicon-modifier-spin {
 	padding-left: 6px;
@@ -249,6 +252,35 @@
 .customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .actions,
 .customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .actions {
 	display: block;
+}
+
+/* When horizontal scrolling is enabled, shift actions back to the viewport's right edge */
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.actions .action-item):hover .custom-view-tree-node-item .actions,
+
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.actions .action-item).selected .custom-view-tree-node-item .actions,
+
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.actions .action-item).focused .custom-view-tree-node-item .actions {
+	position: relative;
+	right: var(--list-scroll-right-offset, 0px);
+	background-color: var(--vscode-list-hoverBackground);
+	padding-left: 4px;
+}
+
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row:has(.monaco-icon-label[class*="monaco-decoration-"]) .actions {
+	right: max(calc(var(--list-scroll-right-offset, 0px) - 17px),
+			0px) !important;
+}
+
+.customview-tree .monaco-list.horizontal-scrolling:focus .monaco-list-row.selected .custom-view-tree-node-item .actions {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.customview-tree .monaco-list.horizontal-scrolling:not(:focus) .monaco-list-row.selected .custom-view-tree-node-item .actions {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.customview-tree .monaco-list.horizontal-scrolling .monaco-list-row.focused:not(.selected) .custom-view-tree-node-item .actions {
+	background-color: var(--vscode-list-focusBackground);
 }
 
 /* filter view pane */

@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import picomatch from 'picomatch';
-import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
+import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, ExcludeSettingOptions, FileDecoration, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
 import { Branch, BranchQuery, Change, CommitOptions, DiffChange, FetchOptions, ForcePushMode, GitErrorCodes, LogOptions, Ref, RefType, Remote, RepositoryKind, Status } from './api/git';
@@ -28,6 +28,7 @@ import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
 import { RepositoryCache } from './repositoryCache';
+import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -957,17 +958,20 @@ export class Repository implements Disposable {
 				: new ThemeIcon('repo');
 
 		// Hidden
-		// This is a temporary solution to hide worktrees created by Copilot
-		// when the main repository is opened. Users can still manually open
-		// the worktree from the Repositories view.
-		this._isHidden = repository.kind === 'worktree' &&
-			isCopilotWorktree(repository.root) && parent !== undefined;
+		// This is a temporary solution to hide:
+		// * repositories in the empty window
+		// * worktrees created by Copilot when the main repository
+		//   is opened. Users can still manually open the worktree
+		//   from the Repositories view.
+		this._isHidden = workspace.workspaceFolders === undefined ||
+			(repository.kind === 'worktree' &&
+				isCopilotWorktree(repository.root) && parent !== undefined);
 
 		const root = Uri.file(repository.root);
 		this._sourceControl = scm.createSourceControl('git', 'Git', root, icon, this._isHidden, parent);
 		this._sourceControl.contextValue = repository.kind;
 
-		this._sourceControl.quickDiffProvider = this;
+		this._sourceControl.quickDiffProvider = new GitQuickDiffProvider(this, this.repositoryResolver, logger);
 		this._sourceControl.secondaryQuickDiffProvider = new StagedResourceQuickDiffProvider(this, logger);
 
 		this._historyProvider = new GitHistoryProvider(historyItemDetailProviderRegistry, this, logger);
@@ -1097,72 +1101,6 @@ export class Repository implements Disposable {
 		}
 
 		return undefined;
-	}
-
-	/**
-	 * Quick diff label
-	 */
-	get label(): string {
-		return l10n.t('Git Local Changes (Working Tree)');
-	}
-
-	async provideOriginalResource(uri: Uri): Promise<Uri | undefined> {
-		this.logger.trace(`[Repository][provideOriginalResource] Resource: ${uri.toString()}`);
-
-		if (uri.scheme !== 'file') {
-			this.logger.trace(`[Repository][provideOriginalResource] Resource is not a file: ${uri.scheme}`);
-			return undefined;
-		}
-
-		// Ignore path that is inside the .git directory (ex: COMMIT_EDITMSG)
-		if (isDescendant(this.dotGit.commonPath ?? this.dotGit.path, uri.fsPath)) {
-			this.logger.trace(`[Repository][provideOriginalResource] Resource is inside .git directory: ${uri.toString()}`);
-			return undefined;
-		}
-
-		// Ignore symbolic links
-		const stat = await workspace.fs.stat(uri);
-		if ((stat.type & FileType.SymbolicLink) !== 0) {
-			this.logger.trace(`[Repository][provideOriginalResource] Resource is a symbolic link: ${uri.toString()}`);
-			return undefined;
-		}
-
-		// Ignore path that is not inside the current repository
-		if (this.repositoryResolver.getRepository(uri) !== this) {
-			this.logger.trace(`[Repository][provideOriginalResource] Resource is not part of the repository: ${uri.toString()}`);
-			return undefined;
-		}
-
-		// Ignore path that is inside a hidden repository
-		if (this.isHidden === true) {
-			this.logger.trace(`[Repository][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
-			return undefined;
-		}
-
-		// Ignore path that is inside a merge group
-		if (this.mergeGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
-			this.logger.trace(`[Repository][provideOriginalResource] Resource is part of a merge group: ${uri.toString()}`);
-			return undefined;
-		}
-
-		// Ignore path that is untracked
-		if (this.untrackedGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path)) ||
-			this.workingTreeGroup.resourceStates.some(r => pathEquals(r.resourceUri.path, uri.path) && r.type === Status.UNTRACKED)) {
-			this.logger.trace(`[Repository][provideOriginalResource] Resource is untracked: ${uri.toString()}`);
-			return undefined;
-		}
-
-		// Ignore path that is git ignored
-		const ignored = await this.checkIgnore([uri.fsPath]);
-		if (ignored.size > 0) {
-			this.logger.trace(`[Repository][provideOriginalResource] Resource is git ignored: ${uri.toString()}`);
-			return undefined;
-		}
-
-		const originalResource = toGitUri(uri, '', { replaceFileExtension: true });
-		this.logger.trace(`[Repository][provideOriginalResource] Original resource: ${originalResource.toString()}`);
-
-		return originalResource;
 	}
 
 	async getInputTemplate(): Promise<string> {
@@ -1902,7 +1840,7 @@ export class Repository implements Disposable {
 
 	private async _getWorktreeIncludePaths(): Promise<Set<string>> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', ['**/node_modules/**']);
+		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', []);
 
 		if (worktreeIncludeFiles.length === 0) {
 			return new Set<string>();
@@ -2387,8 +2325,8 @@ export class Repository implements Disposable {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
-		return await this.run(Operation.Apply, () => this.repository.apply(patch, reverse));
+	async apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean }): Promise<void> {
+		return await this.run(Operation.Apply, () => this.repository.apply(patch, options));
 	}
 
 	async getStashes(): Promise<Stash[]> {
@@ -3281,46 +3219,5 @@ export class Repository implements Disposable {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
-	}
-}
-
-export class StagedResourceQuickDiffProvider implements QuickDiffProvider {
-	readonly label = l10n.t('Git Local Changes (Index)');
-
-	constructor(
-		private readonly _repository: Repository,
-		private readonly logger: LogOutputChannel
-	) { }
-
-	async provideOriginalResource(uri: Uri): Promise<Uri | undefined> {
-		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource: ${uri.toString()}`);
-
-		if (uri.scheme !== 'file') {
-			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not a file: ${uri.scheme}`);
-			return undefined;
-		}
-
-		// Ignore path that is inside a hidden repository
-		if (this._repository.isHidden === true) {
-			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Repository is hidden: ${uri.toString()}`);
-			return undefined;
-		}
-
-		// Ignore symbolic links
-		const stat = await workspace.fs.stat(uri);
-		if ((stat.type & FileType.SymbolicLink) !== 0) {
-			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is a symbolic link: ${uri.toString()}`);
-			return undefined;
-		}
-
-		// Ignore resources that are not in the index group
-		if (!this._repository.indexGroup.resourceStates.some(r => pathEquals(r.resourceUri.fsPath, uri.fsPath))) {
-			this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Resource is not part of a index group: ${uri.toString()}`);
-			return undefined;
-		}
-
-		const originalResource = toGitUri(uri, 'HEAD', { replaceFileExtension: true });
-		this.logger.trace(`[StagedResourceQuickDiffProvider][provideOriginalResource] Original resource: ${originalResource.toString()}`);
-		return originalResource;
 	}
 }

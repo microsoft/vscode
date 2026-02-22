@@ -1,0 +1,72 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-context-usage-widget {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 22px;
+	width: 22px;
+	flex-shrink: 0;
+	cursor: pointer;
+	padding: 3px;
+	border-radius: 5px;
+	box-sizing: border-box;
+}
+
+.chat-context-usage-widget .icon-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+}
+
+.chat-context-usage-widget:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+}
+
+.chat-context-usage-widget:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-context-usage-widget:active {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.chat-context-usage-widget .circular-progress {
+	width: 100%;
+	height: 100%;
+	pointer-events: none;
+}
+
+.chat-context-usage-widget .progress-bg {
+	fill: none;
+	stroke: var(--vscode-disabledForeground);
+	stroke-width: 4;
+	opacity: 0.5;
+}
+
+.chat-context-usage-widget .progress-arc {
+	fill: none;
+	stroke: var(--vscode-descriptionForeground);
+	stroke-width: 4;
+	stroke-linecap: round;
+	transform: rotate(-90deg);
+	transform-origin: center;
+	pointer-events: none;
+}
+
+.chat-context-usage-widget.warning .progress-arc {
+	stroke: var(--vscode-editorWarning-foreground);
+}
+
+.chat-context-usage-widget.error .progress-arc {
+	stroke: var(--vscode-editorError-foreground);
+}

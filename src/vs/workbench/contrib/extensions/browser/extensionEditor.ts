@@ -94,8 +94,8 @@ import { fromNow } from '../../../../base/common/date.js';
 
 class NavBar extends Disposable {
 
-	private _onChange = this._register(new Emitter<{ id: string | null; focus: boolean }>());
-	get onChange(): Event<{ id: string | null; focus: boolean }> { return this._onChange.event; }
+	private readonly _onChange = this._register(new Emitter<{ id: string | null; focus: boolean }>());
+	readonly onChange = this._onChange.event;
 
 	private _currentId: string | null = null;
 	get currentId(): string | null { return this._currentId; }
@@ -141,6 +141,11 @@ class NavBar extends Disposable {
 		this._currentId = id;
 		this._onChange.fire({ id, focus: !!focus });
 		this.actions.forEach(a => a.checked = a.id === id);
+	}
+
+	override dispose(): void {
+		this.clear();
+		super.dispose();
 	}
 }
 
@@ -335,6 +340,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(ClearLanguageAction),
 
 			this.instantiationService.createInstance(EnableDropDownAction),
+			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
 			this.instantiationService.createInstance(DisableDropDownAction),
 			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
@@ -348,7 +354,6 @@ export class ExtensionEditor extends EditorPane {
 					this.instantiationService.createInstance(InstallAnotherVersionAction, null, true),
 				]
 			]),
-			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
 			this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction),
 			new ExtensionEditorManageExtensionAction(this.scopedContextKeyService || this.contextKeyService, this.instantiationService),
 		];
@@ -419,7 +424,7 @@ export class ExtensionEditor extends EditorPane {
 		this._register(onError(this.onError, this));
 
 		const body = append(root, $('.body'));
-		const navbar = new NavBar(body);
+		const navbar = this._register(new NavBar(body));
 
 		const content = append(body, $('.content'));
 		content.id = generateUuid(); // An id is needed for the webview parent flow to

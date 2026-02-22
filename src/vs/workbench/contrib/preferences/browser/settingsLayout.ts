@@ -27,13 +27,15 @@ export interface ITOCEntry<T> {
 	hide?: boolean;
 }
 
-const defaultCommonlyUsedSettings: string[] = [
+const COMMONLY_USED_SETTINGS: readonly string[] = [
 	'editor.fontSize',
 	'editor.formatOnSave',
 	'files.autoSave',
+	'GitHub.copilot-chat.manageExtension',
 	'editor.defaultFormatter',
 	'editor.fontFamily',
 	'editor.wordWrap',
+	'chat.agent.maxRequests',
 	'files.exclude',
 	'workbench.colorTheme',
 	'editor.tabSize',
@@ -41,7 +43,7 @@ const defaultCommonlyUsedSettings: string[] = [
 	'editor.formatOnPaste'
 ];
 
-export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUsed: string[] = defaultCommonlyUsedSettings): ITOCEntry<ISetting> {
+export function getCommonlyUsedData(settingGroups: ISettingsGroup[]): ITOCEntry<ISetting> {
 	const allSettings = new Map<string, ISetting>();
 	for (const group of settingGroups) {
 		for (const section of group.sections) {
@@ -51,7 +53,7 @@ export function getCommonlyUsedData(settingGroups: ISettingsGroup[], commonlyUse
 		}
 	}
 	const settings: ISetting[] = [];
-	for (const id of commonlyUsed) {
+	for (const id of COMMONLY_USED_SETTINGS) {
 		const setting = allSettings.get(id);
 		if (setting) {
 			settings.push(setting);
@@ -170,6 +172,114 @@ export const tocData: ITOCEntry<string> = {
 			]
 		},
 		{
+			id: 'chat',
+			label: localize('chat', "Chat"),
+			children: [
+				{
+					id: 'chat/agent',
+					label: localize('chatAgent', "Agent"),
+					settings: [
+						'chat.agent.*',
+						'chat.checkpoints.*',
+						'chat.editRequests',
+						'chat.requestQueuing.*',
+						'chat.undoRequests.*',
+						'chat.customAgentInSubagent.*',
+						'chat.editing.autoAcceptDelay',
+						'chat.editing.confirmEditRequest*',
+						'chat.planAgent.defaultModel'
+					]
+				},
+				{
+					id: 'chat/appearance',
+					label: localize('chatAppearance', "Appearance"),
+					settings: [
+						'chat.editor.*',
+						'chat.fontFamily',
+						'chat.fontSize',
+						'chat.math.*',
+						'chat.agentsControl.*',
+						'chat.alternativeToolAction.*',
+						'chat.codeBlock.*',
+						'chat.editing.explainChanges.enabled',
+						'chat.editMode.hidden',
+						'chat.editorAssociations',
+						'chat.extensionUnification.*',
+						'chat.inlineReferences.*',
+						'chat.notifyWindow*',
+						'chat.statusWidget.*',
+						'chat.tips.*',
+						'chat.unifiedAgentsBar.*'
+					]
+				},
+				{
+					id: 'chat/sessions',
+					label: localize('chatSessions', "Sessions"),
+					settings: [
+						'chat.agentSessionProjection.*',
+						'chat.sessions.*',
+						'chat.viewProgressBadge.*',
+						'chat.viewSessions.*',
+						'chat.restoreLastPanelSession',
+						'chat.exitAfterDelegation',
+						'chat.repoInfo.*'
+					]
+				},
+				{
+					id: 'chat/tools',
+					label: localize('chatTools', "Tools"),
+					settings: [
+						'chat.tools.*',
+						'chat.extensionTools.*',
+						'chat.edits2.enabled'
+					]
+				},
+				{
+					id: 'chat/mcp',
+					label: localize('chatMcp', "MCP"),
+					settings: ['mcp', 'chat.mcp.*', 'mcp.*']
+				},
+				{
+					id: 'chat/context',
+					label: localize('chatContext', "Context"),
+					settings: [
+						'chat.detectParticipant.*',
+						'chat.experimental.detectParticipant.*',
+						'chat.implicitContext.*',
+						'chat.promptFilesLocations',
+						'chat.instructionsFilesLocations',
+						'chat.modeFilesLocations',
+						'chat.agentFilesLocations',
+						'chat.agentSkillsLocations',
+						'chat.hookFilesLocations',
+						'chat.promptFilesRecommendations',
+						'chat.useAgentsMdFile',
+						'chat.useNestedAgentsMdFiles',
+						'chat.useAgentSkills',
+						'chat.experimental.useSkillAdherencePrompt',
+						'chat.useHooks',
+						'chat.includeApplyingInstructions',
+						'chat.includeReferencedInstructions',
+						'chat.sendElementsToChat.*',
+						'chat.useClaudeMdFile'
+					]
+				},
+				{
+					id: 'chat/inlineChat',
+					label: localize('chatInlineChat', "Inline Chat"),
+					settings: ['inlineChat.*']
+				},
+				{
+					id: 'chat/miscellaneous',
+					label: localize('chatMiscellaneous', "Miscellaneous"),
+					settings: [
+						'chat.disableAIFeatures',
+						'chat.allowAnonymousAccess'
+					]
+				},
+			]
+		},
+		{
 			id: 'features',
 			label: localize('features', "Features"),
 			children: [
@@ -259,11 +369,6 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['mergeEditor.*']
 				},
 				{
-					id: 'features/chat',
-					label: localize('chat', 'Chat'),
-					settings: ['chat.*', 'inlineChat.*', 'mcp']
-				},
-				{
 					id: 'features/issueReporter',
 					label: localize('issueReporter', 'Issue Reporter'),
 					settings: ['issueReporter.*'],
@@ -299,6 +404,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'application/settingsSync',
 					label: localize('settingsSync', "Settings Sync"),
 					settings: ['settingsSync.*']
+				},
+				{
+					id: 'application/network',
+					label: localize('network', "Network"),
+					settings: ['network.*']
 				},
 				{
 					id: 'application/experimental',

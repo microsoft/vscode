@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -36,6 +37,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IAgentSession, isAgentSession } from '../agentSessions/agentSessionsModel.js';
+import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -255,6 +257,37 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingDiscardAllAction);
 
+export class ToggleExplanationWidgetAction extends EditingSessionAction {
+
+	static readonly ID = 'chatEditing.toggleExplanationWidget';
+
+	constructor() {
+		super({
+			id: ToggleExplanationWidgetAction.ID,
+			title: localize('explainButton', 'Explain'),
+			tooltip: localize('toggleExplanationTooltip', 'Toggle Change Explanations'),
+			precondition: hasUndecidedChatEditingResourceContextKey,
+			menu: [
+				{
+					id: MenuId.ChatEditingWidgetToolbar,
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey, ContextKeyExpr.has(`config.${ChatConfiguration.ExplainChangesEnabled}`))
+				}
+			],
+		});
+	}
+
+	override async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]) {
+		if (editingSession.hasExplanations()) {
+			editingSession.clearExplanations();
+		} else {
+			await editingSession.triggerExplanationGeneration();
+		}
+	}
+}
+registerAction2(ToggleExplanationWidgetAction);
+
 export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor, currentEditingSession: IChatEditingSession): Promise<boolean> {
 
 	const dialogService = accessor.get(IDialogService);
@@ -338,6 +371,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 	override async run(accessor: ServicesAccessor, sessionOrSessionResource?: URI | IAgentSession): Promise<void> {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 		const commandService = accessor.get(ICommandService);
+		const chatEditingService = accessor.get(IChatEditingService);
 
 		if (!URI.isUri(sessionOrSessionResource) && !isAgentSession(sessionOrSessionResource)) {
 			return;
@@ -349,33 +383,50 @@ export class ViewAllSessionChangesAction extends Action2 {
 
 		const session = agentSessionsService.getSession(sessionResource);
 		const changes = session?.changes;
-		if (!(changes instanceof Array)) {
+
+		if (!session || !changes) {
 			return;
 		}
 
-		const resources = changes.map(d => ({
-			originalUri: d.originalUri,
-			modifiedUri: d.modifiedUri
-		}));
+		if (
+			session.providerType === AgentSessionProviders.Background ||
+			session.providerType === AgentSessionProviders.Cloud
+		) {
+			if (!Array.isArray(changes) || changes.length === 0) {
+				return;
+			}
 
-		if (resources.length > 0) {
+			// Use agent session changes
+			const resources = changes.map(d => ({
+				originalUri: d.originalUri,
+				modifiedUri: d.modifiedUri
+			}));
+
 			await commandService.executeCommand('_workbench.openMultiDiffEditor', {
 				multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-worktree-changes' }),
 				title: localize('chatEditing.allChanges.title', 'All Session Changes'),
 				resources,
 			});
+
+			session?.setRead(true);
+			return;
 		}
+
+		// Use edit session changes
+		const editingSession = chatEditingService.getEditingSession(sessionResource);
+		await editingSession?.show();
+		session?.setRead(true);
 	}
 }
 registerAction2(ViewAllSessionChangesAction);
 
-async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {
+async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAccessor, sessionResource: URI, requestId: string): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
-	const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
+	const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
 	const chatService = accessor.get(IChatService);
-	const chatModel = chatService.getSession(item.sessionResource);
+	const chatModel = chatService.getSession(sessionResource);
 	if (!chatModel) {
 		return;
 	}
@@ -385,59 +436,69 @@ async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item:
 		return;
 	}
 
+	const chatRequests = chatModel.getRequests();
+	const itemIndex = chatRequests.findIndex(request => request.id === requestId);
+	if (itemIndex === -1) {
+		return;
+	}
+
+	const editsToUndo = chatRequests.length - itemIndex;
+
+	const requestsToRemove = chatRequests.slice(itemIndex);
+	const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
+	const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
+	const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
+
+	let message: string;
+	if (editsToUndo === 1) {
+		if (entriesModifiedInRequestsToRemove.length === 1) {
+			message = localize('chat.removeLast.confirmation.message2', "This will remove your last request and undo the edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+		} else {
+			message = localize('chat.removeLast.confirmation.multipleEdits.message', "This will remove your last request and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+		}
+	} else {
+		if (entriesModifiedInRequestsToRemove.length === 1) {
+			message = localize('chat.remove.confirmation.message2', "This will remove all subsequent requests and undo edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
+		} else {
+			message = localize('chat.remove.confirmation.multipleEdits.message', "This will remove all subsequent requests and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
+		}
+	}
+
+	const confirmation = shouldPrompt
+		? await dialogService.confirm({
+			title: editsToUndo === 1
+				? localize('chat.removeLast.confirmation.title', "Do you want to undo your last edit?")
+				: localize('chat.remove.confirmation.title', "Do you want to undo {0} edits?", editsToUndo),
+			message: message,
+			primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
+			checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
+			type: 'info'
+		})
+		: { confirmed: true };
+
+	if (!confirmation.confirmed) {
+		widget?.viewModel?.model.setCheckpoint(undefined);
+		return;
+	}
+
+	if (confirmation.checkboxChecked) {
+		await configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
+	}
+
+	// Restore the snapshot to what it was before the request(s) that we deleted
+	const snapshotRequestId = chatRequests[itemIndex].id;
+	await session.restoreSnapshot(snapshotRequestId, undefined);
+}
+
+async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {
 	const requestId = isRequestVM(item) ? item.id :
 		isResponseVM(item) ? item.requestId : undefined;
 
-	if (requestId) {
-		const chatRequests = chatModel.getRequests();
-		const itemIndex = chatRequests.findIndex(request => request.id === requestId);
-		const editsToUndo = chatRequests.length - itemIndex;
-
-		const requestsToRemove = chatRequests.slice(itemIndex);
-		const requestIdsToRemove = new Set(requestsToRemove.map(request => request.id));
-		const entriesModifiedInRequestsToRemove = session.entries.get().filter((entry) => requestIdsToRemove.has(entry.lastModifyingRequestId)) ?? [];
-		const shouldPrompt = entriesModifiedInRequestsToRemove.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRemoval') === true;
-
-		let message: string;
-		if (editsToUndo === 1) {
-			if (entriesModifiedInRequestsToRemove.length === 1) {
-				message = localize('chat.removeLast.confirmation.message2', "This will remove your last request and undo the edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
-			} else {
-				message = localize('chat.removeLast.confirmation.multipleEdits.message', "This will remove your last request and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
-			}
-		} else {
-			if (entriesModifiedInRequestsToRemove.length === 1) {
-				message = localize('chat.remove.confirmation.message2', "This will remove all subsequent requests and undo edits made to {0}. Do you want to proceed?", basename(entriesModifiedInRequestsToRemove[0].modifiedURI));
-			} else {
-				message = localize('chat.remove.confirmation.multipleEdits.message', "This will remove all subsequent requests and undo edits made to {0} files in your working set. Do you want to proceed?", entriesModifiedInRequestsToRemove.length);
-			}
-		}
-
-		const confirmation = shouldPrompt
-			? await dialogService.confirm({
-				title: editsToUndo === 1
-					? localize('chat.removeLast.confirmation.title', "Do you want to undo your last edit?")
-					: localize('chat.remove.confirmation.title', "Do you want to undo {0} edits?", editsToUndo),
-				message: message,
-				primaryButton: localize('chat.remove.confirmation.primaryButton', "Yes"),
-				checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
-				type: 'info'
-			})
-			: { confirmed: true };
-
-		if (!confirmation.confirmed) {
-			widget?.viewModel?.model.setCheckpoint(undefined);
-			return;
-		}
-
-		if (confirmation.checkboxChecked) {
-			await configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
-		}
-
-		// Restore the snapshot to what it was before the request(s) that we deleted
-		const snapshotRequestId = chatRequests[itemIndex].id;
-		await session.restoreSnapshot(snapshotRequestId, undefined);
+	if (!requestId) {
+		return;
 	}
+
+	await restoreSnapshotWithConfirmationByRequestId(accessor, item.sessionResource, requestId);
 }
 
 registerAction2(class RemoveAction extends Action2 {
@@ -543,9 +604,14 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 		super({
 			id: 'workbench.action.chat.restoreLastCheckpoint',
 			title: localize2('chat.restoreLastCheckpoint.label', "Restore to Last Checkpoint"),
-			f1: false,
+			f1: true,
 			category: CHAT_CATEGORY,
 			icon: Codicon.discard,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.inChatSession,
+				ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true),
+				ChatContextKeys.lockedToCodingAgent.negate()
+			),
 			menu: [
 				{
 					id: MenuId.ChatMessageFooter,
@@ -566,30 +632,27 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 			item = widget?.getFocus();
 		}
 
-		if (!item) {
+		const sessionResource = widget?.viewModel?.sessionResource ?? (isChatTreeItem(item) ? item.sessionResource : undefined);
+		if (!sessionResource) {
 			return;
 		}
 
-		const chatModel = chatService.getSession(item.sessionResource);
-		if (!chatModel) {
+		const chatModel = chatService.getSession(sessionResource);
+		if (!chatModel?.editingSession) {
 			return;
 		}
 
-		const session = chatModel.editingSession;
-		if (!session) {
+		const checkpointRequest = chatModel.checkpoint;
+		if (!checkpointRequest) {
+			alert(localize('chat.restoreCheckpoint.none', 'There is no checkpoint to restore.'));
 			return;
 		}
 
-		await restoreSnapshotWithConfirmation(accessor, item);
+		widget?.viewModel?.model.setCheckpoint(checkpointRequest.id);
+		widget?.focusInput();
+		widget?.input.setValue(checkpointRequest.message.text, false);
 
-		if (isResponseVM(item)) {
-			widget?.viewModel?.model.setCheckpoint(item.requestId);
-			const request = chatModel.getRequests().find(request => request.id === item.requestId);
-			if (request) {
-				widget?.focusInput();
-				widget?.input.setValue(request.message.text, false);
-			}
-		}
+		await restoreSnapshotWithConfirmationByRequestId(accessor, sessionResource, checkpointRequest.id);
 	}
 });
 

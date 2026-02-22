@@ -120,6 +120,16 @@
 	}
 }
 
+@keyframes chat-thinking-shimmer {
+	0% {
+		background-position: 120% 0;
+	}
+
+	100% {
+		background-position: -120% 0;
+	}
+}
+
 .interactive-item-container .chat-animated-ellipsis::after {
 	content: '';
 	white-space: nowrap;
@@ -254,6 +264,9 @@
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
 	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .interactive-item-container .chat-footer-details.hidden {
@@ -265,7 +278,7 @@
 }
 
 .interactive-item-container > .value .chat-used-context {
-	margin-bottom: 8px;
+	margin-bottom: 10px;
 }
 
 .interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) {
@@ -288,18 +301,36 @@
 	border-color: var(--vscode-textBlockQuote-border);
 }
 
+.interactive-item-container .value .rendered-markdown strong {
+	font-weight: 600;
+}
+
 .interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
 	margin-bottom: 16px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	overflow: hidden;
+	border-collapse: separate;
+	border-spacing: 0;
+	border: 1px solid var(--vscode-chat-requestBorder);
 }
 
-.interactive-item-container .value .rendered-markdown table,
 .interactive-item-container .value .rendered-markdown table td,
 .interactive-item-container .value .rendered-markdown table th {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-collapse: collapse;
+	border-top: none;
+	border-left: none;
 	padding: 4px 6px;
+}
+
+.interactive-item-container .value .rendered-markdown table td:last-child,
+.interactive-item-container .value .rendered-markdown table th:last-child {
+	border-right: none;
+}
+
+.interactive-item-container .value .rendered-markdown table tbody tr:last-child td {
+	border-bottom: none;
 }
 
 .interactive-item-container .value .rendered-markdown a,
@@ -360,7 +391,7 @@
 .interactive-item-container .value .rendered-markdown h1 {
 	font-size: var(--vscode-chat-font-size-body-xxl);
 	font-weight: 600;
-	margin: 16px 0 8px 0;
+	margin: 1.5em 0 0.875em 0;
 	font-family: var(--vscode-chat-font-family, inherit);
 
 }
@@ -368,14 +399,14 @@
 .interactive-item-container .value .rendered-markdown h2 {
 	font-size: var(--vscode-chat-font-size-body-xl);
 	font-weight: 600;
-	margin: 16px 0 8px 0;
+	margin: 1.5em 0 0.875em 0;
 	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container .value .rendered-markdown h3 {
 	font-size: var(--vscode-chat-font-size-body-l);
 	font-weight: 600;
-	margin: 16px 0 8px 0;
+	margin: 1.5em 0 0.875em 0;
 	font-family: var(--vscode-chat-font-family, inherit);
 }
 
@@ -385,8 +416,7 @@
 
 .interactive-item-container.editing-session .value .rendered-markdown h3 {
 	font-size: var(--vscode-chat-font-size-body-m);
-	margin: 0 0 8px 0;
-	font-weight: unset;
+	margin: 1.5em 0 0.875em 0;
 }
 
 /* Codicons next to text need to be aligned with the text */
@@ -540,6 +570,21 @@
 			font-size: var(--vscode-chat-font-size-body-m);
 		}
 
+		.webview-output {
+			position: relative;
+		}
+
+		.progress-container {
+			position: absolute;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			margin: auto;
+			width: fit-content;
+			height: fit-content;
+		}
+
 		.output-error {
 			margin: 6px 4px;
 			color: var(--vscode-errorForeground);
@@ -563,7 +608,7 @@
 	}
 
 	&:not(:last-child) {
-		margin-bottom: 8px;
+		margin-bottom: 12px;
 	}
 }
 
@@ -580,6 +625,10 @@
 .interactive-item-container .value .rendered-markdown ol {
 	/* Keep this in sync with the values for dedented codeblocks below */
 	padding-inline-start: 28px;
+}
+
+.interactive-item-container .value .rendered-markdown li {
+	margin: 4px 0;
 }
 
 /* NOTE- We want to dedent codeblocks in lists specifically to give them the full width. No more elegant way to do this, these values
@@ -617,7 +666,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.monaco-tokenized-source,
 	code {
 		font-family: var(--monaco-monospace-font);
-		font-size: var(--vscode-chat-font-size-body-s);
+		font-size: var(--vscode-chat-font-size-body-xs);
 		color: var(--vscode-textPreformat-foreground);
 		background-color: var(--vscode-textPreformat-background);
 		padding: 1px 3px;
@@ -743,20 +792,34 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: 3px;
 }
 
-.interactive-session .chat-input-container {
+.monaco-workbench .interactive-session .chat-input-container {
 	box-sizing: border-box;
 	cursor: text;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-large);
 	padding: 0 6px 6px 6px;
 	/* top padding is inside the editor widget */
 	width: 100%;
+	position: relative;
+}
+
+/* Context usage widget container - positioned in the bottom toolbar */
+.interactive-session .chat-input-toolbars .chat-context-usage-container {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	order: 1;
+}
+
+.interactive-session .chat-input-toolbars > .chat-execute-toolbar {
+	order: 2;
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
-.interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container {
+.interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container,
+.interactive-input-part:has(.chat-getting-started-tip-container > .chat-tip-widget) .chat-input-container {
 	/* Remove top border radius when editing session, todo list, or status widget is present */
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
@@ -770,13 +833,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	position: relative;
 }
 
-.interactive-session .chat-editing-session .chat-editing-session-container {
+.monaco-workbench .interactive-session .chat-editing-session .chat-editing-session-container {
 	padding: 4px 3px 4px 3px;
 	box-sizing: border-box;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-bottom: none;
-	border-radius: 4px 4px 0 0;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
@@ -870,7 +933,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		border-radius: 2px;
 		border: none;
 		background-color: unset;
-		color: var(--vscode-foreground)
+		color: var(--vscode-descriptionForeground);
 	}
 
 	.monaco-button:focus-visible {
@@ -943,84 +1006,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	flex-direction: row;
 	gap: 4px;
 	margin-top: 6px;
-	margin-right: 20px;
 	flex-wrap: wrap;
 	cursor: default;
-}
-
-.chat-related-files {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 4px;
-	max-width: 100%;
-}
-
-.chat-related-files .monaco-button-dropdown .monaco-text-button {
-	font-size: 11px;
-	justify-content: left;
-	width: fit-content;
-	padding: 0px;
-	border: none;
-	height: 18px;
-}
-
-.chat-related-files .monaco-button-dropdown .monaco-text-button span {
-	font-style: italic;
-	height: 18px;
-	opacity: 0.7;
-}
-
-.chat-related-files .monaco-button-dropdown {
-	border-radius: 4px;
-	height: 18px;
-	border: 1px solid var(--vscode-input-border);
-	border-style: dashed;
-	align-items: center;
-	overflow: hidden;
-	gap: 2px;
-	padding: 0 4px;
-}
-
-.chat-related-files .monaco-button.codicon.codicon-add {
-	display: flex;
-	flex-direction: column;
-	color: var(--vscode-descriptionForeground);
-	padding-top: 3px;
-	margin-left: -4px;
-	padding-left: 4px;
-	font-size: 14px;
-	/* The + codicon is large, make it look more like the x codicon */
-	height: calc(100% - 3px);
-	width: 17px;
-	outline-offset: -2px !important;
-}
-
-.interactive-session .chat-related-files .monaco-icon-label::before {
-	padding: 4px 3px 0 2px;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:first-child {
-	margin: 3px 0px 3px 3px;
-	flex-shrink: 0;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary.monaco-icon-label::before {
-	display: inline-flex;
-	align-items: center;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary:only-child {
-	width: 100%;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary.disabled {
-	cursor: initial;
-}
-
-.interactive-session .chat-editing-session .chat-related-files .monaco-button.secondary .codicon {
-	font-size: 12px;
-	margin-left: 4px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-actions .monaco-button.secondary.monaco-text-button.codicon {
@@ -1101,8 +1088,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-input-border, transparent);
 	background-color: var(--vscode-editor-background);
 	border-bottom: none;
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-large) var(--vscode-cornerRadius-large) 0 0;
 	flex-direction: column;
 	gap: 2px;
 	overflow: hidden;
@@ -1256,14 +1242,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-input-part > .chat-todo-list-widget-container .chat-todo-list-widget .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .interactive-session .interactive-input-part.compact .chat-input-container {
 	display: flex;
 	justify-content: space-between;
 	padding-bottom: 0;
-	border-radius: 2px;
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -1308,8 +1294,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 4px;
 }
 
+.interactive-session .chat-editor-container .monaco-editor .view-lines {
+	padding-left: 4px;
+}
+
 .interactive-session .chat-input-toolbars {
 	display: flex;
+	align-items: center;
+	gap: 6px;
 }
 
 .interactive-session .chat-input-toolbars :not(.responsive.chat-input-toolbar) .actions-container:first-child {
@@ -1329,9 +1321,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-input-toolbars > .chat-input-toolbar {
+	order: 0;
 	overflow: hidden;
 	min-width: 0px;
 	width: 100%;
+	color: var(--vscode-icon-foreground);
+
+	.monaco-action-bar .action-item .codicon {
+		color: var(--vscode-icon-foreground);
+	}
 
 	.chat-input-picker-item {
 		min-width: 0px;
@@ -1340,14 +1338,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.action-label {
 			min-width: 0px;
 			overflow: hidden;
+			position: relative;
 
 			.chat-input-picker-label {
 				overflow: hidden;
 				text-overflow: ellipsis;
 			}
 
-			.codicon-warning {
-				color: var(--vscode-problemsWarningIcon-foreground);
+			.model-picker-badge {
+				display: inline-flex;
+				align-items: center;
+				margin-left: 4px;
+				flex-shrink: 0;
+				font-size: 12px;
+
+				.codicon.codicon-info {
+					color: var(--vscode-problemsInfoIcon-foreground) !important;
+				}
+
+				.codicon.codicon-warning {
+					color: var(--vscode-problemsWarningIcon-foreground) !important;
+				}
 			}
 
 			span + .chat-input-picker-label {
@@ -1371,21 +1382,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-.interactive-session .chat-input-toolbars.scroll-top-decoration {
-	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
-}
-
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
 	padding: 3px 0px 3px 6px;
 	display: flex;
 	align-items: center;
+	color: var(--vscode-icon-foreground);
 }
 
-
-.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
+.monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
+.monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
 	font-size: 12px;
 	margin-left: 2px;
 }
@@ -1398,6 +1405,26 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
 	display: flex;
 	max-width: 100%;
+}
+
+.monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item .codicon,
+.monaco-workbench .interactive-session .chat-input-toolbars .action-label .codicon {
+	color: var(--vscode-icon-foreground) !important;
+}
+
+.monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item.disabled .codicon,
+.monaco-workbench .interactive-session .chat-input-toolbars .action-label.disabled .codicon {
+	color: var(--vscode-disabledForeground) !important;
+}
+
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a,
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:visited {
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:hover,
+.action-widget .monaco-list-row.chat-model-picker-unavailable .description a:active {
+	color: var(--vscode-textLink-activeForeground);
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
@@ -1582,7 +1609,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding: 8px 0 0 0
 }
 
-.action-item.chat-attachment-button .action-label,
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	display: flex;
 	overflow: hidden;
@@ -1595,38 +1621,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 }
 
-.action-item.chat-attachment-button .action-label {
-	padding: 0 4px;
-}
-
 .interactive-session .interactive-list .chat-attached-context .chat-attached-context-attachment {
 	font-family: var(--vscode-chat-font-family, inherit);
 	font-size: var(--vscode-chat-font-size-body-xs);
-}
-
-.action-item.chat-attachment-button > .action-label > .codicon {
-	font-size: 14px;
-	height: auto;
-}
-
-.interactive-session .action-item.chat-attachment-button .action-label:not(.has-label) {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	padding: 2px 4px 2px 4px;
-	height: fit-content;
-	gap: 0;
-	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 4px;
-	box-sizing: border-box;
-
-	.codicon {
-		width: 14px;
-	}
-}
-
-.action-item.chat-attachment-button .codicon {
-	font-size: 14px;
 }
 
 .action-item.chat-mcp {
@@ -1677,7 +1674,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: 11px;
 }
 
-.chat-related-files .monaco-button.codicon.codicon-add:hover,
 .action-item.chat-attached-context-attachment.chat-add-files:hover,
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
 	cursor: pointer;
@@ -1732,11 +1728,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 }
 
-.interactive-session .chat-attachment-toolbar .actions-container {
-	gap: 4px;
-	flex-wrap: wrap;
-}
-
 .interactive-session .interactive-input-part.compact .chat-attached-context {
 	padding-bottom: 0px;
 	display: flex;
@@ -1789,7 +1780,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
-	padding-right: 6px;
+	padding: 0 6px 0 4px;
 }
 
 .interactive-session-followups {
@@ -2076,6 +2067,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
+	line-height: 1.5em;
 }
 
 .interactive-response-progress-tree,
@@ -2096,6 +2088,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.monaco-icon-label {
 		padding: 0px 3px;
+		gap: 2px;
+
+		&::before {
+			width: var(--vscode-chat-font-size-body-s);
+			padding-right: 0;
+		}
 	}
 }
 
@@ -2132,7 +2130,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-used-context-label {
-	font-size: var(--vscode-chat-font-size-body-s);
+	font-size: 13px;
 	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
@@ -2156,7 +2154,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 	border: none;
 	border-radius: 4px;
-	gap: 4px;
+	gap: 0;
 	text-align: initial;
 	justify-content: initial;
 }
@@ -2172,17 +2170,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-used-context-label .monaco-button {
 	padding: 2px 6px 2px 2px;
-	font-size: var(--vscode-chat-font-size-body-m);
+	margin-left: -2px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	line-height: unset;
 }
 
 .interactive-session .chat-file-changes-label .monaco-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.interactive-session .chat-used-context:not(.chat-used-context-collapsed) .chat-used-context-label .monaco-button,
 .interactive-session .chat-used-context-label .monaco-button:hover {
-	background-color: var(--vscode-list-hoverBackground);
 	color: var(--vscode-foreground);
-
 }
 
 .interactive-session .chat-file-changes-label .monaco-text-button:focus,
@@ -2197,31 +2196,54 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-file-changes-label .monaco-button .codicon,
 .interactive-session .chat-used-context-label .monaco-button .codicon {
-	font-size: var(--vscode-chat-font-size-body-s);
+	font-size: 12px;
 	color: var(--vscode-icon-foreground) !important;
+}
+
+/* Hover chevron indicator for collapsible parts */
+.chat-collapsible-hover-chevron {
+	font-size: 12px;
+	opacity: 0;
+	transition: opacity 0.1s ease-in-out;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-collapsible-hover-chevron.codicon-chevron-down {
+	opacity: 1;
+}
+
+.interactive-session .chat-used-context-label .monaco-button:hover .chat-collapsible-hover-chevron {
+	opacity: 1;
 }
 
 .interactive-item-container .progress-container {
 	display: flex;
 	align-items: center;
-	gap: 7px;
-	margin: 0 0 6px 4px;
+	gap: 4px;
+	margin: 0 0 6px 0;
+	font-size: 13px;
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
 	The working progress also can be replaced by a tool progress part. So align this padding so the text doesn't appear to shift. */
 	padding-top: 2px;
 
 	> .codicon[class*='codicon-'] {
-		font-size: var(--vscode-chat-font-size-body-s);
+		font-size: 12px;
 
 		&::before {
-			font-size: var(--vscode-chat-font-size-body-s);
+			font-size: 12px;
 		}
+	}
+
+	> .codicon.codicon-check {
+		display: none;
 	}
 
 	.codicon {
 		/* Very aggressive list styles try to apply focus colors to every codicon in a list row. */
 		color: var(--vscode-icon-foreground) !important;
+		/* Matching the margin on all .monaco-text-button .codicon */
+		margin: 0 .2em;
 
 		&.codicon-error {
 			color: var(--vscode-editorError-foreground) !important;
@@ -2244,6 +2266,28 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		.chat-inline-anchor-widget {
 			display: inline;
 		}
+	}
+
+	/* hide spinner icon for shimmer progress, shimmer handles animation */
+	&.shimmer-progress > .codicon {
+		display: none;
+	}
+
+	/* shimmer animation for shimmer progress */
+	&.shimmer-progress .rendered-markdown.progress-step > p {
+		background: linear-gradient(
+			90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%
+		);
+		background-size: 400% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-thinking-shimmer 2s linear infinite;
 	}
 }
 
@@ -2332,6 +2376,130 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-top: 2px;
 }
 
+/* Element hover (DevTools-style) */
+.chat-element-hover {
+	max-width: 400px;
+	min-width: 250px;
+}
+
+.monaco-hover.workbench-hover.chat-element-data-hover .hover-contents.html-hover-contents {
+	padding: 0;
+}
+
+.monaco-hover.workbench-hover.chat-element-data-hover .chat-element-hover-scrollable {
+	width: 100%;
+}
+
+.chat-element-hover.chat-attached-context-hover {
+	padding: 6px 0 6px 6px;
+}
+
+.chat-element-hover-content {
+	max-height: 500px;
+	box-sizing: border-box;
+	padding-right: 10px;
+	padding-bottom: 15px;
+}
+
+.chat-element-hover .chat-element-hover-section {
+	padding: 4px 6px;
+}
+
+.chat-element-hover .chat-element-hover-section + .chat-element-hover-section {
+	border-top: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.2));
+}
+
+.chat-element-hover .chat-element-hover-header {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	color: var(--vscode-descriptionForeground);
+	letter-spacing: 0.5px;
+	margin-bottom: 4px;
+}
+
+.chat-element-hover .chat-element-hover-code {
+	margin: 0;
+	padding: 4px 6px;
+	background: var(--vscode-textCodeBlock-background);
+	border-radius: 3px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	line-height: 1.5;
+	white-space: pre;
+	overflow: hidden;
+	color: var(--vscode-editor-foreground);
+}
+
+.chat-element-hover .chat-element-hover-code code {
+	font-family: inherit;
+	font-size: inherit;
+	background: transparent;
+	padding: 0;
+	border-radius: 0;
+	display: block;
+}
+
+.chat-element-hover .chat-element-hover-table {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 2px 8px;
+}
+
+.chat-element-hover .chat-element-hover-row {
+	display: contents;
+}
+
+.chat-element-hover .chat-element-hover-label {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-debugTokenExpression-name);
+	white-space: nowrap;
+}
+
+.chat-element-hover .chat-element-hover-value {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-editor-foreground);
+	word-break: break-all;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.chat-element-hover .chat-element-hover-color-swatch {
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	border: 1px solid var(--vscode-editorWidget-border, rgba(127, 127, 127, 0.4));
+	border-radius: 2px;
+	flex-shrink: 0;
+}
+
+.chat-element-hover .chat-element-hover-text {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-editor-foreground);
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.chat-element-hover .chat-element-hover-show-more {
+	background: none;
+	border: none;
+	padding: 0;
+	margin-top: 6px;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	text-decoration: none;
+}
+
+.chat-element-hover .chat-element-hover-show-more:hover,
+.chat-element-hover .chat-element-hover-show-more:focus-visible {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 
 .chat-attached-context-attachment .chat-attached-context-pill {
 	font-size: 12px;
@@ -2343,18 +2511,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	user-select: none;
 	outline: none;
 	border: none;
+
+	.codicon.codicon-file-media, .codicon.codicon-warning {
+		font-size: 12px;
+		margin-right: 2px;
+	}
 }
 
 .chat-attached-context-attachment .attachment-additional-info {
 	opacity: 0.7;
 	font-size: .9em;
+	padding-left: 4px;
 }
 
 .chat-attached-context-attachment .chat-attached-context-pill-image {
-	width: 14px;
-	height: 14px;
+	width: 13px;
+	height: 13px;
 	border-radius: 2px;
 	object-fit: cover;
+	margin-right: 3px;
 }
 
 .chat-attached-context-attachment .chat-attached-context-custom-text {
@@ -2464,7 +2639,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.interactive-item-container.interactive-request .value .rendered-markdown {
 		background-color: var(--vscode-chat-requestBubbleBackground);
-		border-radius: 8px;
+		border-radius: var(--vscode-cornerRadius-xLarge);
 		padding: 8px 12px;
 		max-width: 90%;
 		margin-left: auto;
@@ -2540,7 +2715,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		top: -13px;
 		right: 20px;
 		border-radius: 3px;
-		width: 28px;
 		height: 26px;
 	}
 
@@ -2557,7 +2731,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover:not(.expanded) .actions-container {
-		width: 22px;
 		height: 22px;
 	}
 
@@ -2566,11 +2739,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.request-hover:not(.expanded) .actions-container {
-
-		.action-label.codicon-discard,
-		.action-label.codicon-x,
-		.action-label.codicon-edit {
-			margin-top: 4px;
+		.action-label {
+			margin: 4px 2px 0;
 			padding: 3px 3px;
 		}
 	}
@@ -2585,43 +2755,74 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: flex;
 		width: 100%;
 		position: relative;
+		align-items: center;
+		gap: 4px;
+		margin-top: 0;
+		margin-bottom: 8px;
 
-		.checkpoint-divider {
-			border-top: 1px dashed var(--vscode-chat-checkpointSeparator);
-			margin: 15px 0;
-			width: 100%;
-			height: 0;
+		.checkpoint-line-left,
+		.checkpoint-line-right {
+			flex: 1;
+			height: 1px;
+			background-color: var(--vscode-chat-requestBorder, var(--vscode-input-background));
 		}
 
-		.codicon-container {
+		.checkpoint-line-left {
+			mask-image: linear-gradient(to right, transparent, black);
+			-webkit-mask-image: linear-gradient(to right, transparent, black);
+		}
+
+		.checkpoint-line-right {
+			mask-image: linear-gradient(to left, transparent, black);
+			-webkit-mask-image: linear-gradient(to left, transparent, black);
+		}
+
+		.monaco-toolbar {
+			height: fit-content;
+			width: fit-content;
+			user-select: none;
+			flex-shrink: 0;
+			gap: 4px;
+		}
+
+		.monaco-toolbar .action-label {
+			font-size: 12px;
+			line-height: 18px;
 			color: var(--vscode-descriptionForeground);
-			padding-right: 4px;
+			border: 1px solid transparent;
+			background-color: transparent;
+			padding: 1px 5px;
+			margin-right: 5px;
+		}
+
+		.monaco-toolbar .action-label.codicon.codicon-repo-forked {
+			width: fit-content;
+			padding: 2px 5px;
+		}
+
+		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.action-label.codicon.codicon-repo-forked) {
 			display: flex;
 			align-items: center;
 			gap: 4px;
 		}
 
-		.codicon-container .codicon {
-			font-size: 14px;
-			color: var(--vscode-chat-checkpointSeparator);
+		.monaco-toolbar .actions-container > .action-item:not(:first-child):has(.action-label.codicon.codicon-repo-forked)::before {
+			content: '\00B7';
+			font-size: 12px;
+			line-height: 18px;
+			color: var(--vscode-descriptionForeground);
 		}
 
-		.monaco-toolbar {
-			opacity: 0;
-			height: fit-content;
-			width: fit-content;
-			user-select: none;
-			position: absolute;
-			top: 4px;
-			margin-left: 25px;
-			background: var(--vscode-sideBar-background);
-		}
-
-		.monaco-toolbar .action-label {
-			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background));
-			padding: 1px 5px;
+		.monaco-toolbar .action-label:hover {
+			color: var(--vscode-foreground);
+			border-color: var(--vscode-chat-requestBorder, var(--vscode-input-background));
 			background-color: var(--vscode-sideBar-background);
 		}
+	}
+
+	.checkpoint-container {
+		opacity: 0;
+		transition: opacity 0.1s ease-in-out;
 	}
 
 	.checkpoint-restore-container {
@@ -2629,21 +2830,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.checkpoint-label-text {
 			font-size: 12px;
+			line-height: 18px;
 			color: var(--vscode-descriptionForeground);
-			background-color: var(--vscode-sideBar-background);
-			padding: 4px;
 			display: flex;
 			align-items: center;
-			gap: 4px;
-			position: absolute;
-			margin-left: 71px;
-			margin-top: 2px;
+			flex-shrink: 0;
+			padding: 1px 5px;
+			border: 1px solid transparent;
+		}
+
+		.checkpoint-dot-separator {
+			font-size: 12px;
+			line-height: 18px;
+			color: var(--vscode-descriptionForeground);
+			flex-shrink: 0;
 		}
 	}
 
-	.checkpoint-container .monaco-toolbar:focus-within,
-	.checkpoint-restore-container .monaco-toolbar,
-	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container .monaco-toolbar {
+	.checkpoint-container:focus-within,
+	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
 		opacity: 1;
 	}
 
@@ -2682,6 +2887,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		.request-hover:not(.has-no-actions) {
 			display: block;
+		}
+
+		.checkpoint-container {
+			opacity: 1;
 		}
 	}
 
@@ -2856,5 +3065,76 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-attachments-show-more-button .chat-attached-context-custom-text {
 	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Pending request styles */
+.interactive-item-container.pending-request {
+	opacity: 0.7;
+
+	.request-hover {
+		top: -17px !important;
+	}
+}
+
+/* Drag handle for reordering pending messages */
+.interactive-item-container .chat-pending-drag-handle {
+	position: absolute;
+	left: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	width: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: grab;
+	opacity: 0;
+	transition: opacity 0.15s;
+	color: var(--vscode-descriptionForeground);
+	margin-top: -4px; /* visually center with overlaid top controls */
+}
+
+.interactive-item-container.pending-request:hover .chat-pending-drag-handle {
+	opacity: 1;
+}
+
+/* Dragging state */
+.interactive-item-container.chat-pending-dragging {
+	opacity: 0.4;
+}
+
+/* Insertion indicator */
+.chat-pending-insert-indicator {
+	position: absolute;
+	height: 2px;
+	background: var(--vscode-focusBorder);
+	pointer-events: none;
+	z-index: 100;
+	display: none;
+}
+
+.interactive-item-container .chat-request-status {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-xs);
+	margin-top: 2px;
+	text-align: right;
+}
+
+/* Pending divider styles */
+.interactive-item-container.pending-divider {
+	padding: 8px 16px;
+}
+
+.interactive-item-container.pending-divider .pending-divider-content {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.interactive-item-container.pending-divider .pending-divider-label {
+	font-size: var(--vscode-chat-font-size-body-xs);
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
 	color: var(--vscode-descriptionForeground);
 }

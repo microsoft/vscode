@@ -1,0 +1,179 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+
+/* Gutter menu overlay widget */
+.inline-chat-gutter-menu {
+	background: var(--vscode-panel-background);
+	border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border));
+	border-radius: 8px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	z-index: 100;
+}
+
+.inline-chat-gutter-menu .input {
+	padding: 0 3px;
+}
+
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item {
+	display: flex;
+	justify-content: space-between;
+	border-radius: 3px;
+	margin: 0 4px;
+}
+
+.inline-chat-gutter-menu .inline-chat-gutter-actions {
+	padding-bottom: 2px;
+}
+
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item .action-label {
+	font-size: 13px;
+	width: 100%;
+}
+
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):hover,
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):focus-within {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
+	outline-offset: -1px;
+}
+
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):hover .action-label,
+.inline-chat-gutter-menu .monaco-action-bar.vertical .action-item:not(.disabled):focus-within .action-label {
+	color: var(--vscode-list-activeSelectionForeground);
+	outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
+	outline-offset: -1px;
+}
+
+
+.inline-chat-gutter-menu.clamped {
+	transition: top 100ms;
+}
+
+.inline-chat-gutter-menu .inline-chat-gutter-container {
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	margin: 6px 4px 4px 4px;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.inline-chat-gutter-menu .inline-chat-gutter-container.focused {
+	border-color: var(--vscode-focusBorder);
+}
+
+.inline-chat-gutter-menu .inline-chat-gutter-container > .input {
+	flex: 1;
+	min-width: 0;
+}
+
+.inline-chat-gutter-menu .inline-chat-gutter-container > .input .monaco-editor-background {
+	background-color: var(--vscode-input-background);
+}
+
+.inline-chat-gutter-menu .inline-chat-gutter-container > .toolbar {
+	display: flex;
+	align-items: center;
+	align-self: stretch;
+	padding: 0 4px;
+}
+
+.inline-chat-gutter-menu .inline-chat-gutter-container > .toolbar.fake-scroll-decoration {
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+}
+
+.inline-chat-gutter-menu .inline-chat-gutter-container > .toolbar .monaco-action-bar .actions-container {
+	gap: 2px;
+}
+
+.inline-chat-session-overlay-widget {
+	z-index: 1;
+	transition: top 100ms;
+}
+
+.inline-chat-session-overlay-container {
+	padding: 2px 4px;
+	color: var(--vscode-foreground);
+	background-color: var(--vscode-editorWidget-background);
+	border-radius: 6px;
+	border: 1px solid var(--vscode-contrastBorder);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 4px;
+	z-index: 10;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	overflow: hidden;
+}
+
+.inline-chat-session-overlay-container .status {
+	align-items: center;
+	display: inline-flex;
+	padding: 5px 0 5px 5px;
+	font-size: 12px;
+	overflow: hidden;
+	gap: 6px;
+}
+
+.inline-chat-session-overlay-container .status .message {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.inline-chat-session-overlay-container .status .message:not(:empty) {
+	padding-right: 2em;
+}
+
+.inline-chat-session-overlay-container .status .codicon {
+	color: var(--vscode-foreground);
+}
+
+.inline-chat-session-overlay-container .action-item > .action-label {
+	padding: 4px 6px;
+	font-size: 11px;
+	line-height: 14px;
+	border-radius: 4px;
+}
+
+.inline-chat-session-overlay-container .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+.inline-chat-session-overlay-container .action-item.primary > .action-label {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.monaco-workbench .inline-chat-session-overlay-container .monaco-action-bar .action-item.primary > .action-label:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.inline-chat-session-overlay-container .action-item > .action-label.codicon:not(.separator) {
+	color: var(--vscode-foreground);
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	font-size: 16px;
+	line-height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.inline-chat-session-overlay-container .monaco-action-bar .action-item.disabled {
+
+	> .action-label.codicon::before,
+	> .action-label.codicon,
+	> .action-label,
+	> .action-label:hover {
+		color: var(--vscode-button-separator);
+		opacity: 1;
+	}
+}

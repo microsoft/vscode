@@ -20,11 +20,14 @@ import {
 	IBrowserViewDevToolsStateEvent,
 	IBrowserViewService,
 	BrowserViewStorageScope,
-	IBrowserViewCaptureScreenshotOptions
+	IBrowserViewCaptureScreenshotOptions,
+	IBrowserViewFindInPageOptions,
+	IBrowserViewFindInPageResult,
+	IBrowserViewVisibilityEvent
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { isLocalhost } from '../../../../platform/tunnel/common/tunnel.js';
+import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
@@ -80,6 +83,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly screenshot: VSBuffer | undefined;
 	readonly loading: boolean;
 	readonly focused: boolean;
+	readonly visible: boolean;
 	readonly canGoBack: boolean;
 	readonly isDevToolsOpen: boolean;
 	readonly canGoForward: boolean;
@@ -95,6 +99,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent>;
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent>;
 	readonly onDidRequestNewPage: Event<IBrowserViewNewPageRequest>;
+	readonly onDidFindInPage: Event<IBrowserViewFindInPageResult>;
+	readonly onDidChangeVisibility: Event<IBrowserViewVisibilityEvent>;
 	readonly onDidClose: Event<void>;
 	readonly onWillDispose: Event<void>;
 
@@ -110,6 +116,10 @@ export interface IBrowserViewModel extends IDisposable {
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
 	dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
 	focus(): Promise<void>;
+	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
+	stopFindInPage(keepSelection?: boolean): Promise<void>;
+	getSelectedText(): Promise<string>;
+	clearStorage(): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -119,6 +129,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _screenshot: VSBuffer | undefined = undefined;
 	private _loading: boolean = false;
 	private _focused: boolean = false;
+	private _visible: boolean = false;
 	private _isDevToolsOpen: boolean = false;
 	private _canGoBack: boolean = false;
 	private _canGoForward: boolean = false;
@@ -144,6 +155,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get favicon(): string | undefined { return this._favicon; }
 	get loading(): boolean { return this._loading; }
 	get focused(): boolean { return this._focused; }
+	get visible(): boolean { return this._visible; }
 	get isDevToolsOpen(): boolean { return this._isDevToolsOpen; }
 	get canGoBack(): boolean { return this._canGoBack; }
 	get canGoForward(): boolean { return this._canGoForward; }
@@ -183,6 +195,14 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.onDynamicDidRequestNewPage(this.id);
 	}
 
+	get onDidFindInPage(): Event<IBrowserViewFindInPageResult> {
+		return this.browserViewService.onDynamicDidFindInPage(this.id);
+	}
+
+	get onDidChangeVisibility(): Event<IBrowserViewVisibilityEvent> {
+		return this.browserViewService.onDynamicDidChangeVisibility(this.id);
+	}
+
 	get onDidClose(): Event<void> {
 		return this.browserViewService.onDynamicDidClose(this.id);
 	}
@@ -211,6 +231,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._title = state.title;
 		this._loading = state.loading;
 		this._focused = state.focused;
+		this._visible = state.visible;
 		this._isDevToolsOpen = state.isDevToolsOpen;
 		this._canGoBack = state.canGoBack;
 		this._canGoForward = state.canGoForward;
@@ -252,6 +273,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._register(this.onDidChangeFocus(({ focused }) => {
 			this._focused = focused;
 		}));
+
+		this._register(this.onDidChangeVisibility(({ visible }) => {
+			this._visible = visible;
+		}));
 	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
@@ -259,6 +284,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async setVisible(visible: boolean): Promise<void> {
+		this._visible = visible; // Set optimistically so model is in sync immediately
 		return this.browserViewService.setVisible(this.id, visible);
 	}
 
@@ -303,13 +329,29 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.focus(this.id);
 	}
 
+	async findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void> {
+		return this.browserViewService.findInPage(this.id, text, options);
+	}
+
+	async stopFindInPage(keepSelection?: boolean): Promise<void> {
+		return this.browserViewService.stopFindInPage(this.id, keepSelection);
+	}
+
+	async getSelectedText(): Promise<string> {
+		return this.browserViewService.getSelectedText(this.id);
+	}
+
+	async clearStorage(): Promise<void> {
+		return this.browserViewService.clearStorage(this.id);
+	}
+
 	/**
 	 * Log navigation telemetry event
 	 */
 	private logNavigationTelemetry(navigationType: IntegratedBrowserNavigationEvent['navigationType'], url: string): void {
 		let localhost: boolean;
 		try {
-			localhost = isLocalhost(new URL(url).hostname);
+			localhost = isLocalhostAuthority(new URL(url).host);
 		} catch {
 			localhost = false;
 		}

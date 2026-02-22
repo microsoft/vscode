@@ -1,0 +1,103 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Container - button style hover */
+.command-center .agent-sessions-titlebar-container {
+	display: flex;
+	width: 38vw;
+	max-width: 600px;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: center;
+	padding: 0 10px;
+	height: 22px;
+	border-radius: 4px;
+	cursor: pointer;
+	-webkit-app-region: no-drag;
+	overflow: hidden;
+	color: var(--vscode-commandCenter-foreground);
+	gap: 6px;
+}
+
+.command-center .agent-sessions-titlebar-container:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.command-center .agent-sessions-titlebar-container:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Center group: icon + label + folder + changes */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-center {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	overflow: hidden;
+	justify-content: center;
+}
+
+/* Kind icon */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	font-size: 14px;
+}
+
+/* Label (title) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Repository/folder label */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+/* Dot separator */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
+	opacity: 0.5;
+	flex-shrink: 0;
+}
+
+/* Changes container */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes {
+	display: flex;
+	align-items: center;
+	gap: 3px;
+	cursor: pointer;
+	padding: 0 4px;
+	border-radius: 3px;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Changes icon */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	font-size: 14px;
+}
+
+/* Insertions */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+/* Deletions */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-removed {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}

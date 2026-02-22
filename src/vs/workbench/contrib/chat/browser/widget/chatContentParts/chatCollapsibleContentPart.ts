@@ -32,6 +32,8 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected _collapseButton: ButtonWithIcon | undefined;
 
 	private readonly _overrideIcon = observableValue<ThemeIcon | undefined>(this, undefined);
+	private _contentElement?: HTMLElement;
+	private _contentInitialized = false;
 
 	public get icon(): ThemeIcon | undefined {
 		return this._overrideIcon.get();
@@ -47,7 +49,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		private title: IMarkdownString | string,
 		context: IChatContentPartRenderContext,
 		private readonly hoverMessage: IMarkdownString | undefined,
-		@IHoverService private readonly hoverService: IHoverService,
+		@IHoverService protected readonly hoverService: IHoverService,
 	) {
 		super();
 		this.element = context.element;
@@ -79,6 +81,10 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 
+		// Add hover chevron indicator on the right (decorative, hide from screen readers)
+		const hoverChevron = $('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right', { 'aria-hidden': 'true' });
+		collapseButton.element.appendChild(hoverChevron);
+
 		if (this.hoverMessage) {
 			this._register(this.hoverService.setupDelayedHover(collapseButton.iconElement, {
 				content: this.hoverMessage,
@@ -91,19 +97,45 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			this._isExpanded.set(!value, undefined);
 		}));
 
+		// Initialize the expanded state based on the subclass's isExpanded() method
+		this._isExpanded.set(this.isExpanded(), undefined);
+
 		this._register(autorun(r => {
 			const expanded = this._isExpanded.read(r);
-			collapseButton.icon = this._overrideIcon.read(r) ?? (expanded ? Codicon.chevronDown : Codicon.chevronRight);
+			const overrideIcon = this._overrideIcon.read(r);
+			const isErrorIcon = overrideIcon?.id === Codicon.error.id || overrideIcon?.id === Codicon.warning.id;
+
+			if (isErrorIcon && overrideIcon) {
+				collapseButton.icon = overrideIcon;
+				collapseButton.iconElement.style.display = '';
+			} else {
+				collapseButton.icon = Codicon.blank;
+				collapseButton.iconElement.style.display = 'none';
+			}
+
+			// Update hover chevron direction
+			hoverChevron.classList.toggle('codicon-chevron-right', !expanded);
+			hoverChevron.classList.toggle('codicon-chevron-down', expanded);
+
 			this._domNode?.classList.toggle('chat-used-context-collapsed', !expanded);
 			this.updateAriaLabel(collapseButton.element, typeof referencesLabel === 'string' ? referencesLabel : referencesLabel.value, expanded);
+
+			// Lazy initialization: render content only when expanded for the first time
+			if ((expanded || this.shouldInitEarly()) && !this._contentInitialized) {
+				this._contentInitialized = true;
+				this._contentElement = this.initContent();
+				this._domNode?.appendChild(this._contentElement);
+			}
 		}));
 
-		const content = this.initContent();
-		this._domNode.appendChild(content);
 		return this._domNode;
 	}
 
 	protected abstract initContent(): HTMLElement;
+
+	protected shouldInitEarly(): boolean {
+		return false;
+	}
 
 	abstract hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean;
 

@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as Proto from '../tsServer/protocol/protocol';
+import { readUnifiedConfig } from '../utils/configuration';
 import * as objects from '../utils/objects';
 
 export enum TsServerLogLevel {
@@ -133,7 +134,6 @@ export interface TypeScriptServiceConfiguration {
 	readonly localNodePath: string | null;
 	readonly globalNodePath: string | null;
 	readonly workspaceSymbolsExcludeLibrarySymbols: boolean;
-	readonly enableRegionDiagnostics: boolean;
 }
 
 export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration, b: TypeScriptServiceConfiguration): boolean {
@@ -176,7 +176,6 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			localNodePath: this.readLocalNodePath(configuration),
 			globalNodePath: this.readGlobalNodePath(configuration),
 			workspaceSymbolsExcludeLibrarySymbols: this.readWorkspaceSymbolsExcludeLibrarySymbols(configuration),
-			enableRegionDiagnostics: this.readEnableRegionDiagnostics(configuration),
 		};
 	}
 
@@ -270,8 +269,8 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return { ...(watchOptions ?? {}) };
 	}
 
-	protected readIncludePackageJsonAutoImports(configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
-		return configuration.get<'auto' | 'on' | 'off'>('typescript.preferences.includePackageJsonAutoImports');
+	protected readIncludePackageJsonAutoImports(_configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
+		return readUnifiedConfig<'auto' | 'on' | 'off' | undefined>('preferences.includePackageJsonAutoImports', undefined, { fallbackSection: 'typescript' });
 	}
 
 	protected readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
@@ -292,8 +291,8 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
 	}
 
-	private readWorkspaceSymbolsExcludeLibrarySymbols(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.workspaceSymbols.excludeLibrarySymbols', true);
+	private readWorkspaceSymbolsExcludeLibrarySymbols(_configuration: vscode.WorkspaceConfiguration): boolean {
+		return readUnifiedConfig<boolean>('workspaceSymbols.excludeLibrarySymbols', true, { scope: null, fallbackSection: 'typescript' });
 	}
 
 	private readWebProjectWideIntellisenseEnable(configuration: vscode.WorkspaceConfiguration): boolean {
@@ -306,9 +305,5 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 
 	private readWebTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', true);
-	}
-
-	private readEnableRegionDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.enableRegionDiagnostics', true);
 	}
 }

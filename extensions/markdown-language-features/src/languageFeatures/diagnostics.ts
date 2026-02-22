@@ -51,8 +51,7 @@ class AddToIgnoreLinksQuickFixProvider implements vscode.CodeActionProvider {
 				case DiagnosticCode.link_noSuchHeaderInOwnFile:
 				case DiagnosticCode.link_noSuchFile:
 				case DiagnosticCode.link_noSuchHeaderInFile: {
-					// eslint-disable-next-line local/code-no-any-casts
-					const hrefText = (diagnostic as any).data?.hrefText;
+					const hrefText = (diagnostic as unknown as Record<string, any>).data?.hrefText;
 					if (hrefText) {
 						const fix = new vscode.CodeAction(
 							vscode.l10n.t("Exclude '{0}' from link validation.", hrefText),

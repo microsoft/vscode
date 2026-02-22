@@ -11,6 +11,7 @@ import { dirs } from './dirs.ts';
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const root = path.dirname(path.dirname(import.meta.dirname));
+const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
 
 function log(dir: string, message: string) {
 	if (process.stdout.isTTY) {
@@ -125,6 +126,36 @@ function removeParcelWatcherPrebuild(dir: string) {
 	}
 }
 
+function getNpmrcConfigKeys(npmrcPath: string): string[] {
+	if (!fs.existsSync(npmrcPath)) {
+		return [];
+	}
+	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
+	const keys: string[] = [];
+	for (const line of lines) {
+		const trimmedLine = line.trim();
+		if (trimmedLine && !trimmedLine.startsWith('#')) {
+			const eqIndex = trimmedLine.indexOf('=');
+			if (eqIndex > 0) {
+				keys.push(trimmedLine.substring(0, eqIndex).trim());
+			}
+		}
+	}
+	return keys;
+}
+
+function clearInheritedNpmrcConfig(dir: string, env: NodeJS.ProcessEnv): void {
+	const dirNpmrcPath = path.join(root, dir, '.npmrc');
+	if (fs.existsSync(dirNpmrcPath)) {
+		return;
+	}
+
+	for (const key of rootNpmrcConfigKeys) {
+		const envKey = `npm_config_${key.replace(/-/g, '_')}`;
+		delete env[envKey];
+	}
+}
+
 for (const dir of dirs) {
 
 	if (dir === '') {
@@ -179,7 +210,10 @@ for (const dir of dirs) {
 		continue;
 	}
 
-	npmInstall(dir, opts);
+	// For directories that don't define their own .npmrc, clear inherited config
+	const env = { ...process.env };
+	clearInheritedNpmrcConfig(dir, env);
+	npmInstall(dir, { env });
 }
 
 child_process.execSync('git config pull.rebase merges');

@@ -32,6 +32,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { IEditorService } from '../../editor/common/editorService.js';
 import { EditorOpenSource } from '../../../../platform/editor/common/editor.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -54,7 +55,8 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@ICommandService protected readonly commandService: ICommandService,
 		@IEditorService protected readonly editorService: IEditorService,
 		@ICodeEditorService protected readonly codeEditorService: ICodeEditorService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) { }
 
 	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow(), authorityFilter = this.getAuthorityFilterForWindow()): Promise<URI> {
@@ -62,15 +64,26 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// Check for last active file first...
 		let candidate = this.historyService.getLastActiveFile(schemeFilter, authorityFilter);
 
+		// Skip user data files (e.g. Machine/settings.json) as default path candidates
+		if (candidate && await this.isRemoteUserData(candidate)) {
+			this.logService.debug(`[FileDialogService] Skipping last active file as it is a remote user data resource: ${candidate}`);
+			candidate = undefined;
+		}
+
 		// ...then for last active file root
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter, authorityFilter);
+			if (candidate) {
+				this.logService.debug(`[FileDialogService] Default file path using last active workspace root: ${candidate}`);
+			}
 		} else {
+			this.logService.debug(`[FileDialogService] Default file path using parent of last active file: ${candidate}`);
 			candidate = resources.dirname(candidate);
 		}
 
 		if (!candidate) {
 			candidate = await this.preferredHome(schemeFilter);
+			this.logService.debug(`[FileDialogService] Default file path using preferred home: ${candidate}`);
 		}
 
 		return candidate;
@@ -84,10 +97,24 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// ...then for last active file
 		if (!candidate) {
 			candidate = this.historyService.getLastActiveFile(schemeFilter, authorityFilter);
+
+			// Skip user data files (e.g. Machine/settings.json) as default path candidates
+			if (candidate && await this.isRemoteUserData(candidate)) {
+				this.logService.debug(`[FileDialogService] Skipping last active file as it is a remote user data resource: ${candidate}`);
+				candidate = undefined;
+			}
+
+			if (candidate) {
+				this.logService.debug(`[FileDialogService] Default folder path using parent of last active file: ${candidate}`);
+			}
+		} else {
+			this.logService.debug(`[FileDialogService] Default folder path using last active workspace root: ${candidate}`);
 		}
 
 		if (!candidate) {
-			return this.preferredHome(schemeFilter);
+			const preferredHome = await this.preferredHome(schemeFilter);
+			this.logService.debug(`[FileDialogService] Default folder path using preferred home: ${preferredHome}`);
+			return preferredHome;
 		}
 
 		return resources.dirname(candidate);
@@ -97,18 +124,25 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		const preferLocal = schemeFilter === Schemas.file;
 		const preferredHomeConfig = this.configurationService.inspect<string>('files.dialog.defaultPath');
 		const preferredHomeCandidate = preferLocal ? preferredHomeConfig.userLocalValue : preferredHomeConfig.userRemoteValue;
+		this.logService.debug(`[FileDialogService] Preferred home: preferLocal=${preferLocal}, userLocalValue=${preferredHomeConfig.userLocalValue}, userRemoteValue=${preferredHomeConfig.userRemoteValue}`);
 		if (preferredHomeCandidate) {
 			const isPreferredHomeCandidateAbsolute = preferLocal ? localPathIsAbsolute(preferredHomeCandidate) : (await this.pathService.path).isAbsolute(preferredHomeCandidate);
 			if (isPreferredHomeCandidateAbsolute) {
 				const preferredHomeNormalized = preferLocal ? localPathNormalize(preferredHomeCandidate) : (await this.pathService.path).normalize(preferredHomeCandidate);
 				const preferredHome = resources.toLocalResource(await this.pathService.fileURI(preferredHomeNormalized), this.environmentService.remoteAuthority, this.pathService.defaultUriScheme);
 				if (await this.fileService.exists(preferredHome)) {
+					this.logService.debug(`[FileDialogService] Preferred home using files.dialog.defaultPath setting: ${preferredHome}`);
 					return preferredHome;
 				}
+				this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath path does not exist: ${preferredHome}`);
+			} else {
+				this.logService.debug(`[FileDialogService] Preferred home files.dialog.defaultPath is not absolute: ${preferredHomeCandidate}`);
 			}
 		}
 
-		return this.pathService.userHome({ preferLocal });
+		const userHome = this.pathService.userHome({ preferLocal });
+		this.logService.debug(`[FileDialogService] Preferred home using user home: ${userHome}`);
+		return userHome;
 	}
 
 	async defaultWorkspacePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
@@ -297,6 +331,28 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
 		return this.getSimpleFileDialog().showSaveDialog(options);
+	}
+
+	/**
+	 * Checks whether the given resource is a remote user data file
+	 * that should not be used as a default file dialog path candidate.
+	 * This covers remote user data files such as settings.json, keybindings.json, etc.
+	 */
+	private async isRemoteUserData(resource: URI): Promise<boolean> {
+		if (!this.environmentService.remoteAuthority) {
+			return false;
+		}
+
+		const remoteEnv = await this.remoteAgentService.getEnvironment();
+		if (remoteEnv) {
+
+			const remoteDataHome = resources.dirname(resources.dirname(remoteEnv.settingsPath));
+			if (!resources.isEqual(remoteDataHome, remoteDataHome.with({ path: '/' })) && resources.isEqualOrParent(resource, remoteDataHome)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	private getSchemeFilterForWindow(defaultUriScheme?: string): string {

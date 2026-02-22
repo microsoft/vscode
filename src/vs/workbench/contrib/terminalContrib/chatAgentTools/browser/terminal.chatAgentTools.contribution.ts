@@ -21,7 +21,9 @@ import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenu
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { AwaitTerminalTool, AwaitTerminalToolData } from './tools/awaitTerminalTool.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
+import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
 import { GetTerminalSelectionTool, GetTerminalSelectionToolData } from './tools/getTerminalSelectionTool.js';
 import { ConfirmTerminalCommandTool, ConfirmTerminalCommandToolData } from './tools/runInTerminalConfirmationTool.js';
@@ -90,6 +92,14 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 		this._register(toolsService.executeToolSet.addTool(GetTerminalOutputToolData));
+
+		const awaitTerminalTool = instantiationService.createInstance(AwaitTerminalTool);
+		this._register(toolsService.registerTool(AwaitTerminalToolData, awaitTerminalTool));
+		this._register(toolsService.executeToolSet.addTool(AwaitTerminalToolData));
+
+		const killTerminalTool = instantiationService.createInstance(KillTerminalTool);
+		this._register(toolsService.registerTool(KillTerminalToolData, killTerminalTool));
+		this._register(toolsService.executeToolSet.addTool(KillTerminalToolData));
 
 		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
 			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);

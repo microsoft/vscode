@@ -64,13 +64,6 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		return { label: localize('continueInThirdParty', "Continue In (Third Party)"), order: 2, showHeader: false };
 	}
 
-	protected override _getSessionDescription(sessionTypeItem: ISessionTypeItem): string | undefined {
-		const allContributions = this.chatSessionsService.getAllChatSessionContributions();
-		const contribution = allContributions.find(contribution => getAgentSessionProvider(contribution.type) === sessionTypeItem.type);
-
-		return contribution?.name ? `@${contribution.name}` : undefined;
-	}
-
 	protected override _getLearnMore(): IAction {
 		const learnMoreUrl = 'https://aka.ms/vscode-continue-chat-in';
 		return {
@@ -91,7 +84,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 			class: undefined,
 			label: localize('chat.newChatSession', "New Chat Session"),
 			tooltip: '',
-			hover: { content: '' },
+			hover: { content: '', position: this.pickerOptions.hoverPosition },
 			checked: false,
 			icon: Codicon.plus,
 			enabled: true,

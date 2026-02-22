@@ -151,7 +151,7 @@ export class TerminalChatWidget extends Disposable {
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
 			this._inlineChatWidget.chatWidget.onDidChangeContentHeight,
-			this._inlineChatWidget.chatWidget.input.onDidChangeCurrentLanguageModel,
+			Event.fromObservableLight(this._inlineChatWidget.chatWidget.input.selectedLanguageModel),
 			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
 
@@ -329,7 +329,7 @@ export class TerminalChatWidget extends Disposable {
 	private async _createSession(): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
-				const modelRef = this._chatService.startSession(ChatAgentLocation.Terminal);
+				const modelRef = this._chatService.startNewLocalSession(ChatAgentLocation.Terminal);
 				this._model.value = modelRef;
 				const model = modelRef.object;
 				this._inlineChatWidget.setChatModel(model);

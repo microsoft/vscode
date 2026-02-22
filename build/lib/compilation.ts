@@ -25,6 +25,9 @@ import * as tsb from './tsb/index.ts';
 import sourcemaps from 'gulp-sourcemaps';
 
 
+import { extractExtensionPointNamesFromFile } from './extractExtensionPoints.ts';
+
+
 // --- gulp-tsb: compile and transpile --------------------------------
 
 const reporter = createReporter();
@@ -49,13 +52,17 @@ interface ICompileTaskOptions {
 	readonly emitError: boolean;
 	readonly transpileOnly: boolean | { esbuild: boolean };
 	readonly preserveEnglish: boolean;
+	readonly noEmit?: boolean;
 }
 
-export function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish }: ICompileTaskOptions) {
+export function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish, noEmit }: ICompileTaskOptions) {
 	const projectPath = path.join(import.meta.dirname, '../../', src, 'tsconfig.json');
 	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
 	if (!build) {
 		overrideOptions.inlineSourceMap = true;
+	}
+	if (noEmit) {
+		overrideOptions.noEmit = true;
 	}
 
 	const compilation = tsb.create(projectPath, overrideOptions, {
@@ -163,10 +170,10 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 	return task;
 }
 
-export function watchTask(out: string, build: boolean, srcPath: string = 'src'): task.StreamTask {
+export function watchTask(out: string, build: boolean, srcPath: string = 'src', options?: { noEmit?: boolean }): task.StreamTask {
 
 	const task = () => {
-		const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
+		const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false, noEmit: options?.noEmit });
 
 		const src = gulp.src(`${srcPath}/**`, { base: srcPath });
 		const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
@@ -347,6 +354,59 @@ export const compileApiProposalNamesTask = task.define('compile-api-proposal-nam
 		.pipe(apiProposalNamesReporter.end(true));
 });
 
+function generateExtensionPointNames() {
+	const collectedNames: string[] = [];
+
+	const input = es.through();
+	const output = input
+		.pipe(es.through(function (file: File) {
+			const contents = file.contents?.toString('utf-8');
+			if (contents && contents.includes('registerExtensionPoint')) {
+				const sourceFile = ts.createSourceFile(file.path, contents, ts.ScriptTarget.Latest, true);
+				collectedNames.push(...extractExtensionPointNamesFromFile(sourceFile));
+			}
+		}, function () {
+			collectedNames.sort();
+			const content = JSON.stringify(collectedNames, undefined, '\t') + '\n';
+			const filePath = 'vs/workbench/services/extensions/common/extensionPoints.json';
+			try {
+				const existing = fs.readFileSync(path.join('src', filePath), 'utf-8');
+				if (existing.replace(/\r\n/g, '\n') === content) {
+					this.emit('end');
+					return;
+				}
+			} catch {
+				// File doesn't exist yet, emit it
+			}
+			this.emit('data', new File({
+				path: filePath,
+				contents: Buffer.from(content)
+			}));
+			this.emit('end');
+		}));
+
+	return es.duplex(input, output);
+}
+
+const extensionPointNamesReporter = createReporter('extension-point-names');
+
+export const compileExtensionPointNamesTask = task.define('compile-extension-point-names', () => {
+	return gulp.src('src/vs/workbench/**/*.ts')
+		.pipe(generateExtensionPointNames())
+		.pipe(gulp.dest('src'))
+		.pipe(extensionPointNamesReporter.end(true));
+});
+
+export const watchExtensionPointNamesTask = task.define('watch-extension-point-names', () => {
+	const task = () => gulp.src('src/vs/workbench/**/*.ts')
+		.pipe(generateExtensionPointNames())
+		.pipe(extensionPointNamesReporter.end(true));
+
+	return watch('src/vs/workbench/**/*.ts', { readDelay: 200 })
+		.pipe(util.debounce(task))
+		.pipe(gulp.dest('src'));
+});
+
 export const watchApiProposalNamesTask = task.define('watch-api-proposal-names', () => {
 	const task = () => gulp.src('src/vscode-dts/**')
 		.pipe(generateApiProposalNames())
@@ -356,3 +416,34 @@ export const watchApiProposalNamesTask = task.define('watch-api-proposal-names',
 		.pipe(util.debounce(task))
 		.pipe(gulp.dest('src'));
 });
+
+// Codicons
+const root = path.dirname(path.dirname(import.meta.dirname));
+const codiconSource = path.join(root, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.ttf');
+const codiconDest = path.join(root, 'src', 'vs', 'base', 'browser', 'ui', 'codicons', 'codicon', 'codicon.ttf');
+
+function copyCodiconsImpl() {
+	try {
+		if (fs.existsSync(codiconSource)) {
+			fs.mkdirSync(path.dirname(codiconDest), { recursive: true });
+			fs.copyFileSync(codiconSource, codiconDest);
+		} else {
+			fancyLog(ansiColors.red('[codicons]'), `codicon.ttf not found in node_modules. Please run 'npm install' to install dependencies.`);
+		}
+	} catch (e) {
+		fancyLog(ansiColors.red('[codicons]'), `Error copying codicon.ttf: ${e}`);
+	}
+}
+
+export const copyCodiconsTask = task.define('copy-codicons', () => {
+	copyCodiconsImpl();
+	return Promise.resolve();
+});
+gulp.task(copyCodiconsTask);
+
+export const watchCodiconsTask = task.define('watch-codicons', () => {
+	copyCodiconsImpl();
+	return watch('node_modules/@vscode/codicons/dist/**', { readDelay: 200 })
+		.on('data', () => copyCodiconsImpl());
+});
+gulp.task(watchCodiconsTask);

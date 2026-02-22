@@ -16,7 +16,7 @@ import { MarkerSeverity, IMarker } from '../../../../../platform/markers/common/
 import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
-import { IToolData, ToolSet } from '../tools/languageModelToolsService.js';
+import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Mutable } from '../../../../../base/common/types.js';
 
@@ -71,10 +71,11 @@ export type ChatRequestToolReferenceEntry = IChatRequestToolEntry | IChatRequest
 
 export interface StringChatContextValue {
 	value?: string;
-	name: string;
+	name?: string;
 	modelDescription?: string;
-	icon: ThemeIcon;
+	icon?: ThemeIcon;
 	uri: URI;
+	resourceUri?: URI;
 	tooltip?: IMarkdownString;
 	/**
 	 * Command ID to execute when this context item is clicked.
@@ -96,8 +97,9 @@ export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariabl
 	readonly kind: 'string';
 	readonly value: string | undefined;
 	readonly modelDescription?: string;
-	readonly icon: ThemeIcon;
+	readonly icon?: ThemeIcon;
 	readonly uri: URI;
+	readonly resourceUri?: URI;
 	readonly tooltip?: IMarkdownString;
 	/**
 	 * Command ID to execute when this context item is clicked.
@@ -220,8 +222,19 @@ export interface IDiagnosticVariableEntry extends IBaseChatRequestVariableEntry,
 	readonly kind: 'diagnostic';
 }
 
+export interface IElementAncestorData {
+	readonly tagName: string;
+	readonly id?: string;
+	readonly classNames?: string[];
+}
+
 export interface IElementVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'element';
+	readonly ancestors?: IElementAncestorData[];
+	readonly attributes?: Record<string, string>;
+	readonly computedStyles?: Record<string, string>;
+	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
+	readonly innerText?: string;
 }
 
 export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry {
@@ -284,13 +297,24 @@ export interface IDebugVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly type?: string;
 }
 
+export interface IAgentFeedbackVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'agentFeedback';
+	readonly sessionResource: URI;
+	readonly feedbackItems: ReadonlyArray<{
+		readonly id: string;
+		readonly text: string;
+		readonly resourceUri: URI;
+		readonly range: IRange;
+	}>;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
-	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry;
+	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -359,6 +383,10 @@ export function isDebugVariableEntry(obj: IChatRequestVariableEntry): obj is IDe
 	return obj.kind === 'debugVariable';
 }
 
+export function isAgentFeedbackVariableEntry(obj: IChatRequestVariableEntry): obj is IAgentFeedbackVariableEntry {
+	return obj.kind === 'agentFeedback';
+}
+
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
 }
@@ -421,9 +449,12 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 		typeof asStringImplicitContextValue === 'object' &&
 		asStringImplicitContextValue !== null &&
 		(typeof asStringImplicitContextValue.value === 'string' || typeof asStringImplicitContextValue.value === 'undefined') &&
-		typeof asStringImplicitContextValue.name === 'string' &&
-		ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon) &&
-		URI.isUri(asStringImplicitContextValue.uri)
+		(typeof asStringImplicitContextValue.name === 'string' || typeof asStringImplicitContextValue.name === 'undefined') &&
+		(asStringImplicitContextValue.resourceUri === undefined || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
+		(typeof asStringImplicitContextValue.name === 'string' || URI.isUri(asStringImplicitContextValue.resourceUri)) &&
+		(asStringImplicitContextValue.icon === undefined || ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon)) &&
+		URI.isUri(asStringImplicitContextValue.uri) &&
+		typeof asStringImplicitContextValue.handle === 'number'
 	);
 }
 
@@ -491,7 +522,7 @@ export function toToolVariableEntry(entry: IToolData, range?: IOffsetRange): ICh
 	};
 }
 
-export function toToolSetVariableEntry(entry: ToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
+export function toToolSetVariableEntry(entry: IToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
 	return {
 		kind: 'toolset',
 		id: entry.id,

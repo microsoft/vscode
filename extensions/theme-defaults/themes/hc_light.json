@@ -122,7 +122,8 @@
 		{
 			"scope": "markup.italic",
 			"settings": {
-				"fontStyle": "italic"
+				"fontStyle": "italic",
+				"foreground": "#800080"
 			}
 		},
 		{

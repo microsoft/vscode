@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './inlineChatDefaultModel.js';
+
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { InlineChatController } from './inlineChatController.js';
@@ -82,10 +84,16 @@ const cancelActionMenuItem: IMenuItem = {
 
 MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, cancelActionMenuItem);
 
+
+
 // --- actions ---
 
 registerAction2(InlineChatActions.StartSessionAction);
+registerAction2(InlineChatActions.AskInChatAction);
 registerAction2(InlineChatActions.FocusInlineChat);
+registerAction2(InlineChatActions.SubmitInlineChatInputAction);
+registerAction2(InlineChatActions.QueueInChatAction);
+registerAction2(InlineChatActions.HideInlineChatInputAction);
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

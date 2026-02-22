@@ -1,0 +1,93 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar {
+	opacity: 0;
+	pointer-events: none;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar > .monaco-toolbar {
+	position: absolute;
+	top: -20px;
+	right: 10px;
+	height: 26px;
+	line-height: 26px;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: var(--vscode-cornerRadius-medium);
+	z-index: 100;
+	transition: opacity 0.1s ease-in-out;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget:hover .chat-tip-toolbar,
+.chat-getting-started-tip-container .chat-tip-widget:focus-within .chat-tip-toolbar {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item {
+	height: 24px;
+	width: 24px;
+	margin: 1px 2px;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item:first-of-type {
+	margin-left: 1px;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item:last-of-type {
+	margin-right: 1px;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label {
+	color: var(--vscode-descriptionForeground);
+	padding: 4px;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-toolbar .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.chat-getting-started-tip-container {
+	margin-bottom: -4px; /* Counter the flex gap */
+	width: 100%;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	width: 100%;
+	max-width: 100%;
+	box-sizing: border-box;
+	padding: 6px;
+	background-color: var(--vscode-editorWidget-background);
+	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 0;
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
+	border-bottom: none;
+	font-size: var(--vscode-chat-font-size-body-s);
+	font-family: var(--vscode-chat-font-family, inherit);
+	color: var(--vscode-descriptionForeground);
+	position: relative;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.chat-getting-started-tip-container .chat-tip-widget a:hover,
+.chat-getting-started-tip-container .chat-tip-widget a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .codicon-lightbulb {
+	font-size: 12px;
+	color: var(--vscode-notificationsWarningIcon-foreground);
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .rendered-markdown p {
+	margin: 0;
+}

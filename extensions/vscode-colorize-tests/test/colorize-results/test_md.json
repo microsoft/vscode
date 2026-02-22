@@ -1809,42 +1809,42 @@
 		"c": "_",
 		"t": "text.html.markdown meta.paragraph.markdown markup.italic.markdown punctuation.definition.italic.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "markup.italic: #C586C0",
+			"light_plus": "markup.italic: #800080",
+			"dark_vs": "markup.italic: #C586C0",
+			"light_vs": "markup.italic: #800080",
 			"hc_black": "default: #FFFFFF",
-			"dark_modern": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"dark_modern": "markup.italic: #C586C0",
+			"hc_light": "markup.italic: #800080",
+			"light_modern": "markup.italic: #800080"
 		}
 	},
 	{
 		"c": "italics",
 		"t": "text.html.markdown meta.paragraph.markdown markup.italic.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "markup.italic: #C586C0",
+			"light_plus": "markup.italic: #800080",
+			"dark_vs": "markup.italic: #C586C0",
+			"light_vs": "markup.italic: #800080",
 			"hc_black": "default: #FFFFFF",
-			"dark_modern": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"dark_modern": "markup.italic: #C586C0",
+			"hc_light": "markup.italic: #800080",
+			"light_modern": "markup.italic: #800080"
 		}
 	},
 	{
 		"c": "_",
 		"t": "text.html.markdown meta.paragraph.markdown markup.italic.markdown punctuation.definition.italic.markdown",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
+			"dark_plus": "markup.italic: #C586C0",
+			"light_plus": "markup.italic: #800080",
+			"dark_vs": "markup.italic: #C586C0",
+			"light_vs": "markup.italic: #800080",
 			"hc_black": "default: #FFFFFF",
-			"dark_modern": "default: #CCCCCC",
-			"hc_light": "default: #292929",
-			"light_modern": "default: #3B3B3B"
+			"dark_modern": "markup.italic: #C586C0",
+			"hc_light": "markup.italic: #800080",
+			"light_modern": "markup.italic: #800080"
 		}
 	},
 	{

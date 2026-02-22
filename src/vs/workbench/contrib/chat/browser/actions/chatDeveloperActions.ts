@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { isUriComponents, URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
@@ -11,12 +12,27 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatWidgetService } from '../chat.js';
+
+function uriReplacer(_key: string, value: unknown): unknown {
+	if (URI.isUri(value)) {
+		return value.toString();
+	}
+
+	if (isUriComponents(value)) {
+		// This shouldn't be necessary but it seems that some URIs in ChatModels aren't properly revived
+		return URI.from(value).toString();
+	}
+
+	return value;
+}
 
 export function registerChatDeveloperActions() {
 	registerAction2(LogChatInputHistoryAction);
 	registerAction2(LogChatIndexAction);
 	registerAction2(InspectChatModelAction);
+	registerAction2(ClearRecentlyUsedLanguageModelsAction);
 }
 
 class LogChatInputHistoryAction extends Action2 {
@@ -94,13 +110,13 @@ class InspectChatModelAction extends Action2 {
 			const latestRequest = requests[requests.length - 1];
 			if (latestRequest.response) {
 				output += '## Latest Response\n\n';
-				output += '```json\n' + JSON.stringify(latestRequest.response, null, 2) + '\n```\n\n';
+				output += '```json\n' + JSON.stringify(latestRequest.response, uriReplacer, 2) + '\n```\n\n';
 			}
 		}
 
 		// Show full model data
 		output += '## Full Chat Model\n\n';
-		output += '```json\n' + JSON.stringify(modelData, null, 2) + '\n```\n';
+		output += '```json\n' + JSON.stringify(modelData, uriReplacer, 2) + '\n```\n';
 
 		await editorService.openEditor({
 			resource: undefined,
@@ -110,5 +126,23 @@ class InspectChatModelAction extends Action2 {
 				pinned: true
 			}
 		});
+	}
+}
+
+class ClearRecentlyUsedLanguageModelsAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.clearRecentlyUsedLanguageModels';
+
+	constructor() {
+		super({
+			id: ClearRecentlyUsedLanguageModelsAction.ID,
+			title: localize2('workbench.action.chat.clearRecentlyUsedLanguageModels.label', "Clear Recently Used Language Models"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(ILanguageModelsService).clearRecentlyUsedList();
 	}
 }
