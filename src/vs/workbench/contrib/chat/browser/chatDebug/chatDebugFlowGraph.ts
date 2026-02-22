@@ -12,6 +12,7 @@ export interface FlowNode {
 	readonly kind: IChatDebugEvent['kind'];
 	readonly label: string;
 	readonly sublabel?: string;
+	readonly description?: string;
 	readonly tooltip?: string;
 	readonly isError?: boolean;
 	readonly created: number;
@@ -62,14 +63,65 @@ export interface FlowLayout {
 	readonly height: number;
 }
 
+export interface FlowChartRenderResult {
+	readonly svg: SVGElement;
+	/** Map from node/subgraph ID to its focusable SVG element. */
+	readonly focusableElements: Map<string, SVGElement>;
+}
+
 // ---- Build flow graph from debug events ----
 
+/**
+ * Truncates a string to a max length, appending an ellipsis if trimmed.
+ */
+function truncateLabel(text: string, maxLength: number): string {
+	if (text.length <= maxLength) {
+		return text;
+	}
+	return text.substring(0, maxLength - 1) + '\u2026';
+}
+
 export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
+	// Before filtering, extract description metadata from subagent events
+	// that will be filtered out, so we can enrich the surviving sibling events.
+	const subagentToolNames = new Set(['runSubagent', 'search_subagent']);
+
+	// The extension emits two subagentInvocation events per subagent:
+	// 1. "started" marker (agentName = descriptive name, status = running) — survives filtering
+	// 2. completion event (agentName = "runSubagent", status = completed) — filtered out
+	// The completion event carries the real description. When multiple subagents
+	// run under the same parent, they share a parentEventId, so we match them
+	// by order: the N-th started marker gets the N-th completion's description.
+	const completionDescsByParent = new Map<string, string[]>();
+	const startedCountByParent = new Map<string, number>();
+	for (const e of events) {
+		if (e.kind === 'subagentInvocation' && subagentToolNames.has(e.agentName) && e.description && e.parentEventId) {
+			let descs = completionDescsByParent.get(e.parentEventId);
+			if (!descs) {
+				descs = [];
+				completionDescsByParent.set(e.parentEventId, descs);
+			}
+			descs.push(e.description);
+		}
+	}
+
+	function getSubagentDescription(event: IChatDebugEvent): string | undefined {
+		if (event.kind !== 'subagentInvocation' || !event.parentEventId) {
+			return undefined;
+		}
+		const descs = completionDescsByParent.get(event.parentEventId);
+		if (!descs || descs.length === 0) {
+			return event.description && event.description !== event.agentName ? event.description : undefined;
+		}
+		const idx = startedCountByParent.get(event.parentEventId) ?? 0;
+		startedCountByParent.set(event.parentEventId, idx + 1);
+		return descs[idx] ?? descs[0];
+	}
+
 	// Filter out redundant events:
 	// - toolCall with subagent tool names: the subagentInvocation event has richer metadata
 	// - subagentInvocation with agentName matching a tool name: these are completion
 	//   duplicates of the "SubAgent started" marker which has the proper descriptive name
-	const subagentToolNames = new Set(['runSubagent', 'search_subagent']);
 	const filtered = events.filter(e => {
 		if (e.kind === 'toolCall' && subagentToolNames.has(e.toolName.replace(/^\u{1F6E0}\uFE0F?\s*/u, ''))) {
 			return false;
@@ -105,12 +157,32 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 
 	function toFlowNode(event: IChatDebugEvent): FlowNode {
 		const children = event.id ? idToChildren.get(event.id) : undefined;
+
+		// For subagent invocations, enrich with description from the
+		// filtered-out completion sibling, or fall back to the event's own field.
+		let sublabel = getEventSublabel(event);
+		let tooltip = getEventTooltip(event);
+		let description: string | undefined;
+		if (event.kind === 'subagentInvocation') {
+			description = getSubagentDescription(event);
+			if (description) {
+				sublabel = truncateLabel(description, 30) + (sublabel ? ` \u00b7 ${sublabel}` : '');
+				// Ensure description appears in tooltip if not already present
+				if (tooltip && !tooltip.includes(description)) {
+					const lines = tooltip.split('\n');
+					lines.splice(1, 0, description);
+					tooltip = lines.join('\n');
+				}
+			}
+		}
+
 		return {
 			id: event.id ?? `event-${events.indexOf(event)}`,
 			kind: event.kind,
 			label: getEventLabel(event),
-			sublabel: getEventSublabel(event),
-			tooltip: getEventTooltip(event),
+			sublabel,
+			description,
+			tooltip,
 			isError: isErrorEvent(event),
 			created: event.created.getTime(),
 			children: children?.map(toFlowNode) ?? [],
