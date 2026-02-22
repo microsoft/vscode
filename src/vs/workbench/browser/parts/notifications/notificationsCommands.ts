@@ -336,7 +336,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		group: 'navigation',
 		order: 10000,
 		when: ContextKeyExpr.and(
-			ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, 'top-right'),
+			ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_POSITION}`, NotificationsPosition.TOP_RIGHT),
 			ContextKeyExpr.equals(`config.${NotificationsSettings.NOTIFICATIONS_BUTTON}`, true)
 		)
 	});
