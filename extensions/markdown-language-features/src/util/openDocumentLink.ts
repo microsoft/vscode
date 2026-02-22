@@ -106,7 +106,12 @@ function getLocationFragmentFromLinkText(linkText: string): string | undefined {
 		return undefined;
 	}
 
-	const fragment = decodeURIComponent(linkText.slice(fragmentStart + 1));
+	let fragment: string;
+	try {
+		fragment = decodeURIComponent(linkText.slice(fragmentStart + 1));
+	} catch {
+		return undefined;
+	}
 	if (!fragment) {
 		return undefined;
 	}
