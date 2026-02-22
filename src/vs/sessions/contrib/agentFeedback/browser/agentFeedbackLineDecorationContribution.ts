@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { IModelDeltaDecoration, TrackedRangeStickiness } from '../../../../editor/common/model.js';
+import { TrackedRangeStickiness } from '../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -20,12 +20,6 @@ import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browse
 import { getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 
-const feedbackLineDecoration = ModelDecorationOptions.register({
-	description: 'agent-feedback-line-decoration',
-	linesDecorationsClassName: `${ThemeIcon.asClassName(Codicon.comment)} agent-feedback-line-decoration`,
-	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-});
-
 const addFeedbackHintDecoration = ModelDecorationOptions.register({
 	description: 'agent-feedback-add-hint',
 	linesDecorationsClassName: `${ThemeIcon.asClassName(Codicon.add)} agent-feedback-add-hint`,
@@ -35,8 +29,6 @@ const addFeedbackHintDecoration = ModelDecorationOptions.register({
 export class AgentFeedbackLineDecorationContribution extends Disposable implements IEditorContribution {
 
 	static readonly ID = 'agentFeedback.lineDecorationContribution';
-
-	private readonly _feedbackDecorations;
 
 	private _hintDecorationId: string | null = null;
 	private _hintLine = -1;
@@ -51,22 +43,20 @@ export class AgentFeedbackLineDecorationContribution extends Disposable implemen
 	) {
 		super();
 
-		this._feedbackDecorations = this._editor.createDecorationsCollection();
-
-		this._store.add(this._agentFeedbackService.onDidChangeFeedback(() => this._updateFeedbackDecorations()));
+		this._store.add(this._agentFeedbackService.onDidChangeFeedback(() => this._updateFeedbackLines()));
 		this._store.add(this._editor.onDidChangeModel(() => this._onModelChanged()));
 		this._store.add(this._editor.onMouseMove((e: IEditorMouseEvent) => this._onMouseMove(e)));
 		this._store.add(this._editor.onMouseLeave(() => this._updateHintDecoration(-1)));
 		this._store.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onMouseDown(e)));
 
 		this._resolveSession();
-		this._updateFeedbackDecorations();
+		this._updateFeedbackLines();
 	}
 
 	private _onModelChanged(): void {
 		this._updateHintDecoration(-1);
 		this._resolveSession();
-		this._updateFeedbackDecorations();
+		this._updateFeedbackLines();
 	}
 
 	private _resolveSession(): void {
@@ -78,15 +68,13 @@ export class AgentFeedbackLineDecorationContribution extends Disposable implemen
 		this._sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
 	}
 
-	private _updateFeedbackDecorations(): void {
+	private _updateFeedbackLines(): void {
 		if (!this._sessionResource) {
-			this._feedbackDecorations.clear();
 			this._feedbackLines.clear();
 			return;
 		}
 
 		const feedbackItems = this._agentFeedbackService.getFeedback(this._sessionResource);
-		const decorations: IModelDeltaDecoration[] = [];
 		const lines = new Set<number>();
 
 		for (const item of feedbackItems) {
@@ -95,16 +83,10 @@ export class AgentFeedbackLineDecorationContribution extends Disposable implemen
 				continue;
 			}
 
-			const line = item.range.startLineNumber;
-			lines.add(line);
-			decorations.push({
-				range: new Range(line, 1, line, 1),
-				options: feedbackLineDecoration,
-			});
+			lines.add(item.range.startLineNumber);
 		}
 
 		this._feedbackLines = lines;
-		this._feedbackDecorations.set(decorations);
 	}
 
 	private _onMouseMove(e: IEditorMouseEvent): void {
@@ -179,7 +161,6 @@ export class AgentFeedbackLineDecorationContribution extends Disposable implemen
 	}
 
 	override dispose(): void {
-		this._feedbackDecorations.clear();
 		this._updateHintDecoration(-1);
 		super.dispose();
 	}

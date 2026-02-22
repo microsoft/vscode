@@ -301,7 +301,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	private async showAgentSessionContextMenu(session: IAgentSession, anchor: HTMLElement | IMouseEvent): Promise<void> {
-		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
+		this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
 
 		const contextOverlay: Array<[string, boolean | string]> = [];
 		contextOverlay.push([ChatContextKeys.isArchivedAgentSession.key, session.isArchived()]);

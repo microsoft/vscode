@@ -20,8 +20,6 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
 import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
@@ -132,7 +130,6 @@ export class OpenSessionInTerminalAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor,): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
-		const viewsService = accessor.get(IViewsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
@@ -145,7 +142,7 @@ export class OpenSessionInTerminalAction extends Action2 {
 				terminalService.setActiveInstance(instance);
 			}
 		}
-		await viewsService.openView(TERMINAL_VIEW_ID, true);
+		await terminalService.focusActiveInstance();
 	}
 }
 

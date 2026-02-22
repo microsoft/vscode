@@ -5,28 +5,44 @@
 
 .agent-feedback-input-widget {
 	position: absolute;
-	z-index: 100;
-	background-color: var(--vscode-editorWidget-background);
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
+	z-index: 10000;
+	background-color: var(--vscode-panel-background);
+	border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border));
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
-	border-radius: 4px;
+	border-radius: 8px;
 	padding: 4px;
 }
 
-.agent-feedback-input-widget input {
-	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, transparent);
+.agent-feedback-input-widget textarea {
+	background-color: var(--vscode-panel-background);
+	border: none;
 	color: var(--vscode-input-foreground);
-	border-radius: 2px;
-	padding: 2px 6px;
+	border-radius: 4px;
+	padding: 0;
 	outline: none;
-	width: 240px;
+	min-width: 150px;
+	max-width: 400px;
+	resize: none;
+	overflow-y: hidden;
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	box-sizing: border-box;
+	display: block;
 }
 
-.agent-feedback-input-widget input:focus {
+.agent-feedback-input-widget textarea:focus {
 	border-color: var(--vscode-focusBorder);
+	outline: none !important;
 }
 
-.agent-feedback-input-widget input::placeholder {
+.agent-feedback-input-widget textarea::placeholder {
 	color: var(--vscode-input-placeholderForeground);
+}
+
+.agent-feedback-input-widget .agent-feedback-input-measure {
+	position: absolute;
+	visibility: hidden;
+	height: 0;
+	overflow: hidden;
+	white-space: pre;
 }
