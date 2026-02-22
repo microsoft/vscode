@@ -34,7 +34,7 @@
 }
 
 .sessions-chat-input-area:focus-within {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
 }
 
 /* Editor */
@@ -51,10 +51,6 @@
 .sessions-chat-editor .monaco-editor-background {
 	background-color: var(--vscode-input-background) !important;
 	border-radius: 8px 8px 0 0;
-}
-
-.sessions-chat-editor .monaco-editor .focus-outline {
-	display: none !important;
 }
 
 /* Toolbar */
