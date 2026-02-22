@@ -30,6 +30,7 @@ import { getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../.
 import { basename } from '../../../../base/common/resources.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ViewAllSessionChangesAction } from '../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -380,6 +381,7 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 			submenu: Menus.TitleBarControlMenu,
 			title: localize('agentSessionsControl', "Agent Sessions"),
 			order: 101,
+			when: IsAuxiliaryWindowContext.negate()
 		}));
 
 		// Register a placeholder action so the submenu appears
@@ -389,7 +391,8 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 				title: localize('showSessions', "Show Sessions"),
 			},
 			group: 'a_sessions',
-			order: 1
+			order: 1,
+			when: IsAuxiliaryWindowContext.negate()
 		}));
 
 		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarControlMenu, (action, options) => {

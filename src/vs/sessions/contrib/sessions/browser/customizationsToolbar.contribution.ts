@@ -13,7 +13,6 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
@@ -32,6 +31,7 @@ import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getPromptSourceCounts, getSkillSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 
 interface ICustomizationItemConfig {
 	readonly id: string;
@@ -250,9 +250,9 @@ class CustomizationsToolbarContribution extends Disposable implements IWorkbench
 					});
 				}
 				async run(accessor: ServicesAccessor): Promise<void> {
-					const editorGroupsService = accessor.get(IEditorGroupsService);
+					const editorService = accessor.get(IEditorService);
 					const input = AICustomizationManagementEditorInput.getOrCreate();
-					const editor = await editorGroupsService.activeGroup.openEditor(input, { pinned: true });
+					const editor = await editorService.openEditor(input, { pinned: true });
 					if (editor instanceof AICustomizationManagementEditor) {
 						editor.selectSectionById(config.section);
 					}

@@ -38,7 +38,7 @@ export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOpt
 function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): [IEditorGroup, EditorActivation | undefined] {
 	const modalEditorPart = editorGroupService.activeModalEditorPart;
 	const modalEditorMode = configurationService.getValue<string>('workbench.editor.useModal');
-	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'on') {
+	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'all') {
 		// Only allow to open in modal group if MODAL_GROUP is explicitly requested
 		group = handleModalEditorPart(group, editor, modalEditorPart, editorGroupService);
 	}
@@ -176,7 +176,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	}
 
 	// Force modal editor part: redirect to the modal group when setting is 'on'
-	if (!group && configurationService.getValue<string>('workbench.editor.useModal') === 'on') {
+	if (!group && configurationService.getValue<string>('workbench.editor.useModal') === 'all') {
 		group = editorGroupService.createModalEditorPart(options?.modal)
 			.then(part => part.activeGroup);
 	}

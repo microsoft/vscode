@@ -139,7 +139,7 @@ Use the `agent-sessions-layout` skill for detailed guidance on the layout. Key p
 
 ### 4.3 Editor Modal
 
-The main editor part is hidden (`display:none`). All editors open via `MODAL_GROUP` into the standard `ModalEditorPart` overlay (created on-demand by `EditorParts.createModalEditorPart`). The sessions configuration sets `workbench.editor.useModal` to `'on'`, which causes `findGroup()` to redirect all editor opens to the modal. Click backdrop or press Escape to dismiss.
+The main editor part is hidden (`display:none`). All editors open via `MODAL_GROUP` into the standard `ModalEditorPart` overlay (created on-demand by `EditorParts.createModalEditorPart`). The sessions configuration sets `workbench.editor.useModal` to `'all'`, which causes `findGroup()` to redirect all editor opens to the modal. Click backdrop or press Escape to dismiss.
 
 ## 5. Chat Widget
 
