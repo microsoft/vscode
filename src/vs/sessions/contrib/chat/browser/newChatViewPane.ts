@@ -146,6 +146,7 @@ class NewChatWidget extends Disposable {
 			const isLocal = target === AgentSessionProviders.Background;
 			this._isolationModePicker.setVisible(isLocal);
 			this._branchPicker.setVisible(isLocal);
+			this._focusEditor();
 		}));
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
@@ -157,6 +158,18 @@ class NewChatWidget extends Disposable {
 		this._register(this._branchPicker.onDidChangeLoading(loading => {
 			this._branchLoading = loading;
 			this._updateInputLoadingState();
+		}));
+
+		this._register(this._branchPicker.onDidChange(() => {
+			this._focusEditor();
+		}));
+
+		this._register(this._folderPicker.onDidSelectFolder(() => {
+			this._focusEditor();
+		}));
+
+		this._register(this._isolationModePicker.onDidChange(() => {
+			this._focusEditor();
 		}));
 	}
 
@@ -358,6 +371,10 @@ class NewChatWidget extends Disposable {
 		}));
 	}
 
+	private _focusEditor(): void {
+		this._editor?.focus();
+	}
+
 	private _createAttachButton(container: HTMLElement): void {
 		const attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
 		attachButton.tabIndex = 0;
@@ -427,6 +444,7 @@ class NewChatWidget extends Disposable {
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._currentLanguageModel.set(model, undefined);
 				this._newSession.value?.setModelId(model.identifier);
+				this._focusEditor();
 			},
 			getModels: () => this._getAvailableModels(),
 			canManageModels: () => true,
@@ -594,6 +612,7 @@ class NewChatWidget extends Disposable {
 					this._newSession.value?.setOption(optionGroup.id, option);
 
 					this._renderExtensionPickers(true);
+					this._focusEditor();
 				},
 				getOptionGroup: () => {
 					const groups = this.chatSessionsService.getOptionGroupsForSessionType(activeSessionType);
