@@ -53,6 +53,10 @@
 	border-radius: 8px 8px 0 0;
 }
 
+.sessions-chat-editor .monaco-editor .focus-outline {
+	display: none !important;
+}
+
 /* Toolbar */
 .sessions-chat-toolbar {
 	display: flex;
