@@ -235,6 +235,12 @@ export class ConstantTimePrefixSumComputer {
 	public getIndexOf(sum: number): PrefixSumIndexOfResult {
 		this._ensureValid();
 		const idx = this._indexBySum[sum];
+		if (idx === undefined) {
+			// sum does not have a direct entry in _indexBySum (e.g. sum >= getTotalSum() or the array is empty / all values are zero)
+			const lastIdx = Math.max(0, this._values.length - 1);
+			const lastPrefixSum = lastIdx > 0 ? this._prefixSum[lastIdx - 1] : 0;
+			return new PrefixSumIndexOfResult(lastIdx, sum - lastPrefixSum);
+		}
 		const viewLinesAbove = idx > 0 ? this._prefixSum[idx - 1] : 0;
 		return new PrefixSumIndexOfResult(idx, sum - viewLinesAbove);
 	}
@@ -271,7 +277,7 @@ export class ConstantTimePrefixSumComputer {
 
 		// trim things
 		this._prefixSum.length = this._values.length;
-		this._indexBySum.length = this._prefixSum[this._prefixSum.length - 1];
+		this._indexBySum.length = this._values.length > 0 ? this._prefixSum[this._values.length - 1] : 0;
 
 		// mark as valid
 		this._isValid = true;
