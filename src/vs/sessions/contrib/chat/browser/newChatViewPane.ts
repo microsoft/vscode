@@ -317,6 +317,10 @@ class NewChatWidget extends Disposable {
 		this._register(this._editor.onDidContentSizeChange(() => {
 			this._editor.layout();
 		}));
+
+		this._register(this._editor.onDidChangeModelContent(() => {
+			this._updateSendButtonState();
+		}));
 	}
 
 	private _createAttachButton(container: HTMLElement): void {
@@ -672,7 +676,8 @@ class NewChatWidget extends Disposable {
 		if (!this._sendButton) {
 			return;
 		}
-		const disabled = this._newSession.value?.disabled ?? true;
+		const hasText = !!this._editor?.getModel()?.getValue().trim();
+		const disabled = !hasText || (this._newSession.value?.disabled ?? true);
 		this._sendButton.classList.toggle('disabled', disabled);
 		this._sendButton.ariaDisabled = disabled ? 'true' : 'false';
 	}
