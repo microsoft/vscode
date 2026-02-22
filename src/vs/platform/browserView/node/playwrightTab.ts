@@ -28,10 +28,17 @@ export class PlaywrightTab {
 	private _dialog: playwright.Dialog | undefined;
 	private _fileChooser: playwright.FileChooser | undefined;
 	private _logs: { type: string; time: number; description: string }[] = [];
+	private _needsFullSnapshot = false;
 
 	private _initialized: Promise<void>;
 
-	constructor(readonly page: playwright.Page) {
+	constructor(
+		/**
+		 * @deprecated prefer accessing the page via safeRunAgainstPage.
+		 * Only use this directly if you are sure it cannot be blocked by dialogs.
+		 */
+		private readonly page: playwright.Page
+	) {
 		page.on('console', event => this._handleConsoleMessage(event))
 			.on('pageerror', error => this._handlePageError(error))
 			.on('requestfailed', request => this._handleRequestFailed(request))
@@ -68,7 +75,7 @@ export class PlaywrightTab {
 		const dialog = this._dialog;
 		this._dialog = undefined;
 		this._onDialogStateChanged.fire();
-		await this.runAndWaitForCompletion(async () => {
+		await this.safeRunAgainstPage(async () => {
 			if (accept) {
 				await dialog.accept(promptText);
 			} else {
@@ -87,7 +94,7 @@ export class PlaywrightTab {
 		}
 		const chooser = this._fileChooser;
 		this._fileChooser = undefined;
-		await this.runAndWaitForCompletion(() => chooser.setFiles(files));
+		await this.safeRunAgainstPage(() => chooser.setFiles(files));
 	}
 
 	private async _handleDownload(download: playwright.Download) {
@@ -109,22 +116,26 @@ export class PlaywrightTab {
 		this._logs.push({ type: 'pageError', time: Date.now(), description: error.stack ?? error.message });
 	}
 
-	async runAndWaitForCompletion<T>(callback: (token: CancellationToken) => Promise<T>): Promise<T> {
-		// Dialogs pause the page. So we run the callback and wait for either its completion or a dialog to open
+	/**
+	 * Run a callback against the page and wait for it to complete.
+	 * Because dialogs pause the page, execution races against any dialog that opens -- if a dialog
+	 * appears before the callback finishes, the method throws so the caller can surface it to the agent.
+	 */
+	async safeRunAgainstPage<T>(action: (page: playwright.Page, token: CancellationToken) => Promise<T>): Promise<T> {
 		if (this._dialog) {
 			throw new Error(`Cannot perform action while a dialog is open`);
 		}
 
-		let completed = false;
+		let actionDidComplete = false;
 		let result: T | void;
-		const dialog = Event.toPromise(this._onDialogStateChanged.event);
-		const action = createCancelablePromise(async (token) => {
-			result = await runAndWaitForCompletion(this, callback, token);
-			completed = true;
+		const dialogOpened = Event.toPromise(this._onDialogStateChanged.event);
+		const actionCompleted = createCancelablePromise(async (token) => {
+			result = await this.runAndWaitForCompletion((token) => action(this.page, token), token);
+			actionDidComplete = true;
 		});
 
-		return raceCancellablePromises([dialog, action]).then(() => {
-			if (!completed) {
+		return raceCancellablePromises([dialogOpened, actionCompleted]).then(() => {
+			if (!actionDidComplete) {
 				// A dialog was opened before the action completed. Note we don't cancel the action, just ignore its result.
 				throw new Error('Action was interrupted by a dialog');
 			}
@@ -132,12 +143,18 @@ export class PlaywrightTab {
 		});
 	}
 
-	async getSummary(full = false): Promise<string> {
+	async getSummary(full = this._needsFullSnapshot): Promise<string> {
 		await this._initialized;
 
-		// Important: anything run against the page must be wrapped with runAndWaitForCompletion in case dialogs are opened.
-		const snapshotFromPage = await this.runAndWaitForCompletion(() => this.page._snapshotForAI({ track: 'response' })).catch(() => undefined);
-		const title = await this.runAndWaitForCompletion(() => this.page.title()).catch(() => '');
+		if (full && this._needsFullSnapshot) {
+			this._needsFullSnapshot = false;
+		}
+
+		const snapshotFromPage = await this.safeRunAgainstPage((page) => page._snapshotForAI({ track: 'response' })).catch(() => {
+			this._needsFullSnapshot = true;
+			return undefined;
+		});
+		const title = await this.safeRunAgainstPage((page) => page.title()).catch(() => '');
 
 		const logs = this._logs;
 		this._logs = [];
@@ -156,37 +173,37 @@ export class PlaywrightTab {
 			...(snapshot ? ['Snapshot:', snapshot] : [])
 		].join('\n');
 	}
-}
 
-async function runAndWaitForCompletion<T>(tab: PlaywrightTab, callback: (token: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {
-	const requests: playwright.Request[] = [];
+	private async runAndWaitForCompletion<T>(callback: (token: CancellationToken) => Promise<T>, token = CancellationToken.None): Promise<T> {
+		const requests: playwright.Request[] = [];
 
-	const requestListener = (request: playwright.Request) => requests.push(request);
-	const disposeListeners = () => {
-		tab.page.off('request', requestListener);
-	};
-	tab.page.on('request', requestListener);
+		const requestListener = (request: playwright.Request) => requests.push(request);
+		const disposeListeners = () => {
+			this.page.off('request', requestListener);
+		};
+		this.page.on('request', requestListener);
 
-	let result: T;
-	try {
-		result = await callback(token);
-	} finally {
-		disposeListeners();
-	}
+		let result: T;
+		try {
+			result = await callback(token);
+		} finally {
+			disposeListeners();
+		}
 
-	const requestedNavigation = requests.some(request => request.isNavigationRequest());
-	if (requestedNavigation) {
-		await tab.page.mainFrame().waitForLoadState('load', { timeout: 10000 }).catch(() => { });
+		const requestedNavigation = requests.some(request => request.isNavigationRequest());
+		if (requestedNavigation) {
+			await this.page.mainFrame().waitForLoadState('load', { timeout: 10000 }).catch(() => { });
+			return result;
+		}
+
+		const promises: Promise<unknown>[] = [];
+		for (const request of requests) {
+			if (['document', 'stylesheet', 'script', 'xhr', 'fetch'].includes(request.resourceType())) { promises.push(request.response().then(r => r?.finished()).catch(() => { })); }
+			else { promises.push(request.response().catch(() => { })); }
+		}
+		const timeout = new Promise<void>(resolve => setTimeout(resolve, 5000));
+		await Promise.race([Promise.all(promises), timeout]);
+
 		return result;
 	}
-
-	const promises: Promise<unknown>[] = [];
-	for (const request of requests) {
-		if (['document', 'stylesheet', 'script', 'xhr', 'fetch'].includes(request.resourceType())) { promises.push(request.response().then(r => r?.finished()).catch(() => { })); }
-		else { promises.push(request.response().catch(() => { })); }
-	}
-	const timeout = new Promise<void>(resolve => setTimeout(resolve, 5000));
-	await Promise.race([Promise.all(promises), timeout]);
-
-	return result;
 }

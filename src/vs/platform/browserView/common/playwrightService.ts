@@ -73,9 +73,9 @@ export interface IPlaywrightService {
 	invokeFunction(pageId: string, fnDef: string, ...args: unknown[]): Promise<{ result: unknown; summary: string }>;
 
 	/**
-	 * Takes a screenshot of the given page and returns it as a VSBuffer.
+	 * Takes a screenshot of the current page viewport and returns it as a VSBuffer.
 	 * @param pageId The browser view ID identifying the page to capture.
-	 * @param selector Optional Playwright selector to capture a specific element instead of the full page.
+	 * @param selector Optional Playwright selector to capture a specific element instead of the viewport.
 	 * @param fullPage Whether to capture the full scrollable page instead of just the viewport.
 	 * @returns The screenshot image data.
 	 */
