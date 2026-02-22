@@ -120,13 +120,17 @@
 	font-size: 16px;
 }
 
-/* Attach row (above editor, inside input area) */
+/* Attach row (pills only, above editor, inside input area) */
 .sessions-chat-attach-row {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
 	padding: 4px 6px 0 6px;
+}
+
+.sessions-chat-attach-row:has(.sessions-chat-attached-context:empty) {
+	display: none;
 }
 
 /* Attach context button */

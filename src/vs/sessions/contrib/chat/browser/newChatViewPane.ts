@@ -165,9 +165,8 @@ class NewChatWidget extends Disposable {
 		this._contextAttachments.registerDropTarget(inputArea);
 		this._contextAttachments.registerPasteHandler(inputArea);
 
-		// Attachments row (plus button + pills) inside input area, above editor
+		// Attachments row (pills only) inside input area, above editor
 		const attachRow = dom.append(inputArea, dom.$('.sessions-chat-attach-row'));
-		this._createAttachButton(attachRow);
 		const attachedContextContainer = dom.append(attachRow, dom.$('.sessions-chat-attached-context'));
 		this._contextAttachments.renderAttachedContext(attachedContextContainer);
 
@@ -354,6 +353,8 @@ class NewChatWidget extends Disposable {
 
 	private _createBottomToolbar(container: HTMLElement): void {
 		const toolbar = dom.append(container, dom.$('.sessions-chat-toolbar'));
+
+		this._createAttachButton(toolbar);
 
 		const modelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createModelPicker(modelPickerContainer);
