@@ -160,22 +160,6 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}
 	}
 
-	private isElementInNotificationQuarter(element: HTMLElement): boolean {
-		const position = this.getNotificationsPosition();
-		const domPosition = getDomNodePagePosition(element);
-		const clientArea = getClientArea(this.layoutService.mainContainer);
-
-		switch (position) {
-			case NotificationsPosition.BOTTOM_LEFT:
-				return domPosition.left < clientArea.width / 2 && domPosition.top > clientArea.height / 2;
-			case NotificationsPosition.TOP_RIGHT:
-				return domPosition.left > clientArea.width / 2 && domPosition.top < clientArea.height / 2;
-			case NotificationsPosition.BOTTOM_RIGHT:
-			default:
-				return domPosition.left > clientArea.width / 2 && domPosition.top > clientArea.height / 2;
-		}
-	}
-
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
@@ -224,6 +208,22 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		const itemDisposables = new DisposableStore();
 		this.mapNotificationToDisposable.set(item, itemDisposables);
 		itemDisposables.add(scheduleAtNextAnimationFrame(getWindow(this.container), () => this.doAddToast(item, itemDisposables)));
+	}
+
+	private isElementInNotificationQuarter(element: HTMLElement): boolean {
+		const position = this.getNotificationsPosition();
+		const domPosition = getDomNodePagePosition(element);
+		const clientArea = getClientArea(this.layoutService.mainContainer);
+
+		switch (position) {
+			case NotificationsPosition.BOTTOM_LEFT:
+				return domPosition.left < clientArea.width / 2 && domPosition.top > clientArea.height / 2;
+			case NotificationsPosition.TOP_RIGHT:
+				return domPosition.left > clientArea.width / 2 && domPosition.top < clientArea.height / 2;
+			case NotificationsPosition.BOTTOM_RIGHT:
+			default:
+				return domPosition.left > clientArea.width / 2 && domPosition.top > clientArea.height / 2;
+		}
 	}
 
 	private doAddToast(item: INotificationViewItem, itemDisposables: DisposableStore): void {
