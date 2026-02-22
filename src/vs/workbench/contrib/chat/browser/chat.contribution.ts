@@ -486,6 +486,18 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('chat.viewProgressBadge.enabled', "Show a progress badge on the chat view when an agent session is in progress that is opened in that view."),
 		},
+		[ChatConfiguration.NeedsInputIconAnimation]: {
+			type: 'string',
+			enum: ['none', 'blink', 'bounce', 'pulse'],
+			enumDescriptions: [
+				nls.localize('chat.session.needsInputIconAnimation.none', "No animation on the needs-input icon."),
+				nls.localize('chat.session.needsInputIconAnimation.blink', "The needs-input icon blinks a few times, then remains static for about 30 seconds before repeating."),
+				nls.localize('chat.session.needsInputIconAnimation.bounce', "The needs-input icon bounces up and down a few times, then remains static for about 30 seconds before repeating."),
+				nls.localize('chat.session.needsInputIconAnimation.pulse', "The needs-input icon pulses with an orange glow a few times, then remains static for about 30 seconds before repeating."),
+			],
+			default: 'blink',
+			description: nls.localize('chat.session.needsInputIconAnimation', "Controls the animation style of the icon shown when an agent session requires user input."),
+		},
 		[ChatConfiguration.ChatContextUsageEnabled]: {
 			type: 'boolean',
 			default: true,

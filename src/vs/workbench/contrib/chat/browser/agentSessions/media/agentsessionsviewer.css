@@ -300,3 +300,50 @@
 		color: var(--vscode-list-inactiveSelectionForeground);
 	}
 }
+
+/* Needs-input icon animations */
+
+@keyframes needs-input-blink {
+	0%   { opacity: 1; }
+	3%   { opacity: 0; }
+	6%   { opacity: 1; }
+	9%   { opacity: 0; }
+	12%  { opacity: 1; }
+	15%  { opacity: 0; }
+	18%  { opacity: 1; }
+	100% { opacity: 1; }
+}
+
+@keyframes needs-input-bounce {
+	0%    { transform: translateY(0); }
+	1.5%  { transform: translateY(-5px); }
+	3%    { transform: translateY(1px); }
+	4.5%  { transform: translateY(-4px); }
+	6%    { transform: translateY(1px); }
+	7.5%  { transform: translateY(-2px); }
+	9%    { transform: translateY(0); }
+	100%  { transform: translateY(0); }
+}
+
+@keyframes needs-input-pulse {
+	0%   { color: var(--vscode-textLink-foreground); }
+	3%   { color: var(--vscode-notificationsWarningIcon-foreground); }
+	6%   { color: var(--vscode-textLink-foreground); }
+	9%   { color: var(--vscode-notificationsWarningIcon-foreground); }
+	12%  { color: var(--vscode-textLink-foreground); }
+	15%  { color: var(--vscode-notificationsWarningIcon-foreground); }
+	18%  { color: var(--vscode-textLink-foreground); }
+	100% { color: var(--vscode-textLink-foreground); }
+}
+
+.agent-session-icon.needs-input-animation-blink {
+	animation: needs-input-blink 16s ease-in-out infinite;
+}
+
+.agent-session-icon.needs-input-animation-bounce {
+	animation: needs-input-bounce 16s linear infinite;
+}
+
+.agent-session-icon.needs-input-animation-pulse {
+	animation: needs-input-pulse 16s ease-in-out infinite;
+}

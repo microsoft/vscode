@@ -43,6 +43,8 @@ import { MarkdownString, IMarkdownString } from '../../../../../base/common/html
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -95,6 +97,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -175,7 +178,14 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		template.element.classList.toggle('archived', session.element.isArchived());
 
 		// Icon
-		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
+		const icon = this.getIcon(session.element);
+		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(icon)}`;
+		if (session.element.status === AgentSessionStatus.NeedsInput) {
+			const animation = this.configurationService.getValue<string>(ChatConfiguration.NeedsInputIconAnimation);
+			if (animation === 'blink' || animation === 'bounce' || animation === 'pulse') {
+				template.icon.classList.add(`needs-input-animation-${animation}`);
+			}
+		}
 
 		// Title
 		const markdownTitle = new MarkdownString(session.element.label);
