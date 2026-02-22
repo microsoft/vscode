@@ -139,27 +139,12 @@ function copyInnoUpdater(arch: string) {
 	};
 }
 
-function patchInnoUpdater(executablePath: string): task.CallbackTask {
+function updateIcon(executablePath: string): task.CallbackTask {
 	return cb => {
 		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');
-		const baseVersion = pkg.version.replace(/-.*$/, '');
-		rcedit(executablePath, {
-			icon,
-			'file-version': baseVersion,
-			'product-version': baseVersion,
-			'version-string': {
-				'CompanyName': 'Microsoft Corporation',
-				'FileDescription': product.nameLong,
-				'FileVersion': pkg.version,
-				'InternalName': 'inno_updater.exe',
-				'LegalCopyright': 'Copyright (C) 2026 Microsoft. All rights reserved',
-				'OriginalFilename': 'inno_updater.exe',
-				'ProductName': product.nameLong,
-				'ProductVersion': pkg.version,
-			}
-		}, cb);
+		rcedit(executablePath, { icon }, cb);
 	};
 }
 
-gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), patchInnoUpdater(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
-gulp.task(task.define('vscode-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), patchInnoUpdater(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));
+gulp.task(task.define('vscode-win32-x64-inno-updater', task.series(copyInnoUpdater('x64'), updateIcon(path.join(buildPath('x64'), 'tools', 'inno_updater.exe')))));
+gulp.task(task.define('vscode-win32-arm64-inno-updater', task.series(copyInnoUpdater('arm64'), updateIcon(path.join(buildPath('arm64'), 'tools', 'inno_updater.exe')))));
