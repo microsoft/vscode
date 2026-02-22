@@ -57,8 +57,9 @@
 .sessions-chat-toolbar {
 	display: flex;
 	align-items: center;
-	padding: 4px 8px;
+	padding: 0 6px 6px 6px;
 	gap: 4px;
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-toolbar-spacer {
@@ -75,16 +76,16 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 3px 8px;
+	height: 16px;
+	padding: 3px 6px;
 	border-radius: 4px;
 	font-size: 12px;
 	cursor: pointer;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-model-picker .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
 }
 
 .sessions-chat-model-picker .action-label .codicon {
@@ -96,11 +97,11 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 26px;
-	height: 26px;
+	width: 22px;
+	height: 22px;
 	border-radius: 4px;
 	cursor: pointer;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
 	outline: none;
@@ -108,7 +109,6 @@
 
 .sessions-chat-send-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
 }
 
 .sessions-chat-send-button:focus-visible {
@@ -138,11 +138,11 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 26px;
-	height: 26px;
+	width: 22px;
+	height: 22px;
 	border-radius: 4px;
 	cursor: pointer;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
 	outline: none;
@@ -150,7 +150,6 @@
 
 .sessions-chat-attach-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
 }
 
 .sessions-chat-attach-button:focus-visible {
