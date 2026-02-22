@@ -37,6 +37,9 @@ export class BranchPicker extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<string | undefined>());
 	readonly onDidChange: Event<string | undefined> = this._onDidChange.event;
 
+	private readonly _onDidChangeLoading = this._register(new Emitter<boolean>());
+	readonly onDidChangeLoading: Event<boolean> = this._onDidChangeLoading.event;
+
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
@@ -204,5 +207,6 @@ export class BranchPicker extends Disposable {
 
 	private _setLoading(loading: boolean): void {
 		this._slotElement?.classList.toggle('loading', loading);
+		this._onDidChangeLoading.fire(loading);
 	}
 }

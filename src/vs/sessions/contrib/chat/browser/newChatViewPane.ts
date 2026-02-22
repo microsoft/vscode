@@ -151,6 +151,10 @@ class NewChatWidget extends Disposable {
 				this._renderExtensionPickers(true);
 			}
 		}));
+
+		this._register(this._branchPicker.onDidChangeLoading(loading => {
+			this._inputArea?.classList.toggle('loading', loading);
+		}));
 	}
 
 	// --- Rendering ---
