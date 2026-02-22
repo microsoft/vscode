@@ -92,9 +92,25 @@ function getSelectionFromLocationFragment(fragment: string): vscode.Range | unde
 	const endLineNumber = endLineNumberRaw;
 	const endColumn = match[3] ? (match[4] ? parseInt(match[4], 10) : 1) : undefined;
 
-	const start = new vscode.Position(startLineNumber - 1, Math.max(0, startColumn - 1));
-	const end = endLineNumber
-		? new vscode.Position(endLineNumber - 1, Math.max(0, (endColumn ?? 1) - 1))
+	let normalizedStartLine = startLineNumber;
+	let normalizedStartColumn = startColumn;
+	let normalizedEndLine = endLineNumber;
+	let normalizedEndColumn = endColumn ?? 1;
+
+	if (typeof normalizedEndLine === 'number') {
+		if (normalizedEndLine < normalizedStartLine || (normalizedEndLine === normalizedStartLine && normalizedEndColumn < normalizedStartColumn)) {
+			const tmpLine = normalizedStartLine;
+			const tmpColumn = normalizedStartColumn;
+			normalizedStartLine = normalizedEndLine;
+			normalizedStartColumn = normalizedEndColumn;
+			normalizedEndLine = tmpLine;
+			normalizedEndColumn = tmpColumn;
+		}
+	}
+
+	const start = new vscode.Position(normalizedStartLine - 1, Math.max(0, normalizedStartColumn - 1));
+	const end = typeof normalizedEndLine === 'number'
+		? new vscode.Position(normalizedEndLine - 1, Math.max(0, normalizedEndColumn - 1))
 		: start;
 
 	return new vscode.Range(start, end);
