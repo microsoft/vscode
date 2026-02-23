@@ -992,7 +992,6 @@ suite('ChatTipService', () => {
 
 	for (const tipId of [
 		'tip.yoloMode',
-		'tip.thinkingStyle',
 		'tip.thinkingPhrases',
 		'tip.agenticBrowser',
 	]) {
