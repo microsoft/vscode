@@ -161,7 +161,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				}
 				providers.push({
 					id: contribution.type,
-					label: labelOverrides?.get(contribution.type) ?? (getAgentSessionProvider(contribution.type) ? getAgentSessionProviderName(getAgentSessionProvider(contribution.type)!) : contribution.displayName)
+					label: resolveLabel(contribution.type)
 				});
 			}
 		}
