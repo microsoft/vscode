@@ -665,6 +665,11 @@
 	overflow: hidden;
 	flex: 1;
 }
+.chat-debug-flowchart-content-wrapper {
+	display: flex;
+	flex: 1;
+	overflow: hidden;
+}
 .chat-debug-flowchart-content {
 	flex: 1;
 	overflow: hidden;
@@ -712,4 +717,9 @@
 	height: 100%;
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-flowchart-show-more {
+	display: flex;
+	justify-content: center;
+	margin: 12px 0 0;
 }

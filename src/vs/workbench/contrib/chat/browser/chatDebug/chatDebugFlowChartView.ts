@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -13,14 +14,15 @@ import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { defaultBreadcrumbsWidgetStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
-import { IChatDebugService } from '../../common/chatDebugService.js';
+import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { TextBreadcrumbItem } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
-import { buildFlowGraph, filterFlowNodes, layoutFlowGraph, renderFlowChartSVG, FlowChartRenderResult } from './chatDebugFlowChart.js';
+import { buildFlowGraph, filterFlowNodes, sliceFlowNodes, layoutFlowGraph, renderFlowChartSVG, FlowChartRenderResult } from './chatDebugFlowChart.js';
+import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 
 const $ = DOM.$;
 
@@ -29,6 +31,7 @@ const MAX_SCALE = 5;
 const ZOOM_STEP = 0.15;
 const WHEEL_ZOOM_FACTOR = 0.002;
 const CLICK_THRESHOLD_SQ = 25;
+const PAGE_SIZE = 100;
 
 export const enum FlowChartNavigation {
 	Home = 'home',
@@ -72,6 +75,13 @@ export class ChatDebugFlowChartView extends Disposable {
 
 	// Collapse state — persists across refreshes, resets on session change
 	private readonly collapsedNodeIds = new Set<string>();
+
+	// Pagination state
+	private visibleLimit: number = PAGE_SIZE;
+
+	// Detail panel
+	private readonly detailPanel: ChatDebugDetailPanel;
+	private eventById = new Map<string, IChatDebugEvent>();
 
 	constructor(
 		parent: HTMLElement,
@@ -125,10 +135,19 @@ export class ChatDebugFlowChartView extends Disposable {
 		this._register(this.filterState.onDidChange(() => {
 			syncContextKeys();
 			this.filterWidget.checkMoreFilters(!this.filterState.isAllFiltersDefault());
+			this.visibleLimit = PAGE_SIZE;
+			// Reset pan/zoom so filtered content is visible
+			this.hasUserPanned = false;
+			this.lastEventCount = 0;
 			this.load();
 		}));
 
-		this.content = DOM.append(this.container, $('.chat-debug-flowchart-content'));
+		// Content wrapper (flex row: chart canvas + detail panel)
+		const contentWrapper = DOM.append(this.container, $('.chat-debug-flowchart-content-wrapper'));
+		this.content = DOM.append(contentWrapper, $('.chat-debug-flowchart-content'));
+
+		// Detail panel (sibling of chart canvas)
+		this.detailPanel = this._register(this.instantiationService.createInstance(ChatDebugDetailPanel, contentWrapper));
 
 		// Set up pan/zoom event listeners and keyboard handling
 		this.setupPanZoom();
@@ -137,7 +156,7 @@ export class ChatDebugFlowChartView extends Disposable {
 
 	setSession(sessionResource: URI): void {
 		if (!this.currentSessionResource || this.currentSessionResource.toString() !== sessionResource.toString()) {
-			// Reset pan/zoom, focus, and collapse state on session change
+			// Reset pan/zoom, focus, collapse, and pagination state on session change
 			this.scale = 1;
 			this.translateX = 0;
 			this.translateY = 0;
@@ -145,6 +164,8 @@ export class ChatDebugFlowChartView extends Disposable {
 			this.hasUserPanned = false;
 			this.focusedElementId = undefined;
 			this.collapsedNodeIds.clear();
+			this.visibleLimit = PAGE_SIZE;
+			this.detailPanel.hide();
 		}
 		this.currentSessionResource = sessionResource;
 	}
@@ -185,13 +206,21 @@ export class ChatDebugFlowChartView extends Disposable {
 		const isFirstLoad = this.lastEventCount === 0;
 		this.lastEventCount = events.length;
 
+		// Build event ID → event map for detail panel lookups
+		this.eventById.clear();
+		for (const e of events) {
+			if (e.id) {
+				this.eventById.set(e.id, e);
+			}
+		}
+
 		if (events.length === 0) {
 			const emptyMsg = DOM.append(this.content, $('.chat-debug-flowchart-empty'));
 			emptyMsg.textContent = localize('chatDebug.flowChart.noEvents', "No events recorded for this session.");
 			return;
 		}
 
-		// Build, filter, and render the flow chart
+		// Build, filter, slice, and render the flow chart
 		const flowNodes = buildFlowGraph(events);
 		const filtered = filterFlowNodes(flowNodes, {
 			isKindVisible: kind => this.filterState.isKindVisible(kind),
@@ -204,12 +233,25 @@ export class ChatDebugFlowChartView extends Disposable {
 			return;
 		}
 
-		const layout = layoutFlowGraph(filtered, { collapsedIds: this.collapsedNodeIds });
+		const slice = sliceFlowNodes(filtered, this.visibleLimit);
+		const layout = layoutFlowGraph(slice.nodes, { collapsedIds: this.collapsedNodeIds });
 		this.renderResult = renderFlowChartSVG(layout);
 
 		this.svgWrapper = DOM.append(this.content, $('.chat-debug-flowchart-svg-wrapper'));
 		this.svgWrapper.appendChild(this.renderResult.svg);
 		this.svgElement = this.renderResult.svg;
+
+		// Show "Show More" button below the chart when there are more nodes
+		if (slice.shownCount < slice.totalCount) {
+			const remaining = slice.totalCount - slice.shownCount;
+			const showMoreContainer = DOM.append(this.svgWrapper, $('.chat-debug-flowchart-show-more'));
+			const showMoreBtn = this.loadDisposables.add(new Button(showMoreContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.flowChart.showMoreTitle', "Load more nodes") }));
+			showMoreBtn.label = localize('chatDebug.flowChart.showMore', "Show More ({0})", remaining);
+			this.loadDisposables.add(showMoreBtn.onDidClick(() => {
+				this.visibleLimit += PAGE_SIZE;
+				this.load();
+			}));
+		}
 
 		// Only center on first load when user hasn't panned yet
 		if (isFirstLoad && !this.hasUserPanned) {
@@ -278,6 +320,15 @@ export class ChatDebugFlowChartView extends Disposable {
 						e.preventDefault();
 						e.stopPropagation();
 						this.toggleSubgraph(subgraphId);
+					} else {
+						const nodeId = target.getAttribute?.('data-node-id');
+						if (nodeId) {
+							e.preventDefault();
+							const event = this.eventById.get(nodeId);
+							if (event) {
+								this.detailPanel.show(event);
+							}
+						}
 					}
 					break;
 				case 'ArrowDown':
@@ -445,6 +496,10 @@ export class ChatDebugFlowChartView extends Disposable {
 			const nodeId = target.getAttribute?.('data-node-id');
 			if (nodeId) {
 				(target as HTMLElement).focus();
+				const event = this.eventById.get(nodeId);
+				if (event) {
+					this.detailPanel.show(event);
+				}
 				return;
 			}
 			target = target.parentElement;

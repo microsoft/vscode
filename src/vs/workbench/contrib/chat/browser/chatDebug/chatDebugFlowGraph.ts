@@ -326,6 +326,62 @@ function filterByText(nodes: FlowNode[], text: string): FlowNode[] {
 	return result;
 }
 
+// ---- Node slicing (pagination) ----
+
+export interface FlowSliceResult {
+	readonly nodes: FlowNode[];
+	readonly totalCount: number;
+	readonly shownCount: number;
+}
+
+/**
+ * Counts the total number of nodes in a tree (each node + all descendants).
+ */
+function countNodes(nodes: readonly FlowNode[]): number {
+	let count = 0;
+	for (const node of nodes) {
+		count += 1 + countNodes(node.children);
+	}
+	return count;
+}
+
+/**
+ * Slices a flow node tree to at most `maxCount` nodes (pre-order DFS).
+ *
+ * When a subagent's children would exceed the remaining budget, the
+ * children list is truncated. Returns the sliced tree along with total
+ * and shown node counts for the "Show More" UI.
+ */
+export function sliceFlowNodes(nodes: readonly FlowNode[], maxCount: number): FlowSliceResult {
+	const totalCount = countNodes(nodes);
+	if (totalCount <= maxCount) {
+		return { nodes: nodes as FlowNode[], totalCount, shownCount: totalCount };
+	}
+
+	let remaining = maxCount;
+
+	function sliceTree(nodeList: readonly FlowNode[]): FlowNode[] {
+		const result: FlowNode[] = [];
+		for (const node of nodeList) {
+			if (remaining <= 0) {
+				break;
+			}
+			remaining--; // count this node
+			if (node.children.length === 0 || remaining <= 0) {
+				result.push(node.children.length === 0 ? node : { ...node, children: [] });
+			} else {
+				const slicedChildren = sliceTree(node.children);
+				result.push(slicedChildren !== node.children ? { ...node, children: slicedChildren } : node);
+			}
+		}
+		return result;
+	}
+
+	const sliced = sliceTree(nodes);
+	const shownCount = maxCount - remaining;
+	return { nodes: sliced, totalCount, shownCount };
+}
+
 // ---- Event helpers ----
 
 function getEventLabel(event: IChatDebugEvent): string {
