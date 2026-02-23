@@ -59,7 +59,7 @@ import { BranchPicker } from './branchPicker.js';
 import { INewSession } from './newSession.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 
-const STORAGE_KEY_LAST_MODEL = 'agentSessions.lastPickedModel';
+const STORAGE_KEY_LAST_MODEL = 'sessions.selectedModel';
 
 // #region --- Chat Welcome Widget ---
 
