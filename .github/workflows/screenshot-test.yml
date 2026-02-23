@@ -36,6 +36,10 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install build dependencies
+        run: npm ci
+        working-directory: build
+
       - name: Install build/vite dependencies
         run: rm -f package-lock.json && npm install
         working-directory: build/vite
