@@ -489,35 +489,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Render question header row with title and close button
 		const headerRow = dom.$('.chat-question-header-row');
 
-		// Render question message with title styling (no progress prefix)
-		// Fall back to question.title if message is not provided
-		const questionText = question.message ?? question.title;
-		if (questionText) {
+		// Render question title (short header) in the header bar as plain text
+		if (question.title) {
 			const title = dom.$('.chat-question-title');
-			const messageContent = this.getQuestionText(questionText);
-
-			title.setAttribute('aria-label', messageContent);
-
-			if (isMarkdownString(questionText)) {
-				const renderedTitle = questionRenderStore.add(this._markdownRendererService.render(MarkdownString.lift(questionText)));
-				title.appendChild(renderedTitle.element);
-			} else {
-				// Check for subtitle in parentheses at the end
-				const parenMatch = messageContent.match(/^(.+?)\s*(\([^)]+\))\s*$/);
-				if (parenMatch) {
-					// Main title (bold)
-					const mainTitle = dom.$('span.chat-question-title-main');
-					mainTitle.textContent = parenMatch[1];
-					title.appendChild(mainTitle);
-
-					// Subtitle in parentheses (normal weight)
-					const subtitle = dom.$('span.chat-question-title-subtitle');
-					subtitle.textContent = ' ' + parenMatch[2];
-					title.appendChild(subtitle);
-				} else {
-					title.textContent = messageContent;
-				}
-			}
+			title.textContent = question.title;
 			headerRow.appendChild(title);
 		}
 
@@ -527,6 +502,18 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		this._questionContainer.appendChild(headerRow);
+
+		// Render full question text below the header row (supports multi-line and markdown)
+		if (question.message) {
+			const messageEl = dom.$('.chat-question-message');
+			if (isMarkdownString(question.message)) {
+				const renderedMessage = questionRenderStore.add(this._markdownRendererService.render(MarkdownString.lift(question.message)));
+				messageEl.appendChild(renderedMessage.element);
+			} else {
+				messageEl.textContent = this.getQuestionText(question.message);
+			}
+			this._questionContainer.appendChild(messageEl);
+		}
 
 		const isSingleQuestion = this.carousel.questions.length === 1;
 		// Update step indicator in footer
