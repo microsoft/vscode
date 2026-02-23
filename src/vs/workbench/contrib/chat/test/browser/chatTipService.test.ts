@@ -23,7 +23,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
 import { MockLanguageModelToolsService } from '../common/tools/mockLanguageModelToolsService.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { TestChatEntitlementService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { MockChatService } from '../common/chatService/mockChatService.js';
@@ -64,6 +64,7 @@ suite('ChatTipService', () => {
 	let storageService: InMemoryStorageService;
 	let mockInstructionFiles: IResolvedAgentFile[];
 	let mockPromptInstructionFiles: IPromptPath[];
+	let chatEntitlementService: TestChatEntitlementService;
 
 	function createProductService(hasCopilot: boolean): IProductService {
 		return {
@@ -100,7 +101,9 @@ suite('ChatTipService', () => {
 			onDidChangeCustomAgents: Event.None,
 		} as Partial<IPromptsService> as IPromptsService);
 		instantiationService.stub(ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService()));
-		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+		chatEntitlementService = new TestChatEntitlementService();
+		chatEntitlementService.entitlement = ChatEntitlement.Available;
+		instantiationService.stub(IChatEntitlementService, chatEntitlementService);
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 	});
@@ -198,6 +201,14 @@ suite('ChatTipService', () => {
 
 		const tip = service.getWelcomeTip(contextKeyService);
 		assert.strictEqual(tip, undefined, 'Should not return a tip when Copilot is not enabled');
+	});
+
+	test('returns undefined when user is signed out', () => {
+		chatEntitlementService.entitlement = ChatEntitlement.Unknown;
+		const service = createService();
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.strictEqual(tip, undefined, 'Should not return a tip when the user is signed out');
 	});
 
 	test('returns undefined when tips setting is disabled', () => {

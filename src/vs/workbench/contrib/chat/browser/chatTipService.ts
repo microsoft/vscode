@@ -23,7 +23,7 @@ import { ILanguageModelToolsService } from '../common/tools/languageModelToolsSe
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { CreateSlashCommandsUsageTracker } from './createSlashCommandsUsageTracker.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 type ChatTipEvent = {
@@ -610,15 +610,15 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		@IChatService private readonly _chatService: IChatService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 		this._tracker = this._register(instantiationService.createInstance(TipEligibilityTracker, TIP_CATALOG));
 		this._createSlashCommandsUsageTracker = this._register(new CreateSlashCommandsUsageTracker(this._chatService, this._storageService, () => this._contextKeyService));
-		this._register(chatEntitlementService.onDidChangeQuotaExceeded(() => {
-			if (chatEntitlementService.quotas.chat?.percentRemaining === 0 && this._shownTip) {
+		this._register(this._chatEntitlementService.onDidChangeQuotaExceeded(() => {
+			if (this._chatEntitlementService.quotas.chat?.percentRemaining === 0 && this._shownTip) {
 				this.hideTip();
 			}
 		}));
@@ -728,6 +728,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 		// Only show tips for Copilot
 		if (!this._isCopilotEnabled()) {
+			return undefined;
+		}
+
+		// Tips are only relevant after sign-in has completed.
+		if (this._chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
 			return undefined;
 		}
 
