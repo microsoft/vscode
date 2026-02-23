@@ -28,6 +28,21 @@ import { ChatDebugFlowChartView, FlowChartNavigation } from './chatDebugFlowChar
 
 const $ = DOM.$;
 
+type ChatDebugPanelOpenedClassification = {
+	owner: 'vijayu';
+	comment: 'Event fired when the chat debug panel is opened';
+};
+
+type ChatDebugViewSwitchedEvent = {
+	viewState: string;
+};
+
+type ChatDebugViewSwitchedClassification = {
+	viewState: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The view the user navigated to (home, overview, logs, flowchart).' };
+	owner: 'vijayu';
+	comment: 'Tracks which views users navigate to in the debug panel.';
+};
+
 export class ChatDebugEditor extends EditorPane {
 
 	static readonly ID: string = 'workbench.editor.chatDebug';
@@ -187,6 +202,10 @@ export class ChatDebugEditor extends EditorPane {
 	private showView(state: ViewState): void {
 		this.viewState = state;
 
+		this.telemetryService.publicLog2<ChatDebugViewSwitchedEvent, ChatDebugViewSwitchedClassification>('chatDebugViewSwitched', {
+			viewState: state,
+		});
+
 		if (state === ViewState.Home) {
 			this.homeView?.show();
 		} else {
@@ -271,6 +290,7 @@ export class ChatDebugEditor extends EditorPane {
 	override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 		if (visible) {
+			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
 			const options = this.options as IChatDebugEditorOptions | undefined;
 			if (options) {
 				this._applyNavigationOptions(options);
