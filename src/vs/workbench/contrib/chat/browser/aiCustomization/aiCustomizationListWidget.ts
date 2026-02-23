@@ -924,8 +924,8 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Group items by storage
 		const groups: { storage: PromptsStorage; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
-			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Stored in your workspace's .github folder and shared with your team via version control."), items: [] },
-			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Stored in your personal VS Code settings. Private to you and available across all workspaces."), items: [] },
+			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
 			{ storage: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
 		];
 
