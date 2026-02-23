@@ -136,6 +136,12 @@ export interface IChatDebugService extends IDisposable {
 	addEvent(event: IChatDebugEvent): void;
 
 	/**
+	 * Add an event sourced from an external provider.
+	 * These events are cleared before re-invoking providers to avoid duplicates.
+	 */
+	addProviderEvent(event: IChatDebugEvent): void;
+
+	/**
 	 * Get all events for a specific session.
 	 */
 	getEvents(sessionResource?: URI): readonly IChatDebugEvent[];

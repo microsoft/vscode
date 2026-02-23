@@ -55,11 +55,10 @@ export class ChatDebugHomeView extends Disposable {
 		const activeWidget = this.chatWidgetService.lastFocusedWidget;
 		const activeSessionResource = activeWidget?.viewModel?.sessionResource;
 
-		// List only chat sessions that have debug event data, most recent last → reversed for most recent first.
-		const sessionResources = [...this.chatService.chatModels.get()]
-			.filter(m => this.chatDebugService.getEvents(m.sessionResource).length > 0)
-			.map(m => m.sessionResource)
-			.reverse();
+		// List sessions that have debug event data.
+		// Use the debug service as the source of truth — it includes sessions
+		// whose chat models may have been archived (e.g. when a new chat was started).
+		const sessionResources = [...this.chatDebugService.getSessionResources()].reverse();
 
 		// Sort: active session first
 		if (activeSessionResource) {

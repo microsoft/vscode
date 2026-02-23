@@ -26,6 +26,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	private readonly _providers = new Set<IChatDebugLogProvider>();
 	private readonly _invocationCts = new ResourceMap<CancellationTokenSource>();
 
+	/** Events that were returned by providers (not internally logged). */
+	private readonly _providerEvents = new WeakSet<IChatDebugEvent>();
+
 	activeSessionResource: URI | undefined;
 
 	log(sessionResource: URI, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
@@ -51,6 +54,11 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			this._head = (this._head + 1) % ChatDebugServiceImpl.MAX_EVENTS;
 		}
 		this._onDidAddEvent.fire(event);
+	}
+
+	addProviderEvent(event: IChatDebugEvent): void {
+		this._providerEvents.add(event);
+		this.addEvent(event);
 	}
 
 	getEvents(sessionResource?: URI): readonly IChatDebugEvent[] {
@@ -117,6 +125,11 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			existingCts.dispose();
 		}
 
+		// Clear only provider-sourced events for this session to avoid
+		// duplicates when re-invoking (e.g. navigating back to a session).
+		// Internally-logged events (e.g. prompt discovery) are preserved.
+		this._clearProviderEvents(sessionResource);
+
 		const cts = new CancellationTokenSource();
 		this._invocationCts.set(sessionResource, cts);
 
@@ -139,7 +152,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			const events = await provider.provideChatDebugLog(sessionResource, token);
 			if (events) {
 				for (const event of events) {
-					this.addEvent({
+					this.addProviderEvent({
 						...event,
 						sessionResource: event.sessionResource ?? sessionResource,
 					});
@@ -156,6 +169,17 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			cts.cancel();
 			cts.dispose();
 			this._invocationCts.delete(sessionResource);
+		}
+	}
+
+	private _clearProviderEvents(sessionResource: URI): void {
+		const key = sessionResource.toString();
+		for (let i = 0; i < this._size; i++) {
+			const idx = (this._head + i) % ChatDebugServiceImpl.MAX_EVENTS;
+			const event = this._buffer[idx];
+			if (event && this._providerEvents.has(event) && event.sessionResource.toString() === key) {
+				this._buffer[idx] = undefined;
+			}
 		}
 	}
 

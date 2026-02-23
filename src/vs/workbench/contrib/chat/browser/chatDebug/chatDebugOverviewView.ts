@@ -40,6 +40,8 @@ export class ChatDebugOverviewView extends Disposable {
 	private readonly loadDisposables = this._register(new DisposableStore());
 
 	private currentSessionResource: URI | undefined;
+	private metricsContainer: HTMLElement | undefined;
+	private isFirstLoad: boolean = true;
 
 	constructor(
 		parent: HTMLElement,
@@ -71,6 +73,7 @@ export class ChatDebugOverviewView extends Disposable {
 
 	setSession(sessionResource: URI): void {
 		this.currentSessionResource = sessionResource;
+		this.isFirstLoad = true;
 	}
 
 	show(): void {
@@ -84,7 +87,15 @@ export class ChatDebugOverviewView extends Disposable {
 
 	refresh(): void {
 		if (this.container.style.display !== 'none') {
-			this.load();
+			// On refresh, only update the metrics section in-place
+			if (this.metricsContainer && this.currentSessionResource) {
+				DOM.clearNode(this.metricsContainer);
+				const events = this.chatDebugService.getEvents(this.currentSessionResource);
+				this.renderMetricsContent(this.metricsContainer, events);
+				this.isFirstLoad = false;
+			} else {
+				this.load();
+			}
 		}
 	}
 
@@ -131,7 +142,8 @@ export class ChatDebugOverviewView extends Disposable {
 
 		// Derived overview metrics
 		const events = this.chatDebugService.getEvents(this.currentSessionResource);
-		this.renderDerivedOverview(events);
+		this.renderDerivedOverview(events, this.isFirstLoad);
+		this.isFirstLoad = false;
 	}
 
 	private renderSessionDetails(sessionUri: URI): void {
@@ -191,47 +203,16 @@ export class ChatDebugOverviewView extends Disposable {
 		}
 	}
 
-	private renderDerivedOverview(events: readonly IChatDebugEvent[]): void {
-		const modelTurns = events.filter(e => e.kind === 'modelTurn');
-		const toolCalls = events.filter(e => e.kind === 'toolCall');
-		const errors = events.filter(e =>
-			(e.kind === 'generic' && e.level === ChatDebugLogLevel.Error) ||
-			(e.kind === 'toolCall' && e.result === 'error')
-		);
+	private renderDerivedOverview(events: readonly IChatDebugEvent[], showShimmer: boolean): void {
+		const metricsSection = DOM.append(this.content, $('.chat-debug-overview-section'));
+		DOM.append(metricsSection, $('h3.chat-debug-overview-section-label', undefined, localize('chatDebug.summary', "Summary")));
 
-		const totalTokens = modelTurns.reduce((sum, e) => sum + (e.totalTokens ?? 0), 0);
-		const totalCost = modelTurns.reduce((sum, e) => sum + (e.cost ?? 0), 0);
+		this.metricsContainer = DOM.append(metricsSection, $('.chat-debug-overview-metrics'));
 
-		interface OverviewMetric { label: string; value: string }
-		const metrics: OverviewMetric[] = [];
-
-		if (modelTurns.length > 0) {
-			metrics.push({ label: localize('chatDebug.metric.modelTurns', "Model Turns"), value: String(modelTurns.length) });
-		}
-		if (toolCalls.length > 0) {
-			metrics.push({ label: localize('chatDebug.metric.toolCalls', "Tool Calls"), value: String(toolCalls.length) });
-		}
-		if (totalTokens > 0) {
-			metrics.push({ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: totalTokens.toLocaleString() });
-		}
-		if (totalCost > 0) {
-			metrics.push({ label: localize('chatDebug.metric.totalCost', "Total Cost"), value: `$${totalCost.toFixed(4)}` });
-		}
-		if (errors.length > 0) {
-			metrics.push({ label: localize('chatDebug.metric.errors', "Errors"), value: String(errors.length) });
-		}
-		metrics.push({ label: localize('chatDebug.metric.totalEvents', "Total Events"), value: String(events.length) });
-
-		if (metrics.length > 0) {
-			const metricsSection = DOM.append(this.content, $('.chat-debug-overview-section'));
-			DOM.append(metricsSection, $('h3.chat-debug-overview-section-label', undefined, localize('chatDebug.summary', "Summary")));
-
-			const metricsRow = DOM.append(metricsSection, $('.chat-debug-overview-metrics'));
-			for (const metric of metrics) {
-				const card = DOM.append(metricsRow, $('.chat-debug-overview-metric-card'));
-				DOM.append(card, $('div.chat-debug-overview-metric-label', undefined, metric.label));
-				DOM.append(card, $('div.chat-debug-overview-metric-value', undefined, metric.value));
-			}
+		if (showShimmer) {
+			this.renderMetricsShimmer(this.metricsContainer);
+		} else {
+			this.renderMetricsContent(this.metricsContainer, events);
 		}
 
 		// Explore actions
@@ -254,5 +235,49 @@ export class ChatDebugOverviewView extends Disposable {
 			this._onNavigate.fire(OverviewNavigation.FlowChart);
 		}));
 
+	}
+
+	private renderMetricsShimmer(container: HTMLElement): void {
+		// Show placeholder shimmer cards while provider data is loading
+		const placeholderLabels = [
+			localize('chatDebug.metric.modelTurns', "Model Turns"),
+			localize('chatDebug.metric.toolCalls', "Tool Calls"),
+			localize('chatDebug.metric.totalTokens', "Total Tokens"),
+			localize('chatDebug.metric.errors', "Errors"),
+			localize('chatDebug.metric.totalEvents', "Total Events"),
+		];
+		for (const label of placeholderLabels) {
+			const card = DOM.append(container, $('.chat-debug-overview-metric-card'));
+			DOM.append(card, $('div.chat-debug-overview-metric-label', undefined, label));
+			const valueEl = DOM.append(card, $('div.chat-debug-overview-metric-value'));
+			const shimmer = DOM.append(valueEl, $('span.chat-debug-overview-metric-shimmer'));
+			shimmer.textContent = '\u00A0'; // non-breaking space for height
+		}
+	}
+
+	private renderMetricsContent(container: HTMLElement, events: readonly IChatDebugEvent[]): void {
+		const modelTurns = events.filter(e => e.kind === 'modelTurn');
+		const toolCalls = events.filter(e => e.kind === 'toolCall');
+		const errors = events.filter(e =>
+			(e.kind === 'generic' && e.level === ChatDebugLogLevel.Error) ||
+			(e.kind === 'toolCall' && e.result === 'error')
+		);
+
+		const totalTokens = modelTurns.reduce((sum, e) => sum + (e.totalTokens ?? 0), 0);
+
+		interface OverviewMetric { label: string; value: string }
+		const metrics: OverviewMetric[] = [
+			{ label: localize('chatDebug.metric.modelTurns', "Model Turns"), value: String(modelTurns.length) },
+			{ label: localize('chatDebug.metric.toolCalls', "Tool Calls"), value: String(toolCalls.length) },
+			{ label: localize('chatDebug.metric.totalTokens', "Total Tokens"), value: totalTokens.toLocaleString() },
+			{ label: localize('chatDebug.metric.errors', "Errors"), value: String(errors.length) },
+			{ label: localize('chatDebug.metric.totalEvents', "Total Events"), value: String(events.length) },
+		];
+
+		for (const metric of metrics) {
+			const card = DOM.append(container, $('.chat-debug-overview-metric-card'));
+			DOM.append(card, $('div.chat-debug-overview-metric-label', undefined, metric.label));
+			DOM.append(card, $('div.chat-debug-overview-metric-value', undefined, metric.value));
+		}
 	}
 }

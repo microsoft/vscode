@@ -55,7 +55,7 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 			return;
 		}
 		const revived = this._reviveEvent(dto, sessionResource);
-		this._chatDebugService.addEvent(revived);
+		this._chatDebugService.addProviderEvent(revived);
 	}
 
 	private _reviveEvent(dto: IChatDebugEventDto, sessionResource: URI): IChatDebugEvent {
