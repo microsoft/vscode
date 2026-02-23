@@ -428,14 +428,14 @@ export class McpListWidget extends Disposable {
 		if (browse) {
 			void this.queryGallery();
 		} else {
-			this.galleryCts?.cancel();
+			this.galleryCts?.dispose(true);
 			this.galleryServers = [];
 			this.filterServers();
 		}
 	}
 
 	private async queryGallery(): Promise<void> {
-		this.galleryCts?.cancel();
+		this.galleryCts?.dispose(true);
 		const cts = this.galleryCts = new CancellationTokenSource();
 
 		// Show loading state
