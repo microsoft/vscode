@@ -89,14 +89,14 @@ export const chatThinkingShimmer = registerColor(
 	{ dark: '#ffffff', light: '#000000', hcDark: '#ffffff', hcLight: '#000000' },
 	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'), true);
 
-export const chatBarHeaderBackground = registerColor(
-	'chatBarHeader.background',
+export const chatBarTitleBackground = registerColor(
+	'chatBarTitle.background',
 	SIDE_BAR_SECTION_HEADER_BACKGROUND,
-	localize('chatBarHeader.background', 'Background color of the chat bar header area in the agent sessions window.')
+	localize('chatBarTitle.background', 'Background color of the chat bar header area in the agent sessions window.')
 );
 
-export const chatBarHeaderForeground = registerColor(
-	'chatBarHeader.foreground',
+export const chatBarTitleForeground = registerColor(
+	'chatBarTitle.foreground',
 	SIDE_BAR_SECTION_HEADER_FOREGROUND,
-	localize('chatBarHeader.foreground', 'Foreground color of the chat bar header area in the agent sessions window.')
+	localize('chatBarTitle.foreground', 'Foreground color of the chat bar header area in the agent sessions window.')
 );
