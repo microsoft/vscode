@@ -476,6 +476,18 @@
 	flex-direction: column;
 }
 
+/* Embedded MCP server detail view */
+.ai-customization-management-editor .mcp-detail-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .mcp-detail-editor-container {
+	flex: 1;
+	overflow: hidden;
+}
+
 /* Models section footer */
 .ai-customization-management-editor .models-content-container .section-footer {
 	flex-shrink: 0;
