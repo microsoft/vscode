@@ -243,7 +243,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 
 		// Check individual line heights
 		assert.strictEqual(manager.heightForLineNumber(5), 10);
-		assert.strictEqual(manager.heightForLineNumber(6), 10);
+		assert.strictEqual(manager.heightForLineNumber(6), 25);
 	});
 
 	test('overlapping decorations use maximum line height', () => {
