@@ -779,8 +779,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Overlay click listener removed: overlay is non-interactive in cancel-on-any-row mode.
 
 		// hack @joaomoreno
-		templateData.rowContainer.parentElement?.parentElement?.parentElement?.classList.toggle('request', isRequestVM(element));
-		templateData.rowContainer.parentElement?.parentElement?.parentElement?.classList.toggle('response', isResponseVM(element));
+		const rowRoot = templateData.rowContainer.parentElement?.parentElement?.parentElement;
+		rowRoot?.classList.toggle('request', isRequestVM(element));
+		rowRoot?.classList.toggle('response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
 		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
 
