@@ -225,9 +225,14 @@ export class InlineChatInputWidget extends Disposable {
 		}));
 
 		// ArrowUp on first action bar item moves focus back to input editor
+		// Escape on action bar hides the widget
 		this._store.add(dom.addDisposableListener(actionBar.domNode, 'keydown', (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.UpArrow) {
+			if (event.keyCode === KeyCode.Escape) {
+				event.preventDefault();
+				event.stopPropagation();
+				this.hide();
+			} else if (event.keyCode === KeyCode.UpArrow) {
 				const firstItem = actionBar.viewItems[0] as BaseActionViewItem | undefined;
 				if (firstItem?.element && dom.isAncestorOfActiveElement(firstItem.element)) {
 					event.preventDefault();
