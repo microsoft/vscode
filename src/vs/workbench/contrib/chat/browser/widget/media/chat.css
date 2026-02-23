@@ -1263,6 +1263,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: var(--vscode-focusBorder);
 }
 
+.chat-editor-container {
+	padding: 0 4px;
+}
+
 .chat-editor-container .monaco-editor .mtk1 {
 	color: var(--vscode-input-foreground);
 }
@@ -1291,10 +1295,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 
 .interactive-session .chat-editor-container .monaco-editor .cursors-layer {
-	padding-left: 4px;
-}
-
-.interactive-session .chat-editor-container .monaco-editor .view-lines {
 	padding-left: 4px;
 }
 
