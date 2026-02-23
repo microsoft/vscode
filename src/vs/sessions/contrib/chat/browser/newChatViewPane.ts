@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -57,6 +58,8 @@ import { IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.
 import { BranchPicker } from './branchPicker.js';
 import { INewSession } from './newSession.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
+
+const STORAGE_KEY_LAST_MODEL = 'agentSessions.lastPickedModel';
 
 // #region --- Chat Welcome Widget ---
 
@@ -133,6 +136,7 @@ class NewChatWidget extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
@@ -467,6 +471,7 @@ class NewChatWidget extends Disposable {
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._currentLanguageModel.set(model, undefined);
+				this.storageService.store(STORAGE_KEY_LAST_MODEL, model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 				this._newSession.value?.setModelId(model.identifier);
 				this._focusEditor();
 			},
@@ -489,16 +494,24 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _initDefaultModel(): void {
+		const lastModelId = this.storageService.get(STORAGE_KEY_LAST_MODEL, StorageScope.PROFILE);
 		const models = this._getAvailableModels();
-		if (models.length > 0) {
+		const lastModel = lastModelId ? models.find(m => m.identifier === lastModelId) : undefined;
+		if (lastModel) {
+			this._currentLanguageModel.set(lastModel, undefined);
+		} else if (models.length > 0) {
 			this._currentLanguageModel.set(models[0], undefined);
 		}
 
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			if (!this._currentLanguageModel.get()) {
-				const models = this._getAvailableModels();
-				if (models.length > 0) {
-					this._currentLanguageModel.set(models[0], undefined);
+				const storedId = this.storageService.get(STORAGE_KEY_LAST_MODEL, StorageScope.PROFILE);
+				const updated = this._getAvailableModels();
+				const stored = storedId ? updated.find(m => m.identifier === storedId) : undefined;
+				if (stored) {
+					this._currentLanguageModel.set(stored, undefined);
+				} else if (updated.length > 0) {
+					this._currentLanguageModel.set(updated[0], undefined);
 				}
 			}
 		}));
