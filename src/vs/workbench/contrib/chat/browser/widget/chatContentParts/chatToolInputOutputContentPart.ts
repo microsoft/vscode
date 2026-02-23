@@ -5,7 +5,6 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
-import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -131,20 +130,6 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		const hoverChevron = dom.$('span.chat-collapsible-hover-chevron.codicon.codicon-chevron-right');
 		hoverChevron.setAttribute('aria-hidden', 'true');
 		btn.element.appendChild(hoverChevron);
-
-		const check = dom.h(isError
-			? ThemeIcon.asCSSSelector(Codicon.error)
-			: output
-				? ThemeIcon.asCSSSelector(Codicon.check)
-				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
-		);
-
-		if (progressTooltip) {
-			this._register(hoverService.setupDelayedHover(check.root, {
-				content: progressTooltip,
-				style: HoverStyle.Pointer,
-			}));
-		}
 
 		// Only show leading icon for errors, or for checkmarks/loading when the accessibility setting is on
 		const showCheckmarks = observableConfigValue(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, false, this.configurationService);

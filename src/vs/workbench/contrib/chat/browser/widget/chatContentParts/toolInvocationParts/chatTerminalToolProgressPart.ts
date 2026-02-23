@@ -1483,9 +1483,10 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		initialExpanded: boolean,
 		isComplete: boolean,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const title = isComplete ? `Ran \`${commandText}\`` : `Running \`${commandText}\``;
-		super(title, context, undefined, hoverService);
+		super(title, context, undefined, hoverService, configurationService);
 
 		this._terminalContentElement = contentElement;
 		this._commandText = commandText;
