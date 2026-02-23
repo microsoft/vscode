@@ -18,8 +18,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
+import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../workbench/common/views.js';
+import { sessionsSidebarBackground } from '../../../common/theme.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -83,6 +84,18 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this.viewPaneContainer.classList.add('agent-sessions-viewpane');
 
 		this.createControls(parent);
+	}
+
+	protected override getLocationBasedColors(): IViewPaneLocationColors {
+		const colors = super.getLocationBasedColors();
+		return {
+			...colors,
+			background: sessionsSidebarBackground,
+			listOverrideStyles: {
+				...colors.listOverrideStyles,
+				listBackground: sessionsSidebarBackground,
+			}
+		};
 	}
 
 	private createControls(parent: HTMLElement): void {

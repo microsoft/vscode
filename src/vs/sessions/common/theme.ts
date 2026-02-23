@@ -7,6 +7,13 @@ import { localize } from '../../nls.js';
 import { registerColor } from '../../platform/theme/common/colorUtils.js';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
+// Sessions sidebar background color
+export const sessionsSidebarBackground = registerColor(
+	'sessionsSidebar.background',
+	SIDE_BAR_BACKGROUND,
+	localize('sessionsSidebar.background', 'Background color of the sidebar view in the agent sessions window.')
+);
+
 // Sessions sidebar header colors
 export const sessionsSidebarHeaderBackground = registerColor(
 	'sessionsSidebarHeader.background',
