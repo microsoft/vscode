@@ -5,7 +5,8 @@
 
 import { localize } from '../../nls.js';
 import { registerColor } from '../../platform/theme/common/colorUtils.js';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_BORDER, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
+import { contrastBorder } from '../../platform/theme/common/colorRegistry.js';
+import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
 // Sessions sidebar background color
 export const sessionsSidebarBackground = registerColor(
@@ -17,7 +18,7 @@ export const sessionsSidebarBackground = registerColor(
 // Sessions sidebar border color
 export const sessionsSidebarBorder = registerColor(
 	'sessionsSidebar.border',
-	SIDE_BAR_BORDER,
+	{ dark: null, light: null, hcDark: contrastBorder, hcLight: contrastBorder },
 	localize('sessionsSidebar.border', 'Border color of the sidebar in the agent sessions window.')
 );
 
