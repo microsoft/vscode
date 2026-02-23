@@ -130,6 +130,7 @@ export function buildModelPickerItems(
 	manageSettingsUrl: string | undefined,
 	commandService: ICommandService,
 	chatEntitlementService: IChatEntitlementService,
+	canManageModels: boolean,
 	showCuratedModels: boolean = true,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const isPro = isProUser(chatEntitlementService.entitlement);
@@ -331,12 +332,12 @@ export function buildModelPickerItems(
 	}
 
 	if (
-		chatEntitlementService.entitlement === ChatEntitlement.Free ||
-		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
-		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
-		chatEntitlementService.entitlement === ChatEntitlement.Business ||
-		chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
-		chatEntitlementService.isInternal
+		canManageModels && (chatEntitlementService.entitlement === ChatEntitlement.Free ||
+			chatEntitlementService.entitlement === ChatEntitlement.Pro ||
+			chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+			chatEntitlementService.entitlement === ChatEntitlement.Business ||
+			chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
+			chatEntitlementService.isInternal)
 	) {
 		items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
 		items.push({
@@ -540,6 +541,7 @@ export class ModelPickerWidget extends Disposable {
 			this._productService.defaultChatAgent?.manageSettingsUrl,
 			this._commandService,
 			this._entitlementService,
+			this._delegate.canManageModels(),
 			showCuratedModels
 		);
 

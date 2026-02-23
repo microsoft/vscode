@@ -78,6 +78,7 @@ function callBuild(
 		updateStateType?: StateType;
 		manageSettingsUrl?: string;
 		anonymous?: boolean;
+		canManageModels?: boolean;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -96,6 +97,7 @@ function callBuild(
 		opts.manageSettingsUrl,
 		stubCommandService,
 		entitlementService,
+		opts.canManageModels ?? true,
 	);
 }
 
@@ -447,6 +449,7 @@ suite('buildModelPickerItems', () => {
 			undefined,
 			stubCommandService,
 			stubChatEntitlementService,
+			true,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
@@ -528,6 +531,7 @@ suite('buildModelPickerItems', () => {
 			'https://aka.ms/github-copilot-settings',
 			stubCommandService,
 			stubChatEntitlementService,
+			true,
 		);
 
 		const adminItem = getActionItems(items).find(a => a.label === 'Missing Model');
@@ -591,6 +595,52 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(disabledItems[1].description, undefined);
 	});
 
+	test('canManageModels true shows Manage Models entry for eligible entitlement', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], { canManageModels: true });
+		const manageItem = getActionItems(items).find(a => a.item?.id === 'manageModels');
+		assert.ok(manageItem);
+	});
+
+	test('canManageModels false hides Manage Models entry', () => {
+		const auto = createAutoModel();
+		const modelA = createModel('gpt-4o', 'GPT-4o');
+		const items = callBuild([auto, modelA], { canManageModels: false });
+		const manageItem = getActionItems(items).find(a => a.item?.id === 'manageModels');
+		assert.strictEqual(manageItem, undefined);
+	});
+
+	test('canManageModels false hides Manage Models for all entitlement tiers', () => {
+		const auto = createAutoModel();
+		for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.Pro, ChatEntitlement.ProPlus, ChatEntitlement.Business, ChatEntitlement.Enterprise]) {
+			const items = callBuild([auto], { canManageModels: false, entitlement });
+			const manageItem = getActionItems(items).find(a => a.item?.id === 'manageModels');
+			assert.strictEqual(manageItem, undefined, `Manage Models should be hidden for entitlement ${entitlement}`);
+		}
+	});
+
+	test('canManageModels true shows Manage Models for empty model list', () => {
+		const items = callBuild([], { canManageModels: true });
+		const manageItem = getActionItems(items).find(a => a.item?.id === 'manageModels');
+		assert.ok(manageItem);
+	});
+
+	test('canManageModels false hides Manage Models for empty model list', () => {
+		const items = callBuild([], { canManageModels: false });
+		const manageItem = getActionItems(items).find(a => a.item?.id === 'manageModels');
+		assert.strictEqual(manageItem, undefined);
+	});
+
+	test('canManageModels false also removes trailing separator', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], { canManageModels: false });
+		const manageItem = getActionItems(items).find(a => a.item?.id === 'manageModels');
+		assert.strictEqual(manageItem, undefined);
+		// No trailing separator should exist for manage models
+		assert.strictEqual(getSeparatorCount(items), 0);
+	});
+
 	test('anonymous user model selection triggers onSelect normally', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
@@ -608,6 +658,7 @@ suite('buildModelPickerItems', () => {
 			undefined,
 			stubCommandService,
 			anonymousEntitlementService,
+			true,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
 		assert.ok(gptItem?.item);
