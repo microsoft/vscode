@@ -276,8 +276,8 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					f1: true,
 					menu: [{
 						id: MenuId.GlobalActivity,
-						group: '2_configuration',
-						order: 2.5,
+						group: '1_ai',
+						order: 1,
 						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
 					}],
 				});
