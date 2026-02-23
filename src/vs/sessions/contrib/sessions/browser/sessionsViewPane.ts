@@ -93,7 +93,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterSubMenu,
 			groupResults: () => AgentSessionsGrouping.Date,
-			builtInProviders: [],
+			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
 			providerLabelOverrides: new Map([
 				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Local")],
 			]),
