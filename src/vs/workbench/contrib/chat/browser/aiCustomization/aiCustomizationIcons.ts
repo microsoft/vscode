@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from '../../../../base/common/codicons.js';
-import { localize } from '../../../../nls.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { localize } from '../../../../../nls.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 
 /**
  * Icon for the AI Customization view container (sidebar).

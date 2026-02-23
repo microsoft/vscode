@@ -687,7 +687,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 
 	const chatService = accessor.get(IChatService);
 	const uri = editor.getModel().uri;
-	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline);
+	const chatModelRef = chatService.startNewLocalSession(ChatAgentLocation.EditorInline);
 	const chatModel = chatModelRef.object as ChatModel;
 
 	chatModel.startEditingSession(true);
@@ -739,7 +739,7 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	const chatService = accessor.get(IChatService);
 	const notebookService = accessor.get(INotebookService);
 	const isNotebook = notebookService.hasSupportedNotebooks(uri);
-	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline);
+	const chatModelRef = chatService.startNewLocalSession(ChatAgentLocation.EditorInline);
 	const chatModel = chatModelRef.object as ChatModel;
 
 	chatModel.startEditingSession(true);

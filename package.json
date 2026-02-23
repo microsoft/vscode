@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.110.0",
-  "distro": "bd187e4508a244500eb533c56e5cccb6801a699c",
+  "distro": "9d472fb245bfdeb5eca66384d5bf6a9881fe4965",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -118,7 +118,7 @@
     "native-keymap": "^3.3.5",
     "node-pty": "^1.2.0-beta.10",
     "open": "^10.1.2",
-    "playwright-core": "^1.58.2",
+    "playwright-core": "1.59.0-alpha-2026-02-20",
     "tas-client": "0.3.1",
     "undici": "^7.18.2",
     "v8-inspect-profiler": "^0.1.1",

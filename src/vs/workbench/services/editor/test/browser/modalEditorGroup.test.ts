@@ -506,13 +506,13 @@ suite('Modal Editor Group', () => {
 		modalPart.close();
 	});
 
-	suite('useModal: on', () => {
+	suite('useModal: all', () => {
 
 		test('findGroup creates modal and returns its active group', async () => {
 			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 			const configurationService = new TestConfigurationService();
-			await configurationService.setUserConfiguration('workbench.editor.useModal', 'on');
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'all');
 			instantiationService.stub(IConfigurationService, configurationService);
 			const parts = await createEditorParts(instantiationService, disposables);
 			instantiationService.stub(IEditorGroupsService, parts);
@@ -536,7 +536,7 @@ suite('Modal Editor Group', () => {
 			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 			const configurationService = new TestConfigurationService();
-			await configurationService.setUserConfiguration('workbench.editor.useModal', 'on');
+			await configurationService.setUserConfiguration('workbench.editor.useModal', 'all');
 			instantiationService.stub(IConfigurationService, configurationService);
 			const parts = await createEditorParts(instantiationService, disposables);
 			instantiationService.stub(IEditorGroupsService, parts);
@@ -559,7 +559,7 @@ suite('Modal Editor Group', () => {
 			modalPart.close();
 		});
 
-		test('findGroup auto-closes modal when setting is not on', async () => {
+		test('findGroup auto-closes modal when setting is not all', async () => {
 			const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 			instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 			const configurationService = new TestConfigurationService();
@@ -581,6 +581,36 @@ suite('Modal Editor Group', () => {
 
 			assert.strictEqual(parts.activeModalEditorPart, undefined);
 		});
+	});
+
+	test('modal editor part editors can be moved to another group', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		// Create modal and open editors
+		const modalPart = await parts.createModalEditorPart();
+		const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/baz'), TEST_EDITOR_INPUT_ID);
+		await modalPart.activeGroup.openEditor(input1, { pinned: true });
+		await modalPart.activeGroup.openEditor(input2, { pinned: true });
+
+		assert.strictEqual(modalPart.activeGroup.count, 2);
+
+		// Move editors from modal to main part group
+		const targetGroup = parts.mainPart.activeGroup;
+		for (const group of modalPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+			group.moveEditors(group.editors.map(editor => ({ editor, options: { preserveFocus: true } })), targetGroup);
+		}
+
+		// Editors should be in the target group now
+		assert.strictEqual(targetGroup.count, 2);
+		assert.strictEqual(modalPart.activeGroup.count, 0);
+
+		// Close modal
+		modalPart.close();
+		assert.strictEqual(parts.activeModalEditorPart, undefined);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

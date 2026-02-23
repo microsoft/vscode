@@ -84,6 +84,7 @@ export const GENERATE_INSTRUCTION_COMMAND_ID = 'workbench.action.chat.generateIn
 export const GENERATE_PROMPT_COMMAND_ID = 'workbench.action.chat.generatePrompt';
 export const GENERATE_SKILL_COMMAND_ID = 'workbench.action.chat.generateSkill';
 export const GENERATE_AGENT_COMMAND_ID = 'workbench.action.chat.generateAgent';
+export const GENERATE_HOOK_COMMAND_ID = 'workbench.action.chat.generateHook';
 
 const defaultChat = {
 	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
@@ -1293,6 +1294,29 @@ export function registerChatActions() {
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
 				query: '/create-agent ',
+				isPartialQuery: true,
+			});
+		}
+	});
+
+	registerAction2(class GenerateHookAction extends Action2 {
+		constructor() {
+			super({
+				id: GENERATE_HOOK_COMMAND_ID,
+				title: localize2('generateHook', "Generate Hook with Agent"),
+				shortTitle: localize2('generateHook.short', "Generate Hook with Agent"),
+				category: CHAT_CATEGORY,
+				icon: Codicon.sparkle,
+				f1: true,
+				precondition: ChatContextKeys.enabled
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const commandService = accessor.get(ICommandService);
+			await commandService.executeCommand('workbench.action.chat.open', {
+				mode: 'agent',
+				query: '/create-hook ',
 				isPartialQuery: true,
 			});
 		}

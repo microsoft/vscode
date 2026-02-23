@@ -2154,7 +2154,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 	border: none;
 	border-radius: 4px;
-	gap: 4px;
+	gap: 0;
 	text-align: initial;
 	justify-content: initial;
 }
@@ -2170,6 +2170,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-used-context-label .monaco-button {
 	padding: 2px 6px 2px 2px;
+	margin-left: -2px;
 	font-size: var(--vscode-chat-font-size-body-s);
 	line-height: unset;
 }
@@ -2178,10 +2179,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
+.interactive-session .chat-used-context:not(.chat-used-context-collapsed) .chat-used-context-label .monaco-button,
 .interactive-session .chat-used-context-label .monaco-button:hover {
-	background-color: var(--vscode-list-hoverBackground);
 	color: var(--vscode-foreground);
-
 }
 
 .interactive-session .chat-file-changes-label .monaco-text-button:focus,
@@ -2200,11 +2200,27 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground) !important;
 }
 
+/* Hover chevron indicator for collapsible parts */
+.chat-collapsible-hover-chevron {
+	font-size: 12px;
+	opacity: 0;
+	transition: opacity 0.1s ease-in-out;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-collapsible-hover-chevron.codicon-chevron-down {
+	opacity: 1;
+}
+
+.interactive-session .chat-used-context-label .monaco-button:hover .chat-collapsible-hover-chevron {
+	opacity: 1;
+}
+
 .interactive-item-container .progress-container {
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	margin: 0 0 6px 2px;
+	margin: 0 0 6px 0;
 	font-size: 13px;
 
 	/* Tool calls transition from a progress to a collapsible list part, which needs to have this top padding.
@@ -2217,6 +2233,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		&::before {
 			font-size: 12px;
 		}
+	}
+
+	> .codicon.codicon-check {
+		display: none;
 	}
 
 	.codicon {

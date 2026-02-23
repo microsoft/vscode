@@ -4,46 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/aiCustomizationManagement.css';
-import * as DOM from '../../../../base/browser/dom.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { autorun } from '../../../../base/common/observable.js';
-import { basename, dirname } from '../../../../base/common/resources.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { localize } from '../../../../nls.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
-import { IPromptsService, PromptsStorage, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeViewIcons.js';
-import { AICustomizationManagementItemMenuId, AICustomizationManagementSection, getActiveSessionRoot } from './aiCustomizationManagement.js';
-import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { Delayer } from '../../../../base/common/async.js';
-import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
-import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { matchesFuzzy, IMatch } from '../../../../base/common/filters.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ButtonWithDropdown } from '../../../../base/browser/ui/button/button.js';
-import { IMenuService } from '../../../../platform/actions/common/actions.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
-import { ILabelService } from '../../../../platform/label/common/label.js';
-import { parseAllHookFiles } from '../../../../workbench/contrib/chat/browser/promptSyntax/hookUtils.js';
-import { OS } from '../../../../base/common/platform.js';
-import { IRemoteAgentService } from '../../../../workbench/services/remote/common/remoteAgentService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { Action, Separator } from '../../../../base/common/actions.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { ISCMService } from '../../../../workbench/contrib/scm/common/scm.js';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
+import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon } from './aiCustomizationIcons.js';
+import { AICustomizationManagementItemMenuId, AICustomizationManagementSection } from './aiCustomizationManagement.js';
+import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
+import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { Delayer } from '../../../../../base/common/async.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
+import { matchesFuzzy, IMatch } from '../../../../../base/common/filters.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
+import { IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { parseAllHookFiles } from '../promptSyntax/hookUtils.js';
+import { OS } from '../../../../../base/common/platform.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { Action, Separator } from '../../../../../base/common/actions.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ISCMService } from '../../../scm/common/scm.js';
 
 const $ = DOM.$;
 
@@ -231,7 +231,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		switch (element.storage) {
 			case PromptsStorage.local:
 				storageBadgeIcon = workspaceIcon;
-				storageBadgeLabel = localize('worktree', "Worktree");
+				storageBadgeLabel = localize('workspace', "Workspace");
 				break;
 			case PromptsStorage.user:
 				storageBadgeIcon = userIcon;
@@ -312,6 +312,7 @@ export class AICustomizationListWidget extends Disposable {
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
 	private readonly collapsedGroups = new Set<PromptsStorage>();
+	private readonly dropdownActionDisposables = this._register(new DisposableStore());
 
 	private readonly delayedFilter = new Delayer<void>(200);
 
@@ -324,8 +325,8 @@ export class AICustomizationListWidget extends Disposable {
 	private readonly _onDidRequestCreate = this._register(new Emitter<PromptsType>());
 	readonly onDidRequestCreate: Event<PromptsType> = this._onDidRequestCreate.event;
 
-	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'worktree' | 'user' }>());
-	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'worktree' | 'user' }> = this._onDidRequestCreateManual.event;
+	private readonly _onDidRequestCreateManual = this._register(new Emitter<{ type: PromptsType; target: 'workspace' | 'user' }>());
+	readonly onDidRequestCreateManual: Event<{ type: PromptsType; target: 'workspace' | 'user' }> = this._onDidRequestCreateManual.event;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -340,7 +341,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IPathService private readonly pathService: IPathService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@ILogService private readonly logService: ILogService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ISCMService private readonly scmService: ISCMService,
@@ -351,7 +352,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.refresh()));
 		this._register(autorun(reader => {
-			this.activeSessionService.activeSession.read(reader);
+			this.workspaceService.activeProjectRoot.read(reader);
 			this.updateAddButton();
 			this.refresh();
 		}));
@@ -507,7 +508,7 @@ export class AICustomizationListWidget extends Disposable {
 				await this.clipboardService.writeText(item.uri.fsPath);
 			}),
 			new Action('copyRelativePath', localize('copyRelativePath', "Copy Relative Path"), undefined, true, async () => {
-				const basePath = getActiveSessionRoot(this.activeSessionService);
+				const basePath = this.workspaceService.getActiveProjectRoot();
 				if (basePath && item.uri.fsPath.startsWith(basePath.fsPath)) {
 					const relative = item.uri.fsPath.substring(basePath.fsPath.length + 1);
 					await this.clipboardService.writeText(relative);
@@ -580,25 +581,22 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private updateAddButton(): void {
 		const typeLabel = this.getTypeLabel();
-		if (this.currentSection === AICustomizationManagementSection.Hooks) {
-			this.addButton.label = `$(${Codicon.add.id}) New ${typeLabel}`;
-			const hasWorktree = !!this.activeSessionService.getActiveSession()?.worktree;
-			this.addButton.enabled = hasWorktree;
-			const disabledTitle = hasWorktree
-				? ''
-				: localize('hooksCreateDisabled', "Open a session with a worktree to configure hooks.");
-			this.addButton.primaryButton.setTitle(disabledTitle);
-			this.addButton.dropdownButton.setTitle(disabledTitle);
-			return;
-		}
 		this.addButton.primaryButton.setTitle('');
 		this.addButton.dropdownButton.setTitle('');
 		this.addButton.enabled = true;
-		const hasWorktree = this.hasActiveWorktree();
-		if (hasWorktree) {
-			this.addButton.label = `$(${Codicon.add.id}) New ${typeLabel} (Worktree)`;
+		if (this.workspaceService.preferManualCreation) {
+			// Sessions: primary is workspace creation
+			const hasWorkspace = this.hasActiveWorkspace();
+			this.addButton.label = `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`;
+			this.addButton.enabled = hasWorkspace;
+			if (!hasWorkspace) {
+				const disabledTitle = localize('createDisabled', "Open a workspace folder to create customizations.");
+				this.addButton.primaryButton.setTitle(disabledTitle);
+				this.addButton.dropdownButton.setTitle(disabledTitle);
+			}
 		} else {
-			this.addButton.label = `$(${Codicon.add.id}) New ${typeLabel} (User)`;
+			// Core: primary is AI generation
+			this.addButton.label = `$(${Codicon.sparkle.id}) Generate ${typeLabel}`;
 		}
 	}
 
@@ -606,30 +604,51 @@ export class AICustomizationListWidget extends Disposable {
 	 * Gets the dropdown actions for the add button.
 	 */
 	private getDropdownActions(): Action[] {
+		this.dropdownActionDisposables.clear();
 		const typeLabel = this.getTypeLabel();
 		const actions: Action[] = [];
 		const promptType = sectionToPromptType(this.currentSection);
-		const hasWorktree = this.hasActiveWorktree();
 
-		if (hasWorktree && promptType !== PromptsType.hook) {
-			// Primary is worktree - dropdown shows user + generate
-			actions.push(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
-				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
-			}));
+		// Hooks: no user-scoped creation
+		if (promptType === PromptsType.hook) {
+			if (this.workspaceService.preferManualCreation) {
+				// Sessions: no dropdown for hooks
+			} else {
+				// Core: primary is generate, dropdown has configure quick pick
+				if (this.hasActiveWorkspace()) {
+					actions.push(this.dropdownActionDisposables.add(new Action('configureHooks', `$(${Codicon.add.id}) Configure Hooks`, undefined, true, () => {
+						this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
+					})));
+				}
+			}
+			return actions;
 		}
 
-		actions.push(new Action('createWithAI', `$(${Codicon.sparkle.id}) Generate ${typeLabel}`, undefined, true, () => {
-			this._onDidRequestCreate.fire(promptType);
-		}));
+		if (this.workspaceService.preferManualCreation) {
+			// Sessions: primary is workspace, dropdown has user
+			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
+				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
+			})));
+		} else {
+			// Core: primary is generate, dropdown has workspace + user
+			if (this.hasActiveWorkspace()) {
+				actions.push(this.dropdownActionDisposables.add(new Action('createWorkspace', `$(${Codicon.folder.id}) New ${typeLabel} (Workspace)`, undefined, true, () => {
+					this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
+				})));
+			}
+			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
+				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
+			})));
+		}
 
 		return actions;
 	}
 
 	/**
-	 * Checks if there's an active session root (worktree or repository).
+	 * Checks if there's an active project root (workspace folder or session repository).
 	 */
-	private hasActiveWorktree(): boolean {
-		return !!getActiveSessionRoot(this.activeSessionService);
+	private hasActiveWorkspace(): boolean {
+		return !!this.workspaceService.getActiveProjectRoot();
 	}
 
 	/**
@@ -637,11 +656,16 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private executePrimaryCreateAction(): void {
 		const promptType = sectionToPromptType(this.currentSection);
-		if (promptType === PromptsType.hook && !this.activeSessionService.getActiveSession()?.worktree) {
-			return;
+		if (this.workspaceService.preferManualCreation) {
+			// Sessions: primary creates in workspace
+			if (!this.hasActiveWorkspace()) {
+				return;
+			}
+			this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' });
+		} else {
+			// Core: primary is generate
+			this._onDidRequestCreate.fire(promptType);
 		}
-		const target = this.hasActiveWorktree() || promptType === PromptsType.hook ? 'worktree' : 'user';
-		this._onDidRequestCreateManual.fire({ type: promptType, target });
 	}
 
 	/**
@@ -679,7 +703,7 @@ export class AICustomizationListWidget extends Disposable {
 		const items: IAICustomizationListItem[] = [];
 
 		const folders = this.workspaceContextService.getWorkspace().folders;
-		const activeRepo = getActiveSessionRoot(this.activeSessionService);
+		const activeRepo = this.workspaceService.getActiveProjectRoot();
 		this.logService.info(`[AICustomizationListWidget] loadItems: section=${this.currentSection}, promptType=${promptType}, workspaceFolders=[${folders.map(f => f.uri.toString()).join(', ')}], activeRepo=${activeRepo?.toString() ?? 'none'}`);
 
 
@@ -792,7 +816,7 @@ export class AICustomizationListWidget extends Disposable {
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
 
-		// Set git status for worktree (local) items
+		// Set git status for workspace (local) items
 		this.updateGitStatus(items);
 
 		this.logService.info(`[AICustomizationListWidget] loadItems complete: ${items.length} items loaded [${items.map(i => `${i.name}(${i.storage}:${i.uri.toString()})`).join(', ')}]`);
@@ -803,7 +827,7 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
-	 * Updates git status on worktree items by checking SCM resource groups.
+	 * Updates git status on local workspace items by checking SCM resource groups.
 	 * Files found in resource groups have uncommitted changes; others are committed.
 	 */
 	private updateGitStatus(items: IAICustomizationListItem[]): void {
@@ -875,7 +899,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Group items by storage
 		const groups: { storage: PromptsStorage; label: string; icon: ThemeIcon; items: IAICustomizationListItem[] }[] = [
-			{ storage: PromptsStorage.local, label: localize('worktreeGroup', "Worktree"), icon: workspaceIcon, items: [] },
+			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, items: [] },
 			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, items: [] },
 			{ storage: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, items: [] },
 		];

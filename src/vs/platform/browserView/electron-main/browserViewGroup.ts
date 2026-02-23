@@ -87,6 +87,10 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 	async removeView(viewId: string): Promise<void> {
 		const view = this.views.get(viewId);
 		if (view && this.views.delete(viewId)) {
+			// If no remaining views belong to the view's context, and we don't own the context, remove it from known contexts
+			if (!this.ownedContextIds.has(view.session.id) && ![...this.views.values()].some(v => v.session.id === view.session.id)) {
+				this.knownContextIds.delete(view.session.id);
+			}
 			this._onDidRemoveView.fire({ viewId: view.id });
 			this._onTargetDestroyed.fire(view);
 		}

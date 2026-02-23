@@ -7,6 +7,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
 import {
 	IBrowserViewBounds,
 	IBrowserViewNavigationEvent,
@@ -90,7 +91,9 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly error: IBrowserViewLoadError | undefined;
 
 	readonly storageScope: BrowserViewStorageScope;
+	readonly sharedWithAgent: boolean;
 
+	readonly onDidChangeSharedWithAgent: Event<boolean>;
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent>;
@@ -120,6 +123,7 @@ export interface IBrowserViewModel extends IDisposable {
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
+	setSharedWithAgent(shared: boolean): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -135,6 +139,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _canGoForward: boolean = false;
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
+	private _sharedWithAgent: boolean = false;
+
+	private readonly _onDidChangeSharedWithAgent = this._register(new Emitter<boolean>());
+	readonly onDidChangeSharedWithAgent: Event<boolean> = this._onDidChangeSharedWithAgent.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
@@ -145,7 +153,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPlaywrightService private readonly playwrightService: IPlaywrightService
 	) {
 		super();
 	}
@@ -162,6 +171,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get screenshot(): VSBuffer | undefined { return this._screenshot; }
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
+	get sharedWithAgent(): boolean { return this._sharedWithAgent; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -239,6 +249,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._favicon = state.lastFavicon;
 		this._error = state.lastError;
 		this._storageScope = state.storageScope;
+		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
 
 		// Set up state synchronization
 
@@ -276,6 +287,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 		this._register(this.onDidChangeVisibility(({ visible }) => {
 			this._visible = visible;
+		}));
+
+		this._register(this.playwrightService.onDidChangeTrackedPages(ids => {
+			this._setSharedWithAgent(ids.includes(this.id));
 		}));
 	}
 
@@ -343,6 +358,21 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async clearStorage(): Promise<void> {
 		return this.browserViewService.clearStorage(this.id);
+	}
+
+	async setSharedWithAgent(shared: boolean): Promise<void> {
+		if (shared) {
+			await this.playwrightService.startTrackingPage(this.id);
+		} else {
+			await this.playwrightService.stopTrackingPage(this.id);
+		}
+	}
+
+	private _setSharedWithAgent(isShared: boolean): void {
+		if (isShared !== this._sharedWithAgent) {
+			this._sharedWithAgent = isShared;
+			this._onDidChangeSharedWithAgent.fire(isShared);
+		}
 	}
 
 	/**

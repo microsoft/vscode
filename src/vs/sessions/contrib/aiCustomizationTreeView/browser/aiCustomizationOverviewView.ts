@@ -19,15 +19,15 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
-import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon } from '../../aiCustomizationTreeView/browser/aiCustomizationTreeViewIcons.js';
+import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 
 const $ = DOM.$;
 
@@ -63,10 +63,10 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -85,7 +85,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		// Listen to workspace folder changes to update counts
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.loadCounts()));
 		this._register(autorun(reader => {
-			this.activeSessionService.activeSession.read(reader);
+			this.workspaceService.activeProjectRoot.read(reader);
 			this.loadCounts();
 		}));
 
@@ -187,7 +187,7 @@ export class AICustomizationOverviewView extends ViewPane {
 
 	private async openSection(sectionId: AICustomizationManagementSection): Promise<void> {
 		const input = AICustomizationManagementEditorInput.getOrCreate();
-		const editor = await this.editorGroupsService.activeGroup.openEditor(input, { pinned: true });
+		const editor = await this.editorService.openEditor(input, { pinned: true });
 
 		// Deep-link to the section
 		if (editor instanceof AICustomizationManagementEditor) {

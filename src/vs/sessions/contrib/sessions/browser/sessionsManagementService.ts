@@ -283,7 +283,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Open a new remote session - load the model first, then show it in the ChatViewPane.
 	 */
 	private async openNewRemoteSession(sessionResource: URI): Promise<void> {
-		const modelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		if (!chatWidget?.viewModel) {
 			this.logService.warn(`[ActiveSessionService] Failed to open session: ${sessionResource.toString()}`);
@@ -348,7 +348,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// 2. Apply selected options (repository, branch, etc.) to the contributed session
 		if (selectedOptions && selectedOptions.size > 0) {
-			const modelRef = this.chatService.getActiveSessionReference(sessionResource);
+			const modelRef = this.chatService.acquireExistingSession(sessionResource);
 			if (modelRef) {
 				const model = modelRef.object;
 				const contributedSession = model.contributedChatSession;

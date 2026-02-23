@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './agentFeedbackEditorInputContribution.js';
+import './agentFeedbackEditorWidgetContribution.js';
 import './agentFeedbackLineDecorationContribution.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AgentFeedbackService, IAgentFeedbackService } from './agentFeedbackService.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
@@ -25,8 +27,11 @@ registerSingleton(IAgentFeedbackService, AgentFeedbackService, InstantiationType
 // Register the custom attachment widget for agentFeedback attachments
 class AgentFeedbackAttachmentWidgetContribution {
 	static readonly ID = 'workbench.contrib.agentFeedbackAttachmentWidgetFactory';
-	constructor(@IChatAttachmentWidgetRegistry registry: IChatAttachmentWidgetRegistry) {
-		registry.registerFactory('agentFeedback', (instantiationService, attachment, options, container) => {
+	constructor(
+		@IChatAttachmentWidgetRegistry registry: IChatAttachmentWidgetRegistry,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		registry.registerFactory('agentFeedback', (attachment, options, container) => {
 			return instantiationService.createInstance(AgentFeedbackAttachmentWidget, attachment as IAgentFeedbackVariableEntry, options, container);
 		});
 	}
