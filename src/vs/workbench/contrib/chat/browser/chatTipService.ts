@@ -164,6 +164,11 @@ export interface ITipDefinition {
 	 * The tip won't be shown if the user has already customized the setting it describes.
 	 */
 	readonly excludeWhenSettingsChanged?: string[];
+	/**
+	 * Command IDs that dismiss this tip when clicked from the tip markdown
+	 * while the tip is currently shown.
+	 */
+	readonly dismissWhenCommandsClicked?: string[];
 }
 
 /**
@@ -271,6 +276,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 			ContextKeyExpr.notEquals('config.chat.tools.global.autoApprove', true),
 		),
 		enabledCommands: ['workbench.action.openSettings'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
 		id: 'tip.agenticBrowser',
@@ -281,6 +287,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 		),
 		enabledCommands: ['workbench.action.openSettings'],
 		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
 		id: 'tip.mermaid',
@@ -307,6 +314,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		enabledCommands: ['workbench.action.openSettings'],
 		excludeWhenSettingsChanged: ['chat.agent.thinking.style'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
 		id: 'tip.thinkingPhrases',
@@ -314,6 +322,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		enabledCommands: ['workbench.action.openSettings'],
 		excludeWhenSettingsChanged: ['chat.agent.thinking.phrases'],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 ];
 
@@ -990,9 +999,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return;
 		}
 		const enabledCommandSet = new Set(tip.enabledCommands);
+		const dismissCommandSet = new Set(tip.dismissWhenCommandsClicked);
 		this._tipCommandListener.value = this._commandService.onDidExecuteCommand(e => {
 			if (enabledCommandSet.has(e.commandId) && this._shownTip?.id === tip.id) {
 				this._logTipTelemetry(tip.id, 'commandClicked', e.commandId);
+				if (dismissCommandSet.has(e.commandId)) {
+					this.dismissTip();
+				}
 			}
 		});
 	}

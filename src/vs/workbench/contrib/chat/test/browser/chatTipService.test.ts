@@ -945,6 +945,32 @@ suite('ChatTipService', () => {
 		});
 	}
 
+	for (const tipId of [
+		'tip.yoloMode',
+		'tip.thinkingStyle',
+		'tip.thinkingPhrases',
+		'tip.agenticBrowser',
+	]) {
+		test(`dismisses ${tipId} after clicking its settings link`, async () => {
+			const service = createService();
+			contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+			await new Promise<void>(r => queueMicrotask(r));
+
+			const tip = findTipById(service, tipId);
+			assert.ok(tip, `Should show ${tipId} before command click`);
+
+			let dismissed = false;
+			testDisposables.add(service.onDidDismissTip(() => {
+				dismissed = true;
+			}));
+
+			commandExecutedEmitter.fire({ commandId: 'workbench.action.openSettings', args: [] });
+
+			assert.strictEqual(dismissed, true, `${tipId} should dismiss when its settings command is clicked`);
+			assertTipNeverShown(service, tipId);
+		});
+	}
+
 	test('logs telemetry when tip is shown', () => {
 		const events: { eventName: string; data: Record<string, unknown> }[] = [];
 		instantiationService.stub(ITelemetryService, {
