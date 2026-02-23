@@ -277,6 +277,8 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					menu: [{
 						id: MenuId.GlobalActivity,
 						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
+						group: '2_configuration',
+						order: 4,
 					}],
 				});
 			}
