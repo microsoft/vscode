@@ -1127,7 +1127,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.SimpleTerminalCollapsible]: {
 			type: 'boolean',
-			default: false,
+			default: typeof product.quality === 'string' && product.quality !== 'stable', // only enable as default in insiders
 			markdownDescription: nls.localize('chat.tools.terminal.simpleCollapsible', "When enabled, terminal tool calls are always displayed in a collapsible container with a simplified view."),
 			tags: ['experimental'],
 		},
