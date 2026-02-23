@@ -162,21 +162,17 @@ export class LinesLayout {
 
 	public changeLineHeights(callback: (accessor: ILineHeightChangeAccessor) => void): boolean {
 		let hadAChange = false;
-		try {
-			const accessor: ILineHeightChangeAccessor = {
-				insertOrChangeCustomLineHeight: (decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number): void => {
-					hadAChange = true;
-					this._lineHeightsManager.insertOrChangeCustomLineHeight(decorationId, startLineNumber, endLineNumber, lineHeight);
-				},
-				removeCustomLineHeight: (decorationId: string): void => {
-					hadAChange = true;
-					this._lineHeightsManager.removeCustomLineHeight(decorationId);
-				}
-			};
-			callback(accessor);
-		} finally {
-			this._lineHeightsManager.commit();
-		}
+		const accessor: ILineHeightChangeAccessor = {
+			insertOrChangeCustomLineHeight: (decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number): void => {
+				hadAChange = true;
+				this._lineHeightsManager.insertOrChangeCustomLineHeight(decorationId, startLineNumber, endLineNumber, lineHeight);
+			},
+			removeCustomLineHeight: (decorationId: string): void => {
+				hadAChange = true;
+				this._lineHeightsManager.removeCustomLineHeight(decorationId);
+			}
+		};
+		callback(accessor);
 		return hadAChange;
 	}
 
