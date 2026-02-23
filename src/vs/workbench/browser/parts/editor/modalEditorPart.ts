@@ -27,6 +27,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { ResourceLabel } from '../../labels.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -65,6 +66,7 @@ export class ModalEditorPart {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHostService private readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 	}
 
@@ -95,8 +97,8 @@ export class ModalEditorPart {
 				editorPart.close();
 			}
 
-			// Prevent unsupported commands
-			else {
+			// Prevent unsupported commands (not in sessions windows)
+			else if (!this.environmentService.isSessionsWindow) {
 				const resolved = this.keybindingService.softDispatch(event, this.layoutService.mainContainer);
 				if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 					if (
