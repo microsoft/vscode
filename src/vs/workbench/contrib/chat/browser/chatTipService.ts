@@ -288,7 +288,6 @@ const TIP_CATALOG: ITipDefinition[] = [
 			ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true),
 		),
 		enabledCommands: ['workbench.action.openSettings'],
-		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
