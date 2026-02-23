@@ -64,7 +64,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 	show<T>(user: string, supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>, anchor: HTMLElement | StandardMouseEvent | IAnchor, container: HTMLElement | undefined, actionBarActions?: readonly IAction[], accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>, listOptions?: IActionListOptions): void {
 		const visibleContext = ActionWidgetContextKeys.Visible.bindTo(this._contextKeyService);
 
-		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions);
+		const list = this._instantiationService.createInstance(ActionList, user, supportsPreview, items, delegate, accessibilityProvider, listOptions, anchor);
 		this._contextViewService.showContextView({
 			getAnchor: () => anchor,
 			render: (container: HTMLElement) => {
@@ -75,6 +75,7 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 				visibleContext.reset();
 				this._onWidgetClosed(didCancel);
 			},
+			get anchorPosition() { return list.anchorPosition; },
 		}, container, false);
 	}
 
@@ -102,6 +103,10 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 		return this._list?.value?.toggleFocusedSection() ?? false;
 	}
 
+	clearFilter(): boolean {
+		return this._list?.value?.clearFilter() ?? false;
+	}
+
 	hide(didCancel?: boolean) {
 		this._list.value?.hide(didCancel);
 		this._list.clear();
@@ -118,15 +123,10 @@ class ActionWidgetService extends Disposable implements IActionWidgetService {
 
 		this._list.value = list;
 		if (this._list.value) {
-			// Filter input at the top
-			if (this._list.value.filterContainer && this._list.value.filterPlacement === 'top') {
+			if (this._list.value.filterContainer) {
 				widget.appendChild(this._list.value.filterContainer);
 			}
 			widget.appendChild(this._list.value.domNode);
-			// Filter input at the bottom
-			if (this._list.value.filterContainer && this._list.value.filterPlacement === 'bottom') {
-				widget.appendChild(this._list.value.filterContainer);
-			}
 		} else {
 			throw new Error('List has no value');
 		}
@@ -221,6 +221,29 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		accessor.get(IActionWidgetService).hide(true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'clearFilterCodeActionWidget',
+			title: localize2('clearFilterCodeActionWidget.title', "Clear action widget filter"),
+			precondition: ContextKeyExpr.and(ActionWidgetContextKeys.Visible, ActionWidgetContextKeys.FilterFocused),
+			keybinding: {
+				weight: weight + 1,
+				primary: KeyCode.Escape,
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const widgetService = accessor.get(IActionWidgetService);
+		if (widgetService instanceof ActionWidgetService) {
+			if (!widgetService.clearFilter()) {
+				widgetService.hide(true);
+			}
+		}
 	}
 });
 

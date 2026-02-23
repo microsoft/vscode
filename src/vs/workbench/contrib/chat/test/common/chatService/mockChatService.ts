@@ -37,7 +37,7 @@ export class MockChatService implements IChatService {
 	getProviderInfos(): IChatProviderInfo[] {
 		throw new Error('Method not implemented.');
 	}
-	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
+	startNewLocalSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
 		throw new Error('Method not implemented.');
 	}
 	addSession(session: IChatModel): void {
@@ -50,22 +50,22 @@ export class MockChatService implements IChatService {
 	getLatestRequest(): IChatRequestModel | undefined {
 		return undefined;
 	}
-	async getOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
+	async acquireOrRestoreSession(sessionResource: URI): Promise<IChatModelReference | undefined> {
 		throw new Error('Method not implemented.');
 	}
 	getSessionTitle(sessionResource: URI): string | undefined {
 		throw new Error('Method not implemented.');
 	}
-	loadSessionFromContent(data: ISerializableChatData): IChatModelReference | undefined {
+	loadSessionFromData(data: ISerializableChatData): IChatModelReference {
 		throw new Error('Method not implemented.');
 	}
-	loadSessionForResource(resource: URI, position: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
+	acquireOrLoadSession(resource: URI, position: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
 		throw new Error('Method not implemented.');
 	}
-	getActiveSessionReference(sessionResource: URI): IChatModelReference | undefined {
+	acquireExistingSession(sessionResource: URI): IChatModelReference | undefined {
 		return undefined;
 	}
-	setTitle(sessionResource: URI, title: string): void {
+	setSessionTitle(sessionResource: URI, title: string): void {
 		throw new Error('Method not implemented.');
 	}
 	appendProgress(request: IChatRequestModel, progress: IChatProgress): void {

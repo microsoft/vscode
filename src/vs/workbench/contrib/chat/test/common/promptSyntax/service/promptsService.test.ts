@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
+import { observableValue } from '../../../../../../../base/common/observable.js';
 import { relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -52,6 +53,7 @@ import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IAgentPluginService } from '../../../../common/plugins/agentPluginService.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -161,6 +163,12 @@ suite('PromptsService', () => {
 		});
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
+
+		instaService.stub(IAgentPluginService, {
+			plugins: observableValue('testPlugins', []),
+			allPlugins: observableValue('testAllPlugins', []),
+			setPluginEnabled: () => { },
+		});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);

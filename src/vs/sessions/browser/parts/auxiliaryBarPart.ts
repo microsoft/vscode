@@ -42,7 +42,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	static readonly activeViewSettingsKey = 'workbench.agentsession.auxiliarybar.activepanelid';
 	static readonly pinnedViewsKey = 'workbench.agentsession.auxiliarybar.pinnedPanels';
-	static readonly placeholdeViewContainersKey = 'workbench.agentsession.auxiliarybar.placeholderPanels';
+	static readonly placeholderViewContainersKey = 'workbench.agentsession.auxiliarybar.placeholderPanels';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.agentsession.auxiliarybar.viewContainersWorkspaceState';
 
 	/** Visual margin values for the card-like appearance */
@@ -159,7 +159,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		return {
 			partContainerClass: 'auxiliarybar',
 			pinnedViewContainersKey: AuxiliaryBarPart.pinnedViewsKey,
-			placeholderViewContainersKey: AuxiliaryBarPart.placeholdeViewContainersKey,
+			placeholderViewContainersKey: AuxiliaryBarPart.placeholderViewContainersKey,
 			viewContainersWorkspaceStateKey: AuxiliaryBarPart.viewContainersWorkspaceStateKey,
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,

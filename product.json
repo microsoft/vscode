@@ -116,6 +116,7 @@
 				"name": "Apple"
 			}
 		},
+		"providerExtensionId": "vscode.github-authentication",
 		"providerUriSetting": "github-enterprise.uri",
 		"providerScopes": [
 			[

@@ -110,6 +110,11 @@ suite('PromptValidator', () => {
 		disposables.add(toolService.registerToolData(conflictTool2));
 		disposables.add(conflictToolSet2.addTool(conflictTool2));
 
+		// Tool in the vscode toolset with a legacy name — for testing namespaced deprecated name resolution
+		const toolInVscodeSet = { id: 'browserTool', toolReferenceName: 'openIntegratedBrowser', legacyToolReferenceFullNames: ['openSimpleBrowser'], displayName: 'Open Integrated Browser', canBeReferencedInPrompt: true, modelDescription: 'Open browser', source: ToolDataSource.Internal, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(toolInVscodeSet));
+		disposables.add(toolService.vscodeToolSet.addTool(toolInVscodeSet));
+
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
@@ -498,6 +503,41 @@ suite('PromptValidator', () => {
 			// The message will say "use the following tools instead:" for multiple mappings in body references
 			const expectedMessage = `Tool or toolset 'multiMapLegacy' has been renamed, use the following tools instead: multiMapSet1Ref, multiMapSet2Ref`;
 			assert.strictEqual(markers[0].message, expectedMessage);
+		});
+
+		test('namespaced deprecated tool name in tools header shows rename hint', async () => {
+			// When a tool is in a toolset (e.g. vscode/openIntegratedBrowser) and has a legacy name,
+			// using the namespaced old name (vscode/openSimpleBrowser) should show the rename hint
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['vscode/openSimpleBrowser']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'vscode/openSimpleBrowser' has been renamed, use 'vscode/openIntegratedBrowser' instead.` },
+				]
+			);
+		});
+
+		test('bare deprecated tool name in tools header also shows rename hint', async () => {
+			// The bare (non-namespaced) legacy name should also resolve
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['openSimpleBrowser']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'openSimpleBrowser' has been renamed, use 'vscode/openIntegratedBrowser' instead.` },
+				]
+			);
 		});
 
 		test('unknown attribute in agent file', async () => {
@@ -1531,7 +1571,7 @@ suite('PromptValidator', () => {
 			assert.deepEqual(actual, [
 				{ message: `Unknown tool or toolset 'ms-azuretools.vscode-azure-github-copilot/azure_recommend_custom_modes'.`, startColumn: 7, endColumn: 77 },
 				{ message: `Tool or toolset 'github.vscode-pull-request-github/suggest-fix' also needs to be enabled in the header.`, startColumn: 7, endColumn: 52 },
-				{ message: `Unknown tool or toolset 'openSimpleBrowser'.`, startColumn: 7, endColumn: 24 },
+				{ message: `Tool or toolset 'openSimpleBrowser' has been renamed, use 'vscode/openIntegratedBrowser' instead.`, startColumn: 7, endColumn: 24 },
 			]);
 		});
 

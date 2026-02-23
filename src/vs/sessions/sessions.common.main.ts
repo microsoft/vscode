@@ -248,6 +248,9 @@ import '../workbench/contrib/searchEditor/browser/searchEditor.contribution.js';
 // Sash
 import '../workbench/contrib/sash/browser/sash.contribution.js';
 
+// Git
+import '../workbench/contrib/git/browser/git.contributions.js';
+
 // SCM
 import '../workbench/contrib/scm/browser/scm.contribution.js';
 

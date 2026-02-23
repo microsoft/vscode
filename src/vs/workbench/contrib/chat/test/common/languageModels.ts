@@ -93,6 +93,7 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	}
 
 	addToRecentlyUsedList(): void { }
+	clearRecentlyUsedList(): void { }
 
 	getModelsControlManifest(): IModelsControlManifest {
 		return { free: {}, paid: {} };

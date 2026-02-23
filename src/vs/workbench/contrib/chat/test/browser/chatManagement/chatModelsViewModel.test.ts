@@ -140,6 +140,7 @@ class MockLanguageModelsService implements ILanguageModelsService {
 
 	getRecentlyUsedModelIds(): string[] { return []; }
 	addToRecentlyUsedList(): void { }
+	clearRecentlyUsedList(): void { }
 	getModelsControlManifest(): IModelsControlManifest { return { free: {}, paid: {} }; }
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
 }

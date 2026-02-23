@@ -40,7 +40,7 @@ import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptionsChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelFontChanged, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChanged, ModelLineHeightChangedEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from '../textModelEvents.js';
 import { IGuidesTextModelPart } from '../textModelGuides.js';
 import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
-import { TokenArray } from '../tokens/lineTokens.js';
+import { LineTokens, TokenArray } from '../tokens/lineTokens.js';
 import { BracketPairsTextModelPart } from './bracketPairsTextModelPart/bracketPairsImpl.js';
 import { ColorizedBracketPairsDecorationProvider } from './bracketPairsTextModelPart/colorizedBracketPairsDecorationProvider.js';
 import { EditStack } from './editStack.js';
@@ -1680,10 +1680,18 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
 		for (const viewModel of this._viewModels) {
-			viewModel.onDidChangeContentOrInjectedText(e);
+			try {
+				viewModel.onDidChangeContentOrInjectedText(e);
+			} catch (error) {
+				onUnexpectedError(error);
+			}
 		}
 		for (const viewModel of this._viewModels) {
-			viewModel.emitContentChangeEvent(e);
+			try {
+				viewModel.emitContentChangeEvent(e);
+			} catch (error) {
+				onUnexpectedError(error);
+			}
 		}
 	}
 
@@ -2151,6 +2159,37 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public override toString(): string {
 		return `TextModel(${this.uri.toString()})`;
 	}
+}
+
+export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions: model.InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
+	let lineTokens: LineTokens;
+	if (injectionOffsets) {
+		const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+
+		for (let idx = 0; idx < injectionOffsets.length; idx++) {
+			const offset = injectionOffsets[idx];
+			const tokens = injectionOptions![idx].tokens;
+			if (tokens) {
+				tokens.forEach((range, info) => {
+					tokensToInsert.push({
+						offset,
+						text: range.substring(injectionOptions![idx].content),
+						tokenMetadata: info.metadata,
+					});
+				});
+			} else {
+				tokensToInsert.push({
+					offset,
+					text: injectionOptions![idx].content,
+					tokenMetadata: LineTokens.defaultTokenMetadata,
+				});
+			}
+		}
+		lineTokens = tokens.withInserted(tokensToInsert);
+	} else {
+		lineTokens = tokens;
+	}
+	return lineTokens;
 }
 
 export function indentOfLine(line: string): number {

@@ -800,6 +800,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.focusQuestionCarousel();
 	}
 
+	navigateToPreviousQuestion(): boolean {
+		if (!this.input.questionCarousel) {
+			return false;
+		}
+
+		return this.input.navigateToPreviousQuestion();
+	}
+
+	navigateToNextQuestion(): boolean {
+		if (!this.input.questionCarousel) {
+			return false;
+		}
+
+		return this.input.navigateToNextQuestion();
+	}
+
 	toggleTipFocus(): boolean {
 		if (this._gettingStartedTipPartRef?.hasFocus()) {
 			this.focusInput();
@@ -2393,17 +2409,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		// Expand directory attachments: extract images as binary entries
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
-
-		if (this.viewModel.sessionResource && !options.queue) {
-			// todo@connor4312: move chatAccessibilityService.acceptRequest to a refcount model to handle queue messages
-			this.chatAccessibilityService.acceptRequest(this._viewModel!.sessionResource);
-		}
+		const submittedSessionResource = this.viewModel.sessionResource;
 
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
 			locationData: this._location.resolveData?.(),
-			parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind },
+			parserContext: { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind, attachmentCapabilities: this._lastSelectedAgent?.capabilities ?? this.attachmentCapabilities },
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
@@ -2413,10 +2425,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			queue: options?.queue,
 			pauseQueue: options?.alwaysQueue,
 		});
-
-		if (this.viewModel.sessionResource && !options.queue && ChatSendResult.isRejected(result)) {
-			this.chatAccessibilityService.disposeRequest(this.viewModel.sessionResource);
-		}
 
 		if (ChatSendResult.isRejected(result)) {
 			return;
@@ -2431,24 +2439,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		// If this was a queued request that just got dequeued, start the progress sound now
-		if (options.queue && this.viewModel?.sessionResource) {
-			this.chatAccessibilityService.acceptRequest(this.viewModel.sessionResource);
-		}
-
 		this._onDidSubmitAgent.fire({ agent: sent.data.agent, slashCommand: sent.data.slashCommand });
 		this.handleDelegationExitIfNeeded(this._lockedAgent, sent.data.agent);
-		sent.data.responseCompletePromise.then(() => {
-			const responses = this.viewModel?.getItems().filter(isResponseVM);
-			const lastResponse = responses?.[responses.length - 1];
-			this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, this.viewModel?.sessionResource, options?.isVoiceInput);
-			if (lastResponse?.result?.nextQuestion) {
-				const { prompt, participant, command } = lastResponse.result.nextQuestion;
-				const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);
-				if (question) {
-					this.input.setValue(question, false);
+		sent.data.responseCreatedPromise.then(() => {
+			// Only start accessibility progress once a real request/response model exists.
+			this.chatAccessibilityService.acceptRequest(submittedSessionResource);
+			sent.data.responseCompletePromise.then(() => {
+				const responses = this.viewModel?.getItems().filter(isResponseVM);
+				const lastResponse = responses?.[responses.length - 1];
+				this.chatAccessibilityService.acceptResponse(this, this.container, lastResponse, submittedSessionResource, options?.isVoiceInput);
+				if (lastResponse?.result?.nextQuestion) {
+					const { prompt, participant, command } = lastResponse.result.nextQuestion;
+					const question = formatChatQuestion(this.chatAgentService, this.location, prompt, participant, command);
+					if (question) {
+						this.input.setValue(question, false);
+					}
 				}
-			}
+			});
 		});
 
 		return sent.data.responseCreatedPromise;
