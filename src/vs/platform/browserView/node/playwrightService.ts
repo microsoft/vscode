@@ -297,7 +297,7 @@ class PlaywrightPageManager extends Disposable {
 		this._trackedPages.add(viewId);
 		this._fireTrackedPagesChanged();
 
-		await page.goto(url, { waitUntil: 'domcontentloaded' });
+		await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
 		return viewId;
 	}

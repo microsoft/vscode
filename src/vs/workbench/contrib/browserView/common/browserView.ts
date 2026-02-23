@@ -47,6 +47,19 @@ type IntegratedBrowserNavigationClassification = {
 	comment: 'Tracks navigation patterns in integrated browser';
 };
 
+
+type IntegratedBrowserShareWithAgentEvent = {
+	shared: boolean;
+	dontAskAgain: boolean;
+};
+
+type IntegratedBrowserShareWithAgentClassification = {
+	shared: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the content was shared with the agent' };
+	dontAskAgain: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user chose to not be asked again' };
+	owner: 'kycutler';
+	comment: 'Tracks user choices around sharing browser content with agents';
+};
+
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
 /**
@@ -391,9 +404,25 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 					this.storageService.store(BrowserViewModel.SHARE_DONT_ASK_KEY, result.confirmed, StorageScope.PROFILE, StorageTarget.USER);
 				}
 
+				this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
+					'integratedBrowser.shareWithAgent',
+					{
+						shared: result.confirmed,
+						dontAskAgain: result.checkboxChecked ?? false
+					}
+				);
+
 				if (!result.confirmed) {
 					return;
 				}
+			} else {
+				this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
+					'integratedBrowser.shareWithAgent',
+					{
+						shared: true,
+						dontAskAgain: true
+					}
+				);
 			}
 
 			await this.playwrightService.startTrackingPage(this.id);

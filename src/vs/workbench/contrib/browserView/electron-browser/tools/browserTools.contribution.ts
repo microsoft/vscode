@@ -107,11 +107,14 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 
 	private _updateBrowserContext(): void {
 		const lines: string[] = [];
+		const activeEditor = this.editorService.activeEditor;
+		const visibleEditors = new Set(this.editorService.visibleEditors);
 		for (const editor of this.editorService.editors) {
 			if (editor instanceof BrowserEditorInput && this._trackedIds.has(editor.id)) {
 				const title = editor.getTitle() || 'Untitled';
 				const url = editor.getDescription() || 'about:blank';
-				lines.push(`- [${editor.id}] ${title} (${url})`);
+				const hint = editor === activeEditor ? ' (active)' : visibleEditors.has(editor) ? ' (visible)' : '';
+				lines.push(`- [${editor.id}] ${title} (${url})${hint}`);
 			}
 		}
 

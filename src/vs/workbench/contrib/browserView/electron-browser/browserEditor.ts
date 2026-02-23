@@ -9,7 +9,7 @@ import { $, addDisposableListener, Dimension, EventType, IDomPosition, registerE
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -45,8 +45,10 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IChatRequestVariableEntry } from '../../chat/common/attachments/chatVariableEntries.js';
 import { IElementAncestor, IElementData, IBrowserTargetLocator, getDisplayNameFromOuterHTML } from '../../../../platform/browserElements/common/browserElements.js';
-import { logBrowserOpen } from './browserViewTelemetry.js';
+import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ChatConfiguration } from '../../chat/common/constants.js';
+import { Event } from '../../../../base/common/event.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -59,6 +61,16 @@ export const CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE = new RawContextKey<boolea
 
 // Re-export find widget context keys for use in actions
 export { CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE };
+
+const canShareBrowserWithAgentContext = ContextKeyExpr.and(
+	ChatContextKeys.enabled,
+	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
+	ContextKeyExpr.has(`config.workbench.browser.enableChatTools`),
+)!;
+function watchForAgentSharingContextChanges(contextKeyService: IContextKeyService): Event<unknown> {
+	const agentSharingKeys = new Set(canShareBrowserWithAgentContext.keys());
+	return Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(agentSharingKeys));
+}
 
 /**
  * Get the original implementation of HTMLElement focus (without window auto-focusing)
@@ -174,20 +186,11 @@ class BrowserNavigationBar extends Disposable {
 
 		// Show share button only when chat is enabled and browser tools are enabled
 		const updateShareButtonVisibility = () => {
-			const chatEnabled = scopedContextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key);
-			const browserToolsEnabled = configurationService.getValue<boolean>('workbench.browser.enableChatTools');
-			this._shareButtonContainer.style.display = chatEnabled && browserToolsEnabled ? '' : 'none';
+			this._shareButtonContainer.style.display = scopedContextKeyService.contextMatchesRules(canShareBrowserWithAgentContext) ? '' : 'none';
 		};
 		updateShareButtonVisibility();
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.browser.enableChatTools')) {
-				updateShareButtonVisibility();
-			}
-		}));
-		this._register(scopedContextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([ChatContextKeys.enabled.key]))) {
-				updateShareButtonVisibility();
-			}
+		this._register(watchForAgentSharingContextChanges(scopedContextKeyService)(() => {
+			updateShareButtonVisibility();
 		}));
 	}
 
@@ -389,7 +392,7 @@ export class BrowserEditor extends EditorPane {
 
 		this._storageScopeContext.set(this._model.storageScope);
 		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
-		this._updateSharingState(this._model.sharedWithAgent);
+		this._updateSharingState();
 
 		// Update find widget with new model
 		this._findWidget.rawValue?.setModel(this._model);
@@ -400,8 +403,11 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		// Listen for sharing state changes on the model
-		this._inputDisposables.add(this._model.onDidChangeSharedWithAgent(isShared => {
-			this._updateSharingState(isShared);
+		this._inputDisposables.add(this._model.onDidChangeSharedWithAgent(() => {
+			this._updateSharingState();
+		}));
+		this._inputDisposables.add(watchForAgentSharingContextChanges(this.contextKeyService)(() => {
+			this._updateSharingState();
 		}));
 
 		// Initialize UI state and context keys from model
@@ -641,7 +647,10 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.url;
 	}
 
-	private _updateSharingState(isShared: boolean): void {
+	private _updateSharingState(): void {
+		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
+		const isShared = sharingEnabled && !!this._model && this._model.sharedWithAgent;
+
 		this._browserContainer.classList.toggle('shared', isShared);
 		this._navigationBar.setShared(isShared);
 	}
