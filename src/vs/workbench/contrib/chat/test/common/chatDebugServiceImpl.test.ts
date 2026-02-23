@@ -156,7 +156,7 @@ suite('ChatDebugServiceImpl', () => {
 		});
 	});
 
-	suite('clear and clearSession', () => {
+	suite('clear', () => {
 		test('should clear all events', () => {
 			service.addEvent({ kind: 'generic', sessionId: 'a', created: new Date(), name: 'e', level: ChatDebugLogLevel.Info });
 			service.addEvent({ kind: 'generic', sessionId: 'b', created: new Date(), name: 'e', level: ChatDebugLogLevel.Info });
@@ -164,17 +164,6 @@ suite('ChatDebugServiceImpl', () => {
 			service.clear();
 
 			assert.strictEqual(service.getEvents().length, 0);
-		});
-
-		test('should clear only events for a specific session', () => {
-			service.addEvent({ kind: 'generic', sessionId: 'a', created: new Date(), name: 'keep', level: ChatDebugLogLevel.Info });
-			service.addEvent({ kind: 'generic', sessionId: 'b', created: new Date(), name: 'remove', level: ChatDebugLogLevel.Info });
-
-			service.clearSession('b');
-
-			const events = service.getEvents();
-			assert.strictEqual(events.length, 1);
-			assert.strictEqual(events[0].sessionId, 'a');
 		});
 	});
 

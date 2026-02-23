@@ -416,12 +416,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this._register(this.chatDebugService.onDidClearSession(e => {
-			const sessionResource = this.viewModel?.sessionResource;
-			if (sessionResource && e.sessionId === chatSessionResourceToId(sessionResource)) {
-				this._sessionHasDebugDataContextKey.set(false);
-			}
-		}));
 		this.viewContext = viewContext ?? {};
 
 		const viewModelObs = this._viewModelObs;
