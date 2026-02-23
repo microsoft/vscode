@@ -650,6 +650,11 @@
 	overflow: hidden;
 	flex: 1;
 }
+.chat-debug-flowchart-content-wrapper {
+	display: flex;
+	flex: 1;
+	overflow: hidden;
+}
 .chat-debug-flowchart-content {
 	flex: 1;
 	overflow: hidden;
@@ -699,16 +704,7 @@
 	color: var(--vscode-descriptionForeground);
 }
 .chat-debug-flowchart-show-more {
-	display: block;
-	margin: 12px auto 0;
-	background: none;
-	border: none;
-	padding: 4px 8px;
-	font-size: 12px;
-	color: var(--vscode-textLink-foreground);
-	cursor: pointer;
-}
-.chat-debug-flowchart-show-more:hover,
-.chat-debug-flowchart-show-more:focus-visible {
-	color: var(--vscode-textLink-activeForeground);
+	display: flex;
+	justify-content: center;
+	margin: 12px 0 0;
 }
