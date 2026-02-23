@@ -254,6 +254,9 @@ export class ModalEditorPart {
 
 			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
 
+			width = Math.max(width, 500);
+			height = Math.max(height, 400);
+
 			editorPartContainer.style.width = `${width}px`;
 			editorPartContainer.style.height = `${height}px`;
 
