@@ -1107,10 +1107,19 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	private processPendingRemovals(): void {
-		for (const pending of this.pendingRemovals) {
+		this.pendingRemovalFlushDisposable?.dispose();
+		this.pendingRemovalFlushDisposable = undefined;
+
+		if (this.pendingRemovals.length === 0) {
+			return;
+		}
+
+		const pendingRemovals = this.pendingRemovals;
+		this.pendingRemovals = [];
+
+		for (const pending of pendingRemovals) {
 			this.removeStreamingToolEntry(pending.toolCallId, pending.toolLabel);
 		}
-		this.pendingRemovals = [];
 	}
 
 	private schedulePendingRemovalsFlush(): void {
