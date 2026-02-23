@@ -141,6 +141,7 @@ function f(x: number, y: string): void { }
 - You MUST deal with disposables by registering them immediately after creation for later disposal. Use helpers such as `DisposableStore`, `MutableDisposable` or `DisposableMap`. Do NOT register a disposable to the containing class if the object is created within a method that is called repeadedly to avoid leaks. Instead, return a `IDisposable` from such method and let the caller register it.
 - You MUST NOT use storage keys of another component only to make changes to that component. You MUST come up with proper API to change another component.
 - Use `IEditorService` to open editors instead of `IEditorGroupsService.activeGroup.openEditor` to ensure that the editor opening logic is properly followed and to avoid bypassing important features such as `revealIfOpened` or `preserveFocus`.
+- If possible, avoid `bind()`, `call()` and `apply()` usages on functions to enforce certain behaviour. Instead, prefer to use arrow functions or closures to capture the necessary context.
 
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.
