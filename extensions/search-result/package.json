@@ -10,13 +10,19 @@
     "vscode": "^1.39.0"
   },
   "main": "./out/extension.js",
-  "browser": "./dist/extension.js",
+  "browser": "./dist/browser/extension",
   "activationEvents": [
     "onLanguage:search-result"
   ],
   "scripts": {
     "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:search-result ./tsconfig.json"
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:search-result ./tsconfig.json",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
   },
   "capabilities": {
     "virtualWorkspaces": true,

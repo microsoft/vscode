@@ -15,7 +15,7 @@ import { IChatModeService } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService, Target } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { ClaudeHeaderAttributes, IArrayValue, IValue, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { ClaudeHeaderAttributes, ISequenceValue, IValue, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
 import { getAttributeDescription, getTarget, getValidAttributeNames, claudeAgentAttributes, claudeRulesAttributes, knownClaudeTools, knownGithubCopilotTools, IValueEntry } from './promptValidator.js';
 import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
@@ -161,7 +161,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 
 		if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
 			if (attribute.key === PromptHeaderAttributes.model) {
-				if (attribute.value.type === 'array') {
+				if (attribute.value.type === 'sequence') {
 					// if the position is inside the tools metadata, we provide tool name completions
 					const getValues = async () => {
 						if (target === Target.Claude) {
@@ -175,10 +175,10 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			}
 			if (attribute.key === PromptHeaderAttributes.tools || attribute.key === ClaudeHeaderAttributes.disallowedTools) {
 				let value = attribute.value;
-				if (value.type === 'string') {
+				if (value.type === 'scalar') {
 					value = parseCommaSeparatedList(value);
 				}
-				if (value.type === 'array') {
+				if (value.type === 'sequence') {
 					// if the position is inside the tools metadata, we provide tool name completions
 					const getValues = async () => {
 						if (target === Target.GitHubCopilot) {
@@ -195,7 +195,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			}
 		}
 		if (attribute.key === PromptHeaderAttributes.agents) {
-			if (attribute.value.type === 'array') {
+			if (attribute.value.type === 'sequence') {
 				return this.provideArrayCompletions(model, position, attribute.value, async () => {
 					return await this.promptsService.getCustomAgents(CancellationToken.None);
 				});
@@ -317,7 +317,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		const result = [];
 		for (const model of this.languageModelsService.getLanguageModelIds()) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
-			if (metadata && metadata.isUserSelectable !== false) {
+			if (metadata && metadata.isUserSelectable !== false && !metadata.targetChatSessionType) {
 				if (!agentModeOnly || ILanguageModelChatMetadata.suitableForAgentMode(metadata)) {
 					result.push({
 						name: ILanguageModelChatMetadata.asQualifiedName(metadata),
@@ -329,12 +329,12 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		return result;
 	}
 
-	private async provideArrayCompletions(model: ITextModel, position: Position, arrayValue: IArrayValue, getValues: () => Promise<ReadonlyArray<IValueEntry>>): Promise<CompletionList | undefined> {
+	private async provideArrayCompletions(model: ITextModel, position: Position, arrayValue: ISequenceValue, getValues: () => Promise<ReadonlyArray<IValueEntry>>): Promise<CompletionList | undefined> {
 		const getSuggestions = async (toolRange: Range, currentItem?: IValue) => {
 			const suggestions: CompletionItem[] = [];
 			const entries = await getValues();
 			const quotePreference = getQuotePreference(arrayValue, model);
-			const existingValues = new Set<string>(arrayValue.items.filter(item => item !== currentItem).filter(item => item.type === 'string').map(item => item.value));
+			const existingValues = new Set<string>(arrayValue.items.filter(item => item !== currentItem).filter(item => item.type === 'scalar').map(item => item.value));
 			for (const entry of entries) {
 				const entryName = entry.name;
 				if (existingValues.has(entryName)) {

@@ -38,6 +38,7 @@ export interface IBrowserViewState {
 
 export interface IBrowserViewNavigationEvent {
 	url: string;
+	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
 }
@@ -81,7 +82,7 @@ export interface IBrowserViewTitleChangeEvent {
 }
 
 export interface IBrowserViewFaviconChangeEvent {
-	favicon: string;
+	favicon: string | undefined;
 }
 
 export enum BrowserNewPageLocation {
@@ -275,9 +276,4 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	clearStorage(id: string): Promise<void>;
-
-	/**
-	 * Get a CDP WebSocket endpoint URL.
-	 */
-	getDebugWebSocketEndpoint(): Promise<string>;
 }

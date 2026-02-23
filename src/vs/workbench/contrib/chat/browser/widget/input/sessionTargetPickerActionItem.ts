@@ -185,7 +185,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
-		return true;
+		if (type === AgentSessionProviders.Local) {
+			return true; // Local is always available
+		}
+		// Disable non-local session types when their provider is not registered yet
+		return !!this.chatSessionsService.getChatSessionContribution(type);
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {
@@ -205,7 +209,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (currentType !== AgentSessionProviders.Local || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
+		if (!this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
 		}
 		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));

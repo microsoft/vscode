@@ -118,8 +118,12 @@
     "vscode:prepublish": "npm run build-ext && npm run build-chat-webview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:mermaid-chat-features",
     "build-chat-webview": "node ./esbuild.webview.mts",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "devDependencies": {
     "@types/node": "^22.18.10",
@@ -127,6 +131,6 @@
   },
   "dependencies": {
     "dompurify": "^3.2.7",
-    "mermaid": "^11.11.0"
+    "mermaid": "^11.12.3"
   }
 }

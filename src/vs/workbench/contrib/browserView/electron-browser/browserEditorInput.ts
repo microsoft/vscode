@@ -20,7 +20,7 @@ import { hasKey } from '../../../../base/common/types.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { BrowserEditor } from './browserEditor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logBrowserOpen } from './browserViewTelemetry.js';
+import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">

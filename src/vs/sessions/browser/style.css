@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Ensure workbench container is positioned for overlay */
+.agent-sessions-workbench {
+	position: relative;
+}
+
+/* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
+
+/**
+ * The auxiliary bar and panel use a card-like appearance with margins and border-radius
+ * applied directly on the .part element. The grid allocates full space; CSS margin shrinks
+ * the part within its split-view-view wrapper. Layout dimensions are reduced in code
+ * (AgenticAuxiliaryBarPart) to keep internal layout correct.
+ *
+ * No z-index or stacking-context changes - sashes render naturally on top.
+ *
+ * Margin values (must match the constants in the Part classes):
+ *   Sidebar:       no card (flush, spans full height)
+ *   Auxiliary bar:  top=8, bottom=8, right=8
+ *   Panel:          bottom=8, left=8, right=8
+ */
+
+.agent-sessions-workbench .part.sidebar {
+	background: var(--vscode-sideBar-background);
+	border-right: 1px solid var(--vscode-sideBar-border, transparent);
+}
+
+.agent-sessions-workbench .part.auxiliarybar {
+	margin: 8px 8px 8px 0;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+}
+
+.agent-sessions-workbench .part.panel {
+	margin: 0 8px 8px 8px;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+}
+
+/* Grid background matches the chat bar / sidebar background */
+.agent-sessions-workbench > .monaco-grid-view {
+	background-color: var(--vscode-sideBar-background);
+}
+
+/* ---- Chat Input ---- */
+
+.agent-sessions-workbench .interactive-session .chat-input-container {
+	border-radius: 8px !important;
+}
+
+.agent-sessions-workbench .interactive-session .interactive-input-part {
+	margin: 0 8px !important;
+	display: inherit !important;
+	padding: 4px 0 8px 0px !important;
+}

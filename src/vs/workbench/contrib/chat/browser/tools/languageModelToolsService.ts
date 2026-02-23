@@ -73,15 +73,16 @@ const toolIdThatCannotBeAutoApproved = 'vscode_get_confirmation_with_options';
 
 export const globalAutoApproveDescription = localize2(
 	{
-		key: 'autoApprove2.markdown',
+		key: 'autoApprove3.markdown',
 		comment: [
 			'{Locked=\'](https://github.com/features/codespaces)\'}',
 			'{Locked=\'](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)\'}',
 			'{Locked=\'](https://code.visualstudio.com/docs/copilot/security)\'}',
 			'{Locked=\'**\'}',
+			'{Locked=\'`#chat.autoReply#`\'}',
 		]
 	},
-	'Global auto approve also known as "YOLO mode" disables manual approval completely for _all tools in all workspaces_, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like [Codespaces](https://github.com/features/codespaces) and [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) have user keys forwarded into the container that could be compromised.\n\n**This feature disables [critical security protections](https://code.visualstudio.com/docs/copilot/security) and makes it much easier for an attacker to compromise the machine.**'
+	'Global auto approve also known as "YOLO mode" disables manual approval completely for _all tools in all workspaces_, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like [Codespaces](https://github.com/features/codespaces) and [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) have user keys forwarded into the container that could be compromised.\n\n**This feature disables [critical security protections](https://code.visualstudio.com/docs/copilot/security) and makes it much easier for an attacker to compromise the machine.**\n\nNote: This setting only controls tool approval and does not prevent the agent from asking questions. To automatically answer agent questions, use `#chat.autoReply#`.'
 );
 
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
@@ -445,6 +446,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (dto.context?.sessionResource) {
 			model = this._chatService.getSession(dto.context.sessionResource);
 			request = model?.getRequests().at(-1);
+			if (request?.response?.isCanceled || request?.response?.isComplete) {
+				this._logService.debug(`[LanguageModelToolsService#invokeTool] Ignoring tool ${dto.toolId} for cancelled/complete request ${request.id}`);
+				throw new CancellationError();
+			}
 		}
 
 		// Check if there's an existing pending tool call from streaming phase BEFORE hook check
@@ -668,7 +673,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				'languageModelToolInvoked',
 				{
 					result,
-					chatSessionId: dto.context?.sessionId,
+					chatSessionId: dto.context?.sessionResource ? chatSessionResourceToId(dto.context.sessionResource) : undefined,
 					toolId: tool.data.id,
 					toolExtensionId: tool.data.source.type === 'extension' ? tool.data.source.extensionId.value : undefined,
 					toolSourceKind: tool.data.source.type,
@@ -794,7 +799,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				parameters: dto.parameters,
 				toolCallId: dto.callId,
 				chatRequestId: dto.chatRequestId,
-				chatSessionId: dto.context?.sessionId,
 				chatSessionResource: dto.context?.sessionResource,
 				chatInteractionId: dto.chatInteractionId,
 				modelId: dto.modelId,
@@ -1434,7 +1438,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					add(alias, fullReferenceName);
 				}
 				if (tool.legacyToolReferenceFullNames) {
+					// If the tool is in a toolset (fullReferenceName has a '/'), also add the
+					// namespaced form of legacy names (e.g. 'vscode/oldName' → 'vscode/newName')
+					const slashIndex = fullReferenceName.lastIndexOf('/');
+					const toolSetPrefix = slashIndex !== -1 ? fullReferenceName.substring(0, slashIndex + 1) : undefined;
+
 					for (const legacyName of tool.legacyToolReferenceFullNames) {
+						if (toolSetPrefix && !legacyName.includes('/')) {
+							add(toolSetPrefix + legacyName, fullReferenceName);
+						}
 						// for any 'orphaned' toolsets (toolsets that no longer exist and
 						// do not have an explicit legacy mapping), we should
 						// just point them to the list of tools directly

@@ -7,7 +7,6 @@ import { joinPath } from '../../../../../base/common/resources.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -19,7 +18,6 @@ import { IChatWidgetService } from '../../browser/chat.js';
 import { captureRepoInfo } from '../../browser/chatRepoInfo.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 
 export function registerChatExportZipAction() {
@@ -42,9 +40,6 @@ export function registerChatExportZipAction() {
 			const notificationService = accessor.get(INotificationService);
 			const scmService = accessor.get(ISCMService);
 			const fileService = accessor.get(IFileService);
-			const configurationService = accessor.get(IConfigurationService);
-
-			const repoInfoEnabled = configurationService.getValue<boolean>(ChatConfiguration.RepoInfoEnabled) ?? false;
 
 			const widget = widgetService.lastFocusedWidget;
 			if (!widget || !widget.viewModel) {
@@ -83,36 +78,32 @@ export function registerChatExportZipAction() {
 					});
 				}
 
-				if (repoInfoEnabled) {
-					const currentRepoData = await captureRepoInfo(scmService, fileService);
-					if (currentRepoData) {
-						files.push({
-							path: 'chat.repo.end.json',
-							contents: JSON.stringify(currentRepoData, undefined, 2)
-						});
-					}
+				const currentRepoData = await captureRepoInfo(scmService, fileService);
+				if (currentRepoData) {
+					files.push({
+						path: 'chat.repo.end.json',
+						contents: JSON.stringify(currentRepoData, undefined, 2)
+					});
+				}
 
-					if (!model.repoData && !currentRepoData) {
-						notificationService.notify({
-							severity: Severity.Warning,
-							message: localize('chatExportZip.noRepoData', "Exported chat without repository context. No Git repository was detected.")
-						});
-					}
+				if (!model.repoData && !currentRepoData) {
+					notificationService.notify({
+						severity: Severity.Warning,
+						message: localize('chatExportZip.noRepoData', "Exported chat without repository context. No Git repository was detected.")
+					});
 				}
 			} else {
-				if (repoInfoEnabled) {
-					const currentRepoData = await captureRepoInfo(scmService, fileService);
-					if (currentRepoData) {
-						files.push({
-							path: 'chat.repo.begin.json',
-							contents: JSON.stringify(currentRepoData, undefined, 2)
-						});
-					} else {
-						notificationService.notify({
-							severity: Severity.Warning,
-							message: localize('chatExportZip.noRepoData', "Exported chat without repository context. No Git repository was detected.")
-						});
-					}
+				const currentRepoData = await captureRepoInfo(scmService, fileService);
+				if (currentRepoData) {
+					files.push({
+						path: 'chat.repo.begin.json',
+						contents: JSON.stringify(currentRepoData, undefined, 2)
+					});
+				} else {
+					notificationService.notify({
+						severity: Severity.Warning,
+						message: localize('chatExportZip.noRepoData', "Exported chat without repository context. No Git repository was detected.")
+					});
 				}
 			}
 

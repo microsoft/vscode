@@ -400,6 +400,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			extensions = this.filterRecentlyUpdatedExtensions(local, query, options);
 		}
 
+		else if (/@restartrequired/i.test(query.value)) {
+			extensions = this.filterRestartRequiredExtensions(local, query, options);
+		}
+
 		else if (/@contribute:/i.test(query.value)) {
 			extensions = this.filterExtensionsByFeature(local, query);
 		}
@@ -657,6 +661,19 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		options.sortBy = options.sortBy ?? LocalSortBy.UpdateDate;
+
+		return this.sortExtensions(result, options);
+	}
+
+	private filterRestartRequiredExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
+		local = local.filter(e => e.runtimeState !== undefined);
+
+		value = value.replace(/@restartrequired/gi, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		const result = local.filter(e =>
+			(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		return this.sortExtensions(result, options);
 	}
@@ -1157,6 +1174,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			|| this.isSearchDeprecatedExtensionsQuery(query)
 			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
 			|| this.isSearchRecentlyUpdatedQuery(query)
+			|| this.isRestartRequiredQuery(query)
 			|| this.isSearchExtensionUpdatesQuery(query)
 			|| this.isSortInstalledExtensionsQuery(query, sortBy)
 			|| this.isFeatureExtensionsQuery(query);
@@ -1244,6 +1262,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 	static isSearchRecentlyUpdatedQuery(query: string): boolean {
 		return /@recentlyUpdated/i.test(query);
+	}
+
+	static isRestartRequiredQuery(query: string): boolean {
+		return /@restartrequired/i.test(query);
 	}
 
 	static isSearchExtensionUpdatesQuery(query: string): boolean {

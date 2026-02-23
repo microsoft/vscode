@@ -14,11 +14,14 @@ import { IChatSlashCommandService } from '../common/participants/chatSlashComman
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
-import { ChatSubmitAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
+import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IChatWidgetService } from './chat.js';
+import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
+import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
+import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
@@ -93,7 +96,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat]
 		}, async () => {
-			await commandService.executeCommand('workbench.action.chat.configure.customagents');
+			await commandService.executeCommand(OpenModePickerAction.ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'skills',
@@ -103,7 +106,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat]
 		}, async () => {
-			await commandService.executeCommand('workbench.action.chat.configure.skills');
+			await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'instructions',
@@ -113,7 +116,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat]
 		}, async () => {
-			await commandService.executeCommand('workbench.action.chat.configure.instructions');
+			await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'prompts',
@@ -123,7 +126,17 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat]
 		}, async () => {
-			await commandService.executeCommand('workbench.action.chat.configure.prompts');
+			await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'fork',
+			detail: nls.localize('fork', "Fork conversation into a new chat session"),
+			sortText: 'z2_fork',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'rename',

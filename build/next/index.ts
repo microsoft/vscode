@@ -10,11 +10,12 @@ import { promisify } from 'util';
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
-import { convertPrivateFields, type ConvertPrivateFieldsResult } from './private-to-property.ts';
+import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
+import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 
 const globAsync = promisify(glob);
 
@@ -93,6 +94,7 @@ const desktopWorkerEntryPoints = [
 // Desktop workbench and code entry points
 const desktopEntryPoints = [
 	'vs/workbench/workbench.desktop.main',
+	'vs/sessions/sessions.desktop.main',
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
@@ -103,6 +105,7 @@ const codeEntryPoints = [
 	'vs/code/node/cliProcessMain',
 	'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 	'vs/code/electron-browser/workbench/workbench',
+	'vs/sessions/electron-browser/sessions',
 ];
 
 // Web entry points (used in server-web and vscode-web)
@@ -197,6 +200,8 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 			return new Set([
 				'vs/workbench/workbench.desktop.main',
 				'vs/code/electron-browser/workbench/workbench',
+				'vs/sessions/sessions.desktop.main',
+				'vs/sessions/electron-browser/sessions',
 			]);
 		case 'server':
 			return new Set(); // Server has no UI
@@ -227,6 +232,7 @@ const commonResourcePatterns = [
 	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
+	'vs/sessions/contrib/chat/browser/media/*.svg'
 ];
 
 // Resources for desktop target
@@ -236,6 +242,8 @@ const desktopResourcePatterns = [
 	// HTML
 	'vs/code/electron-browser/workbench/workbench.html',
 	'vs/code/electron-browser/workbench/workbench-dev.html',
+	'vs/sessions/electron-browser/sessions.html',
+	'vs/sessions/electron-browser/sessions-dev.html',
 	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 	'vs/workbench/contrib/webview/browser/pre/*.html',
 
@@ -371,33 +379,43 @@ async function cleanDir(dir: string): Promise<void> {
  * Scan for built-in extensions in the given directory.
  * Returns an array of extension entries for the builtinExtensionsScannerService.
  */
-function scanBuiltinExtensions(extensionsRoot: string): Array<{ extensionPath: string; packageJSON: unknown }> {
-	const result: Array<{ extensionPath: string; packageJSON: unknown }> = [];
+function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExtension> {
+	const scannedExtensions: Array<IScannedBuiltinExtension> = [];
 	const extensionsPath = path.join(REPO_ROOT, extensionsRoot);
 
 	if (!fs.existsSync(extensionsPath)) {
-		return result;
+		return scannedExtensions;
 	}
 
-	for (const entry of fs.readdirSync(extensionsPath, { withFileTypes: true })) {
-		if (!entry.isDirectory()) {
+	for (const extensionFolder of fs.readdirSync(extensionsPath)) {
+		const packageJSONPath = path.join(extensionsPath, extensionFolder, 'package.json');
+		if (!fs.existsSync(packageJSONPath)) {
 			continue;
 		}
-		const packageJsonPath = path.join(extensionsPath, entry.name, 'package.json');
-		if (fs.existsSync(packageJsonPath)) {
-			try {
-				const packageJSON = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-				result.push({
-					extensionPath: entry.name,
-					packageJSON
-				});
-			} catch (e) {
-				// Skip invalid extensions
+		try {
+			const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
+			if (!isWebExtension(packageJSON)) {
+				continue;
 			}
+			const children = fs.readdirSync(path.join(extensionsPath, extensionFolder));
+			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
+			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsPath, extensionFolder, packageNLSPath), 'utf8')) : undefined;
+			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+
+			scannedExtensions.push({
+				extensionPath: extensionFolder,
+				packageJSON,
+				packageNLS,
+				readmePath: readme ? path.join(extensionFolder, readme) : undefined,
+				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+			});
+		} catch (e) {
+			// Skip invalid extensions
 		}
 	}
 
-	return result;
+	return scannedExtensions;
 }
 
 /**
@@ -865,6 +883,8 @@ ${tslib}`,
 	// Post-process and write all output files
 	let bundled = 0;
 	const mangleStats: { file: string; result: ConvertPrivateFieldsResult }[] = [];
+	// Map from JS file path to pre-mangle content + edits, for source map adjustment
+	const mangleEdits = new Map<string, { preMangleCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
 	for (const { result } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
@@ -876,20 +896,24 @@ ${tslib}`,
 			if (file.path.endsWith('.js') || file.path.endsWith('.css')) {
 				let content = file.text;
 
-				// Apply NLS post-processing if enabled (JS only)
-				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
-					content = postProcessNLS(content, indexMap, preserveEnglish);
-				}
-
-				// Convert native #private fields to regular properties.
+				// Convert native #private fields to regular properties BEFORE NLS
+				// post-processing, so that the edit offsets align with esbuild's
+				// source map coordinate system (both reference the raw esbuild output).
 				// Skip extension host bundles - they expose API surface to extensions
 				// where true encapsulation matters more than the perf gain.
 				if (file.path.endsWith('.js') && doManglePrivates && !isExtensionHostBundle(file.path)) {
+					const preMangleCode = content;
 					const mangleResult = convertPrivateFields(content, file.path);
 					content = mangleResult.code;
 					if (mangleResult.editCount > 0) {
 						mangleStats.push({ file: path.relative(path.join(REPO_ROOT, outDir), file.path), result: mangleResult });
+						mangleEdits.set(file.path, { preMangleCode, edits: mangleResult.edits });
 					}
+				}
+
+				// Apply NLS post-processing if enabled (JS only)
+				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
+					content = postProcessNLS(content, indexMap, preserveEnglish);
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
@@ -906,8 +930,19 @@ ${tslib}`,
 				}
 
 				await fs.promises.writeFile(file.path, content);
+			} else if (file.path.endsWith('.map')) {
+				// Source maps may need adjustment if private fields were mangled
+				const jsPath = file.path.replace(/\.map$/, '');
+				const editInfo = mangleEdits.get(jsPath);
+				if (editInfo) {
+					const mapJson = JSON.parse(file.text);
+					const adjusted = adjustSourceMap(mapJson, editInfo.preMangleCode, editInfo.edits);
+					await fs.promises.writeFile(file.path, JSON.stringify(adjusted));
+				} else {
+					await fs.promises.writeFile(file.path, file.contents);
+				}
 			} else {
-				// Write other files (source maps, assets) as-is
+				// Write other files (assets, etc.) as-is
 				await fs.promises.writeFile(file.path, file.contents);
 			}
 		}

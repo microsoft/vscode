@@ -12,13 +12,17 @@ import * as path from 'path';
 const root = path.dirname(path.dirname(import.meta.dirname));
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const ansiRegex = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+const timestampRegex = /^\[\d{2}:\d{2}:\d{2}\]\s*/;
 
 export function spawnTsgo(projectPath: string, config: { taskName: string; noEmit?: boolean }, onComplete?: () => Promise<void> | void): Promise<void> {
-	function runReporter(stdError: string) {
-		const matches = (stdError || '').match(/error \w+: (.+)?/g);
-		fancyLog(`Finished ${ansiColors.green(config.taskName)} ${projectPath} with ${matches ? matches.length : 0} errors.`);
-		for (const match of matches || []) {
-			fancyLog.error(match);
+	function runReporter(output: string) {
+		const lines = (output || '').split('\n');
+		const errorLines = lines.filter(line => /error \w+:/.test(line));
+		if (errorLines.length > 0) {
+			fancyLog(`Finished ${ansiColors.green(config.taskName)} ${projectPath} with ${errorLines.length} errors.`);
+			for (const line of errorLines) {
+				fancyLog(line);
+			}
 		}
 	}
 
@@ -34,21 +38,28 @@ export function spawnTsgo(projectPath: string, config: { taskName: string; noEmi
 		shell: true
 	});
 
-	const handleData = (data: Buffer) => {
-		const lines = data.toString()
-			.split(/\r?\n/)
-			.map(line => line.replace(ansiRegex, '').trim())
-			.filter(line => line.length > 0)
-			.filter(line => !/Starting compilation|File change detected|Compilation complete/i.test(line));
+	let stdoutData = '';
+	let stderrData = '';
 
-		runReporter(lines.join('\n'));
-	};
-
-	child.stdout?.on('data', handleData);
-	child.stderr?.on('data', handleData);
+	child.stdout?.on('data', (data: Buffer) => {
+		stdoutData += data.toString();
+	});
+	child.stderr?.on('data', (data: Buffer) => {
+		stderrData += data.toString();
+	});
 
 	return new Promise<void>((resolve, reject) => {
 		child.on('exit', code => {
+			const allOutput = stdoutData + '\n' + stderrData;
+			const lines = allOutput
+				.split(/\r?\n/)
+				.map(line => line.replace(ansiRegex, '').trim())
+				.map(line => line.replace(timestampRegex, ''))
+				.filter(line => line.length > 0)
+				.filter(line => !/Starting compilation|File change detected|Compilation complete/i.test(line));
+
+			runReporter(lines.join('\n'));
+
 			if (code === 0) {
 				Promise.resolve(onComplete?.()).then(() => resolve(), reject);
 			} else {

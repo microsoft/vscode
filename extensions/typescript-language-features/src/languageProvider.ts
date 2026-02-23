@@ -18,12 +18,9 @@ import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import TypingsStatus from './ui/typingsStatus';
 import { Disposable } from './utils/dispose';
-import { readUnifiedConfig } from './utils/configuration';
+import { UnifiedConfigValue } from './utils/configuration';
 import { isWeb, isWebAndHasSharedArrayBuffers, supportsReadableByteStreams } from './utils/platform';
 
-
-const validateSetting = 'validate.enable';
-const suggestionSetting = 'suggestionActions.enabled';
 
 export default class LanguageProvider extends Disposable {
 
@@ -37,8 +34,16 @@ export default class LanguageProvider extends Disposable {
 		private readonly onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
-		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
-		this.configurationChanged();
+
+		const scope: vscode.ConfigurationScope = { languageId: this.description.languageIds[0] };
+
+		const validateConfig = this._register(new UnifiedConfigValue<boolean>('validate.enabled', true, { scope, fallbackSection: this.id, fallbackSubSectionNameOverride: 'validate.enable' }));
+		this.updateValidate(validateConfig.getValue());
+		this._register(validateConfig.onDidChange(value => this.updateValidate(value)));
+
+		const suggestionsConfig = this._register(new UnifiedConfigValue<boolean>('suggestionActions.enabled', true, { scope, fallbackSection: this.id }));
+		this.updateSuggestionDiagnostics(suggestionsConfig.getValue());
+		this._register(suggestionsConfig.onDidChange(value => this.updateSuggestionDiagnostics(value)));
 
 		client.onReady(() => this.registerProviders());
 	}
@@ -92,12 +97,6 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/tagClosing').then(provider => this._register(provider.register(selector, this.description, this.client))),
 			import('./languageFeatures/typeDefinitions').then(provider => this._register(provider.register(selector, this.client))),
 		]);
-	}
-
-	private configurationChanged(): void {
-		const config = vscode.workspace.getConfiguration(this.id, null);
-		this.updateValidate(config.get(validateSetting, true));
-		this.updateSuggestionDiagnostics(readUnifiedConfig<boolean>(suggestionSetting, true, { scope: null, fallbackSection: this.id }));
 	}
 
 	public handlesUri(resource: vscode.Uri): boolean {
@@ -163,23 +162,7 @@ export default class LanguageProvider extends Disposable {
 			return;
 		}
 
-		const config = vscode.workspace.getConfiguration(this.id, file);
-		const reportUnnecessary = config.get<boolean>('showUnused', true);
-		const reportDeprecated = config.get<boolean>('showDeprecated', true);
-		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics.filter(diag => {
-			// Don't bother reporting diagnostics we know will not be rendered
-			if (!reportUnnecessary) {
-				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
-					return false;
-				}
-			}
-			if (!reportDeprecated) {
-				if (diag.reportDeprecated && diag.severity === vscode.DiagnosticSeverity.Hint) {
-					return false;
-				}
-			}
-			return true;
-		}), ranges);
+		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics, ranges);
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {

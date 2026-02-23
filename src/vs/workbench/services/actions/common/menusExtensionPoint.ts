@@ -503,7 +503,7 @@ const apiMenus: IAPIMenu[] = [
 	},
 	{
 		key: 'chat/editor/inlineGutter',
-		id: MenuId.ChatEditorInlineGutter,
+		id: MenuId.ChatEditorInlineMenu,
 		description: localize('menus.chatEditorInlineGutter', "The inline gutter menu in the chat editor."),
 		supportsSubmenus: false,
 		proposed: 'contribChatEditorInlineGutterMenu',

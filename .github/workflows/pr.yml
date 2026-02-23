@@ -81,6 +81,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check cyclic dependencies
+        run: node build/lib/checkCyclicDependencies.ts out-build
+
   linux-cli-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-cli-test.yml

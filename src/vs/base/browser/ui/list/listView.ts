@@ -370,6 +370,7 @@ export class ListView<T> implements IListView<T> {
 			this.scrollableElementWidthDelayer.cancel();
 			this.scrollableElement.setScrollDimensions({ width: this.renderWidth, scrollWidth: this.renderWidth });
 			this.rowsContainer.style.width = '';
+			this.domNode.style.removeProperty('--list-scroll-right-offset');
 		}
 	}
 
@@ -894,6 +895,11 @@ export class ListView<T> implements IListView<T> {
 			this.scrollableElement.setScrollDimensions({
 				width: typeof width === 'number' ? width : getContentWidth(this.domNode)
 			});
+
+			const scrollPos = this.scrollableElement.getScrollPosition();
+			const scrollDims = this.scrollableElement.getScrollDimensions();
+			const rightOffset = Math.max(0, scrollDims.scrollWidth - scrollPos.scrollLeft - this.renderWidth);
+			this.domNode.style.setProperty('--list-scroll-right-offset', `${Math.max(rightOffset - 12, 0)}px`);
 		}
 	}
 
@@ -935,6 +941,8 @@ export class ListView<T> implements IListView<T> {
 
 		if (this.horizontalScrolling && scrollWidth !== undefined) {
 			this.rowsContainer.style.width = `${Math.max(scrollWidth, this.renderWidth)}px`;
+			const rightOffset = Math.max(0, scrollWidth - (renderLeft ?? 0) - this.renderWidth);
+			this.domNode.style.setProperty('--list-scroll-right-offset', `${Math.max(rightOffset - 12, 0)}px`);
 		}
 
 		this.lastRenderTop = renderTop;

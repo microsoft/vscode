@@ -122,6 +122,7 @@ export class MenuId {
 	static readonly PanelAlignmentMenu = new MenuId('PanelAlignmentMenu');
 	static readonly PanelPositionMenu = new MenuId('PanelPositionMenu');
 	static readonly ActivityBarPositionMenu = new MenuId('ActivityBarPositionMenu');
+	static readonly NotificationsCenterPositionMenu = new MenuId('NotificationsCenterPositionMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');
@@ -280,10 +281,11 @@ export class MenuId {
 	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');
 	static readonly ChatMultiDiffContext = new MenuId('ChatMultiDiffContext');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
-	static readonly ChatEditorInlineGutter = new MenuId('ChatEditorInlineGutter');
+	static readonly ChatEditorInlineMenu = new MenuId('ChatEditorInlineGutter');
 	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');
 	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');
 	static readonly InlineChatEditorAffordance = new MenuId('InlineChatEditorAffordance');
+	static readonly InlineChatInput = new MenuId('InlineChatInput');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorContent = new MenuId('MultiDiffEditorContent');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');

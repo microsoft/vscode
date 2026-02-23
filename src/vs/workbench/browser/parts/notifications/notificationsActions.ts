@@ -16,11 +16,13 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const clearIcon = registerIcon('notifications-clear', Codicon.close, localize('clearIcon', 'Icon for the clear action in notifications.'));
 const clearAllIcon = registerIcon('notifications-clear-all', Codicon.clearAll, localize('clearAllIcon', 'Icon for the clear all action in notifications.'));
-const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
+export const hideIcon = registerIcon('notifications-hide', Codicon.chevronDown, localize('hideIcon', 'Icon for the hide action in notifications.'));
+export const hideUpIcon = registerIcon('notifications-hide-up', Codicon.chevronUp, localize('hideUpIcon', 'Icon for the hide action in notifications when positioned at the top.'));
 const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, localize('expandIcon', 'Icon for the expand action in notifications.'));
 const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
 const configureIcon = registerIcon('notifications-configure', Codicon.gear, localize('configureIcon', 'Icon for the configure action in notifications.'));
 const doNotDisturbIcon = registerIcon('notifications-do-not-disturb', Codicon.bellSlash, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
+export const positionIcon = registerIcon('notifications-position', Codicon.arrowSwap, localize('positionIcon', 'Icon for the position action in notifications.'));
 
 export class ClearNotificationAction extends Action {
 
@@ -104,6 +106,19 @@ export class ConfigureDoNotDisturbAction extends Action {
 		label: string
 	) {
 		super(id, label, ThemeIcon.asClassName(doNotDisturbIcon));
+	}
+}
+
+export class ConfigureNotificationsPositionAction extends Action {
+
+	static readonly ID = 'workbench.action.configureNotificationsPosition';
+	static readonly LABEL = localize('configureNotificationsPosition', "Configure Notifications Position...");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label, ThemeIcon.asClassName(positionIcon));
 	}
 }
 

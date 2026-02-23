@@ -260,45 +260,6 @@ export class ChatMarkdownDecorationsRenderer {
 		return container;
 	}
 
-	/**
-	 * Renders a parsed chat request as plain text DOM elements with inline decoration spans
-	 * for agents, slash commands, and other special parts. No markdown rendering is used.
-	 */
-	renderParsedRequestToPlainText(parsedRequest: IParsedChatRequest, store: DisposableStore): HTMLElement {
-		const container = dom.$('span');
-		container.style.whiteSpace = 'pre-wrap';
-		for (const part of parsedRequest.parts) {
-			if (part instanceof ChatRequestTextPart) {
-				container.appendChild(document.createTextNode(part.text));
-			} else if (part instanceof ChatRequestAgentPart) {
-				const widget = this.renderResourceWidget(`${chatAgentLeader}${part.agent.name}`, undefined, store);
-				const hover: Lazy<ChatAgentHover> = new Lazy(() => store.add(this.instantiationService.createInstance(ChatAgentHover)));
-				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), widget, () => {
-					hover.value.setAgent(part.agent.id);
-					return hover.value.domNode;
-				}, getChatAgentHoverOptions(() => part.agent, this.commandService)));
-				container.appendChild(widget);
-			} else {
-				const title = this.getDecorationTitle(part);
-				const widget = this.renderResourceWidget(part.text, title ? { title } : undefined, store);
-				container.appendChild(widget);
-			}
-		}
-		return container;
-	}
-
-	private getDecorationTitle(part: IParsedChatRequestPart): string | undefined {
-		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
-			part.data :
-			undefined;
-		return uri ? this.labelService.getUriLabel(uri, { relative: true }) :
-			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
-				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
-					part instanceof ChatRequestSlashPromptPart ? part.name :
-						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
-							undefined;
-	}
-
 	private injectKeybindingHint(a: HTMLAnchorElement, href: string, keybindingService: IKeybindingService): void {
 		const command = href.match(/command:([^\)]+)/)?.[1];
 		if (command) {
