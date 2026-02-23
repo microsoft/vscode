@@ -433,7 +433,7 @@ export class AICustomizationListWidget extends Disposable {
 							? localize('itemAriaLabel', "{0}, {1}", entry.item.name, entry.item.description)
 							: entry.item.name;
 					},
-					getWidgetAriaLabel: () => localize('listAriaLabel', "AI Customizations"),
+					getWidgetAriaLabel: () => localize('listAriaLabel', "Chat Customizations"),
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (entry: IListEntry) => entry.type === 'group-header' ? entry.label : entry.item.name,

@@ -69,7 +69,7 @@ const $ = DOM.$;
 export const aiCustomizationManagementSashBorder = registerColor(
 	'aiCustomizationManagement.sashBorder',
 	PANEL_BORDER,
-	localize('aiCustomizationManagementSashBorder', "The color of the AI Customization Management editor splitview sash border.")
+	localize('aiCustomizationManagementSashBorder', "The color of the Chat Customization Management editor splitview sash border.")
 );
 
 //#region Sidebar Section Item
@@ -325,7 +325,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel: (item: ISectionItem) => item.label,
-					getWidgetAriaLabel: () => localize('sectionsAriaLabel', "AI Customization Sections"),
+					getWidgetAriaLabel: () => localize('sectionsAriaLabel', "Chat Customization Sections"),
 				},
 				openOnSingleClick: true,
 				identityProvider: {

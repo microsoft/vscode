@@ -24,7 +24,7 @@ export const AI_CUSTOMIZATION_STORAGE_ID = 'workbench.aiCustomization.views.stat
 /**
  * Category for AI Customization commands.
  */
-export const AI_CUSTOMIZATION_CATEGORY = localize2('aiCustomization', "AI Customization");
+export const AI_CUSTOMIZATION_CATEGORY = localize2('aiCustomization', "Chat Customization");
 
 //#region Menu IDs
 

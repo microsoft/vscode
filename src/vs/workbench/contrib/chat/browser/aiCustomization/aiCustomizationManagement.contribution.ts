@@ -44,7 +44,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		AICustomizationManagementEditor,
 		AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
-		localize('aiCustomizationManagementEditor', "AI Customizations Editor")
+		localize('aiCustomizationManagementEditor', "Chat Customizations Editor")
 	),
 	[
 		// Note: Using the class directly since we use a singleton pattern
@@ -270,8 +270,8 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			constructor() {
 				super({
 					id: AICustomizationManagementCommands.OpenEditor,
-					title: localize2('openAICustomizations', "Open AI Customizations"),
-					shortTitle: localize2('aiCustomizations', "AI Customizations"),
+					title: localize2('openAICustomizations', "Open Chat Customizations"),
+					shortTitle: localize2('aiCustomizations', "Chat Customizations"),
 					category: CHAT_CATEGORY,
 					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
 					f1: true,
