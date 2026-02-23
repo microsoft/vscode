@@ -216,6 +216,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 		message: localize('tip.planMode', "Tip: Try the [Plan agent](command:workbench.action.chat.openPlan) to research and plan before implementing changes."),
 		when: ChatContextKeys.chatModeName.notEqualsTo('Plan'),
 		enabledCommands: ['workbench.action.chat.openPlan'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.openPlan'],
 		excludeWhenModesUsed: ['Plan'],
 	},
 	{
@@ -244,6 +245,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 		id: 'tip.customInstructions',
 		message: localize('tip.customInstructions', "Tip: [Generate workspace instructions](command:workbench.action.chat.generateInstructions) apply coding conventions across all agent sessions."),
 		enabledCommands: ['workbench.action.chat.generateInstructions'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.generateInstructions'],
 		excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
 	},
 	{
@@ -302,21 +304,6 @@ const TIP_CATALOG: ITipDefinition[] = [
 		excludeWhenToolsInvoked: ['runSubagent'],
 	},
 	{
-		id: 'tip.sendToNewChat',
-		message: localize('tip.sendToNewChat', "Tip: Use [Send to New Chat](command:workbench.action.chat.sendToNewChat) to start a new conversation with a clean context window."),
-		when: ChatContextKeys.chatSessionIsEmpty.negate(),
-		enabledCommands: ['workbench.action.chat.sendToNewChat'],
-		excludeWhenCommandsExecuted: ['workbench.action.chat.sendToNewChat'],
-	},
-	{
-		id: 'tip.thinkingStyle',
-		message: localize('tip.thinkingStyle', "Tip: Change how the agent's reasoning is displayed with the [thinking style](command:workbench.action.openSettings?%5B%22chat.agent.thinking.style%22%5D) setting."),
-		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-		enabledCommands: ['workbench.action.openSettings'],
-		excludeWhenSettingsChanged: ['chat.agent.thinking.style'],
-		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
-	},
-	{
 		id: 'tip.thinkingPhrases',
 		message: localize('tip.thinkingPhrases', "Tip: Customize the loading messages shown while the agent works with [thinking phrases](command:workbench.action.openSettings?%5B%22chat.agent.thinking.phrases%22%5D)."),
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
@@ -336,6 +323,7 @@ export class TipEligibilityTracker extends Disposable {
 	private static readonly _COMMANDS_STORAGE_KEY = 'chat.tips.executedCommands';
 	private static readonly _MODES_STORAGE_KEY = 'chat.tips.usedModes';
 	private static readonly _TOOLS_STORAGE_KEY = 'chat.tips.invokedTools';
+	private static readonly _INSTRUCTION_FILES_EVER_DETECTED_KEY = 'chat.tips.instructionFilesEverDetected';
 
 	private readonly _executedCommands: Set<string>;
 	private readonly _usedModes: Set<string>;
@@ -359,6 +347,8 @@ export class TipEligibilityTracker extends Disposable {
 
 	/** Generation counter per tip ID to discard stale async file-check results. */
 	private readonly _fileCheckGeneration = new Map<string, number>();
+	private readonly _fileChecksInFlight = new Map<string, Promise<void>>();
+	private _instructionFilesEverDetected: boolean;
 
 	constructor(
 		tips: readonly ITipDefinition[],
@@ -380,6 +370,8 @@ export class TipEligibilityTracker extends Disposable {
 
 		const storedTools = this._readApplicationWithProfileFallback(TipEligibilityTracker._TOOLS_STORAGE_KEY);
 		this._invokedTools = new Set<string>(storedTools ? JSON.parse(storedTools) : []);
+
+		this._instructionFilesEverDetected = this._storageService.getBoolean(TipEligibilityTracker._INSTRUCTION_FILES_EVER_DETECTED_KEY, StorageScope.APPLICATION, false);
 
 		// --- Derive what still needs tracking ----------------------------------
 
@@ -448,6 +440,11 @@ export class TipEligibilityTracker extends Disposable {
 
 		this._tipsWithFileExclusions = tips.filter(t => t.excludeWhenPromptFilesExist);
 		for (const tip of this._tipsWithFileExclusions) {
+			if (this._instructionFilesEverDetected && tip.id === 'tip.customInstructions') {
+				this._excludedByFiles.add(tip.id);
+				continue;
+			}
+
 			if (tip.excludeWhenPromptFilesExist!.excludeUntilChecked) {
 				this._excludedByFiles.add(tip.id);
 			}
@@ -527,7 +524,43 @@ export class TipEligibilityTracker extends Disposable {
 		return false;
 	}
 
+	/**
+	 * Revalidates all file-based tip exclusions. Tips with `excludeUntilChecked`
+	 * are conservatively hidden until the re-check completes.
+	 */
+	refreshPromptFileExclusions(): void {
+		for (const tip of this._tipsWithFileExclusions) {
+			if (this._instructionFilesEverDetected && tip.id === 'tip.customInstructions') {
+				this._excludedByFiles.add(tip.id);
+				continue;
+			}
+
+			if (tip.excludeWhenPromptFilesExist!.excludeUntilChecked) {
+				this._excludedByFiles.add(tip.id);
+			}
+			this._checkForPromptFiles(tip);
+		}
+	}
+
 	private async _checkForPromptFiles(tip: ITipDefinition): Promise<void> {
+		const inFlight = this._fileChecksInFlight.get(tip.id);
+		if (inFlight) {
+			await inFlight;
+			return;
+		}
+
+		const checkPromise = this._doCheckForPromptFiles(tip);
+		this._fileChecksInFlight.set(tip.id, checkPromise);
+		try {
+			await checkPromise;
+		} finally {
+			if (this._fileChecksInFlight.get(tip.id) === checkPromise) {
+				this._fileChecksInFlight.delete(tip.id);
+			}
+		}
+	}
+
+	private async _doCheckForPromptFiles(tip: ITipDefinition): Promise<void> {
 		const config = tip.excludeWhenPromptFilesExist!;
 		const generation = (this._fileCheckGeneration.get(tip.id) ?? 0) + 1;
 		this._fileCheckGeneration.set(tip.id, generation);
@@ -547,8 +580,14 @@ export class TipEligibilityTracker extends Disposable {
 			const hasAgentFile = config.agentFileType
 				? agentInstructions.some(f => f.type === config.agentFileType)
 				: false;
+			const hasPromptFilesOrAgentFile = hasPromptFiles || hasAgentFile;
 
-			if (hasPromptFiles || hasAgentFile) {
+			if (tip.id === 'tip.customInstructions' && hasPromptFilesOrAgentFile) {
+				this._instructionFilesEverDetected = true;
+				this._storageService.store(TipEligibilityTracker._INSTRUCTION_FILES_EVER_DETECTED_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
+
+			if (hasPromptFilesOrAgentFile) {
 				this._excludedByFiles.add(tip.id);
 			} else {
 				this._excludedByFiles.delete(tip.id);
@@ -617,9 +656,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	private static readonly _DISMISSED_TIP_KEY = 'chat.tip.dismissed';
 	private static readonly _LAST_TIP_ID_KEY = 'chat.tip.lastTipId';
 	private static readonly _YOLO_EVER_ENABLED_KEY = 'chat.tip.yoloModeEverEnabled';
+	private static readonly _THINKING_PHRASES_EVER_MODIFIED_KEY = 'chat.tip.thinkingPhrasesEverModified';
 	private readonly _tracker: TipEligibilityTracker;
 	private readonly _createSlashCommandsUsageTracker: CreateSlashCommandsUsageTracker;
 	private _yoloModeEverEnabled: boolean;
+	private _thinkingPhrasesEverModified: boolean;
 	private readonly _tipCommandListener = this._register(new MutableDisposable());
 
 	constructor(
@@ -659,6 +700,20 @@ export class ChatTipService extends Disposable implements IChatTipService {
 					}
 				}
 			});
+		}
+
+		this._thinkingPhrasesEverModified = this._storageService.getBoolean(ChatTipService._THINKING_PHRASES_EVER_MODIFIED_KEY, StorageScope.APPLICATION, false);
+		if (!this._thinkingPhrasesEverModified && this._isSettingModified(ChatConfiguration.ThinkingPhrases)) {
+			this._thinkingPhrasesEverModified = true;
+			this._storageService.store(ChatTipService._THINKING_PHRASES_EVER_MODIFIED_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+		if (!this._thinkingPhrasesEverModified) {
+			this._register(this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(ChatConfiguration.ThinkingPhrases)) {
+					this._thinkingPhrasesEverModified = true;
+					this._storageService.store(ChatTipService._THINKING_PHRASES_EVER_MODIFIED_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				}
+			}));
 		}
 	}
 
@@ -737,6 +792,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	getWelcomeTip(contextKeyService: IContextKeyService): IChatTip | undefined {
 		this._createSlashCommandsUsageTracker.syncContextKey(contextKeyService);
+		this._tracker.refreshPromptFileExclusions();
 		// Check if tips are enabled
 		if (!this._configurationService.getValue<boolean>('chat.tips.enabled')) {
 			return undefined;
@@ -911,17 +967,21 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				return false;
 			}
 		}
-		if (tip.excludeWhenSettingsChanged) {
-			for (const key of tip.excludeWhenSettingsChanged) {
-				const inspected = this._configurationService.inspect(key);
-				if (inspected.userValue !== undefined || inspected.userLocalValue !== undefined || inspected.userRemoteValue !== undefined || inspected.workspaceValue !== undefined || inspected.workspaceFolderValue !== undefined) {
-					this._logService.debug('#ChatTips: tip excluded because setting was changed from default', tip.id, key);
-					return false;
-				}
-			}
+		if (tip.id === 'tip.thinkingPhrases' && this._thinkingPhrasesEverModified) {
+			this._logService.debug('#ChatTips: tip excluded because thinking phrases setting was previously modified', tip.id);
+			return false;
 		}
 		this._logService.debug('#ChatTips: tip is eligible', tip.id);
 		return true;
+	}
+
+	private _isSettingModified(key: string): boolean {
+		const inspected = this._configurationService.inspect(key);
+		return inspected.userValue !== undefined
+			|| inspected.userLocalValue !== undefined
+			|| inspected.userRemoteValue !== undefined
+			|| inspected.workspaceValue !== undefined
+			|| inspected.workspaceFolderValue !== undefined;
 	}
 
 	private _getCurrentChatModelId(contextKeyService: IContextKeyService): string {

@@ -440,7 +440,7 @@ suite('ChatService', () => {
 				await completeRequest.p;
 				return {};
 			},
-			setYieldRequested(requestId: string) {
+			setYieldRequested(requestId: string, value: boolean) {
 				setYieldRequestedCalled = true;
 			},
 		};

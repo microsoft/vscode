@@ -558,7 +558,7 @@
 
 	.tool-output-part {
 		border: 1px solid var(--vscode-widget-border);
-		border-radius: 6px;
+		border-radius: var(--vscode-cornerRadius-medium);
 		background: var(--vscode-editor-background);
 		margin: 4px 0;
 		overflow: hidden;
@@ -1263,6 +1263,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: var(--vscode-focusBorder);
 }
 
+.chat-editor-container {
+	padding: 0 4px;
+}
+
 .chat-editor-container .monaco-editor .mtk1 {
 	color: var(--vscode-input-foreground);
 }
@@ -1294,14 +1298,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 4px;
 }
 
-.interactive-session .chat-editor-container .monaco-editor .view-lines {
-	padding-left: 4px;
-}
-
 .interactive-session .chat-input-toolbars {
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	margin-top: 4px;
 }
 
 .interactive-session .chat-input-toolbars :not(.responsive.chat-input-toolbar) .actions-container:first-child {

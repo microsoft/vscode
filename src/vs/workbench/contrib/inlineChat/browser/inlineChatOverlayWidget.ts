@@ -36,7 +36,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { IInlineChatSession2 } from './inlineChatSessionService.js';
-import { CancelChatActionId } from '../../chat/browser/actions/chatExecuteActions.js';
 import { assertType } from '../../../../base/common/types.js';
 
 /**
@@ -476,7 +475,7 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			},
 			menuOptions: { renderShortTitle: true },
 			actionViewItemProvider: (action, options) => {
-				const primaryActions = [CancelChatActionId, 'inlineChat2.keep'];
+				const primaryActions = ['inlineChat2.cancel', 'inlineChat2.keep'];
 				const labeledActions = primaryActions.concat(['inlineChat2.undo']);
 
 				if (!labeledActions.includes(action.id)) {

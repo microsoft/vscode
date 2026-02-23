@@ -74,6 +74,7 @@
 
 .agent-feedback-widget.collapsed .agent-feedback-widget-header {
 	border-bottom: none;
+	border-radius: 8px 8px 8px 8px;
 }
 
 .agent-feedback-widget-header:hover {

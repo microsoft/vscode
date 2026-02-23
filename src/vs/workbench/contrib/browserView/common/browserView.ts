@@ -278,6 +278,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			}
 
 			this._url = e.url;
+			this._title = e.title;
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
 		}));
