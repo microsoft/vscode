@@ -5,6 +5,7 @@
 
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -106,7 +107,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		// before this provider was registered (e.g. extension activated late).
 		for (const [sessionResource, cts] of this._invocationCts) {
 			if (!cts.token.isCancellationRequested) {
-				this._invokeProvider(provider, sessionResource, cts.token);
+				this._invokeProvider(provider, sessionResource, cts.token).catch(onUnexpectedError);
 			}
 		}
 
@@ -138,8 +139,8 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 				this._invokeProvider(provider, sessionResource, cts.token)
 			);
 			await Promise.allSettled(promises);
-		} catch {
-			// best effort
+		} catch (err) {
+			onUnexpectedError(err);
 		}
 		// Note: do NOT dispose the CTS here - the token is used by the
 		// extension-side progress pipeline which stays alive for streaming.
@@ -158,8 +159,8 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 					});
 				}
 			}
-		} catch {
-			// best effort
+		} catch (err) {
+			onUnexpectedError(err);
 		}
 	}
 
@@ -186,9 +187,13 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	async resolveEvent(eventId: string): Promise<IChatDebugResolvedEventContent | undefined> {
 		for (const provider of this._providers) {
 			if (provider.resolveChatDebugLogEvent) {
-				const resolved = await provider.resolveChatDebugLogEvent(eventId, CancellationToken.None);
-				if (resolved !== undefined) {
-					return resolved;
+				try {
+					const resolved = await provider.resolveChatDebugLogEvent(eventId, CancellationToken.None);
+					if (resolved !== undefined) {
+						return resolved;
+					}
+				} catch (err) {
+					onUnexpectedError(err);
 				}
 			}
 		}
