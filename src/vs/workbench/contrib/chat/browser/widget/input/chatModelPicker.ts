@@ -130,6 +130,7 @@ export function buildModelPickerItems(
 	manageSettingsUrl: string | undefined,
 	commandService: ICommandService,
 	chatEntitlementService: IChatEntitlementService,
+	showCuratedModels: boolean = true,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const isPro = isProUser(chatEntitlementService.entitlement);
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
@@ -145,167 +146,185 @@ export function buildModelPickerItems(
 			run: () => { }
 		}));
 	} else {
-		// Collect all available models into lookup maps
-		const allModelsMap = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
-		const modelsByMetadataId = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
-		for (const model of models) {
-			allModelsMap.set(model.identifier, model);
-			modelsByMetadataId.set(model.metadata.id, model);
-		}
-
-		const placed = new Set<string>();
-
-		const markPlaced = (identifierOrId: string, metadataId?: string) => {
-			placed.add(identifierOrId);
-			if (metadataId) {
-				placed.add(metadataId);
+		if (!showCuratedModels) {
+			// Flat list: auto first, then all models sorted alphabetically
+			const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
+			if (autoModel) {
+				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel));
 			}
-		};
-
-		const resolveModel = (id: string) => allModelsMap.get(id) ?? modelsByMetadataId.get(id);
-
-		const getUnavailableReason = (entry: IModelControlEntry): 'upgrade' | 'update' | 'admin' => {
-			if (!isPro) {
-				return 'upgrade';
+			const sortedModels = models
+				.filter(m => m !== autoModel)
+				.sort((a, b) => {
+					const vendorCmp = a.metadata.vendor.localeCompare(b.metadata.vendor);
+					return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
+				});
+			for (const model of sortedModels) {
+				items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model));
 			}
-			if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-				return 'update';
+		} else {
+
+			// Collect all available models into lookup maps
+			const allModelsMap = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
+			const modelsByMetadataId = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
+			for (const model of models) {
+				allModelsMap.set(model.identifier, model);
+				modelsByMetadataId.set(model.metadata.id, model);
 			}
-			return 'admin';
-		};
 
-		// --- 1. Auto ---
-		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
-		if (autoModel) {
-			markPlaced(autoModel.identifier, autoModel.metadata.id);
-			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel));
-		}
+			const placed = new Set<string>();
 
-		// --- 2. Promoted section (selected + recently used + featured) ---
-		type PromotedItem =
-			| { kind: 'available'; model: ILanguageModelChatMetadataAndIdentifier }
-			| { kind: 'unavailable'; id: string; entry: IModelControlEntry; reason: 'upgrade' | 'update' | 'admin' };
-
-		const promotedItems: PromotedItem[] = [];
-
-		// Try to place a model by id. Returns true if handled.
-		const tryPlaceModel = (id: string): boolean => {
-			if (placed.has(id)) {
-				return false;
-			}
-			const model = resolveModel(id);
-			if (model && !placed.has(model.identifier)) {
-				markPlaced(model.identifier, model.metadata.id);
-				const entry = controlModels[model.metadata.id];
-				if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-					promotedItems.push({ kind: 'unavailable', id: model.metadata.id, entry, reason: 'update' });
-				} else {
-					promotedItems.push({ kind: 'available', model });
+			const markPlaced = (identifierOrId: string, metadataId?: string) => {
+				placed.add(identifierOrId);
+				if (metadataId) {
+					placed.add(metadataId);
 				}
-				return true;
+			};
+
+			const resolveModel = (id: string) => allModelsMap.get(id) ?? modelsByMetadataId.get(id);
+
+			const getUnavailableReason = (entry: IModelControlEntry): 'upgrade' | 'update' | 'admin' => {
+				if (!isPro) {
+					return 'upgrade';
+				}
+				if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+					return 'update';
+				}
+				return 'admin';
+			};
+
+			// --- 1. Auto ---
+			const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
+			if (autoModel) {
+				markPlaced(autoModel.identifier, autoModel.metadata.id);
+				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel));
 			}
-			if (!model) {
-				const entry = controlModels[id];
-				if (entry && !entry.exists) {
-					markPlaced(id);
-					promotedItems.push({ kind: 'unavailable', id, entry, reason: getUnavailableReason(entry) });
+
+			// --- 2. Promoted section (selected + recently used + featured) ---
+			type PromotedItem =
+				| { kind: 'available'; model: ILanguageModelChatMetadataAndIdentifier }
+				| { kind: 'unavailable'; id: string; entry: IModelControlEntry; reason: 'upgrade' | 'update' | 'admin' };
+
+			const promotedItems: PromotedItem[] = [];
+
+			// Try to place a model by id. Returns true if handled.
+			const tryPlaceModel = (id: string): boolean => {
+				if (placed.has(id)) {
+					return false;
+				}
+				const model = resolveModel(id);
+				if (model && !placed.has(model.identifier)) {
+					markPlaced(model.identifier, model.metadata.id);
+					const entry = controlModels[model.metadata.id];
+					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+						promotedItems.push({ kind: 'unavailable', id: model.metadata.id, entry, reason: 'update' });
+					} else {
+						promotedItems.push({ kind: 'available', model });
+					}
 					return true;
 				}
-			}
-			return false;
-		};
-
-		// Selected model
-		if (selectedModelId && selectedModelId !== autoModel?.identifier) {
-			tryPlaceModel(selectedModelId);
-		}
-
-		// Recently used models
-		for (const id of recentModelIds) {
-			tryPlaceModel(id);
-		}
-
-		// Featured models from control manifest
-		for (const [entryId, entry] of Object.entries(controlModels)) {
-			if (!entry.featured || placed.has(entryId)) {
-				continue;
-			}
-			const model = resolveModel(entryId);
-			if (model && !placed.has(model.identifier)) {
-				markPlaced(model.identifier, model.metadata.id);
-				if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-					promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
-				} else {
-					promotedItems.push({ kind: 'available', model });
-				}
-			} else if (!model && !entry.exists) {
-				markPlaced(entryId);
-				promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
-			}
-		}
-
-		// Render promoted section: sorted alphabetically by name
-		let hasShownActionLink = false;
-		if (promotedItems.length > 0) {
-			promotedItems.sort((a, b) => {
-				const aName = a.kind === 'available' ? a.model.metadata.name : a.entry.label;
-				const bName = b.kind === 'available' ? b.model.metadata.name : b.entry.label;
-				return aName.localeCompare(bName);
-			});
-
-			for (const item of promotedItems) {
-				if (item.kind === 'available') {
-					items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model));
-				} else {
-					const showActionLink = item.reason === 'upgrade' ? !hasShownActionLink : true;
-					if (showActionLink && item.reason === 'upgrade') {
-						hasShownActionLink = true;
+				if (!model) {
+					const entry = controlModels[id];
+					if (entry && !entry.exists) {
+						markPlaced(id);
+						promotedItems.push({ kind: 'unavailable', id, entry, reason: getUnavailableReason(entry) });
+						return true;
 					}
-					items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, showActionLink));
+				}
+				return false;
+			};
+
+			// Selected model
+			if (selectedModelId && selectedModelId !== autoModel?.identifier) {
+				tryPlaceModel(selectedModelId);
+			}
+
+			// Recently used models
+			for (const id of recentModelIds) {
+				tryPlaceModel(id);
+			}
+
+			// Featured models from control manifest
+			for (const [entryId, entry] of Object.entries(controlModels)) {
+				if (!entry.featured || placed.has(entryId)) {
+					continue;
+				}
+				const model = resolveModel(entryId);
+				if (model && !placed.has(model.identifier)) {
+					markPlaced(model.identifier, model.metadata.id);
+					if (entry.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+						promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: 'update' });
+					} else {
+						promotedItems.push({ kind: 'available', model });
+					}
+				} else if (!model && !entry.exists) {
+					markPlaced(entryId);
+					promotedItems.push({ kind: 'unavailable', id: entryId, entry, reason: getUnavailableReason(entry) });
 				}
 			}
-		}
 
-		// --- 3. Other Models (collapsible) ---
-		otherModels = models
-			.filter(m => !placed.has(m.identifier) && !placed.has(m.metadata.id))
-			.sort((a, b) => {
-				const aCopilot = a.metadata.vendor === 'copilot' ? 0 : 1;
-				const bCopilot = b.metadata.vendor === 'copilot' ? 0 : 1;
-				if (aCopilot !== bCopilot) {
-					return aCopilot - bCopilot;
+			// Render promoted section: sorted alphabetically by name
+			let hasShownActionLink = false;
+			if (promotedItems.length > 0) {
+				promotedItems.sort((a, b) => {
+					const aName = a.kind === 'available' ? a.model.metadata.name : a.entry.label;
+					const bName = b.kind === 'available' ? b.model.metadata.name : b.entry.label;
+					return aName.localeCompare(bName);
+				});
+
+				for (const item of promotedItems) {
+					if (item.kind === 'available') {
+						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model));
+					} else {
+						const showActionLink = item.reason === 'upgrade' ? !hasShownActionLink : true;
+						if (showActionLink && item.reason === 'upgrade') {
+							hasShownActionLink = true;
+						}
+						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, showActionLink));
+					}
 				}
-				const vendorCmp = a.metadata.vendor.localeCompare(b.metadata.vendor);
-				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
-			});
-
-		if (otherModels.length > 0) {
-			if (items.length > 0) {
-				items.push({ kind: ActionListItemKind.Separator });
 			}
-			items.push({
-				item: {
-					id: 'otherModels',
-					enabled: true,
-					checked: false,
-					class: undefined,
-					tooltip: localize('chat.modelPicker.otherModels', "Other Models"),
+
+			// --- 3. Other Models (collapsible) ---
+			otherModels = models
+				.filter(m => !placed.has(m.identifier) && !placed.has(m.metadata.id))
+				.sort((a, b) => {
+					const aCopilot = a.metadata.vendor === 'copilot' ? 0 : 1;
+					const bCopilot = b.metadata.vendor === 'copilot' ? 0 : 1;
+					if (aCopilot !== bCopilot) {
+						return aCopilot - bCopilot;
+					}
+					const vendorCmp = a.metadata.vendor.localeCompare(b.metadata.vendor);
+					return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
+				});
+
+			if (otherModels.length > 0) {
+				if (items.length > 0) {
+					items.push({ kind: ActionListItemKind.Separator });
+				}
+				items.push({
+					item: {
+						id: 'otherModels',
+						enabled: true,
+						checked: false,
+						class: undefined,
+						tooltip: localize('chat.modelPicker.otherModels', "Other Models"),
+						label: localize('chat.modelPicker.otherModels', "Other Models"),
+						run: () => { /* toggle handled by isSectionToggle */ }
+					},
+					kind: ActionListItemKind.Action,
 					label: localize('chat.modelPicker.otherModels', "Other Models"),
-					run: () => { /* toggle handled by isSectionToggle */ }
-				},
-				kind: ActionListItemKind.Action,
-				label: localize('chat.modelPicker.otherModels', "Other Models"),
-				group: { title: '', icon: Codicon.chevronDown },
-				hideIcon: false,
-				section: ModelPickerSection.Other,
-				isSectionToggle: true,
-			});
-			for (const model of otherModels) {
-				const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
-				if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-					items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, true));
-				} else {
-					items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other), model));
+					group: { title: '', icon: Codicon.chevronDown },
+					hideIcon: false,
+					section: ModelPickerSection.Other,
+					isSectionToggle: true,
+				});
+				for (const model of otherModels) {
+					const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
+					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
+						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, true));
+					} else {
+						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other), model));
+					}
 				}
 			}
 		}
@@ -513,21 +532,22 @@ export class ModelPickerWidget extends Disposable {
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
-			this._languageModelsService.getRecentlyUsedModelIds(),
+			showCuratedModels ? this._languageModelsService.getRecentlyUsedModelIds() : [],
 			controlModelsForTier,
 			this._productService.version,
 			this._updateService.state.type,
 			onSelect,
 			this._productService.defaultChatAgent?.manageSettingsUrl,
 			this._commandService,
-			this._entitlementService
+			this._entitlementService,
+			showCuratedModels
 		);
 
 		const listOptions = {
 			showFilter: models.length >= 10,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
-			collapsedByDefault: new Set([ModelPickerSection.Other]),
+			collapsedByDefault: showCuratedModels ? new Set([ModelPickerSection.Other]) : new Set<string>(),
 			minWidth: 300,
 		};
 		const previouslyFocusedElement = dom.getActiveElement();
