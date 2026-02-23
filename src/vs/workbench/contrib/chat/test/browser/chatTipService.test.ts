@@ -966,6 +966,7 @@ suite('ChatTipService', () => {
 	}
 
 	for (const { tipId, settingKey } of [
+		{ tipId: 'tip.yoloMode', settingKey: ChatConfiguration.GlobalAutoApprove },
 		{ tipId: 'tip.thinkingPhrases', settingKey: 'chat.agent.thinking.phrases' },
 		{ tipId: 'tip.agenticBrowser', settingKey: 'workbench.browser.enableChatTools' },
 	]) {

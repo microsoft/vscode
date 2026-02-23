@@ -278,6 +278,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 			ContextKeyExpr.notEquals('config.chat.tools.global.autoApprove', true),
 		),
 		enabledCommands: ['workbench.action.openSettings'],
+		excludeWhenSettingsChanged: [ChatConfiguration.GlobalAutoApprove],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
@@ -288,6 +289,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 			ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true),
 		),
 		enabledCommands: ['workbench.action.openSettings'],
+		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
 		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 	{
@@ -947,6 +949,10 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			if (!isModelMatch) {
 				return false;
 			}
+		}
+		if (tip.excludeWhenSettingsChanged?.some(setting => this._isSettingModified(setting))) {
+			this._logService.debug('#ChatTips: tip excluded because setting was modified', tip.id, tip.excludeWhenSettingsChanged);
+			return false;
 		}
 		if (tip.when && !contextKeyService.contextMatchesRules(tip.when)) {
 			this._logService.debug('#ChatTips: tip is not eligible due to when clause', tip.id, tip.when.serialize());
