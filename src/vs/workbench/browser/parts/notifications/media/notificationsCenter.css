@@ -17,6 +17,16 @@
 	bottom: 11px; /* attempt to position at same location as a toast */
 }
 
+.monaco-workbench > .notifications-center.bottom-left {
+	right: auto;
+	left: 7px;
+}
+
+.monaco-workbench > .notifications-center.top-right {
+	bottom: auto;
+	top: 7px;
+}
+
 .monaco-workbench > .notifications-center.visible {
 	display: block;
 }
