@@ -347,35 +347,42 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 		this.availableUpdate.cancelFilePath = cancelFilePath;
 
-		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
-		const child = spawn(this.availableUpdate.packagePath,
-			[
-				'/verysilent',
-				'/log',
-				`/update="${this.availableUpdate.updateFilePath}"`,
-				`/progress="${progressFilePath}"`,
-				`/sessionend="${sessionEndFlagPath}"`,
-				`/cancel="${cancelFilePath}"`,
-				'/nocloseapplications',
-				'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
-			],
-			{
-				detached: true,
-				stdio: ['ignore', 'ignore', 'ignore'],
-				windowsVerbatimArguments: true
-			}
-		);
-
-		// Track the process so we can cancel it if needed
-		this.availableUpdate.updateProcess = child;
-
-		child.once('exit', () => {
-			this.availableUpdate = undefined;
-			this.setState(State.Idle(getUpdateType()));
-		});
-
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
 		const mutex = await import('@vscode/windows-mutex');
+
+		const setupMutexName = `${this.productService.win32MutexName}setup`;
+		const isSetupRunning = mutex.isActive(setupMutexName);
+
+		if (isSetupRunning) {
+			this.logService.info('update#doApplyUpdate: setup is already running');
+		} else {
+			await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
+			const child = spawn(this.availableUpdate.packagePath,
+				[
+					'/verysilent',
+					'/log',
+					`/update="${this.availableUpdate.updateFilePath}"`,
+					`/progress="${progressFilePath}"`,
+					`/sessionend="${sessionEndFlagPath}"`,
+					`/cancel="${cancelFilePath}"`,
+					'/nocloseapplications',
+					'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
+				],
+				{
+					detached: true,
+					stdio: ['ignore', 'ignore', 'ignore'],
+					windowsVerbatimArguments: true
+				}
+			);
+
+			// Track the process so we can cancel it if needed
+			this.availableUpdate.updateProcess = child;
+
+			child.once('exit', () => {
+				this.availableUpdate = undefined;
+				this.setState(State.Idle(getUpdateType()));
+			});
+		}
 
 		// Poll for progress and ready mutex (timeout after 30 minutes)
 		const pollTimeoutMs = 30 * 60 * 1000;
@@ -389,6 +396,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
 				if (mutex.isActive(readyMutexName)) {
 					this.setState(State.Ready(update, explicit, this._overwrite));
+					return;
+				}
+
+				if (!this.availableUpdate?.updateProcess && !mutex.isActive(setupMutexName)) {
+					this.logService.warn('update#doApplyUpdate: setup is no longer running and ready mutex is not active');
+					this.setState(State.Idle(getUpdateType(), 'Update failed or was cancelled'));
 					return;
 				}
 
@@ -459,6 +472,22 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				this.logService.trace('update#cancelPendingUpdate: process did not exit gracefully, killing process tree');
 				await killTree(pid, true);
 			}
+		} else if (!updateProcess) {
+			if (cancelFilePath) {
+				try {
+					await pfs.Promises.writeFile(cancelFilePath, 'cancel');
+				} catch (err) {
+					this.logService.warn('update#cancelPendingUpdate: failed to write cancel file', err);
+				}
+			}
+
+			const mutex = await import('@vscode/windows-mutex');
+			const setupMutexName = `${this.productService.win32MutexName}setup`;
+			let retries = 30;
+			while (mutex.isActive(setupMutexName) && retries > 0) {
+				await timeout(1000);
+				retries--;
+			}
 		}
 
 		// Clean up the flag file
@@ -490,7 +519,11 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
-			unlinkSync(this.availableUpdate.updateFilePath);
+			try {
+				unlinkSync(this.availableUpdate.updateFilePath);
+			} catch (e) {
+				// ignore
+			}
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
