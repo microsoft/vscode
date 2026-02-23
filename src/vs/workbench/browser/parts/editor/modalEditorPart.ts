@@ -244,8 +244,8 @@ export class ModalEditorPart {
 				width = Math.max(containerDimension.width - horizontalPadding, 0);
 				height = Math.max(availableHeight - verticalPadding, 0);
 			} else {
-				const maxWidth = 1200;
-				const maxHeight = 800;
+				const maxWidth = 1400;
+				const maxHeight = 900;
 				const targetWidth = containerDimension.width * 0.8;
 				const targetHeight = availableHeight * 0.8;
 				width = Math.min(targetWidth, maxWidth, containerDimension.width);
@@ -253,9 +253,6 @@ export class ModalEditorPart {
 			}
 
 			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
-
-			width = Math.max(width, 500);
-			height = Math.max(height, 400);
 
 			editorPartContainer.style.width = `${width}px`;
 			editorPartContainer.style.height = `${height}px`;
