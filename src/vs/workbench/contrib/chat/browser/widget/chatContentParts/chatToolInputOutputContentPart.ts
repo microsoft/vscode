@@ -16,10 +16,13 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { LanguageModelPartAudience } from '../../../common/languageModels.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from './codeBlockPart.js';
 import { IDisposableReference } from './chatCollections.js';
@@ -100,6 +103,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -142,18 +146,24 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			}));
 		}
 
-		// Only show leading icon for errors
-		if (isError) {
-			btn.icon = Codicon.error;
-		} else {
-			btn.icon = Codicon.blank;
-			btn.iconElement.style.display = 'none';
-		}
+		// Only show leading icon for errors, or for checkmarks/loading when the accessibility setting is on
+		const showCheckmarks = observableConfigValue(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, false, this.configurationService);
 
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		this._register(autorun(r => {
 			const value = expanded.read(r);
+			const checkmarksEnabled = showCheckmarks.read(r);
 			elements.root.classList.toggle('collapsed', !value);
+
+			if (isError) {
+				btn.icon = Codicon.error;
+			} else {
+				btn.icon = output
+					? Codicon.check
+					: ThemeIcon.modify(Codicon.loading, 'spin');
+			}
+
+			container.root.classList.toggle('show-checkmarks', checkmarksEnabled);
 
 			// Update hover chevron direction
 			hoverChevron.classList.toggle('codicon-chevron-right', !value);

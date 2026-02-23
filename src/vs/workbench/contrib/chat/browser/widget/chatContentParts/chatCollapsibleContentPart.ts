@@ -10,7 +10,10 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { observableConfigValue } from '../../../../../../platform/observable/common/platformObservableUtils.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -32,6 +35,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected _collapseButton: ButtonWithIcon | undefined;
 
 	private readonly _overrideIcon = observableValue<ThemeIcon | undefined>(this, undefined);
+	protected readonly _showCheckmarks: IObservable<boolean>;
 	private _contentElement?: HTMLElement;
 	private _contentInitialized = false;
 
@@ -50,10 +54,12 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		context: IChatContentPartRenderContext,
 		private readonly hoverMessage: IMarkdownString | undefined,
 		@IHoverService protected readonly hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this.element = context.element;
 		this.hasFollowingContent = context.contentIndex + 1 < context.content.length;
+		this._showCheckmarks = observableConfigValue(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, false, configurationService);
 	}
 
 	get domNode(): HTMLElement {
@@ -103,15 +109,13 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._register(autorun(r => {
 			const expanded = this._isExpanded.read(r);
 			const overrideIcon = this._overrideIcon.read(r);
-			const isErrorIcon = overrideIcon?.id === Codicon.error.id || overrideIcon?.id === Codicon.warning.id;
+			const showCheckmarks = this._showCheckmarks.read(r);
 
-			if (isErrorIcon && overrideIcon) {
+			if (overrideIcon) {
 				collapseButton.icon = overrideIcon;
-				collapseButton.iconElement.style.display = '';
-			} else {
-				collapseButton.icon = Codicon.blank;
-				collapseButton.iconElement.style.display = 'none';
 			}
+
+			this._domNode?.classList.toggle('show-checkmarks', showCheckmarks);
 
 			// Update hover chevron direction
 			hoverChevron.classList.toggle('codicon-chevron-right', !expanded);

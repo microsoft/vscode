@@ -140,6 +140,14 @@
 					display: inline-flex;
 				}
 
+			.chat-used-context.show-checkmarks .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+				display: inline-block;
+			}
+
+			.show-checkmarks .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+				display: inline-block;
+			}
+
 			.chat-used-context.chat-hook-outcome-blocked,
 			.chat-used-context.chat-hook-outcome-warning {
 					padding: 4px 12px 4px 20px;

@@ -342,4 +342,17 @@
 		}
 	}
 
+	/* Hide the leading icon by default; show-checkmarks restores it */
+	.chat-confirmation-widget-container .chat-confirmation-widget .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error):not(.codicon-warning) {
+		display: none;
+	}
+
+	.show-checkmarks .chat-confirmation-widget .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+		display: inline-block;
+	}
+
+	.show-checkmarks .chat-confirmation-widget .chat-confirmation-widget-title {
+		padding-left: 2px;
+	}
+
 }

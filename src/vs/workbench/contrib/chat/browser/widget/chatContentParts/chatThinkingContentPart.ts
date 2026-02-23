@@ -240,7 +240,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
 			?? 'Working';
 
-		super(extractedTitle, context, undefined, hoverService);
+		super(extractedTitle, context, undefined, hoverService, configurationService);
 
 		this.id = content.id;
 		this.content = content;

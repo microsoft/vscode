@@ -2176,6 +2176,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	line-height: unset;
 }
 
+.interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-button {
+	gap: 4px;
+	margin-left: 0;
+}
+
 .interactive-session .chat-file-changes-label .monaco-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
@@ -2199,6 +2204,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: 12px;
 	color: var(--vscode-icon-foreground) !important;
+}
+
+/* Hide the leading icon on collapsible parts by default; show-checkmarks restores it */
+.interactive-session .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron):not(.codicon-error):not(.codicon-warning) {
+	display: none;
+}
+
+.interactive-session .chat-used-context.show-checkmarks .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+	display: inline-block;
 }
 
 /* Hover chevron indicator for collapsible parts */
