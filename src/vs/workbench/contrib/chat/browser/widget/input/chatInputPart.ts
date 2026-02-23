@@ -35,7 +35,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorLayoutInfo, EditorOption, EditorOptions, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { EditorLayoutInfo, EditorOptions, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
@@ -131,7 +131,6 @@ import { EnhancedModelPickerActionItem } from './modelPickerActionItem2.js';
 const $ = dom.$;
 
 const INPUT_EDITOR_MAX_HEIGHT = 250;
-const INPUT_EDITOR_MIN_VISIBLE_LINES = 2;
 const CachedLanguageModelsKey = 'chat.cachedLanguageModels.v2';
 
 export interface IChatInputStyles {
@@ -2999,10 +2998,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();
 		const newEditorWidth = width - data.inputPartHorizontalPadding - data.editorBorder - data.inputPartHorizontalPaddingInside - data.toolbarsWidth - data.sideToolbarWidth;
-		const lineHeight = this._inputEditor.getOption(EditorOption.lineHeight);
-		const { top, bottom } = this._inputEditor.getOption(EditorOption.padding);
-		const inputEditorMinHeight = this.options.renderStyle === 'compact' ? 0 : (lineHeight * INPUT_EDITOR_MIN_VISIBLE_LINES) + top + bottom;
-		const inputEditorHeight = Math.max(inputEditorMinHeight, Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight));
+		const inputEditorHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
 		const newDimension = { width: newEditorWidth, height: inputEditorHeight };
 		if (!this.previousInputEditorDimension || (this.previousInputEditorDimension.width !== newDimension.width || this.previousInputEditorDimension.height !== newDimension.height)) {
 			// This layout call has side-effects that are hard to understand. eg if we are calling this inside a onDidChangeContent handler, this can trigger the next onDidChangeContent handler

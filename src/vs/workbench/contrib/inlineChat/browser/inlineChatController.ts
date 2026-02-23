@@ -151,6 +151,7 @@ export class InlineChatController implements IEditorContribution {
 		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		const editorObs = observableCodeEditor(_editor);
 
@@ -599,6 +600,7 @@ export class InlineChatController implements IEditorContribution {
 		if (!session) {
 			return;
 		}
+		this._chatService.cancelCurrentRequestForSession(session.chatModel.sessionResource);
 		await session.editingSession.reject();
 		session.dispose();
 	}

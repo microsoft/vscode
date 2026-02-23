@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -30,6 +30,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -269,9 +270,16 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				super({
 					id: AICustomizationManagementCommands.OpenEditor,
 					title: localize2('openAICustomizations', "Open AI Customizations"),
+					shortTitle: localize2('aiCustomizations', "AI Customizations"),
 					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
 					f1: true,
+					menu: [{
+						id: MenuId.GlobalActivity,
+						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
+						group: '2_configuration',
+						order: 4,
+					}],
 				});
 			}
 

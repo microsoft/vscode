@@ -1224,6 +1224,11 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		[ChatConfiguration.AICustomizationMenuEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the AI Customization Menu is shown in the Manage menu and Command Palette. When disabled, the AI Customizations editor and related commands are hidden."),
+			default: true,
 		}
 	}
 });
