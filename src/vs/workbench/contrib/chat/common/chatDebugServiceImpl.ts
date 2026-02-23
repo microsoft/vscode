@@ -175,13 +175,25 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	private _clearProviderEvents(sessionResource: URI): void {
 		const key = sessionResource.toString();
+		// Compact the ring buffer in-place, removing matching provider events.
+		let write = 0;
 		for (let i = 0; i < this._size; i++) {
 			const idx = (this._head + i) % ChatDebugServiceImpl.MAX_EVENTS;
 			const event = this._buffer[idx];
 			if (event && this._providerEvents.has(event) && event.sessionResource.toString() === key) {
-				this._buffer[idx] = undefined;
+				continue; // skip — this event is removed
 			}
+			if (write !== i) {
+				const writeIdx = (this._head + write) % ChatDebugServiceImpl.MAX_EVENTS;
+				this._buffer[writeIdx] = event;
+			}
+			write++;
 		}
+		// Clear trailing slots and update size
+		for (let i = write; i < this._size; i++) {
+			this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS] = undefined;
+		}
+		this._size = write;
 	}
 
 	async resolveEvent(eventId: string): Promise<IChatDebugResolvedEventContent | undefined> {
