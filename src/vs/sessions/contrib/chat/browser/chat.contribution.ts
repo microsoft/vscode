@@ -76,11 +76,15 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 				? 'vscode-exploration'
 				: 'vscode-insiders';
 
+		const params = new URLSearchParams();
+		params.set('windowId', '_blank');
+		params.set('session', activeSession.resource.toString());
+
 		await openerService.open(URI.from({
 			scheme,
 			authority: Schemas.file,
 			path: folderUri.path,
-			query: 'windowId=_blank',
+			query: params.toString(),
 		}), { openExternal: true });
 	}
 }
