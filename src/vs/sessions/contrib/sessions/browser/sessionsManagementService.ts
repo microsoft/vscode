@@ -143,6 +143,16 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Update active session when the agent sessions model changes (e.g., metadata updates with worktree/repository info)
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.refreshActiveSessionFromModel()));
+
+		// Clear active session if the active session gets archived
+		this._register(this.agentSessionsService.model.onDidChangeSessionArchivedState(e => {
+			if (e.isArchived()) {
+				const currentActive = this._activeSession.get();
+				if (currentActive && currentActive.resource.toString() === e.resource.toString()) {
+					this.openNewSessionView();
+				}
+			}
+		}));
 	}
 
 	private refreshActiveSessionFromModel(): void {
