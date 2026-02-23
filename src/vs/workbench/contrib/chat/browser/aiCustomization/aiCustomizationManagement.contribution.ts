@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -269,9 +269,16 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				super({
 					id: AICustomizationManagementCommands.OpenEditor,
 					title: localize2('openAICustomizations', "Open AI Customizations"),
+					shortTitle: localize2('aiCustomizations', "AI Customizations"),
 					category: CHAT_CATEGORY,
 					precondition: ChatContextKeys.enabled,
 					f1: true,
+					menu: [{
+						id: MenuId.GlobalActivity,
+						group: '2_configuration',
+						order: 8,
+						when: ChatContextKeys.enabled,
+					}],
 				});
 			}
 
