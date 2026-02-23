@@ -764,6 +764,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					requestTemplateData.checkpointContainer.classList.remove('response-hovered');
 				}
 			}));
+			// Ensure 'response-hovered' is cleared if the response row is disposed while hovered
+			templateData.elementDisposables.add(toDisposable(() => {
+				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
+				if (requestTemplateData) {
+					requestTemplateData.checkpointContainer.classList.remove('response-hovered');
+				}
+			}));
 		}
 
 		// Only show restore container when we have a checkpoint and not editing, and not a pending request
