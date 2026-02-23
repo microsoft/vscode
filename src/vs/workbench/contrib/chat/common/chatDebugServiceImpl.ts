@@ -74,7 +74,6 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	clear(): void {
-		this._buffer.fill(undefined);
 		this._head = 0;
 		this._size = 0;
 	}
