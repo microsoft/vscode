@@ -101,10 +101,12 @@ jobs:
           CHECK_RUN_ID=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs" \
             --jq '.check_runs[] | select(.name == "screenshots") | .id')
 
+          DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json"
+
           if [ -n "$CHECK_RUN_ID" ]; then
             gh api "repos/${{ github.repository }}/check-runs/$CHECK_RUN_ID" \
               -X PATCH --input - <<EOF
-          {"output":{"title":"$TITLE","summary":"$TITLE"}}
+          {"details_url":"$DETAILS_URL","output":{"title":"$TITLE","summary":"$TITLE"}}
           EOF
           fi
 
