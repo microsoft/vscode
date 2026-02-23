@@ -6,7 +6,8 @@
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
 import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../../../common/theme.js';
+import { editorStickyScrollBackground, editorStickyScrollBorder, editorStickyScrollShadow } from '../../../../../platform/theme/common/colors/editorColors.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../../../common/theme.js';
 
 // This color intentionally matches commandCenter.background but is separate so that it
 // doesn't get overridden when debugging (the debug toolbar overrides commandCenter.background).
@@ -99,4 +100,34 @@ export const chatBarTitleForeground = registerColor(
 	'chatBarTitle.foreground',
 	SIDE_BAR_FOREGROUND,
 	localize('chatBarTitle.foreground', 'Foreground color of the chat bar header area in the agent sessions window.')
+);
+
+export const chatBarBackground = registerColor(
+	'chatBar.background',
+	editorBackground,
+	localize('chatBar.background', 'Background color of the chat bar view in the agent sessions window.')
+);
+
+export const chatBarOverlayBackground = registerColor(
+	'chatBar.dropBackground',
+	EDITOR_DRAG_AND_DROP_BACKGROUND,
+	localize('chatBar.dropBackground', 'Drag and drop feedback color for the chat bar view in the agent sessions window.')
+);
+
+export const chatBarStickyScrollBackground = registerColor(
+	'chatBarStickyScroll.background',
+	editorStickyScrollBackground,
+	localize('chatBarStickyScroll.background', 'Background color of sticky scroll in the chat bar view.')
+);
+
+export const chatBarStickyScrollBorder = registerColor(
+	'chatBarStickyScroll.border',
+	editorStickyScrollBorder,
+	localize('chatBarStickyScroll.border', 'Border color of sticky scroll in the chat bar view.')
+);
+
+export const chatBarStickyScrollShadow = registerColor(
+	'chatBarStickyScroll.shadow',
+	editorStickyScrollShadow,
+	localize('chatBarStickyScroll.shadow', 'Shadow color of sticky scroll in the chat bar view.')
 );

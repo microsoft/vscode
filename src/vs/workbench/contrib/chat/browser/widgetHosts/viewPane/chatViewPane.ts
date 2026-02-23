@@ -34,10 +34,11 @@ import { defaultButtonStyles } from '../../../../../../platform/theme/browser/de
 import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
-import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
+import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
+import { chatBarBackground, chatBarOverlayBackground, chatBarStickyScrollBackground, chatBarStickyScrollBorder, chatBarStickyScrollShadow } from '../../../common/widget/chatColors.js';
 import { ILifecycleService, StartupKind } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -491,6 +492,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	get widget(): ChatWidget { return this._widget; }
 
 	private titleControl: ChatViewTitleControl | undefined;
+
+	protected override getLocationBasedColors(): IViewPaneLocationColors {
+		if (this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.ChatBar) {
+			return {
+				background: chatBarBackground,
+				overlayBackground: chatBarOverlayBackground,
+				listOverrideStyles: {
+					listBackground: chatBarBackground,
+					treeStickyScrollBackground: chatBarStickyScrollBackground,
+					treeStickyScrollBorder: chatBarStickyScrollBorder,
+					treeStickyScrollShadow: chatBarStickyScrollShadow,
+				}
+			};
+		}
+		return super.getLocationBasedColors();
+	}
 
 	private createChatControl(parent: HTMLElement): ChatWidget {
 		const chatControlsContainer = append(parent, $('.chat-controls-container'));
