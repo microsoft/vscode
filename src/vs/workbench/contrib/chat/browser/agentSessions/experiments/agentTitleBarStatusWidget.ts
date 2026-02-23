@@ -49,9 +49,21 @@ import { IChatWidgetService } from '../../chat.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 
 // Telemetry types
+type AgentStatusClickAction =
+	| 'openSession'
+	| 'quickAccess'
+	| 'focusSessionsView'
+	| 'toggleChat'
+	| 'setupChat'
+	| 'openQuotaExceededDialog'
+	| 'applyFilter'
+	| 'clearFilter'
+	| 'enterProjection'
+	| 'exitProjection';
+
 type AgentStatusClickEvent = {
 	source: 'pill' | 'sparkle' | 'unread' | 'inProgress';
-	action: string;
+	action: AgentStatusClickAction;
 };
 
 type AgentStatusClickClassification = {
