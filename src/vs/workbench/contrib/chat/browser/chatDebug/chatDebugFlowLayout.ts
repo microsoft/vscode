@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChatDebugEvent } from '../../common/chatDebugService.js';
-import { FlowLayout, FlowNode, LayoutEdge, LayoutNode, SubgraphRect } from './chatDebugFlowGraph.js';
+import { FlowLayout, FlowNode, LayoutEdge, LayoutNode, SubgraphRect, FlowChartRenderResult } from './chatDebugFlowGraph.js';
 
 // ---- Layout constants ----
 
 const NODE_HEIGHT = 36;
 const NODE_MIN_WIDTH = 140;
+const NODE_MAX_WIDTH = 320;
 const NODE_PADDING_H = 16;
 const NODE_PADDING_V = 6;
 const NODE_GAP_Y = 24;
@@ -140,7 +141,15 @@ function measureNodeWidth(label: string, sublabel?: string): number {
 	const charWidth = 7;
 	const labelWidth = label.length * charWidth + NODE_PADDING_H * 2;
 	const sublabelWidth = sublabel ? sublabel.length * (charWidth - 1) + NODE_PADDING_H * 2 : 0;
-	return Math.max(NODE_MIN_WIDTH, labelWidth, sublabelWidth);
+	return Math.min(NODE_MAX_WIDTH, Math.max(NODE_MIN_WIDTH, labelWidth, sublabelWidth));
+}
+
+function subgraphHeaderLabel(node: FlowNode): string {
+	return node.description ? `${node.label}: ${node.description}` : node.label;
+}
+
+function measureSubgraphHeaderWidth(headerLabel: string): number {
+	return headerLabel.length * 6 + SUBGRAPH_PADDING * 2 + 20; // 20 for chevron
 }
 
 function countDescendants(node: FlowNode): number {
@@ -275,17 +284,27 @@ function layoutSubtree(node: FlowNode, startX: number, y: number, depth: number,
 	if (isCollapsed) {
 		const collapsedHeight = SUBGRAPH_HEADER_HEIGHT + SUBGRAPH_PADDING * 2;
 		const totalChildCount = countDescendants(node);
+		const sgY = (y + NODE_HEIGHT + NODE_GAP_Y) - NODE_GAP_Y / 2;
+		const headerLabel = subgraphHeaderLabel(node);
+		const sgWidth = Math.max(NODE_MIN_WIDTH, measureSubgraphHeaderWidth(headerLabel)) + SUBGRAPH_PADDING * 2;
 		result.subgraphs.push({
-			label: node.label,
+			label: headerLabel,
 			x: startX - SUBGRAPH_PADDING,
-			y: (y + NODE_HEIGHT + NODE_GAP_Y) - NODE_GAP_Y / 2,
-			width: Math.max(nodeWidth, NODE_MIN_WIDTH) + SUBGRAPH_PADDING * 2,
+			y: sgY,
+			width: sgWidth,
 			height: collapsedHeight,
 			depth,
 			nodeId: node.id,
 			collapsedChildCount: totalChildCount,
 		});
-		result.width = Math.max(nodeWidth, NODE_MIN_WIDTH + SUBGRAPH_PADDING * 2);
+		// Draw a connecting edge from the node to the collapsed subgraph
+		result.edges.push({
+			fromX: startX + nodeWidth / 2,
+			fromY: y + NODE_HEIGHT,
+			toX: startX - SUBGRAPH_PADDING + sgWidth / 2,
+			toY: sgY,
+		});
+		result.width = Math.max(nodeWidth, sgWidth);
 		result.height = NODE_HEIGHT + NODE_GAP_Y + collapsedHeight;
 		return result;
 	}
@@ -307,23 +326,24 @@ function layoutSubtree(node: FlowNode, startX: number, y: number, depth: number,
 		groups, startX + indentX, childStartY, childDepth, [layoutNode], result, collapsedIds,
 	);
 
-	// Adjust widths for indented subgraph content
-	const adjustedWidth = Math.max(nodeWidth, maxWidth + indentX * 2);
 	const totalChildrenHeight = endY - childStartY - NODE_GAP_Y;
 
+	let sgContentWidth = maxWidth;
 	if (isSubagent) {
+		const headerLabel = subgraphHeaderLabel(node);
+		sgContentWidth = Math.max(maxWidth, measureSubgraphHeaderWidth(headerLabel));
 		result.subgraphs.push({
-			label: node.label,
+			label: headerLabel,
 			x: startX - SUBGRAPH_PADDING,
 			y: (y + NODE_HEIGHT + NODE_GAP_Y) - NODE_GAP_Y / 2,
-			width: Math.max(nodeWidth, maxWidth) + SUBGRAPH_PADDING * 2,
+			width: sgContentWidth + SUBGRAPH_PADDING * 2,
 			height: totalChildrenHeight + SUBGRAPH_HEADER_HEIGHT + NODE_GAP_Y,
 			depth,
 			nodeId: node.id,
 		});
 	}
 
-	result.width = adjustedWidth;
+	result.width = Math.max(nodeWidth, maxWidth + indentX * 2, isSubagent ? sgContentWidth + indentX * 2 : 0);
 	result.height = NODE_HEIGHT + NODE_GAP_Y + totalChildrenHeight + (isSubagent ? SUBGRAPH_HEADER_HEIGHT : 0);
 	result.exitNodes = exitNodes;
 
@@ -446,22 +466,45 @@ const SUBGRAPH_COLORS = [
 	'var(--vscode-charts-orange, #d19a66)',
 ];
 
-export function renderFlowChartSVG(layout: FlowLayout): SVGElement {
+export function renderFlowChartSVG(layout: FlowLayout): FlowChartRenderResult {
+	const focusableElements = new Map<string, SVGElement>();
 	const svg = svgEl('svg', {
 		width: layout.width,
 		height: layout.height,
 		viewBox: `0 0 ${layout.width} ${layout.height}`,
+		role: 'img',
+		'aria-label': `Agent flow chart with ${layout.nodes.length} nodes`,
 	});
 	svg.classList.add('chat-debug-flowchart-svg');
 
-	renderSubgraphs(svg, layout.subgraphs);
+	renderSubgraphs(svg, layout.subgraphs, focusableElements);
 	renderEdges(svg, layout.edges);
-	renderNodes(svg, layout.nodes);
+	renderNodes(svg, layout.nodes, focusableElements);
 
-	return svg;
+	// Sort focusable elements by visual position (top-to-bottom, left-to-right)
+	// so keyboard navigation follows the flow chart order.
+	const positionByKey = new Map<string, { y: number; x: number }>();
+	for (const sg of layout.subgraphs) {
+		positionByKey.set(`sg:${sg.nodeId}`, { y: sg.y, x: sg.x });
+	}
+	for (const node of layout.nodes) {
+		positionByKey.set(node.id, { y: node.y, x: node.x });
+	}
+	const sortedFocusable = new Map(
+		[...focusableElements.entries()].sort((a, b) => {
+			const posA = positionByKey.get(a[0]);
+			const posB = positionByKey.get(b[0]);
+			if (!posA || !posB) {
+				return 0;
+			}
+			return posA.y !== posB.y ? posA.y - posB.y : posA.x - posB.x;
+		})
+	);
+
+	return { svg, focusableElements: sortedFocusable };
 }
 
-function renderSubgraphs(svg: SVGElement, subgraphs: readonly SubgraphRect[]): void {
+function renderSubgraphs(svg: SVGElement, subgraphs: readonly SubgraphRect[], focusableElements: Map<string, SVGElement>): void {
 	for (let sgIdx = 0; sgIdx < subgraphs.length; sgIdx++) {
 		const sg = subgraphs[sgIdx];
 		const color = SUBGRAPH_COLORS[sg.depth % SUBGRAPH_COLORS.length];
@@ -486,11 +529,17 @@ function renderSubgraphs(svg: SVGElement, subgraphs: readonly SubgraphRect[]): v
 		// Gutter line
 		g.appendChild(svgEl('rect', { x: sg.x, y: sg.y, width: GUTTER_WIDTH, height: sg.height, fill: color, opacity: 0.7, 'clip-path': `url(#${clipId})` }));
 
-		// Header bar (clickable)
+		// Header group (clickable, keyboard accessible)
+		const headerGroup = document.createElementNS(SVG_NS, 'g');
+		headerGroup.setAttribute('data-subgraph-id', sg.nodeId);
+		headerGroup.classList.add('chat-debug-flowchart-subgraph-header');
+		headerGroup.setAttribute('tabindex', '0');
+		headerGroup.setAttribute('role', 'button');
+		headerGroup.setAttribute('aria-expanded', String(!isCollapsed));
+		headerGroup.setAttribute('aria-label', `${sg.label}: ${isCollapsed ? 'collapsed' : 'expanded'}${isCollapsed && sg.collapsedChildCount !== undefined ? `, ${sg.collapsedChildCount} items hidden` : ''}`);
+
 		const headerBar = svgEl('rect', { x: sg.x, y: sg.y, width: sg.width, height: SUBGRAPH_HEADER_HEIGHT, fill: color, opacity: 0.15, 'clip-path': `url(#${clipId})` });
-		headerBar.setAttribute('data-subgraph-id', sg.nodeId);
-		headerBar.classList.add('chat-debug-flowchart-subgraph-header');
-		g.appendChild(headerBar);
+		headerGroup.appendChild(headerBar);
 
 		// Chevron + header label
 		const chevron = isCollapsed ? '\u25B6' : '\u25BC';
@@ -503,9 +552,9 @@ function renderSubgraphs(svg: SVGElement, subgraphs: readonly SubgraphRect[]): v
 			'font-weight': '600',
 		});
 		headerText.textContent = `${chevron} ${sg.label}`;
-		headerText.setAttribute('data-subgraph-id', sg.nodeId);
-		headerText.classList.add('chat-debug-flowchart-subgraph-header');
-		g.appendChild(headerText);
+		headerGroup.appendChild(headerText);
+		g.appendChild(headerGroup);
+		focusableElements.set(`sg:${sg.nodeId}`, headerGroup as unknown as SVGElement);
 
 		// Collapsed badge
 		if (isCollapsed && sg.collapsedChildCount !== undefined) {
@@ -545,7 +594,7 @@ function renderEdges(svg: SVGElement, edges: readonly LayoutEdge[]): void {
 	}
 }
 
-function renderNodes(svg: SVGElement, nodes: readonly LayoutNode[]): void {
+function renderNodes(svg: SVGElement, nodes: readonly LayoutNode[], focusableElements: Map<string, SVGElement>): void {
 	const fontFamily = 'var(--vscode-font-family, sans-serif)';
 	const nodeFill = 'var(--vscode-editor-background, var(--vscode-editorWidget-background))';
 
@@ -553,6 +602,12 @@ function renderNodes(svg: SVGElement, nodes: readonly LayoutNode[]): void {
 		const g = document.createElementNS(SVG_NS, 'g');
 		g.classList.add('chat-debug-flowchart-node');
 		g.setAttribute('data-node-id', node.id);
+		g.setAttribute('tabindex', '0');
+		g.setAttribute('role', 'img');
+
+		const ariaLabel = node.sublabel ? `${node.label}, ${node.sublabel}` : node.label;
+		g.setAttribute('aria-label', ariaLabel);
+		focusableElements.set(node.id, g as unknown as SVGElement);
 
 		if (node.tooltip) {
 			const title = document.createElementNS(SVG_NS, 'title');
@@ -561,30 +616,33 @@ function renderNodes(svg: SVGElement, nodes: readonly LayoutNode[]): void {
 		}
 
 		const color = getNodeColor(node.kind, node.isError);
+		const safeId = node.id.replace(/[^a-zA-Z0-9]/g, '_');
 		const rectAttrs = { x: node.x, y: node.y, width: node.width, height: node.height, rx: NODE_BORDER_RADIUS, ry: NODE_BORDER_RADIUS };
+
+		// Clip path shared by gutter bar and text
+		const clipId = `clip-${safeId}`;
+		const clipPath = svgEl('clipPath', { id: clipId });
+		clipPath.appendChild(svgEl('rect', rectAttrs));
+		svg.appendChild(clipPath);
 
 		// Node rectangle
 		g.appendChild(svgEl('rect', { ...rectAttrs, fill: nodeFill, stroke: color, 'stroke-width': node.isError ? 2 : 1.5 }));
 
-		// Kind indicator (colored bar on the left, clipped to node shape)
-		const clipId = `clip-${node.id.replace(/[^a-zA-Z0-9]/g, '_')}`;
-		const clipPath = svgEl('clipPath', { id: clipId });
-		clipPath.appendChild(svgEl('rect', rectAttrs));
-		svg.appendChild(clipPath);
+		// Kind indicator (colored gutter bar)
 		g.appendChild(svgEl('rect', { x: node.x, y: node.y, width: 4, height: node.height, fill: color, 'clip-path': `url(#${clipId})` }));
 
 		// Label text
 		const textX = node.x + NODE_PADDING_H;
 		if (node.sublabel) {
-			const label = svgEl('text', { x: textX, y: node.y + NODE_PADDING_V + FONT_SIZE, 'font-size': FONT_SIZE, fill: 'var(--vscode-foreground)', 'font-family': fontFamily });
+			const label = svgEl('text', { x: textX, y: node.y + NODE_PADDING_V + FONT_SIZE, 'font-size': FONT_SIZE, fill: 'var(--vscode-foreground)', 'font-family': fontFamily, 'clip-path': `url(#${clipId})` });
 			label.textContent = node.label;
 			g.appendChild(label);
 
-			const sub = svgEl('text', { x: textX, y: node.y + NODE_HEIGHT - NODE_PADDING_V, 'font-size': SUBLABEL_FONT_SIZE, fill: 'var(--vscode-descriptionForeground)', 'font-family': fontFamily });
+			const sub = svgEl('text', { x: textX, y: node.y + NODE_HEIGHT - NODE_PADDING_V, 'font-size': SUBLABEL_FONT_SIZE, fill: 'var(--vscode-descriptionForeground)', 'font-family': fontFamily, 'clip-path': `url(#${clipId})` });
 			sub.textContent = node.sublabel;
 			g.appendChild(sub);
 		} else {
-			const label = svgEl('text', { x: textX, y: node.y + NODE_HEIGHT / 2 + FONT_SIZE / 2 - 1, 'font-size': FONT_SIZE, fill: 'var(--vscode-foreground)', 'font-family': fontFamily });
+			const label = svgEl('text', { x: textX, y: node.y + NODE_HEIGHT / 2 + FONT_SIZE / 2 - 1, 'font-size': FONT_SIZE, fill: 'var(--vscode-foreground)', 'font-family': fontFamily, 'clip-path': `url(#${clipId})` });
 			label.textContent = node.label;
 			g.appendChild(label);
 		}
