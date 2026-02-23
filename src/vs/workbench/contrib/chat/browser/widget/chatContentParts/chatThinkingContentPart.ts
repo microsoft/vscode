@@ -761,13 +761,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		// case where we only have one item (tool or edit) in the thinking container and no thinking parts, we want to move it back to its original position
 		if (this.appendedItemCount === 1 && this.currentThinkingValue.trim() === '') {
 			// If singleItemInfo wasn't set (item was lazy/deferred), materialize it now
-			if (!this.singleItemInfo && this.lazyItems.length === 1) {
-				const lazyItem = this.lazyItems[0];
-				if (lazyItem.kind === 'tool' && lazyItem.originalParent) {
+			if (!this.singleItemInfo) {
+				const lazyItem = this.lazyItems.find(item => item.kind === 'tool' && item.originalParent);
+				if (lazyItem && lazyItem.kind === 'tool') {
 					const result = lazyItem.lazy.value;
 					this.singleItemInfo = {
 						element: result.domNode,
-						originalParent: lazyItem.originalParent,
+						originalParent: lazyItem.originalParent!,
 						originalNextSibling: this.domNode
 					};
 					if (result.disposable) {
