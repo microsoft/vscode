@@ -214,8 +214,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentsControl.clickBehavior.cycle', "Clicking chat icon cycles through: show chat, maximize chat, hide chat. This requires chat to be contained in the secondary sidebar."),
 			],
 			markdownDescription: nls.localize('chat.agentsControl.clickBehavior', "Controls the behavior when clicking on the chat icon in the command center."),
-			default: product.quality !== 'stable' ? AgentsControlClickBehavior.Cycle : AgentsControlClickBehavior.Default,
-			tags: ['experimental']
+			default: AgentsControlClickBehavior.Default, // TODO@bpasero figure out the default
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
