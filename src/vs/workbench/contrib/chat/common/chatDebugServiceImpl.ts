@@ -13,12 +13,13 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	private static readonly MAX_EVENTS = 10_000;
 
-	private readonly _events: IChatDebugEvent[] = [];
+	// Circular buffer: fixed-size array with head/size tracking for O(1) append.
+	private readonly _buffer: (IChatDebugEvent | undefined)[] = new Array(ChatDebugServiceImpl.MAX_EVENTS);
+	private _head = 0;  // index of the oldest element
+	private _size = 0;  // number of elements currently stored
+
 	private readonly _onDidAddEvent = this._register(new Emitter<IChatDebugEvent>());
 	readonly onDidAddEvent: Event<IChatDebugEvent> = this._onDidAddEvent.event;
-
-	private readonly _onDidClearSession = this._register(new Emitter<{ sessionId: string }>());
-	readonly onDidClearSession: Event<{ sessionId: string }> = this._onDidClearSession.event;
 
 	private readonly _providers = new Set<IChatDebugLogProvider>();
 	private readonly _invocationCts = new Map<string, CancellationTokenSource>();
@@ -40,35 +41,42 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	addEvent(event: IChatDebugEvent): void {
-		if (this._events.length >= ChatDebugServiceImpl.MAX_EVENTS) {
-			this._events.splice(0, this._events.length - ChatDebugServiceImpl.MAX_EVENTS + 1);
+		const idx = (this._head + this._size) % ChatDebugServiceImpl.MAX_EVENTS;
+		this._buffer[idx] = event;
+		if (this._size < ChatDebugServiceImpl.MAX_EVENTS) {
+			this._size++;
+		} else {
+			this._head = (this._head + 1) % ChatDebugServiceImpl.MAX_EVENTS;
 		}
-		this._events.push(event);
 		this._onDidAddEvent.fire(event);
 	}
 
 	getEvents(sessionId?: string): readonly IChatDebugEvent[] {
-		if (sessionId) {
-			return this._events.filter(e => e.sessionId === sessionId);
+		const result: IChatDebugEvent[] = [];
+		for (let i = 0; i < this._size; i++) {
+			const event = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS]!;
+			if (!sessionId || event.sessionId === sessionId) {
+				result.push(event);
+			}
 		}
-		return this._events.slice();
+		return result;
 	}
 
 	getSessionIds(): readonly string[] {
-		return [...new Set(this._events.map(e => e.sessionId).filter(id => !!id))];
+		const ids = new Set<string>();
+		for (let i = 0; i < this._size; i++) {
+			const id = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS]!.sessionId;
+			if (id) {
+				ids.add(id);
+			}
+		}
+		return [...ids];
 	}
 
 	clear(): void {
-		this._events.length = 0;
-	}
-
-	clearSession(sessionId: string): void {
-		for (let i = this._events.length - 1; i >= 0; i--) {
-			if (this._events[i].sessionId === sessionId) {
-				this._events.splice(i, 1);
-			}
-		}
-		this._onDidClearSession.fire({ sessionId });
+		this._buffer.fill(undefined);
+		this._head = 0;
+		this._size = 0;
 	}
 
 	registerProvider(provider: IChatDebugLogProvider): IDisposable {

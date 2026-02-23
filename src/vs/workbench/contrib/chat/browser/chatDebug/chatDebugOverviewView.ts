@@ -123,15 +123,6 @@ export class ChatDebugOverviewView extends Disposable {
 			this.chatWidgetService.openSession(uri);
 		}));
 
-		const deleteBtn = DOM.append(titleActions, $('button.chat-debug-icon-button'));
-		deleteBtn.setAttribute('aria-label', localize('chatDebug.deleteDebugData', "Delete Debug Data"));
-		this.loadDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), deleteBtn, localize('chatDebug.deleteDebugData', "Delete Debug Data")));
-		DOM.append(deleteBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.trash)}`));
-		this.loadDisposables.add(DOM.addDisposableListener(deleteBtn, DOM.EventType.CLICK, () => {
-			this.chatDebugService.clearSession(this.currentSessionId);
-			this._onNavigate.fire(OverviewNavigation.Home);
-		}));
-
 		// Session details section
 		this.renderSessionDetails(sessionUri);
 
