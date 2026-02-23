@@ -107,7 +107,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		sessionsManagementService.openNewSession();
+		sessionsManagementService.openNewSessionView();
 	}
 }
 

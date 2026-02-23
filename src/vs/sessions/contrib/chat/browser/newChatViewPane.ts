@@ -94,6 +94,7 @@ class NewChatWidget extends Disposable {
 
 	// Send button
 	private _sendButton: Button | undefined;
+	private _sending = false;
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -324,12 +325,12 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _updateInputLoadingState(): void {
-		const loading = this._repositoryLoading || this._branchLoading;
+		const loading = this._repositoryLoading || this._branchLoading || this._sending;
 		if (loading) {
 			if (!this._loadingDelayDisposable.value) {
 				const timer = setTimeout(() => {
 					this._loadingDelayDisposable.clear();
-					if (this._repositoryLoading || this._branchLoading) {
+					if (this._repositoryLoading || this._branchLoading || this._sending) {
 						this._loadingSpinner?.classList.add('visible');
 					}
 				}, 500);
@@ -759,13 +760,13 @@ class NewChatWidget extends Disposable {
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		this._sendButton.enabled = hasText && !(this._newSession.value?.disabled ?? true);
+		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
 	private _send(): void {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
-		if (!query || !session || session.disabled) {
+		if (!query || !session || session.disabled || this._sending) {
 			return;
 		}
 
@@ -774,14 +775,25 @@ class NewChatWidget extends Disposable {
 			this._contextAttachments.attachments.length > 0 ? [...this._contextAttachments.attachments] : undefined
 		);
 
+		this._sending = true;
+		this._editor.updateOptions({ readOnly: true });
+		this._updateSendButtonState();
+		this._updateInputLoadingState();
+
 		this.sessionsManagementService.sendRequestForNewSession(
 			session.resource
-		).catch(e => this.logService.error('Failed to send request:', e));
-
-		// Clear sent session so a fresh one is created next time
-		this._newSession.clear();
-		this._newSessionListener.clear();
-		this._contextAttachments.clear();
+		).then(() => {
+			// Clear sent session so a fresh one is created next time
+			this._newSession.clear();
+			this._newSessionListener.clear();
+			this._contextAttachments.clear();
+		}, e => {
+			this.logService.error('Failed to send request:', e);
+			this._sending = false;
+			this._editor.updateOptions({ readOnly: false });
+			this._updateSendButtonState();
+			this._updateInputLoadingState();
+		});
 	}
 
 	// --- Layout ---
