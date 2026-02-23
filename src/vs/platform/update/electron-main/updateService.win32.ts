@@ -78,6 +78,17 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService, meteredConnectionService, true);
 
 		lifecycleMainService.setRelaunchHandler(this);
+
+		// Step 3.1: When VS Code shuts down while an update is still being
+		// installed (Updating state), stop the polling loop so the process
+		// can exit cleanly. We do NOT cancel or kill the Inno Setup process
+		// because it was spawned detached and should complete the update
+		// after VS Code exits — that's the designed background update flow.
+		// See https://github.com/microsoft/vscode/issues/62476
+		lifecycleMainService.onWillShutdown(() => {
+			this.updateCancellationTokenSource?.dispose(true);
+			this.updateCancellationTokenSource = undefined;
+		});
 	}
 
 	handleRelaunch(options?: IRelaunchOptions): boolean {
@@ -328,6 +339,22 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const explicit = this.state.explicit;
 		this.setState(State.Updating(update));
 
+		// Step 1.1: Check if another setup is already running before spawning a new one.
+		// This prevents the "Setup has detected that Setup is currently running" dialog
+		// from Inno Setup when a second installer is spawned while the first holds the mutex.
+		// See https://github.com/microsoft/vscode/issues/62476
+		const setupMutexName = `${this.productService.win32MutexName}setup`;
+		try {
+			const mutex = await import('@vscode/windows-mutex');
+			if (mutex.isActive(setupMutexName)) {
+				this.logService.info('update#doApplyUpdate: another setup is already running, polling for its completion instead of spawning a new one');
+				this.pollForReadyMutex(update, explicit);
+				return;
+			}
+		} catch (error) {
+			this.logService.warn('update#doApplyUpdate: failed to check setup mutex, proceeding with spawn', error);
+		}
+
 		const cachePath = await this.cachePath;
 		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
 		const cancelFilePath = path.join(cachePath, `cancel.flag`);
@@ -374,6 +401,53 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.setState(State.Idle(getUpdateType()));
 		});
 
+		this.spawnUpdateProcess(child, update, explicit, progressFilePath);
+	}
+
+	/**
+	 * Polls for the ready mutex from an already-running setup process.
+	 * Used when we detect that another setup is already in progress.
+	 */
+	private async pollForReadyMutex(update: IUpdate, explicit: boolean): Promise<void> {
+		const readyMutexName = `${this.productService.win32MutexName}-ready`;
+		const mutex = await import('@vscode/windows-mutex');
+
+		const pollTimeoutMs = 30 * 60 * 1000;
+		const pollStartTime = Date.now();
+
+		this.updateCancellationTokenSource?.dispose(true);
+		const cts = this.updateCancellationTokenSource = new CancellationTokenSource();
+		const token = cts.token;
+
+		const poll = async () => {
+			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
+				if (mutex.isActive(readyMutexName)) {
+					this.setState(State.Ready(update, explicit, this._overwrite));
+					return;
+				}
+
+				if (Date.now() - pollStartTime > pollTimeoutMs) {
+					this.logService.warn('update#pollForReadyMutex: timed out waiting for existing setup to complete');
+					this.setState(State.Idle(getUpdateType(), 'Update did not complete within expected time'));
+					return;
+				}
+
+				await timeout(500);
+			}
+		};
+
+		poll().finally(() => {
+			if (this.updateCancellationTokenSource === cts) {
+				this.updateCancellationTokenSource = undefined;
+			}
+			cts.dispose();
+		});
+	}
+
+	/**
+	 * Starts polling for the spawned update process to complete.
+	 */
+	private async spawnUpdateProcess(child: ChildProcess, update: IUpdate, explicit: boolean, progressFilePath: string): Promise<void> {
 		const readyMutexName = `${this.productService.win32MutexName}-ready`;
 		const mutex = await import('@vscode/windows-mutex');
 
@@ -394,6 +468,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 				if (Date.now() - pollStartTime > pollTimeoutMs) {
 					this.logService.warn('update#doApplyUpdate: polling timed out waiting for update to be ready');
+
+					// Step 1.3: Kill the orphaned setup process on timeout to prevent
+					// it from holding the setup mutex indefinitely, which would cause
+					// "Setup has detected that Setup is currently running" on next attempt.
+					// See https://github.com/microsoft/vscode/issues/62476
+					const pid = child.pid;
+					if (pid && child.exitCode === null) {
+						this.logService.warn('update#doApplyUpdate: killing orphaned setup process tree', pid);
+						try {
+							await killTree(pid, true);
+						} catch (err) {
+							this.logService.error('update#doApplyUpdate: failed to kill orphaned setup process', err);
+						}
+					}
+
 					this.setState(State.Idle(getUpdateType(), 'Update did not complete within expected time'));
 					return;
 				}
