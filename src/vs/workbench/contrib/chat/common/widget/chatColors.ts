@@ -6,7 +6,6 @@
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
 import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../../../common/theme.js';
 
 // This color intentionally matches commandCenter.background but is separate so that it
 // doesn't get overridden when debugging (the debug toolbar overrides commandCenter.background).
@@ -88,15 +87,3 @@ export const chatThinkingShimmer = registerColor(
 	'chat.thinkingShimmer',
 	{ dark: '#ffffff', light: '#000000', hcDark: '#ffffff', hcLight: '#000000' },
 	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'), true);
-
-export const sessionsSidebarHeaderBackground = registerColor(
-	'sessionsSidebarHeader.background',
-	SIDE_BAR_BACKGROUND,
-	localize('sessionsSidebarHeader.background', 'Background color of the sidebar header area in the agent sessions window.')
-);
-
-export const sessionsSidebarHeaderForeground = registerColor(
-	'sessionsSidebarHeader.foreground',
-	SIDE_BAR_FOREGROUND,
-	localize('sessionsSidebarHeader.foreground', 'Foreground color of the sidebar header area in the agent sessions window.')
-);
