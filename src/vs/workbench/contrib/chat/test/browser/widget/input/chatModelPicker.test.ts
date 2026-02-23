@@ -94,6 +94,7 @@ function callBuild(
 		opts.updateStateType ?? StateType.Idle,
 		onSelect,
 		opts.manageSettingsUrl,
+		true,
 		stubCommandService,
 		entitlementService,
 	);
@@ -445,6 +446,7 @@ suite('buildModelPickerItems', () => {
 			StateType.Idle,
 			onSelect,
 			undefined,
+			true,
 			stubCommandService,
 			stubChatEntitlementService,
 		);
@@ -526,6 +528,7 @@ suite('buildModelPickerItems', () => {
 			StateType.Idle,
 			() => { },
 			'https://aka.ms/github-copilot-settings',
+			true,
 			stubCommandService,
 			stubChatEntitlementService,
 		);
@@ -606,6 +609,7 @@ suite('buildModelPickerItems', () => {
 			StateType.Idle,
 			onSelect,
 			undefined,
+			true,
 			stubCommandService,
 			anonymousEntitlementService,
 		);

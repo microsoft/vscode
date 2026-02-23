@@ -617,6 +617,8 @@ export class ActionList<T> extends Disposable {
 			// Keep focus on the filter input if the user is typing a filter.
 			if (filterInputHasFocus) {
 				this._filterInput?.focus();
+				// Keep a highlighted item in the list so Enter works without pressing DownArrow first
+				this._focusCheckedOrFirst();
 			} else {
 				this._list.domFocus();
 				// Restore focus to the previously focused item
@@ -660,6 +662,8 @@ export class ActionList<T> extends Disposable {
 	focus(): void {
 		if (this._filterInput && this._options?.focusFilterOnOpen) {
 			this._filterInput.focus();
+			// Highlight the first item so Enter works immediately
+			this._focusCheckedOrFirst();
 			return;
 		}
 		this._list.domFocus();
@@ -678,7 +682,12 @@ export class ActionList<T> extends Disposable {
 					return;
 				}
 			}
-			this.focusNext();
+			// Set focus on the first focusable item without moving DOM focus
+			this._list.focusFirst(undefined, this.focusCondition);
+			const focused = this._list.getFocus();
+			if (focused.length > 0) {
+				this._list.reveal(focused[0]);
+			}
 		} finally {
 			this._suppressHover = false;
 		}
@@ -853,7 +862,24 @@ export class ActionList<T> extends Disposable {
 	focusPrevious() {
 		if (this._filterInput && dom.isActiveElement(this._filterInput)) {
 			this._list.domFocus();
-			this._list.focusLast(undefined, this.focusCondition);
+			// An item is already highlighted; advance from it instead of jumping to last
+			const current = this._list.getFocus();
+			if (current.length > 0) {
+				this._list.focusPrevious(1, false, undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				// If we couldn't move (already at first), go to filter
+				if (focused.length > 0 && focused[0] >= current[0]) {
+					this._filterInput.focus();
+				} else if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
+			} else {
+				this._list.focusLast(undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
+			}
 			return;
 		}
 		const previousFocus = this._list.getFocus();
@@ -873,7 +899,21 @@ export class ActionList<T> extends Disposable {
 	focusNext() {
 		if (this._filterInput && dom.isActiveElement(this._filterInput)) {
 			this._list.domFocus();
-			this._list.focusFirst(undefined, this.focusCondition);
+			// An item is already highlighted; advance from it instead of jumping to first
+			const current = this._list.getFocus();
+			if (current.length > 0) {
+				this._list.focusNext(1, false, undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
+			} else {
+				this._list.focusFirst(undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
+			}
 			return;
 		}
 		const previousFocus = this._list.getFocus();

@@ -20,16 +20,16 @@ suite('getAgentSessionTime', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('returns lastRequestEnded when available', () => {
+	test('returns lastRequestStarted when available', () => {
 		const timing: IChatSessionTiming = {
 			created: 1000,
 			lastRequestStarted: 2000,
 			lastRequestEnded: 3000,
 		};
-		assert.strictEqual(getAgentSessionTime(timing), 3000);
+		assert.strictEqual(getAgentSessionTime(timing), 2000);
 	});
 
-	test('returns lastRequestStarted when lastRequestEnded is undefined', () => {
+	test('returns lastRequestStarted even when lastRequestEnded is undefined', () => {
 		const timing: IChatSessionTiming = {
 			created: 1000,
 			lastRequestStarted: 2000,
@@ -38,7 +38,7 @@ suite('getAgentSessionTime', () => {
 		assert.strictEqual(getAgentSessionTime(timing), 2000);
 	});
 
-	test('returns created when both lastRequestEnded and lastRequestStarted are undefined', () => {
+	test('returns created when lastRequestStarted is undefined', () => {
 		const timing: IChatSessionTiming = {
 			created: 1000,
 			lastRequestStarted: undefined,
