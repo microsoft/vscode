@@ -16,6 +16,7 @@ suite('normalizeDiffDecorationsGutterWidth', () => {
 	test('falls back for invalid values', () => {
 		assert.strictEqual(normalizeDiffDecorationsGutterWidth(0), 3);
 		assert.strictEqual(normalizeDiffDecorationsGutterWidth(-1), 3);
+		assert.strictEqual(normalizeDiffDecorationsGutterWidth(1.5), 3);
 		assert.strictEqual(normalizeDiffDecorationsGutterWidth(21), 3);
 		assert.strictEqual(normalizeDiffDecorationsGutterWidth(Number.NaN), 3);
 	});

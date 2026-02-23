@@ -32,7 +32,7 @@ const DEFAULT_DIFF_DECORATIONS_GUTTER_WIDTH = 3;
 const MAX_DIFF_DECORATIONS_GUTTER_WIDTH = 20;
 
 export function normalizeDiffDecorationsGutterWidth(width: number): number {
-	if (isNaN(width) || width <= 0 || width > MAX_DIFF_DECORATIONS_GUTTER_WIDTH) {
+	if (!Number.isInteger(width) || width <= 0 || width > MAX_DIFF_DECORATIONS_GUTTER_WIDTH) {
 		return DEFAULT_DIFF_DECORATIONS_GUTTER_WIDTH;
 	}
 

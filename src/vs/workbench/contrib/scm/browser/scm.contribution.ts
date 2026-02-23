@@ -197,7 +197,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
 		'scm.diffDecorationsGutterWidth': {
-			type: 'number',
+			type: 'integer',
 			minimum: 1,
 			maximum: 20,
 			default: 3,
