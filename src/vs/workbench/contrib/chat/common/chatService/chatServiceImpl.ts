@@ -84,6 +84,10 @@ class CancellableRequest implements IDisposable {
 	setYieldRequested(): void {
 		this._yieldRequested.set(true, undefined);
 	}
+
+	resetYieldRequested(): void {
+		this._yieldRequested.set(false, undefined);
+	}
 }
 
 export class ChatService extends Disposable implements IChatService {
@@ -1456,6 +1460,13 @@ export class ChatService extends Disposable implements IChatService {
 		const model = this._sessionModels.get(sessionResource) as ChatModel | undefined;
 		if (model) {
 			model.removePendingRequest(requestId);
+
+			// If there are no more steering requests pending, reset yieldRequested on the active request
+			const hasSteeringRequests = model.getPendingRequests().some(r => r.kind === ChatRequestQueueKind.Steering);
+			if (!hasSteeringRequests) {
+				const pendingRequest = this._pendingRequests.get(sessionResource);
+				pendingRequest?.resetYieldRequested();
+			}
 		}
 
 		// Reject the deferred promise for the removed request
