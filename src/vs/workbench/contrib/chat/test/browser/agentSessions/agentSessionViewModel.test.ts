@@ -2100,13 +2100,8 @@ suite('AgentSessions', () => {
 	suite('AgentSessionsViewModel - getAgentCanContinueIn', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
 
-		test('should return false when contribution.isReadOnly is true', () => {
-			const result = getAgentCanContinueIn(AgentSessionProviders.Cloud, { type: 'test', name: 'test', displayName: 'Test', description: 'test', isReadOnly: true });
-			assert.strictEqual(result, false);
-		});
-
-		test('should return true for Cloud when contribution is not read-only', () => {
-			const result = getAgentCanContinueIn(AgentSessionProviders.Cloud, { type: 'test', name: 'test', displayName: 'Test', description: 'test', isReadOnly: false });
+		test('should return true for Cloud provider', () => {
+			const result = getAgentCanContinueIn(AgentSessionProviders.Cloud);
 			assert.strictEqual(result, true);
 		});
 

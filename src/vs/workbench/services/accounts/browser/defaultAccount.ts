@@ -28,7 +28,10 @@ import { distinct } from '../../../../base/common/arrays.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -177,6 +180,11 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		return this.defaultAccountProvider?.signIn(options) ?? null;
 	}
 
+	async signOut(): Promise<void> {
+		await this.initBarrier.wait();
+		await this.defaultAccountProvider?.signOut();
+	}
+
 	private setDefaultAccount(account: IDefaultAccount | null): void {
 		if (equals(this.defaultAccount, account)) {
 			return;
@@ -244,6 +252,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IHostService private readonly hostService: IHostService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
@@ -822,6 +831,13 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return this.defaultAccount;
 	}
 
+	async signOut(): Promise<void> {
+		if (!this.defaultAccount) {
+			return;
+		}
+		this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
+	}
+
 }
 
 class DefaultAccountProviderContribution extends Disposable implements IWorkbenchContribution {
@@ -838,5 +854,18 @@ class DefaultAccountProviderContribution extends Disposable implements IWorkbenc
 		defaultAccountService.setDefaultAccountProvider(defaultAccountProvider);
 	}
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: DEFAULT_ACCOUNT_SIGN_IN_COMMAND,
+			title: localize2('signIn', 'Sign In'),
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		await defaultAccountService.signIn();
+	}
+});
 
 registerWorkbenchContribution2(DefaultAccountProviderContribution.ID, DefaultAccountProviderContribution, WorkbenchPhase.BlockStartup);

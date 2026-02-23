@@ -56,6 +56,7 @@ suite('PromptHeaderAutocompletion', () => {
 			{ id: 'mae-4', name: 'MAE 4', vendor: 'olama', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'mae-4.1', name: 'MAE 4.1', vendor: 'copilot', version: '1.0', family: 'mae', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
 			{ id: 'gpt-4', name: 'GPT 4', vendor: 'openai', version: '1.0', family: 'gpt', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: false, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } } satisfies ILanguageModelChatMetadata,
+			{ id: 'bg-agent-model', name: 'BG Agent Model', vendor: 'copilot', version: '1.0', family: 'bg', modelPickerCategory: undefined, extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024, capabilities: { agentMode: true, toolCalling: true }, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, targetChatSessionType: 'background' } satisfies ILanguageModelChatMetadata,
 		];
 
 		instaService.stub(ILanguageModelsService, {
@@ -76,7 +77,7 @@ suite('PromptHeaderAutocompletion', () => {
 			uri: URI.parse('myFs://.github/agents/agent1.agent.md'),
 			source: { storage: PromptsStorage.local },
 			target: Target.Undefined,
-			visibility: { userInvokable: true, agentInvokable: true }
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		const parser = new PromptFileParser();
@@ -145,7 +146,7 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'name', result: 'name: $0' },
 				{ label: 'target', result: 'target: ${0:vscode}' },
 				{ label: 'tools', result: 'tools: ${0:[]}' },
-				{ label: 'user-invokable', result: 'user-invokable: ${0:true}' },
+				{ label: 'user-invocable', result: 'user-invocable: ${0:true}' },
 			].sort(sortByLabel));
 		});
 
@@ -332,18 +333,18 @@ suite('PromptHeaderAutocompletion', () => {
 			].sort(sortByLabel));
 		});
 
-		test('complete user-invokable attribute value', async () => {
+		test('complete user-invocable attribute value', async () => {
 			const content = [
 				'---',
 				'description: "Test"',
-				'user-invokable: |',
+				'user-invocable: |',
 				'---',
 			].join('\n');
 
 			const actual = await getCompletions(content, PromptsType.agent);
 			assert.deepStrictEqual(actual.sort(sortByLabel), [
-				{ label: 'false', result: 'user-invokable: false' },
-				{ label: 'true', result: 'user-invokable: true' },
+				{ label: 'false', result: 'user-invocable: false' },
+				{ label: 'true', result: 'user-invocable: true' },
 			].sort(sortByLabel));
 		});
 
@@ -360,6 +361,33 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'false', result: 'disable-model-invocation: false' },
 				{ label: 'true', result: 'disable-model-invocation: true' },
 			].sort(sortByLabel));
+		});
+
+		test('exclude models with targetChatSessionType from agent model completions', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			// BG Agent Model has targetChatSessionType set, so it should be excluded
+			assert.ok(!labels.includes('BG Agent Model (copilot)'), 'Models with targetChatSessionType should be excluded from agent model completions');
+		});
+
+		test('exclude models with targetChatSessionType from agent model array completions', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: [|]',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(!labels.includes('BG Agent Model (copilot)'), 'Models with targetChatSessionType should be excluded from agent model array completions');
 		});
 	});
 
@@ -545,6 +573,19 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'MAE 4.1 (copilot)', result: 'model: MAE 4.1 (copilot)' },
 				{ label: 'GPT 4 (openai)', result: 'model: GPT 4 (openai)' },
 			].sort(sortByLabel));
+		});
+
+		test('exclude models with targetChatSessionType from prompt model completions', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'model: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.prompt);
+			const labels = actual.map(a => a.label);
+			assert.ok(!labels.includes('BG Agent Model (copilot)'), 'Models with targetChatSessionType should be excluded from prompt model completions');
 		});
 	});
 });

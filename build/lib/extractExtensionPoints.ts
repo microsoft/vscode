@@ -211,10 +211,23 @@ function scanDirectory(dir: string): string[] {
 	return names;
 }
 
+function normalize(s: string): string {
+	return s.replace(/\r\n/g, '\n');
+}
+
 function main(): void {
 	const names = scanDirectory(path.join(srcDir, 'vs', 'workbench'));
 	names.sort();
 	const output = JSON.stringify(names, undefined, '\t') + '\n';
+	try {
+		const existing = fs.readFileSync(outputPath, 'utf-8');
+		if (normalize(existing) === normalize(output)) {
+			console.log(`No changes to ${path.relative(rootDir, outputPath)}`);
+			return;
+		}
+	} catch {
+		// File doesn't exist yet, write it
+	}
 	fs.writeFileSync(outputPath, output, 'utf-8');
 	console.log(`Wrote ${names.length} extension points to ${path.relative(rootDir, outputPath)}`);
 }

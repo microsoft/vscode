@@ -15,7 +15,9 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
@@ -25,71 +27,55 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 const $ = dom.$;
 
 /**
- * A reusable circular progress indicator that displays a pie chart.
- * The pie fills clockwise from the top based on the percentage value.
+ * A reusable circular progress indicator that displays a ring.
+ * The ring fills clockwise from the top based on the percentage value.
  */
 export class CircularProgressIndicator {
 
 	readonly domNode: SVGSVGElement;
 
-	private readonly progressPie: SVGPathElement;
+	private readonly progressCircle: SVGCircleElement;
+	private readonly circumference: number;
 
 	private static readonly CENTER_X = 18;
 	private static readonly CENTER_Y = 18;
-	private static readonly RADIUS = 16;
+	private static readonly RADIUS = 14;
 
 	constructor() {
+		const r = CircularProgressIndicator.RADIUS;
+		this.circumference = 2 * Math.PI * r;
+
 		this.domNode = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 		this.domNode.setAttribute('viewBox', '0 0 36 36');
 		this.domNode.classList.add('circular-progress');
 
-		// Background circle (outline only)
+		// Background circle
 		const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 		bgCircle.setAttribute('cx', String(CircularProgressIndicator.CENTER_X));
 		bgCircle.setAttribute('cy', String(CircularProgressIndicator.CENTER_Y));
-		bgCircle.setAttribute('r', String(CircularProgressIndicator.RADIUS));
+		bgCircle.setAttribute('r', String(r));
 		bgCircle.classList.add('progress-bg');
 		this.domNode.appendChild(bgCircle);
 
-		// Progress pie (filled arc)
-		this.progressPie = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-		this.progressPie.classList.add('progress-pie');
-		this.domNode.appendChild(this.progressPie);
+		// Progress arc (stroke-based ring)
+		this.progressCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+		this.progressCircle.setAttribute('cx', String(CircularProgressIndicator.CENTER_X));
+		this.progressCircle.setAttribute('cy', String(CircularProgressIndicator.CENTER_Y));
+		this.progressCircle.setAttribute('r', String(r));
+		this.progressCircle.classList.add('progress-arc');
+		this.progressCircle.setAttribute('stroke-dasharray', String(this.circumference));
+		this.progressCircle.setAttribute('stroke-dashoffset', String(this.circumference));
+		this.domNode.appendChild(this.progressCircle);
 	}
 
 	/**
-	 * Updates the pie chart to display the given percentage (0-100).
-	 * @param percentage The percentage of the pie to fill (clamped to 0-100)
+	 * Updates the ring to display the given percentage (0-100).
+	 * @param percentage The percentage of the ring to fill (clamped to 0-100)
 	 */
 	setProgress(percentage: number): void {
-		const cx = CircularProgressIndicator.CENTER_X;
-		const cy = CircularProgressIndicator.CENTER_Y;
-		const r = CircularProgressIndicator.RADIUS;
-
-		if (percentage >= 100) {
-			// Full circle - use a circle element's path equivalent
-			this.progressPie.setAttribute('d', `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r} Z`);
-		} else if (percentage <= 0) {
-			// Empty - no path
-			this.progressPie.setAttribute('d', '');
-		} else {
-			// Calculate the arc endpoint
-			const angle = (percentage / 100) * 360;
-			const radians = (angle - 90) * (Math.PI / 180); // Start from top (-90 degrees)
-			const x = cx + r * Math.cos(radians);
-			const y = cy + r * Math.sin(radians);
-			const largeArcFlag = angle > 180 ? 1 : 0;
-
-			// Create pie slice path: move to center, line to top, arc to endpoint, close
-			const d = [
-				`M ${cx} ${cy}`,           // Move to center
-				`L ${cx} ${cy - r}`,       // Line to top
-				`A ${r} ${r} 0 ${largeArcFlag} 1 ${x} ${y}`, // Arc to endpoint
-				'Z'                         // Close path back to center
-			].join(' ');
-
-			this.progressPie.setAttribute('d', d);
-		}
+		const clamped = Math.max(0, Math.min(100, percentage));
+		const offset = this.circumference - (clamped / 100) * this.circumference;
+		this.progressCircle.setAttribute('stroke-dashoffset', String(offset));
 	}
 }
 
@@ -121,12 +107,15 @@ export class ChatContextUsageWidget extends Disposable {
 
 	private readonly _contextUsageOpenedKey: IContextKey<boolean>;
 
+	private _enabled: boolean;
+
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -148,6 +137,19 @@ export class ChatContextUsageWidget extends Disposable {
 		if (this.storageService.getBoolean(ChatContextUsageWidget._OPENED_STORAGE_KEY, StorageScope.WORKSPACE, false)) {
 			this._contextUsageOpenedKey.set(true);
 		}
+
+		// Track enabled state from configuration
+		this._enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatContextUsageEnabled) !== false;
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ChatContextUsageEnabled)) {
+				this._enabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatContextUsageEnabled) !== false;
+				if (!this._enabled) {
+					this.hide();
+				} else if (this.currentData) {
+					this.show();
+				}
+			}
+		}));
 
 		// Set up hover - will be configured when data is available
 		this.setupHover();
@@ -227,8 +229,18 @@ export class ChatContextUsageWidget extends Disposable {
 	update(lastRequest: IChatRequestModel | undefined): void {
 		this._lastRequestDisposable.clear();
 
-		if (!lastRequest?.response || !lastRequest.modelId) {
+		if (!lastRequest) {
+			// New/empty chat session clear everything
+			this.currentData = undefined;
 			this.hide();
+			return;
+		}
+
+		if (!lastRequest.response || !lastRequest.modelId) {
+			// Pending request keep old data visible if available
+			if (!this.currentData) {
+				this.hide();
+			}
 			return;
 		}
 
@@ -251,7 +263,9 @@ export class ChatContextUsageWidget extends Disposable {
 		const maxOutputTokens = modelMetadata?.maxOutputTokens;
 
 		if (!usage || !maxInputTokens || maxInputTokens <= 0 || !maxOutputTokens || maxOutputTokens <= 0) {
-			this.hide();
+			if (!this.currentData) {
+				this.hide();
+			}
 			return;
 		}
 
@@ -282,6 +296,9 @@ export class ChatContextUsageWidget extends Disposable {
 	}
 
 	private show(): void {
+		if (!this._enabled) {
+			return;
+		}
 		if (this.domNode.style.display === 'none') {
 			this.domNode.style.display = '';
 			this._isVisible.set(true, undefined);

@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { match, splitGlobAware } from '../../../../../base/common/glob.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -14,6 +15,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../attachments/chatVariableEntries.js';
@@ -68,6 +70,7 @@ export class ComputeAutomaticInstructions {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
@@ -294,6 +297,10 @@ export class ComputeAutomaticInstructions {
 		const readTool = this._getTool('readFile');
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
 
+		const remoteEnv = await this._remoteAgentService.getEnvironment();
+		const remoteOS = remoteEnv?.os;
+		const filePath = (uri: URI) => getFilePath(uri, remoteOS);
+
 		const entries: string[] = [];
 		if (readTool) {
 
@@ -316,13 +323,13 @@ export class ComputeAutomaticInstructions {
 						if (description) {
 							entries.push(`<description>${description}</description>`);
 						}
-						entries.push(`<file>${getFilePath(uri)}</file>`);
+						entries.push(`<file>${filePath(uri)}</file>`);
 						const applyToPattern = this._getApplyToPattern(applyTo, paths);
 						if (applyToPattern) {
 							entries.push(`<applyTo>${applyToPattern}</applyTo>`);
 						}
 					} else {
-						entries.push(`<file>${getFilePath(uri)}</file>`);
+						entries.push(`<file>${filePath(uri)}</file>`);
 					}
 					entries.push('</instruction>');
 					hasContent = true;
@@ -335,7 +342,7 @@ export class ComputeAutomaticInstructions {
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
 				entries.push('<instruction>');
 				entries.push(`<description>${description}</description>`);
-				entries.push(`<file>${getFilePath(uri)}</file>`);
+				entries.push(`<file>${filePath(uri)}</file>`);
 				entries.push('</instruction>');
 				hasContent = true;
 
@@ -349,8 +356,8 @@ export class ComputeAutomaticInstructions {
 
 			const agentSkills = await this._promptsService.findAgentSkills(token);
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
-			const modelInvokableSkills = agentSkills?.filter(skill => !skill.disableModelInvocation);
-			if (modelInvokableSkills && modelInvokableSkills.length > 0) {
+			const modelInvocableSkills = agentSkills?.filter(skill => !skill.disableModelInvocation);
+			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
 				const useSkillAdherencePrompt = this._configurationService.getValue(PromptsConfig.USE_SKILL_ADHERENCE_PROMPT);
 				entries.push('<skills>');
 				if (useSkillAdherencePrompt) {
@@ -372,13 +379,13 @@ export class ComputeAutomaticInstructions {
 					entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
 					entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${readTool.variable} tool to acquire the full instructions from the file URI.`);
 				}
-				for (const skill of modelInvokableSkills) {
+				for (const skill of modelInvocableSkills) {
 					entries.push('<skill>');
 					entries.push(`<name>${skill.name}</name>`);
 					if (skill.description) {
 						entries.push(`<description>${skill.description}</description>`);
 					}
-					entries.push(`<file>${getFilePath(skill.uri)}</file>`);
+					entries.push(`<file>${filePath(skill.uri)}</file>`);
 					entries.push('</skill>');
 				}
 				entries.push('</skills>', '', ''); // add trailing newline
@@ -387,7 +394,7 @@ export class ComputeAutomaticInstructions {
 		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
-					return (agent: ICustomAgent) => agent.visibility.agentInvokable;
+					return (agent: ICustomAgent) => agent.visibility.agentInvocable;
 				} else {
 					const subagents = this._enabledSubagents;
 					return (agent: ICustomAgent) => subagents.includes(agent.name);
@@ -492,9 +499,19 @@ export class ComputeAutomaticInstructions {
 }
 
 
-function getFilePath(uri: URI): string {
+export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined): string {
 	if (uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote) {
-		return uri.fsPath;
+		const fsPath = uri.fsPath;
+		// uri.fsPath uses the local OS's path separators, but the path
+		// may belong to a remote with a different OS. Normalize separators
+		// to match the remote OS (idempotent when local and remote match).
+		if (remoteOS !== undefined) {
+			if (remoteOS === OperatingSystem.Windows) {
+				return fsPath.replace(/\//g, '\\');
+			}
+			return fsPath.replace(/\\/g, '/');
+		}
+		return fsPath;
 	}
 	return uri.toString();
 }

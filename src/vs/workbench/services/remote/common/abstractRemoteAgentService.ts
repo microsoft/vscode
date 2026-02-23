@@ -246,9 +246,9 @@ class RemoteAgentConnection extends Disposable implements IRemoteAgentConnection
 			this._initialConnectionMs = Date.now() - start;
 		}
 
-		connection.protocol.onDidDispose(() => {
+		this._register(connection.protocol.onDidDispose(() => {
 			connection.dispose();
-		});
+		}));
 		this.end = () => {
 			connection.protocol.sendDisconnect();
 			return connection.protocol.drain();

@@ -18,13 +18,14 @@ import { IConfigurationChangeEvent } from '../../../../../platform/configuration
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { IPaneComposite } from '../../../../common/panecomposite.js';
-import { PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
+import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ViewContainerLocation } from '../../../../common/views.js';
 
 class StubPaneCompositePart implements IPaneCompositePart {
 	declare readonly _serviceBrand: undefined;
 	readonly partId = Parts.SIDEBAR_PART;
+	readonly registryId = Extensions.Viewlets;
 	element: HTMLElement = undefined!;
 	minimumWidth = 0;
 	maximumWidth = 0;

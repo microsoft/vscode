@@ -6,7 +6,6 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -25,7 +24,6 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
@@ -600,63 +598,6 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	}
 });
 
-registerAction2(class RestoreLastCheckpoint extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.restoreLastCheckpoint',
-			title: localize2('chat.restoreLastCheckpoint.label', "Restore to Last Checkpoint"),
-			f1: true,
-			category: CHAT_CATEGORY,
-			icon: Codicon.discard,
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.inChatSession,
-				ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true),
-				ChatContextKeys.lockedToCodingAgent.negate()
-			),
-			menu: [
-				{
-					id: MenuId.ChatMessageFooter,
-					group: 'navigation',
-					order: 1,
-					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true), ChatContextKeys.lockedToCodingAgent.negate()),
-				}
-			]
-		});
-	}
-
-	async run(accessor: ServicesAccessor, ...args: unknown[]) {
-		let item = args[0] as ChatTreeItem | undefined;
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const chatService = accessor.get(IChatService);
-		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
-		if (!isResponseVM(item) && !isRequestVM(item)) {
-			item = widget?.getFocus();
-		}
-
-		const sessionResource = widget?.viewModel?.sessionResource ?? (isChatTreeItem(item) ? item.sessionResource : undefined);
-		if (!sessionResource) {
-			return;
-		}
-
-		const chatModel = chatService.getSession(sessionResource);
-		if (!chatModel?.editingSession) {
-			return;
-		}
-
-		const checkpointRequest = chatModel.checkpoint;
-		if (!checkpointRequest) {
-			alert(localize('chat.restoreCheckpoint.none', 'There is no checkpoint to restore.'));
-			return;
-		}
-
-		widget?.viewModel?.model.setCheckpoint(checkpointRequest.id);
-		widget?.focusInput();
-		widget?.input.setValue(checkpointRequest.message.text, false);
-
-		await restoreSnapshotWithConfirmationByRequestId(accessor, sessionResource, checkpointRequest.id);
-	}
-});
-
 registerAction2(class EditAction extends Action2 {
 	constructor() {
 		super({
@@ -896,71 +837,3 @@ CommandsRegistry.registerCommand('_chat.editSessions.accept', async (accessor: S
 		await editingSession.accept(...uris);
 	}
 });
-
-//#region View as Tree / View as List toggle
-
-export const CHAT_EDITS_VIEW_MODE_STORAGE_KEY = 'chat.editsViewMode';
-export const ChatEditsViewAsTreeActionId = 'chatEditing.viewAsTree';
-export const ChatEditsViewAsListActionId = 'chatEditing.viewAsList';
-
-registerAction2(class ChatEditsViewAsTreeAction extends Action2 {
-	constructor() {
-		super({
-			id: ChatEditsViewAsTreeActionId,
-			title: localize2('chatEditing.viewAsTree', "View as Tree"),
-			icon: Codicon.listFlat,
-			category: CHAT_CATEGORY,
-			menu: [
-				{
-					id: MenuId.ChatEditingWidgetToolbar,
-					group: 'navigation',
-					order: 5,
-					when: ContextKeyExpr.and(hasAppliedChatEditsContextKey, ChatContextKeys.chatEditsInTreeView.negate()),
-				},
-				{
-					id: MenuId.ChatEditingSessionChangesToolbar,
-					group: 'navigation',
-					order: 5,
-					when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, ChatContextKeys.chatEditsInTreeView.negate()),
-				},
-			],
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const storageService = accessor.get(IStorageService);
-		storageService.store(CHAT_EDITS_VIEW_MODE_STORAGE_KEY, 'tree', StorageScope.PROFILE, StorageTarget.USER);
-	}
-});
-
-registerAction2(class ChatEditsViewAsListAction extends Action2 {
-	constructor() {
-		super({
-			id: ChatEditsViewAsListActionId,
-			title: localize2('chatEditing.viewAsList', "View as List"),
-			icon: Codicon.listTree,
-			category: CHAT_CATEGORY,
-			menu: [
-				{
-					id: MenuId.ChatEditingWidgetToolbar,
-					group: 'navigation',
-					order: 5,
-					when: ContextKeyExpr.and(hasAppliedChatEditsContextKey, ChatContextKeys.chatEditsInTreeView),
-				},
-				{
-					id: MenuId.ChatEditingSessionChangesToolbar,
-					group: 'navigation',
-					order: 5,
-					when: ContextKeyExpr.and(ChatContextKeys.hasAgentSessionChanges, ChatContextKeys.chatEditsInTreeView),
-				},
-			],
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const storageService = accessor.get(IStorageService);
-		storageService.store(CHAT_EDITS_VIEW_MODE_STORAGE_KEY, 'list', StorageScope.PROFILE, StorageTarget.USER);
-	}
-});
-
-//#endregion

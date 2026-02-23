@@ -33,13 +33,14 @@ import { IEditorGroupsService } from '../../services/editor/common/editorGroupsS
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
+import { ExtHostChatSessionsShape, ExtHostContext, IChatProgressDto, IChatSessionHistoryItemDto, IChatSessionItemsChange, MainContext, MainThreadChatSessionsShape } from '../common/extHost.protocol.js';
 
 export class ObservableChatSession extends Disposable implements IChatSession {
 
 	readonly sessionResource: URI;
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
+	title?: string;
 	private _options?: Record<string, string | IChatSessionProviderOptionItem>;
 	public get options(): Record<string, string | IChatSessionProviderOptionItem> | undefined {
 		return this._options;
@@ -111,6 +112,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 			);
 
 			this._options = sessionContent.options;
+			this.title = sessionContent.title;
 			this.history.length = 0;
 			this.history.push(...sessionContent.history.map((turn: IChatSessionHistoryItemDto) => {
 				if (turn.type === 'request') {
@@ -128,7 +130,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 						participant: turn.participant,
 						command: turn.command,
 						variableData: variables ? { variables } : undefined,
-						id: turn.id
+						id: turn.id,
+						modelId: turn.modelId,
 					};
 				}
 
@@ -346,10 +349,27 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		return this._proxy.$refreshChatSessionItems(this._handle, token);
 	}
 
-	setItems(items: readonly IChatSessionItem[]): void {
-		this._items.clear();
-		for (const item of items) {
+	async newChatSessionItem(request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		const dto = await raceCancellationError(this._proxy.$newChatSessionItem(this._handle, request, token), token);
+		if (!dto) {
+			return undefined;
+		}
+		const item: IChatSessionItem = {
+			...dto,
+			resource: URI.revive(dto.resource),
+			changes: revive(dto.changes),
+		};
+		this._items.set(item.resource, item);
+		this._onDidChangeChatSessionItems.fire();
+		return item;
+	}
+
+	acceptChange(change: { readonly addedOrUpdated: readonly IChatSessionItem[]; readonly removed: readonly URI[] }): void {
+		for (const item of change.addedOrUpdated) {
 			this._items.set(item.resource, item);
+		}
+		for (const uri of change.removed) {
+			this._items.delete(uri);
 		}
 		this._onDidChangeChatSessionItems.fire();
 	}
@@ -479,10 +499,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		};
 	}
 
-	async $setChatSessionItems(controllerHandle: number, items: Dto<IChatSessionItem>[]): Promise<void> {
+	async $updateChatSessionItems(controllerHandle: number, change: IChatSessionItemsChange): Promise<void> {
 		const controller = this.getController(controllerHandle);
-		const resolvedItems = await Promise.all(items.map(item => this._resolveSessionItem(item)));
-		controller.setItems(resolvedItems);
+		const resolvedItems = await Promise.all(change.addedOrUpdated.map(item => this._resolveSessionItem(item)));
+		controller.acceptChange({
+			addedOrUpdated: resolvedItems,
+			removed: change.removed.map(uri => URI.revive(uri))
+		});
 	}
 
 	async $addOrUpdateChatSessionItem(controllerHandle: number, item: Dto<IChatSessionItem>): Promise<void> {
@@ -508,7 +531,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
-		const originalModel = this._chatService.getActiveSessionReference(originalResource);
+		const originalModel = this._chatService.acquireExistingSession(originalResource);
 		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
 
 		try {
@@ -563,7 +586,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				await this._chatWidgetService.openSession(modifiedResource, undefined, { preserveFocus: true });
 			} else {
 				// Loading the session to ensure the session is created and editing session is transferred.
-				const ref = await this._chatService.loadSessionForResource(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
+				const ref = await this._chatService.acquireOrLoadSession(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
 				ref?.dispose();
 			}
 		} finally {

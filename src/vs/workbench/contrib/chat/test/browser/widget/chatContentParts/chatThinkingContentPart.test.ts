@@ -247,7 +247,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('should start expanded when streaming (not complete)', () => {
-			const content = createThinkingPart('**Analyzing**');
+			const content = createThinkingPart('**Analyzing**\nSome detailed reasoning about the code structure');
 			const context = createMockRenderContext(false);
 
 			const part = store.add(instantiationService.createInstance(
@@ -495,7 +495,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('appendItem should render immediately when expanded', () => {
-			const content = createThinkingPart('**Working**');
+			const content = createThinkingPart('**Working**\nSome detailed analysis of the problem');
 			const context = createMockRenderContext(false);
 
 			const part = store.add(instantiationService.createInstance(
@@ -983,8 +983,27 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(part.getIsActive(), false, 'Should be inactive after markAsInactive');
 		});
 
+		test('dispose should set isActive to false', () => {
+			const content = createThinkingPart('**Active thinking**');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			assert.strictEqual(part.getIsActive(), true, 'Should start as active');
+
+			part.dispose();
+
+			assert.strictEqual(part.getIsActive(), false, 'Should be inactive after dispose');
+		});
+
 		test('collapseContent should collapse the part', () => {
-			const content = createThinkingPart('**Content**');
+			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
 			const context = createMockRenderContext(false);
 
 			// Use CollapsedPreview to start expanded
@@ -1130,7 +1149,7 @@ suite('ChatThinkingContentPart', () => {
 		});
 
 		test('should have proper aria-expanded attribute', () => {
-			const content = createThinkingPart('**Content**');
+			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
 			const context = createMockRenderContext(false);
 
 			const part = store.add(instantiationService.createInstance(
@@ -1169,9 +1188,9 @@ suite('ChatThinkingContentPart', () => {
 			mainWindow.document.body.appendChild(part.domNode);
 			disposables.add(toDisposable(() => part.domNode.remove()));
 
-			// Should have loading spinner icon
-			const loadingIcon = part.domNode.querySelector('.codicon-loading');
-			assert.ok(loadingIcon, 'Should have loading spinner while streaming');
+			// Should have circle-filled icon (not loading spinner) while streaming
+			const circleIcon = part.domNode.querySelector('.codicon-circle-filled');
+			assert.ok(circleIcon, 'Should have circle-filled icon while streaming');
 		});
 	});
 });

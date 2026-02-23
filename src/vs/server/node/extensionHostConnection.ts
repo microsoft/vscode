@@ -109,7 +109,7 @@ class ConnectionData {
 
 export class ExtensionHostConnection extends Disposable {
 
-	private _onClose = new Emitter<void>();
+	private _onClose = this._register(new Emitter<void>());
 	readonly onClose: Event<void> = this._onClose.event;
 
 	private readonly _canSendSocket: boolean;

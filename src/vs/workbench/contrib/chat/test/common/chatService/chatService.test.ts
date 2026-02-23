@@ -33,7 +33,8 @@ import { IExtensionService, nullExtensionDescription } from '../../../../../serv
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
-import { InMemoryTestFileService, mock, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -48,6 +49,7 @@ import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -143,12 +145,12 @@ suite('ChatService', () => {
 	}
 
 	function startSessionModel(service: IChatService, location: ChatAgentLocation = ChatAgentLocation.Chat): IChatModelReference {
-		const ref = testDisposables.add(service.startSession(location));
+		const ref = testDisposables.add(service.startNewLocalSession(location));
 		return ref;
 	}
 
 	async function getOrRestoreModel(service: IChatService, resource: URI): Promise<IChatModel | undefined> {
-		const ref = await service.getOrRestoreSession(resource);
+		const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 		if (!ref) {
 			return undefined;
 		}
@@ -163,6 +165,7 @@ suite('ChatService', () => {
 			[IPromptsService, new MockPromptsService()],
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
+		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -216,11 +219,11 @@ suite('ChatService', () => {
 	test('retrieveSession', async () => {
 		const testService = createChatService();
 		// Don't add refs to testDisposables so we can control disposal
-		const session1Ref = testService.startSession(ChatAgentLocation.Chat);
+		const session1Ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
 		const session1 = session1Ref.object as ChatModel;
 		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
-		const session2Ref = testService.startSession(ChatAgentLocation.Chat);
+		const session2Ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
 		const session2 = session2Ref.object as ChatModel;
 		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
@@ -368,7 +371,7 @@ suite('ChatService', () => {
 
 		const testService2 = createChatService();
 
-		const chatModel2Ref = testService2.loadSessionFromContent(serializedChatData);
+		const chatModel2Ref = testService2.loadSessionFromData(serializedChatData);
 		assert(chatModel2Ref);
 		testDisposables.add(chatModel2Ref);
 		const chatModel2 = chatModel2Ref.object;
@@ -399,7 +402,7 @@ suite('ChatService', () => {
 
 		const testService2 = createChatService();
 
-		const chatModel2Ref = testService2.loadSessionFromContent(serializedChatData);
+		const chatModel2Ref = testService2.loadSessionFromData(serializedChatData);
 		assert(chatModel2Ref);
 		testDisposables.add(chatModel2Ref);
 		const chatModel2 = chatModel2Ref.object;
@@ -409,7 +412,7 @@ suite('ChatService', () => {
 
 	test('onDidDisposeSession', async () => {
 		const testService = createChatService();
-		const modelRef = testService.startSession(ChatAgentLocation.Chat);
+		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
 		const model = modelRef.object;
 
 		let disposed = false;
@@ -437,7 +440,7 @@ suite('ChatService', () => {
 				await completeRequest.p;
 				return {};
 			},
-			setYieldRequested(requestId: string) {
+			setYieldRequested(requestId: string, value: boolean) {
 				setYieldRequestedCalled = true;
 			},
 		};

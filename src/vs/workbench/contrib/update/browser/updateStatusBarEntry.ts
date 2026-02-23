@@ -77,6 +77,7 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 			return;
 		}
 
+		const productIcon = this.productService.quality === 'insider' ? '$(vscode-insiders)' : '$(vscode)';
 		switch (state.type) {
 			case StateType.Uninitialized:
 			case StateType.Idle:
@@ -90,15 +91,16 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 					text: nls.localize('updateStatus.checkingForUpdates', "$(sync~spin) Checking for updates..."),
 					ariaLabel: nls.localize('updateStatus.checkingForUpdatesAria', "Checking for updates"),
 					tooltip: this.getCheckingTooltip(),
-					command: ShowTooltipCommand
+					command: ShowTooltipCommand,
 				});
 				break;
 
 			case StateType.AvailableForDownload:
 				this.updateStatusBarEntry({
+					kind: 'prominent',
 					name: UpdateStatusBarEntryContribution.NAME,
-					text: nls.localize('updateStatus.updateAvailableStatus', "$(cloud-download) Update is available. Click here to download."),
-					ariaLabel: nls.localize('updateStatus.updateAvailableAria', "Update available. Click here to download."),
+					text: nls.localize('updateStatus.updateAvailableStatus', "{0} Update available, click to download.", productIcon),
+					ariaLabel: nls.localize('updateStatus.updateAvailableAria', "Update available, click to download."),
 					tooltip: this.getAvailableTooltip(state.update),
 					command: 'update.downloadNow'
 				});
@@ -116,9 +118,10 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 
 			case StateType.Downloaded:
 				this.updateStatusBarEntry({
+					kind: 'prominent',
 					name: UpdateStatusBarEntryContribution.NAME,
-					text: nls.localize('updateStatus.updateReadyStatus', "$(package) Downloaded update. Click here to install."),
-					ariaLabel: nls.localize('updateStatus.updateReadyAria', "Downloaded update. Click here to install."),
+					text: nls.localize('updateStatus.updateReadyStatus', "{0} Update downloaded, click to install.", productIcon),
+					ariaLabel: nls.localize('updateStatus.updateReadyAria', "Update downloaded, click to install."),
 					tooltip: this.getReadyToInstallTooltip(state.update),
 					command: 'update.install'
 				});
@@ -134,15 +137,18 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 				});
 				break;
 
-			case StateType.Ready:
+			case StateType.Ready: {
+
 				this.updateStatusBarEntry({
+					kind: 'prominent',
 					name: UpdateStatusBarEntryContribution.NAME,
-					text: nls.localize('updateStatus.restartToUpdateStatus', "$(debug-restart) Update is ready. Click here to restart."),
-					ariaLabel: nls.localize('updateStatus.restartToUpdateAria', "Update is ready. Click here to restart."),
+					text: nls.localize('updateStatus.restartToUpdateStatus', "{0} Update is ready, click to restart.", productIcon),
+					ariaLabel: nls.localize('updateStatus.restartToUpdateAria', "Update is ready, click to restart."),
 					tooltip: this.getRestartToUpdateTooltip(state.update),
 					command: 'update.restart'
 				});
 				break;
+			}
 
 			case StateType.Overwriting:
 				this.updateStatusBarEntry({

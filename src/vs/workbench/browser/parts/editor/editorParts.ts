@@ -28,6 +28,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { DeepPartial } from '../../../../base/common/types.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -157,14 +158,16 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private modalEditorPart: IModalEditorPart | undefined;
 	get activeModalEditorPart(): IModalEditorPart | undefined { return this.modalEditorPart; }
 
-	async createModalEditorPart(): Promise<IModalEditorPart> {
+	async createModalEditorPart(options?: IModalEditorPartOptions): Promise<IModalEditorPart> {
 
 		// Reuse existing modal editor part if it exists
 		if (this.modalEditorPart) {
+			this.modalEditorPart.updateOptions(options);
+
 			return this.modalEditorPart;
 		}
 
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create();
+		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create(options);
 
 		// Keep instantiation service and reference to reuse
 		this.modalEditorPart = part;

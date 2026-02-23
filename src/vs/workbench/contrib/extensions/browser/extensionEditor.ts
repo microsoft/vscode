@@ -94,8 +94,8 @@ import { fromNow } from '../../../../base/common/date.js';
 
 class NavBar extends Disposable {
 
-	private _onChange = this._register(new Emitter<{ id: string | null; focus: boolean }>());
-	get onChange(): Event<{ id: string | null; focus: boolean }> { return this._onChange.event; }
+	private readonly _onChange = this._register(new Emitter<{ id: string | null; focus: boolean }>());
+	readonly onChange = this._onChange.event;
 
 	private _currentId: string | null = null;
 	get currentId(): string | null { return this._currentId; }
@@ -141,6 +141,11 @@ class NavBar extends Disposable {
 		this._currentId = id;
 		this._onChange.fire({ id, focus: !!focus });
 		this.actions.forEach(a => a.checked = a.id === id);
+	}
+
+	override dispose(): void {
+		this.clear();
+		super.dispose();
 	}
 }
 

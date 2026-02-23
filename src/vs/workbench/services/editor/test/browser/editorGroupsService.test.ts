@@ -476,6 +476,11 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(part.partOptions.showTabs, 'single');
 		assert.strictEqual(newOptions.showTabs, 'single');
 		assert.strictEqual(oldOptions, currentOptions);
+
+		const enforced = part.enforcePartOptions({ allowDropIntoGroup: false });
+		assert.strictEqual(part.partOptions.allowDropIntoGroup, false);
+		enforced.dispose();
+		assert.strictEqual(part.partOptions.allowDropIntoGroup, true);
 	});
 
 	test('editor basics', async function () {

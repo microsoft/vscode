@@ -1139,6 +1139,10 @@ class StandaloneDefaultAccountService implements IDefaultAccountService {
 	async signIn(): Promise<IDefaultAccount | null> {
 		return null;
 	}
+
+	async signOut(): Promise<void> {
+		// no-op
+	}
 }
 
 export interface IEditorOverrideServices {

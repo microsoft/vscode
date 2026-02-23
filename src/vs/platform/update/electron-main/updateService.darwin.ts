@@ -16,9 +16,10 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { INodeProcess } from '../../../base/common/platform.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -67,6 +68,12 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	protected override async initialize(): Promise<void> {
+		if ((process as INodeProcess).isEmbeddedApp) {
+			this.setState(State.Disabled(DisablementReason.EmbeddedApp));
+			this.logService.info('update#ctor - updates are disabled for embedded app');
+			return;
+		}
+
 		await super.initialize();
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawCheckingForUpdate(this.onCheckingForUpdate, this, this.disposables);

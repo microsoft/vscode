@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 13
+// version: 14
 
 declare module 'vscode' {
 
@@ -177,9 +177,14 @@ declare module 'vscode' {
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
 
 		/**
+		 * The identifier of the language model that was used for this request, if known.
+		 */
+		readonly modelId?: string;
+
+		/**
 		 * @hidden
 		 */
-		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined, id: string | undefined, modelId: string | undefined);
 	}
 
 	export class ChatResponseTurn2 {
@@ -262,8 +267,6 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
-		/** @deprecated Use {@link chatSessionResource} instead */
-		chatSessionId?: string;
 		chatSessionResource?: Uri;
 		chatInteractionId?: string;
 		terminalCommand?: string;
@@ -289,8 +292,6 @@ declare module 'vscode' {
 		 */
 		input: T;
 		chatRequestId?: string;
-		/** @deprecated Use {@link chatSessionResource} instead */
-		chatSessionId?: string;
 		chatSessionResource?: Uri;
 		chatInteractionId?: string;
 		/**
@@ -333,6 +334,19 @@ declare module 'vscode' {
 		export function registerChatParticipantDetectionProvider(participantDetectionProvider: ChatParticipantDetectionProvider): Disposable;
 
 		export const onDidDisposeChatSession: Event<string>;
+	}
+
+	export namespace window {
+		/**
+		 * The resource URI of the currently active chat panel session,
+		 * or `undefined` if there is no active chat panel session.
+		 */
+		export const activeChatPanelSessionResource: Uri | undefined;
+
+		/**
+		 * An event that fires when the active chat panel session resource changes.
+		 */
+		export const onDidChangeActiveChatPanelSessionResource: Event<Uri | undefined>;
 	}
 
 	// #endregion

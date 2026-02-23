@@ -19,22 +19,13 @@ async function copyServerWorkerMain(outDir: string): Promise<void> {
 }
 
 run({
+	platform: 'browser',
 	entryPoints: {
 		'extension': path.join(srcDir, 'extension.browser.ts'),
 	},
 	srcDir,
 	outdir: outDir,
 	additionalOptions: {
-		platform: 'browser',
-		format: 'cjs',
-		alias: {
-			'path': 'path-browserify',
-		},
-		define: {
-			'process.platform': JSON.stringify('web'),
-			'process.env': JSON.stringify({}),
-			'process.env.BROWSER_ENV': JSON.stringify('true'),
-		},
 		tsconfig: path.join(import.meta.dirname, 'tsconfig.browser.json'),
 	},
 }, process.argv, copyServerWorkerMain);

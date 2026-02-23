@@ -19,6 +19,7 @@ interface MockElectronEvent {
 
 class MockWebContents {
 	private readonly _listeners = new Map<string, ((...args: unknown[]) => void)[]>();
+	private readonly _onceListeners = new Set<(...args: unknown[]) => void>();
 	public readonly debugger: MockDebugger;
 	public loadURL = sinon.stub().resolves();
 	public getTitle = sinon.stub().returns('Test Page Title');
@@ -41,6 +42,7 @@ class MockWebContents {
 			this._listeners.set(event, []);
 		}
 		this._listeners.get(event)!.push(listener);
+		this._onceListeners.add(listener);
 		return this;
 	}
 
@@ -57,7 +59,16 @@ class MockWebContents {
 		for (const listener of listeners) {
 			listener(...args);
 		}
-		this._listeners.delete(event);
+		// Remove once listeners, keep on listeners
+		const remaining = listeners.filter(l => !this._onceListeners.has(l));
+		for (const listener of listeners) {
+			this._onceListeners.delete(listener);
+		}
+		if (remaining.length > 0) {
+			this._listeners.set(event, remaining);
+		} else {
+			this._listeners.delete(event);
+		}
 	}
 
 	beginFrameSubscription(_onlyDirty: boolean, callback: () => void): void {
@@ -232,6 +243,27 @@ suite('WebPageLoader', () => {
 		}
 	}));
 
+	test('ERR_BLOCKED_BY_CLIENT is ignored and content extraction continues', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+
+		const loader = createWebPageLoader(uri);
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// Simulate ERR_BLOCKED_BY_CLIENT (-27) which should be ignored
+		const mockEvent: MockElectronEvent = {};
+		window.webContents.emit('did-fail-load', mockEvent, -27, 'ERR_BLOCKED_BY_CLIENT');
+
+		const result = await loadPromise;
+
+		// ERR_BLOCKED_BY_CLIENT should not cause an error status, content should be extracted
+		assert.strictEqual(result.status, 'ok');
+		if (result.status === 'ok') {
+			assert.ok(result.result.includes('Test content from page'));
+		}
+	}));
+
 	//#endregion
 
 	//#region Redirect Tests
@@ -392,6 +424,68 @@ suite('WebPageLoader', () => {
 
 		const result = await loadPromise;
 		assert.strictEqual(result.status, 'ok');
+	}));
+
+	test('post-load navigation to different domain is blocked silently and content is extracted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const adRedirectUrl = 'https://eus.rubiconproject.com/usync.html?p=12776';
+
+		const loader = createWebPageLoader(uri, { followRedirects: false });
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// Simulate successful page load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		// Simulate ad/tracker script redirecting after page load
+		const mockEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', mockEvent, adRedirectUrl);
+
+		const result = await loadPromise;
+
+		// Navigation should be prevented
+		assert.ok((mockEvent.preventDefault!).called);
+		// But result should be ok (content extracted), NOT redirect
+		assert.strictEqual(result.status, 'ok');
+		assert.ok(result.result.includes('Test content from page'));
+	}));
+
+	test('initial same-domain navigation is allowed but later cross-domain navigation is blocked', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const sameDomainUrl = 'https://example.com/otherpage';
+		const crossDomainUrl = 'https://eus.rubiconproject.com/usync.html?p=12776';
+
+		const loader = createWebPageLoader(uri, { followRedirects: false });
+		setupDebuggerMock();
+
+		const loadPromise = loader.load();
+
+		// First navigation: same-authority, should be allowed
+		const initialEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', initialEvent, sameDomainUrl);
+		assert.ok(!(initialEvent.preventDefault!).called);
+
+		// Simulate successful page load
+		window.webContents.emit('did-start-loading');
+		window.webContents.emit('did-finish-load');
+
+		// Second navigation: cross-domain after load, should be blocked
+		const crossDomainEvent: MockElectronEvent = {
+			preventDefault: sinon.stub()
+		};
+		window.webContents.emit('will-navigate', crossDomainEvent, crossDomainUrl);
+
+		const result = await loadPromise;
+
+		assert.ok((crossDomainEvent.preventDefault!).called);
+		assert.strictEqual(result.status, 'ok');
+		assert.ok(result.result.includes('Test content from page'));
 	}));
 
 	test('redirect to non-trusted domain is blocked', async () => {

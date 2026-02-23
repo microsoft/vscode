@@ -368,8 +368,18 @@ function generateExtensionPointNames() {
 		}, function () {
 			collectedNames.sort();
 			const content = JSON.stringify(collectedNames, undefined, '\t') + '\n';
+			const filePath = 'vs/workbench/services/extensions/common/extensionPoints.json';
+			try {
+				const existing = fs.readFileSync(path.join('src', filePath), 'utf-8');
+				if (existing.replace(/\r\n/g, '\n') === content) {
+					this.emit('end');
+					return;
+				}
+			} catch {
+				// File doesn't exist yet, emit it
+			}
 			this.emit('data', new File({
-				path: 'vs/workbench/services/extensions/common/extensionPoints.json',
+				path: filePath,
 				contents: Buffer.from(content)
 			}));
 			this.emit('end');
