@@ -698,3 +698,17 @@
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
 }
+.chat-debug-flowchart-show-more {
+	display: block;
+	margin: 12px auto 0;
+	background: none;
+	border: none;
+	padding: 4px 8px;
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+}
+.chat-debug-flowchart-show-more:hover,
+.chat-debug-flowchart-show-more:focus-visible {
+	color: var(--vscode-textLink-activeForeground);
+}
