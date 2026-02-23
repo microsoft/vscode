@@ -41,6 +41,20 @@ interface IAvailableUpdate {
 	updateProcess?: ChildProcess;
 }
 
+interface IWindowsMutexModule {
+	isActive(mutexName: string): boolean;
+}
+
+type IUpdateWin32ApplyBreadcrumbClassification = {
+	owner: 'joaomoreno';
+	reason: {
+		classification: 'SystemMetaData';
+		purpose: 'FeatureInsight';
+		comment: 'Reason for Win32 update apply guard/poll transition.';
+	};
+	comment: 'This is used to understand Win32 updater setup-coordination transitions.';
+};
+
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
 	if (typeof _updateType === 'undefined') {
@@ -315,6 +329,39 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		await Promise.all(promises);
 	}
 
+	private async getWindowsMutex(context: string): Promise<IWindowsMutexModule | undefined> {
+		try {
+			return await import('@vscode/windows-mutex');
+		} catch (error) {
+			this.logService.error(`update#${context}: failed to import windows mutex module`, error);
+			this.logApplyBreadcrumb('mutex_import_failed');
+			return undefined;
+		}
+	}
+
+	private isInstallerMutexActive(mutex: IWindowsMutexModule): boolean {
+		if (!this.productService.win32MutexName) {
+			return false;
+		}
+
+		const setupMutexName = `${this.productService.win32MutexName}setup`;
+		const updatingMutexName = `${this.productService.win32MutexName}-updating`;
+		return mutex.isActive(setupMutexName) || mutex.isActive(updatingMutexName);
+	}
+
+	private isReadyMutexActive(mutex: IWindowsMutexModule): boolean {
+		if (!this.productService.win32MutexName) {
+			return false;
+		}
+
+		const readyMutexName = `${this.productService.win32MutexName}-ready`;
+		return mutex.isActive(readyMutexName);
+	}
+
+	private logApplyBreadcrumb(reason: 'mutex_import_failed' | 'installer_already_running' | 'resume_installer_missing' | 'poll_timeout' | 'recovery_with_active_installer'): void {
+		this.telemetryService.publicLog2<{ reason: string }, IUpdateWin32ApplyBreadcrumbClassification>('update:win32ApplyBreadcrumb', { reason });
+	}
+
 	protected override async doApplyUpdate(): Promise<void> {
 		if (this.state.type !== StateType.Downloaded) {
 			return Promise.resolve(undefined);
@@ -328,54 +375,67 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		const explicit = this.state.explicit;
 		this.setState(State.Updating(update));
 
+		const mutex = await this.getWindowsMutex('doApplyUpdate');
+		if (!mutex) {
+			this.setState(State.Idle(getUpdateType(), 'Unable to coordinate update setup state'));
+			return;
+		}
+
+		const installerAlreadyRunning = this.isInstallerMutexActive(mutex);
+		if (installerAlreadyRunning) {
+			this.logService.info('update#doApplyUpdate: installer already running, skipping setup spawn');
+			this.logApplyBreadcrumb('installer_already_running');
+		}
+
 		const cachePath = await this.cachePath;
-		const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
-		const cancelFilePath = path.join(cachePath, `cancel.flag`);
-		try {
-			await unlink(cancelFilePath);
-		} catch {
-			// ignore
-		}
-
 		const progressFilePath = path.join(cachePath, `update-progress`);
-		try {
-			await unlink(progressFilePath);
-		} catch {
-			// ignore
-		}
-
-		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
-		this.availableUpdate.cancelFilePath = cancelFilePath;
-
-		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
-		const child = spawn(this.availableUpdate.packagePath,
-			[
-				'/verysilent',
-				'/log',
-				`/update="${this.availableUpdate.updateFilePath}"`,
-				`/progress="${progressFilePath}"`,
-				`/sessionend="${sessionEndFlagPath}"`,
-				`/cancel="${cancelFilePath}"`,
-				'/nocloseapplications',
-				'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
-			],
-			{
-				detached: true,
-				stdio: ['ignore', 'ignore', 'ignore'],
-				windowsVerbatimArguments: true
+		let spawnedInstaller = false;
+		if (!installerAlreadyRunning) {
+			const sessionEndFlagPath = path.join(cachePath, 'session-ending.flag');
+			const cancelFilePath = path.join(cachePath, 'cancel.flag');
+			try {
+				await unlink(cancelFilePath);
+			} catch {
+				// ignore
 			}
-		);
 
-		// Track the process so we can cancel it if needed
-		this.availableUpdate.updateProcess = child;
+			try {
+				await unlink(progressFilePath);
+			} catch {
+				// ignore
+			}
 
-		child.once('exit', () => {
-			this.availableUpdate = undefined;
-			this.setState(State.Idle(getUpdateType()));
-		});
+			this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
+			this.availableUpdate.cancelFilePath = cancelFilePath;
 
-		const readyMutexName = `${this.productService.win32MutexName}-ready`;
-		const mutex = await import('@vscode/windows-mutex');
+			await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
+			const child = spawn(this.availableUpdate.packagePath,
+				[
+					'/verysilent',
+					'/log',
+					`/update="${this.availableUpdate.updateFilePath}"`,
+					`/progress="${progressFilePath}"`,
+					`/sessionend="${sessionEndFlagPath}"`,
+					`/cancel="${cancelFilePath}"`,
+					'/nocloseapplications',
+					'/mergetasks=runcode,!desktopicon,!quicklaunchicon'
+				],
+				{
+					detached: true,
+					stdio: ['ignore', 'ignore', 'ignore'],
+					windowsVerbatimArguments: true
+				}
+			);
+
+			// Track the process so we can cancel it if needed
+			this.availableUpdate.updateProcess = child;
+			spawnedInstaller = true;
+
+			child.once('exit', () => {
+				this.availableUpdate = undefined;
+				this.setState(State.Idle(getUpdateType()));
+			});
+		}
 
 		// Poll for progress and ready mutex (timeout after 30 minutes)
 		const pollTimeoutMs = 30 * 60 * 1000;
@@ -387,27 +447,33 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const poll = async () => {
 			while (this.state.type === StateType.Updating && !token.isCancellationRequested) {
-				if (mutex.isActive(readyMutexName)) {
+				if (this.isReadyMutexActive(mutex)) {
 					this.setState(State.Ready(update, explicit, this._overwrite));
+					return;
+				}
+
+				if (!spawnedInstaller && !this.isInstallerMutexActive(mutex)) {
+					this.logService.warn('update#doApplyUpdate: resumed update failed because installer is no longer active and update is not ready');
+					this.logApplyBreadcrumb('resume_installer_missing');
+					this.setState(State.Idle(getUpdateType(), 'Update did not complete successfully'));
 					return;
 				}
 
 				if (Date.now() - pollStartTime > pollTimeoutMs) {
 					this.logService.warn('update#doApplyUpdate: polling timed out waiting for update to be ready');
+					this.logApplyBreadcrumb('poll_timeout');
 					this.setState(State.Idle(getUpdateType(), 'Update did not complete within expected time'));
 					return;
 				}
 
 				try {
 					const progressContent = await readFile(progressFilePath, 'utf8');
-					if (!token.isCancellationRequested) {
-						const [currentStr, maxStr] = progressContent.split(',');
-						const currentProgress = parseInt(currentStr, 10);
-						const maxProgress = parseInt(maxStr, 10);
-						if (!isNaN(currentProgress) && !isNaN(maxProgress) && this.state.type === StateType.Updating) {
-							if (this.state.currentProgress !== currentProgress || this.state.maxProgress !== maxProgress) {
-								this.setState(State.Updating(update, currentProgress, maxProgress));
-							}
+					const [currentStr, maxStr] = progressContent.split(',');
+					const currentProgress = parseInt(currentStr, 10);
+					const maxProgress = parseInt(maxStr, 10);
+					if (!isNaN(currentProgress) && !isNaN(maxProgress) && this.state.type === StateType.Updating) {
+						if (this.state.currentProgress !== currentProgress || this.state.maxProgress !== maxProgress) {
+							this.setState(State.Updating(update, currentProgress, maxProgress));
 						}
 					}
 				} catch {
@@ -538,6 +604,12 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.setState(State.Downloading(update, true, false));
 		this.availableUpdate = { packagePath };
 		this.setState(State.Downloaded(update, true, false));
+
+		const mutex = await this.getWindowsMutex('_applySpecificUpdate');
+		if (mutex && this.isInstallerMutexActive(mutex)) {
+			this.logService.info('update#_applySpecificUpdate: installer already running during recovery, not spawning a second setup');
+			this.logApplyBreadcrumb('recovery_with_active_installer');
+		}
 
 		if (fastUpdatesEnabled && this.productService.target === 'user') {
 			this.doApplyUpdate();
