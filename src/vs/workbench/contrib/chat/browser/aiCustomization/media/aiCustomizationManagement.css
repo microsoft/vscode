@@ -225,8 +225,16 @@
 	opacity: 0.8;
 }
 
-.ai-customization-group-header .group-label {
+.ai-customization-group-header .group-label-group {
 	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	overflow: hidden;
+	min-width: 0;
+}
+
+.ai-customization-group-header .group-label {
 	font-size: 11px;
 	font-weight: 600;
 	text-transform: uppercase;

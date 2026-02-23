@@ -149,8 +149,9 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 
 		const chevron = DOM.append(container, $('.group-chevron'));
 		const icon = DOM.append(container, $('.group-icon'));
-		const label = DOM.append(container, $('.group-label'));
-		const infoIcon = DOM.append(container, $('.group-info'));
+		const labelGroup = DOM.append(container, $('.group-label-group'));
+		const label = DOM.append(labelGroup, $('.group-label'));
+		const infoIcon = DOM.append(labelGroup, $('.group-info'));
 		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 		const count = DOM.append(container, $('.group-count'));
 
