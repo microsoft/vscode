@@ -6,8 +6,7 @@
 import * as fs from 'fs';
 import { app, BrowserWindow, WebContents, shell } from 'electron';
 import { addUNCHostToAllowlist } from '../../../base/node/unc.js';
-import { hostname, arch } from 'os';
-import { getWindowsReleaseSync } from '../../../base/node/windowsVersion.js';
+import { hostname, release, arch } from 'os';
 import { coalesce, distinct } from '../../../base/common/arrays.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CharCode } from '../../../base/common/charCode.js';
@@ -1559,7 +1558,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			product,
 			isInitialStartup: options.initialStartup,
 			perfMarks: getMarks(),
-			os: { release: getWindowsReleaseSync(), hostname: hostname(), arch: arch() },
+			os: { release: release(), hostname: hostname(), arch: arch() },
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
 			autoDetectColorScheme: windowConfig?.autoDetectColorScheme ?? false,
