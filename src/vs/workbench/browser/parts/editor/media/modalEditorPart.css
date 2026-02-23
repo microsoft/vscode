@@ -30,8 +30,8 @@
 .monaco-modal-editor-block .modal-editor-part {
 	display: flex;
 	flex-direction: column;
-	min-width: 400px;
-	min-height: 300px;
+	min-width: 500px;
+	min-height: 400px;
 	background-color: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-contrastBorder));
 	border-radius: 8px;
@@ -74,7 +74,7 @@
 			line-height: 32px;
 
 			&::before,
-			& > .monaco-icon-label-iconpath {
+			&>.monaco-icon-label-iconpath {
 				height: 32px;
 			}
 		}
