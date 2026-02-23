@@ -24,7 +24,7 @@ export enum ChatDebugLogLevel {
  */
 export interface IChatDebugEventCommon {
 	readonly id?: string;
-	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly created: Date;
 	readonly parentEventId?: string;
 }
@@ -128,7 +128,7 @@ export interface IChatDebugService extends IDisposable {
 	/**
 	 * Log a generic event to the debug service.
 	 */
-	log(sessionId: string, name: string, details?: string, level?: ChatDebugLogLevel, options?: { id?: string; category?: string; parentEventId?: string }): void;
+	log(sessionResource: URI, name: string, details?: string, level?: ChatDebugLogLevel, options?: { id?: string; category?: string; parentEventId?: string }): void;
 
 	/**
 	 * Add a typed event to the debug service.
@@ -136,19 +136,25 @@ export interface IChatDebugService extends IDisposable {
 	addEvent(event: IChatDebugEvent): void;
 
 	/**
+	 * Add an event sourced from an external provider.
+	 * These events are cleared before re-invoking providers to avoid duplicates.
+	 */
+	addProviderEvent(event: IChatDebugEvent): void;
+
+	/**
 	 * Get all events for a specific session.
 	 */
-	getEvents(sessionId?: string): readonly IChatDebugEvent[];
+	getEvents(sessionResource?: URI): readonly IChatDebugEvent[];
 
 	/**
-	 * Get all session IDs that have logged events.
+	 * Get all session resources that have logged events.
 	 */
-	getSessionIds(): readonly string[];
+	getSessionResources(): readonly URI[];
 
 	/**
-	 * The currently active session ID for debugging.
+	 * The currently active session resource for debugging.
 	 */
-	activeSessionId: string | undefined;
+	activeSessionResource: URI | undefined;
 
 	/**
 	 * Clear all logged events.
@@ -162,17 +168,17 @@ export interface IChatDebugService extends IDisposable {
 	registerProvider(provider: IChatDebugLogProvider): IDisposable;
 
 	/**
-	 * Invoke all registered providers for a given session ID.
+	 * Invoke all registered providers for a given session resource.
 	 * Called when the Debug View is opened to fetch events from extensions.
 	 */
-	invokeProviders(sessionId: string): Promise<void>;
+	invokeProviders(sessionResource: URI): Promise<void>;
 
 	/**
 	 * End a debug session: cancels any in-flight provider invocation,
 	 * disposes the associated CancellationTokenSource, and removes it.
 	 * Called when the chat session is disposed/archived.
 	 */
-	endSession(sessionId: string): void;
+	endSession(sessionResource: URI): void;
 
 	/**
 	 * Resolve the full details of an event by its id.
@@ -250,6 +256,6 @@ export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatD
  * Provider interface for debug events.
  */
 export interface IChatDebugLogProvider {
-	provideChatDebugLog(sessionId: string, token: CancellationToken): Promise<IChatDebugEvent[] | undefined>;
+	provideChatDebugLog(sessionResource: URI, token: CancellationToken): Promise<IChatDebugEvent[] | undefined>;
 	resolveChatDebugLogEvent?(eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContent | undefined>;
 }

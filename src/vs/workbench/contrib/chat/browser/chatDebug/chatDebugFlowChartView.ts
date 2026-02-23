@@ -8,6 +8,7 @@ import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/br
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -62,7 +63,7 @@ export class ChatDebugFlowChartView extends Disposable {
 	private svgElement: SVGElement | undefined;
 	private renderResult: FlowChartRenderResult | undefined;
 
-	private currentSessionId: string = '';
+	private currentSessionResource: URI | undefined;
 	private lastEventCount: number = 0;
 	private hasUserPanned: boolean = false;
 
@@ -134,8 +135,8 @@ export class ChatDebugFlowChartView extends Disposable {
 		this.setupKeyboard();
 	}
 
-	setSession(sessionId: string): void {
-		if (this.currentSessionId !== sessionId) {
+	setSession(sessionResource: URI): void {
+		if (!this.currentSessionResource || this.currentSessionResource.toString() !== sessionResource.toString()) {
 			// Reset pan/zoom, focus, and collapse state on session change
 			this.scale = 1;
 			this.translateX = 0;
@@ -145,7 +146,7 @@ export class ChatDebugFlowChartView extends Disposable {
 			this.focusedElementId = undefined;
 			this.collapsedNodeIds.clear();
 		}
-		this.currentSessionId = sessionId;
+		this.currentSessionResource = sessionResource;
 	}
 
 	show(): void {
@@ -164,8 +165,10 @@ export class ChatDebugFlowChartView extends Disposable {
 	}
 
 	updateBreadcrumb(): void {
-		const sessionUri = LocalChatSessionUri.forSession(this.currentSessionId);
-		const sessionTitle = this.chatService.getSessionTitle(sessionUri) || this.currentSessionId;
+		if (!this.currentSessionResource) {
+			return;
+		}
+		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
 			new TextBreadcrumbItem(localize('chatDebug.title', "Chat Debug Panel"), true),
 			new TextBreadcrumbItem(sessionTitle, true),
@@ -178,7 +181,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		this.loadDisposables.clear();
 		this.updateBreadcrumb();
 
-		const events = this.chatDebugService.getEvents(this.currentSessionId);
+		const events = this.chatDebugService.getEvents(this.currentSessionResource);
 		const isFirstLoad = this.lastEventCount === 0;
 		this.lastEventCount = events.length;
 

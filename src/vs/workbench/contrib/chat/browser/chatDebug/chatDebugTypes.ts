@@ -5,6 +5,7 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { BreadcrumbsItem } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 
@@ -15,7 +16,7 @@ const $ = DOM.$;
  * which session and view to navigate to.
  */
 export interface IChatDebugEditorOptions extends IEditorOptions {
-	readonly sessionId?: string;
+	readonly sessionResource?: URI;
 	readonly viewHint?: 'home' | 'overview' | 'logs' | 'flowchart';
 }
 

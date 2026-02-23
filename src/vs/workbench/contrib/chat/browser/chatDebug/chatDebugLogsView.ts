@@ -12,6 +12,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -63,7 +64,7 @@ export class ChatDebugLogsView extends Disposable {
 	private list: WorkbenchList<IChatDebugEvent>;
 	private tree: WorkbenchObjectTree<IChatDebugEvent, void>;
 
-	private currentSessionId: string = '';
+	private currentSessionResource: URI | undefined;
 	private logsViewMode: LogsViewMode = LogsViewMode.List;
 	private events: IChatDebugEvent[] = [];
 	private currentDimension: Dimension | undefined;
@@ -253,8 +254,8 @@ export class ChatDebugLogsView extends Disposable {
 		}));
 	}
 
-	setSession(sessionId: string): void {
-		this.currentSessionId = sessionId;
+	setSession(sessionResource: URI): void {
+		this.currentSessionResource = sessionResource;
 	}
 
 	show(): void {
@@ -276,8 +277,10 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	updateBreadcrumb(): void {
-		const sessionUri = LocalChatSessionUri.forSession(this.currentSessionId);
-		const sessionTitle = this.chatService.getSessionTitle(sessionUri) || this.currentSessionId;
+		if (!this.currentSessionResource) {
+			return;
+		}
+		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
 			new TextBreadcrumbItem(localize('chatDebug.title', "Chat Debug Panel"), true),
 			new TextBreadcrumbItem(sessionTitle, true),
@@ -383,9 +386,9 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	private loadEvents(): void {
-		this.events = [...this.chatDebugService.getEvents(this.currentSessionId || undefined)];
+		this.events = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
 		this.eventListener.value = this.chatDebugService.onDidAddEvent(e => {
-			if (!this.currentSessionId || e.sessionId === this.currentSessionId) {
+			if (!this.currentSessionResource || e.sessionResource.toString() === this.currentSessionResource.toString()) {
 				this.events.push(e);
 				this.refreshList();
 			}
