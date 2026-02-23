@@ -78,6 +78,10 @@ export class ChatDebugHomeView extends Disposable {
 
 		if (sessionIds.length > 0) {
 			const sessionList = DOM.append(this.container, $('.chat-debug-home-session-list'));
+			sessionList.setAttribute('role', 'list');
+			sessionList.setAttribute('aria-label', localize('chatDebug.sessionList', "Chat sessions"));
+
+			const items: HTMLButtonElement[] = [];
 
 			for (const sessionId of sessionIds) {
 				const sessionUri = LocalChatSessionUri.forSession(sessionId);
@@ -85,8 +89,10 @@ export class ChatDebugHomeView extends Disposable {
 				const isActive = sessionId === activeSessionId;
 
 				const item = DOM.append(sessionList, $<HTMLButtonElement>('button.chat-debug-home-session-item'));
+				item.setAttribute('role', 'listitem');
 				if (isActive) {
 					item.classList.add('chat-debug-home-session-item-active');
+					item.setAttribute('aria-current', 'true');
 				}
 
 				DOM.append(item, $(`span${ThemeIcon.asCSSSelector(Codicon.comment)}`));
@@ -96,8 +102,14 @@ export class ChatDebugHomeView extends Disposable {
 				if (isShimmering) {
 					titleSpan.classList.add('chat-debug-home-session-item-shimmer');
 					item.disabled = true;
+					item.setAttribute('aria-busy', 'true');
+					item.setAttribute('aria-label', localize('chatDebug.loadingSession', "Loading session…"));
 				} else {
 					titleSpan.textContent = sessionTitle;
+					const ariaLabel = isActive
+						? localize('chatDebug.sessionItemActive', "{0} (active)", sessionTitle)
+						: sessionTitle;
+					item.setAttribute('aria-label', ariaLabel);
 				}
 
 				if (isActive) {
@@ -108,8 +120,40 @@ export class ChatDebugHomeView extends Disposable {
 					this.renderDisposables.add(DOM.addDisposableListener(item, DOM.EventType.CLICK, () => {
 						this._onNavigateToSession.fire(sessionId);
 					}));
+					items.push(item);
 				}
 			}
+
+			// Arrow key navigation between session items
+			this.renderDisposables.add(DOM.addDisposableListener(sessionList, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+				if (items.length === 0) {
+					return;
+				}
+				const focused = DOM.getActiveElement() as HTMLElement;
+				const idx = items.indexOf(focused as HTMLButtonElement);
+				if (idx === -1) {
+					return;
+				}
+				let nextIdx: number | undefined;
+				switch (e.key) {
+					case 'ArrowDown':
+						nextIdx = idx + 1 < items.length ? idx + 1 : idx;
+						break;
+					case 'ArrowUp':
+						nextIdx = idx - 1 >= 0 ? idx - 1 : idx;
+						break;
+					case 'Home':
+						nextIdx = 0;
+						break;
+					case 'End':
+						nextIdx = items.length - 1;
+						break;
+				}
+				if (nextIdx !== undefined) {
+					e.preventDefault();
+					items[nextIdx].focus();
+				}
+			}));
 		}
 	}
 }

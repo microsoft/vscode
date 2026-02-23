@@ -6,7 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { addDisposableListener, Dimension, EventType } from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IObjectTreeElement } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -23,7 +23,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { defaultBreadcrumbsWidgetStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
@@ -58,7 +58,7 @@ export class ChatDebugLogsView extends Disposable {
 	private readonly treeContainer: HTMLElement;
 	private readonly detailContainer: HTMLElement;
 	private readonly filterWidget: FilterWidget;
-	private readonly viewModeToggle: HTMLButtonElement;
+	private readonly viewModeToggle: Button;
 
 	private list: WorkbenchList<IChatDebugEvent>;
 	private tree: WorkbenchObjectTree<IChatDebugEvent, void>;
@@ -121,10 +121,10 @@ export class ChatDebugLogsView extends Disposable {
 		}));
 
 		// View mode toggle
-		this.viewModeToggle = DOM.append(this.headerContainer, $('button.chat-debug-view-mode-toggle')) as HTMLButtonElement;
+		this.viewModeToggle = this._register(new Button(this.headerContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.toggleViewMode', "Toggle between list and tree view") }));
+		this.viewModeToggle.element.classList.add('chat-debug-view-mode-toggle');
 		this.updateViewModeToggle();
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.viewModeToggle, localize('chatDebug.toggleViewMode', "Toggle between list and tree view")));
-		this._register(addDisposableListener(this.viewModeToggle, EventType.CLICK, () => {
+		this._register(this.viewModeToggle.onDidClick(() => {
 			this.toggleViewMode();
 		}));
 
@@ -453,11 +453,12 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	private updateViewModeToggle(): void {
-		DOM.clearNode(this.viewModeToggle);
+		const el = this.viewModeToggle.element;
+		DOM.clearNode(el);
 		const isTree = this.logsViewMode === LogsViewMode.Tree;
-		DOM.append(this.viewModeToggle, $(`span${ThemeIcon.asCSSSelector(isTree ? Codicon.listTree : Codicon.listFlat)}`));
+		DOM.append(el, $(`span${ThemeIcon.asCSSSelector(isTree ? Codicon.listTree : Codicon.listFlat)}`));
 
-		const labelContainer = DOM.append(this.viewModeToggle, $('span.chat-debug-view-mode-labels'));
+		const labelContainer = DOM.append(el, $('span.chat-debug-view-mode-labels'));
 		const treeLabel = DOM.append(labelContainer, $('span.chat-debug-view-mode-label'));
 		treeLabel.textContent = localize('chatDebug.treeView', "Tree View");
 		const listLabel = DOM.append(labelContainer, $('span.chat-debug-view-mode-label'));
@@ -468,6 +469,12 @@ export class ChatDebugLogsView extends Disposable {
 		} else {
 			treeLabel.classList.add('hidden');
 		}
+
+		const activeLabel = isTree
+			? localize('chatDebug.switchToListView', "Switch to List View")
+			: localize('chatDebug.switchToTreeView', "Switch to Tree View");
+		el.setAttribute('aria-label', activeLabel);
+		this.viewModeToggle.setTitle(activeLabel);
 	}
 
 	private updateMoreFiltersChecked(): void {
@@ -490,27 +497,24 @@ export class ChatDebugLogsView extends Disposable {
 		// Header with action buttons
 		const header = DOM.append(this.detailContainer, $('.chat-debug-detail-header'));
 
-		const fullScreenButton = DOM.append(header, $('button.chat-debug-detail-button'));
-		fullScreenButton.setAttribute('aria-label', localize('chatDebug.openInEditor', "Open in Editor"));
-		this.detailDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), fullScreenButton, localize('chatDebug.openInEditor', "Open in Editor")));
-		DOM.append(fullScreenButton, $(`span${ThemeIcon.asCSSSelector(Codicon.goToFile)}`));
-		this.detailDisposables.add(addDisposableListener(fullScreenButton, EventType.CLICK, () => {
+		const fullScreenButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.openInEditor', "Open in Editor"), title: localize('chatDebug.openInEditor', "Open in Editor") }));
+		fullScreenButton.element.classList.add('chat-debug-detail-button');
+		fullScreenButton.icon = Codicon.goToFile;
+		this.detailDisposables.add(fullScreenButton.onDidClick(() => {
 			this.editorService.openEditor({ contents: this.currentDetailText, resource: undefined } satisfies IUntitledTextResourceEditorInput);
 		}));
 
-		const copyButton = DOM.append(header, $('button.chat-debug-detail-button'));
-		copyButton.setAttribute('aria-label', localize('chatDebug.copyToClipboard', "Copy"));
-		this.detailDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), copyButton, localize('chatDebug.copyToClipboard', "Copy")));
-		DOM.append(copyButton, $(`span${ThemeIcon.asCSSSelector(Codicon.copy)}`));
-		this.detailDisposables.add(addDisposableListener(copyButton, EventType.CLICK, () => {
+		const copyButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.copyToClipboard', "Copy"), title: localize('chatDebug.copyToClipboard', "Copy") }));
+		copyButton.element.classList.add('chat-debug-detail-button');
+		copyButton.icon = Codicon.copy;
+		this.detailDisposables.add(copyButton.onDidClick(() => {
 			this.clipboardService.writeText(this.currentDetailText);
 		}));
 
-		const closeButton = DOM.append(header, $('button.chat-debug-detail-button'));
-		closeButton.setAttribute('aria-label', localize('chatDebug.closeDetail', "Close"));
-		this.detailDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), closeButton, localize('chatDebug.closeDetail', "Close")));
-		DOM.append(closeButton, $(`span${ThemeIcon.asCSSSelector(Codicon.close)}`));
-		this.detailDisposables.add(addDisposableListener(closeButton, EventType.CLICK, () => {
+		const closeButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.closeDetail', "Close"), title: localize('chatDebug.closeDetail', "Close") }));
+		closeButton.element.classList.add('chat-debug-detail-button');
+		closeButton.icon = Codicon.close;
+		this.detailDisposables.add(closeButton.onDidClick(() => {
 			this.list.setSelection([]);
 			this.hideDetail();
 		}));

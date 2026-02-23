@@ -57,9 +57,6 @@
 .chat-debug-home-session-item:hover {
 	background: var(--vscode-list-hoverBackground);
 }
-.chat-debug-home-session-item-active {
-	border-color: var(--vscode-focusBorder);
-}
 .chat-debug-home-session-item-title {
 	flex: 1;
 	overflow: hidden;
@@ -206,26 +203,15 @@
 	gap: 10px;
 	flex-wrap: wrap;
 }
-.chat-debug-overview-action-button {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	padding: 8px 16px;
-	border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder, transparent));
-	background: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	border-radius: 2px;
-	cursor: pointer;
-	font-size: 13px;
+.chat-debug-overview-action-button.monaco-button {
+	width: auto;
 }
-.chat-debug-overview-action-button:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
-.chat-debug-icon-button {
+.chat-debug-icon-button.monaco-button {
+	width: auto;
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	width: 26px;
+	min-width: 26px;
 	height: 26px;
 	border: none;
 	background: transparent;
@@ -234,8 +220,9 @@
 	cursor: pointer;
 	opacity: 0.7;
 	flex-shrink: 0;
+	padding: 0;
 }
-.chat-debug-icon-button:hover {
+.chat-debug-icon-button.monaco-button:hover {
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
 }
@@ -265,23 +252,17 @@
 	flex: 1;
 	max-width: 500px;
 }
-.chat-debug-view-mode-toggle {
+.chat-debug-view-mode-toggle.monaco-button {
+	width: auto;
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
 	padding: 4px 8px;
-	border: 1px solid var(--vscode-input-border, transparent);
-	background: var(--vscode-input-background);
-	color: var(--vscode-input-foreground);
 	border-radius: 2px;
-	outline: none;
 	font-size: 12px;
 	cursor: pointer;
 }
-.chat-debug-view-mode-toggle:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-.chat-debug-view-mode-toggle:focus {
+.chat-debug-view-mode-toggle.monaco-button:focus {
 	border-color: var(--vscode-focusBorder);
 }
 .chat-debug-view-mode-labels {
@@ -394,7 +375,8 @@
 	padding: 8px 16px 0;
 	flex-shrink: 0;
 }
-.chat-debug-detail-button {
+.chat-debug-detail-button.monaco-button {
+	width: auto;
 	border: none;
 	background: transparent;
 	color: var(--vscode-foreground);
@@ -405,7 +387,7 @@
 	border-radius: 4px;
 	opacity: 0.7;
 }
-.chat-debug-detail-button:hover {
+.chat-debug-detail-button.monaco-button:hover {
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
 }

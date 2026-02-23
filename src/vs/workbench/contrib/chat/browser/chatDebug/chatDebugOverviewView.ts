@@ -5,15 +5,14 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { defaultBreadcrumbsWidgetStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -48,7 +47,6 @@ export class ChatDebugOverviewView extends Disposable {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-overview'));
@@ -114,11 +112,10 @@ export class ChatDebugOverviewView extends Disposable {
 
 		const titleActions = DOM.append(titleRow, $('.chat-debug-overview-title-actions'));
 
-		const revealSessionBtn = DOM.append(titleActions, $('button.chat-debug-icon-button'));
-		revealSessionBtn.setAttribute('aria-label', localize('chatDebug.revealChatSession', "Reveal Chat Session"));
-		this.loadDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), revealSessionBtn, localize('chatDebug.revealChatSession', "Reveal Chat Session")));
-		DOM.append(revealSessionBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.goToFile)}`));
-		this.loadDisposables.add(DOM.addDisposableListener(revealSessionBtn, DOM.EventType.CLICK, () => {
+		const revealSessionBtn = this.loadDisposables.add(new Button(titleActions, { ariaLabel: localize('chatDebug.revealChatSession', "Reveal Chat Session"), title: localize('chatDebug.revealChatSession', "Reveal Chat Session") }));
+		revealSessionBtn.element.classList.add('chat-debug-icon-button');
+		revealSessionBtn.icon = Codicon.goToFile;
+		this.loadDisposables.add(revealSessionBtn.onDidClick(() => {
 			const uri = LocalChatSessionUri.forSession(this.currentSessionId);
 			this.chatWidgetService.openSession(uri);
 		}));
@@ -237,17 +234,17 @@ export class ChatDebugOverviewView extends Disposable {
 
 		const row = DOM.append(actionsSection, $('.chat-debug-overview-actions'));
 
-		const viewLogsBtn = DOM.append(row, $('button.chat-debug-overview-action-button'));
-		DOM.append(viewLogsBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.listFlat)}`));
-		viewLogsBtn.append(localize('chatDebug.viewLogs', "View Logs"));
-		this.loadDisposables.add(DOM.addDisposableListener(viewLogsBtn, DOM.EventType.CLICK, () => {
+		const viewLogsBtn = this.loadDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('chatDebug.viewLogs', "View Logs") }));
+		viewLogsBtn.element.classList.add('chat-debug-overview-action-button');
+		viewLogsBtn.label = `$(list-flat) ${localize('chatDebug.viewLogs', "View Logs")}`;
+		this.loadDisposables.add(viewLogsBtn.onDidClick(() => {
 			this._onNavigate.fire(OverviewNavigation.Logs);
 		}));
 
-		const flowChartBtn = DOM.append(row, $('button.chat-debug-overview-action-button'));
-		DOM.append(flowChartBtn, $(`span${ThemeIcon.asCSSSelector(Codicon.typeHierarchy)}`));
-		flowChartBtn.append(localize('chatDebug.agentFlowChart', "Agent Flow Chart"));
-		this.loadDisposables.add(DOM.addDisposableListener(flowChartBtn, DOM.EventType.CLICK, () => {
+		const flowChartBtn = this.loadDisposables.add(new Button(row, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: localize('chatDebug.agentFlowChart', "Agent Flow Chart") }));
+		flowChartBtn.element.classList.add('chat-debug-overview-action-button');
+		flowChartBtn.label = `$(type-hierarchy) ${localize('chatDebug.agentFlowChart', "Agent Flow Chart")}`;
+		this.loadDisposables.add(flowChartBtn.onDidClick(() => {
 			this._onNavigate.fire(OverviewNavigation.FlowChart);
 		}));
 
