@@ -558,7 +558,7 @@
 
 	.tool-output-part {
 		border: 1px solid var(--vscode-widget-border);
-		border-radius: 6px;
+		border-radius: var(--vscode-cornerRadius-medium);
 		background: var(--vscode-editor-background);
 		margin: 4px 0;
 		overflow: hidden;

@@ -27,7 +27,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID, SKILL_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -36,6 +36,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { basename } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 
 //#region Editor Registration
 
@@ -274,12 +275,25 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					category: CHAT_CATEGORY,
 					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
 					f1: true,
-					menu: [{
-						id: MenuId.GlobalActivity,
-						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
-						group: '2_configuration',
-						order: 4,
-					}],
+					menu: [
+						{
+							id: MenuId.GlobalActivity,
+							when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
+							group: '2_configuration',
+							order: 4,
+						},
+						{
+							id: MenuId.EditorContent,
+							when: ContextKeyExpr.and(
+								ChatContextKeys.enabled,
+								ContextKeyExpr.or(
+									ContextKeyExpr.equals(ResourceContextKey.LangId.key, PROMPT_LANGUAGE_ID),
+									ContextKeyExpr.equals(ResourceContextKey.LangId.key, INSTRUCTIONS_LANGUAGE_ID),
+									ContextKeyExpr.equals(ResourceContextKey.LangId.key, AGENT_LANGUAGE_ID),
+									ContextKeyExpr.equals(ResourceContextKey.LangId.key, SKILL_LANGUAGE_ID),
+								),
+							),
+						}],
 				});
 			}
 
