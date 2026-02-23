@@ -36,6 +36,7 @@ const repositoryOptionId = 'repository';
  * - For new sessions: repository comes from the session option with id 'repository'
  */
 export type IActiveSessionItem = (INewSession | IAgentSession) & {
+	readonly label?: string;
 	/**
 	 * The repository URI for this session.
 	 */
@@ -286,6 +287,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return;
 		}
 
+		if (!this.uriIdentityService.extUri.isEqual(sessionResource, session.resource)) {
+			this.logService.error(`[SessionsManagementService] Session resource mismatch. Expected: ${session.resource.toString()}, received: ${sessionResource.toString()}`);
+			return;
+		}
+
 		const query = session.query;
 		if (!query) {
 			this.logService.error('[SessionsManagementService] No query set on session');
@@ -310,9 +316,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
 		await this.doSendRequestForNewSession(session, query, sendOptions, session.selectedOptions);
 
-		// Clean up the session after sending
+		// Clean up the session after sending (setter disposes the previous value)
 		this._newSession.value = undefined;
-		session.dispose();
 	}
 
 	private async doSendRequestForNewSession(session: INewSession, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {

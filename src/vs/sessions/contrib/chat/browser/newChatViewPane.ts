@@ -783,12 +783,13 @@ class NewChatWidget extends Disposable {
 		this.sessionsManagementService.sendRequestForNewSession(
 			session.resource
 		).then(() => {
-			// Clear sent session so a fresh one is created next time
-			this._newSession.clear();
+			// Release ref without disposing - the service owns disposal
+			this._newSession.clearAndLeak();
 			this._newSessionListener.clear();
 			this._contextAttachments.clear();
 		}, e => {
 			this.logService.error('Failed to send request:', e);
+		}).finally(() => {
 			this._sending = false;
 			this._editor.updateOptions({ readOnly: false });
 			this._updateSendButtonState();
