@@ -306,6 +306,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			return overrideExclude;
 		}
 
+		if (this.options.allowedProviders && !this.options.allowedProviders.includes(session.providerType as AgentSessionProviders)) {
+			return true;
+		}
+
 		if (this.excludes.read && session.isRead()) {
 			return true;
 		}
