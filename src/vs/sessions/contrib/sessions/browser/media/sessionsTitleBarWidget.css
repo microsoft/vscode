@@ -19,7 +19,7 @@
 	cursor: pointer;
 	-webkit-app-region: no-drag;
 	overflow: hidden;
-	color: var(--vscode-titleBar-activeForeground);
+	color: var(--vscode-commandCenter-foreground);
 	gap: 6px;
 }
 
