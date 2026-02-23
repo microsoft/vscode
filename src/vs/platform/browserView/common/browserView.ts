@@ -38,6 +38,7 @@ export interface IBrowserViewState {
 
 export interface IBrowserViewNavigationEvent {
 	url: string;
+	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
 }

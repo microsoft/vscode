@@ -221,6 +221,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		const fireNavigationEvent = () => {
 			this._onDidNavigate.fire({
 				url: webContents.getURL(),
+				title: webContents.getTitle(),
 				canGoBack: webContents.navigationHistory.canGoBack(),
 				canGoForward: webContents.navigationHistory.canGoForward()
 			});
@@ -253,6 +254,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				fireLoadingEvent(false);
 				this._onDidNavigate.fire({
 					url: validatedURL,
+					title: '',
 					canGoBack: webContents.navigationHistory.canGoBack(),
 					canGoForward: webContents.navigationHistory.canGoForward()
 				});
