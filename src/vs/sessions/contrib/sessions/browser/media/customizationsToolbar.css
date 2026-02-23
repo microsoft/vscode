@@ -124,10 +124,11 @@
 	.ai-customization-toolbar .ai-customization-toolbar-content {
 		max-height: 500px;
 		overflow: hidden;
-		transition: max-height 0.2s ease-out;
+		transition: max-height 0.2s ease-out, display 0s linear 0.2s;
 	}
 
 	.ai-customization-toolbar.collapsed .ai-customization-toolbar-content {
 		max-height: 0;
+		display: none;
 	}
 }

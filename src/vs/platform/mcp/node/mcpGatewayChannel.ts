@@ -6,7 +6,8 @@
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IPCServer, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { IMcpGatewayService } from '../common/mcpGateway.js';
+import { IGatewayCallToolResult, IGatewayServerResources, IGatewayServerResourceTemplates, IMcpGatewayService, McpGatewayToolBrokerChannelName } from '../common/mcpGateway.js';
+import { MCP } from '../common/modelContextProtocol.js';
 
 /**
  * IPC channel for the MCP Gateway service, used by the remote server.
@@ -17,11 +18,11 @@ import { IMcpGatewayService } from '../common/mcpGateway.js';
 export class McpGatewayChannel<TContext> extends Disposable implements IServerChannel<TContext> {
 
 	constructor(
-		ipcServer: IPCServer<TContext>,
+		private readonly _ipcServer: IPCServer<TContext>,
 		@IMcpGatewayService private readonly mcpGatewayService: IMcpGatewayService
 	) {
 		super();
-		this._register(ipcServer.onDidRemoveConnection(c => mcpGatewayService.disposeGatewaysForClient(c.ctx)));
+		this._register(_ipcServer.onDidRemoveConnection(c => mcpGatewayService.disposeGatewaysForClient(c.ctx)));
 	}
 
 	listen<T>(_ctx: TContext, _event: string): Event<T> {
@@ -31,7 +32,16 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 	async call<T>(ctx: TContext, command: string, args?: unknown): Promise<T> {
 		switch (command) {
 			case 'createGateway': {
-				const result = await this.mcpGatewayService.createGateway(ctx);
+				const brokerChannel = ipcChannelForContext(this._ipcServer, ctx);
+				const result = await this.mcpGatewayService.createGateway(ctx, {
+					onDidChangeTools: brokerChannel.listen<void>('onDidChangeTools'),
+					onDidChangeResources: brokerChannel.listen<void>('onDidChangeResources'),
+					listTools: () => brokerChannel.call<readonly MCP.Tool[]>('listTools'),
+					callTool: (name, callArgs) => brokerChannel.call<IGatewayCallToolResult>('callTool', { name, args: callArgs }),
+					listResources: () => brokerChannel.call<readonly IGatewayServerResources[]>('listResources'),
+					readResource: (serverIndex, uri) => brokerChannel.call<MCP.ReadResourceResult>('readResource', { serverIndex, uri }),
+					listResourceTemplates: () => brokerChannel.call<readonly IGatewayServerResourceTemplates[]>('listResourceTemplates'),
+				});
 				return result as T;
 			}
 			case 'disposeGateway': {
@@ -42,4 +52,8 @@ export class McpGatewayChannel<TContext> extends Disposable implements IServerCh
 
 		throw new Error(`Invalid call: ${command}`);
 	}
+}
+
+function ipcChannelForContext<TContext>(ipcServer: IPCServer<TContext>, ctx: TContext) {
+	return ipcServer.getChannel(McpGatewayToolBrokerChannelName, client => client.ctx === ctx);
 }

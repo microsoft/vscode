@@ -5,11 +5,11 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ObservableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
-import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
 import { InlineCompletionCommand } from '../../../../editor/common/languages.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
 import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../../../editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.js';
@@ -30,9 +30,8 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 	readonly onDidRunAction: Event<string> = this._onDidRunAction.event;
 
 	constructor(
-		private readonly _myEditorObs: ObservableCodeEditor,
+		myEditorObs: ObservableCodeEditor,
 		selection: IObservable<Selection | undefined>,
-		private readonly _hover: ISettableObservable<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>,
 		@IKeybindingService _keybindingService: IKeybindingService,
 		@IHoverService hoverService: HoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -46,7 +45,7 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 		const menu = menuService.createMenu(MenuId.InlineChatEditorAffordance, contextKeyService);
 		const menuObs = observableFromEvent(menu.onDidChange, () => menu.getActions({ renderShortTitle: false }));
 
-		const codeActionController = CodeActionController.get(_myEditorObs.editor);
+		const codeActionController = CodeActionController.get(myEditorObs.editor);
 		const lightBulbObs = codeActionController?.lightBulbState;
 
 		const data = derived<InlineEditsGutterIndicatorData | undefined>(r => {
@@ -93,7 +92,7 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 			return new InlineEditsGutterIndicatorData(
 				gutterMenuData,
 				lineRange,
-				new SimpleInlineSuggestModel(() => { }, () => this._doShowHover()),
+				new SimpleInlineSuggestModel(() => { }, () => { }),
 				undefined, // altAction
 				{ icon }
 			);
@@ -102,36 +101,13 @@ export class InlineChatGutterAffordance extends InlineEditsGutterIndicator {
 		const focusIsInMenu = observableValue<boolean>({}, false);
 
 		super(
-			_myEditorObs, data, constObservable(InlineEditTabAction.Inactive), constObservable(0), constObservable(false), focusIsInMenu,
+			myEditorObs, data, constObservable(InlineEditTabAction.Inactive), constObservable(0), constObservable(false), focusIsInMenu,
 			hoverService, instantiationService, accessibilityService, themeService, userInteractionService
 		);
 
 		this._store.add(menu);
 
-		this._store.add(autorun(r => {
-			const element = _hover.read(r);
-			this._hoverVisible.set(!!element, undefined);
-		}));
 
 		this._store.add(this.onDidCloseWithCommand(commandId => this._onDidRunAction.fire(commandId)));
 	}
-
-	private _doShowHover(): void {
-		if (this._hoverVisible.get()) {
-			return;
-		}
-
-		// Use the icon element from the base class as anchor
-		const iconElement = this._iconRef.element;
-		if (!iconElement) {
-			this._hover.set(undefined, undefined);
-			return;
-		}
-
-		const selection = this._myEditorObs.cursorSelection.get();
-		const direction = selection?.getDirection() ?? SelectionDirection.LTR;
-		const lineNumber = selection?.getPosition().lineNumber ?? 1;
-		this._hover.set({ rect: iconElement.getBoundingClientRect(), above: direction === SelectionDirection.RTL, lineNumber }, undefined);
-	}
-
 }

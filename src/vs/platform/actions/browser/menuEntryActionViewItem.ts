@@ -31,6 +31,7 @@ import { INotificationService } from '../../notification/common/notification.js'
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { defaultSelectBoxStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable, selectBorder } from '../../theme/common/colorRegistry.js';
+import { ClickAnimation, triggerClickAnimation } from '../../../base/browser/ui/animations/animations.js';
 import { isDark } from '../../theme/common/theme.js';
 import { IThemeService } from '../../theme/common/themeService.js';
 import { hasNativeContextMenu } from '../../window/common/window.js';
@@ -173,6 +174,7 @@ export interface IMenuEntryActionViewItemOptions {
 	readonly keybinding?: string | null;
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly keybindingNotRenderedWithLabel?: boolean;
+	readonly onClickAnimation?: ClickAnimation;
 }
 
 export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions = IMenuEntryActionViewItemOptions> extends ActionViewItem {
@@ -206,6 +208,11 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
+
+		if (this._options?.onClickAnimation && this.element && !this._accessibilityService.isMotionReduced()) {
+			const icon = this._menuItemAction.item.icon;
+			triggerClickAnimation(this.element, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
+		}
 
 		try {
 			await this.actionRunner.run(this._commandAction, this._context);

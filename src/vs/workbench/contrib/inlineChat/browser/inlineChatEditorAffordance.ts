@@ -28,7 +28,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ACTION_START } from '../common/inlineChat.js';
+import { ACTION_START, ACTION_ASK_IN_CHAT } from '../common/inlineChat.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 class QuickFixActionViewItem extends MenuEntryActionViewItem {
@@ -105,7 +105,7 @@ class QuickFixActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-class InlineChatStartActionViewItem extends MenuEntryActionViewItem {
+class LabelWithKeybindingActionViewItem extends MenuEntryActionViewItem {
 
 	private readonly _kbLabel: string | undefined;
 
@@ -150,7 +150,7 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 	private readonly _onDidRunAction = this._store.add(new Emitter<string>());
 	readonly onDidRunAction: Event<string> = this._onDidRunAction.event;
 
-	readonly allowEditorOverflow = false;
+	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = false;
 
 	constructor(
@@ -173,8 +173,8 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 				if (action instanceof MenuItemAction && action.id === quickFixCommandId) {
 					return instantiationService.createInstance(QuickFixActionViewItem, action, this._editor);
 				}
-				if (action instanceof MenuItemAction && action.id === ACTION_START) {
-					return instantiationService.createInstance(InlineChatStartActionViewItem, action);
+				if (action instanceof MenuItemAction && (action.id === ACTION_START || action.id === ACTION_ASK_IN_CHAT || action.id === 'inlineChat.fixDiagnostics')) {
+					return instantiationService.createInstance(LabelWithKeybindingActionViewItem, action);
 				}
 				return undefined;
 			}

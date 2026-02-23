@@ -294,6 +294,7 @@ export class ChatImplicitContexts extends Disposable {
 
 	private _values: DisposableMap<ChatImplicitContext, DisposableStore> = this._register(new DisposableMap());
 	private readonly _valuesDisposables: DisposableStore = this._register(new DisposableStore());
+	private _enabled = false;
 
 	setValues(values: ImplicitContextWithSelection[]): void {
 		this._valuesDisposables.clear();
@@ -308,6 +309,7 @@ export class ChatImplicitContexts extends Disposable {
 		for (const value of definedValues) {
 			const implicitContext = new ChatImplicitContext();
 			implicitContext.setValue(value.value, value.isSelection);
+			implicitContext.enabled = this._enabled;
 			const disposableStore = new DisposableStore();
 			disposableStore.add(implicitContext.onDidChangeValue(() => {
 				this._onDidChangeValue.fire();
@@ -327,6 +329,7 @@ export class ChatImplicitContexts extends Disposable {
 	}
 
 	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
 		this.values.forEach((v) => v.enabled = enabled);
 	}
 

@@ -9,7 +9,7 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatAgentAttachmentCapabilities } from '../../common/participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/participants/chatAgents.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -214,6 +214,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
+		return undefined;
+	}
+
+	async createNewChatSessionItem(_chatSessionType: string, _request: IChatAgentRequest, _token: CancellationToken): Promise<IChatSessionItem | undefined> {
 		return undefined;
 	}
 

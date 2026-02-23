@@ -149,6 +149,16 @@
 	text-overflow: ellipsis;
 }
 
+.action-widget .monaco-list-row.action .action-item-badge {
+	padding: 0px 6px;
+	border-radius: 10px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	font-size: 11px;
+	line-height: 18px;
+	flex-shrink: 0;
+}
+
 .action-widget .monaco-list-row.action .monaco-keybinding > .monaco-keybinding-key {
 		background-color: var(--vscode-keybindingLabel-background);
 		color: var(--vscode-keybindingLabel-foreground);
@@ -218,7 +228,7 @@
 }
 
 .action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover{
-	background-color: var(--vscode-list-activeSelectionBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .action-widget-delegate-label {
@@ -226,4 +236,36 @@
 	align-items: center;
 	gap: 4px;
 	font-size: 12px;
+}
+
+/* Filter input */
+.action-widget .action-list-filter {
+	padding: 2px 2px 4px 2px
+}
+
+.action-widget .action-list-filter:first-child {
+	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+.action-widget .action-list-filter:last-child {
+	border-top: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+.action-widget .action-list-filter-input {
+	width: 100%;
+	box-sizing: border-box;
+	padding: 4px 8px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 3px;
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	outline: none;
+}
+
+.action-widget .action-list-filter-input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.action-widget .action-list-filter-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
 }

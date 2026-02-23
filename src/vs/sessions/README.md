@@ -65,7 +65,6 @@ src/vs/sessions/
 │       ├── panelPart.ts               ← Panel part
 │       ├── chatBarPart.ts             ← Chat bar part
 │       ├── projectBarPart.ts          ← Project bar part (folder entries)
-│       ├── editorModal.ts             ← Editor modal overlay
 │       ├── parts.ts                   ← AgenticParts enum
 │       ├── agentSessionsChatInputPart.ts  ← Chat input part adapter
 │       ├── agentSessionsChatWelcomePart.ts ← Chat welcome part

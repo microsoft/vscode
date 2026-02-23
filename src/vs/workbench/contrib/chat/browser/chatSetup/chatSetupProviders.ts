@@ -47,13 +47,14 @@ import { ACTION_START as INLINE_CHAT_START } from '../../../inlineChat/common/in
 import { IPosition } from '../../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult, maybeEnableAuthExtension, refreshTokens } from './chatSetup.js';
 import { ChatSetup } from './chatSetupRunner.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
+import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -197,6 +198,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IOutputService private readonly outputService: IOutputService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -315,6 +318,15 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doForwardRequestToChatWhenReady(requestModel: IChatRequestModel, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatAgentService: IChatAgentService, chatWidgetService: IChatWidgetService, languageModelToolsService: ILanguageModelToolsService): Promise<void> {
+
+		// Ensure auth extension is enabled before waiting for chat readiness.
+		// This must run before the readiness event listeners are set up because
+		// updateRunningExtensions restarts all extension hosts.
+		const authExtensionReEnabled = await maybeEnableAuthExtension(this.extensionsWorkbenchService, this.logService);
+		if (authExtensionReEnabled) {
+			refreshTokens(this.commandService);
+		}
+
 		const widget = chatWidgetService.getWidgetBySessionResource(requestModel.session.sessionResource);
 		const modeInfo = widget?.input.currentModeInfo;
 

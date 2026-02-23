@@ -15,6 +15,7 @@
 	min-height: var(--vscode-inline-chat-affordance-height);
 	line-height: var(--vscode-inline-chat-affordance-height);
 	border: 1px solid var(--vscode-input-border, transparent);
+	z-index: 100;
 }
 
 .inline-chat-content-widget .action-label.codicon.codicon-light-bulb,

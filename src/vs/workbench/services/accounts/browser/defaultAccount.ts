@@ -28,8 +28,10 @@ import { distinct } from '../../../../base/common/arrays.js';
 import { equals } from '../../../../base/common/objects.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -852,5 +854,18 @@ class DefaultAccountProviderContribution extends Disposable implements IWorkbenc
 		defaultAccountService.setDefaultAccountProvider(defaultAccountProvider);
 	}
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: DEFAULT_ACCOUNT_SIGN_IN_COMMAND,
+			title: localize2('signIn', 'Sign In'),
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		await defaultAccountService.signIn();
+	}
+});
 
 registerWorkbenchContribution2(DefaultAccountProviderContribution.ID, DefaultAccountProviderContribution, WorkbenchPhase.BlockStartup);

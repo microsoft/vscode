@@ -9,7 +9,7 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append, EventHelper } from '../../../../../base/browser/dom.js';
-import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -40,6 +40,7 @@ export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOption
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
 	readonly source: string;
+	readonly disableHover?: boolean;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
@@ -243,10 +244,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const startOfToday = new Date().setHours(0, 0, 0, 0);
 
 		return this.agentSessionsService.model.sessions.some(session =>
-			!session.isArchived() && (
-				isSessionInProgressStatus(session.status) ||
-				getAgentSessionTime(session.timing) >= startOfToday
-			)
+			!session.isArchived() &&
+			getAgentSessionTime(session.timing) >= startOfToday
 		);
 	}
 
@@ -302,7 +301,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	private async showAgentSessionContextMenu(session: IAgentSession, anchor: HTMLElement | IMouseEvent): Promise<void> {
-		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
+		this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
 
 		const contextOverlay: Array<[string, boolean | string]> = [];
 		contextOverlay.push([ChatContextKeys.isArchivedAgentSession.key, session.isArchived()]);

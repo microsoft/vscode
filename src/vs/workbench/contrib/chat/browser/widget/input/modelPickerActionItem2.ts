@@ -15,7 +15,6 @@ import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ModelPickerWidget } from './chatModelPicker.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
@@ -37,12 +36,10 @@ export class EnhancedModelPickerActionItem extends BaseActionViewItem {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super(undefined, action);
 
-		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget));
-		this._pickerWidget.setModels(delegate.getModels());
+		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
 
 		// Sync delegate → widget when model list or selection changes externally
@@ -53,16 +50,7 @@ export class EnhancedModelPickerActionItem extends BaseActionViewItem {
 		}));
 
 		// Sync widget → delegate when user picks a model
-		this._register(this._pickerWidget.onDidChangeSelection(model => {
-			delegate.setModel(model);
-		}));
-
-		// Update models when language models change
-		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
-			this._pickerWidget.setModels(delegate.getModels());
-		}));
-
-		// Update badge when new models appear
+		this._register(this._pickerWidget.onDidChangeSelection(model => delegate.setModel(model)));
 	}
 
 	override render(container: HTMLElement): void {

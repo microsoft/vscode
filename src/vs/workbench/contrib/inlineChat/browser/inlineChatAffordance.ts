@@ -44,7 +44,7 @@ export class InlineChatAffordance extends Disposable {
 	readonly #editor: ICodeEditor;
 	readonly #inputWidget: InlineChatInputWidget;
 	readonly #instantiationService: IInstantiationService;
-	readonly #menuData = observableValue<{ rect: DOMRect; above: boolean; lineNumber: number } | undefined>(this, undefined);
+	readonly #menuData = observableValue<{ rect: DOMRect; above: boolean; lineNumber: number; placeholder: string } | undefined>(this, undefined);
 
 	constructor(
 		editor: ICodeEditor,
@@ -118,7 +118,6 @@ export class InlineChatAffordance extends Disposable {
 			InlineChatGutterAffordance,
 			editorObs,
 			derived(r => affordance.read(r) === 'gutter' ? selectionData.read(r) : undefined),
-			this.#menuData
 		));
 
 		const editorAffordance = this.#instantiationService.createInstance(
@@ -157,7 +156,7 @@ export class InlineChatAffordance extends Disposable {
 			const left = data.rect.left - editorRect.left;
 
 			// Show the overlay widget
-			this.#inputWidget.show(data.lineNumber, left, data.above);
+			this.#inputWidget.show(data.lineNumber, left, data.above, data.placeholder);
 		}));
 
 		this._store.add(autorun(r => {
@@ -168,7 +167,7 @@ export class InlineChatAffordance extends Disposable {
 		}));
 	}
 
-	async showMenuAtSelection() {
+	async showMenuAtSelection(placeholder: string): Promise<void> {
 		assertType(this.#editor.hasModel());
 
 		const direction = this.#editor.getSelection().getDirection();
@@ -182,7 +181,8 @@ export class InlineChatAffordance extends Disposable {
 		this.#menuData.set({
 			rect: new DOMRect(x, y, 0, scrolledPosition.height),
 			above: direction === SelectionDirection.RTL,
-			lineNumber: position.lineNumber
+			lineNumber: position.lineNumber,
+			placeholder
 		}, undefined);
 
 		await waitForState(this.#inputWidget.position, pos => pos === null);

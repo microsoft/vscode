@@ -116,7 +116,7 @@ const enum WorkingMessageCategory {
 	Tool = 'tool'
 }
 
-const thinkingMessages = [
+const defaultThinkingMessages = [
 	localize('chat.thinking.thinking.1', 'Thinking'),
 	localize('chat.thinking.thinking.2', 'Reasoning'),
 	localize('chat.thinking.thinking.3', 'Considering'),
@@ -161,6 +161,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private appendedItemCount: number = 0;
 	private isActive: boolean = true;
 	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
+	private allThinkingParts: IChatThinkingPart[] = [];
 	private hookCount: number = 0;
 	private singleItemInfo: { element: HTMLElement; originalParent: HTMLElement; originalNextSibling: Node | null } | undefined;
 	private lazyItems: ILazyItem[] = [];
@@ -181,18 +182,42 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private getRandomWorkingMessage(category: WorkingMessageCategory = WorkingMessageCategory.Tool): string {
 		let pool = this.availableMessagesByCategory.get(category);
 		if (!pool || pool.length === 0) {
+			let defaults: string[];
 			switch (category) {
 				case WorkingMessageCategory.Thinking:
-					pool = [...thinkingMessages];
+					defaults = [...defaultThinkingMessages];
 					break;
 				case WorkingMessageCategory.Terminal:
-					pool = [...terminalMessages];
+					defaults = [...terminalMessages];
 					break;
 				case WorkingMessageCategory.Tool:
 				default:
-					pool = [...toolMessages];
+					defaults = [...toolMessages];
 					break;
 			}
+
+			// Read configured phrases from the single setting
+			const config = this.configurationService.getValue<{ mode?: 'replace' | 'append'; phrases?: string[] }>(ChatConfiguration.ThinkingPhrases);
+			const customPhrases = Array.isArray(config?.phrases)
+				? config.phrases
+					.filter((phrase): phrase is string => typeof phrase === 'string')
+					.map(phrase => phrase.trim())
+					.filter(phrase => phrase.length > 0)
+				: [];
+			const mode = config?.mode === 'replace' ? 'replace' : 'append';
+
+			if (customPhrases.length > 0) {
+				if (mode === 'replace') {
+					// Replace mode: use only custom phrases for all categories
+					pool = [...customPhrases];
+				} else {
+					// Append mode: add custom phrases to defaults for this category
+					pool = [...defaults, ...customPhrases];
+				}
+			} else {
+				pool = defaults;
+			}
+
 			this.availableMessagesByCategory.set(category, pool);
 		}
 		const index = Math.floor(Math.random() * pool.length);
@@ -218,6 +243,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		this.id = content.id;
 		this.content = content;
+		this.allThinkingParts.push(content);
 		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
@@ -722,18 +748,36 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		const existingToolTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle;
-		if (existingToolTitle) {
-			this.currentTitle = existingToolTitle;
-			this.content.generatedTitle = existingToolTitle;
-			super.setTitle(existingToolTitle);
+		const existingTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle
+			?? this.allThinkingParts.find(t => t.generatedTitle)?.generatedTitle;
+		if (existingTitle) {
+			this.currentTitle = existingTitle;
+			this.content.generatedTitle = existingTitle;
+			this.setGeneratedTitleOnAllParts(existingTitle);
+			super.setTitle(existingTitle);
 			return;
 		}
 
 		// case where we only have one item (tool or edit) in the thinking container and no thinking parts, we want to move it back to its original position
-		if (this.appendedItemCount === 1 && this.currentThinkingValue.trim() === '' && this.singleItemInfo) {
-			this.restoreSingleItemToOriginalPosition();
-			return;
+		if (this.appendedItemCount === 1 && this.currentThinkingValue.trim() === '') {
+			// If singleItemInfo wasn't set (item was lazy/deferred), materialize it now
+			if (!this.singleItemInfo) {
+				const lazyItem = this.lazyItems.find(item => item.kind === 'tool' && item.originalParent);
+				if (lazyItem && lazyItem.kind === 'tool') {
+					const result = lazyItem.lazy.value;
+					this.singleItemInfo = {
+						element: result.domNode,
+						originalParent: lazyItem.originalParent!,
+						originalNextSibling: this.domNode
+					};
+					if (result.disposable) {
+						this._register(result.disposable);
+					}
+				}
+			}
+			if (this.singleItemInfo && this.restoreSingleItemToOriginalPosition()) {
+				return;
+			}
 		}
 
 		// if exactly one actual extracted title and no tool invocations, use that as the final title.
@@ -741,6 +785,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const title = this.extractedTitles[0];
 			this.currentTitle = title;
 			this.content.generatedTitle = title;
+			this.setGeneratedTitleOnAllParts(title);
 			super.setTitle(title);
 			return;
 		}
@@ -754,9 +799,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.generateTitleViaLLM();
 	}
 
-	private setGeneratedTitleOnToolInvocations(title: string): void {
+	private setGeneratedTitleOnAllParts(title: string): void {
 		for (const toolInvocation of this.toolInvocations) {
 			toolInvocation.generatedTitle = title;
+		}
+		for (const thinkingPart of this.allThinkingParts) {
+			thinkingPart.generatedTitle = title;
 		}
 	}
 
@@ -917,7 +965,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					this._collapseButton.label = generatedTitle;
 				}
 				this.content.generatedTitle = generatedTitle;
-				this.setGeneratedTitleOnToolInvocations(generatedTitle);
+				this.setGeneratedTitleOnAllParts(generatedTitle);
 				return;
 			}
 		} catch (error) {
@@ -930,9 +978,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.setFallbackTitle();
 	}
 
-	private restoreSingleItemToOriginalPosition(): void {
+	private restoreSingleItemToOriginalPosition(): boolean {
 		if (!this.singleItemInfo) {
-			return;
+			return false;
 		}
 
 		const { element, originalParent, originalNextSibling } = this.singleItemInfo;
@@ -940,7 +988,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		// don't restore it to original position - it contains multiple rendered elements
 		if (element.childElementCount > 1) {
 			this.singleItemInfo = undefined;
-			return;
+			return false;
 		}
 
 		if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
@@ -951,6 +999,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		hide(this.domNode);
 		this.singleItemInfo = undefined;
+		return true;
 	}
 
 	private setFallbackTitle(): void {
@@ -1343,6 +1392,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			return;
 		}
 		this.appendedItemCount++;
+		this.allThinkingParts.push(content);
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		if (content.value) {
 			// Use lazy rendering when collapsed to preserve order with tool items

@@ -129,6 +129,16 @@ export class ChatSlashCommandsContribution extends Disposable {
 			await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'fork',
+			detail: nls.localize('fork', "Fork conversation into a new chat session"),
+			sortText: 'z2_fork',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'rename',
 			detail: nls.localize('rename', "Rename this chat"),
 			sortText: 'z2_rename',

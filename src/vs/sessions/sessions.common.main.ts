@@ -206,7 +206,7 @@ import '../workbench/contrib/speech/browser/speech.contribution.js';
 
 // Chat
 import '../workbench/contrib/chat/browser/chat.contribution.js';
-import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
+//import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
 import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
@@ -247,6 +247,9 @@ import '../workbench/contrib/searchEditor/browser/searchEditor.contribution.js';
 
 // Sash
 import '../workbench/contrib/sash/browser/sash.contribution.js';
+
+// Git
+import '../workbench/contrib/git/browser/git.contributions.js';
 
 // SCM
 import '../workbench/contrib/scm/browser/scm.contribution.js';

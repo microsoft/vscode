@@ -9,6 +9,7 @@ import './media/sessionsViewPane.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -103,7 +104,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
 		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
 		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.activeSessionService.openNewSession()));
+		this._register(newSessionButton.onDidClick(() => this.activeSessionService.openNewSessionView()));
 
 		// Keybinding hint inside the button
 		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT);
@@ -118,6 +119,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			source: 'agentSessionsViewPane',
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+			disableHover: true,
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => true,
 			collapseOlderSections: () => true,
@@ -220,6 +222,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		updateHeaderTotalCount();
 
 		// Toggle collapse on header click
+		const transitionListener = this._register(new MutableDisposable());
 		const toggleCollapse = () => {
 			const collapsed = container.classList.toggle('collapsed');
 			header.classList.toggle('collapsed', collapsed);
@@ -229,14 +232,13 @@ export class AgenticSessionsViewPane extends ViewPane {
 			chevron.classList.add(...ThemeIcon.asClassNameArray(collapsed ? Codicon.chevronRight : Codicon.chevronDown));
 
 			// Re-layout after the transition so sessions control gets the right height
-			const onTransitionEnd = () => {
-				toolbarContainer.removeEventListener('transitionend', onTransitionEnd);
+			transitionListener.value = DOM.addDisposableListener(toolbarContainer, 'transitionend', () => {
+				transitionListener.clear();
 				if (this.viewPaneContainer) {
 					const { offsetHeight, offsetWidth } = this.viewPaneContainer;
 					this.layoutBody(offsetHeight, offsetWidth);
 				}
-			};
-			toolbarContainer.addEventListener('transitionend', onTransitionEnd);
+			});
 		};
 
 		this._register(headerButton.onDidClick(() => toggleCollapse()));
@@ -301,12 +303,8 @@ registerAction2(class RefreshAgentSessionsViewerAction extends Action2 {
 			id: 'sessionsView.refresh',
 			title: localize2('refresh', "Refresh Agent Sessions"),
 			icon: Codicon.refresh,
-			menu: [{
-				id: MenuId.ViewTitle,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.equals('view', SessionsViewId),
-			}],
+			f1: true,
+			category: localize2('sessionsViewCategory', "Agent Sessions"),
 		});
 	}
 	override run(accessor: ServicesAccessor) {

@@ -16,7 +16,6 @@ import { appendUpdateMenuItems as registerUpdateMenuItems, CONTEXT_UPDATE_STATE 
 import { Menus } from '../../../browser/menus.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { $, append } from '../../../../base/browser/dom.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -136,11 +135,9 @@ class AccountWidget extends ActionViewItem {
 		fillInActionBarActions(menu.getActions(), actions);
 		menu.dispose();
 
-		const rect = anchor.getBoundingClientRect();
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: rect.right, y: rect.top }),
+			getAnchor: () => anchor,
 			getActions: () => actions,
-			anchorAlignment: AnchorAlignment.LEFT,
 		});
 	}
 
@@ -310,7 +307,6 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 						when: ContextKeyExpr.or(
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Ready),
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.AvailableForDownload),
-							CONTEXT_UPDATE_STATE.isEqualTo(StateType.CheckingForUpdates),
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloading),
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Downloaded),
 							CONTEXT_UPDATE_STATE.isEqualTo(StateType.Updating),
