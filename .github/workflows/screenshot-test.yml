@@ -12,6 +12,7 @@ permissions:
   contents: read
   pull-requests: write
   checks: write
+  statuses: write
 
 concurrency:
   group: screenshots-${{ github.event.pull_request.number || github.sha }}
@@ -109,6 +110,12 @@ jobs:
           {"details_url":"$DETAILS_URL","output":{"title":"$TITLE","summary":"$TITLE"}}
           EOF
           fi
+
+          DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json"
+          gh api "repos/${{ github.repository }}/statuses/$SHA" \
+            --input - <<EOF
+          {"state":"success","target_url":"$DETAILS_URL","description":"$TITLE","context":"screenshots / explorer"}
+          EOF
 
       - name: Post summary
         run: |
