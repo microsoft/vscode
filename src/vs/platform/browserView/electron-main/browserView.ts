@@ -175,10 +175,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		// Favicon events
 		webContents.on('page-favicon-updated', async (_event, favicons) => {
-			if (!favicons || favicons.length === 0) {
-				return;
-			}
-
 			// try each url in order until one works
 			for (const url of favicons) {
 				if (!this._faviconRequestCache.has(url)) {
