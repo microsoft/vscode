@@ -291,7 +291,7 @@
             "key": "git.addAICoAuthor",
             "name": "GitAddAICoAuthor",
             "category": "InteractiveSession",
-            "minimumVersion": "1.102",
+            "minimumVersion": "1.110",
             "localization": {
                 "description": {
                     "key": "gitAddAICoAuthor",
