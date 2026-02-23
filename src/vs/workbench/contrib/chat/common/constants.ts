@@ -56,6 +56,7 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	AICustomizationMenuEnabled = 'chat.aiCustomizationMenu.enabled',
+	AttachmentBarAlwaysShow = 'chat.attachmentBar.alwaysShow',
 }
 
 /**

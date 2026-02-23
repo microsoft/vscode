@@ -484,7 +484,7 @@ export class AttachContextAction extends Action2 {
 				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
-				order: 101
+				order: -1
 			}, {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inQuickChat.negate(),
