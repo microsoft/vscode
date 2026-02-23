@@ -68,6 +68,7 @@ export abstract class InlineChatRunOptions {
 	position?: IPosition;
 	modelSelector?: ILanguageModelChatSelector;
 	resolveOnResponse?: boolean;
+	attachDiagnostics?: boolean;
 
 	static isInlineChatRunOptions(options: unknown): options is InlineChatRunOptions {
 
@@ -75,7 +76,7 @@ export abstract class InlineChatRunOptions {
 			return false;
 		}
 
-		const { initialSelection, initialRange, message, autoSend, position, attachments, modelSelector, resolveOnResponse } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, attachments, modelSelector, resolveOnResponse, attachDiagnostics } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -85,6 +86,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
 			|| typeof modelSelector !== 'undefined' && !isILanguageModelChatSelector(modelSelector)
 			|| typeof resolveOnResponse !== 'undefined' && typeof resolveOnResponse !== 'boolean'
+			|| typeof attachDiagnostics !== 'undefined' && typeof attachDiagnostics !== 'boolean'
 		) {
 			return false;
 		}
@@ -506,22 +508,24 @@ export class InlineChatController implements IEditorContribution {
 		try {
 			await this._applyModelDefaults(session, sessionStore);
 
-			// ADD diagnostics
-			const entries: IChatRequestVariableEntry[] = [];
-			for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
-				if (range.intersectRanges(this._editor.getSelection())) {
-					const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
-					entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
+			// ADD diagnostics (only when explicitly requested)
+			if (arg?.attachDiagnostics) {
+				const entries: IChatRequestVariableEntry[] = [];
+				for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
+					if (range.intersectRanges(this._editor.getSelection())) {
+						const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
+						entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
+					}
 				}
-			}
-			if (entries.length > 0) {
-				this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
-				this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
-					? localize('fixN', "Fix the attached problems")
-					: localize('fix1', "Fix the attached problem"),
-					true
-				);
-				this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+				if (entries.length > 0) {
+					this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
+					const msg = entries.length > 1
+						? localize('fixN', "Fix the attached problems")
+						: localize('fix1', "Fix the attached problem");
+					this._zone.value.widget.chatWidget.input.setValue(msg, true);
+					arg.message = msg;
+					this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+				}
 			}
 
 			// Check args

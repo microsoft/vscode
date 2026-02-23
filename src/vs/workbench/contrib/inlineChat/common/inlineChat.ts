@@ -22,6 +22,7 @@ export const enum InlineChatConfigKeys {
 	DefaultModel = 'inlineChat.defaultModel',
 	Affordance = 'inlineChat.affordance',
 	RenderMode = 'inlineChat.renderMode',
+	FixDiagnostics = 'inlineChat.fixDiagnostics',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -83,6 +84,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				mode: 'auto'
 			},
 			tags: ['experimental']
+		},
+		[InlineChatConfigKeys.FixDiagnostics]: {
+			description: localize('fixDiagnostics', "Controls whether the Fix action is shown for diagnostics in the editor."),
+			default: false,
+			type: 'boolean',
+			experiment: {
+				mode: 'auto'
+			},
+			tags: ['experimental']
 		}
 	}
 });
@@ -130,6 +140,7 @@ export const CTX_INLINE_CHAT_V2_ENABLED = ContextKeyExpr.or(
 );
 
 export const CTX_HOVER_MODE = ContextKeyExpr.equals('config.inlineChat.renderMode', 'hover');
+export const CTX_FIX_DIAGNOSTICS_ENABLED = ContextKeyExpr.equals('config.inlineChat.fixDiagnostics', true);
 
 // --- (selected) action identifier
 

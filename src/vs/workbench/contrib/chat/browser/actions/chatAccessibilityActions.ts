@@ -31,7 +31,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			f1: true,
 			keybinding: {
-				weight: KeybindingWeight.ExternalExtension + 1,
+				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyA | KeyMod.Shift,
 				when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ChatContextKeys.Editing.hasQuestionCarousel.negate())
 			}

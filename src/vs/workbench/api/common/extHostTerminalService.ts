@@ -29,7 +29,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { hasKey } from '../../../base/common/types.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -862,11 +862,18 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 
-		if (profile.options.titleTemplate !== undefined) {
-			checkProposedApiEnabled(profileProviderData.extension, 'terminalTitle');
+		const hasTerminalTitleProposal = isProposedApiEnabled(profileProviderData.extension, 'terminalTitle');
+		if (!hasTerminalTitleProposal && profile.options.titleTemplate !== undefined) {
+			console.error(`[${profileProviderData.extension.identifier.value}] \`titleTemplate\` returned from TerminalProfileProvider is ignored because the \`terminalTitle\` proposed API is not enabled.`);
+			profile = { options: { ...profile.options, titleTemplate: undefined } };
+		}
+		// options.titleTemplate is not explicitly stripped here because the profileOptions
+		// assignment below only applies it when hasTerminalTitleProposal is true.
+		if (!hasTerminalTitleProposal && options.titleTemplate !== undefined) {
+			console.error(`[${profileProviderData.extension.identifier.value}] \`titleTemplate\` passed to createContributedTerminalProfile is ignored because the \`terminalTitle\` proposed API is not enabled.`);
 		}
 
-		const profileOptions = options.titleTemplate && !profile.options.titleTemplate
+		const profileOptions = hasTerminalTitleProposal && options.titleTemplate && !profile.options.titleTemplate
 			? { ...profile.options, titleTemplate: options.titleTemplate }
 			: profile.options;
 

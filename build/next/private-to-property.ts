@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as ts from 'typescript';
+import { type RawSourceMap, type Mapping, SourceMapConsumer, SourceMapGenerator } from 'source-map';
 
 /**
  * Converts native ES private fields (`#foo`) into regular JavaScript properties with short,
@@ -52,12 +53,20 @@ interface Edit {
 // Private name → replacement name per class (identified by position in file)
 type ClassScope = Map<string, string>;
 
+export interface TextEdit {
+	readonly start: number;
+	readonly end: number;
+	readonly newText: string;
+}
+
 export interface ConvertPrivateFieldsResult {
 	readonly code: string;
 	readonly classCount: number;
 	readonly fieldCount: number;
 	readonly editCount: number;
 	readonly elapsed: number;
+	/** Sorted edits applied to the original code, for source map adjustment. */
+	readonly edits: readonly TextEdit[];
 }
 
 /**
@@ -72,7 +81,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 	const t1 = Date.now();
 	// Quick bail-out: if there are no `#` characters, nothing to do
 	if (!code.includes('#')) {
-		return { code, classCount: 0, fieldCount: 0, editCount: 0, elapsed: Date.now() - t1 };
+		return { code, classCount: 0, fieldCount: 0, editCount: 0, elapsed: Date.now() - t1, edits: [] };
 	}
 
 	const sourceFile = ts.createSourceFile(filename, code, ts.ScriptTarget.ESNext, false, ts.ScriptKind.JS);
@@ -92,7 +101,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 	visit(sourceFile);
 
 	if (edits.length === 0) {
-		return { code, classCount: 0, fieldCount: 0, editCount: 0, elapsed: Date.now() - t1 };
+		return { code, classCount: 0, fieldCount: 0, editCount: 0, elapsed: Date.now() - t1, edits: [] };
 	}
 
 	// Apply edits using substring concatenation (O(N+K), not O(N*K) like char-array splice)
@@ -105,7 +114,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		lastEnd = edit.end;
 	}
 	parts.push(code.substring(lastEnd));
-	return { code: parts.join(''), classCount, fieldCount: nameCounter, editCount: edits.length, elapsed: Date.now() - t1 };
+	return { code: parts.join(''), classCount, fieldCount: nameCounter, editCount: edits.length, elapsed: Date.now() - t1, edits };
 
 	// --- AST walking ---
 
@@ -188,4 +197,111 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		}
 		return undefined;
 	}
+}
+
+/**
+ * Adjusts a source map to account for text edits applied to the generated JS.
+ *
+ * Each edit replaced a span `[start, end)` in the original generated JS with `newText`.
+ * This shifts all subsequent columns on the same line. The source map's generated
+ * columns are updated so they still point to the correct original positions.
+ *
+ * @param sourceMapJson The parsed source map JSON object.
+ * @param originalCode The original generated JS (before edits were applied).
+ * @param edits The sorted edits that were applied.
+ * @returns A new source map JSON object with adjusted generated columns.
+ */
+export function adjustSourceMap(
+	sourceMapJson: RawSourceMap,
+	originalCode: string,
+	edits: readonly TextEdit[]
+): RawSourceMap {
+	if (edits.length === 0) {
+		return sourceMapJson;
+	}
+
+	// Build a line-offset table for the original code to convert byte offsets to line/column
+	const lineStarts: number[] = [0];
+	for (let i = 0; i < originalCode.length; i++) {
+		if (originalCode.charCodeAt(i) === 10 /* \n */) {
+			lineStarts.push(i + 1);
+		}
+	}
+
+	function offsetToLineCol(offset: number): { line: number; col: number } {
+		let lo = 0, hi = lineStarts.length - 1;
+		while (lo < hi) {
+			const mid = (lo + hi + 1) >> 1;
+			if (lineStarts[mid] <= offset) {
+				lo = mid;
+			} else {
+				hi = mid - 1;
+			}
+		}
+		return { line: lo, col: offset - lineStarts[lo] };
+	}
+
+	// Convert edits from byte offsets to per-line column shifts
+	interface LineEdit { col: number; origLen: number; newLen: number }
+	const editsByLine = new Map<number, LineEdit[]>();
+	for (const edit of edits) {
+		const pos = offsetToLineCol(edit.start);
+		const origLen = edit.end - edit.start;
+		let arr = editsByLine.get(pos.line);
+		if (!arr) {
+			arr = [];
+			editsByLine.set(pos.line, arr);
+		}
+		arr.push({ col: pos.col, origLen, newLen: edit.newText.length });
+	}
+
+	// Use source-map library to read, adjust, and write
+	const consumer = new SourceMapConsumer(sourceMapJson);
+	const generator = new SourceMapGenerator({ file: sourceMapJson.file });
+
+	// Copy sourcesContent
+	for (let i = 0; i < sourceMapJson.sources.length; i++) {
+		const content = sourceMapJson.sourcesContent?.[i];
+		if (content !== null && content !== undefined) {
+			generator.setSourceContent(sourceMapJson.sources[i], content);
+		}
+	}
+
+	// Walk every mapping, adjust the generated column, and add to the new generator
+	consumer.eachMapping(mapping => {
+		const lineEdits = editsByLine.get(mapping.generatedLine - 1); // 0-based for our data
+		const adjustedCol = adjustColumn(mapping.generatedColumn, lineEdits);
+
+		// Some mappings may be unmapped (no original position/source) - skip those.
+		if (mapping.source !== null && mapping.originalLine !== null && mapping.originalColumn !== null) {
+			const newMapping: Mapping = {
+				generated: { line: mapping.generatedLine, column: adjustedCol },
+				original: { line: mapping.originalLine, column: mapping.originalColumn },
+				source: mapping.source,
+			};
+			if (mapping.name !== null) {
+				newMapping.name = mapping.name;
+			}
+			generator.addMapping(newMapping);
+		}
+	});
+
+	return JSON.parse(generator.toString());
+}
+
+function adjustColumn(col: number, lineEdits: { col: number; origLen: number; newLen: number }[] | undefined): number {
+	if (!lineEdits) {
+		return col;
+	}
+	let shift = 0;
+	for (const edit of lineEdits) {
+		if (edit.col + edit.origLen <= col) {
+			shift += edit.newLen - edit.origLen;
+		} else if (edit.col < col) {
+			return edit.col + shift;
+		} else {
+			break;
+		}
+	}
+	return col + shift;
 }

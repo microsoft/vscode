@@ -37,6 +37,9 @@ export class BranchPicker extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<string | undefined>());
 	readonly onDidChange: Event<string | undefined> = this._onDidChange.event;
 
+	private readonly _onDidChangeLoading = this._register(new Emitter<boolean>());
+	readonly onDidChangeLoading: Event<boolean> = this._onDidChangeLoading.event;
+
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _slotElement: HTMLElement | undefined;
 	private _triggerElement: HTMLElement | undefined;
@@ -68,26 +71,32 @@ export class BranchPicker extends Disposable {
 
 		if (!repository) {
 			this._newSession?.setBranch(undefined);
+			this._setLoading(false);
 			this._updateTriggerLabel();
 			return;
 		}
 
-		const refs = await repository.getRefs({ pattern: 'refs/heads' });
-		this._branches = refs
-			.map(ref => ref.name)
-			.filter((name): name is string => !!name)
-			.filter(name => !name.includes(COPILOT_WORKTREE_PATTERN));
+		this._setLoading(true);
 
-		// Select active branch, main, master, or the first branch by default
-		const defaultBranch = this._branches.find(b => b === repository.state.get().HEAD?.name)
-			?? this._branches.find(b => b === 'main')
-			?? this._branches.find(b => b === 'master')
-			?? this._branches[0];
-		if (defaultBranch) {
-			this._selectBranch(defaultBranch);
+		try {
+			const refs = await repository.getRefs({ pattern: 'refs/heads' });
+			this._branches = refs
+				.map(ref => ref.name)
+				.filter((name): name is string => !!name)
+				.filter(name => !name.includes(COPILOT_WORKTREE_PATTERN));
+
+			// Select active branch, main, master, or the first branch by default
+			const defaultBranch = this._branches.find(b => b === repository.state.get().HEAD?.name)
+				?? this._branches.find(b => b === 'main')
+				?? this._branches.find(b => b === 'master')
+				?? this._branches[0];
+			if (defaultBranch) {
+				this._selectBranch(defaultBranch);
+			}
+		} finally {
+			this._setLoading(false);
+			this._updateTriggerLabel();
 		}
-
-		this._updateTriggerLabel();
 	}
 
 	/**
@@ -194,5 +203,9 @@ export class BranchPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 		this._slotElement?.classList.toggle('disabled', isDisabled);
+	}
+
+	private _setLoading(loading: boolean): void {
+		this._onDidChangeLoading.fire(loading);
 	}
 }

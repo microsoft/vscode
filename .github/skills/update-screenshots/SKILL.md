@@ -38,17 +38,17 @@ Pick the most recent run that has a `screenshot-diff` artifact (runs where scree
 gh run download <run-id> --name screenshot-diff --dir .tmp/screenshot-diff
 ```
 
-This downloads:
-- `test/componentFixtures/.screenshots/current/` — the CI-captured screenshots
-- `test/componentFixtures/.screenshots/report.json` — structured diff report
-- `test/componentFixtures/.screenshots/report.md` — human-readable diff report
+The artifact is uploaded from two paths (`test/componentFixtures/.screenshots/current/` and `test/componentFixtures/.screenshots/report/`), but GitHub Actions strips the common prefix. So the downloaded structure is:
+- `current/` — the CI-captured screenshots (e.g. `current/baseUI/Buttons/Dark.png`)
+- `report/report.json` — structured diff report
+- `report/report.md` — human-readable diff report
 
 ### 3. Review the changes
 
 Show the user what changed by reading the markdown report:
 
 ```bash
-cat .tmp/screenshot-diff/test/componentFixtures/.screenshots/report.md
+cat .tmp/screenshot-diff/report/report.md
 ```
 
 ### 4. Copy CI screenshots to baseline
@@ -56,7 +56,7 @@ cat .tmp/screenshot-diff/test/componentFixtures/.screenshots/report.md
 ```bash
 # Remove old baselines and replace with CI screenshots
 rm -rf test/componentFixtures/.screenshots/baseline/
-cp -r .tmp/screenshot-diff/test/componentFixtures/.screenshots/current/ test/componentFixtures/.screenshots/baseline/
+cp -r .tmp/screenshot-diff/current/ test/componentFixtures/.screenshots/baseline/
 ```
 
 ### 5. Clean up
