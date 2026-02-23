@@ -107,6 +107,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		// TMPDIR must be set as environment variable before the command
 		// Use -c to pass the command string directly (like sh -c), avoiding argument parsing issues
 		const wrappedCommand = `PATH=$PATH:${dirname(this._rgPath)} "${this._execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.path} --settings "${this._sandboxConfigPath}" -c "${command}"`;
+		this._logService.info('TerminalSandboxService: Terminal command is wrapped in sandboxed mode');
 		if (this._remoteEnvDetails) {
 			return `${wrappedCommand}`;
 		}

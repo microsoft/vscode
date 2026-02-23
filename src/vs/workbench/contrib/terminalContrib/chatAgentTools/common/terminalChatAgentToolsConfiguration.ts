@@ -517,7 +517,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('terminalSandbox.enabledSetting', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
 		type: 'boolean',
 		default: false,
-		tags: ['experimental'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxNetwork]: {
@@ -547,7 +546,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			deniedDomains: [],
 			allowTrustedDomains: false
 		},
-		tags: ['experimental'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem]: {
@@ -578,7 +576,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: ['.'],
 			denyWrite: []
 		},
-		tags: ['experimental'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem]: {
@@ -609,7 +606,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: ['.'],
 			denyWrite: []
 		},
-		tags: ['experimental'],
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.PreventShellHistory]: {
