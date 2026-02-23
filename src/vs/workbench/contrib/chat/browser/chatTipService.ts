@@ -182,7 +182,10 @@ const TIP_CATALOG: ITipDefinition[] = [
 			'tip.createSlashCommands',
 			"Tip: Use [/create-instruction](command:workbench.action.chat.generateInstruction), [/create-prompt](command:workbench.action.chat.generatePrompt), [/create-agent](command:workbench.action.chat.generateAgent), or [/create-skill](command:workbench.action.chat.generateSkill) to generate reusable agent customization files."
 		),
-		when: ChatContextKeys.hasUsedCreateSlashCommands.negate(),
+		when: ContextKeyExpr.and(
+			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+			ChatContextKeys.hasUsedCreateSlashCommands.negate(),
+		),
 		enabledCommands: [
 			'workbench.action.chat.generateInstruction',
 			'workbench.action.chat.generatePrompt',
