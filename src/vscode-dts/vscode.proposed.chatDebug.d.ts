@@ -138,11 +138,6 @@ declare module 'vscode' {
 		totalTokens?: number;
 
 		/**
-		 * The estimated cost of this model turn, in US dollars.
-		 */
-		cost?: number;
-
-		/**
 		 * How long the model turn took to complete, in milliseconds.
 		 */
 		durationInMillis?: number;
