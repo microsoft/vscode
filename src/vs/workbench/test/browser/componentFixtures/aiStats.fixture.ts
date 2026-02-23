@@ -72,7 +72,7 @@ interface RenderAiStatsOptions extends ComponentFixtureContext {
 	data: IAiStatsHoverData;
 }
 
-function renderAiStatsHover({ container, disposableStore, data }: RenderAiStatsOptions): HTMLElement {
+function renderAiStatsHover({ container, disposableStore, data }: RenderAiStatsOptions): void {
 	container.style.width = '320px';
 	container.style.padding = '8px';
 	container.style.backgroundColor = 'var(--vscode-editorHoverWidget-background)';
@@ -87,6 +87,4 @@ function renderAiStatsHover({ container, disposableStore, data }: RenderAiStatsO
 
 	const elem = hover.keepUpdated(disposableStore).element;
 	container.appendChild(elem);
-
-	return container;
 }

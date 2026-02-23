@@ -357,6 +357,13 @@
 			"problemMatcher": [
 				"$tsc"
 			]
+		},
+		{
+			"label": "Launch Component Explorer",
+			"type": "shell",
+			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json",
+			"isBackground": true,
+			"problemMatcher": []
 		}
 	]
 }

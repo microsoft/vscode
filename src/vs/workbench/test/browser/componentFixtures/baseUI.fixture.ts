@@ -113,7 +113,7 @@ const themedProgressBarOptions = {
 // Buttons
 // ============================================================================
 
-function renderButtons({ container, disposableStore }: ComponentFixtureContext): HTMLElement {
+function renderButtons({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -162,11 +162,9 @@ function renderButtons({ container, disposableStore }: ComponentFixtureContext):
 	const disabledSecondary = disposableStore.add(new Button(disabledSection, { ...themedButtonStyles, secondary: true, title: 'Disabled Secondary', disabled: true }));
 	disabledSecondary.label = 'Disabled Secondary';
 	disabledSecondary.enabled = false;
-
-	return container;
 }
 
-function renderButtonBar({ container, disposableStore }: ComponentFixtureContext): HTMLElement {
+function renderButtonBar({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -193,8 +191,6 @@ function renderButtonBar({ container, disposableStore }: ComponentFixtureContext
 	const buttonWithDesc = disposableStore.add(new ButtonWithDescription(descContainer, { ...themedButtonStyles, title: 'Install Extension', supportIcons: true }));
 	buttonWithDesc.label = '$(extensions) Install Extension';
 	buttonWithDesc.description = 'This will install the extension and enable it globally';
-
-	return container;
 }
 
 
@@ -202,7 +198,7 @@ function renderButtonBar({ container, disposableStore }: ComponentFixtureContext
 // Toggles and Checkboxes
 // ============================================================================
 
-function renderToggles({ container, disposableStore }: ComponentFixtureContext): HTMLElement {
+function renderToggles({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -266,8 +262,6 @@ function renderToggles({ container, disposableStore }: ComponentFixtureContext):
 	checkboxSection.appendChild(createCheckboxRow('Enable auto-save', true));
 	checkboxSection.appendChild(createCheckboxRow('Show line numbers', true));
 	checkboxSection.appendChild(createCheckboxRow('Word wrap', false));
-
-	return container;
 }
 
 
@@ -275,7 +269,7 @@ function renderToggles({ container, disposableStore }: ComponentFixtureContext):
 // Input Boxes
 // ============================================================================
 
-function renderInputBoxes({ container, disposableStore }: ComponentFixtureContext): HTMLElement {
+function renderInputBoxes({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -321,8 +315,6 @@ function renderInputBoxes({ container, disposableStore }: ComponentFixtureContex
 	}));
 	errorInput.value = 'invalid-email';
 	errorInput.validate();
-
-	return container;
 }
 
 
@@ -330,7 +322,7 @@ function renderInputBoxes({ container, disposableStore }: ComponentFixtureContex
 // Count Badges
 // ============================================================================
 
-function renderCountBadges({ container }: ComponentFixtureContext): HTMLElement {
+function renderCountBadges({ container }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.gap = '12px';
@@ -353,8 +345,6 @@ function renderCountBadges({ container }: ComponentFixtureContext): HTMLElement 
 		new CountBadge(badgeContainer, { count }, themedBadgeStyles);
 		container.appendChild(badgeContainer);
 	}
-
-	return container;
 }
 
 
@@ -362,7 +352,7 @@ function renderCountBadges({ container }: ComponentFixtureContext): HTMLElement 
 // Action Bar
 // ============================================================================
 
-function renderActionBar({ container, disposableStore }: ComponentFixtureContext): HTMLElement {
+function renderActionBar({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -410,8 +400,6 @@ function renderActionBar({ container, disposableStore }: ComponentFixtureContext
 		new Action('action.disabled', 'Disabled', ThemeIcon.asClassName(Codicon.debugPause), false, async () => { }),
 		new Action('action.enabled2', 'Enabled', ThemeIcon.asClassName(Codicon.debugStop), true, async () => { }),
 	]);
-
-	return container;
 }
 
 
@@ -419,7 +407,7 @@ function renderActionBar({ container, disposableStore }: ComponentFixtureContext
 // Progress Bar
 // ============================================================================
 
-function renderProgressBars({ container, disposableStore }: ComponentFixtureContext): HTMLElement {
+function renderProgressBars({ container, disposableStore }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -470,8 +458,6 @@ function renderProgressBars({ container, disposableStore }: ComponentFixtureCont
 	const doneBar = disposableStore.add(new ProgressBar(doneSection, themedProgressBarOptions));
 	doneBar.total(100);
 	doneBar.worked(100);
-
-	return container;
 }
 
 
@@ -479,7 +465,7 @@ function renderProgressBars({ container, disposableStore }: ComponentFixtureCont
 // Highlighted Label
 // ============================================================================
 
-function renderHighlightedLabels({ container }: ComponentFixtureContext): HTMLElement {
+function renderHighlightedLabels({ container }: ComponentFixtureContext): void {
 	container.style.padding = '16px';
 	container.style.display = 'flex';
 	container.style.flexDirection = 'column';
@@ -511,6 +497,4 @@ function renderHighlightedLabels({ container }: ComponentFixtureContext): HTMLEl
 	container.appendChild(createHighlightedLabel('inlineCompletionsController.ts', [{ start: 6, end: 10 }])); // "Comp"
 	container.appendChild(createHighlightedLabel('diffEditorViewModel.ts', [{ start: 0, end: 4 }, { start: 10, end: 14 }])); // "diff" and "View"
 	container.appendChild(createHighlightedLabel('workbenchTestServices.ts', [{ start: 9, end: 13 }])); // "Test"
-
-	return container;
 }
