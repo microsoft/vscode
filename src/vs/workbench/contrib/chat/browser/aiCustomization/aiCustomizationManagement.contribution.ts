@@ -272,13 +272,13 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					title: localize2('openAICustomizations', "Open AI Customizations"),
 					shortTitle: localize2('aiCustomizations', "AI Customizations"),
 					category: CHAT_CATEGORY,
-					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationEnabled}`)),
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
 					f1: true,
 					menu: [{
 						id: MenuId.GlobalActivity,
 						group: '2_configuration',
 						order: 8,
-						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationEnabled}`)),
+						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
 					}],
 				});
 			}
