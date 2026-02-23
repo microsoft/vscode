@@ -91,7 +91,8 @@ export class AgenticSessionsViewPane extends ViewPane {
 		// Sessions Filter (actions go to view title bar via menu registration)
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterSubMenu,
-			groupResults: () => AgentSessionsGrouping.Date
+			groupResults: () => AgentSessionsGrouping.Date,
+			builtInProviders: [],
 		}));
 
 		// Sessions section (top, fills available space)

@@ -24,6 +24,12 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 
 	readonly filterMenuId?: MenuId;
 
+	/**
+	 * Built-in providers to always include in the filter, regardless of
+	 * registered contributions. Defaults to `[AgentSessionProviders.Local]`.
+	 */
+	readonly builtInProviders?: AgentSessionProviders[];
+
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
@@ -127,7 +133,11 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private registerProviderActions(disposables: DisposableStore, menuId: MenuId): void {
-		const providers: { id: string; label: string }[] = [];
+		const builtIn = this.options.builtInProviders ?? [AgentSessionProviders.Local];
+		const providers: { id: string; label: string }[] = builtIn.map(id => ({
+			id,
+			label: getAgentSessionProviderName(id)
+		}));
 
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
 			if (providers.find(p => p.id === contribution.type)) {
