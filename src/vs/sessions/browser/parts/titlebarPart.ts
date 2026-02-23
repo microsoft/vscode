@@ -14,7 +14,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
+import { WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
 import { chatBarTitleBackground, chatBarTitleForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
 import { Color } from '../../../base/common/color.js';
@@ -241,9 +241,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 			const titleForeground = this.getColor(chatBarTitleForeground);
 			this.element.style.color = titleForeground || '';
-
-			const titleBorder = this.getColor(TITLE_BAR_BORDER);
-			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : '';
 		}
 	}
 
