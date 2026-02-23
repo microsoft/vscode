@@ -1101,7 +1101,7 @@ suite('ChatTipService', () => {
 		assert.strictEqual(disabledEvents[0].data.tipId, tip.id);
 	});
 
-	test('excludeWhenSettingsChanged checks workspaceValue', () => {
+	test('thinking phrases ever-modified seed checks workspaceValue', () => {
 		const workspaceConfigService = new TestConfigurationService();
 		const originalInspect = workspaceConfigService.inspect.bind(workspaceConfigService);
 		workspaceConfigService.inspect = <T>(key: string, overrides?: any) => {
