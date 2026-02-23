@@ -11,7 +11,7 @@
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	margin: 0 0 6px 0px;
+	margin: 0 0 10px 0;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 

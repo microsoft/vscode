@@ -605,6 +605,7 @@ export class CollapsedCodeBlock extends Disposable {
 			statusIconEl.classList.remove(...statusIconClasses);
 			iconEl.classList.remove(...pillIconClasses);
 			if (isStreaming.read(r)) {
+            statusIconEl.style.display = '';
 				const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
 				statusIconClasses = ThemeIcon.asClassNameArray(codicon);
 				statusIconEl.classList.add(...statusIconClasses);
@@ -623,9 +624,7 @@ export class CollapsedCodeBlock extends Disposable {
 					labelDetail.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "({0}%)...", rwRatio);
 				}
 			} else {
-				const statusCodeicon = Codicon.check;
-				statusIconClasses = ThemeIcon.asClassNameArray(statusCodeicon);
-				statusIconEl.classList.add(...statusIconClasses);
+            statusIconEl.style.display = 'none';
 				statusLabelEl.textContent = localize('chat.codeblock.edited', 'Edited');
 				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 				pillIconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
