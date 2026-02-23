@@ -6,6 +6,7 @@
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, isDisposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
@@ -223,6 +224,9 @@ export class McpListWidget extends Disposable {
 
 	readonly element: HTMLElement;
 
+	private readonly _onDidSelectServer = this._register(new Emitter<IWorkbenchMcpServer>());
+	readonly onDidSelectServer = this._onDidSelectServer.event;
+
 	private sectionHeader!: HTMLElement;
 	private sectionDescription!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
@@ -374,7 +378,7 @@ export class McpListWidget extends Disposable {
 
 		this._register(this.list.onDidOpen(e => {
 			if (e.element) {
-				this.mcpWorkbenchService.open(e.element);
+				this._onDidSelectServer.fire(e.element);
 			}
 		}));
 

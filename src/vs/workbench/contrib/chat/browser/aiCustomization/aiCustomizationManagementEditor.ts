@@ -60,6 +60,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
+import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 
 const $ = DOM.$;
 
@@ -390,6 +391,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
+
+			// Open MCP server detail in the same editor group
+			this.editorDisposables.add(this.mcpListWidget.onDidSelectServer(server => {
+				const input = this.instantiationService.createInstance(McpServerEditorInput, server);
+				this.editorService.openEditor(input, { pinned: false });
+			}));
 		}
 
 		// Embedded editor container (sessions only)
