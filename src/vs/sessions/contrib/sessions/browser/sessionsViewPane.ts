@@ -26,6 +26,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsControl.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
@@ -104,7 +105,11 @@ export class AgenticSessionsViewPane extends ViewPane {
 		// Sessions Filter (actions go to view title bar via menu registration)
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterSubMenu,
-			groupResults: () => AgentSessionsGrouping.Date
+			groupResults: () => AgentSessionsGrouping.Date,
+			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
+			providerLabelOverrides: new Map([
+				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Local")],
+			]),
 		}));
 
 		// Sessions section (top, fills available space)
