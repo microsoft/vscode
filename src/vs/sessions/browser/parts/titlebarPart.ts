@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
-import { chatBarBackground, chatBarForeground } from '../../../workbench/contrib/chat/common/widget/chatColors.js';
+import { chatBarHeaderBackground, chatBarHeaderForeground } from '../../../workbench/contrib/chat/common/widget/chatColors.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
 import { Color } from '../../../base/common/color.js';
 import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
@@ -228,7 +228,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		if (this.element) {
 			this.element.classList.toggle('inactive', this.isInactive);
 
-			const titleBackground = this.getColor(chatBarBackground, (color, theme) => {
+			const titleBackground = this.getColor(chatBarHeaderBackground, (color, theme) => {
 				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
 			}) || '';
 			this.element.style.backgroundColor = titleBackground;
@@ -239,7 +239,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				this.element.classList.remove('light');
 			}
 
-			const titleForeground = this.getColor(chatBarForeground);
+			const titleForeground = this.getColor(chatBarHeaderForeground);
 			this.element.style.color = titleForeground || '';
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);

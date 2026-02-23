@@ -6,7 +6,7 @@
 import { Color, RGBA } from '../../../../../base/common/color.js';
 import { localize } from '../../../../../nls.js';
 import { badgeBackground, badgeForeground, contrastBorder, editorBackground, editorSelectionBackground, editorWidgetBackground, foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../../../common/theme.js';
+import { SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND } from '../../../../common/theme.js';
 
 // This color intentionally matches commandCenter.background but is separate so that it
 // doesn't get overridden when debugging (the debug toolbar overrides commandCenter.background).
@@ -89,14 +89,14 @@ export const chatThinkingShimmer = registerColor(
 	{ dark: '#ffffff', light: '#000000', hcDark: '#ffffff', hcLight: '#000000' },
 	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'), true);
 
-export const chatBarBackground = registerColor(
-	'chatBar.background',
-	SIDE_BAR_BACKGROUND,
-	localize('chatBar.background', 'Background color of the chat bar header area in the agent sessions window.')
+export const chatBarHeaderBackground = registerColor(
+	'chatBarHeader.background',
+	SIDE_BAR_SECTION_HEADER_BACKGROUND,
+	localize('chatBarHeader.background', 'Background color of the chat bar header area in the agent sessions window.')
 );
 
-export const chatBarForeground = registerColor(
-	'chatBar.foreground',
-	SIDE_BAR_FOREGROUND,
-	localize('chatBar.foreground', 'Foreground color of the chat bar header area in the agent sessions window.')
+export const chatBarHeaderForeground = registerColor(
+	'chatBarHeader.foreground',
+	SIDE_BAR_SECTION_HEADER_FOREGROUND,
+	localize('chatBarHeader.foreground', 'Foreground color of the chat bar header area in the agent sessions window.')
 );
