@@ -2849,6 +2849,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.checkpoint-container:focus-within,
+	.checkpoint-container.response-hovered,
 	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
 		opacity: 1;
 	}
