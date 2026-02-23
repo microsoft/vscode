@@ -59,7 +59,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	private static readonly FOOTER_VERTICAL_PADDING = 6;
 
 	private footerContainer: HTMLElement | undefined;
-	private titleArea: HTMLElement | undefined;
+	private sideBarTitleArea: HTMLElement | undefined;
 	private footerToolbar: MenuWorkbenchToolBar | undefined;
 	private previousLayoutDimensions: { width: number; height: number; top: number; left: number } | undefined;
 
@@ -140,7 +140,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	protected override createTitleArea(parent: HTMLElement): HTMLElement | undefined {
 		const titleArea = super.createTitleArea(parent);
-		this.titleArea = titleArea;
+		this.sideBarTitleArea = titleArea;
 
 		if (titleArea) {
 			// Add a drag region so the sidebar title area can be used to move the window,
@@ -228,9 +228,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		container.style.borderRightColor = borderColor;
 
 		// Title area uses sessions-specific header colors
-		if (this.titleArea) {
-			this.titleArea.style.backgroundColor = this.getColor(sessionsSidebarHeaderBackground) || '';
-			this.titleArea.style.color = this.getColor(sessionsSidebarHeaderForeground) || '';
+		if (this.sideBarTitleArea) {
+			this.sideBarTitleArea.style.backgroundColor = this.getColor(sessionsSidebarHeaderBackground) || '';
+			this.sideBarTitleArea.style.color = this.getColor(sessionsSidebarHeaderForeground) || '';
 		}
 	}
 
