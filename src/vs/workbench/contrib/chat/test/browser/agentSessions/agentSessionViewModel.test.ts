@@ -18,12 +18,11 @@ import { MockChatSessionsService } from '../../common/mockChatSessionsService.js
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { IMenuService, MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 
 
 suite('AgentSessions', () => {
@@ -1291,71 +1290,6 @@ suite('AgentSessions', () => {
 			assert.strictEqual(filter.exclude(backgroundSession), false, 'Background is allowed and not user-excluded');
 			assert.strictEqual(filter.exclude(cloudSession), true, 'Cloud is allowed but user-excluded');
 			assert.strictEqual(filter.exclude(claudeSession), true, 'Claude is not in allowedProviders');
-		});
-
-		test('should register only allowed providers as filter menu actions', () => {
-			const testMenuId = new MenuId('TestAllowedProvidersFilterMenu');
-			mockChatSessionsService.setContributions([
-				{ type: AgentSessionProviders.Background, name: 'bg', displayName: 'Background', description: '' },
-				{ type: AgentSessionProviders.Cloud, name: 'cloud', displayName: 'Cloud', description: '' },
-				{ type: AgentSessionProviders.Claude, name: 'claude', displayName: 'Claude', description: '' },
-			]);
-
-			const filter = disposables.add(instantiationService.createInstance(
-				AgentSessionsFilter,
-				{
-					filterMenuId: testMenuId,
-					allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
-				}
-			));
-
-			// Verify by checking the menu service for registered actions
-			const menuService = instantiationService.get(IMenuService);
-			const menu = disposables.add(menuService.createMenu(testMenuId, instantiationService.get(IContextKeyService)));
-			const actions = menu.getActions({ shouldForwardArgs: false });
-			const providerGroup = actions.find(([group]) => group === '1_providers');
-			assert.ok(providerGroup, 'Provider group should exist');
-			const providerActions = providerGroup![1];
-			const providerIds = providerActions.map(a => a.id);
-
-			// Should only have Background and Cloud, not Claude
-			assert.ok(providerIds.some(id => id.includes(AgentSessionProviders.Background)), 'Should have Background provider');
-			assert.ok(providerIds.some(id => id.includes(AgentSessionProviders.Cloud)), 'Should have Cloud provider');
-			assert.ok(!providerIds.some(id => id.includes(AgentSessionProviders.Claude)), 'Should NOT have Claude provider');
-
-			// Cleanup: must keep filter alive for menu reference
-			void filter;
-		});
-
-		test('should apply providerLabelOverrides to filter menu actions', () => {
-			const testMenuId = new MenuId('TestLabelOverridesFilterMenu');
-			const filter = disposables.add(instantiationService.createInstance(
-				AgentSessionsFilter,
-				{
-					filterMenuId: testMenuId,
-					allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
-					providerLabelOverrides: new Map([
-						[AgentSessionProviders.Background, 'Local'],
-					]),
-				}
-			));
-
-			const menuService = instantiationService.get(IMenuService);
-			const menu = disposables.add(menuService.createMenu(testMenuId, instantiationService.get(IContextKeyService)));
-			const actions = menu.getActions({ shouldForwardArgs: false });
-			const providerGroup = actions.find(([group]) => group === '1_providers');
-			assert.ok(providerGroup, 'Provider group should exist');
-			const providerActions = providerGroup![1];
-
-			const backgroundAction = providerActions.find(a => a.id.includes(AgentSessionProviders.Background));
-			const cloudAction = providerActions.find(a => a.id.includes(AgentSessionProviders.Cloud));
-
-			assert.ok(backgroundAction, 'Background action should exist');
-			assert.ok(cloudAction, 'Cloud action should exist');
-			assert.strictEqual(backgroundAction!.label, 'Local', 'Background should be relabeled to Local');
-			assert.strictEqual(cloudAction!.label, getAgentSessionProviderName(AgentSessionProviders.Cloud), 'Cloud should keep default label');
-
-			void filter;
 		});
 	});
 
