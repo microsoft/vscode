@@ -626,7 +626,7 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		const [nativeDeps, exeDeps, dllDeps] = await Promise.all([
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/node_modules*/**/*.exe', { cwd }),
-			glob('**/node_modules*/**/*.dll', { cwd }),
+			glob('**/*.dll', { cwd }),
 		]);
 		const deps = [...nativeDeps, ...exeDeps, ...dllDeps];
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
