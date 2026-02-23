@@ -404,7 +404,7 @@ export class McpListWidget extends Disposable {
 
 	private async refresh(): Promise<void> {
 		if (this.browseMode) {
-			this.queryGallery();
+			await this.queryGallery();
 		} else {
 			this.filterServers();
 		}
