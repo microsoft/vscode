@@ -119,6 +119,7 @@ export interface IMainContext extends IRPCProtocol {
 // --- main thread
 
 export interface MainThreadGitExtensionShape extends IDisposable {
+	$onDidChangeRepository(handle: number): Promise<void>;
 }
 
 export interface MainThreadClipboardShape extends IDisposable {
@@ -625,6 +626,7 @@ export interface TerminalLaunchConfig {
 	location?: TerminalLocation | { viewColumn: number; preserveFocus?: boolean } | { parentTerminal: ExtHostTerminalIdentifier } | { splitActiveTerminal: boolean };
 	isTransient?: boolean;
 	shellIntegrationNonce?: string;
+	titleTemplate?: string;
 }
 
 
@@ -3498,6 +3500,7 @@ export interface ChatSessionOptionUpdateDto2 {
 export interface ChatSessionDto {
 	id: string;
 	resource: UriComponents;
+	title?: string;
 	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
@@ -3545,8 +3548,51 @@ export interface ExtHostChatSessionsShape {
 	$provideHandleOptionsChange(providerHandle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto>, token: CancellationToken): Promise<void>;
 }
 
+export interface GitRefQueryDto {
+	readonly contains?: string;
+	readonly count?: number;
+	readonly pattern?: string | string[];
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
+}
+
+export enum GitRefTypeDto {
+	Head,
+	RemoteHead,
+	Tag
+}
+
+export interface GitRefDto {
+	readonly id: string;
+	readonly name: string;
+	readonly type: GitRefTypeDto;
+	readonly revision: string;
+}
+
+export interface GitRepositoryStateDto {
+	readonly HEAD?: GitBranchDto;
+}
+
+export interface GitBranchDto {
+	readonly name?: string;
+	readonly commit?: string;
+	readonly type: GitRefTypeDto;
+	readonly remote?: string;
+	readonly upstream?: GitUpstreamRefDto;
+	readonly ahead?: number;
+	readonly behind?: number;
+}
+
+export interface GitUpstreamRefDto {
+	readonly remote: string;
+	readonly name: string;
+	readonly commit?: string;
+}
+
 export interface ExtHostGitExtensionShape {
-	$openRepository(root: UriComponents): Promise<UriComponents | undefined>;
+	$isGitExtensionAvailable(): Promise<boolean>;
+	$openRepository(root: UriComponents): Promise<{ handle: number; rootUri: UriComponents; state: GitRepositoryStateDto } | undefined>;
+	$getRefs(handle: number, query: GitRefQueryDto, token?: CancellationToken): Promise<GitRefDto[]>;
+	$getRepositoryState(handle: number): Promise<GitRepositoryStateDto | undefined>;
 }
 
 // --- proxy identifiers

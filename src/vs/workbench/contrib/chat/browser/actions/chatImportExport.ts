@@ -123,10 +123,7 @@ export function registerChatExportActions() {
 				let options: IChatEditorOptions;
 
 				if (opts?.target === 'chatViewPane') {
-					const modelRef = chatService.loadSessionFromContent(data);
-					if (!modelRef) {
-						return;
-					}
+					const modelRef = chatService.loadSessionFromData(data);
 					sessionResource = modelRef.object.sessionResource;
 					resolvedTarget = ChatViewPaneTarget;
 					options = { pinned: true };

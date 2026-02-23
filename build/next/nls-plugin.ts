@@ -6,6 +6,7 @@
 import * as esbuild from 'esbuild';
 import * as path from 'path';
 import * as fs from 'fs';
+import { SourceMapGenerator } from 'source-map';
 import {
 	TextModel,
 	analyzeLocalizeCalls,
@@ -160,10 +161,17 @@ export function postProcessNLS(
 // Transformation
 // ============================================================================
 
+interface NLSEdit {
+	line: number;       // 0-based line in original source
+	startCol: number;   // 0-based start column in original
+	endCol: number;     // 0-based end column in original
+	newLength: number;  // length of replacement text
+}
+
 function transformToPlaceholders(
 	source: string,
 	moduleId: string
-): { code: string; entries: NLSEntry[] } {
+): { code: string; entries: NLSEntry[]; edits: NLSEdit[] } {
 	const localizeCalls = analyzeLocalizeCalls(source, 'localize');
 	const localize2Calls = analyzeLocalizeCalls(source, 'localize2');
 
@@ -176,10 +184,11 @@ function transformToPlaceholders(
 	);
 
 	if (allCalls.length === 0) {
-		return { code: source, entries: [] };
+		return { code: source, entries: [], edits: [] };
 	}
 
 	const entries: NLSEntry[] = [];
+	const edits: NLSEdit[] = [];
 	const model = new TextModel(source);
 
 	// Process in reverse order to preserve positions
@@ -201,14 +210,92 @@ function transformToPlaceholders(
 			placeholder
 		});
 
+		const replacementText = `"${placeholder}"`;
+
+		// Track the edit for source map generation (positions are in original source coords)
+		edits.push({
+			line: call.keySpan.start.line,
+			startCol: call.keySpan.start.character,
+			endCol: call.keySpan.end.character,
+			newLength: replacementText.length,
+		});
+
 		// Replace the key with the placeholder string
-		model.apply(call.keySpan, `"${placeholder}"`);
+		model.apply(call.keySpan, replacementText);
 	}
 
-	// Reverse entries to match source order
+	// Reverse entries and edits to match source order
 	entries.reverse();
+	edits.reverse();
 
-	return { code: model.toString(), entries };
+	return { code: model.toString(), entries, edits };
+}
+
+/**
+ * Generates a source map that maps from the NLS-transformed source back to the
+ * original source. esbuild composes this with its own bundle source map so that
+ * the final source map points all the way back to the untransformed TypeScript.
+ */
+function generateNLSSourceMap(
+	originalSource: string,
+	filePath: string,
+	edits: NLSEdit[]
+): string {
+	const generator = new SourceMapGenerator();
+	generator.setSourceContent(filePath, originalSource);
+
+	const lineCount = originalSource.split('\n').length;
+
+	// Group edits by line
+	const editsByLine = new Map<number, NLSEdit[]>();
+	for (const edit of edits) {
+		let arr = editsByLine.get(edit.line);
+		if (!arr) {
+			arr = [];
+			editsByLine.set(edit.line, arr);
+		}
+		arr.push(edit);
+	}
+
+	for (let line = 0; line < lineCount; line++) {
+		const smLine = line + 1; // source maps use 1-based lines
+
+		// Always map start of line
+		generator.addMapping({
+			generated: { line: smLine, column: 0 },
+			original: { line: smLine, column: 0 },
+			source: filePath,
+		});
+
+		const lineEdits = editsByLine.get(line);
+		if (lineEdits) {
+			lineEdits.sort((a, b) => a.startCol - b.startCol);
+
+			let cumulativeShift = 0;
+
+			for (const edit of lineEdits) {
+				const origLen = edit.endCol - edit.startCol;
+
+				// Map start of edit: the replacement begins at the same original position
+				generator.addMapping({
+					generated: { line: smLine, column: edit.startCol + cumulativeShift },
+					original: { line: smLine, column: edit.startCol },
+					source: filePath,
+				});
+
+				cumulativeShift += edit.newLength - origLen;
+
+				// Map content after edit: columns resume with the shift applied
+				generator.addMapping({
+					generated: { line: smLine, column: edit.endCol + cumulativeShift },
+					original: { line: smLine, column: edit.endCol },
+					source: filePath,
+				});
+			}
+		}
+	}
+
+	return generator.toString();
 }
 
 function replaceInOutput(
@@ -300,7 +387,7 @@ export function nlsPlugin(options: NLSPluginOptions): esbuild.Plugin {
 					.replace(/\.ts$/, '');
 
 				// Transform localize() calls to placeholders
-				const { code, entries: fileEntries } = transformToPlaceholders(source, moduleId);
+				const { code, entries: fileEntries, edits } = transformToPlaceholders(source, moduleId);
 
 				// Collect entries
 				for (const entry of fileEntries) {
@@ -308,7 +395,15 @@ export function nlsPlugin(options: NLSPluginOptions): esbuild.Plugin {
 				}
 
 				if (fileEntries.length > 0) {
-					return { contents: code, loader: 'ts' };
+					// Generate a source map that maps from the NLS-transformed source
+					// back to the original. Embed it inline so esbuild composes it
+					// with its own bundle source map, making the final map point to
+					// the original TS source.
+					const sourceName = relativePath.replace(/\\/g, '/');
+					const sourcemap = generateNLSSourceMap(source, sourceName, edits);
+					const encodedMap = Buffer.from(sourcemap).toString('base64');
+					const contentsWithMap = code + `\n//# sourceMappingURL=data:application/json;base64,${encodedMap}\n`;
+					return { contents: contentsWithMap, loader: 'ts' };
 				}
 
 				// No NLS calls, return undefined to let esbuild handle normally

@@ -51,6 +51,14 @@ export interface IPromptFileResource {
 	 * The URI to the agent or prompt resource file.
 	 */
 	readonly uri: URI;
+	/**
+	 * Optional externally provided prompt command name.
+	 */
+	readonly name?: string;
+	/**
+	 * Optional externally provided prompt command description.
+	 */
+	readonly description?: string;
 }
 
 /**

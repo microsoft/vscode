@@ -98,22 +98,53 @@
 		.chat-tool-invocation-part {
 			padding: 4px 12px 4px 18px;
 			position: relative;
+		}
 
+		.chat-thinking-tool-wrapper {
 			.chat-used-context {
-				margin-bottom: 0px;
-				margin-left: 2px;
-				padding-left: 2px;
-			}
+					margin-bottom: 0px;
+					margin-left: 4px;
+					padding-left: 2px;
+				}
 
-			.progress-container,
-			.chat-confirmation-widget-container {
-				margin: 0 0 2px 6px;
-			}
+				.chat-used-context {
+					.monaco-button.monaco-text-button {
+						color: var(--vscode-descriptionForeground);
 
-			.codicon:not(.chat-thinking-icon) {
-				display: none;
-			}
+						:hover {
+							color: var(--vscode-foreground);
+						}
 
+						.monaco-button:hover .chat-collapsible-hover-chevron {
+							opacity: 1;
+						}
+					}
+				}
+
+				.chat-used-context:not(.chat-used-context-collapsed) {
+					.monaco-button.monaco-text-button {
+						color: var(--vscode-foreground);
+					}
+				}
+
+				.progress-container,
+				.chat-confirmation-widget-container {
+					margin: 0 0 2px 6px;
+				}
+
+				.codicon:not(.chat-thinking-icon) {
+					display: none;
+				}
+
+				.chat-collapsible-hover-chevron.codicon {
+					display: inline-flex;
+				}
+
+			.chat-used-context.chat-hook-outcome-blocked,
+			.chat-used-context.chat-hook-outcome-warning {
+					padding: 4px 12px 4px 20px;
+					margin-bottom: 0;
+				}
 		}
 
 		.chat-thinking-item.markdown-content {

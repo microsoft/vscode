@@ -31,6 +31,9 @@ import { CreateSlashCommandsUsageTracker } from '../../browser/createSlashComman
 import { ChatRequestSlashCommandPart } from '../../common/requestParser/chatParserTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(rules: ContextKeyExpression): boolean {
@@ -99,6 +102,7 @@ suite('ChatTipService', () => {
 		instantiationService.stub(ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService()));
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 	});
 
 	test('returns a welcome tip', () => {
@@ -766,6 +770,7 @@ suite('ChatTipService', () => {
 	test('shows tip.createSlashCommands when context key is false', () => {
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.hasUsedCreateSlashCommands.key, false);
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
 
 		// Dismiss tips until we find createSlashCommands or run out
 		let found = false;
@@ -782,6 +787,21 @@ suite('ChatTipService', () => {
 		}
 
 		assert.ok(found, 'Should eventually show tip.createSlashCommands when context key is false');
+	});
+
+	test('does not show tip.createSlashCommands in non-local chat sessions', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.hasUsedCreateSlashCommands.key, false);
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, 'cloud');
+
+		for (let i = 0; i < 100; i++) {
+			const tip = service.getWelcomeTip(contextKeyService);
+			if (!tip) {
+				break;
+			}
+			assert.notStrictEqual(tip.id, 'tip.createSlashCommands', 'Should not show tip.createSlashCommands in non-local sessions');
+			service.dismissTip();
+		}
 	});
 
 	test('does not show tip.createSlashCommands when context key is true', () => {
@@ -923,6 +943,135 @@ suite('ChatTipService', () => {
 			assertTipNeverShown(service, tipId);
 		});
 	}
+
+	test('logs telemetry when tip is shown', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		const shownEvents = events.filter(e => e.data.action === 'shown');
+		assert.strictEqual(shownEvents.length, 1, 'Should log exactly one shown event');
+		assert.strictEqual(shownEvents[0].eventName, 'chatTip');
+		assert.strictEqual(shownEvents[0].data.tipId, tip.id);
+	});
+
+	test('logs telemetry when tip is dismissed', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		service.dismissTip();
+
+		const dismissEvents = events.filter(e => e.data.action === 'dismissed');
+		assert.strictEqual(dismissEvents.length, 1, 'Should log exactly one dismissed event');
+		assert.strictEqual(dismissEvents[0].data.tipId, tip.id);
+	});
+
+	test('logs telemetry when navigating tips', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		const nextTip = service.navigateToNextTip();
+		assert.ok(nextTip);
+
+		const navigateEvents = events.filter(e => e.data.action === 'navigateNext');
+		assert.strictEqual(navigateEvents.length, 1, 'Should log one navigateNext event');
+		assert.strictEqual(navigateEvents[0].data.tipId, tip.id, 'navigateNext should log the tip being navigated away from');
+
+		const shownEvents = events.filter(e => e.data.action === 'shown');
+		assert.strictEqual(shownEvents.length, 2, 'Should log shown for initial and navigated tip');
+		assert.strictEqual(shownEvents[1].data.tipId, nextTip.id);
+	});
+
+	test('logs telemetry when tip command is clicked', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		if (tip.enabledCommands?.length) {
+			commandExecutedEmitter.fire({ commandId: tip.enabledCommands[0], args: [] });
+
+			const clickEvents = events.filter(e => e.data.action === 'commandClicked');
+			assert.strictEqual(clickEvents.length, 1, 'Should log one commandClicked event');
+			assert.strictEqual(clickEvents[0].data.tipId, tip.id);
+			assert.strictEqual(clickEvents[0].data.commandId, tip.enabledCommands[0]);
+		} else {
+			assert.fail('Tip has no enabled commands; cannot test command click telemetry');
+		}
+	});
+
+	test('logs telemetry when tip is hidden', () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		service.hideTip();
+
+		const hiddenEvents = events.filter(e => e.data.action === 'hidden');
+		assert.strictEqual(hiddenEvents.length, 1, 'Should log one hidden event');
+		assert.strictEqual(hiddenEvents[0].data.tipId, tip.id);
+	});
+
+	test('logs telemetry when tips are disabled', async () => {
+		const events: { eventName: string; data: Record<string, unknown> }[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown>) {
+				events.push({ eventName, data });
+			},
+		} as Partial<ITelemetryService> as ITelemetryService);
+
+		const service = createService();
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		await service.disableTips();
+
+		const disabledEvents = events.filter(e => e.data.action === 'disabled');
+		assert.strictEqual(disabledEvents.length, 1, 'Should log one disabled event');
+		assert.strictEqual(disabledEvents[0].data.tipId, tip.id);
+	});
 
 	test('excludeWhenSettingsChanged checks workspaceValue', () => {
 		const workspaceConfigService = new TestConfigurationService();

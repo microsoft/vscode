@@ -1,5 +1,5 @@
 src/**
 tsconfig*.json
 out/**
-extension.webpack.config.js
+esbuild*.mts
 package-lock.json

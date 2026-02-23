@@ -112,10 +112,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
-						h('div.agent-session-status@statusContainer', [
-							h('span.agent-session-status-provider-icon@statusProviderIcon'),
-							h('span.agent-session-status-time@statusTime')
-						]),
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
@@ -124,9 +120,15 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 								h('span.agent-session-diff-added@addedSpan'),
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
-						h('div.agent-session-badge@badge'),
-						h('span.agent-session-separator@separator'),
 						h('div.agent-session-description@description'),
+						h('div.agent-session-details-right', [
+							h('div.agent-session-badge@badge'),
+							h('span.agent-session-separator@separator'),
+							h('div.agent-session-status@statusContainer', [
+								h('span.agent-session-status-provider-icon@statusProviderIcon'),
+								h('span.agent-session-status-time@statusTime')
+							]),
+						]),
 					])
 				])
 			]
@@ -219,9 +221,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			this.renderDescription(session, template, hasBadge);
 		}
 
-		// Separator (dot between badge and description)
-		const hasDescription = template.description.textContent !== '';
-		template.separator.classList.toggle('has-separator', hasBadge && hasDescription);
+		// Separator (dot between badge and timestamp)
+		template.separator.classList.toggle('has-separator', hasBadge);
 
 		// Status
 		this.renderStatus(session, template);
@@ -508,7 +509,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
-	static readonly ITEM_HEIGHT = 48;
+	static readonly ITEM_HEIGHT = 54;
 	static readonly SECTION_HEIGHT = 26;
 
 	getHeight(element: AgentSessionListItem): number {

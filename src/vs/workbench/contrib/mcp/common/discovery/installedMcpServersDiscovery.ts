@@ -102,6 +102,8 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					id: `${collectionId}.${server.name}`,
 					label: server.name,
 					launch,
+					sandboxEnabled: config.type === 'http' ? undefined : config.sandboxEnabled,
+					sandbox: config.type === 'http' || !config.sandboxEnabled ? undefined : config.sandbox,
 					cacheNonce: await McpServerLaunch.hash(launch),
 					roots: mcpConfigPath?.workspaceFolder ? [mcpConfigPath.workspaceFolder.uri] : undefined,
 					variableReplacement: {

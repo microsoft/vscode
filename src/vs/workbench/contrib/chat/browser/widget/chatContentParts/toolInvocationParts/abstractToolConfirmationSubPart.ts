@@ -27,7 +27,7 @@ export interface IToolConfirmationConfig {
 	subtitle?: string;
 }
 
-interface IAbstractToolPrimaryAction extends IChatConfirmationButton<(() => void)> {
+export interface IAbstractToolPrimaryAction extends IChatConfirmationButton<(() => void)> {
 	scope?: 'session' | 'workspace' | 'profile';
 }
 

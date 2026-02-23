@@ -228,7 +228,7 @@
 }
 
 .action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover{
-	background-color: var(--vscode-list-activeSelectionBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .action-widget-delegate-label {
@@ -240,7 +240,7 @@
 
 /* Filter input */
 .action-widget .action-list-filter {
-	padding: 4px;
+	padding: 2px 2px 4px 2px
 }
 
 .action-widget .action-list-filter:first-child {
@@ -259,7 +259,6 @@
 	border-radius: 3px;
 	background-color: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
-	font-size: 12px;
 	outline: none;
 }
 

@@ -61,7 +61,6 @@ When proposing or implementing changes, follow these rules from the spec:
 | `sessions/browser/style.css` | Layout-specific styles |
 | `sessions/browser/parts/` | Agent session part implementations |
 | `sessions/browser/parts/titlebarPart.ts` | Titlebar part, MainTitlebarPart, AuxiliaryTitlebarPart, TitleService |
-| `sessions/browser/parts/editorModal.ts` | Editor modal overlay |
 | `sessions/browser/parts/sidebarPart.ts` | Sidebar part (with footer) |
 | `sessions/browser/parts/chatBarPart.ts` | Chat Bar part |
 | `sessions/browser/widget/` | Agent sessions chat widget |
@@ -76,5 +75,5 @@ After modifying layout code:
 1. Verify the build compiles without errors via the `VS Code - Build` task
 2. Ensure the grid structure matches the spec's visual representation
 3. Confirm part visibility toggling works correctly (show/hide/maximize)
-4. Test the editor modal opens/closes properly on editor events
+4. Test that editors open in the `ModalEditorPart` overlay and that it closes properly
 5. Verify sidebar footer renders with account widget

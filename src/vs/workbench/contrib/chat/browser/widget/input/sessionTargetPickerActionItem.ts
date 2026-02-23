@@ -185,7 +185,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
-		return true;
+		if (type === AgentSessionProviders.Local) {
+			return true; // Local is always available
+		}
+		// Disable non-local session types when their provider is not registered yet
+		return !!this.chatSessionsService.getChatSessionContribution(type);
 	}
 
 	protected _getSessionCategory(sessionTypeItem: ISessionTypeItem) {

@@ -17,6 +17,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatModel, IChatRequestNeedsInputInfo } from '../common/model/chatModel.js';
 import { IChatService } from '../common/chatService/chatService.js';
+import { ChatConfiguration, ChatNotificationMode } from '../common/constants.js';
 import { IChatWidgetService } from './chat.js';
 import { AcceptToolConfirmationActionId, IToolConfirmationActionContext } from './actions/chatToolActions.js';
 
@@ -71,7 +72,8 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 
 	private async _notifyIfNeeded(sessionResource: URI, info: IChatRequestNeedsInputInfo): Promise<void> {
 		// Check configuration
-		if (!this._configurationService.getValue<boolean>('chat.notifyWindowOnConfirmation')) {
+		const mode = this._configurationService.getValue<ChatNotificationMode>(ChatConfiguration.NotifyWindowOnConfirmation);
+		if (mode === ChatNotificationMode.Off) {
 			return;
 		}
 
@@ -79,16 +81,18 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
 		const targetWindow = widget ? dom.getWindow(widget.domNode) : mainWindow;
 
-		// Only notify if window doesn't have focus
-		if (targetWindow.document.hasFocus()) {
+		const isFocused = targetWindow.document.hasFocus();
+		if (mode !== ChatNotificationMode.Always && isFocused) {
 			return;
 		}
 
 		// Clear any existing notification for this session
 		this._clearNotification(sessionResource);
 
-		// Focus window in notify mode (flash taskbar/dock)
-		await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
+		// Focus window in notify mode (flash taskbar/dock) if not already focused
+		if (!isFocused) {
+			await this._hostService.focus(targetWindow, { mode: FocusMode.Notify });
+		}
 
 		// Create OS notification
 		const notificationTitle = info.title ? localize('chatTitle', "Chat: {0}", info.title) : localize('chat.untitledChat', "Untitled Chat");

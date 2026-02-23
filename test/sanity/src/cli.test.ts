@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Page } from 'playwright';
+import { Browser, Page } from 'playwright';
 import { TestContext } from './context.js';
 import { GitHubAuth } from './githubAuth.js';
 import { UITest } from './uiTest.js';
@@ -57,6 +57,7 @@ export function setup(context: TestContext) {
 	context.test('cli-win32-arm64', ['windows', 'arm64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-arm64');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getCliEntryPoint(dir);
 		await testCliApp(entryPoint);
 	});
@@ -64,6 +65,7 @@ export function setup(context: TestContext) {
 	context.test('cli-win32-x64', ['windows', 'x64'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-x64');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
 		const entryPoint = context.getCliEntryPoint(dir);
 		await testCliApp(entryPoint);
 	});
@@ -84,6 +86,7 @@ export function setup(context: TestContext) {
 		const cliDataDir = context.createTempDir();
 		const test = new UITest(context);
 		const auth = new GitHubAuth(context);
+		let browser: Browser | undefined;
 		let page: Page | undefined;
 
 		context.log('Logging out of Dev Tunnel to ensure fresh authentication');
@@ -103,8 +106,8 @@ export function setup(context: TestContext) {
 				const deviceCode = /To grant access .* use code ([A-Z0-9-]+)/.exec(line)?.[1];
 				if (deviceCode) {
 					context.log(`Device code detected: ${deviceCode}, starting device flow authentication`);
-					const browser = await context.launchBrowser();
-					page = await browser.newPage();
+					browser = await context.launchBrowser();
+					page = await context.getPage(browser.newPage());
 					await auth.runDeviceCodeFlow(page, deviceCode);
 					return;
 				}
@@ -115,7 +118,7 @@ export function setup(context: TestContext) {
 					const url = context.getTunnelUrl(tunnelUrl, test.workspaceDir);
 					context.log(`CLI started successfully with tunnel URL: ${url}`);
 
-					if (!page) {
+					if (!browser || !page) {
 						throw new Error('Browser instance is not available');
 					}
 
@@ -129,9 +132,10 @@ export function setup(context: TestContext) {
 					await page.locator('span.monaco-highlighted-label', { hasText: 'GitHub' }).click();
 
 					context.log('Clicking Allow on confirmation dialog');
+					const popup = page.waitForEvent('popup');
 					await page.getByRole('button', { name: 'Allow' }).click();
 
-					await auth.runAuthorizeFlow(page);
+					await auth.runAuthorizeFlow(await popup);
 
 					context.log('Waiting for connection to be established');
 					await page.getByRole('button', { name: `remote ${tunnelId}` }).waitFor({ timeout: 5 * 60 * 1000 });
@@ -139,7 +143,7 @@ export function setup(context: TestContext) {
 					await test.run(page);
 
 					context.log('Closing browser');
-					await page.context().browser()?.close();
+					await browser.close();
 
 					test.validate();
 					return true;

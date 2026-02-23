@@ -55,7 +55,7 @@
 	align-items: center;
 	height: 32px;
 	min-height: 32px;
-	padding: 0 8px 0 16px;
+	padding: 0 8px 0 10px;
 	color: var(--vscode-titleBar-activeForeground);
 	background-color: var(--vscode-titleBar-activeBackground);
 	border-bottom: 1px solid var(--vscode-titleBar-border, transparent);
@@ -67,8 +67,17 @@
 		font-weight: 500;
 		color: var(--vscode-titleBar-activeForeground);
 		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+
+		.monaco-icon-label {
+			color: inherit;
+			height: 32px;
+			line-height: 32px;
+
+			&::before,
+			& > .monaco-icon-label-iconpath {
+				height: 32px;
+			}
+		}
 	}
 
 	/* Modal Editor Navigation */

@@ -19,6 +19,56 @@ const MCP_INVALID_REQUEST = -32600;
 const MCP_METHOD_NOT_FOUND = -32601;
 const MCP_INVALID_PARAMS = -32602;
 
+const GATEWAY_URI_AUTHORITY_RE = /^([a-zA-Z][a-zA-Z0-9+.-]*:\/\/)([^/?#]*)(.*)/;
+
+/**
+ * Encodes a resource URI for the gateway by appending `-{serverIndex}` to the authority.
+ * This namespaces resources from different MCP servers served through the same gateway.
+ */
+export function encodeGatewayResourceUri(uri: string, serverIndex: number): string {
+	const match = uri.match(GATEWAY_URI_AUTHORITY_RE);
+	if (!match) {
+		return uri;
+	}
+	const [, prefix, authority, rest] = match;
+	return `${prefix}${authority}-${serverIndex}${rest}`;
+}
+
+/**
+ * Decodes a gateway-encoded resource URI, extracting the server index and original URI.
+ */
+export function decodeGatewayResourceUri(uri: string): { serverIndex: number; originalUri: string } {
+	const match = uri.match(GATEWAY_URI_AUTHORITY_RE);
+	if (!match) {
+		throw new JsonRpcError(MCP_INVALID_PARAMS, `Invalid resource URI: ${uri}`);
+	}
+	const [, prefix, authority, rest] = match;
+	const suffixMatch = authority.match(/^(.*)-([0-9]+)$/);
+	if (!suffixMatch) {
+		throw new JsonRpcError(MCP_INVALID_PARAMS, `Invalid gateway resource URI (no server index): ${uri}`);
+	}
+	const [, originalAuthority, indexStr] = suffixMatch;
+	return {
+		serverIndex: parseInt(indexStr, 10),
+		originalUri: `${prefix}${originalAuthority}${rest}`,
+	};
+}
+
+function encodeResourceUrisInContent(content: MCP.ContentBlock[], serverIndex: number): MCP.ContentBlock[] {
+	return content.map(block => {
+		if (block.type === 'resource_link') {
+			return { ...block, uri: encodeGatewayResourceUri(block.uri, serverIndex) };
+		}
+		if (block.type === 'resource') {
+			return {
+				...block,
+				resource: { ...block.resource, uri: encodeGatewayResourceUri(block.resource.uri, serverIndex) },
+			};
+		}
+		return block;
+	});
+}
+
 export class McpGatewaySession extends Disposable {
 	private readonly _rpc: JsonRpcProtocol;
 	private readonly _sseClients = new Set<http.ServerResponse>();
@@ -49,6 +99,14 @@ export class McpGatewaySession extends Disposable {
 			}
 
 			this._rpc.sendNotification({ method: 'notifications/tools/list_changed' });
+		}));
+
+		this._register(this._toolInvoker.onDidChangeResources(() => {
+			if (!this._isInitialized) {
+				return;
+			}
+
+			this._rpc.sendNotification({ method: 'notifications/resources/list_changed' });
 		}));
 	}
 
@@ -148,6 +206,12 @@ export class McpGatewaySession extends Disposable {
 				return this._handleListTools();
 			case 'tools/call':
 				return this._handleCallTool(request);
+			case 'resources/list':
+				return this._handleListResources();
+			case 'resources/read':
+				return this._handleReadResource(request);
+			case 'resources/templates/list':
+				return this._handleListResourceTemplates();
 			default:
 				throw new JsonRpcError(MCP_METHOD_NOT_FOUND, `Method not found: ${request.method}`);
 		}
@@ -157,6 +221,7 @@ export class McpGatewaySession extends Disposable {
 		if (notification.method === 'notifications/initialized') {
 			this._isInitialized = true;
 			this._rpc.sendNotification({ method: 'notifications/tools/list_changed' });
+			this._rpc.sendNotification({ method: 'notifications/resources/list_changed' });
 		}
 	}
 
@@ -167,6 +232,9 @@ export class McpGatewaySession extends Disposable {
 				tools: {
 					listChanged: true,
 				},
+				resources: {
+					listChanged: true,
+				},
 			},
 			serverInfo: {
 				name: 'VS Code MCP Gateway',
@@ -175,7 +243,7 @@ export class McpGatewaySession extends Disposable {
 		};
 	}
 
-	private _handleCallTool(request: IJsonRpcRequest): unknown {
+	private async _handleCallTool(request: IJsonRpcRequest): Promise<MCP.CallToolResult> {
 		const params = typeof request.params === 'object' && request.params ? request.params as Record<string, unknown> : undefined;
 		if (!params || typeof params.name !== 'string') {
 			throw new JsonRpcError(MCP_INVALID_PARAMS, 'Missing tool call params');
@@ -189,15 +257,70 @@ export class McpGatewaySession extends Disposable {
 			? params.arguments as Record<string, unknown>
 			: {};
 
-		return this._toolInvoker.callTool(params.name, argumentsValue).catch(error => {
+		try {
+			const { result, serverIndex } = await this._toolInvoker.callTool(params.name, argumentsValue);
+			return {
+				...result,
+				content: encodeResourceUrisInContent(result.content, serverIndex),
+			};
+		} catch (error) {
 			this._logService.error('[McpGatewayService] Tool call invocation failed', error);
 			throw new JsonRpcError(MCP_INVALID_PARAMS, String(error));
-		});
+		}
 	}
 
 	private _handleListTools(): unknown {
 		return this._toolInvoker.listTools()
 			.then(tools => ({ tools }));
+	}
+
+	private async _handleListResources(): Promise<MCP.ListResourcesResult> {
+		const serverResults = await this._toolInvoker.listResources();
+		const allResources: MCP.Resource[] = [];
+		for (const { serverIndex, resources } of serverResults) {
+			for (const resource of resources) {
+				allResources.push({
+					...resource,
+					uri: encodeGatewayResourceUri(resource.uri, serverIndex),
+				});
+			}
+		}
+		return { resources: allResources };
+	}
+
+	private async _handleReadResource(request: IJsonRpcRequest): Promise<MCP.ReadResourceResult> {
+		const params = typeof request.params === 'object' && request.params ? request.params as Record<string, unknown> : undefined;
+		if (!params || typeof params.uri !== 'string') {
+			throw new JsonRpcError(MCP_INVALID_PARAMS, 'Missing resource URI');
+		}
+
+		const { serverIndex, originalUri } = decodeGatewayResourceUri(params.uri);
+		try {
+			const result = await this._toolInvoker.readResource(serverIndex, originalUri);
+			return {
+				contents: result.contents.map(content => ({
+					...content,
+					uri: encodeGatewayResourceUri(content.uri, serverIndex),
+				})),
+			};
+		} catch (error) {
+			this._logService.error('[McpGatewayService] Resource read failed', error);
+			throw new JsonRpcError(MCP_INVALID_PARAMS, String(error));
+		}
+	}
+
+	private async _handleListResourceTemplates(): Promise<MCP.ListResourceTemplatesResult> {
+		const serverResults = await this._toolInvoker.listResourceTemplates();
+		const allTemplates: MCP.ResourceTemplate[] = [];
+		for (const { serverIndex, resourceTemplates } of serverResults) {
+			for (const template of resourceTemplates) {
+				allTemplates.push({
+					...template,
+					uriTemplate: encodeGatewayResourceUri(template.uriTemplate, serverIndex),
+				});
+			}
+		}
+		return { resourceTemplates: allTemplates };
 	}
 }
 

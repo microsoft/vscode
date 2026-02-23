@@ -150,7 +150,7 @@ suite('ChatEditingService', function () {
 	test('create session', async function () {
 		assert.ok(editingService);
 
-		const modelRef = chatService.startSession(ChatAgentLocation.EditorInline);
+		const modelRef = chatService.startNewLocalSession(ChatAgentLocation.EditorInline);
 		const model = modelRef.object as ChatModel;
 		const session = editingService.createEditingSession(model, true);
 
@@ -171,7 +171,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+		const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 		const model = modelRef.object as ChatModel;
 		const session = model.editingSession;
 		if (!session) {
@@ -228,7 +228,7 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
@@ -262,7 +262,7 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
@@ -296,7 +296,7 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
@@ -332,7 +332,7 @@ suite('ChatEditingService', function () {
 
 			const modified = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
 
-			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const modelRef = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat));
 			const model = modelRef.object as ChatModel;
 			const session = model.editingSession;
 			assertType(session, 'session not created');
