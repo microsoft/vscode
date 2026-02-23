@@ -235,7 +235,8 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 
 	test('partial deletion with multiple lines for the same decoration ID', () => {
 		const manager = new LineHeightsManager(10, []);
-		manager.insertOrChangeCustomLineHeight('decSame', 5, 6, 20);
+		manager.insertOrChangeCustomLineHeight('decSame', 5, 5, 20);
+		manager.insertOrChangeCustomLineHeight('decSame', 6, 6, 25);
 
 		// Delete one line that partially intersects the same decoration
 		manager.onLinesDeleted(6, 6);
