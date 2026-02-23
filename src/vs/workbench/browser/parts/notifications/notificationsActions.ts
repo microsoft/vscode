@@ -22,7 +22,7 @@ const expandIcon = registerIcon('notifications-expand', Codicon.chevronUp, local
 const collapseIcon = registerIcon('notifications-collapse', Codicon.chevronDown, localize('collapseIcon', 'Icon for the collapse action in notifications.'));
 const configureIcon = registerIcon('notifications-configure', Codicon.gear, localize('configureIcon', 'Icon for the configure action in notifications.'));
 const doNotDisturbIcon = registerIcon('notifications-do-not-disturb', Codicon.bellSlash, localize('doNotDisturbIcon', 'Icon for the mute all action in notifications.'));
-export const positionIcon = registerIcon('notifications-position', Codicon.move, localize('positionIcon', 'Icon for the position action in notifications.'));
+export const positionIcon = registerIcon('notifications-position', Codicon.arrowSwap, localize('positionIcon', 'Icon for the position action in notifications.'));
 
 export class ClearNotificationAction extends Action {
 

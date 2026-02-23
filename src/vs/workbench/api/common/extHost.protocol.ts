@@ -495,6 +495,18 @@ export interface IInlineCompletionModelInfoDto {
 	readonly currentModelId: string;
 }
 
+export interface IInlineCompletionProviderOptionValueDto {
+	readonly id: string;
+	readonly label: string;
+}
+
+export interface IInlineCompletionProviderOptionDto {
+	readonly id: string;
+	readonly label: string;
+	readonly values: readonly IInlineCompletionProviderOptionValueDto[];
+	readonly currentValueId: string;
+}
+
 export interface IInlineCompletionChangeHintDto {
 	readonly data?: unknown;
 }
@@ -544,9 +556,13 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 		supportsOnDidChange: boolean,
 		initialModelInfo: IInlineCompletionModelInfoDto | undefined,
 		supportsOnDidChangeModelInfo: boolean,
+		supportsSetProviderOption: boolean,
+		initialProviderOptions: readonly IInlineCompletionProviderOptionDto[] | undefined,
+		supportsOnDidChangeProviderOptions: boolean,
 	): void;
 	$emitInlineCompletionsChange(handle: number, changeHint: IInlineCompletionChangeHintDto | undefined): void;
 	$emitInlineCompletionModelInfoChange(handle: number, data: IInlineCompletionModelInfoDto | undefined): void;
+	$emitInlineCompletionProviderOptionsChange(handle: number, data: readonly IInlineCompletionProviderOptionDto[] | undefined): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void;
 	$emitInlayHintsEvent(eventHandle: number): void;
@@ -1481,7 +1497,7 @@ export interface ExtHostChatAgentsShape2 {
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$providePromptFiles(handle: number, type: PromptsType, context: IPromptFileContext, token: CancellationToken): Promise<Dto<IPromptFileResource>[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
-	$setYieldRequested(requestId: string): void;
+	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
 }
 export interface IChatParticipantMetadata {
@@ -2564,6 +2580,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$freeInlineCompletionsList(handle: number, pid: number, reason: languages.InlineCompletionsDisposeReason): void;
 	$acceptInlineCompletionsUnificationState(state: IInlineCompletionsUnificationState): void;
 	$handleInlineCompletionSetCurrentModelId(handle: number, modelId: string): void;
+	$handleInlineCompletionSetProviderOption(handle: number, optionId: string, valueId: string): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: languages.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
 	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlayHintsDto | undefined>;

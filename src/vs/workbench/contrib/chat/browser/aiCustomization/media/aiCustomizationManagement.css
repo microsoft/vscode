@@ -476,6 +476,18 @@
 	flex-direction: column;
 }
 
+/* Embedded MCP server detail view */
+.ai-customization-management-editor .mcp-detail-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.ai-customization-management-editor .mcp-detail-editor-container {
+	flex: 1;
+	overflow: hidden;
+}
+
 /* Models section footer */
 .ai-customization-management-editor .models-content-container .section-footer {
 	flex-shrink: 0;
@@ -662,6 +674,58 @@
 .mcp-server-item .mcp-server-status.stopped {
 	background-color: var(--vscode-badge-background);
 	color: var(--vscode-badge-foreground);
+}
+
+/* Button group for Add Server + Browse Marketplace */
+.mcp-list-widget .list-button-group {
+	display: flex;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+/* Back to installed link */
+.mcp-list-widget .mcp-back-link {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 0;
+	cursor: pointer;
+	font-size: 12px;
+	color: var(--vscode-textLink-foreground);
+	flex-shrink: 0;
+}
+
+.mcp-list-widget .mcp-back-link:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.mcp-list-widget .mcp-back-link:hover span:last-child {
+	text-decoration: underline;
+}
+
+/* Gallery item specifics */
+.mcp-gallery-item .mcp-gallery-name-row {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	overflow: hidden;
+}
+
+.mcp-gallery-item .mcp-gallery-publisher {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mcp-gallery-item .mcp-gallery-action {
+	flex-shrink: 0;
+}
+
+.mcp-gallery-item .mcp-gallery-install-button {
+	font-size: 11px;
+	padding: 2px 10px;
 }
 
 /* Embedded Editor View */

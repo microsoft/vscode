@@ -60,6 +60,9 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
+import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
+import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
+import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 
 const $ = DOM.$;
 
@@ -147,7 +150,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private currentEditingUri: URI | undefined;
 	private currentEditingProjectRoot: URI | undefined;
 	private currentModelRef: IReference<IResolvedTextEditorModel> | undefined;
-	private viewMode: 'list' | 'editor' = 'list';
+	private viewMode: 'list' | 'editor' | 'mcpDetail' = 'list';
+
+	// Embedded MCP server detail view
+	private mcpDetailContainer: HTMLElement | undefined;
+	private embeddedMcpEditor: McpServerEditor | undefined;
+	private readonly mcpDetailDisposables = this._register(new DisposableStore());
 
 	private dimension: DOM.Dimension | undefined;
 	private readonly sections: ISectionItem[] = [];
@@ -277,6 +285,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 						const padding = 24;
 						this.embeddedEditor.layout({ width: Math.max(0, width - padding), height: Math.max(0, height - editorHeaderHeight - padding) });
 					}
+					if (this.viewMode === 'mcpDetail' && this.embeddedMcpEditor) {
+						const backHeaderHeight = 40;
+						this.embeddedMcpEditor.layout(new DOM.Dimension(width, Math.max(0, height - backHeaderHeight)));
+					}
 				}
 			},
 		}, Sizing.Distribute, undefined, true);
@@ -385,11 +397,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		}
 
-		// Container for MCP content (only in sessions)
+		// Container for MCP content
 		if (hasSections.has(AICustomizationManagementSection.McpServers)) {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
+
+			// Embedded MCP server detail view
+			this.mcpDetailContainer = DOM.append(contentInner, $('.mcp-detail-container'));
+			this.createEmbeddedMcpDetail();
+
+			this.editorDisposables.add(this.mcpListWidget.onDidSelectServer(server => {
+				this.showEmbeddedMcpDetail(server);
+			}));
 		}
 
 		// Embedded editor container (sessions only)
@@ -423,6 +443,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'editor') {
 			this.goBackToList();
 		}
+		if (this.viewMode === 'mcpDetail') {
+			this.goBackFromMcpDetail();
+		}
 
 		this.selectedSection = section;
 		this.sectionContextKey.set(section);
@@ -451,16 +474,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private updateContentVisibility(): void {
 		const isEditorMode = this.viewMode === 'editor';
+		const isMcpDetailMode = this.viewMode === 'mcpDetail';
 		const isPromptsSection = this.isPromptsSection(this.selectedSection);
 		const isModelsSection = this.selectedSection === AICustomizationManagementSection.Models;
 		const isMcpSection = this.selectedSection === AICustomizationManagementSection.McpServers;
 
-		this.promptsContentContainer.style.display = !isEditorMode && isPromptsSection ? '' : 'none';
+		this.promptsContentContainer.style.display = !isEditorMode && !isMcpDetailMode && isPromptsSection ? '' : 'none';
 		if (this.modelsContentContainer) {
-			this.modelsContentContainer.style.display = !isEditorMode && isModelsSection ? '' : 'none';
+			this.modelsContentContainer.style.display = !isEditorMode && !isMcpDetailMode && isModelsSection ? '' : 'none';
 		}
 		if (this.mcpContentContainer) {
-			this.mcpContentContainer.style.display = !isEditorMode && isMcpSection ? '' : 'none';
+			this.mcpContentContainer.style.display = !isEditorMode && !isMcpDetailMode && isMcpSection ? '' : 'none';
+		}
+		if (this.mcpDetailContainer) {
+			this.mcpDetailContainer.style.display = isMcpDetailMode ? '' : 'none';
 		}
 		if (this.editorContentContainer) {
 			this.editorContentContainer.style.display = isEditorMode ? '' : 'none';
@@ -563,6 +590,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.inEditorContextKey.set(false);
 		if (this.viewMode === 'editor') {
 			this.goBackToList();
+		}
+		if (this.viewMode === 'mcpDetail') {
+			this.goBackFromMcpDetail();
 		}
 		super.clearInput();
 	}
@@ -725,6 +755,69 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.layout(this.dimension);
 		}
 		this.listWidget?.focusSearch();
+	}
+
+	//#endregion
+
+	//#region Embedded MCP Server Detail
+
+	private createEmbeddedMcpDetail(): void {
+		if (!this.mcpDetailContainer) {
+			return;
+		}
+
+		// Back button header
+		const detailHeader = DOM.append(this.mcpDetailContainer, $('.editor-header'));
+		const backButton = DOM.append(detailHeader, $('button.editor-back-button'));
+		backButton.setAttribute('aria-label', localize('backToMcpList', "Back to MCP servers"));
+		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
+		backIconEl.setAttribute('aria-hidden', 'true');
+		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
+			this.goBackFromMcpDetail();
+		}));
+
+		// Container for the MCP server editor
+		const editorContainer = DOM.append(this.mcpDetailContainer, $('.mcp-detail-editor-container'));
+
+		// Create the embedded MCP server editor pane
+		this.embeddedMcpEditor = this.editorDisposables.add(this.instantiationService.createInstance(McpServerEditor, this.group));
+		this.embeddedMcpEditor.create(editorContainer);
+	}
+
+	private async showEmbeddedMcpDetail(server: IWorkbenchMcpServer): Promise<void> {
+		if (!this.embeddedMcpEditor) {
+			return;
+		}
+
+		this.viewMode = 'mcpDetail';
+		this.updateContentVisibility();
+
+		const input = this.instantiationService.createInstance(McpServerEditorInput, server);
+		this.mcpDetailDisposables.clear();
+		this.mcpDetailDisposables.add(input);
+
+		try {
+			await this.embeddedMcpEditor.setInput(input, undefined, {}, CancellationToken.None);
+		} catch {
+			this.goBackFromMcpDetail();
+			return;
+		}
+
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+	}
+
+	private goBackFromMcpDetail(): void {
+		this.mcpDetailDisposables.clear();
+		this.embeddedMcpEditor?.clearInput();
+		this.viewMode = 'list';
+		this.updateContentVisibility();
+
+		if (this.dimension) {
+			this.layout(this.dimension);
+		}
+		this.mcpListWidget?.focusSearch();
 	}
 
 	//#endregion

@@ -227,11 +227,8 @@ export class AgentFeedbackHover extends Disposable {
 		const opts = this._buildHoverContent();
 		this._register(opts);
 		this._hoverService.showInstantHover({
-			content: opts.content,
+			...opts,
 			target: this._element,
-			style: opts.style,
-			position: opts.position,
-			trapFocus: opts.trapFocus,
 		});
 	}
 

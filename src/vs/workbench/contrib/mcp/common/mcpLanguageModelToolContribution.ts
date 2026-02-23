@@ -30,6 +30,7 @@ import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType, McpToolVisibility } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { McpServer } from './mcpServer.js';
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -205,6 +206,11 @@ class McpToolImplementation implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext): Promise<IPreparedToolInvocation> {
 		const tool = this._tool;
 		const server = this._server;
+		// ToDO: need to be revisited as the first tool invocation doesnt have sandbox info and we are optimistically assuming it is not sandboxed. We should ideally have the sandbox info.
+		const sandboxEnabled = await McpServer.callOn(server, async (_handler, connection) => {
+			return connection.definition.sandboxEnabled;
+		});
+		const isSandboxedServer = sandboxEnabled === true;
 
 		const mcpToolWarning = localize(
 			'mcp.tool.warning',
@@ -215,15 +221,18 @@ class McpToolImplementation implements IToolImpl {
 		// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 		const title = tool.definition.annotations?.title || tool.definition.title || ('`' + tool.definition.name + '`');
 
-		const confirm: IToolConfirmationMessages = {};
-		if (!tool.definition.annotations?.readOnlyHint) {
-			confirm.title = new MarkdownString(localize('msg.title', "Run {0}", title));
-			confirm.message = new MarkdownString(tool.definition.description, { supportThemeIcons: true });
-			confirm.disclaimer = mcpToolWarning;
-			confirm.allowAutoConfirm = true;
-		}
-		if (tool.definition.annotations?.openWorldHint) {
-			confirm.confirmResults = true;
+		let confirm: IToolConfirmationMessages | undefined;
+		if (!isSandboxedServer) {
+			confirm = {};
+			if (!tool.definition.annotations?.readOnlyHint) {
+				confirm.title = new MarkdownString(localize('msg.title', "Run {0}", title));
+				confirm.message = new MarkdownString(tool.definition.description, { supportThemeIcons: true });
+				confirm.disclaimer = mcpToolWarning;
+				confirm.allowAutoConfirm = true;
+			}
+			if (tool.definition.annotations?.openWorldHint) {
+				confirm.confirmResults = true;
+			}
 		}
 
 		const mcpUiEnabled = this._configurationService.getValue<boolean>(mcpAppsEnabledConfig);

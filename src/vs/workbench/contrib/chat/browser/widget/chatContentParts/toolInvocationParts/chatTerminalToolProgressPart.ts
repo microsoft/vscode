@@ -222,6 +222,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _decoration: TerminalCommandDecoration;
 	private _userToggledOutput: boolean = false;
 	private _isInThinkingContainer: boolean = false;
+	private _usesCollapsibleWrapper: boolean = false;
 	private _thinkingCollapsibleWrapper: ChatTerminalThinkingCollapsibleWrapper | undefined;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
@@ -360,12 +361,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this._decoration.update();
 
-		// wrap terminal when thinking setting enabled
+		// Keep thinking-container semantics separate from wrapper semantics.
 		const terminalToolsInThinking = this._configurationService.getValue<boolean>(ChatConfiguration.TerminalToolsInThinking);
+		const isSimpleTerminal = this._configurationService.getValue<boolean>(ChatConfiguration.SimpleTerminalCollapsible);
 		const requiresConfirmation = toolInvocation.kind === 'toolInvocation' && IChatToolInvocation.getConfirmationMessages(toolInvocation);
+		this._isInThinkingContainer = terminalToolsInThinking && !requiresConfirmation;
+		this._usesCollapsibleWrapper = this._isInThinkingContainer || isSimpleTerminal;
 
-		if (terminalToolsInThinking && !requiresConfirmation) {
-			this._isInThinkingContainer = true;
+		if (this._usesCollapsibleWrapper) {
 			this.domNode = this._createCollapsibleWrapper(progressPart.domNode, displayCommand, toolInvocation, context);
 		} else {
 			this.domNode = progressPart.domNode;
@@ -520,8 +523,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (this._store.isDisposed) {
 			return;
 		}
-		// don't show dropdown when in thinking container
-		if (this._isInThinkingContainer) {
+		// don't show dropdown when rendered with the simplified/collapsible wrapper
+		if (this._usesCollapsibleWrapper) {
 			return;
 		}
 		const resolvedCommand = command ?? this._getResolvedCommand();
@@ -624,7 +627,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				hasRealOutput,
 			}));
 			store.add(autoExpand.onDidRequestExpand(() => {
-				if (this._isInThinkingContainer) {
+				if (this._usesCollapsibleWrapper) {
 					this.expandCollapsibleWrapper();
 				}
 				this._toggleOutput(true);

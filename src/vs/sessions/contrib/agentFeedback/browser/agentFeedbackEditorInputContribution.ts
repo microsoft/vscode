@@ -106,7 +106,7 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 
 		// Reset height to auto then expand to fit all content, with a minimum of 1 line
 		this._inputElement.style.height = 'auto';
-		const newHeight = Math.max(this._inputElement.scrollHeight, this._lineHeight + 4 /* padding */);
+		const newHeight = Math.max(this._inputElement.scrollHeight, this._lineHeight);
 		this._inputElement.style.height = `${newHeight}px`;
 	}
 }
@@ -358,17 +358,34 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const left = scrolledPosition.left;
+		const layoutInfo = this._editor.getLayoutInfo();
+		const widgetDom = this._widget.getDomNode();
+		const widgetHeight = widgetDom.offsetHeight || 30;
+		const widgetWidth = widgetDom.offsetWidth || 150;
 
+		// Compute vertical position, flipping if out of bounds
 		let top: number;
 		if (selection.getDirection() === SelectionDirection.LTR) {
-			// Cursor at end (bottom) of selection → place widget below the cursor line
+			// Cursor at end (bottom) of selection → prefer below the cursor line
 			top = scrolledPosition.top + lineHeight;
+			if (top + widgetHeight > layoutInfo.height) {
+				// Not enough space below → place above the cursor line
+				top = scrolledPosition.top - widgetHeight;
+			}
 		} else {
-			// Cursor at start (top) of selection → place widget above the cursor line
-			const widgetHeight = this._widget.getDomNode().offsetHeight || 30;
+			// Cursor at start (top) of selection → prefer above the cursor line
 			top = scrolledPosition.top - widgetHeight;
+			if (top < 0) {
+				// Not enough space above → place below the cursor line
+				top = scrolledPosition.top + lineHeight;
+			}
 		}
+
+		// Clamp vertical position within editor bounds
+		top = Math.max(0, Math.min(top, layoutInfo.height - widgetHeight));
+
+		// Clamp horizontal position so the widget stays within the editor
+		const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
 
 		this._widget.setPosition({ preference: { top, left } });
 	}

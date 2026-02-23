@@ -55,16 +55,27 @@
 .extensions-viewlet > .header > .notification-container {
 	margin-top: 10px;
 	display: flex;
-	justify-content: space-between;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 4px 0;
 }
 
 .extensions-viewlet > .header .notification-container .message-container {
+	display: flex;
 	padding-left: 4px;
+	flex: 1 1 0;
+	min-width: 200px;
 }
 
 .extensions-viewlet > .header .notification-container .message-container .codicon {
-	vertical-align: text-top;
+	flex-shrink: 0;
 	padding-right: 5px;
+	padding-top: 2px;
+}
+
+.extensions-viewlet > .header .notification-container .message-container .message-text {
+	flex: 1;
+	min-width: 0;
 }
 
 .extensions-viewlet .notification-container .message-text-action {
@@ -79,16 +90,25 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
-.extensions-viewlet .notification-container .message-action {
+.extensions-viewlet .notification-container .message-action-button {
 	cursor: pointer;
-	padding: 2px;
-	border-radius: 5px;
-	height: 16px;
+	padding: 1px 6px;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: 11px;
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	white-space: nowrap;
 }
 
-.extensions-viewlet .notification-container .message-action:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+.extensions-viewlet .notification-container .message-action-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.extensions-viewlet .notification-container .notification-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: 24px;
 }
 
 .extensions-viewlet > .extensions {

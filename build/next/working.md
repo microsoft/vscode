@@ -202,31 +202,44 @@ npm run gulp vscode-reh-web-darwin-arm64-min
 
 ## Source Maps
 
+### Principle: Every Code Transform Must Preserve Source Maps
+
+Any step that modifies JS output - whether in an esbuild plugin or in post-processing - **must** update the source map accordingly. Failing to do so causes column drift that makes debuggers, crash reporters, and breakpoints point to wrong positions. The `source-map` library (v0.6.1, already a dependency) provides the `SourceMapConsumer`/`SourceMapGenerator` APIs for this.
+
+### Root Causes (before fixes)
+
+Source maps worked in transpile mode but failed in bundle mode. The observed pattern was "class-heavy files fail, simple utilities work" but the real cause was **"files with NLS calls vs files without"**. Class-heavy UI components use `localize()` extensively; utility files in `vs/base/` don't.
+
+Two categories of corruption:
+
+1. **NLS plugin `onLoad`** returned modified source without a source map. esbuild treated the NLS-transformed text as the "original" - `sourcesContent` embedded placeholders, and column mappings pointed to wrong positions.
+
+2. **Post-processing** (`postProcessNLS`, `convertPrivateFields`) modified bundled JS output without updating `.map` files. Column positions drifted by the cumulative length deltas of all replacements.
+
 ### Fixes Applied
 
-1. **`sourcesContent: true`** — Production bundles now embed original TypeScript source content in `.map` files, matching the old build's `includeContent: true` behavior. Without this, crash reports from CDN-hosted source maps can't show original source.
+1. **`sourcesContent: true`** - Production bundles embed original TypeScript source content in `.map` files, matching the old build's `includeContent: true` behavior.
 
-2. **`--source-map-base-url` option** — The `bundle` command accepts an optional `--source-map-base-url <url>` flag. When set, post-processing rewrites `sourceMappingURL` comments in `.js` and `.css` output files to point to the CDN (e.g., `https://main.vscode-cdn.net/sourcemaps/<commit>/core/vs/...`). This matches the old build's `sourceMappingURL` function in `minifyTask()`. Wired up in `gulpfile.vscode.ts` for `core-ci-esbuild` and `vscode-esbuild-min` tasks.
+2. **`--source-map-base-url` option** - Rewrites `sourceMappingURL` comments to point to CDN URLs.
 
-### NLS Source Map Accuracy (Decision: Accept Imprecision)
+3. **NLS plugin inline source maps** (`nls-plugin.ts`) - The `onLoad` handler now generates an inline source map (`//# sourceMappingURL=data:...`) mapping from NLS-transformed source back to original. esbuild composes this with its own bundle source map. `SourceMapGenerator.setSourceContent` embeds the original source so `sourcesContent` in the final `.map` has the real TypeScript. Tests in `test/nls-sourcemap.test.ts`.
 
-**Problem:** `postProcessNLS()` replaces `"%%NLS:moduleId#key%%"` placeholders (~40 chars) with short index values like `null` (4 chars) in the final JS output. This shifts column positions without updating the `.map` files.
+4. **`convertPrivateFields` source map adjustment** (`private-to-property.ts`) - `convertPrivateFields` returns its sorted edits as `TextEdit[]`. `adjustSourceMap()` uses `SourceMapConsumer` to walk every mapping, adjusts generated columns based on cumulative edit shifts per line, and rebuilds with `SourceMapGenerator`. The post-processing loop in `index.ts` saves pre-mangle content + edits per JS file, then applies `adjustSourceMap` to the corresponding `.map`. Tests in `test/private-to-property.test.ts`.
 
-**Options considered:**
+### Not Yet Fixed
 
-| Option | Description | Effort | Accuracy |
-|--------|-------------|--------|----------|
-| A. Fixed-width placeholders | Pad placeholders to match replacement length | Hard — indices unknown until all modules are collected across parallel bundles | Perfect |
-| B. Post-process source map | Parse `.map`, track replacement offsets per line, adjust VLQ mappings | Medium | Perfect |
-| C. Two-pass build | Assign NLS indices during plugin phase | Not feasible with parallel bundling | N/A |
-| **D. Accept imprecision** | NLS replacements only affect column positions; line-level debugging works | Zero | Line-level |
+**`postProcessNLS` column drift** - Replaces NLS placeholders with short indices in bundled output without updating `.map` files. Shifts columns but never lines, so line-level debugging and crash reporting work correctly. Fixing would require tracking replacement offsets through regex matches and adjusting the source map, similar to `adjustSourceMap`.
 
-**Decision: Option D — accept imprecision.** Rationale:
+### Key Technical Details
 
-- NLS replacements only shift **columns**, never lines — line-level stack traces and breakpoints remain correct.
-- Production crash reporting (the primary consumer of CDN source maps) uses line numbers; column-level accuracy is rarely needed.
-- The old gulp build had the same fundamental issue in its `nls.nls()` step and used `SourceMapConsumer`/`SourceMapGenerator` to fix it — but that approach was fragile and slow.
-- If column-level precision becomes important later (e.g., for minified+NLS bundles), Option B can be implemented: after NLS replacement, re-parse the source map, walk replacement sites, and adjust column offsets. This is a localized change in the post-processing loop.
+**esbuild `onLoad` source map composition:** esbuild's `onLoad` return type does NOT have a `sourcemap` field (as of v0.27.2). The only way to provide input source maps is to embed them inline in the returned `contents`. esbuild reads this and composes it with its own transform/bundle map. With `sourcesContent: true`, esbuild uses the source content from the inline map, not the `contents` string.
+
+**`adjustColumn` algorithm** handles three cases per edit on a line:
+1. Edit entirely before the column: accumulate the delta (newLen - origLen)
+2. Column falls inside the edit span: map to the start of the edit
+3. Edit is after the column: stop (edits are sorted)
+
+**Plugin interaction:** Both the NLS plugin and `fileContentMapperPlugin` register `onLoad({ filter: /\.ts$/ })`. In esbuild, the first `onLoad` to return non-`undefined` wins. The NLS plugin is `unshift`ed (runs first), so files with NLS calls skip `fileContentMapperPlugin`. This is safe in practice since `product.ts` (which has `BUILD->INSERT_PRODUCT_CONFIGURATION`) has no localize calls.
 
 ---
 

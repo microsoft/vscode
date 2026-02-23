@@ -24,6 +24,18 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 
 	readonly filterMenuId?: MenuId;
 
+	/**
+	 * When set, only these providers appear in the filter menu (opt-in).
+	 * When unset, all registered contributions plus `Local` are shown.
+	 */
+	readonly allowedProviders?: AgentSessionProviders[];
+
+	/**
+	 * Optional label overrides for providers shown in the filter menu.
+	 * For example, the sessions window maps `Background` → "Local".
+	 */
+	readonly providerLabelOverrides?: ReadonlyMap<string, string>;
+
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
@@ -127,21 +139,31 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	private registerProviderActions(disposables: DisposableStore, menuId: MenuId): void {
-		const providers: { id: string; label: string }[] = [{
-			id: AgentSessionProviders.Local,
-			label: getAgentSessionProviderName(AgentSessionProviders.Local)
-		}];
-
-		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
-			if (providers.find(p => p.id === contribution.type)) {
-				continue; // already added
+		const labelOverrides = this.options.providerLabelOverrides;
+		const resolveLabel = (id: string) => {
+			if (labelOverrides?.has(id)) {
+				return labelOverrides.get(id)!;
 			}
+			const knownProvider = getAgentSessionProvider(id);
+			return knownProvider ? getAgentSessionProviderName(knownProvider) : id;
+		};
 
-			const knownProvider = getAgentSessionProvider(contribution.type);
-			providers.push({
-				id: contribution.type,
-				label: knownProvider ? getAgentSessionProviderName(knownProvider) : contribution.displayName
-			});
+		let providers: { id: string; label: string }[];
+		if (this.options.allowedProviders) {
+			// Opt-in: only show explicitly allowed providers
+			providers = this.options.allowedProviders.map(id => ({ id, label: resolveLabel(id) }));
+		} else {
+			// Default: Local + all registered contributions
+			providers = [{ id: AgentSessionProviders.Local, label: resolveLabel(AgentSessionProviders.Local) }];
+			for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
+				if (providers.find(p => p.id === contribution.type)) {
+					continue; // already added
+				}
+				providers.push({
+					id: contribution.type,
+					label: resolveLabel(contribution.type)
+				});
+			}
 		}
 
 		const that = this;
@@ -282,6 +304,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		const overrideExclude = this.options?.overrideExclude?.(session);
 		if (typeof overrideExclude === 'boolean') {
 			return overrideExclude;
+		}
+
+		if (this.options.allowedProviders && !this.options.allowedProviders.includes(session.providerType as AgentSessionProviders)) {
+			return true;
 		}
 
 		if (this.excludes.read && session.isRead()) {

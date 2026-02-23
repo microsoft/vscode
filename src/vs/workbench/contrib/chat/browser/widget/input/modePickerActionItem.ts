@@ -118,28 +118,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 							openerService.open(modeResource.get());
 						}
 					});
-				} else if (customAgentTarget === Target.Undefined) {
-					const label = localize('configureToolsFor', "Configure tools for {0} agent", mode.label.get());
-					toolbarActions.push({
-						id: `configureTools:${mode.id}`,
-						label,
-						tooltip: label,
-						class: ThemeIcon.asClassName(Codicon.tools),
-						enabled: true,
-						run: async () => {
-							// Hide the picker before opening the tools configuration
-							actionWidgetService.hide();
-							// First switch to the mode if not already selected
-							if (currentMode.id !== mode.id) {
-								await commandService.executeCommand(
-									ToggleAgentModeActionId,
-									{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
-								);
-							}
-							// Then open the tools picker
-							await commandService.executeCommand('workbench.action.chat.configureTools', pickerOptions.actionContext, { source: 'modePicker' });
-						}
-					});
 				}
 			}
 

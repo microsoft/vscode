@@ -10,7 +10,7 @@ import { promisify } from 'util';
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
-import { convertPrivateFields, type ConvertPrivateFieldsResult } from './private-to-property.ts';
+import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
@@ -883,6 +883,8 @@ ${tslib}`,
 	// Post-process and write all output files
 	let bundled = 0;
 	const mangleStats: { file: string; result: ConvertPrivateFieldsResult }[] = [];
+	// Map from JS file path to pre-mangle content + edits, for source map adjustment
+	const mangleEdits = new Map<string, { preMangleCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
 	for (const { result } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
@@ -894,20 +896,24 @@ ${tslib}`,
 			if (file.path.endsWith('.js') || file.path.endsWith('.css')) {
 				let content = file.text;
 
-				// Apply NLS post-processing if enabled (JS only)
-				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
-					content = postProcessNLS(content, indexMap, preserveEnglish);
-				}
-
-				// Convert native #private fields to regular properties.
+				// Convert native #private fields to regular properties BEFORE NLS
+				// post-processing, so that the edit offsets align with esbuild's
+				// source map coordinate system (both reference the raw esbuild output).
 				// Skip extension host bundles - they expose API surface to extensions
 				// where true encapsulation matters more than the perf gain.
 				if (file.path.endsWith('.js') && doManglePrivates && !isExtensionHostBundle(file.path)) {
+					const preMangleCode = content;
 					const mangleResult = convertPrivateFields(content, file.path);
 					content = mangleResult.code;
 					if (mangleResult.editCount > 0) {
 						mangleStats.push({ file: path.relative(path.join(REPO_ROOT, outDir), file.path), result: mangleResult });
+						mangleEdits.set(file.path, { preMangleCode, edits: mangleResult.edits });
 					}
+				}
+
+				// Apply NLS post-processing if enabled (JS only)
+				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
+					content = postProcessNLS(content, indexMap, preserveEnglish);
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
@@ -924,8 +930,19 @@ ${tslib}`,
 				}
 
 				await fs.promises.writeFile(file.path, content);
+			} else if (file.path.endsWith('.map')) {
+				// Source maps may need adjustment if private fields were mangled
+				const jsPath = file.path.replace(/\.map$/, '');
+				const editInfo = mangleEdits.get(jsPath);
+				if (editInfo) {
+					const mapJson = JSON.parse(file.text);
+					const adjusted = adjustSourceMap(mapJson, editInfo.preMangleCode, editInfo.edits);
+					await fs.promises.writeFile(file.path, JSON.stringify(adjusted));
+				} else {
+					await fs.promises.writeFile(file.path, file.contents);
+				}
 			} else {
-				// Write other files (source maps, assets) as-is
+				// Write other files (assets, etc.) as-is
 				await fs.promises.writeFile(file.path, file.contents);
 			}
 		}
