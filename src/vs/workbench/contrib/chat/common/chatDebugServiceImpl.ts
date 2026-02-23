@@ -54,7 +54,10 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	getEvents(sessionId?: string): readonly IChatDebugEvent[] {
 		const result: IChatDebugEvent[] = [];
 		for (let i = 0; i < this._size; i++) {
-			const event = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS]!;
+			const event = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS];
+			if (!event) {
+				continue;
+			}
 			if (!sessionId || event.sessionId === sessionId) {
 				result.push(event);
 			}
@@ -65,15 +68,19 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	getSessionIds(): readonly string[] {
 		const ids = new Set<string>();
 		for (let i = 0; i < this._size; i++) {
-			const id = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS]!.sessionId;
-			if (id) {
-				ids.add(id);
+			const event = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS];
+			if (!event) {
+				continue;
+			}
+			if (event.sessionId) {
+				ids.add(event.sessionId);
 			}
 		}
 		return [...ids];
 	}
 
 	clear(): void {
+		this._buffer.fill(undefined);
 		this._head = 0;
 		this._size = 0;
 	}
