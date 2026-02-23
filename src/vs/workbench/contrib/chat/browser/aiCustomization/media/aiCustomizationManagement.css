@@ -250,6 +250,27 @@
 	line-height: 16px;
 }
 
+.ai-customization-group-header .group-info {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+	opacity: 0;
+	color: var(--vscode-descriptionForeground);
+	transition: opacity 0.1s ease;
+}
+
+.ai-customization-group-header:hover .group-info {
+	opacity: 0.7;
+}
+
+.ai-customization-group-header .group-info:hover {
+	opacity: 1;
+}
+
 .ai-customization-group-header.collapsed .group-label {
 	opacity: 0.7;
 }
