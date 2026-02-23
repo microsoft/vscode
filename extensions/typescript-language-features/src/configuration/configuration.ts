@@ -153,29 +153,29 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	public loadFromWorkspace(): TypeScriptServiceConfiguration {
 		const configuration = vscode.workspace.getConfiguration();
 		return {
-			locale: this.readLocale(configuration),
+			locale: this.readLocale(),
 			globalTsdk: this.readGlobalTsdk(configuration),
 			localTsdk: this.readLocalTsdk(configuration),
-			npmLocation: this.readNpmLocation(configuration),
-			tsServerLogLevel: this.readTsServerLogLevel(configuration),
-			tsServerPluginPaths: this.readTsServerPluginPaths(configuration),
+			npmLocation: this.readNpmLocation(),
+			tsServerLogLevel: this.readTsServerLogLevel(),
+			tsServerPluginPaths: this.readTsServerPluginPaths(),
 			implicitProjectConfiguration: new ImplicitProjectConfiguration(configuration),
 			disableAutomaticTypeAcquisition: this.readDisableAutomaticTypeAcquisition(configuration),
 			useSyntaxServer: this.readUseSyntaxServer(configuration),
-			webProjectWideIntellisenseEnabled: this.readWebProjectWideIntellisenseEnable(configuration),
-			webProjectWideIntellisenseSuppressSemanticErrors: this.readWebProjectWideIntellisenseSuppressSemanticErrors(configuration),
-			webTypeAcquisitionEnabled: this.readWebTypeAcquisition(configuration),
-			enableDiagnosticsTelemetry: this.readEnableDiagnosticsTelemetry(configuration),
-			enableProjectDiagnostics: this.readEnableProjectDiagnostics(configuration),
-			maxTsServerMemory: this.readMaxTsServerMemory(configuration),
-			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(configuration),
+			webProjectWideIntellisenseEnabled: this.readWebProjectWideIntellisenseEnable(),
+			webProjectWideIntellisenseSuppressSemanticErrors: this.readWebProjectWideIntellisenseSuppressSemanticErrors(),
+			webTypeAcquisitionEnabled: this.readWebTypeAcquisition(),
+			enableDiagnosticsTelemetry: this.readEnableDiagnosticsTelemetry(),
+			enableProjectDiagnostics: this.readEnableProjectDiagnostics(),
+			maxTsServerMemory: this.readMaxTsServerMemory(),
+			enablePromptUseWorkspaceTsdk: this.readEnablePromptUseWorkspaceTsdk(),
 			useVsCodeWatcher: this.readUseVsCodeWatcher(configuration),
-			watchOptions: this.readWatchOptions(configuration),
-			includePackageJsonAutoImports: this.readIncludePackageJsonAutoImports(configuration),
-			enableTsServerTracing: this.readEnableTsServerTracing(configuration),
+			watchOptions: this.readWatchOptions(),
+			includePackageJsonAutoImports: this.readIncludePackageJsonAutoImports(),
+			enableTsServerTracing: this.readEnableTsServerTracing(),
 			localNodePath: this.readLocalNodePath(configuration),
 			globalNodePath: this.readGlobalNodePath(configuration),
-			workspaceSymbolsExcludeLibrarySymbols: this.readWorkspaceSymbolsExcludeLibrarySymbols(configuration),
+			workspaceSymbolsExcludeLibrarySymbols: this.readWorkspaceSymbolsExcludeLibrarySymbols(),
 		};
 	}
 
@@ -184,30 +184,35 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	protected abstract readLocalNodePath(configuration: vscode.WorkspaceConfiguration): string | null;
 	protected abstract readGlobalNodePath(configuration: vscode.WorkspaceConfiguration): string | null;
 
-	protected readTsServerLogLevel(configuration: vscode.WorkspaceConfiguration): TsServerLogLevel {
-		const setting = configuration.get<string>('typescript.tsserver.log', 'off');
+	protected readTsServerLogLevel(): TsServerLogLevel {
+		const setting = readUnifiedConfig<string>('tsserver.log', 'off', { fallbackSection: 'typescript' });
 		return TsServerLogLevel.fromString(setting);
 	}
 
-	protected readTsServerPluginPaths(configuration: vscode.WorkspaceConfiguration): string[] {
-		return configuration.get<string[]>('typescript.tsserver.pluginPaths', []);
+	protected readTsServerPluginPaths(): string[] {
+		return readUnifiedConfig<string[]>('tsserver.pluginPaths', [], { fallbackSection: 'typescript' });
 	}
 
-	protected readNpmLocation(configuration: vscode.WorkspaceConfiguration): string | null {
-		return configuration.get<string | null>('typescript.npm', null);
+	protected readNpmLocation(): string | null {
+		return readUnifiedConfig<string | null>('tsserver.npm.path', null, { fallbackSection: 'typescript', fallbackSubSectionNameOverride: 'npm' });
 	}
 
 	protected readDisableAutomaticTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
+		const enabled = readUnifiedConfig<boolean | undefined>('tsserver.automaticTypeAcquisition.enabled', undefined, { fallbackSection: 'typescript' });
+		if (enabled !== undefined) {
+			return !enabled;
+		}
+		// Fall back to the old deprecated setting
 		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
 	}
 
-	protected readLocale(configuration: vscode.WorkspaceConfiguration): string | null {
-		const value = configuration.get<string>('typescript.locale', 'auto');
+	protected readLocale(): string | null {
+		const value = readUnifiedConfig<string>('locale', 'auto', { fallbackSection: 'typescript' });
 		return !value || value === 'auto' ? null : value;
 	}
 
 	protected readUseSyntaxServer(configuration: vscode.WorkspaceConfiguration): SyntaxServerConfiguration {
-		const value = configuration.get<string>('typescript.tsserver.useSyntaxServer');
+		const value = readUnifiedConfig<string | undefined>('tsserver.useSyntaxServer', undefined, { fallbackSection: 'typescript' });
 		switch (value) {
 			case 'never': return SyntaxServerConfiguration.Never;
 			case 'always': return SyntaxServerConfiguration.Always;
@@ -225,13 +230,13 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return SyntaxServerConfiguration.Never;
 	}
 
-	protected readEnableDiagnosticsTelemetry(configuration: vscode.WorkspaceConfiguration): boolean {
+	protected readEnableDiagnosticsTelemetry(): boolean {
 		// This setting does not appear in the settings view, as it is not to be enabled by users outside the team
-		return configuration.get<boolean>('typescript.enableDiagnosticsTelemetry', false);
+		return readUnifiedConfig<boolean>('enableDiagnosticsTelemetry', false, { fallbackSection: 'typescript' });
 	}
 
-	protected readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.experimental.enableProjectDiagnostics', false);
+	protected readEnableProjectDiagnostics(): boolean {
+		return readUnifiedConfig<boolean>('tsserver.experimental.enableProjectDiagnostics', false, { fallbackSection: 'typescript' });
 	}
 
 	private readUseVsCodeWatcher(configuration: vscode.WorkspaceConfiguration): boolean {
@@ -256,12 +261,12 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			return experimentalConfig.workspaceFolderValue;
 		}
 
-		return configuration.get<Proto.WatchOptions | vscodeWatcherName>('typescript.tsserver.watchOptions', vscodeWatcherName) === vscodeWatcherName;
+		return readUnifiedConfig<Proto.WatchOptions | vscodeWatcherName>('tsserver.watchOptions', vscodeWatcherName, { fallbackSection: 'typescript' }) === vscodeWatcherName;
 	}
 
-	private readWatchOptions(configuration: vscode.WorkspaceConfiguration): Proto.WatchOptions | undefined {
-		const watchOptions = configuration.get<Proto.WatchOptions | vscodeWatcherName>('typescript.tsserver.watchOptions');
-		if (watchOptions === vscodeWatcherName) {
+	private readWatchOptions(): Proto.WatchOptions | undefined {
+		const watchOptions = readUnifiedConfig<Proto.WatchOptions | vscodeWatcherName | undefined>('tsserver.watchOptions', undefined, { fallbackSection: 'typescript' });
+		if (!watchOptions || watchOptions === vscodeWatcherName) {
 			return undefined;
 		}
 
@@ -269,41 +274,41 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 		return { ...(watchOptions ?? {}) };
 	}
 
-	protected readIncludePackageJsonAutoImports(_configuration: vscode.WorkspaceConfiguration): 'auto' | 'on' | 'off' | undefined {
+	protected readIncludePackageJsonAutoImports(): 'auto' | 'on' | 'off' | undefined {
 		return readUnifiedConfig<'auto' | 'on' | 'off' | undefined>('preferences.includePackageJsonAutoImports', undefined, { fallbackSection: 'typescript' });
 	}
 
-	protected readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
+	protected readMaxTsServerMemory(): number {
 		const defaultMaxMemory = 3072;
 		const minimumMaxMemory = 128;
-		const memoryInMB = configuration.get<number>('typescript.tsserver.maxTsServerMemory', defaultMaxMemory);
+		const memoryInMB = readUnifiedConfig<number>('tsserver.maxMemory', defaultMaxMemory, { fallbackSection: 'typescript', fallbackSubSectionNameOverride: 'tsserver.maxTsServerMemory' });
 		if (!Number.isSafeInteger(memoryInMB)) {
 			return defaultMaxMemory;
 		}
 		return Math.max(memoryInMB, minimumMaxMemory);
 	}
 
-	protected readEnablePromptUseWorkspaceTsdk(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.enablePromptUseWorkspaceTsdk', false);
+	protected readEnablePromptUseWorkspaceTsdk(): boolean {
+		return readUnifiedConfig<boolean>('tsdk.promptToUseWorkspaceVersion', false, { fallbackSection: 'typescript', fallbackSubSectionNameOverride: 'enablePromptUseWorkspaceTsdk' });
 	}
 
-	protected readEnableTsServerTracing(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.enableTracing', false);
+	protected readEnableTsServerTracing(): boolean {
+		return readUnifiedConfig<boolean>('tsserver.tracing.enabled', false, { fallbackSection: 'typescript', fallbackSubSectionNameOverride: 'tsserver.enableTracing' });
 	}
 
-	private readWorkspaceSymbolsExcludeLibrarySymbols(_configuration: vscode.WorkspaceConfiguration): boolean {
+	private readWorkspaceSymbolsExcludeLibrarySymbols(): boolean {
 		return readUnifiedConfig<boolean>('workspaceSymbols.excludeLibrarySymbols', true, { scope: null, fallbackSection: 'typescript' });
 	}
 
-	private readWebProjectWideIntellisenseEnable(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.enabled', true);
+	private readWebProjectWideIntellisenseEnable(): boolean {
+		return readUnifiedConfig<boolean>('tsserver.web.projectWideIntellisense.enabled', true, { fallbackSection: 'typescript' });
 	}
 
-	private readWebProjectWideIntellisenseSuppressSemanticErrors(configuration: vscode.WorkspaceConfiguration): boolean {
-		return this.readWebTypeAcquisition(configuration) && configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors', false);
+	private readWebProjectWideIntellisenseSuppressSemanticErrors(): boolean {
+		return this.readWebTypeAcquisition() && readUnifiedConfig<boolean>('tsserver.web.projectWideIntellisense.suppressSemanticErrors', false, { fallbackSection: 'typescript' });
 	}
 
-	private readWebTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', true);
+	private readWebTypeAcquisition(): boolean {
+		return readUnifiedConfig<boolean>('tsserver.web.typeAcquisition.enabled', true, { fallbackSection: 'typescript' });
 	}
 }

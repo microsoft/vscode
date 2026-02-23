@@ -90,7 +90,7 @@
 
 	.chat-used-context-list.chat-thinking-collapsible {
 		border: 1px solid var(--vscode-chat-requestBorder);
-		border-radius: 4px;
+		border-radius: var(--vscode-cornerRadius-medium);
 		margin-bottom: 0;
 		position: relative;
 		overflow: hidden;

@@ -170,5 +170,5 @@ export const AGENT_SESSION_RENAME_ACTION_ID = 'agentSession.rename';
 export const AGENT_SESSION_DELETE_ACTION_ID = 'agentSession.delete';
 
 export function getAgentSessionTime(timing: IChatSessionTiming): number {
-	return timing.lastRequestEnded ?? timing.lastRequestStarted ?? timing.created;
+	return timing.lastRequestStarted ?? timing.created;
 }

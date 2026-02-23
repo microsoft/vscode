@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -57,6 +58,8 @@ import { IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.
 import { BranchPicker } from './branchPicker.js';
 import { INewSession } from './newSession.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
+
+const STORAGE_KEY_LAST_MODEL = 'sessions.selectedModel';
 
 // #region --- Chat Welcome Widget ---
 
@@ -94,6 +97,7 @@ class NewChatWidget extends Disposable {
 
 	// Send button
 	private _sendButton: Button | undefined;
+	private _sending = false;
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -133,6 +137,7 @@ class NewChatWidget extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
@@ -324,12 +329,12 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _updateInputLoadingState(): void {
-		const loading = this._repositoryLoading || this._branchLoading;
+		const loading = this._repositoryLoading || this._branchLoading || this._sending;
 		if (loading) {
 			if (!this._loadingDelayDisposable.value) {
 				const timer = setTimeout(() => {
 					this._loadingDelayDisposable.clear();
-					if (this._repositoryLoading || this._branchLoading) {
+					if (this._repositoryLoading || this._branchLoading || this._sending) {
 						this._loadingSpinner?.classList.add('visible');
 					}
 				}, 500);
@@ -467,11 +472,12 @@ class NewChatWidget extends Disposable {
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._currentLanguageModel.set(model, undefined);
+				this.storageService.store(STORAGE_KEY_LAST_MODEL, model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 				this._newSession.value?.setModelId(model.identifier);
 				this._focusEditor();
 			},
 			getModels: () => this._getAvailableModels(),
-			showCuratedModels: () => false,
+			canManageModels: () => false,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -489,16 +495,24 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _initDefaultModel(): void {
+		const lastModelId = this.storageService.get(STORAGE_KEY_LAST_MODEL, StorageScope.PROFILE);
 		const models = this._getAvailableModels();
-		if (models.length > 0) {
+		const lastModel = lastModelId ? models.find(m => m.identifier === lastModelId) : undefined;
+		if (lastModel) {
+			this._currentLanguageModel.set(lastModel, undefined);
+		} else if (models.length > 0) {
 			this._currentLanguageModel.set(models[0], undefined);
 		}
 
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			if (!this._currentLanguageModel.get()) {
-				const models = this._getAvailableModels();
-				if (models.length > 0) {
-					this._currentLanguageModel.set(models[0], undefined);
+				const storedId = this.storageService.get(STORAGE_KEY_LAST_MODEL, StorageScope.PROFILE);
+				const updated = this._getAvailableModels();
+				const stored = storedId ? updated.find(m => m.identifier === storedId) : undefined;
+				if (stored) {
+					this._currentLanguageModel.set(stored, undefined);
+				} else if (updated.length > 0) {
+					this._currentLanguageModel.set(updated[0], undefined);
 				}
 			}
 		}));
@@ -515,6 +529,9 @@ class NewChatWidget extends Disposable {
 
 	private shouldShowModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		if (!model.metadata.isUserSelectable) {
+			return false;
+		}
+		if (model.metadata.targetChatSessionType === AgentSessionProviders.Background) {
 			return false;
 		}
 		return true;
@@ -756,13 +773,13 @@ class NewChatWidget extends Disposable {
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		this._sendButton.enabled = hasText && !(this._newSession.value?.disabled ?? true);
+		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
 	private _send(): void {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
-		if (!query || !session || session.disabled) {
+		if (!query || !session || session.disabled || this._sending) {
 			return;
 		}
 
@@ -771,14 +788,26 @@ class NewChatWidget extends Disposable {
 			this._contextAttachments.attachments.length > 0 ? [...this._contextAttachments.attachments] : undefined
 		);
 
+		this._sending = true;
+		this._editor.updateOptions({ readOnly: true });
+		this._updateSendButtonState();
+		this._updateInputLoadingState();
+
 		this.sessionsManagementService.sendRequestForNewSession(
 			session.resource
-		).catch(e => this.logService.error('Failed to send request:', e));
-
-		// Clear sent session so a fresh one is created next time
-		this._newSession.clear();
-		this._newSessionListener.clear();
-		this._contextAttachments.clear();
+		).then(() => {
+			// Release ref without disposing - the service owns disposal
+			this._newSession.clearAndLeak();
+			this._newSessionListener.clear();
+			this._contextAttachments.clear();
+		}, e => {
+			this.logService.error('Failed to send request:', e);
+		}).finally(() => {
+			this._sending = false;
+			this._editor.updateOptions({ readOnly: false });
+			this._updateSendButtonState();
+			this._updateInputLoadingState();
+		});
 	}
 
 	// --- Layout ---

@@ -173,7 +173,7 @@ export class InlineChatEditorAffordance extends Disposable implements IContentWi
 				if (action instanceof MenuItemAction && action.id === quickFixCommandId) {
 					return instantiationService.createInstance(QuickFixActionViewItem, action, this._editor);
 				}
-				if (action instanceof MenuItemAction && (action.id === ACTION_START || action.id === ACTION_ASK_IN_CHAT)) {
+				if (action instanceof MenuItemAction && (action.id === ACTION_START || action.id === ACTION_ASK_IN_CHAT || action.id === 'inlineChat.fixDiagnostics')) {
 					return instantiationService.createInstance(LabelWithKeybindingActionViewItem, action);
 				}
 				return undefined;

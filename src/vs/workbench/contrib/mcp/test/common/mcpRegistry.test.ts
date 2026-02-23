@@ -17,6 +17,8 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogger, ILoggerService, ILogService, NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
@@ -28,6 +30,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
+import { IMcpSandboxService } from '../../common/mcpSandboxService.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpTaskManager } from '../../common/mcpTaskManager.js';
 import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
@@ -135,6 +138,31 @@ class TestMcpRegistry extends McpRegistry {
 	}
 }
 
+class TestMcpSandboxService implements IMcpSandboxService {
+	declare readonly _serviceBrand: undefined;
+	public callCount = 0;
+	public enabled = false;
+	public lastLaunchCallArgs: { serverDef: McpServerDefinition; launch: McpServerLaunch; remoteAuthority: string | undefined; configTarget: ConfigurationTarget } | undefined;
+
+	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
+		this.callCount++;
+		this.lastLaunchCallArgs = { serverDef, launch, remoteAuthority, configTarget };
+
+		if (this.enabled && launch.type === McpServerTransportType.Stdio) {
+			return Promise.resolve({
+				...launch,
+				command: 'sandboxed-command',
+			});
+		}
+
+		return Promise.resolve(launch);
+	}
+
+	isEnabled(serverDef: McpServerDefinition): Promise<boolean> {
+		return Promise.resolve(this.enabled);
+	}
+}
+
 suite('Workbench - MCP - Registry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -148,6 +176,7 @@ suite('Workbench - MCP - Registry', () => {
 	let logger: ILogger;
 	let trustNonceBearer: { trustedAtNonce: string | undefined };
 	let taskManager: McpTaskManager;
+	let testMcpSandboxService: TestMcpSandboxService;
 
 	setup(() => {
 		testConfigResolverService = new TestConfigurationResolverService();
@@ -155,6 +184,7 @@ suite('Workbench - MCP - Registry', () => {
 		testDialogService = new TestDialogService();
 		configurationService = new TestConfigurationService({ [mcpAccessConfig]: McpAccessValue.All });
 		trustNonceBearer = { trustedAtNonce: undefined };
+		testMcpSandboxService = new TestMcpSandboxService();
 
 		const services = new ServiceCollection(
 			[IConfigurationService, configurationService],
@@ -163,8 +193,10 @@ suite('Workbench - MCP - Registry', () => {
 			[ISecretStorageService, new TestSecretStorageService()],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[ILogService, store.add(new NullLogService())],
+			[INotificationService, new TestNotificationService()],
 			[IOutputService, upcast({ showChannel: () => { } })],
 			[IDialogService, testDialogService],
+			[IMcpSandboxService, testMcpSandboxService],
 			[IProductService, {}],
 		);
 
@@ -333,6 +365,52 @@ suite('Workbench - MCP - Registry', () => {
 
 		// Verify the launch configuration passed to _replaceVariablesInLaunch was the custom one
 		assert.deepStrictEqual((connection.launchDefinition as McpServerTransportStdio).env, { CUSTOM_ENV: 'value' });
+
+		connection.dispose();
+	});
+
+	test('resolveConnection calls launchInSandboxIfEnabled with expected arguments when sandboxing is enabled', async () => {
+		testMcpSandboxService.enabled = true;
+
+		const sandboxCollection: McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> } = {
+			...testCollection,
+			id: 'sandbox-collection',
+			remoteAuthority: 'ssh-remote+test',
+		};
+
+		const definition: McpServerDefinition = {
+			...baseDefinition,
+			id: 'sandbox-server',
+			launch: {
+				type: McpServerTransportType.Stdio,
+				command: 'test-command',
+				args: ['--flag'],
+				env: {},
+				envFile: undefined,
+				cwd: '/test',
+			},
+		};
+
+		const delegate = new TestMcpHostDelegate();
+		store.add(registry.registerDelegate(delegate));
+		sandboxCollection.serverDefinitions.set([definition], undefined);
+		store.add(registry.registerCollection(sandboxCollection));
+
+		const connection = await registry.resolveConnection({
+			collectionRef: sandboxCollection,
+			definitionRef: definition,
+			logger,
+			trustNonceBearer,
+			taskManager,
+		}) as McpServerConnection;
+
+		assert.ok(connection);
+		assert.strictEqual(testMcpSandboxService.callCount, 1);
+		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.serverDef, definition);
+		assert.deepStrictEqual(testMcpSandboxService.lastLaunchCallArgs?.launch, definition.launch);
+		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.remoteAuthority, 'ssh-remote+test');
+		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.configTarget, ConfigurationTarget.USER);
+		assert.strictEqual((connection.launchDefinition as McpServerTransportStdio).command, 'sandboxed-command');
 
 		connection.dispose();
 	});

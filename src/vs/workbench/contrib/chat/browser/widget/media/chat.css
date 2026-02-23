@@ -558,7 +558,7 @@
 
 	.tool-output-part {
 		border: 1px solid var(--vscode-widget-border);
-		border-radius: 6px;
+		border-radius: var(--vscode-cornerRadius-medium);
 		background: var(--vscode-editor-background);
 		margin: 4px 0;
 		overflow: hidden;
@@ -1263,6 +1263,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-color: var(--vscode-focusBorder);
 }
 
+.chat-editor-container {
+	padding: 0 4px;
+}
+
 .chat-editor-container .monaco-editor .mtk1 {
 	color: var(--vscode-input-foreground);
 }
@@ -1294,14 +1298,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-left: 4px;
 }
 
-.interactive-session .chat-editor-container .monaco-editor .view-lines {
-	padding-left: 4px;
-}
-
 .interactive-session .chat-input-toolbars {
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	margin-top: 4px;
 }
 
 .interactive-session .chat-input-toolbars :not(.responsive.chat-input-toolbar) .actions-container:first-child {
@@ -2848,6 +2849,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.checkpoint-container:focus-within,
+	.checkpoint-container.response-hovered,
 	.interactive-item-container.interactive-request:not(.editing):hover .checkpoint-container {
 		opacity: 1;
 	}
@@ -2860,7 +2862,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		overflow: visible !important;
 	}
 
-	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.monaco-list-row.focused.request {
+	.interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request {
 		outline: none !important;
 	}
 
@@ -3137,4 +3139,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 	color: var(--vscode-descriptionForeground);
+}
+
+/* Outline removal except for HC themes */
+.monaco-workbench:not(.hc-black):not(.hc-light) .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.response {
+	outline: none !important;
 }

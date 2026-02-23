@@ -36,7 +36,6 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { IInlineChatSession2 } from './inlineChatSessionService.js';
-import { CancelChatActionId } from '../../chat/browser/actions/chatExecuteActions.js';
 import { assertType } from '../../../../base/common/types.js';
 
 /**
@@ -225,9 +224,14 @@ export class InlineChatInputWidget extends Disposable {
 		}));
 
 		// ArrowUp on first action bar item moves focus back to input editor
+		// Escape on action bar hides the widget
 		this._store.add(dom.addDisposableListener(actionBar.domNode, 'keydown', (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.UpArrow) {
+			if (event.keyCode === KeyCode.Escape) {
+				event.preventDefault();
+				event.stopPropagation();
+				this.hide();
+			} else if (event.keyCode === KeyCode.UpArrow) {
 				const firstItem = actionBar.viewItems[0] as BaseActionViewItem | undefined;
 				if (firstItem?.element && dom.isAncestorOfActiveElement(firstItem.element)) {
 					event.preventDefault();
@@ -471,7 +475,7 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 			},
 			menuOptions: { renderShortTitle: true },
 			actionViewItemProvider: (action, options) => {
-				const primaryActions = [CancelChatActionId, 'inlineChat2.keep'];
+				const primaryActions = ['inlineChat2.cancel', 'inlineChat2.keep'];
 				const labeledActions = primaryActions.concat(['inlineChat2.undo']);
 
 				if (!labeledActions.includes(action.id)) {

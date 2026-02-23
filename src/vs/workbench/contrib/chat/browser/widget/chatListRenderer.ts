@@ -750,6 +750,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || isPendingRequest || !(checkpointEnabled));
 
+		// show checkpoint on response monaco-list row hover as well
+		if (isResponseVM(element) && checkpointEnabled) {
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_ENTER, () => {
+				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
+				if (requestTemplateData) {
+					requestTemplateData.checkpointContainer.classList.add('response-hovered');
+				}
+			}));
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_LEAVE, () => {
+				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
+				if (requestTemplateData) {
+					requestTemplateData.checkpointContainer.classList.remove('response-hovered');
+				}
+			}));
+			// Ensure 'response-hovered' is cleared if the response row is disposed while hovered
+			templateData.elementDisposables.add(toDisposable(() => {
+				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
+				if (requestTemplateData) {
+					requestTemplateData.checkpointContainer.classList.remove('response-hovered');
+				}
+			}));
+		}
+
 		// Only show restore container when we have a checkpoint and not editing, and not a pending request
 		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1) && !isPendingRequest;
 		templateData.checkpointRestoreContainer.classList.toggle('hidden', !(shouldShowRestore && checkpointEnabled));
@@ -779,7 +802,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Overlay click listener removed: overlay is non-interactive in cancel-on-any-row mode.
 
 		// hack @joaomoreno
-		templateData.rowContainer.parentElement?.parentElement?.parentElement?.classList.toggle('request', isRequestVM(element));
+		const rowRoot = templateData.rowContainer.parentElement?.parentElement?.parentElement;
+		rowRoot?.classList.toggle('request', isRequestVM(element));
+		rowRoot?.classList.toggle('response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
 		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
 

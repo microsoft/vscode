@@ -131,6 +131,6 @@
   },
   "dependencies": {
     "dompurify": "^3.2.7",
-    "mermaid": "^11.11.0"
+    "mermaid": "^11.12.3"
   }
 }

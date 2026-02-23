@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -27,14 +27,16 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { PROMPT_LANGUAGE_ID, INSTRUCTIONS_LANGUAGE_ID, AGENT_LANGUAGE_ID, SKILL_LANGUAGE_ID, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 
 //#region Editor Registration
 
@@ -269,9 +271,29 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				super({
 					id: AICustomizationManagementCommands.OpenEditor,
 					title: localize2('openAICustomizations', "Open AI Customizations"),
+					shortTitle: localize2('aiCustomizations', "AI Customizations"),
 					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
 					f1: true,
+					menu: [
+						{
+							id: MenuId.GlobalActivity,
+							when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationMenuEnabled}`)),
+							group: '2_configuration',
+							order: 4,
+						},
+						{
+							id: MenuId.EditorContent,
+							when: ContextKeyExpr.and(
+								ChatContextKeys.enabled,
+								ContextKeyExpr.or(
+									ContextKeyExpr.equals(ResourceContextKey.LangId.key, PROMPT_LANGUAGE_ID),
+									ContextKeyExpr.equals(ResourceContextKey.LangId.key, INSTRUCTIONS_LANGUAGE_ID),
+									ContextKeyExpr.equals(ResourceContextKey.LangId.key, AGENT_LANGUAGE_ID),
+									ContextKeyExpr.equals(ResourceContextKey.LangId.key, SKILL_LANGUAGE_ID),
+								),
+							),
+						}],
 				});
 			}
 

@@ -24,10 +24,60 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ChatConfiguration } from '../constants.js';
+import { parseCopilotHooks } from '../promptSyntax/hookCompatibility.js';
+import { parseClaudeHooks } from '../promptSyntax/hookClaudeCompat.js';
 import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginCommand, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
+import { cloneAndChange } from '../../../../../base/common/objects.js';
 
 const COMMAND_FILE_SUFFIX = '.md';
+
+const enum AgentPluginFormat {
+	Copilot,
+	Claude,
+}
+
+interface IAgentPluginFormatAdapter {
+	readonly format: AgentPluginFormat;
+	readonly manifestPaths: readonly string[];
+	readonly hookConfigPaths: readonly string[];
+	readonly hookWatchPaths: readonly string[];
+	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[];
+}
+
+function mapParsedHooks(parsed: Map<IAgentPluginHook['type'], { hooks: IAgentPluginHook['hooks']; originalId: string }>): IAgentPluginHook[] {
+	return [...parsed.entries()].map(([type, { hooks, originalId }]) => ({ type, hooks, originalId }));
+}
+
+const copilotPluginFormatAdapter: IAgentPluginFormatAdapter = {
+	format: AgentPluginFormat.Copilot,
+	manifestPaths: ['plugin.json'],
+	hookConfigPaths: ['hooks.json'],
+	hookWatchPaths: ['hooks.json'],
+	parseHooks: (json, pluginUri, userHome) => mapParsedHooks(parseCopilotHooks(json, pluginUri, userHome)),
+};
+
+const claudePluginFormatAdapter: IAgentPluginFormatAdapter = {
+	format: AgentPluginFormat.Claude,
+	manifestPaths: ['.claude-plugin/plugin.json'],
+	hookConfigPaths: ['hooks/hooks.json'],
+	hookWatchPaths: ['hooks'],
+	parseHooks: (json, pluginUri, userHome) => {
+		const replacer = (v: unknown): unknown => {
+			return typeof v === 'string'
+				? v.replaceAll('${CLAUDE_PLUGIN_ROOT}', pluginUri.fsPath)
+				: undefined;
+		};
+
+		const { hooks, disabledAllHooks } = parseClaudeHooks(cloneAndChange(json, replacer), pluginUri, userHome);
+		if (disabledAllHooks) {
+			return [];
+		}
+
+		return mapParsedHooks(hooks);
+	},
+};
 
 export class AgentPluginService extends Disposable implements IAgentPluginService {
 
@@ -88,7 +138,7 @@ type PluginEntry = IAgentPlugin & { enabled: ISettableObservable<boolean> };
 export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgentPluginDiscovery {
 
 	private readonly _pluginPathsConfig: IObservable<Record<string, boolean>>;
-	private readonly _pluginEntries = new Map<string, { plugin: PluginEntry; store: DisposableStore }>();
+	private readonly _pluginEntries = new Map<string, { plugin: PluginEntry; store: DisposableStore; adapter: IAgentPluginFormatAdapter }>();
 
 	private readonly _plugins = observableValue<readonly IAgentPlugin[]>('discoveredAgentPlugins', []);
 	public readonly plugins: IObservable<readonly IAgentPlugin[]> = this._plugins;
@@ -99,6 +149,7 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IPathService private readonly _pathService: IPathService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -151,8 +202,9 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 
 				const key = stat.resource.toString();
 				if (!seenPluginUris.has(key)) {
+					const adapter = await this._detectPluginFormatAdapter(stat.resource);
 					seenPluginUris.add(key);
-					plugins.push(this._toPlugin(stat.resource, path, enabled));
+					plugins.push(this._toPlugin(stat.resource, path, enabled, adapter));
 				}
 			}
 		}
@@ -215,17 +267,41 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		);
 	}
 
-	private _toPlugin(uri: URI, configKey: string, initialEnabled: boolean): IAgentPlugin {
+	private async _detectPluginFormatAdapter(pluginUri: URI): Promise<IAgentPluginFormatAdapter> {
+		const isInClaudeDirectory = pluginUri.path.split('/').includes('.claude');
+		if (isInClaudeDirectory || await this._pathExists(joinPath(pluginUri, '.claude-plugin', 'plugin.json'))) {
+			return claudePluginFormatAdapter;
+		}
+
+		return copilotPluginFormatAdapter;
+	}
+
+	private async _pathExists(resource: URI): Promise<boolean> {
+		try {
+			await this._fileService.resolve(resource);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	private _toPlugin(uri: URI, configKey: string, initialEnabled: boolean, adapter: IAgentPluginFormatAdapter): IAgentPlugin {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
-			existing.plugin.enabled.set(initialEnabled, undefined);
-			return existing.plugin;
+			if (existing.adapter.format !== adapter.format) {
+				existing.store.dispose();
+				this._pluginEntries.delete(key);
+			} else {
+				existing.plugin.enabled.set(initialEnabled, undefined);
+				return existing.plugin;
+			}
 		}
 
 		const store = new DisposableStore();
 		const commands = observableValue<readonly IAgentPluginCommand[]>('agentPluginCommands', []);
 		const skills = observableValue<readonly IAgentPluginSkill[]>('agentPluginSkills', []);
+		const hooks = observableValue<readonly IAgentPluginHook[]>('agentPluginHooks', []);
 		const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('agentPluginMcpServerDefinitions', []);
 		const enabled = observableValue<boolean>('agentPluginEnabled', initialEnabled);
 
@@ -238,8 +314,11 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		const skillsScheduler = store.add(new RunOnceScheduler(async () => {
 			skills.set(await this._readSkills(uri), undefined);
 		}, 200));
+		const hooksScheduler = store.add(new RunOnceScheduler(async () => {
+			hooks.set(await this._readHooks(uri, adapter), undefined);
+		}, 200));
 		const mcpScheduler = store.add(new RunOnceScheduler(async () => {
-			mcpServerDefinitions.set(await this._readMcpDefinitions(uri), undefined);
+			mcpServerDefinitions.set(await this._readMcpDefinitions(uri, adapter), undefined);
 		}, 200));
 
 		store.add(this._fileService.watch(uri, { recursive: true, excludes: [] }));
@@ -250,14 +329,18 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 			if (e.affects(skillsDir)) {
 				skillsScheduler.schedule();
 			}
-			// MCP definitions come from .mcp.json, plugin.json, or .claude-plugin/plugin.json
-			if (e.affects(joinPath(uri, '.mcp.json')) || e.affects(joinPath(uri, 'plugin.json')) || e.affects(joinPath(uri, '.claude-plugin'))) {
+			if (adapter.hookWatchPaths.some(path => e.affects(joinPath(uri, path)))) {
+				hooksScheduler.schedule();
+			}
+			if (e.affects(joinPath(uri, '.mcp.json')) || adapter.manifestPaths.some(path => e.affects(joinPath(uri, path)))) {
 				mcpScheduler.schedule();
+				hooksScheduler.schedule();
 			}
 		}));
 
 		commandsScheduler.schedule();
 		skillsScheduler.schedule();
+		hooksScheduler.schedule();
 		mcpScheduler.schedule();
 
 		const plugin: PluginEntry = {
@@ -266,24 +349,24 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 			setEnabled: (value: boolean) => {
 				this._updatePluginPathEnabled(configKey, value);
 			},
-			hooks: observableValue<readonly IAgentPluginHook[]>('agentPluginHooks', []),
+			hooks,
 			commands,
 			skills,
 			mcpServerDefinitions,
 		};
 
-		this._pluginEntries.set(key, { store, plugin });
+		this._pluginEntries.set(key, { store, plugin, adapter });
 
 		return plugin;
 	}
 
-	private async _readMcpDefinitions(pluginUri: URI): Promise<readonly IAgentPluginMcpServerDefinition[]> {
+	private async _readMcpDefinitions(pluginUri: URI, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginMcpServerDefinition[]> {
 		const mcpUri = joinPath(pluginUri, '.mcp.json');
 
 		const mcpFileConfig = await this._readJsonFile(mcpUri);
 		const fileDefinitions = this._parseMcpServerDefinitionMap(mcpFileConfig);
 
-		const pluginJsonDefinitions = await this._readInlinePluginJsonMcpDefinitions(pluginUri);
+		const pluginJsonDefinitions = await this._readInlinePluginJsonMcpDefinitions(pluginUri, adapter);
 
 		const merged = new Map<string, IMcpServerConfiguration>();
 		for (const definition of fileDefinitions) {
@@ -302,13 +385,8 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		return definitions;
 	}
 
-	private async _readInlinePluginJsonMcpDefinitions(pluginUri: URI): Promise<readonly IAgentPluginMcpServerDefinition[]> {
-		const manifestPaths = [
-			joinPath(pluginUri, 'plugin.json'),
-			joinPath(pluginUri, '.claude-plugin', 'plugin.json'),
-		];
-
-		for (const manifestPath of manifestPaths) {
+	private async _readInlinePluginJsonMcpDefinitions(pluginUri: URI, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginMcpServerDefinition[]> {
+		for (const manifestPath of adapter.manifestPaths.map(path => joinPath(pluginUri, path))) {
 			const manifest = await this._readJsonFile(manifestPath);
 			if (!manifest || typeof manifest !== 'object') {
 				continue;
@@ -402,6 +480,28 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		}
 
 		return undefined;
+	}
+
+	private async _readHooks(pluginUri: URI, adapter: IAgentPluginFormatAdapter): Promise<readonly IAgentPluginHook[]> {
+		const userHome = (await this._pathService.userHome()).fsPath;
+		for (const hooksUri of adapter.hookConfigPaths.map(path => joinPath(pluginUri, path))) {
+			const json = await this._readJsonFile(hooksUri);
+			if (json) {
+				return adapter.parseHooks(json, pluginUri, userHome);
+			}
+		}
+
+		for (const manifestPath of adapter.manifestPaths.map(path => joinPath(pluginUri, path))) {
+			const manifest = await this._readJsonFile(manifestPath);
+			if (manifest && typeof manifest === 'object') {
+				const hooks = (manifest as Record<string, unknown>)['hooks'];
+				if (hooks && typeof hooks === 'object') {
+					return adapter.parseHooks({ hooks }, pluginUri, userHome);
+				}
+			}
+		}
+
+		return [];
 	}
 
 	private async _readJsonFile(uri: URI): Promise<unknown | undefined> {

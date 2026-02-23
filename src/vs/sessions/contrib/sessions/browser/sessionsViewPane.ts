@@ -18,8 +18,9 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
+import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../workbench/common/views.js';
+import { sessionsSidebarBackground } from '../../../common/theme.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -85,6 +86,18 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this.createControls(parent);
 	}
 
+	protected override getLocationBasedColors(): IViewPaneLocationColors {
+		const colors = super.getLocationBasedColors();
+		return {
+			...colors,
+			background: sessionsSidebarBackground,
+			listOverrideStyles: {
+				...colors.listOverrideStyles,
+				listBackground: sessionsSidebarBackground,
+			}
+		};
+	}
+
 	private createControls(parent: HTMLElement): void {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 
@@ -104,7 +117,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
 		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
 		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.activeSessionService.openNewSession()));
+		this._register(newSessionButton.onDidClick(() => this.activeSessionService.openNewSessionView()));
 
 		// Keybinding hint inside the button
 		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT);
