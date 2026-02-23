@@ -230,7 +230,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
 			),
 		),
-		excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint', 'workbench.action.chat.restoreLastCheckpoint'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint'],
 	},
 	{
 		id: 'tip.customInstructions',

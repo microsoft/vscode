@@ -29,11 +29,7 @@ export interface IModelPickerDelegate {
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
-	/**
-	 * Whether to show curated models from the control manifest (featured, unavailable, upgrade prompts, etc.).
-	 * Defaults to `true`.
-	 */
-	showCuratedModels?(): boolean;
+	canManageModels(): boolean;
 }
 
 type ChatModelChangeClassification = {

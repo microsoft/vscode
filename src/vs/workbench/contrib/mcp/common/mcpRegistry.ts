@@ -32,6 +32,7 @@ import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/commo
 import { IMcpDevModeDebugging } from './mcpDevMode.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
+import { IMcpSandboxService } from './mcpSandboxService.js';
 import { McpServerConnection } from './mcpServerConnection.js';
 import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 
@@ -85,6 +86,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@ILogService private readonly _logService: ILogService,
+		@IMcpSandboxService private readonly _mcpSandboxService: IMcpSandboxService,
 	) {
 		super();
 		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
@@ -509,6 +511,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			if (definition.devMode && debug) {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
 			}
+			// If sandbox is enabled for this server, attempt to launch in sandbox
+			launch = await this._mcpSandboxService.launchInSandboxIfEnabled(definition, launch, collection.remoteAuthority ?? undefined, collection.configTarget);
 		} catch (e) {
 			if (e instanceof UserInteractionRequiredError) {
 				throw e;

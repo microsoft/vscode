@@ -54,13 +54,9 @@
           },
           "simpleBrowser.useIntegratedBrowser": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%configuration.useIntegratedBrowser.description%",
-            "scope": "application",
-            "tags": [
-              "experimental",
-              "onExP"
-            ]
+            "scope": "application"
           }
         }
       }

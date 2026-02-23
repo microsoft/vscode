@@ -471,7 +471,7 @@ class NewChatWidget extends Disposable {
 				this._focusEditor();
 			},
 			getModels: () => this._getAvailableModels(),
-			showCuratedModels: () => false,
+			canManageModels: () => false,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
@@ -515,6 +515,9 @@ class NewChatWidget extends Disposable {
 
 	private shouldShowModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		if (!model.metadata.isUserSelectable) {
+			return false;
+		}
+		if (model.metadata.targetChatSessionType === AgentSessionProviders.Background) {
 			return false;
 		}
 		return true;
