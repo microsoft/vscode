@@ -198,7 +198,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.diffDecorationsGutterWidth': {
 			type: 'number',
-			enum: [1, 2, 3, 4, 5],
+			minimum: 1,
+			maximum: 20,
 			default: 3,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
 		},
