@@ -172,6 +172,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
+	private pendingRemovalFlushDisposable: IDisposable | undefined;
 	private pendingScrollDisposable: IDisposable | undefined;
 	private mutationObserverDisposable: IDisposable | undefined;
 	private isUpdatingDimensions: boolean = false;
@@ -1112,6 +1113,21 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.pendingRemovals = [];
 	}
 
+	private schedulePendingRemovalsFlush(): void {
+		if (this.pendingRemovalFlushDisposable) {
+			return;
+		}
+
+		this.pendingRemovalFlushDisposable = scheduleAtNextAnimationFrame(getWindow(this.domNode), () => {
+			this.pendingRemovalFlushDisposable = undefined;
+			if (this._store.isDisposed) {
+				return;
+			}
+
+			this.processPendingRemovals();
+		});
+	}
+
 	// removes the tool entry that was previously streaming and now is not. removes item from dom and internal tracking.
 	private removeStreamingToolEntry(toolCallId: string, toolLabel: string): void {
 		this.toolDisposables.deleteAndDispose(toolCallId);
@@ -1222,6 +1238,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 						isStreaming = false;
 						if (toolInvocationOrMarkdown.presentation === 'hidden') {
 							this.pendingRemovals.push({ toolCallId: toolInvocationOrMarkdown.toolCallId, toolLabel: currentToolLabel });
+							this.schedulePendingRemovalsFlush();
 							isComplete = true;
 							return;
 						}
@@ -1513,6 +1530,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.workingSpinnerElement = undefined;
 			this.workingSpinnerLabel = undefined;
 		}
+		this.pendingRemovalFlushDisposable?.dispose();
+		this.pendingRemovalFlushDisposable = undefined;
 		this.pendingScrollDisposable?.dispose();
 		super.dispose();
 	}
