@@ -146,11 +146,11 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 		// Resolve the setting explicitly in scope precedence order to avoid relying on
 		// resource-dependent resolution in this global service.
-		return inspectedValue.workspaceFolderValue
+		return inspectedValue.policyValue
+			?? inspectedValue.memoryValue
+			?? inspectedValue.workspaceFolderValue
 			?? inspectedValue.workspaceValue
 			?? inspectedValue.userValue
-			?? inspectedValue.userLocalValue
-			?? inspectedValue.userRemoteValue
 			?? inspectedValue.applicationValue
 			?? inspectedValue.defaultValue
 			?? 'auto';
