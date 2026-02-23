@@ -179,11 +179,7 @@ class McpGalleryItemRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpG
 			if (canInstall === true) {
 				templateData.installButton.label = localize('installing', "Installing...");
 				templateData.installButton.enabled = false;
-				try {
-					await this.mcpWorkbenchService.install(element);
-				} finally {
-					this.updateInstallButton(templateData.installButton, element);
-				}
+				await this.mcpWorkbenchService.install(element);
 			}
 		}));
 
