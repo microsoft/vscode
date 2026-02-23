@@ -1381,7 +1381,7 @@ export interface MainThreadChatContextShape extends IDisposable {
 
 export interface IChatDebugEventCommonDto {
 	readonly id?: string;
-	readonly sessionId?: string;
+	readonly sessionResource?: UriComponents;
 	readonly created: number;
 	readonly parentEventId?: string;
 }
@@ -1458,7 +1458,7 @@ export interface IChatDebugEventMessageContentDto {
 export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | IChatDebugEventMessageContentDto;
 
 export interface ExtHostChatDebugShape {
-	$provideChatDebugLog(handle: number, sessionId: string, token: CancellationToken): Promise<IChatDebugEventDto[] | undefined>;
+	$provideChatDebugLog(handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<IChatDebugEventDto[] | undefined>;
 	$resolveChatDebugLogEvent(handle: number, eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContentDto | undefined>;
 }
 

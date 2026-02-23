@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtHostChatDebugShape, IChatDebugEventDto, IChatDebugResolvedEventContentDto, MainContext, MainThreadChatDebugShape } from './extHost.protocol.js';
 import { ChatDebugMessageContentType, ChatDebugSubagentStatus, ChatDebugToolCallResult } from './extHostTypes.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -17,7 +18,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 	private readonly _proxy: MainThreadChatDebugShape;
 	private _provider: vscode.ChatDebugLogProvider | undefined;
 	private _nextHandle: number = 0;
-	/** Progress pipelines keyed by `${handle}:${sessionId}` so multiple sessions can stream concurrently. */
+	/** Progress pipelines keyed by `${handle}:${sessionResource}` so multiple sessions can stream concurrently. */
 	private readonly _activeProgress = new Map<string, DisposableStore>();
 
 	constructor(
@@ -27,8 +28,8 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadChatDebug);
 	}
 
-	private _progressKey(handle: number, sessionId: string): string {
-		return `${handle}:${sessionId}`;
+	private _progressKey(handle: number, sessionResource: UriComponents): string {
+		return `${handle}:${URI.revive(sessionResource).toString()}`;
 	}
 
 	private _cleanupProgress(key: string): void {
@@ -60,13 +61,13 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		});
 	}
 
-	async $provideChatDebugLog(handle: number, sessionId: string, token: CancellationToken): Promise<IChatDebugEventDto[] | undefined> {
+	async $provideChatDebugLog(handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<IChatDebugEventDto[] | undefined> {
 		if (!this._provider) {
 			return undefined;
 		}
 
 		// Clean up any previous progress pipeline for this handle+session pair
-		const key = this._progressKey(handle, sessionId);
+		const key = this._progressKey(handle, sessionResource);
 		this._cleanupProgress(key);
 
 		const store = new DisposableStore();
@@ -77,8 +78,8 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		// Forward progress events to the main thread
 		store.add(emitter.event(event => {
 			const dto = this._serializeEvent(event);
-			if (!dto.sessionId) {
-				(dto as { sessionId?: string }).sessionId = sessionId;
+			if (!dto.sessionResource) {
+				(dto as { sessionResource?: UriComponents }).sessionResource = sessionResource;
 			}
 			this._proxy.$acceptChatDebugEvent(handle, dto);
 		}));
@@ -93,7 +94,8 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 				report: (value) => emitter.fire(value)
 			};
 
-			const result = await this._provider.provideChatDebugLog(sessionId, progress, token);
+			const sessionUri = URI.revive(sessionResource);
+			const result = await this._provider.provideChatDebugLog(sessionUri, progress, token);
 			if (!result) {
 				return undefined;
 			}
@@ -112,7 +114,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 	private _serializeEvent(event: vscode.ChatDebugEvent): IChatDebugEventDto {
 		const base = {
 			id: event.id,
-			sessionId: (event as { sessionId?: string }).sessionId,
+			sessionResource: (event as { sessionResource?: vscode.Uri }).sessionResource,
 			created: event.created.getTime(),
 			parentEventId: event.parentEventId,
 		};

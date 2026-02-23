@@ -182,6 +182,21 @@
 	font-size: 16px;
 	font-weight: 600;
 }
+.chat-debug-overview-metric-shimmer {
+	display: inline-block;
+	height: 16px;
+	min-width: 48px;
+	border-radius: 3px;
+	background: linear-gradient(
+		90deg,
+		var(--vscode-descriptionForeground) 25%,
+		var(--vscode-chat-thinkingShimmer, rgba(255, 255, 255, 0.3)) 50%,
+		var(--vscode-descriptionForeground) 75%
+	);
+	background-size: 200% 100%;
+	animation: chat-debug-shimmer 2s linear infinite;
+	opacity: 0.15;
+}
 .chat-debug-overview-details {
 	display: grid;
 	grid-template-columns: auto 1fr;
