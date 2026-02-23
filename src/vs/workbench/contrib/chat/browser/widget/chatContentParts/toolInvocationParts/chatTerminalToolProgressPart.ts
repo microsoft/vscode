@@ -1494,6 +1494,10 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 
 		this.domNode.classList.add('chat-terminal-thinking-collapsible');
 
+		if (isComplete) {
+			this.icon = Codicon.check;
+		}
+
 		this._setCodeFormattedTitle();
 		this.setExpanded(initialExpanded);
 	}
@@ -1522,6 +1526,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 			return;
 		}
 		this._isComplete = true;
+		this.icon = Codicon.check;
 		this._setCodeFormattedTitle();
 	}
 

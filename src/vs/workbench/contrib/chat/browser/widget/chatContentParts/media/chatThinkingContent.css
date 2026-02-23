@@ -148,6 +148,10 @@
 				display: inline-block;
 			}
 
+			.show-checkmarks .progress-container > .codicon.codicon-check {
+				display: inline-flex;
+			}
+
 			.chat-used-context.chat-hook-outcome-blocked,
 			.chat-used-context.chat-hook-outcome-warning {
 					padding: 4px 12px 4px 20px;

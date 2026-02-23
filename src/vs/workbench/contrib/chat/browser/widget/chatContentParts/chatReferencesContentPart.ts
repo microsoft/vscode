@@ -79,6 +79,7 @@ export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1)), context, hoverMessage,
 			hoverService, configurationService);
+		this.icon = Codicon.check;
 	}
 
 	protected override initContent(): HTMLElement {

@@ -2306,6 +2306,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+.show-checkmarks .progress-container > .codicon.codicon-check {
+	display: inline-flex;
+}
+
 .interactive-item-container .chat-command-button {
 	display: flex;
 	flex-wrap: wrap;
