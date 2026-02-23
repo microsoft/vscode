@@ -33,9 +33,10 @@
 
 	.monaco-list:focus .monaco-list-row.selected .agent-session-details-row {
 		.agent-session-diff-container {
+
 			.agent-session-diff-added,
 			.agent-session-diff-removed {
-					color: unset;
+				color: unset;
 			}
 		}
 	}
@@ -155,7 +156,7 @@
 					align-items: center;
 					margin: 0;
 
-					> span.codicon {
+					>span.codicon {
 						margin-right: 2px;
 					}
 				}
@@ -227,6 +228,7 @@
 
 		.agent-session-title {
 			font-size: 13px;
+			color: var(--vscode-list-activeSelectionForeground);
 		}
 
 		.agent-session-details-right {
