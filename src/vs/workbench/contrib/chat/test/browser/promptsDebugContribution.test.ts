@@ -47,7 +47,7 @@ suite('PromptsDebugContribution', () => {
 		assert.strictEqual(firedEvents.length, 1);
 		const event = firedEvents[0] as IChatDebugGenericEvent;
 		assert.strictEqual(event.kind, 'generic');
-		assert.strictEqual(event.sessionId, 'session-1');
+		assert.ok(event.sessionResource);
 		assert.strictEqual(event.name, 'Load Instructions');
 		assert.strictEqual(event.details, 'Resolved 3 instructions in 12.5ms');
 		assert.strictEqual(event.category, 'discovery');

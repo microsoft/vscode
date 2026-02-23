@@ -46,7 +46,7 @@ import { IChatSessionsService } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../model/chatUri.js';
+import { LocalChatSessionUri } from '../model/chatUri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
@@ -182,7 +182,7 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}));
 		this._register(this._sessionModels.onDidDisposeModel(model => {
-			this.chatDebugService.endSession(chatSessionResourceToId(model.sessionResource));
+			this.chatDebugService.endSession(model.sessionResource);
 			this._onDidDisposeSession.fire({ sessionResource: [model.sessionResource], reason: 'cleared' });
 		}));
 

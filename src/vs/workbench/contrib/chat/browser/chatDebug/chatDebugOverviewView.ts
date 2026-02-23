@@ -39,7 +39,7 @@ export class ChatDebugOverviewView extends Disposable {
 	private readonly breadcrumbWidget: BreadcrumbsWidget;
 	private readonly loadDisposables = this._register(new DisposableStore());
 
-	private currentSessionId: string = '';
+	private currentSessionResource: URI | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -69,8 +69,8 @@ export class ChatDebugOverviewView extends Disposable {
 		this.content = DOM.append(this.container, $('.chat-debug-overview-content'));
 	}
 
-	setSession(sessionId: string): void {
-		this.currentSessionId = sessionId;
+	setSession(sessionResource: URI): void {
+		this.currentSessionResource = sessionResource;
 	}
 
 	show(): void {
@@ -89,8 +89,10 @@ export class ChatDebugOverviewView extends Disposable {
 	}
 
 	updateBreadcrumb(): void {
-		const sessionUri = LocalChatSessionUri.forSession(this.currentSessionId);
-		const sessionTitle = this.chatService.getSessionTitle(sessionUri) || this.currentSessionId;
+		if (!this.currentSessionResource) {
+			return;
+		}
+		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
 			new TextBreadcrumbItem(localize('chatDebug.title', "Chat Debug Panel"), true),
 			new TextBreadcrumbItem(sessionTitle),
@@ -102,8 +104,11 @@ export class ChatDebugOverviewView extends Disposable {
 		this.loadDisposables.clear();
 		this.updateBreadcrumb();
 
-		const sessionUri = LocalChatSessionUri.forSession(this.currentSessionId);
-		const sessionTitle = this.chatService.getSessionTitle(sessionUri) || this.currentSessionId;
+		if (!this.currentSessionResource) {
+			return;
+		}
+
+		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 
 		const titleRow = DOM.append(this.content, $('.chat-debug-overview-title-row'));
 		const titleEl = DOM.append(titleRow, $('h2.chat-debug-overview-title'));
@@ -116,15 +121,16 @@ export class ChatDebugOverviewView extends Disposable {
 		revealSessionBtn.element.classList.add('chat-debug-icon-button');
 		revealSessionBtn.icon = Codicon.goToFile;
 		this.loadDisposables.add(revealSessionBtn.onDidClick(() => {
-			const uri = LocalChatSessionUri.forSession(this.currentSessionId);
-			this.chatWidgetService.openSession(uri);
+			if (this.currentSessionResource) {
+				this.chatWidgetService.openSession(this.currentSessionResource);
+			}
 		}));
 
 		// Session details section
-		this.renderSessionDetails(sessionUri);
+		this.renderSessionDetails(this.currentSessionResource);
 
 		// Derived overview metrics
-		const events = this.chatDebugService.getEvents(this.currentSessionId);
+		const events = this.chatDebugService.getEvents(this.currentSessionResource);
 		this.renderDerivedOverview(events);
 	}
 

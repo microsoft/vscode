@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostChatDebugShape, ExtHostContext, IChatDebugEventDto, MainContext, MainThreadChatDebugShape } from '../common/extHost.protocol.js';
@@ -13,7 +14,7 @@ import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 export class MainThreadChatDebug extends Disposable implements MainThreadChatDebugShape {
 	private readonly _proxy: Proxied<ExtHostChatDebugShape>;
 	private readonly _providerDisposables = new Map<number, DisposableStore>();
-	private readonly _activeSessionIds = new Map<number, string>();
+	private readonly _activeSessionResources = new Map<number, URI>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -28,10 +29,10 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 		this._providerDisposables.set(handle, disposables);
 
 		disposables.add(this._chatDebugService.registerProvider({
-			provideChatDebugLog: async (sessionId, token) => {
-				this._activeSessionIds.set(handle, sessionId);
-				const dtos = await this._proxy.$provideChatDebugLog(handle, sessionId, token);
-				return dtos?.map(dto => this._reviveEvent(dto, sessionId));
+			provideChatDebugLog: async (sessionResource, token) => {
+				this._activeSessionResources.set(handle, sessionResource);
+				const dtos = await this._proxy.$provideChatDebugLog(handle, sessionResource, token);
+				return dtos?.map(dto => this._reviveEvent(dto, sessionResource));
 			},
 			resolveChatDebugLogEvent: async (eventId, token) => {
 				return this._proxy.$resolveChatDebugLogEvent(handle, eventId, token);
@@ -43,19 +44,24 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 		const disposables = this._providerDisposables.get(handle);
 		disposables?.dispose();
 		this._providerDisposables.delete(handle);
-		this._activeSessionIds.delete(handle);
+		this._activeSessionResources.delete(handle);
 	}
 
 	$acceptChatDebugEvent(handle: number, dto: IChatDebugEventDto): void {
-		const sessionId = dto.sessionId ?? this._activeSessionIds.get(handle) ?? this._chatDebugService.activeSessionId ?? '';
-		const revived = this._reviveEvent(dto, sessionId);
+		const sessionResource = (dto.sessionResource ? URI.revive(dto.sessionResource) : undefined)
+			?? this._activeSessionResources.get(handle)
+			?? this._chatDebugService.activeSessionResource;
+		if (!sessionResource) {
+			return;
+		}
+		const revived = this._reviveEvent(dto, sessionResource);
 		this._chatDebugService.addEvent(revived);
 	}
 
-	private _reviveEvent(dto: IChatDebugEventDto, sessionId: string): IChatDebugEvent {
+	private _reviveEvent(dto: IChatDebugEventDto, sessionResource: URI): IChatDebugEvent {
 		const base = {
 			id: dto.id,
-			sessionId,
+			sessionResource,
 			created: new Date(dto.created),
 			parentEventId: dto.parentEventId,
 		};

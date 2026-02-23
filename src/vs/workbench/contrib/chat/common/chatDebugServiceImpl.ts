@@ -6,6 +6,8 @@
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService } from './chatDebugService.js';
 
 export class ChatDebugServiceImpl extends Disposable implements IChatDebugService {
@@ -22,15 +24,15 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	readonly onDidAddEvent: Event<IChatDebugEvent> = this._onDidAddEvent.event;
 
 	private readonly _providers = new Set<IChatDebugLogProvider>();
-	private readonly _invocationCts = new Map<string, CancellationTokenSource>();
+	private readonly _invocationCts = new ResourceMap<CancellationTokenSource>();
 
-	activeSessionId: string | undefined;
+	activeSessionResource: URI | undefined;
 
-	log(sessionId: string, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
+	log(sessionResource: URI, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
 		this.addEvent({
 			kind: 'generic',
 			id: options?.id,
-			sessionId,
+			sessionResource,
 			created: new Date(),
 			name,
 			details,
@@ -51,32 +53,35 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		this._onDidAddEvent.fire(event);
 	}
 
-	getEvents(sessionId?: string): readonly IChatDebugEvent[] {
+	getEvents(sessionResource?: URI): readonly IChatDebugEvent[] {
 		const result: IChatDebugEvent[] = [];
+		const key = sessionResource?.toString();
 		for (let i = 0; i < this._size; i++) {
 			const event = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS];
 			if (!event) {
 				continue;
 			}
-			if (!sessionId || event.sessionId === sessionId) {
+			if (!key || event.sessionResource.toString() === key) {
 				result.push(event);
 			}
 		}
 		return result;
 	}
 
-	getSessionIds(): readonly string[] {
-		const ids = new Set<string>();
+	getSessionResources(): readonly URI[] {
+		const seen = new ResourceMap<boolean>();
+		const result: URI[] = [];
 		for (let i = 0; i < this._size; i++) {
 			const event = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS];
 			if (!event) {
 				continue;
 			}
-			if (event.sessionId) {
-				ids.add(event.sessionId);
+			if (!seen.has(event.sessionResource)) {
+				seen.set(event.sessionResource, true);
+				result.push(event.sessionResource);
 			}
 		}
-		return [...ids];
+		return result;
 	}
 
 	clear(): void {
@@ -91,9 +96,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		// Invoke the new provider for all sessions that already have active
 		// pipelines. This handles the case where invokeProviders() was called
 		// before this provider was registered (e.g. extension activated late).
-		for (const [sessionId, cts] of this._invocationCts) {
+		for (const [sessionResource, cts] of this._invocationCts) {
 			if (!cts.token.isCancellationRequested) {
-				this._invokeProvider(provider, sessionId, cts.token);
+				this._invokeProvider(provider, sessionResource, cts.token);
 			}
 		}
 
@@ -102,22 +107,22 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		});
 	}
 
-	async invokeProviders(sessionId: string): Promise<void> {
+	async invokeProviders(sessionResource: URI): Promise<void> {
 		// Cancel only the previous invocation for THIS session, not others.
 		// Each session has its own pipeline so events from multiple sessions
 		// can be streamed concurrently.
-		const existingCts = this._invocationCts.get(sessionId);
+		const existingCts = this._invocationCts.get(sessionResource);
 		if (existingCts) {
 			existingCts.cancel();
 			existingCts.dispose();
 		}
 
 		const cts = new CancellationTokenSource();
-		this._invocationCts.set(sessionId, cts);
+		this._invocationCts.set(sessionResource, cts);
 
 		try {
 			const promises = [...this._providers].map(provider =>
-				this._invokeProvider(provider, sessionId, cts.token)
+				this._invokeProvider(provider, sessionResource, cts.token)
 			);
 			await Promise.allSettled(promises);
 		} catch {
@@ -129,14 +134,14 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		// or when the service is disposed.
 	}
 
-	private async _invokeProvider(provider: IChatDebugLogProvider, sessionId: string, token: CancellationToken): Promise<void> {
+	private async _invokeProvider(provider: IChatDebugLogProvider, sessionResource: URI, token: CancellationToken): Promise<void> {
 		try {
-			const events = await provider.provideChatDebugLog(sessionId, token);
+			const events = await provider.provideChatDebugLog(sessionResource, token);
 			if (events) {
 				for (const event of events) {
 					this.addEvent({
 						...event,
-						sessionId: event.sessionId ?? sessionId,
+						sessionResource: event.sessionResource ?? sessionResource,
 					});
 				}
 			}
@@ -145,12 +150,12 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		}
 	}
 
-	endSession(sessionId: string): void {
-		const cts = this._invocationCts.get(sessionId);
+	endSession(sessionResource: URI): void {
+		const cts = this._invocationCts.get(sessionResource);
 		if (cts) {
 			cts.cancel();
 			cts.dispose();
-			this._invocationCts.delete(sessionId);
+			this._invocationCts.delete(sessionResource);
 		}
 	}
 
