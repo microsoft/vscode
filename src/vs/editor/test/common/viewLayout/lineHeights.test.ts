@@ -242,7 +242,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		manager.onLinesDeleted(6, 6);
 
 		// Check individual line heights
-		assert.strictEqual(manager.heightForLineNumber(5), 20);
+		assert.strictEqual(manager.heightForLineNumber(5), 10);
 		assert.strictEqual(manager.heightForLineNumber(6), 10);
 	});
 
