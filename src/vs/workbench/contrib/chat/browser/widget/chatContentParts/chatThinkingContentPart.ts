@@ -1526,6 +1526,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	override dispose(): void {
+		this.isActive = false;
 		if (this.markdownResult) {
 			this.markdownResult.dispose();
 			this.markdownResult = undefined;
