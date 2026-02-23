@@ -870,9 +870,15 @@ export class ActionList<T> extends Disposable {
 				// If we couldn't move (already at first), go to filter
 				if (focused.length > 0 && focused[0] >= current[0]) {
 					this._filterInput.focus();
+				} else if (focused.length > 0) {
+					this._list.reveal(focused[0]);
 				}
 			} else {
 				this._list.focusLast(undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
 			}
 			return;
 		}
@@ -898,12 +904,15 @@ export class ActionList<T> extends Disposable {
 			if (current.length > 0) {
 				this._list.focusNext(1, false, undefined, this.focusCondition);
 				const focused = this._list.getFocus();
-				// If we couldn't move (already at last), stay on current
-				if (focused.length > 0 && focused[0] <= current[0]) {
-					this._list.setFocus(current);
+				if (focused.length > 0) {
+					this._list.reveal(focused[0]);
 				}
 			} else {
 				this._list.focusFirst(undefined, this.focusCondition);
+				const focused = this._list.getFocus();
+				if (focused.length > 0) {
+					this._list.reveal(focused[0]);
+				}
 			}
 			return;
 		}
