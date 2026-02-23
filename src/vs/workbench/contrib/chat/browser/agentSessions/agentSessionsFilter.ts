@@ -30,6 +30,12 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	 */
 	readonly builtInProviders?: AgentSessionProviders[];
 
+	/**
+	 * Optional label overrides for providers shown in the filter menu.
+	 * For example, the sessions window maps `Background` → "Local".
+	 */
+	readonly providerLabelOverrides?: ReadonlyMap<string, string>;
+
 	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
@@ -134,9 +140,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 
 	private registerProviderActions(disposables: DisposableStore, menuId: MenuId): void {
 		const builtIn = this.options.builtInProviders ?? [AgentSessionProviders.Local];
+		const labelOverrides = this.options.providerLabelOverrides;
 		const providers: { id: string; label: string }[] = builtIn.map(id => ({
 			id,
-			label: getAgentSessionProviderName(id)
+			label: labelOverrides?.get(id) ?? getAgentSessionProviderName(id)
 		}));
 
 		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
@@ -147,7 +154,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			const knownProvider = getAgentSessionProvider(contribution.type);
 			providers.push({
 				id: contribution.type,
-				label: knownProvider ? getAgentSessionProviderName(knownProvider) : contribution.displayName
+				label: labelOverrides?.get(contribution.type) ?? (knownProvider ? getAgentSessionProviderName(knownProvider) : contribution.displayName)
 			});
 		}
 
