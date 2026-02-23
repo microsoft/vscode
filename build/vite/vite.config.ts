@@ -164,6 +164,7 @@ logger.warn = (msg, options) => {
 };
 
 export default defineConfig({
+	base: './',
 	plugins: [
 		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
