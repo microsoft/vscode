@@ -4,28 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { addDisposableListener, Dimension, EventType } from '../../../../../base/browser/dom.js';
+import { Dimension } from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IObjectTreeElement } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
@@ -33,9 +25,7 @@ import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer } from './chatDebugEventList.js';
 import { TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
-import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
-import { renderFileListContent, fileListToPlainText } from './chatDebugFileListRenderer.js';
-import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
+import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 
 const $ = DOM.$;
 
@@ -56,7 +46,7 @@ export class ChatDebugLogsView extends Disposable {
 	private readonly bodyContainer: HTMLElement;
 	private readonly listContainer: HTMLElement;
 	private readonly treeContainer: HTMLElement;
-	private readonly detailContainer: HTMLElement;
+	private readonly detailPanel: ChatDebugDetailPanel;
 	private readonly filterWidget: FilterWidget;
 	private readonly viewModeToggle: Button;
 
@@ -68,9 +58,6 @@ export class ChatDebugLogsView extends Disposable {
 	private events: IChatDebugEvent[] = [];
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
-	private readonly detailDisposables = this._register(new DisposableStore());
-	private currentDetailText: string = '';
-	private currentDetailEventId: string | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -78,11 +65,7 @@ export class ChatDebugLogsView extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-logs'));
@@ -212,43 +195,27 @@ export class ChatDebugLogsView extends Disposable {
 		));
 
 		// Detail panel (sibling of main column so it aligns with table header)
-		this.detailContainer = DOM.append(contentContainer, $('.chat-debug-detail-panel'));
-		DOM.hide(this.detailContainer);
-
-		// Handle Ctrl+A / Cmd+A to select all within the focused content element
-		this._register(addDisposableListener(this.detailContainer, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-				const target = e.target as HTMLElement;
-				if (target && this.detailContainer.contains(target)) {
-					e.preventDefault();
-					const targetWindow = DOM.getWindow(target);
-					const selection = targetWindow.getSelection();
-					if (selection) {
-						const range = targetWindow.document.createRange();
-						range.selectNodeContents(target);
-						selection.removeAllRanges();
-						selection.addRange(range);
-					}
-				}
-			}
+		this.detailPanel = this._register(this.instantiationService.createInstance(ChatDebugDetailPanel, contentContainer));
+		this._register(this.detailPanel.onDidHide(() => {
+			this.list.setSelection([]);
 		}));
 
 		// Resolve event details on selection
 		this._register(this.list.onDidChangeSelection(e => {
 			const selected = e.elements[0];
 			if (selected) {
-				this.resolveAndShowDetail(selected);
+				this.detailPanel.show(selected);
 			} else {
-				this.hideDetail();
+				this.detailPanel.hide();
 			}
 		}));
 
 		this._register(this.tree.onDidChangeSelection(e => {
 			const selected = e.elements[0];
 			if (selected) {
-				this.resolveAndShowDetail(selected);
+				this.detailPanel.show(selected);
 			} else {
-				this.hideDetail();
+				this.detailPanel.hide();
 			}
 		}));
 	}
@@ -290,8 +257,8 @@ export class ChatDebugLogsView extends Disposable {
 		const breadcrumbHeight = 22;
 		const headerHeight = this.headerContainer.offsetHeight;
 		const tableHeaderHeight = this.tableHeader.offsetHeight;
-		const detailVisible = this.detailContainer.style.display !== 'none';
-		const detailWidth = detailVisible ? this.detailContainer.offsetWidth : 0;
+		const detailVisible = this.detailPanel.element.style.display !== 'none';
+		const detailWidth = detailVisible ? this.detailPanel.element.offsetWidth : 0;
 		const listHeight = dimension.height - breadcrumbHeight - headerHeight - tableHeaderHeight;
 		const listWidth = dimension.width - detailWidth;
 		if (this.logsViewMode === LogsViewMode.Tree) {
@@ -481,82 +448,4 @@ export class ChatDebugLogsView extends Disposable {
 		this.filterWidget.checkMoreFilters(!this.filterState.isAllFiltersDefault());
 	}
 
-	private async resolveAndShowDetail(event: IChatDebugEvent): Promise<void> {
-		// Skip re-rendering if we're already showing this event's detail
-		if (event.id && event.id === this.currentDetailEventId) {
-			return;
-		}
-		this.currentDetailEventId = event.id;
-
-		const resolved = event.id ? await this.chatDebugService.resolveEvent(event.id) : undefined;
-
-		DOM.show(this.detailContainer);
-		DOM.clearNode(this.detailContainer);
-		this.detailDisposables.clear();
-
-		// Header with action buttons
-		const header = DOM.append(this.detailContainer, $('.chat-debug-detail-header'));
-
-		const fullScreenButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.openInEditor', "Open in Editor"), title: localize('chatDebug.openInEditor', "Open in Editor") }));
-		fullScreenButton.element.classList.add('chat-debug-detail-button');
-		fullScreenButton.icon = Codicon.goToFile;
-		this.detailDisposables.add(fullScreenButton.onDidClick(() => {
-			this.editorService.openEditor({ contents: this.currentDetailText, resource: undefined } satisfies IUntitledTextResourceEditorInput);
-		}));
-
-		const copyButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.copyToClipboard', "Copy"), title: localize('chatDebug.copyToClipboard', "Copy") }));
-		copyButton.element.classList.add('chat-debug-detail-button');
-		copyButton.icon = Codicon.copy;
-		this.detailDisposables.add(copyButton.onDidClick(() => {
-			this.clipboardService.writeText(this.currentDetailText);
-		}));
-
-		const closeButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.closeDetail', "Close"), title: localize('chatDebug.closeDetail', "Close") }));
-		closeButton.element.classList.add('chat-debug-detail-button');
-		closeButton.icon = Codicon.close;
-		this.detailDisposables.add(closeButton.onDidClick(() => {
-			this.list.setSelection([]);
-			this.hideDetail();
-		}));
-
-		if (resolved && resolved.kind === 'fileList') {
-			this.currentDetailText = fileListToPlainText(resolved);
-			const { element: contentEl, disposables: contentDisposables } = this.instantiationService.invokeFunction(accessor =>
-				renderFileListContent(resolved, this.openerService, accessor.get(IModelService), accessor.get(ILanguageService), this.hoverService, accessor.get(ILabelService))
-			);
-			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
-		} else if (resolved && resolved.kind === 'message') {
-			this.currentDetailText = resolvedMessageToPlainText(resolved);
-			const { element: contentEl, disposables: contentDisposables } = renderResolvedMessageContent(resolved);
-			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
-		} else if (event.kind === 'userMessage') {
-			this.currentDetailText = messageEventToPlainText(event);
-			const { element: contentEl, disposables: contentDisposables } = renderUserMessageContent(event);
-			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
-		} else if (event.kind === 'agentResponse') {
-			this.currentDetailText = messageEventToPlainText(event);
-			const { element: contentEl, disposables: contentDisposables } = renderAgentResponseContent(event);
-			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
-		} else {
-			const pre = DOM.append(this.detailContainer, $('pre'));
-			pre.tabIndex = 0;
-			if (resolved) {
-				this.currentDetailText = resolved.value;
-			} else {
-				this.currentDetailText = formatEventDetail(event);
-			}
-			pre.textContent = this.currentDetailText;
-		}
-	}
-
-	private hideDetail(): void {
-		this.currentDetailEventId = undefined;
-		DOM.hide(this.detailContainer);
-		DOM.clearNode(this.detailContainer);
-		this.detailDisposables.clear();
-	}
 }

@@ -10,18 +10,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
-import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
@@ -29,9 +21,7 @@ import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { TextBreadcrumbItem } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { buildFlowGraph, filterFlowNodes, sliceFlowNodes, layoutFlowGraph, renderFlowChartSVG, FlowChartRenderResult } from './chatDebugFlowChart.js';
-import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
-import { renderFileListContent, fileListToPlainText } from './chatDebugFileListRenderer.js';
-import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
+import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 
 const $ = DOM.$;
 
@@ -88,11 +78,8 @@ export class ChatDebugFlowChartView extends Disposable {
 	// Pagination state
 	private visibleLimit: number = PAGE_SIZE;
 
-	// Detail panel state
-	private readonly detailContainer: HTMLElement;
-	private readonly detailDisposables = this._register(new DisposableStore());
-	private currentDetailText: string = '';
-	private currentDetailEventId: string | undefined;
+	// Detail panel
+	private readonly detailPanel: ChatDebugDetailPanel;
 	private eventById = new Map<string, IChatDebugEvent>();
 
 	constructor(
@@ -102,10 +89,6 @@ export class ChatDebugFlowChartView extends Disposable {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-flowchart'));
@@ -163,25 +146,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		this.content = DOM.append(contentWrapper, $('.chat-debug-flowchart-content'));
 
 		// Detail panel (sibling of chart canvas)
-		this.detailContainer = DOM.append(contentWrapper, $('.chat-debug-detail-panel'));
-		DOM.hide(this.detailContainer);
-
-		// Handle Ctrl+A / Cmd+A to select all within the detail panel
-		this._register(DOM.addDisposableListener(this.detailContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-				const target = e.target as HTMLElement | null;
-				if (target && this.detailContainer.contains(target)) {
-					e.preventDefault();
-					const selection = DOM.getWindow(this.detailContainer).getSelection();
-					if (selection) {
-						const range = document.createRange();
-						range.selectNodeContents(this.detailContainer);
-						selection.removeAllRanges();
-						selection.addRange(range);
-					}
-				}
-			}
-		}));
+		this.detailPanel = this._register(this.instantiationService.createInstance(ChatDebugDetailPanel, contentWrapper));
 
 		// Set up pan/zoom event listeners and keyboard handling
 		this.setupPanZoom();
@@ -199,7 +164,7 @@ export class ChatDebugFlowChartView extends Disposable {
 			this.focusedElementId = undefined;
 			this.collapsedNodeIds.clear();
 			this.visibleLimit = PAGE_SIZE;
-			this.hideDetail();
+			this.detailPanel.hide();
 		}
 		this.currentSessionId = sessionId;
 	}
@@ -358,7 +323,7 @@ export class ChatDebugFlowChartView extends Disposable {
 							e.preventDefault();
 							const event = this.eventById.get(nodeId);
 							if (event) {
-								this.resolveAndShowDetail(event);
+								this.detailPanel.show(event);
 							}
 						}
 					}
@@ -530,7 +495,7 @@ export class ChatDebugFlowChartView extends Disposable {
 				(target as HTMLElement).focus();
 				const event = this.eventById.get(nodeId);
 				if (event) {
-					this.resolveAndShowDetail(event);
+					this.detailPanel.show(event);
 				}
 				return;
 			}
@@ -576,83 +541,5 @@ export class ChatDebugFlowChartView extends Disposable {
 		this.translateX = (containerRect.width - svgWidth) / 2;
 		this.translateY = Math.max(20, (containerRect.height - svgHeight) / 2);
 		this.applyTransform();
-	}
-
-	private async resolveAndShowDetail(event: IChatDebugEvent): Promise<void> {
-		// Skip re-rendering if we're already showing this event's detail
-		if (event.id && event.id === this.currentDetailEventId) {
-			return;
-		}
-		this.currentDetailEventId = event.id;
-
-		const resolved = event.id ? await this.chatDebugService.resolveEvent(event.id) : undefined;
-
-		DOM.show(this.detailContainer);
-		DOM.clearNode(this.detailContainer);
-		this.detailDisposables.clear();
-
-		// Header with action buttons
-		const header = DOM.append(this.detailContainer, $('.chat-debug-detail-header'));
-
-		const fullScreenButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.openInEditor', "Open in Editor"), title: localize('chatDebug.openInEditor', "Open in Editor") }));
-		fullScreenButton.element.classList.add('chat-debug-detail-button');
-		fullScreenButton.icon = Codicon.goToFile;
-		this.detailDisposables.add(fullScreenButton.onDidClick(() => {
-			this.editorService.openEditor({ contents: this.currentDetailText, resource: undefined } satisfies IUntitledTextResourceEditorInput);
-		}));
-
-		const copyButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.copyToClipboard', "Copy"), title: localize('chatDebug.copyToClipboard', "Copy") }));
-		copyButton.element.classList.add('chat-debug-detail-button');
-		copyButton.icon = Codicon.copy;
-		this.detailDisposables.add(copyButton.onDidClick(() => {
-			this.clipboardService.writeText(this.currentDetailText);
-		}));
-
-		const closeButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.closeDetail', "Close"), title: localize('chatDebug.closeDetail', "Close") }));
-		closeButton.element.classList.add('chat-debug-detail-button');
-		closeButton.icon = Codicon.close;
-		this.detailDisposables.add(closeButton.onDidClick(() => {
-			this.hideDetail();
-		}));
-
-		if (resolved && resolved.kind === 'fileList') {
-			this.currentDetailText = fileListToPlainText(resolved);
-			const { element: contentEl, disposables: contentDisposables } = this.instantiationService.invokeFunction(accessor =>
-				renderFileListContent(resolved, this.openerService, accessor.get(IModelService), accessor.get(ILanguageService), this.hoverService, accessor.get(ILabelService))
-			);
-			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
-		} else if (resolved && resolved.kind === 'message') {
-			this.currentDetailText = resolvedMessageToPlainText(resolved);
-			const { element: contentEl, disposables: contentDisposables } = renderResolvedMessageContent(resolved);
-			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
-		} else if (event.kind === 'userMessage') {
-			this.currentDetailText = messageEventToPlainText(event);
-			const { element: contentEl, disposables: contentDisposables } = renderUserMessageContent(event);
-			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
-		} else if (event.kind === 'agentResponse') {
-			this.currentDetailText = messageEventToPlainText(event);
-			const { element: contentEl, disposables: contentDisposables } = renderAgentResponseContent(event);
-			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
-		} else {
-			const pre = DOM.append(this.detailContainer, $('pre'));
-			pre.tabIndex = 0;
-			if (resolved) {
-				this.currentDetailText = resolved.value;
-			} else {
-				this.currentDetailText = formatEventDetail(event);
-			}
-			pre.textContent = this.currentDetailText;
-		}
-	}
-
-	private hideDetail(): void {
-		this.currentDetailEventId = undefined;
-		DOM.hide(this.detailContainer);
-		DOM.clearNode(this.detailContainer);
-		this.detailDisposables.clear();
 	}
 }
