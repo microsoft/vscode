@@ -81,7 +81,7 @@ export interface IBrowserViewTitleChangeEvent {
 }
 
 export interface IBrowserViewFaviconChangeEvent {
-	favicon: string;
+	favicon: string | undefined;
 }
 
 export enum BrowserNewPageLocation {
