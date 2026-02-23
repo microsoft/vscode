@@ -605,10 +605,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			this.inputEditor.updateOptions(newOptions);
-
-			if (e.affectsConfiguration(ChatConfiguration.AttachmentBarAlwaysShow)) {
-				this.renderAttachedContext();
-			}
 		}));
 
 		this._chatEditsListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, MenuId.ChatEditingWidgetModifiedFilesToolbar, { verticalScrollMode: ScrollbarVisibility.Visible }));
@@ -2387,9 +2383,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Render implicit context (active editor in Ask mode, or selection)
 		let hasImplicitContext = false;
-		const alwaysShowAttachmentBar = this.options.renderStyle !== 'compact' && this.configurationService.getValue<boolean>(ChatConfiguration.AttachmentBarAlwaysShow);
 		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
-		const hasVisibleImplicitContext = alwaysShowAttachmentBar && isSuggestedEnabled
+		const hasVisibleImplicitContext = isSuggestedEnabled
 			? this._implicitContext?.hasValue ?? false
 			: this._implicitContext?.values.some(v => v.enabled || v.isSelection) ?? false;
 		if (this._implicitContext && hasVisibleImplicitContext) {
@@ -2422,7 +2417,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hasImplicitContext = implicitContextWidget.hasRenderedContexts;
 		}
 
-		dom.setVisibility(Boolean(alwaysShowAttachmentBar || this.options.renderInputToolbarBelowInput || hasAttachments || hasImplicitContext), this.attachmentsContainer);
+		dom.setVisibility(Boolean(this.options.renderInputToolbarBelowInput || hasAttachments || hasImplicitContext), this.attachmentsContainer);
 		dom.setVisibility(hasAttachments || hasImplicitContext, this.attachedContextContainer);
 		if (!attachments.length) {
 			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
