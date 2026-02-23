@@ -33,6 +33,7 @@ interface ITargetMetadata {
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
+	private static readonly versionInfoExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
 
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
@@ -404,7 +405,11 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectVersionInfoFiles(filePath, files);
 			} else if (TestContext.versionInfoInclude.test(entry.name)) {
-				files.push(filePath);
+				if (TestContext.versionInfoExclude.test(entry.name)) {
+					this.log(`Skipping excluded file from VersionInfo validation: ${filePath}`);
+				} else {
+					files.push(filePath);
+				}
 			}
 		}
 	}

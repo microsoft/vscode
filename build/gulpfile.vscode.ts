@@ -623,14 +623,11 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	const cwd = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
-		const [nativeDeps, rgExeDeps, explorerDlls, msalDlls, ffmpegDlls] = await Promise.all([
+		const deps = (await Promise.all([
 			glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' }),
 			glob('**/rg.exe', { cwd }),
 			glob('**/*explorer_command*.dll', { cwd }),
-			glob('**/msalruntime.dll', { cwd }),
-			glob('**/ffmpeg.dll', { cwd }),
-		]);
-		const deps = [...nativeDeps, ...rgExeDeps, ...explorerDlls, ...msalDlls, ...ffmpegDlls];
+		])).flatMap(o => o);
 		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
 		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');
