@@ -10,7 +10,6 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isUUID } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
@@ -28,7 +27,6 @@ export class ChatDebugHomeView extends Disposable {
 	constructor(
 		parent: HTMLElement,
 		@IChatService private readonly chatService: IChatService,
-		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
@@ -56,8 +54,12 @@ export class ChatDebugHomeView extends Disposable {
 			? chatSessionResourceToId(activeWidget.viewModel.sessionResource)
 			: undefined;
 
-		// List all sessions with debug log data, most recent first
-		const sessionIds = [...this.chatDebugService.getSessionIds()].reverse();
+		// List all known chat sessions (from chatService), most recent last → reversed for most recent first.
+		// This does not require events to be collected, so the home view works
+		// without any streaming pipelines being active.
+		const sessionIds = [...this.chatService.chatModels.get()]
+			.map(m => chatSessionResourceToId(m.sessionResource))
+			.reverse();
 
 		// Sort: active session first
 		if (activeSessionId) {
