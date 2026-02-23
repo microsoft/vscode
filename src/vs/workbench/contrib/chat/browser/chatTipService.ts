@@ -221,7 +221,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 	},
 	{
 		id: 'tip.undoChanges',
-		message: localize('tip.undoChanges', "Tip: Select Restore Checkpoint to undo changes until that point in the chat conversation."),
+		message: localize('tip.undoChanges', "Tip: Select \"Restore Checkpoint\" to undo changes after that point in the chat conversation."),
 		when: ContextKeyExpr.and(
 			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 			ContextKeyExpr.or(
