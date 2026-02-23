@@ -508,6 +508,10 @@ export class InlineChatController implements IEditorContribution {
 		try {
 			await this._applyModelDefaults(session, sessionStore);
 
+			if (arg) {
+				arg.attachDiagnostics ??= this._configurationService.getValue(InlineChatConfigKeys.RenderMode) === 'zone';
+			}
+
 			// ADD diagnostics (only when explicitly requested)
 			if (arg?.attachDiagnostics) {
 				const entries: IChatRequestVariableEntry[] = [];
