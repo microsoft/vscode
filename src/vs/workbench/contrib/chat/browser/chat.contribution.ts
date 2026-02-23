@@ -1224,6 +1224,11 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		[ChatConfiguration.AICustomizationEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.aiCustomization.enabled', "Controls whether the AI Customizations feature is enabled. When disabled, the AI Customizations editor and related commands are hidden."),
+			default: true,
 		}
 	}
 });

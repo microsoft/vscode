@@ -30,6 +30,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -271,13 +272,13 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					title: localize2('openAICustomizations', "Open AI Customizations"),
 					shortTitle: localize2('aiCustomizations', "AI Customizations"),
 					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationEnabled}`)),
 					f1: true,
 					menu: [{
 						id: MenuId.GlobalActivity,
 						group: '2_configuration',
 						order: 8,
-						when: ChatContextKeys.enabled,
+						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.AICustomizationEnabled}`)),
 					}],
 				});
 			}
