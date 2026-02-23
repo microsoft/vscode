@@ -306,12 +306,21 @@ export class McpListWidget extends Disposable {
 
 		// Back to installed link (shown only in browse mode)
 		this.backLink = DOM.append(this.element, $('.mcp-back-link'));
+		this.backLink.setAttribute('role', 'button');
+		this.backLink.tabIndex = 0;
+		this.backLink.setAttribute('aria-label', localize('backToInstalledAriaLabel', "Back to installed servers"));
 		const backIcon = DOM.append(this.backLink, $('span'));
 		backIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowLeft));
 		const backText = DOM.append(this.backLink, $('span'));
 		backText.textContent = localize('backToInstalled', "Back to installed servers");
 		this._register(DOM.addDisposableListener(this.backLink, 'click', () => {
 			this.toggleBrowseMode(false);
+		}));
+		this._register(DOM.addDisposableListener(this.backLink, 'keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				this.toggleBrowseMode(false);
+			}
 		}));
 		this.backLink.style.display = 'none';
 
