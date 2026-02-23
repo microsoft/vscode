@@ -1085,8 +1085,9 @@ export class ChatService extends Disposable implements IChatService {
 					const pendingRequest = this._pendingRequests.get(sessionResource);
 					if (pendingRequest) {
 						store.add(autorun(reader => {
-							if (pendingRequest.yieldRequested.read(reader) && request) {
-								this.chatAgentService.setYieldRequested(agent.id, request.id);
+							const yieldRequested = pendingRequest.yieldRequested.read(reader);
+							if (request) {
+								this.chatAgentService.setYieldRequested(agent.id, request.id, yieldRequested);
 							}
 						}));
 						pendingRequest.requestId ??= requestProps.requestId;
