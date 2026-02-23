@@ -471,7 +471,7 @@ class NewChatWidget extends Disposable {
 				this._focusEditor();
 			},
 			getModels: () => this._getAvailableModels(),
-			showCuratedModels: () => false,
+			canManageModels: () => false,
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
