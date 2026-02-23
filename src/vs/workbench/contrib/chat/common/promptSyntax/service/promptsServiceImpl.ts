@@ -143,6 +143,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly _contributedWhenClauses = new Map<string, string>();
 	private readonly _onDidContributedWhenChange = this._register(new Emitter<void>());
 	private readonly _onDidPluginPromptFilesChange = this._register(new Emitter<void>());
+	private readonly _onDidPluginHooksChange = this._register(new Emitter<void>());
 	private _pluginPromptFilesByType = new Map<PromptsType, readonly ILocalPromptPath[]>();
 
 	constructor(
@@ -205,6 +206,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			() => Event.any(
 				this.getFileLocatorEvent(PromptsType.hook),
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CHAT_HOOKS) || e.affectsConfiguration(PromptsConfig.USE_CLAUDE_HOOKS)),
+				this._onDidPluginHooksChange.event,
 			)
 		));
 
@@ -220,6 +222,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 			PromptsType.skill,
 			(plugin, reader) => plugin.skills.read(reader),
 		));
+
+		this._register(autorun(reader => {
+			const plugins = this.agentPluginService.plugins.read(reader);
+			for (const plugin of plugins) {
+				plugin.hooks.read(reader);
+			}
+			this._onDidPluginHooksChange.fire();
+		}));
 	}
 
 	private watchPluginPromptFilesForType(
@@ -1082,11 +1092,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const useClaudeHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CLAUDE_HOOKS);
 		const hookFiles = await this.listPromptFiles(PromptsType.hook, token);
 
-		if (hookFiles.length === 0) {
-			this.logger.trace('[PromptsService] No hook files found.');
-			return undefined;
-		}
-
 		this.logger.trace(`[PromptsService] Found ${hookFiles.length} hook file(s).`);
 
 		// Get user home for tilde expansion
@@ -1144,6 +1149,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 			} catch (error) {
 				this.logger.warn(`[PromptsService] Failed to parse hook file: ${hookFile.uri}`, error);
+			}
+		}
+
+		// Collect hooks from agent plugins
+		const plugins = this.agentPluginService.plugins.get();
+		for (const plugin of plugins) {
+			for (const hook of plugin.hooks.get()) {
+				collectedHooks[hook.type].push(...hook.hooks);
 			}
 		}
 

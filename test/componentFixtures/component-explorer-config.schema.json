@@ -1,0 +1,183 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"screenshotDir": {
+			"description": "Directory for storing screenshots (default: .screenshots)",
+			"type": "string"
+		},
+		"sessions": {
+			"minItems": 1,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Unique session name"
+					},
+					"source": {
+						"anyOf": [
+							{
+								"type": "string",
+								"const": "current"
+							},
+							{
+								"type": "object",
+								"properties": {
+									"worktree": {
+										"type": "object",
+										"properties": {
+											"ref": {
+												"type": "string",
+												"description": "Git ref (branch, tag, or commit) to check out"
+											},
+											"name": {
+												"description": "Directory name for the worktree (default: component-explorer-baseline)",
+												"type": "string"
+											},
+											"install": {
+												"anyOf": [
+													{
+														"type": "string",
+														"const": "auto"
+													},
+													{
+														"type": "string",
+														"const": "npm"
+													},
+													{
+														"type": "string",
+														"const": "pnpm"
+													},
+													{
+														"type": "string",
+														"const": "yarn"
+													},
+													{
+														"type": "object",
+														"properties": {
+															"command": {
+																"type": "string",
+																"description": "Custom install command to run in the worktree"
+															}
+														},
+														"required": [
+															"command"
+														],
+														"additionalProperties": false
+													},
+													{
+														"type": "boolean",
+														"const": false
+													}
+												],
+												"description": "Dependency install strategy for the worktree"
+											}
+										},
+										"required": [
+											"ref"
+										],
+										"additionalProperties": false,
+										"description": "Git worktree configuration for a baseline session"
+									}
+								},
+								"required": [
+									"worktree"
+								],
+								"additionalProperties": false
+							}
+						],
+						"description": "Session source: \"current\" for the working tree, or a worktree config for a baseline"
+					},
+					"viteConfig": {
+						"description": "Path to vite config file, relative to this config (overrides top-level viteConfig)",
+						"type": "string"
+					}
+				},
+				"required": [
+					"name"
+				],
+				"additionalProperties": false,
+				"description": "A component explorer session"
+			},
+			"description": "List of explorer sessions"
+		},
+		"compare": {
+			"type": "object",
+			"properties": {
+				"baseline": {
+					"type": "string",
+					"description": "Session name to use as the baseline for comparisons"
+				},
+				"current": {
+					"type": "string",
+					"description": "Session name to use as the current version for comparisons"
+				}
+			},
+			"required": [
+				"baseline",
+				"current"
+			],
+			"additionalProperties": false,
+			"description": "Screenshot comparison configuration"
+		},
+		"viteConfig": {
+			"description": "Default vite config file path, relative to this config (default: vite.config.ts)",
+			"type": "string"
+		},
+		"vite": {
+			"type": "object",
+			"properties": {
+				"hmr": {
+					"type": "object",
+					"properties": {
+						"allowedPaths": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Glob patterns for files that keep HMR; everything else triggers a full reload"
+						}
+					},
+					"required": [
+						"allowedPaths"
+					],
+					"additionalProperties": false,
+					"description": "Vite HMR configuration"
+				}
+			},
+			"additionalProperties": false,
+			"description": "Vite configuration overrides"
+		},
+		"redirection": {
+			"type": "object",
+			"properties": {
+				"port": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 65535,
+					"description": "Port for the redirection HTTP server"
+				},
+				"host": {
+					"description": "Host to bind the redirection server to (default: localhost)",
+					"type": "string"
+				}
+			},
+			"required": [
+				"port"
+			],
+			"additionalProperties": false,
+			"description": "HTTP redirection server that redirects to the session URL"
+		},
+		"$schema": {
+			"type": "string",
+			"description": "URL of the JSON Schema for this config file"
+		}
+	},
+	"required": [
+		"sessions"
+	],
+	"additionalProperties": false,
+	"description": "Component Explorer configuration"
+}

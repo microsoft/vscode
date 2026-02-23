@@ -604,12 +604,13 @@
 		},
 		{
 			"name": "Component Explorer",
-			"type": "chrome",
+			"type": "msedge",
+			"port": 9230,
 			"request": "launch",
-			"url": "http://localhost:5199/___explorer",
-			"preLaunchTask": "Launch Monaco Editor Vite",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Launch Component Explorer",
 			"presentation": {
-				"group": "monaco",
+				"group": "1_component_explorer",
 				"order": 4
 			}
 		},
