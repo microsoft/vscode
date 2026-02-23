@@ -534,6 +534,29 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded when no instruction files exist');
 	});
 
+	test('excludes tip.customInstructions when generate instructions command has been executed', () => {
+		const tip: ITipDefinition = {
+			id: 'tip.customInstructions',
+			message: 'test',
+			excludeWhenCommandsExecuted: ['workbench.action.chat.generateInstructions'],
+		};
+
+		const tracker = testDisposables.add(new TipEligibilityTracker(
+			[tip],
+			{ onDidExecuteCommand: commandExecutedEmitter.event, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
+			storageService,
+			createMockPromptsService() as IPromptsService,
+			createMockToolsService(),
+			new NullLogService(),
+		));
+
+		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded before command is executed');
+
+		commandExecutedEmitter.fire({ commandId: 'workbench.action.chat.generateInstructions', args: [] });
+
+		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after generate instructions command is executed');
+	});
+
 	test('excludes tip.agentMode when agent mode has been used in workspace', () => {
 		const tip: ITipDefinition = {
 			id: 'tip.agentMode',

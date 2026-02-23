@@ -237,6 +237,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 		id: 'tip.customInstructions',
 		message: localize('tip.customInstructions', "Tip: [Generate workspace instructions](command:workbench.action.chat.generateInstructions) apply coding conventions across all agent sessions."),
 		enabledCommands: ['workbench.action.chat.generateInstructions'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.generateInstructions'],
 		excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
 	},
 	{
