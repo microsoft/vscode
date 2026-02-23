@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status, Commit, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { Git, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
@@ -4115,6 +4115,141 @@ export class CommandCenter {
 		}
 
 		await repository.cherryPick(historyItem.id);
+	}
+
+	@command('git.graph.squashCommits', { repository: true })
+	async squashCommits2(repository: Repository, historyItemOrItems?: SourceControlHistoryItem | SourceControlHistoryItem[], historyItems?: SourceControlHistoryItem[]): Promise<void> {
+		const contextHistoryItems = Array.isArray(historyItemOrItems)
+			? historyItemOrItems
+			: historyItemOrItems ? [historyItemOrItems] : [];
+		const selectedHistoryItems = Array.from(new Map((historyItems ?? contextHistoryItems)
+			.map(item => [item.id, item])).values());
+
+		if (selectedHistoryItems.length < 2) {
+			window.showWarningMessage(l10n.t('Select at least two commits to squash.'));
+			return;
+		}
+
+		const headCommit = repository.HEAD?.commit;
+		if (!headCommit) {
+			window.showWarningMessage(l10n.t('Can\'t squash commits because HEAD doesn\'t point to any commit.'));
+			return;
+		}
+
+		const hasLocalChanges = repository.indexGroup.resourceStates.length !== 0 ||
+			repository.workingTreeGroup.resourceStates.length !== 0 ||
+			repository.untrackedGroup.resourceStates.length !== 0 ||
+			repository.mergeGroup.resourceStates.length !== 0;
+		if (hasLocalChanges) {
+			window.showWarningMessage(l10n.t('Can\'t squash commits with local changes. Commit, stash, or discard your changes and try again.'));
+			return;
+		}
+
+		const selectedCommitIds = new Set<string>(selectedHistoryItems.map(item => item.id));
+		if (!selectedCommitIds.has(headCommit)) {
+			window.showWarningMessage(l10n.t('To squash commits, include the latest commit on HEAD in your selection.'));
+			return;
+		}
+
+		const commits = await repository.log({ refNames: ['HEAD'], maxEntries: selectedCommitIds.size, silent: true });
+		if (commits.length !== selectedCommitIds.size || commits.some(commit => !selectedCommitIds.has(commit.hash))) {
+			window.showWarningMessage(l10n.t('Select a contiguous range of the latest commits to squash.'));
+			return;
+		}
+
+		if (commits.some(commit => commit.parents.length > 1)) {
+			window.showWarningMessage(l10n.t('Can\'t squash merge commits.'));
+			return;
+		}
+
+		const oldestCommit = commits[commits.length - 1];
+		const oldestCommitParent = oldestCommit.parents[0];
+
+		const commitSummary = commits
+			.slice()
+			.reverse()
+			.map(commit => `- ${truncate(commit.hash, 7, false)} ${truncate(commit.message.split('\n')[0] ?? '')}`)
+			.join('\n');
+
+		const message = await this.openSquashCommitMessageEditor(repository, commits);
+		if (message === undefined) {
+			return;
+		}
+
+		const squash = l10n.t('Squash Commits');
+		const confirmation = await window.showWarningMessage(
+			l10n.t('This will rewrite the latest {0} commits:\n{1}', commits.length, commitSummary),
+			{ modal: true, detail: l10n.t('A single new commit will replace these commits.') },
+			squash);
+
+		if (confirmation !== squash) {
+			return;
+		}
+
+		try {
+			if (!oldestCommitParent) {
+				const squashedRootCommit = await repository.commitTree(headCommit, message);
+				await repository.reset(squashedRootCommit, true);
+			} else {
+				await repository.reset(oldestCommitParent);
+				await repository.commit(message, {});
+			}
+		} catch (err) {
+			await repository.reset(headCommit, true);
+			throw err;
+		}
+	}
+
+	private async openSquashCommitMessageEditor(repository: Repository, commits: Commit[]): Promise<string | undefined> {
+		const defaultMessage = commits
+			.slice()
+			.reverse()
+			.map(commit => commit.message.trim())
+			.join('\n\n');
+
+		const squashMessageUri = Uri.file(path.join(repository.dotGit.path, 'VSCode_SQUASH_MSG'));
+		await workspace.fs.writeFile(squashMessageUri, Buffer.from(defaultMessage, 'utf8'));
+		const document = await workspace.openTextDocument(squashMessageUri);
+		await window.showTextDocument(document, { preview: false, preserveFocus: false });
+		window.showInformationMessage(l10n.t('Edit the commit message and save to continue squash. Close the document to cancel.'));
+
+		const message = await new Promise<string | undefined>(resolve => {
+			const disposables: Disposable[] = [];
+
+			const complete = (value: string | undefined) => {
+				dispose(disposables);
+				resolve(value);
+			};
+
+			disposables.push(workspace.onDidSaveTextDocument(savedDocument => {
+				if (savedDocument.uri.toString() === squashMessageUri.toString()) {
+					complete(savedDocument.getText());
+				}
+			}));
+
+			disposables.push(workspace.onDidCloseTextDocument(closedDocument => {
+				if (closedDocument.uri.toString() === squashMessageUri.toString()) {
+					complete(undefined);
+				}
+			}));
+		});
+		try {
+			await workspace.fs.delete(squashMessageUri, { useTrash: false });
+		} catch {
+			// Ignore cleanup errors for temporary squash message file.
+		}
+
+		if (message === undefined) {
+			return undefined;
+		}
+
+		const trimmedMessage = message.trim();
+		if (trimmedMessage.length === 0) {
+			window.showWarningMessage(l10n.t('Commit message is required.'));
+			return undefined;
+		}
+
+		return trimmedMessage;
 	}
 
 	@command('git.cherryPickAbort', { repository: true })

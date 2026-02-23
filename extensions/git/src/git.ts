@@ -2109,6 +2109,11 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async commitTree(treeish: string, message: string): Promise<string> {
+		const result = await this.exec(['commit-tree', `${treeish}^{tree}`], { input: message });
+		return result.stdout.trim();
+	}
+
 	async revert(treeish: string, paths: string[]): Promise<void> {
 		const result = await this.exec(['branch']);
 		let args: string[];

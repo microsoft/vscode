@@ -1799,6 +1799,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
 	}
 
+	async commitTree(treeish: string, message: string): Promise<string> {
+		return await this.run(Operation.Commit, () => this.repository.commitTree(treeish, message));
+	}
+
 	async deleteRef(ref: string): Promise<void> {
 		await this.run(Operation.DeleteRef, () => this.repository.deleteRef(ref));
 	}

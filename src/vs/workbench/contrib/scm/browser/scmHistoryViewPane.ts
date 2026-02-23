@@ -790,13 +790,39 @@ class HistoryItemHoverDelegate extends WorkbenchHoverDelegate {
 }
 
 class SCMHistoryViewPaneActionRunner extends ActionRunner {
-	constructor(@IProgressService private readonly _progressService: IProgressService) {
+	constructor(@IProgressService protected readonly _progressService: IProgressService) {
 		super();
 	}
 
 	protected override runAction(action: IAction, context?: unknown): Promise<void> {
 		return this._progressService.withProgress({ location: HISTORY_VIEW_PANE_ID },
 			async () => await super.runAction(action, context));
+	}
+}
+
+class SCMHistoryContextMenuActionRunner extends SCMHistoryViewPaneActionRunner {
+	constructor(
+		private readonly _getSelectedHistoryItems: () => ISCMHistoryItem[],
+		@IProgressService _progressService: IProgressService
+	) {
+		super(_progressService);
+	}
+
+	protected override runAction(action: IAction, context?: unknown): Promise<void> {
+		if (action.id !== 'git.graph.squashCommits') {
+			return super.runAction(action, context);
+		}
+
+		const contextHistoryItem = context as ISCMHistoryItem | undefined;
+		const selectedHistoryItems = this._getSelectedHistoryItems();
+		const historyItems = selectedHistoryItems.length > 1 && contextHistoryItem &&
+			selectedHistoryItems.some(historyItem => historyItem.id === contextHistoryItem.id)
+			? selectedHistoryItems
+			: contextHistoryItem ? [contextHistoryItem] : [];
+
+		return this._progressService.withProgress({ location: HISTORY_VIEW_PANE_ID }, async () => {
+			await action.run(contextHistoryItem, historyItems);
+		});
 	}
 }
 
@@ -1538,6 +1564,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _repositoryOutdated = observableValue(this, false);
 
 	private readonly _actionRunner: IActionRunner;
+	private readonly _contextMenuActionRunner: IActionRunner;
 	private readonly _visibilityDisposables = new DisposableStore();
 
 	private readonly _treeOperationSequencer = new Sequencer();
@@ -1547,6 +1574,7 @@ export class SCMHistoryViewPane extends ViewPane {
 	private readonly _scmProviderCtx: IContextKey<string | undefined>;
 	private readonly _scmCurrentHistoryItemRefHasRemote: IContextKey<boolean>;
 	private readonly _scmCurrentHistoryItemRefInFilter: IContextKey<boolean>;
+	private readonly _scmHistoryItemMultiSelection: IContextKey<boolean>;
 
 	private readonly _contextMenuDisposables = new MutableDisposable<DisposableStore>();
 
@@ -1575,9 +1603,13 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._scmProviderCtx = ContextKeys.SCMProvider.bindTo(this.scopedContextKeyService);
 		this._scmCurrentHistoryItemRefHasRemote = ContextKeys.SCMCurrentHistoryItemRefHasRemote.bindTo(this.scopedContextKeyService);
 		this._scmCurrentHistoryItemRefInFilter = ContextKeys.SCMCurrentHistoryItemRefInFilter.bindTo(this.scopedContextKeyService);
+		this._scmHistoryItemMultiSelection = this.scopedContextKeyService.createKey<boolean>('scmHistoryItemMultiSelection', false);
 
 		this._actionRunner = this.instantiationService.createInstance(SCMHistoryViewPaneActionRunner);
 		this._register(this._actionRunner);
+		this._contextMenuActionRunner = this.instantiationService.createInstance(SCMHistoryContextMenuActionRunner,
+			() => this._getSelectedHistoryItems());
+		this._register(this._contextMenuActionRunner);
 
 		this._register(this._updateChildrenThrottler);
 	}
@@ -1883,7 +1915,8 @@ export class SCMHistoryViewPane extends ViewPane {
 				dnd: new SCMHistoryTreeDragAndDrop(),
 				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
 				horizontalScrolling: false,
-				multipleSelectionSupport: false
+				multipleSelectionSupport: true,
+				expandOnlyOnTwistieClick: false
 			}
 		) as WorkbenchCompressibleAsyncDataTree<SCMHistoryViewModel, TreeElement, FuzzyScore>;
 		this._register(this._tree);
@@ -1960,6 +1993,11 @@ export class SCMHistoryViewPane extends ViewPane {
 			return;
 		}
 
+		const contextHistoryItem = element.historyItemViewModel.historyItem;
+		const selectedHistoryItems = this._getSelectedHistoryItems();
+		this._scmHistoryItemMultiSelection.set(
+			selectedHistoryItems.length > 1 && selectedHistoryItems.some(historyItem => historyItem.id === contextHistoryItem.id));
+
 		this._contextMenuDisposables.value = new DisposableStore();
 
 		const historyItemRefMenuItems = MenuRegistry.getMenuItems(MenuId.SCMHistoryItemRefContext).filter(item => isIMenuItem(item));
@@ -2035,8 +2073,15 @@ export class SCMHistoryViewPane extends ViewPane {
 			contextKeyService: this.scopedContextKeyService,
 			getAnchor: () => e.anchor,
 			getActions: () => getFlatContextMenuActions(historyItemMenuActions),
-			getActionsContext: () => element.historyItemViewModel.historyItem
+			getActionsContext: () => contextHistoryItem,
+			actionRunner: this._contextMenuActionRunner
 		});
+	}
+
+	private _getSelectedHistoryItems(): ISCMHistoryItem[] {
+		return this._tree.getSelection()
+			.filter(isSCMHistoryItemViewModelTreeElement)
+			.map(element => element.historyItemViewModel.historyItem);
 	}
 
 	private async _loadMore(cursor?: string): Promise<void> {

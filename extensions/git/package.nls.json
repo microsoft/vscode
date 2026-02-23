@@ -133,6 +133,7 @@
 	"command.graphCheckout": "Checkout",
 	"command.graphCheckoutDetached": "Checkout (Detached)",
 	"command.graphCherryPick": "Cherry Pick",
+	"command.graphSquashCommits": "Squash Commits",
 	"command.graphDeleteBranch": "Delete Branch",
 	"command.graphDeleteTag": "Delete Tag",
 	"command.blameToggleEditorDecoration": "Toggle Git Blame Editor Decoration",

@@ -694,6 +694,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.graph.squashCommits",
+        "title": "%command.graphSquashCommits%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.cherryPickAbort",
         "title": "%command.cherryPickAbort%",
         "category": "Git",
@@ -1588,6 +1594,10 @@
           "when": "false"
         },
         {
+          "command": "git.graph.squashCommits",
+          "when": "false"
+        },
+        {
           "command": "git.diff.stageHunk",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && diffEditorOriginalUri =~ /^git\\:.*%22ref%22%3A%22~%22%7D$/"
         },
@@ -2145,6 +2155,11 @@
           "command": "git.graph.cherryPick",
           "when": "scmProvider == git",
           "group": "4_modify@1"
+        },
+        {
+          "command": "git.graph.squashCommits",
+          "when": "scmProvider == git && scmHistoryItemMultiSelection",
+          "group": "4_modify@2"
         },
         {
           "command": "git.copyCommitId",
