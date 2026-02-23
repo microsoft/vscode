@@ -663,8 +663,8 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, infer, mcp-servers, name, target, tools.',
-				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, infer, mcp-servers, name, target, tools.',
+				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, github, infer, mcp-servers, name, target, tools.',
 			], 'Model and handoffs are not validated for github-copilot target');
 		});
 
@@ -698,6 +698,98 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.ok(markers[0].message.includes(`Attribute 'argument-hint' is not supported`), 'Expected warning about unsupported attribute');
+		});
+
+		test('github-copilot agent with valid permissions', async () => {
+			const content = [
+				'---',
+				'name: "IssueTriage"',
+				'description: "Triages issues"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github:',
+				'  permissions:',
+				'    issues: write',
+				'    contents: read',
+				'    metadata: read',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('github-copilot agent with invalid permission scope', async () => {
+			const content = [
+				'---',
+				'name: "TestAgent"',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github:',
+				'  permissions:',
+				'    unknown-scope: read',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes('Unknown permission scope \'unknown-scope\''));
+		});
+
+		test('github-copilot agent with invalid permission value', async () => {
+			const content = [
+				'---',
+				'name: "TestAgent"',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github:',
+				'  permissions:',
+				'    metadata: write',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.ok(markers[0].message.includes('Invalid permission value \'write\' for scope \'metadata\''));
+		});
+
+		test('github-copilot agent with non-map github attribute', async () => {
+			const content = [
+				'---',
+				'name: "TestAgent"',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github: invalid',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, 'The \'github\' attribute must be an object.');
+		});
+
+		test('github-copilot agent with unknown github sub-property', async () => {
+			const content = [
+				'---',
+				'name: "TestAgent"',
+				'description: "Test"',
+				'target: github-copilot',
+				`tools: ['read']`,
+				'github:',
+				'  unknown: value',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes('Unknown property \'unknown\''));
 		});
 
 		test('vscode target agent validates normally', async () => {
