@@ -922,6 +922,7 @@ suite('ChatTipService', () => {
 	for (const { tipId, settingKey } of [
 		{ tipId: 'tip.thinkingStyle', settingKey: 'chat.agent.thinking.style' },
 		{ tipId: 'tip.thinkingPhrases', settingKey: 'chat.agent.thinking.phrases' },
+		{ tipId: 'tip.agenticBrowser', settingKey: 'workbench.browser.enableChatTools' },
 	]) {
 		test(`shows ${tipId} with correct setting link when setting is at default`, async () => {
 			const service = createService();

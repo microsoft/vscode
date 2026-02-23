@@ -273,6 +273,16 @@ const TIP_CATALOG: ITipDefinition[] = [
 		enabledCommands: ['workbench.action.openSettings'],
 	},
 	{
+		id: 'tip.agenticBrowser',
+		message: localize('tip.agenticBrowser', "Tip: Enable [agentic browser integration](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D) to let the agent open and interact with pages in the Integrated Browser."),
+		when: ContextKeyExpr.and(
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true),
+		),
+		enabledCommands: ['workbench.action.openSettings'],
+		excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'],
+	},
+	{
 		id: 'tip.mermaid',
 		message: localize('tip.mermaid', "Tip: Ask the agent to draw an architectural diagram or flow chart; it can render Mermaid diagrams directly in chat."),
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
