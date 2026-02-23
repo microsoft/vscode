@@ -26,7 +26,6 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
-import { IMcpGalleryService } from '../../../../../platform/mcp/common/mcpManagement.js';
 
 const $ = DOM.$;
 
@@ -254,7 +253,6 @@ export class McpListWidget extends Disposable {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget');
@@ -297,7 +295,7 @@ export class McpListWidget extends Disposable {
 			this.commandService.executeCommand(McpCommandIds.AddConfiguration);
 		}));
 
-		// Browse Marketplace button (only shown if gallery is enabled)
+		// Browse Marketplace button
 		const browseButtonContainer = DOM.append(buttonContainer, $('.list-add-button-container'));
 		this.browseButton = this._register(new Button(browseButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		this.browseButton.label = `$(${Codicon.library.id}) ${localize('browseMarketplace', "Browse Marketplace")}`;
@@ -305,7 +303,6 @@ export class McpListWidget extends Disposable {
 		this._register(this.browseButton.onDidClick(() => {
 			this.toggleBrowseMode(!this.browseMode);
 		}));
-		browseButtonContainer.style.display = this.mcpGalleryService.isEnabled() ? '' : 'none';
 
 		// Back to installed link (shown only in browse mode)
 		this.backLink = DOM.append(this.element, $('.mcp-back-link'));
