@@ -517,6 +517,9 @@ class NewChatWidget extends Disposable {
 		if (!model.metadata.isUserSelectable) {
 			return false;
 		}
+		if (model.metadata.targetChatSessionType === AgentSessionProviders.Background) {
+			return false;
+		}
 		return true;
 	}
 
