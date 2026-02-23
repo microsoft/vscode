@@ -322,6 +322,11 @@ export interface IChatAcceptInputOptions {
 	 * If Steering, also sets yieldRequested on any active request to signal it should wrap up.
 	 */
 	queue?: ChatRequestQueueKind;
+	/**
+	 * When true, always queues the request regardless of whether a request is currently in progress.
+	 * The request stays in the pending queue until explicitly processed.
+	 */
+	alwaysQueue?: boolean;
 }
 
 export interface IChatWidgetViewModelChangeEvent {
@@ -397,6 +402,16 @@ export interface IChatWidget {
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
 	 */
 	toggleQuestionCarouselFocus(): boolean;
+	/**
+	 * Navigates to the previous question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a previous question exists).
+	 */
+	navigateToPreviousQuestion(): boolean;
+	/**
+	 * Navigates to the next question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a next question exists).
+	 */
+	navigateToNextQuestion(): boolean;
 	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.

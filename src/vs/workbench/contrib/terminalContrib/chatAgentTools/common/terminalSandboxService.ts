@@ -36,6 +36,7 @@ export interface ITerminalSandboxService {
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
 	private _srtPath: string | undefined;
+	private _rgPath: string | undefined;
 	private _srtPathResolved = false;
 	private _execPath?: string;
 	private _sandboxConfigPath: string | undefined;
@@ -99,10 +100,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		if (!this._srtPath) {
 			throw new Error('Sandbox runtime path not resolved');
 		}
+		if (!this._rgPath) {
+			throw new Error('Ripgrep path not resolved');
+		}
 		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
 		// TMPDIR must be set as environment variable before the command
 		// Use -c to pass the command string directly (like sh -c), avoiding argument parsing issues
-		const wrappedCommand = `"${this._execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.path} --settings "${this._sandboxConfigPath}" -c "${command}"`;
+		const wrappedCommand = `PATH=$PATH:${dirname(this._rgPath)} "${this._execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.path} --settings "${this._sandboxConfigPath}" -c "${command}"`;
 		if (this._remoteEnvDetails) {
 			return `${wrappedCommand}`;
 		}
@@ -132,14 +136,13 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 		this._srtPathResolved = true;
 		const remoteEnv = this._remoteEnvDetails || await this._remoteEnvDetailsPromise;
-		if (!remoteEnv) {
-			// srt path is dist/cli.js inside the sandbox-runtime package.
-			this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
-			return;
+		if (remoteEnv) {
+
+			this._appRoot = remoteEnv.appRoot.path;
+			this._execPath = this._pathJoin(this._appRoot, 'node');
 		}
-		this._appRoot = remoteEnv.appRoot.path;
-		this._execPath = this._pathJoin(this._appRoot, 'node');
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
+		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {

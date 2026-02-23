@@ -28,9 +28,8 @@ import { getFlatActionBarActions } from '../../../../platform/actions/browser/me
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ChatEditingAcceptRejectActionViewItem } from '../../chat/browser/chatEditing/chatEditingEditorOverlay.js';
-import { CTX_INLINE_CHAT_INPUT_HAS_TEXT } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_INPUT_HAS_TEXT, CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED } from '../common/inlineChat.js';
 import { StickyScrollController } from '../../../../editor/contrib/stickyScroll/browser/stickyScrollController.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -53,7 +52,6 @@ export class InlineChatInputWidget extends Disposable {
 	private readonly _position = observableValue<IOverlayWidgetPosition | null>(this, null);
 	readonly position: IObservable<IOverlayWidgetPosition | null> = this._position;
 
-
 	private readonly _showStore = this._store.add(new DisposableStore());
 	private readonly _stickyScrollHeight: IObservable<number>;
 	private readonly _layoutData: IObservable<{ totalWidth: number; toolbarWidth: number; height: number; editorPad: number }>;
@@ -65,7 +63,6 @@ export class InlineChatInputWidget extends Disposable {
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
@@ -153,24 +150,14 @@ export class InlineChatInputWidget extends Disposable {
 		this._store.add(resizeObserver);
 		this._store.add(resizeObserver.observe(toolbar.getElement()));
 
-		// Compute min and max widget width based on editor content width
-		const maxWidgetWidth = derived(r => {
-			const layoutInfo = this._editorObs.layoutInfo.read(r);
-			return Math.max(0, Math.round(layoutInfo.contentWidth * 0.70));
-		});
-		const minWidgetWidth = derived(r => {
-			const layoutInfo = this._editorObs.layoutInfo.read(r);
-			return Math.max(0, Math.round(layoutInfo.contentWidth * 0.33));
-		});
-
 		const contentWidth = observableFromEvent(this, this._input.onDidChangeModelContent, () => this._input.getContentWidth());
 		const contentHeight = observableFromEvent(this, this._input.onDidContentSizeChange, () => this._input.getContentHeight());
 
 		this._layoutData = derived(r => {
 			const editorPad = 6;
 			const totalWidth = contentWidth.read(r) + editorPad + toolbarWidth.read(r);
-			const minWidth = minWidgetWidth.read(r);
-			const maxWidth = maxWidgetWidth.read(r);
+			const minWidth = 220;
+			const maxWidth = 600;
 			const clampedWidth = this._input.getOption(EditorOption.wordWrap) === 'on'
 				? maxWidth
 				: Math.max(minWidth, Math.min(totalWidth, maxWidth));
@@ -210,17 +197,6 @@ export class InlineChatInputWidget extends Disposable {
 			this._toolbarContainer.classList.toggle('fake-scroll-decoration', e.scrollTop > 0);
 		}));
 
-		// Update placeholder based on selection state
-		this._store.add(autorun(r => {
-			const selection = this._editorObs.cursorSelection.read(r);
-			const hasSelection = selection && !selection.isEmpty();
-			const placeholderText = hasSelection
-				? localize('placeholderWithSelection', "Describe how to change this")
-				: localize('placeholderNoSelection', "Describe what to generate");
-
-			this._input.updateOptions({ placeholder: placeholderText });
-		}));
-
 
 		// Track input text for context key and adjust width based on content
 		const inputHasText = CTX_INLINE_CHAT_INPUT_HAS_TEXT.bindTo(this._contextKeyService);
@@ -229,21 +205,15 @@ export class InlineChatInputWidget extends Disposable {
 		}));
 		this._store.add(toDisposable(() => inputHasText.reset()));
 
-		// Handle Enter key to submit, ArrowDown to move to actions
+		// Track focus state
+		const inputWidgetFocused = CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED.bindTo(this._contextKeyService);
+		this._store.add(this._input.onDidFocusEditorText(() => inputWidgetFocused.set(true)));
+		this._store.add(this._input.onDidBlurEditorText(() => inputWidgetFocused.set(false)));
+		this._store.add(toDisposable(() => inputWidgetFocused.reset()));
+
+		// Handle key events: ArrowDown to move to actions
 		this._store.add(this._input.onKeyDown(e => {
-			if (e.keyCode === KeyCode.Enter && !e.shiftKey) {
-				e.preventDefault();
-				e.stopPropagation();
-				this._commandService.executeCommand('inlineChat.submitInput');
-			} else if (e.keyCode === KeyCode.Escape) {
-				// Hide overlay if input is empty
-				const value = this._input.getModel().getValue() ?? '';
-				if (!value) {
-					e.preventDefault();
-					e.stopPropagation();
-					this.hide();
-				}
-			} else if (e.keyCode === KeyCode.DownArrow && !actionBar.isEmpty()) {
+			if (e.keyCode === KeyCode.DownArrow && !actionBar.isEmpty()) {
 				const model = this._input.getModel();
 				const position = this._input.getPosition();
 				if (position && position.lineNumber === model.getLineCount()) {
@@ -282,11 +252,11 @@ export class InlineChatInputWidget extends Disposable {
 	 * @param left Left offset relative to editor
 	 * @param anchorAbove Whether to anchor above the position (widget grows upward)
 	 */
-	show(lineNumber: number, left: number, anchorAbove: boolean): void {
+	show(lineNumber: number, left: number, anchorAbove: boolean, placeholder: string): void {
 		this._showStore.clear();
 
 		// Clear input state
-		this._input.updateOptions({ wordWrap: 'off' });
+		this._input.updateOptions({ wordWrap: 'off', placeholder });
 		this._input.getModel().setValue('');
 
 		// Store anchor info for scroll updates

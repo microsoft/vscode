@@ -300,7 +300,7 @@ class SimpleBrowserOverlayWidget {
 			icon: ThemeIcon.fromId(Codicon.layout.id),
 			ancestors: elementData.ancestors,
 			attributes: elementData.attributes,
-			computedStyles: elementData.computedStyles,
+			computedStyles: attachCss ? elementData.computedStyles : undefined,
 			dimensions: elementData.dimensions,
 			innerText: elementData.innerText,
 		});

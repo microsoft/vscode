@@ -756,8 +756,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		// case where we only have one item (tool or edit) in the thinking container and no thinking parts, we want to move it back to its original position
 		if (this.appendedItemCount === 1 && this.currentThinkingValue.trim() === '' && this.singleItemInfo) {
-			this.restoreSingleItemToOriginalPosition();
-			return;
+			if (this.restoreSingleItemToOriginalPosition()) {
+				return;
+			}
 		}
 
 		// if exactly one actual extracted title and no tool invocations, use that as the final title.
@@ -954,9 +955,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.setFallbackTitle();
 	}
 
-	private restoreSingleItemToOriginalPosition(): void {
+	private restoreSingleItemToOriginalPosition(): boolean {
 		if (!this.singleItemInfo) {
-			return;
+			return false;
 		}
 
 		const { element, originalParent, originalNextSibling } = this.singleItemInfo;
@@ -964,7 +965,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		// don't restore it to original position - it contains multiple rendered elements
 		if (element.childElementCount > 1) {
 			this.singleItemInfo = undefined;
-			return;
+			return false;
 		}
 
 		if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
@@ -975,6 +976,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		hide(this.domNode);
 		this.singleItemInfo = undefined;
+		return true;
 	}
 
 	private setFallbackTitle(): void {

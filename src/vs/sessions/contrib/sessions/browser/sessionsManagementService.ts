@@ -16,13 +16,15 @@ import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../../../../
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { IChatSessionItem, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { LocalChatSessionUri } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -74,10 +76,22 @@ export interface ISessionsManagementService {
 	openNewSession(): void;
 
 	/**
-	 * Open a new session, apply options, and send the initial request.
-	 * This is the main entry point for the new-chat welcome widget.
+	 * Create a pending session object for the given target type.
+	 * Local sessions collect options locally; remote sessions notify the extension.
 	 */
-	sendRequestForNewSession(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>, folderUri?: URI): Promise<void>;
+	createNewSessionForTarget(target: AgentSessionProviders, sessionResource: URI, defaultRepoUri?: URI): Promise<INewSession>;
+
+	/**
+	 * Open a new session, apply options, and send the initial request.
+	 * Looks up the session by resource URI and builds send options from it.
+	 */
+	sendRequestForNewSession(sessionResource: URI): Promise<void>;
+
+	/**
+	 * Commit files in a worktree and refresh the agent sessions model
+	 * so the Changes view reflects the update.
+	 */
+	commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');
@@ -89,6 +103,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _activeSession = observableValue<IActiveSessionItem | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
 
+	private readonly _newSessions = new Map<string, INewSession>();
 	private lastSelectedSession: URI | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
 
@@ -102,8 +117,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -224,6 +239,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
+	async createNewSessionForTarget(target: AgentSessionProviders, sessionResource: URI, defaultRepoUri?: URI): Promise<INewSession> {
+		let newSession: INewSession;
+		if (target === AgentSessionProviders.Background || target === AgentSessionProviders.Local) {
+			newSession = new LocalNewSession(sessionResource, defaultRepoUri, this.chatSessionsService, this.logService);
+		} else {
+			newSession = new RemoteNewSession(sessionResource, target, this.chatSessionsService, this.logService);
+		}
+		this._newSessions.set(newSession.resource.toString(), newSession);
+		return newSession;
+	}
+
 	/**
 	 * Open an existing agent session - set it as active and reveal it.
 	 */
@@ -257,7 +283,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Open a new remote session - load the model first, then show it in the ChatViewPane.
 	 */
 	private async openNewRemoteSession(sessionResource: URI): Promise<void> {
-		const modelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = await this.chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 		const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		if (!chatWidget?.viewModel) {
 			this.logService.warn(`[ActiveSessionService] Failed to open session: ${sessionResource.toString()}`);
@@ -276,39 +302,45 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._activeSession.set(activeSessionItem, undefined);
 	}
 
-	async sendRequestForNewSession(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>, folderUri?: URI): Promise<void> {
-		if (LocalChatSessionUri.isLocalSession(sessionResource)) {
-			await this.sendLocalSession(sessionResource, query, sendOptions, folderUri);
-		} else {
-			await this.sendCustomSession(sessionResource, query, sendOptions, selectedOptions);
-		}
-	}
-
-	/**
-	 * Local sessions run directly through the ChatWidget.
-	 * Set the workspace folder, open a fresh chat view, and submit via acceptInput.
-	 */
-	private async sendLocalSession(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, folderUri?: URI): Promise<void> {
-		if (folderUri) {
-			await this.workspaceEditingService.updateFolders(0, this.workspaceContextService.getWorkspace().folders.length, [{ uri: folderUri }]);
+	async sendRequestForNewSession(sessionResource: URI): Promise<void> {
+		const session = this._newSessions.get(sessionResource.toString());
+		if (!session) {
+			this.logService.error(`[SessionsManagementService] No new session found for resource: ${sessionResource.toString()}`);
+			return;
 		}
 
-		await this.openSession(sessionResource);
-
-		const widget = this.chatWidgetService.lastFocusedWidget;
-		if (widget) {
-			if (sendOptions.attachedContext?.length) {
-				widget.attachmentModel.addContext(...sendOptions.attachedContext);
-			}
-			widget.setInput(query);
-			widget.acceptInput(query);
+		const query = session.query;
+		if (!query) {
+			this.logService.error('[SessionsManagementService] No query set on session');
+			return;
 		}
+
+		const contribution = this.chatSessionsService.getChatSessionContribution(session.target);
+		const sendOptions: IChatSendRequestOptions = {
+			location: ChatAgentLocation.Chat,
+			userSelectedModelId: session.modelId,
+			modeInfo: {
+				kind: ChatModeKind.Agent,
+				isBuiltin: true,
+				modeInstructions: undefined,
+				modeId: 'agent',
+				applyCodeBlockSuggestionId: undefined,
+			},
+			agentIdSilent: contribution?.type,
+			attachedContext: session.attachedContext,
+		};
+
+		await this.sendCustomSession(sessionResource, query, sendOptions, session.selectedOptions);
+
+		// Clean up the session after sending
+		this._newSessions.delete(sessionResource.toString());
+		session.dispose();
 	}
 
 	/**
 	 * Custom sessions (worktree, cloud, etc.) go through the chat service.
-	 * Apply selected options, send the request, then wait for the extension
-	 * to create an agent session so it appears in the sidebar.
+	 * Options have already been applied via setOption during session configuration.
+	 * Send the request, then wait for the extension to create an agent session.
 	 */
 	private async sendCustomSession(sessionResource: URI, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {
 		// 1. Open the session - loads the model and shows the ChatViewPane
@@ -316,7 +348,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// 2. Apply selected options (repository, branch, etc.) to the contributed session
 		if (selectedOptions && selectedOptions.size > 0) {
-			const modelRef = this.chatService.getActiveSessionReference(sessionResource);
+			const modelRef = this.chatService.acquireExistingSession(sessionResource);
 			if (modelRef) {
 				const model = modelRef.object;
 				const contributedSession = model.contributedChatSession;
@@ -390,6 +422,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		};
 		this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
 		this._activeSession.set(activeSessionItem, undefined);
+	}
+
+	async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void> {
+		const worktreeUri = session.worktree;
+		if (!worktreeUri) {
+			throw new Error('Cannot commit worktree files: active session has no associated worktree');
+		}
+		for (const fileUri of fileUris) {
+			await this.commandService.executeCommand(
+				'github.copilot.cli.sessions.commitToWorktree',
+				{ worktreeUri, fileUri }
+			);
+		}
+		await this.agentSessionsService.model.resolve(AgentSessionProviders.Background);
 	}
 
 	private loadLastSelectedSession(): URI | undefined {

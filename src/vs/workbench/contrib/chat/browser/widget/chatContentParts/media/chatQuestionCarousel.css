@@ -42,6 +42,7 @@
 		.chat-question-header-row {
 			display: flex;
 			justify-content: space-between;
+			align-items: center;
 			gap: 8px;
 			min-width: 0;
 			padding-bottom: 5px;

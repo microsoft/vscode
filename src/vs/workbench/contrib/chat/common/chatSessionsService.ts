@@ -158,6 +158,8 @@ export interface IChatSession extends IDisposable {
 
 	readonly sessionResource: URI;
 
+	readonly title?: string;
+
 	readonly history: readonly IChatSessionHistoryItem[];
 
 	/**

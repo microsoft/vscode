@@ -10,7 +10,7 @@
 	border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border));
 	border-radius: 8px;
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
-	z-index: 10000;
+	z-index: 100;
 }
 
 .inline-chat-gutter-menu .input {

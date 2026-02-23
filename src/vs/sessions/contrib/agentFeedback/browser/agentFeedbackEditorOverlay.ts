@@ -21,8 +21,10 @@ import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { navigateNextFeedbackActionId, navigatePreviousFeedbackActionId, navigationBearingFakeActionId, submitFeedbackActionId } from './agentFeedbackEditorActions.js';
 import { assertType } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
-import { getActiveResourceCandidates } from './agentFeedbackEditorUtils.js';
+import { getActiveResourceCandidates, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { Menus } from '../../../browser/menus.js';
+import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
+import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 
 class AgentFeedbackActionViewItem extends ActionViewItem {
 
@@ -140,7 +142,9 @@ class AgentFeedbackOverlayController {
 		container: HTMLElement,
 		group: IEditorGroup,
 		@IAgentFeedbackService agentFeedbackService: IAgentFeedbackService,
+		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IInstantiationService instaService: IInstantiationService,
+		@IChatEditingService chatEditingService: IChatEditingService,
 	) {
 		this._domNode.classList.add('agent-feedback-editor-overlay');
 		this._domNode.style.position = 'absolute';
@@ -176,18 +180,16 @@ class AgentFeedbackOverlayController {
 			activeSignal.read(r);
 
 			const candidates = getActiveResourceCandidates(group.activeEditorPane?.input);
-			let shouldShow = false;
-			let navigationBearings = { activeIdx: -1, totalCount: 0 };
+			let navigationBearings = undefined;
 			for (const candidate of candidates) {
-				const sessionResource = agentFeedbackService.getMostRecentSessionForResource(candidate);
+				const sessionResource = getSessionForResource(candidate, chatEditingService, agentSessionsService);
 				if (sessionResource && agentFeedbackService.getFeedback(sessionResource).length > 0) {
-					shouldShow = true;
 					navigationBearings = agentFeedbackService.getNavigationBearing(sessionResource);
 					break;
 				}
 			}
 
-			if (!shouldShow) {
+			if (!navigationBearings) {
 				hide();
 				return;
 			}

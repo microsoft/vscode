@@ -9,11 +9,6 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 
-export interface ISessionResourceMatch {
-	readonly sessionResource: URI;
-	readonly resourceUri: URI;
-}
-
 /**
  * Find the session that contains the given resource by checking editing sessions and agent sessions.
  */
@@ -21,16 +16,16 @@ export function getSessionForResource(
 	resourceUri: URI,
 	chatEditingService: IChatEditingService,
 	agentSessionsService: IAgentSessionsService,
-): ISessionResourceMatch | undefined {
+): URI | undefined {
 	for (const editingSession of chatEditingService.editingSessionsObs.get()) {
 		if (editingEntriesContainResource(editingSession.entries.get(), resourceUri)) {
-			return { sessionResource: editingSession.chatSessionResource, resourceUri };
+			return editingSession.chatSessionResource;
 		}
 	}
 
 	for (const session of agentSessionsService.model.sessions) {
 		if (agentSessionContainsResource(session, resourceUri)) {
-			return { sessionResource: session.resource, resourceUri };
+			return session.resource;
 		}
 	}
 

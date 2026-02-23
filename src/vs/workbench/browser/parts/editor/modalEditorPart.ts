@@ -25,13 +25,14 @@ import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext } from '../../../common/contextkeys.js';
-import { Verbosity } from '../../../common/editor.js';
+import { EditorResourceAccessor, SideBySideEditor, Verbosity } from '../../../common/editor.js';
+import { ResourceLabel } from '../../labels.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID } from './editorCommands.js';
+import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID } from './editorCommands.js';
 import { IModalEditorNavigation, IModalEditorPartOptions } from '../../../../platform/editor/common/editor.js';
 
 const defaultModalEditorAllowableCommands = new Set([
@@ -43,6 +44,7 @@ const defaultModalEditorAllowableCommands = new Set([
 	'workbench.action.files.saveAll',
 	CLOSE_MODAL_EDITOR_COMMAND_ID,
 	MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
+	MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID,
 	TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID,
 	NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID,
 	NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID,
@@ -123,7 +125,7 @@ export class ModalEditorPart {
 		const headerElement = editorPartContainer.appendChild($('.modal-editor-header'));
 
 		// Title element
-		const titleElement = append(headerElement, $('div.modal-editor-title'));
+		const titleElement = append(headerElement, $('div.modal-editor-title.show-file-icons'));
 		titleElement.id = titleId;
 		titleElement.textContent = '';
 
@@ -194,15 +196,30 @@ export class ModalEditorPart {
 			menuOptions: { shouldForwardArgs: true }
 		}));
 
-		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, (() => {
-
-			// Update title when active editor changes
+		// Create label
+		const label = disposables.add(scopedInstantiationService.createInstance(ResourceLabel, titleElement, {}));
+		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, () => {
 			const activeEditor = editorPart.activeGroup.activeEditor;
-			titleElement.textContent = activeEditor?.getTitle(Verbosity.MEDIUM) ?? '';
+			if (activeEditor) {
+				const { labelFormat } = editorPart.partOptions;
 
-			// Notify editor part that active editor changed
+				label.element.setResource(
+					{
+						resource: EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.BOTH }),
+						name: activeEditor.getName(),
+						description: activeEditor.getDescription(labelFormat === 'short' ? Verbosity.SHORT : labelFormat === 'long' ? Verbosity.LONG : Verbosity.MEDIUM) || ''
+					},
+					{
+						icon: activeEditor.getIcon(),
+						extraClasses: activeEditor.getLabelExtraClasses(),
+					}
+				);
+			} else {
+				label.element.clear();
+			}
+
 			editorPart.notifyActiveEditorChanged();
-		})));
+		}));
 
 		// Handle double-click on header to toggle maximize
 		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {

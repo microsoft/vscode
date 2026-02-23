@@ -101,10 +101,7 @@ export class BranchChatSessionAction extends Action2 {
 		}
 
 		// Load the branched data into a new session model
-		const modelRef = chatService.loadSessionFromContent(serializedData);
-		if (!modelRef) {
-			return;
-		}
+		const modelRef = chatService.loadSessionFromData(serializedData);
 
 		// Open the branched session in the chat view pane
 		await widgetService.openSession(modelRef.object.sessionResource, ChatViewPaneTarget);

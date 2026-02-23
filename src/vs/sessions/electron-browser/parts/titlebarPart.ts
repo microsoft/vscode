@@ -13,6 +13,7 @@ import { INativeHostService } from '../../../platform/native/common/native.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { useWindowControlsOverlay } from '../../../platform/window/common/window.js';
+import { IsWindowAlwaysOnTopContext } from '../../../workbench/common/contextkeys.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { IAuxiliaryTitlebarPart } from '../../../workbench/browser/parts/titlebar/titlebarPart.js';
@@ -39,6 +40,20 @@ export class NativeTitlebarPart extends TitlebarPart {
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 	) {
 		super(id, targetWindow, contextMenuService, configurationService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService);
+
+		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId, contextKeyService);
+	}
+
+	private async handleWindowsAlwaysOnTop(targetWindowId: number, contextKeyService: IContextKeyService): Promise<void> {
+		const isWindowAlwaysOnTopContext = IsWindowAlwaysOnTopContext.bindTo(contextKeyService);
+
+		this._register(this.nativeHostService.onDidChangeWindowAlwaysOnTop(({ windowId, alwaysOnTop }) => {
+			if (windowId === targetWindowId) {
+				isWindowAlwaysOnTopContext.set(alwaysOnTop);
+			}
+		}));
+
+		isWindowAlwaysOnTopContext.set(await this.nativeHostService.isWindowAlwaysOnTop({ targetWindowId }));
 	}
 
 	override updateStyles(): void {
@@ -51,6 +66,10 @@ export class NativeTitlebarPart extends TitlebarPart {
 					this.cachedWindowControlStyles.bgColor !== this.element.style.backgroundColor ||
 					this.cachedWindowControlStyles.fgColor !== this.element.style.color
 				) {
+					this.cachedWindowControlStyles = {
+						bgColor: this.element.style.backgroundColor,
+						fgColor: this.element.style.color
+					};
 					this.nativeHostService.updateWindowControls({
 						targetWindowId: getWindowId(getWindow(this.element)),
 						backgroundColor: this.element.style.backgroundColor,
@@ -102,7 +121,6 @@ class AuxiliaryNativeTitlebarPart extends NativeTitlebarPart implements IAuxilia
 
 	constructor(
 		readonly container: HTMLElement,
-		editorGroupsContainer: IEditorGroupsContainer,
 		private readonly mainTitlebar: TitlebarPart,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -129,7 +147,7 @@ export class NativeTitleService extends TitleService {
 		return this.instantiationService.createInstance(MainNativeTitlebarPart);
 	}
 
-	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
-		return instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, editorGroupsContainer, this.mainPart);
+	protected override doCreateAuxiliaryTitlebarPart(container: HTMLElement, _editorGroupsContainer: IEditorGroupsContainer, instantiationService: IInstantiationService): AuxiliaryNativeTitlebarPart {
+		return instantiationService.createInstance(AuxiliaryNativeTitlebarPart, container, this.mainPart);
 	}
 }

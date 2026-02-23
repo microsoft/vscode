@@ -451,4 +451,88 @@ suite('PromptFileParser', () => {
 		assert.strictEqual(result4.header?.userInvocable, undefined);
 	});
 
+	test('agent with all header fields including colons in description', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			'name: Explore',
+			'description: Fast read-only codebase exploration and Q&A subagent. Prefer over manually chaining multiple search and file-reading operations to avoid cluttering the main conversation. Safe to call in parallel. Specify thoroughness: quick, medium, or thorough.',
+			`argument-hint: Describe WHAT you're looking for and desired thoroughness (quick/medium/thorough)`,
+			`model: ['Claude Haiku 4.5 (copilot)', 'Gemini 3 Flash (Preview) (copilot)', 'Auto (copilot)']`,
+			'target: vscode',
+			'user-invocable: false',
+			`tools: ['search', 'read', 'web', 'vscode/memory', 'github/issue_read', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/activePullRequest', 'execute/getTerminalOutput', 'execute/testFailure']`,
+			'agents: []',
+			'---',
+			'You are an exploration agent specialized in rapid codebase analysis and answering questions efficiently.',
+			'',
+			'## Search Strategy',
+			'',
+			'- Go **broad to narrow**:',
+			'\t1. Start with glob patterns or semantic codesearch to discover relevant areas',
+			'\t2. Narrow with text search (regex) or usages (LSP) for specific symbols or patterns',
+			'\t3. Read files only when you know the path or need full context',
+			'- Pay attention to provided agent instructions/rules/skills as they apply to areas of the codebase to better understand architecture and best practices.',
+			'- Use the github repo tool to search references in external dependencies.',
+			'',
+			'## Speed Principles',
+			'',
+			'Adapt search strategy based on the requested thoroughness level.',
+			'',
+			'**Bias for speed** — return findings as quickly as possible:',
+			'- Parallelize independent tool calls (multiple greps, multiple reads)',
+			'- Stop searching once you have sufficient context',
+			'- Make targeted searches, not exhaustive sweeps',
+			'',
+			'## Output',
+			'',
+			'Report findings directly as a message. Include:',
+			'- Files with absolute links',
+			'- Specific functions, types, or patterns that can be reused',
+			'- Analogous existing features that serve as implementation templates',
+			'- Clear answers to what was asked, not comprehensive overviews',
+			'',
+			'Remember: Your goal is searching efficiently through MAXIMUM PARALLELISM to report concise and clear answers.',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.ok(result.body);
+
+		// Verify all header attributes are identified
+		assert.deepEqual(result.header.name, 'Explore');
+		assert.deepEqual(result.header.description, 'Fast read-only codebase exploration and Q&A subagent. Prefer over manually chaining multiple search and file-reading operations to avoid cluttering the main conversation. Safe to call in parallel. Specify thoroughness: quick, medium, or thorough.');
+		assert.deepEqual(result.header.argumentHint, `Describe WHAT you're looking for and desired thoroughness (quick/medium/thorough)`);
+		assert.deepEqual(result.header.model, ['Claude Haiku 4.5 (copilot)', 'Gemini 3 Flash (Preview) (copilot)', 'Auto (copilot)']);
+		assert.deepEqual(result.header.target, 'vscode');
+		assert.deepEqual(result.header.userInvocable, false);
+		assert.deepEqual(result.header.tools, ['search', 'read', 'web', 'vscode/memory', 'github/issue_read', 'github.vscode-pull-request-github/issue_fetch', 'github.vscode-pull-request-github/activePullRequest', 'execute/getTerminalOutput', 'execute/testFailure']);
+		assert.deepEqual(result.header.agents, []);
+
+		// Verify all 8 header attributes are present
+		assert.deepEqual(result.header.attributes.length, 8);
+		assert.deepEqual(result.header.attributes.map(a => a.key), [
+			'name', 'description', 'argument-hint', 'model', 'target', 'user-invocable', 'tools', 'agents'
+		]);
+	});
+
+	test('agent with unquoted description containing colon-space', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'---',
+			'name: Test',
+			'description: This has a colon: in the middle',
+			'target: vscode',
+			'---',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.header);
+
+		// The description contains ": " which could interfere with YAML parsing.
+		// All headers after it should still be identified.
+		assert.deepEqual(result.header.name, 'Test');
+		assert.deepEqual(result.header.description, 'This has a colon: in the middle');
+		assert.deepEqual(result.header.target, 'vscode');
+	});
+
 });
