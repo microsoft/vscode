@@ -59,6 +59,12 @@ export interface ISessionsWelcomeService {
 	/** Resolves once all registered steps have determined their initial state. */
 	readonly whenInitialized: Promise<void>;
 
+	/**
+	 * Wait for all currently registered steps to finish their async initialization,
+	 * then mark the service as initialized.
+	 */
+	initialize(): Promise<void>;
+
 	/** The first unsatisfied step, or `undefined` when all are done. */
 	readonly currentStep: IObservable<ISessionsWelcomeStep | undefined>;
 

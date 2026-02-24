@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/welcomeOverlay.css';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { $, append } from '../../../../base/browser/dom.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -139,6 +139,7 @@ export class SessionsWelcomeOverlay extends Disposable {
 		this.overlay.classList.add('sessions-welcome-overlay-dismissed');
 		this._onDidDismiss.fire();
 		// Allow CSS transition to finish before disposing
-		setTimeout(() => this.dispose(), 200);
+		const handle = setTimeout(() => this.dispose(), 200);
+		this._register(toDisposable(() => clearTimeout(handle)));
 	}
 }

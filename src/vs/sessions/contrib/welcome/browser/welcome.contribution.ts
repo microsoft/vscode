@@ -53,15 +53,16 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 			return;
 		}
 
-		this.registerSteps();
-
 		const isFirstLaunch = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
+
+		this.registerSteps();
+		this.welcomeService.initialize();
 
 		if (isFirstLaunch) {
 			// First launch: show the welcome overlay immediately
 			this.showOverlay();
 		} else {
-			// Returning user: wait for steps to initialize, then show only if something is missing
+			// Returning user: only show if Copilot Chat is not installed
 			this.showOverlayIfNeededAfterInit();
 		}
 	}
@@ -80,11 +81,13 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 	}
 
 	private async showOverlayIfNeededAfterInit(): Promise<void> {
-		// Wait for all steps to determine their true initial state
-		const service = this.welcomeService as SessionsWelcomeService;
-		await service.initialize();
+		// Wait for extension host to know what's installed
+		await this.welcomeService.whenInitialized;
 
-		// After initialization, check if everything is already satisfied
+		// For returning users, only the Copilot Chat install state is a
+		// reliable trigger. Auth session restore races at startup, so we
+		// don't re-show the overlay just because sign-in hasn't resolved.
+		// If everything is already satisfied, skip.
 		if (this.welcomeService.isComplete.get()) {
 			return;
 		}
