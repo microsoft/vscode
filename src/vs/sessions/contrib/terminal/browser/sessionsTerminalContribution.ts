@@ -59,7 +59,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}));
 	}
 
-	private _onActivePathChanged(targetPath: URI | undefined): void {
+	private async _onActivePathChanged(targetPath: URI | undefined): Promise<void> {
 		if (!targetPath) {
 			return;
 		}
@@ -70,12 +70,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 		this._lastTargetFsPath = targetFsPath;
 
-		let hasTerminalForPath = false;
+		let existingInstance: ITerminalInstance | undefined;
 
 		// Iterate over a snapshot to avoid issues when modifying the list
 		for (const instance of [...this._terminalGroupService.instances]) {
 			if (this._matchesCwd(instance, targetFsPath)) {
-				hasTerminalForPath = true;
+				existingInstance ??= instance;
 				// Unhide if this terminal was previously hidden
 				if (this._hiddenInstances.has(instance.instanceId)) {
 					this._unhideTerminal(instance);
@@ -85,8 +85,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}
 
-		if (!hasTerminalForPath) {
-			this._terminalService.createTerminal({ config: { cwd: targetPath } });
+		if (existingInstance) {
+			this._terminalService.setActiveInstance(existingInstance);
+		} else {
+			const instance = await this._terminalService.createTerminal({ config: { cwd: targetPath } });
+			this._terminalService.setActiveInstance(instance);
 		}
 	}
 
