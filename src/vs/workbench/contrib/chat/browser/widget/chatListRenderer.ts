@@ -750,6 +750,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || isPendingRequest || !(checkpointEnabled));
 
+		// show checkpoint on response monaco-list row hover as well
+		if (isResponseVM(element) && checkpointEnabled) {
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_ENTER, () => {
+				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
+				if (requestTemplateData) {
+					requestTemplateData.checkpointContainer.classList.add('response-hovered');
+				}
+			}));
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_LEAVE, () => {
+				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
+				if (requestTemplateData) {
+					requestTemplateData.checkpointContainer.classList.remove('response-hovered');
+				}
+			}));
+			// Ensure 'response-hovered' is cleared if the response row is disposed while hovered
+			templateData.elementDisposables.add(toDisposable(() => {
+				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
+				if (requestTemplateData) {
+					requestTemplateData.checkpointContainer.classList.remove('response-hovered');
+				}
+			}));
+		}
+
 		// Only show restore container when we have a checkpoint and not editing, and not a pending request
 		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1) && !isPendingRequest;
 		templateData.checkpointRestoreContainer.classList.toggle('hidden', !(shouldShowRestore && checkpointEnabled));

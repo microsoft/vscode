@@ -108,14 +108,14 @@ jobs:
 
           if [ -n "$CHECK_RUN_ID" ]; then
             gh api "repos/${{ github.repository }}/check-runs/$CHECK_RUN_ID" \
-              -X PATCH --input - <<EOF
+              -X PATCH --input - <<EOF || echo "::warning::Could not update check run (expected for fork PRs)"
           {"details_url":"$DETAILS_URL","output":{"title":"$TITLE","summary":"$TITLE"}}
           EOF
           fi
 
           DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json"
           gh api "repos/${{ github.repository }}/statuses/$SHA" \
-            --input - <<EOF
+            --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
           {"state":"success","target_url":"$DETAILS_URL","description":"$TITLE","context":"screenshots / explorer"}
           EOF
 

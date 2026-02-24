@@ -2383,7 +2383,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Render implicit context (active editor in Ask mode, or selection)
 		let hasImplicitContext = false;
-		const hasVisibleImplicitContext = this._implicitContext?.values.some(v => v.enabled || v.isSelection) ?? false;
+		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
+		const hasVisibleImplicitContext = isSuggestedEnabled
+			? this._implicitContext?.hasValue ?? false
+			: this._implicitContext?.values.some(v => v.enabled || v.isSelection) ?? false;
 		if (this._implicitContext && hasVisibleImplicitContext) {
 			const isAttachmentAlreadyAttached = (targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined): boolean => {
 				return this._attachmentModel.attachments.some(a => {

@@ -26,7 +26,7 @@ import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platf
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { matchesFuzzy, IMatch } from '../../../../../base/common/filters.js';
+import { matchesContiguousSubString, IMatch } from '../../../../../base/common/filters.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
@@ -44,6 +44,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ISCMService } from '../../../scm/common/scm.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 const $ = DOM.$;
 
@@ -78,6 +79,7 @@ interface IGroupHeaderEntry {
 	readonly icon: ThemeIcon;
 	readonly count: number;
 	readonly isFirst: boolean;
+	readonly description: string;
 	collapsed: boolean;
 }
 
@@ -124,7 +126,9 @@ interface IGroupHeaderTemplateData {
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
+	readonly infoIcon: HTMLElement;
 	readonly disposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
 /**
@@ -134,19 +138,29 @@ interface IGroupHeaderTemplateData {
 class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHeaderTemplateData> {
 	readonly templateId = 'groupHeader';
 
+	constructor(
+		private readonly hoverService: IHoverService,
+	) { }
+
 	renderTemplate(container: HTMLElement): IGroupHeaderTemplateData {
 		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
 		container.classList.add('ai-customization-group-header');
 
 		const chevron = DOM.append(container, $('.group-chevron'));
 		const icon = DOM.append(container, $('.group-icon'));
-		const label = DOM.append(container, $('.group-label'));
+		const labelGroup = DOM.append(container, $('.group-label-group'));
+		const label = DOM.append(labelGroup, $('.group-label'));
+		const infoIcon = DOM.append(labelGroup, $('.group-info'));
+		infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 		const count = DOM.append(container, $('.group-count'));
 
-		return { container, chevron, icon, label, count, disposables };
+		return { container, chevron, icon, label, count, infoIcon, disposables, elementDisposables };
 	}
 
 	renderElement(element: IGroupHeaderEntry, _index: number, templateData: IGroupHeaderTemplateData): void {
+		templateData.elementDisposables.clear();
+
 		// Chevron
 		templateData.chevron.className = 'group-chevron';
 		templateData.chevron.classList.add(...ThemeIcon.asClassNameArray(element.collapsed ? Codicon.chevronRight : Codicon.chevronDown));
@@ -159,12 +173,22 @@ class GroupHeaderRenderer implements IListRenderer<IGroupHeaderEntry, IGroupHead
 		templateData.label.textContent = element.label;
 		templateData.count.textContent = `${element.count}`;
 
+		// Info icon hover
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.infoIcon, () => ({
+			content: element.description,
+			appearance: {
+				compact: true,
+				skipFadeInAnimation: true,
+			}
+		})));
+
 		// Collapsed state and separator for non-first groups
 		templateData.container.classList.toggle('collapsed', element.collapsed);
 		templateData.container.classList.toggle('has-previous-group', !element.isFirst);
 	}
 
 	disposeTemplate(templateData: IGroupHeaderTemplateData): void {
+		templateData.elementDisposables.dispose();
 		templateData.disposables.dispose();
 	}
 }
@@ -345,6 +369,7 @@ export class AICustomizationListWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ISCMService private readonly scmService: ISCMService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -417,7 +442,7 @@ export class AICustomizationListWidget extends Disposable {
 			this.listContainer,
 			new AICustomizationListDelegate(),
 			[
-				new GroupHeaderRenderer(),
+				new GroupHeaderRenderer(this.hoverService),
 				this.instantiationService.createInstance(AICustomizationItemRenderer),
 			],
 			{
@@ -433,7 +458,7 @@ export class AICustomizationListWidget extends Disposable {
 							? localize('itemAriaLabel', "{0}, {1}", entry.item.name, entry.item.description)
 							: entry.item.name;
 					},
-					getWidgetAriaLabel: () => localize('listAriaLabel', "AI Customizations"),
+					getWidgetAriaLabel: () => localize('listAriaLabel', "Chat Customizations"),
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (entry: IListEntry) => entry.type === 'group-header' ? entry.label : entry.item.name,
@@ -880,9 +905,9 @@ export class AICustomizationListWidget extends Disposable {
 			matchedItems = [];
 
 			for (const item of this.allItems) {
-				const nameMatches = matchesFuzzy(query, item.name, true);
-				const descriptionMatches = item.description ? matchesFuzzy(query, item.description, true) : null;
-				const filenameMatches = matchesFuzzy(query, item.filename, true);
+				const nameMatches = matchesContiguousSubString(query, item.name);
+				const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
+				const filenameMatches = matchesContiguousSubString(query, item.filename);
 
 				if (nameMatches || descriptionMatches || filenameMatches) {
 					matchedItems.push({
@@ -898,10 +923,10 @@ export class AICustomizationListWidget extends Disposable {
 		this.logService.info(`[AICustomizationListWidget] filterItems: allItems=${this.allItems.length}, matched=${totalBeforeFilter}`);
 
 		// Group items by storage
-		const groups: { storage: PromptsStorage; label: string; icon: ThemeIcon; items: IAICustomizationListItem[] }[] = [
-			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, items: [] },
-			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, items: [] },
-			{ storage: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, items: [] },
+		const groups: { storage: PromptsStorage; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
+			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
+			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
+			{ storage: PromptsStorage.extension, label: localize('extensionGroup', "Extensions"), icon: extensionIcon, description: localize('extensionGroupDescription', "Read-only customizations provided by installed extensions."), items: [] },
 		];
 
 		for (const item of matchedItems) {
@@ -934,6 +959,7 @@ export class AICustomizationListWidget extends Disposable {
 				icon: group.icon,
 				count: group.items.length,
 				isFirst: isFirstGroup,
+				description: group.description,
 				collapsed,
 			});
 			isFirstGroup = false;
