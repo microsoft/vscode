@@ -66,6 +66,12 @@
 	flex: 1;
 }
 
+.sessions-chat-toolbar-pickers {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
 /* Model picker - uses workbench ModelPickerActionItem */
 .sessions-chat-model-picker {
 	display: flex;

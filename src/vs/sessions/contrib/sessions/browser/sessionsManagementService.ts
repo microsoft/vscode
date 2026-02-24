@@ -233,9 +233,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		let newSession: INewSession;
 		if (target === AgentSessionProviders.Background || target === AgentSessionProviders.Local) {
-			newSession = new LocalNewSession(sessionResource, defaultRepoUri, this.chatSessionsService, this.logService);
+			newSession = this.instantiationService.createInstance(LocalNewSession, sessionResource, defaultRepoUri);
 		} else {
-			newSession = new RemoteNewSession(sessionResource, target, this.chatSessionsService, this.logService);
+			newSession = this.instantiationService.createInstance(RemoteNewSession, sessionResource, target);
 		}
 		this._newSession.value = newSession;
 		this.setActiveSession(newSession);
