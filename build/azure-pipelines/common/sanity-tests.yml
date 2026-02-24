@@ -24,6 +24,7 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
+    continueOnError: true
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
