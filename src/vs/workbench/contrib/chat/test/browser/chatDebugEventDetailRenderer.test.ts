@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ChatDebugLogLevel, IChatDebugAgentResponseEvent, IChatDebugGenericEvent, IChatDebugModelTurnEvent, IChatDebugSubagentInvocationEvent, IChatDebugToolCallEvent, IChatDebugUserMessageEvent } from '../../common/chatDebugService.js';
 import { formatEventDetail } from '../../browser/chatDebug/chatDebugEventDetailRenderer.js';
 
@@ -14,7 +15,7 @@ suite('formatEventDetail', () => {
 	test('toolCall - minimal', () => {
 		const event: IChatDebugToolCallEvent = {
 			kind: 'toolCall',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			toolName: 'readFile',
 		};
@@ -25,7 +26,7 @@ suite('formatEventDetail', () => {
 	test('toolCall - with all fields', () => {
 		const event: IChatDebugToolCallEvent = {
 			kind: 'toolCall',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			toolName: 'grep_search',
 			toolCallId: 'tc-123',
@@ -46,7 +47,7 @@ suite('formatEventDetail', () => {
 	test('modelTurn - minimal', () => {
 		const event: IChatDebugModelTurnEvent = {
 			kind: 'modelTurn',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 		};
 		const result = formatEventDetail(event);
@@ -56,13 +57,12 @@ suite('formatEventDetail', () => {
 	test('modelTurn - with all fields', () => {
 		const event: IChatDebugModelTurnEvent = {
 			kind: 'modelTurn',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			model: 'gpt-4o',
 			inputTokens: 1000,
 			outputTokens: 500,
 			totalTokens: 1500,
-			cost: 0.0123,
 			durationInMillis: 3200,
 		};
 		const result = formatEventDetail(event);
@@ -70,14 +70,13 @@ suite('formatEventDetail', () => {
 		assert.ok(result.includes('1000'));
 		assert.ok(result.includes('500'));
 		assert.ok(result.includes('1500'));
-		assert.ok(result.includes('$0.0123'));
 		assert.ok(result.includes('3200'));
 	});
 
 	test('generic event', () => {
 		const event: IChatDebugGenericEvent = {
 			kind: 'generic',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			name: 'Discovery Start',
 			details: 'Loading instructions',
@@ -91,7 +90,7 @@ suite('formatEventDetail', () => {
 	test('generic event without details', () => {
 		const event: IChatDebugGenericEvent = {
 			kind: 'generic',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			name: 'Something',
 			level: ChatDebugLogLevel.Trace,
@@ -103,7 +102,7 @@ suite('formatEventDetail', () => {
 	test('subagentInvocation - minimal', () => {
 		const event: IChatDebugSubagentInvocationEvent = {
 			kind: 'subagentInvocation',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			agentName: 'Explore',
 		};
@@ -114,7 +113,7 @@ suite('formatEventDetail', () => {
 	test('subagentInvocation - with all fields', () => {
 		const event: IChatDebugSubagentInvocationEvent = {
 			kind: 'subagentInvocation',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			agentName: 'Data',
 			description: 'Querying KQL',
@@ -135,7 +134,7 @@ suite('formatEventDetail', () => {
 	test('userMessage', () => {
 		const event: IChatDebugUserMessageEvent = {
 			kind: 'userMessage',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			message: 'Help me fix this bug',
 			sections: [
@@ -154,7 +153,7 @@ suite('formatEventDetail', () => {
 	test('userMessage with empty sections', () => {
 		const event: IChatDebugUserMessageEvent = {
 			kind: 'userMessage',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			message: 'Simple prompt',
 			sections: [],
@@ -166,7 +165,7 @@ suite('formatEventDetail', () => {
 	test('agentResponse', () => {
 		const event: IChatDebugAgentResponseEvent = {
 			kind: 'agentResponse',
-			sessionId: 's1',
+			sessionResource: URI.parse('test://s1'),
 			created: new Date(),
 			message: 'Here is the fix',
 			sections: [

@@ -25,7 +25,6 @@ export function formatEventDetail(event: IChatDebugEvent): string {
 			if (event.inputTokens !== undefined) { parts.push(localize('chatDebug.detail.inputTokens', "Input tokens: {0}", event.inputTokens)); }
 			if (event.outputTokens !== undefined) { parts.push(localize('chatDebug.detail.outputTokens', "Output tokens: {0}", event.outputTokens)); }
 			if (event.totalTokens !== undefined) { parts.push(localize('chatDebug.detail.totalTokens', "Total tokens: {0}", event.totalTokens)); }
-			if (event.cost !== undefined) { parts.push(localize('chatDebug.detail.cost', "Cost: {0}", `$${event.cost.toFixed(4)}`)); }
 			if (event.durationInMillis !== undefined) { parts.push(localize('chatDebug.detail.durationMs', "Duration: {0}ms", event.durationInMillis)); }
 			return parts.join('\n');
 		}

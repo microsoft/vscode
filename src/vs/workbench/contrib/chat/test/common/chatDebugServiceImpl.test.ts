@@ -100,7 +100,6 @@ suite('ChatDebugServiceImpl', () => {
 				inputTokens: 100,
 				outputTokens: 50,
 				totalTokens: 150,
-				cost: 0.003,
 				durationInMillis: 1200,
 			};
 

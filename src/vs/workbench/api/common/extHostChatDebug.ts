@@ -148,7 +148,6 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					inputTokens: e.inputTokens,
 					outputTokens: e.outputTokens,
 					totalTokens: e.totalTokens,
-					cost: e.cost,
 					durationInMillis: e.durationInMillis,
 				};
 			}

@@ -86,7 +86,6 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 					inputTokens: dto.inputTokens,
 					outputTokens: dto.outputTokens,
 					totalTokens: dto.totalTokens,
-					cost: dto.cost,
 					durationInMillis: dto.durationInMillis,
 				};
 			case 'generic':

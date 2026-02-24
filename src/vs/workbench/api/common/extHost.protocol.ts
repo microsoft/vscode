@@ -1402,7 +1402,6 @@ export interface IChatDebugModelTurnEventDto extends IChatDebugEventCommonDto {
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly totalTokens?: number;
-	readonly cost?: number;
 	readonly durationInMillis?: number;
 }
 
