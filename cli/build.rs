@@ -177,7 +177,7 @@ fn apply_win32_version_resources() {
 		.get("applicationName")
 		.and_then(|v| v.as_str())
 		.unwrap_or("code");
-	let exe_name = format!("{}.exe", application_name);
+	let exe_name = format!("{application_name}.exe");
 
 	let base_version = package_json.version.split('-').next().unwrap_or("0.0.0");
 	let version_parts: Vec<&str> = base_version.split('.').collect();
