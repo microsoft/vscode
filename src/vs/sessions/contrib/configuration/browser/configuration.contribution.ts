@@ -45,5 +45,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'terminal.integrated.initialHint': false
 	},
-	donotCache: true
+	donotCache: true,
+	preventExperimentOverride: true,
+	source: 'sessionsDefaults'
 }]);
