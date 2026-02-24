@@ -10,7 +10,6 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
-import { chatSessionResourceToId } from '../../common/model/chatUri.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
 import { ChatDebugEditorInput } from '../chatDebug/chatDebugEditorInput.js';
@@ -36,7 +35,7 @@ export function registerChatOpenDebugPanelAction() {
 			const chatDebugService = accessor.get(IChatDebugService);
 
 			// Clear active session so the editor shows the home view
-			chatDebugService.activeSessionId = undefined;
+			chatDebugService.activeSessionResource = undefined;
 
 			const options: IChatDebugEditorOptions = { pinned: true, viewHint: 'home' };
 			await editorService.openEditor(ChatDebugEditorInput.instance, options);
@@ -74,13 +73,12 @@ export function registerChatOpenDebugPanelAction() {
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatDebugService = accessor.get(IChatDebugService);
 
-			// Get the active chat session ID from the last focused widget
+			// Get the active chat session resource from the last focused widget
 			const widget = chatWidgetService.lastFocusedWidget;
 			const sessionResource = widget?.viewModel?.sessionResource;
-			const sessionId = sessionResource ? chatSessionResourceToId(sessionResource) : '';
-			chatDebugService.activeSessionId = sessionId;
+			chatDebugService.activeSessionResource = sessionResource;
 
-			const options: IChatDebugEditorOptions = { pinned: true, sessionId, viewHint: 'logs' };
+			const options: IChatDebugEditorOptions = { pinned: true, sessionResource, viewHint: 'logs' };
 			await editorService.openEditor(ChatDebugEditorInput.instance, options);
 		}
 	});

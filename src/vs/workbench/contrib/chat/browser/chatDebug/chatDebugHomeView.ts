@@ -9,18 +9,19 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { isUUID } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../../common/model/chatUri.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 
 const $ = DOM.$;
 
 export class ChatDebugHomeView extends Disposable {
 
-	private readonly _onNavigateToSession = this._register(new Emitter<string>());
+	private readonly _onNavigateToSession = this._register(new Emitter<URI>());
 	readonly onNavigateToSession = this._onNavigateToSession.event;
 
 	readonly container: HTMLElement;
@@ -56,47 +57,40 @@ export class ChatDebugHomeView extends Disposable {
 
 		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Chat Debug Panel")));
 
-		// Determine the active session ID
+		// Determine the active session resource
 		const activeWidget = this.chatWidgetService.lastFocusedWidget;
-		const activeSessionId = activeWidget?.viewModel?.sessionResource
-			? chatSessionResourceToId(activeWidget.viewModel.sessionResource)
-			: undefined;
+		const activeSessionResource = activeWidget?.viewModel?.sessionResource;
 
-		// List all known chat sessions (from chatService), most recent last → reversed for most recent first.
-		// This does not require events to be collected, so the home view works
-		// without any streaming pipelines being active.
-		const sessionIdsWithEvents = new Set(this.chatDebugService.getSessionIds());
-		const sessionIds = [...this.chatService.chatModels.get()]
-			.map(m => chatSessionResourceToId(m.sessionResource))
-			.filter(id => sessionIdsWithEvents.has(id))
-			.reverse();
+		// List sessions that have debug event data.
+		// Use the debug service as the source of truth — it includes sessions
+		// whose chat models may have been archived (e.g. when a new chat was started).
+		const sessionResources = [...this.chatDebugService.getSessionResources()].reverse();
 
 		// Sort: active session first
-		if (activeSessionId) {
-			const activeIndex = sessionIds.indexOf(activeSessionId);
+		if (activeSessionResource) {
+			const activeIndex = sessionResources.findIndex(r => r.toString() === activeSessionResource.toString());
 			if (activeIndex > 0) {
-				sessionIds.splice(activeIndex, 1);
-				sessionIds.unshift(activeSessionId);
+				sessionResources.splice(activeIndex, 1);
+				sessionResources.unshift(activeSessionResource);
 			}
 		}
 
 		DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
-			sessionIds.length > 0
+			sessionResources.length > 0
 				? localize('chatDebug.homeSubtitle', "Select a chat session to debug")
 				: localize('chatDebug.noSessions', "Send a chat message to get started")
 		));
 
-		if (sessionIds.length > 0) {
+		if (sessionResources.length > 0) {
 			const sessionList = DOM.append(this.scrollContent, $('.chat-debug-home-session-list'));
 			sessionList.setAttribute('role', 'list');
 			sessionList.setAttribute('aria-label', localize('chatDebug.sessionList', "Chat sessions"));
 
 			const items: HTMLButtonElement[] = [];
 
-			for (const sessionId of sessionIds) {
-				const sessionUri = LocalChatSessionUri.forSession(sessionId);
-				const sessionTitle = this.chatService.getSessionTitle(sessionUri) || sessionId;
-				const isActive = sessionId === activeSessionId;
+			for (const sessionResource of sessionResources) {
+				const sessionTitle = this.chatService.getSessionTitle(sessionResource) || LocalChatSessionUri.parseLocalSessionId(sessionResource) || sessionResource.toString();
+				const isActive = activeSessionResource !== undefined && sessionResource.toString() === activeSessionResource.toString();
 
 				const item = DOM.append(sessionList, $<HTMLButtonElement>('button.chat-debug-home-session-item'));
 				item.setAttribute('role', 'listitem');
@@ -128,7 +122,7 @@ export class ChatDebugHomeView extends Disposable {
 
 				if (!isShimmering) {
 					this.renderDisposables.add(DOM.addDisposableListener(item, DOM.EventType.CLICK, () => {
-						this._onNavigateToSession.fire(sessionId);
+						this._onNavigateToSession.fire(sessionResource);
 					}));
 					items.push(item);
 				}

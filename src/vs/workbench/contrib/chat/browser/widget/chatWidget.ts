@@ -85,7 +85,6 @@ import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
-import { chatSessionResourceToId } from '../../common/model/chatUri.js';
 
 const $ = dom.$;
 
@@ -411,7 +410,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.chatDebugService.onDidAddEvent(e => {
 			const sessionResource = this.viewModel?.sessionResource;
-			if (sessionResource && e.sessionId === chatSessionResourceToId(sessionResource)) {
+			if (sessionResource && e.sessionResource.toString() === sessionResource.toString()) {
 				this._sessionHasDebugDataContextKey.set(true);
 			}
 		}));
@@ -2083,7 +2082,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeItems();
 		}));
 		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
-		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(chatSessionResourceToId(model.sessionResource)).length > 0);
+		this._sessionHasDebugDataContextKey.set(this.chatDebugService.getEvents(model.sessionResource).length > 0);
 		let lastSteeringCount = 0;
 		const updatePendingRequestKeys = (announceSteering: boolean) => {
 			const pendingRequests = model.getPendingRequests();

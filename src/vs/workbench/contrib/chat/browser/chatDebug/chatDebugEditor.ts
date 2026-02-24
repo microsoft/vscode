@@ -8,6 +8,7 @@ import './media/chatDebug.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -17,7 +18,6 @@ import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
 import { ViewState, IChatDebugEditorOptions } from './chatDebugTypes.js';
 import { ChatDebugFilterState, registerFilterMenuItems } from './chatDebugFilters.js';
@@ -61,8 +61,8 @@ export class ChatDebugEditor extends EditorPane {
 	private readonly sessionModelListener = this._register(new MutableDisposable());
 	private readonly modelChangeListeners = this._register(new DisposableMap<string>());
 
-	/** Saved session ID so we can restore it after the editor is re-shown. */
-	private savedSessionId: string | undefined;
+	/** Saved session resource so we can restore it after the editor is re-shown. */
+	private savedSessionResource: URI | undefined;
 
 	/**
 	 * Stops the streaming pipeline and clears cached events for the
@@ -70,11 +70,11 @@ export class ChatDebugEditor extends EditorPane {
 	 * when the editor becomes hidden.
 	 */
 	private endActiveSession(): void {
-		const sessionId = this.chatDebugService.activeSessionId;
-		if (sessionId) {
-			this.chatDebugService.endSession(sessionId);
+		const sessionResource = this.chatDebugService.activeSessionResource;
+		if (sessionResource) {
+			this.chatDebugService.endSession(sessionResource);
 		}
-		this.chatDebugService.activeSessionId = undefined;
+		this.chatDebugService.activeSessionResource = undefined;
 	}
 
 	constructor(
@@ -101,8 +101,8 @@ export class ChatDebugEditor extends EditorPane {
 
 		// Create sub-views via DI
 		this.homeView = this._register(this.instantiationService.createInstance(ChatDebugHomeView, this.container));
-		this._register(this.homeView.onNavigateToSession(sessionId => {
-			this.navigateToSession(sessionId);
+		this._register(this.homeView.onNavigateToSession(sessionResource => {
+			this.navigateToSession(sessionResource);
 		}));
 
 		this.overviewView = this._register(this.instantiationService.createInstance(ChatDebugOverviewView, this.container));
@@ -149,7 +149,9 @@ export class ChatDebugEditor extends EditorPane {
 
 		// When new debug events arrive, refresh the active session view
 		this._register(this.chatDebugService.onDidAddEvent(event => {
-			if (event.sessionId === this.chatDebugService.activeSessionId) {
+			if (this.viewState === ViewState.Home) {
+				this.homeView?.render();
+			} else if (this.chatDebugService.activeSessionResource && event.sessionResource.toString() === this.chatDebugService.activeSessionResource.toString()) {
 				if (this.viewState === ViewState.Overview) {
 					this.overviewView?.refresh();
 				} else if (this.viewState === ViewState.Logs) {
@@ -236,27 +238,26 @@ export class ChatDebugEditor extends EditorPane {
 
 	}
 
-	navigateToSession(sessionId: string, view?: 'logs' | 'overview' | 'flowchart'): void {
+	navigateToSession(sessionResource: URI, view?: 'logs' | 'overview' | 'flowchart'): void {
 		// End the previous session's streaming pipeline before switching
-		const previousSessionId = this.chatDebugService.activeSessionId;
-		if (previousSessionId && previousSessionId !== sessionId) {
-			this.chatDebugService.endSession(previousSessionId);
+		const previousSessionResource = this.chatDebugService.activeSessionResource;
+		if (previousSessionResource && previousSessionResource.toString() !== sessionResource.toString()) {
+			this.chatDebugService.endSession(previousSessionResource);
 		}
 
-		this.chatDebugService.activeSessionId = sessionId;
-		this.chatDebugService.invokeProviders(sessionId);
-		this.trackSessionModelChanges(sessionId);
+		this.chatDebugService.activeSessionResource = sessionResource;
+		this.chatDebugService.invokeProviders(sessionResource);
+		this.trackSessionModelChanges(sessionResource);
 
-		this.overviewView?.setSession(sessionId);
-		this.logsView?.setSession(sessionId);
-		this.flowChartView?.setSession(sessionId);
+		this.overviewView?.setSession(sessionResource);
+		this.logsView?.setSession(sessionResource);
+		this.flowChartView?.setSession(sessionResource);
 
 		this.showView(view === 'logs' ? ViewState.Logs : view === 'flowchart' ? ViewState.FlowChart : ViewState.Overview);
 	}
 
-	private trackSessionModelChanges(sessionId: string): void {
-		const sessionUri = LocalChatSessionUri.forSession(sessionId);
-		const model = this.chatService.getSession(sessionUri);
+	private trackSessionModelChanges(sessionResource: URI): void {
+		const model = this.chatService.getSession(sessionResource);
 		if (!model) {
 			this.sessionModelListener.clear();
 			return;
@@ -293,45 +294,52 @@ export class ChatDebugEditor extends EditorPane {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
-			// Restore the current view state; navigation is handled by setOptions
-			if (this.viewState === ViewState.Home) {
-				this.showView(ViewState.Home);
+			const options = this.options as IChatDebugEditorOptions | undefined;
+			if (options) {
+				this._applyNavigationOptions(options);
+			} else if (this.viewState === ViewState.Home) {
+				// Restore the saved session resource if the editor was temporarily hidden
+				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
+				this.savedSessionResource = undefined;
+				if (sessionResource) {
+					this.navigateToSession(sessionResource, 'overview');
+				} else {
+					this.showView(ViewState.Home);
+				}
 			} else {
 				// Re-activate the streaming pipeline for the current session,
-				// restoring the saved session ID if the editor was temporarily hidden.
-				const sessionId = this.chatDebugService.activeSessionId ?? this.savedSessionId;
-				this.savedSessionId = undefined;
-				if (sessionId) {
-					this.chatDebugService.activeSessionId = sessionId;
-					this.chatDebugService.invokeProviders(sessionId);
+				// restoring the saved session resource if the editor was temporarily hidden.
+				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
+				this.savedSessionResource = undefined;
+				if (sessionResource) {
+					this.chatDebugService.activeSessionResource = sessionResource;
+					this.chatDebugService.invokeProviders(sessionResource);
 				} else {
-					// No active session, fall back to home
 					this.showView(ViewState.Home);
 				}
 			}
 		} else {
 			// Remember the active session so we can restore when re-shown
-			this.savedSessionId = this.chatDebugService.activeSessionId;
+			this.savedSessionResource = this.chatDebugService.activeSessionResource;
 			// Stop the streaming pipeline when the editor is hidden
 			this.endActiveSession();
 		}
 	}
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {
-		const { sessionId, viewHint } = options;
-		if (viewHint === 'logs' && sessionId) {
-			this.navigateToSession(sessionId, 'logs');
-		} else if (viewHint === 'flowchart' && sessionId) {
-			this.navigateToSession(sessionId, 'flowchart');
-		} else if (viewHint === 'overview' && sessionId) {
-			this.navigateToSession(sessionId, 'overview');
+		const { sessionResource, viewHint } = options;
+		if (viewHint === 'logs' && sessionResource) {
+			this.navigateToSession(sessionResource, 'logs');
+		} else if (viewHint === 'flowchart' && sessionResource) {
+			this.navigateToSession(sessionResource, 'flowchart');
+		} else if (viewHint === 'overview' && sessionResource) {
+			this.navigateToSession(sessionResource, 'overview');
 		} else if (viewHint === 'home') {
 			this.endActiveSession();
 			this.showView(ViewState.Home);
-		} else if (sessionId) {
-			this.navigateToSession(sessionId, 'overview');
-		} else {
-			this.endActiveSession();
+		} else if (sessionResource) {
+			this.navigateToSession(sessionResource, 'overview');
+		} else if (this.viewState === ViewState.Home) {
 			this.showView(ViewState.Home);
 		}
 	}

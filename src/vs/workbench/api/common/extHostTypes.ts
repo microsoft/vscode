@@ -3576,7 +3576,7 @@ export enum ChatDebugToolCallResult {
 export class ChatDebugToolCallEvent {
 	readonly _kind = 'toolCall';
 	id?: string;
-	sessionId?: string;
+	sessionResource?: vscode.Uri;
 	created: Date;
 	parentEventId?: string;
 	toolName: string;
@@ -3595,7 +3595,7 @@ export class ChatDebugToolCallEvent {
 export class ChatDebugModelTurnEvent {
 	readonly _kind = 'modelTurn';
 	id?: string;
-	sessionId?: string;
+	sessionResource?: vscode.Uri;
 	created: Date;
 	parentEventId?: string;
 	model?: string;
@@ -3613,7 +3613,7 @@ export class ChatDebugModelTurnEvent {
 export class ChatDebugGenericEvent {
 	readonly _kind = 'generic';
 	id?: string;
-	sessionId?: string;
+	sessionResource?: vscode.Uri;
 	created: Date;
 	parentEventId?: string;
 	name: string;
@@ -3631,7 +3631,7 @@ export class ChatDebugGenericEvent {
 export class ChatDebugSubagentInvocationEvent {
 	readonly _kind = 'subagentInvocation';
 	id?: string;
-	sessionId?: string;
+	sessionResource?: vscode.Uri;
 	created: Date;
 	parentEventId?: string;
 	agentName: string;
@@ -3660,7 +3660,7 @@ export class ChatDebugMessageSection {
 export class ChatDebugUserMessageEvent {
 	readonly _kind = 'userMessage';
 	id?: string;
-	sessionId?: string;
+	sessionResource?: vscode.Uri;
 	created: Date;
 	parentEventId?: string;
 	message: string;
@@ -3676,7 +3676,7 @@ export class ChatDebugUserMessageEvent {
 export class ChatDebugAgentResponseEvent {
 	readonly _kind = 'agentResponse';
 	id?: string;
-	sessionId?: string;
+	sessionResource?: vscode.Uri;
 	created: Date;
 	parentEventId?: string;
 	message: string;
