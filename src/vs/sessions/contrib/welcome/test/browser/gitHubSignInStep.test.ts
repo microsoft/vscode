@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
@@ -36,7 +36,7 @@ suite('GitHubSignInStep', () => {
 		const mockService = {
 			_serviceBrand: undefined,
 			onDidChangeDefaultAccount: onDidChange.event,
-			onDidChangePolicyData: new Emitter().event,
+			onDidChangePolicyData: Event.None,
 			policyData: null,
 			getDefaultAccount: () => getAccountPromise,
 			getDefaultAccountAuthenticationProvider: () => ({ id: 'github', name: 'GitHub', enterprise: false }),
