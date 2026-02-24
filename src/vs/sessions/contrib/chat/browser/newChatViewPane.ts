@@ -444,10 +444,10 @@ class NewChatWidget extends Disposable {
 	private _createBottomToolbar(container: HTMLElement): void {
 		const toolbar = dom.append(container, dom.$('.sessions-chat-toolbar'));
 
+		this._createAttachButton(toolbar);
+
 		const modelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createModelPicker(modelPickerContainer);
-
-		this._createAttachButton(toolbar);
 
 		dom.append(toolbar, dom.$('.sessions-chat-toolbar-spacer'));
 

@@ -211,6 +211,7 @@ import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view re
 import './contrib/configuration/browser/configuration.contribution.js';
 import './contrib/welcome/browser/welcome.contribution.js';
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
+import './contrib/logs/browser/logs.contribution.js';
 
 //#endregion
 

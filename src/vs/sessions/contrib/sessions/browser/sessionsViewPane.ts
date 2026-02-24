@@ -21,6 +21,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { sessionsSidebarBackground } from '../../../common/theme.js';
+import { SessionsCategories } from '../../../common/categories.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -308,7 +309,7 @@ KeybindingsRegistry.registerKeybindingRule({
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	submenu: SessionsViewFilterSubMenu,
-	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
+	title: localize2('filterAgentSessions', "Filter Sessions"),
 	group: 'navigation',
 	order: 3,
 	icon: Codicon.filter,
@@ -319,10 +320,10 @@ registerAction2(class RefreshAgentSessionsViewerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.refresh',
-			title: localize2('refresh', "Refresh Agent Sessions"),
+			title: localize2('refresh', "Refresh Sessions"),
 			icon: Codicon.refresh,
 			f1: true,
-			category: localize2('sessionsViewCategory', "Agent Sessions"),
+			category: SessionsCategories.Sessions,
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -337,7 +338,7 @@ registerAction2(class FindAgentSessionInViewerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.find',
-			title: localize2('find', "Find Agent Session"),
+			title: localize2('find', "Find Session"),
 			icon: Codicon.search,
 			menu: [{
 				id: MenuId.ViewTitle,
