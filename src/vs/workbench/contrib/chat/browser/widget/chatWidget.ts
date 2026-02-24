@@ -29,6 +29,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -74,6 +75,7 @@ import { handleModeSwitch } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
+import { ChatDynamicVariableModel } from '../attachments/chatDynamicVariables.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/chatInputPart.js';
 import { IChatListItemTemplate } from './chatListRenderer.js';
@@ -218,6 +220,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _onDidChangeParsedInput = this._register(new Emitter<void>());
 	readonly onDidChangeParsedInput = this._onDidChangeParsedInput.event;
+
+	private _onDidChangeActiveInputEditor = this._register(new Emitter<void>());
+	readonly onDidChangeActiveInputEditor = this._onDidChangeActiveInputEditor.event;
 
 	private readonly _onWillMaybeChangeHeight = this._register(new Emitter<void>());
 	readonly onWillMaybeChangeHeight: Event<void> = this._onWillMaybeChangeHeight.event;
@@ -1670,13 +1675,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const currentContext: IChatRequestVariableEntry[] = [];
 			const addedContextIds = new Set<string>();
 			const addToContext = (entry: IChatRequestVariableEntry) => {
-				if (addedContextIds.has(entry.id) || isWorkspaceVariableEntry(entry)) {
+				const dedupKey = entry.range ? `${entry.id}:${entry.range.start}-${entry.range.endExclusive}` : entry.id;
+				if (addedContextIds.has(dedupKey) || isWorkspaceVariableEntry(entry)) {
 					return;
 				}
 				if ((isPromptFileVariableEntry(entry) || isPromptTextVariableEntry(entry)) && entry.automaticallyAdded) {
 					return;
 				}
-				addedContextIds.add(entry.id);
+				addedContextIds.add(dedupKey);
 				currentContext.push(entry);
 			};
 			for (let i = requests.length - 1; i >= 0; i -= 1) {
@@ -1705,6 +1711,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
 				this.input.setEditing(true, isEditingSentRequest);
+				this._onDidChangeActiveInputEditor.fire();
 			} else {
 				this.inputPart.element.classList.add('editing');
 			}
@@ -1718,6 +1725,38 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inputPart.dnd.setDisabledOverlay(!isInput);
 			this.input.renderAttachedContext();
 			this.input.setValue(currentElement.messageText, false);
+
+			// restore dynamic variables in the model so decorations and parsing work
+			const dynamicVariableModel = this.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
+			const editorModel = this.input.inputEditor.getModel();
+			if (dynamicVariableModel && editorModel) {
+				const modelTextLength = editorModel.getValueLength();
+				for (const entry of currentContext) {
+					if (entry.range) {
+						if (entry.range.start >= entry.range.endExclusive) {
+							continue;
+						}
+
+						if (entry.range.start < 0 || entry.range.endExclusive > modelTextLength) {
+							continue;
+						}
+
+						const startPos = editorModel.getPositionAt(entry.range.start);
+						const endPos = editorModel.getPositionAt(entry.range.endExclusive);
+						dynamicVariableModel.addReference({
+							id: entry.id,
+							range: new Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column),
+							data: entry.value,
+							fullName: entry.fullName,
+							icon: entry.icon,
+							modelDescription: entry.modelDescription,
+							isFile: entry.kind === 'file',
+							isDirectory: entry.kind === 'directory',
+						});
+					}
+				}
+			}
+
 			this.listWidget.suppressAutoScroll = true;
 			this.onDidChangeItems();
 			this.input.inputEditor.focus();
@@ -1797,6 +1836,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.viewModel?.setEditing(undefined);
 		this.inputPart?.setEditing(false, undefined);
+
+		if (!isInput) {
+			this._onDidChangeActiveInputEditor.fire();
+		}
 
 		this.onDidChangeItems();
 
