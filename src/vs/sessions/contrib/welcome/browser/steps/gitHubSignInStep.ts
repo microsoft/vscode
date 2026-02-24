@@ -6,6 +6,7 @@
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISessionsWelcomeStep } from '../../common/sessionsWelcomeService.js';
 
@@ -32,13 +33,22 @@ export class GitHubSignInStep implements ISessionsWelcomeStep {
 
 		// Listen for account changes
 		this.disposable = this.defaultAccountService.onDidChangeDefaultAccount(account => {
-			this._isSatisfied.set(account !== null && account !== undefined, undefined);
+			this._isSatisfied.set(this.isSignedInWithValidToken(account), undefined);
 		});
 
 		// Check initial state and mark initialized when resolved
 		this.initialized = this.defaultAccountService.getDefaultAccount().then(account => {
-			this._isSatisfied.set(account !== null && account !== undefined, undefined);
+			this._isSatisfied.set(this.isSignedInWithValidToken(account), undefined);
 		});
+	}
+
+	/**
+	 * Returns `true` when the user is signed in and their token has not
+	 * expired. A `null` value for {@link IDefaultAccount.entitlementsData}
+	 * indicates the OAuth token is expired or revoked (HTTP 401).
+	 */
+	private isSignedInWithValidToken(account: IDefaultAccount | null | undefined): boolean {
+		return account !== null && account !== undefined && account.entitlementsData !== null;
 	}
 
 	async action(): Promise<void> {
