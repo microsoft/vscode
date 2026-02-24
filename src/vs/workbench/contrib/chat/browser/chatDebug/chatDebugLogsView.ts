@@ -209,7 +209,12 @@ export class ChatDebugLogsView extends Disposable {
 		// Detail panel (sibling of main column so it aligns with table header)
 		this.detailPanel = this._register(this.instantiationService.createInstance(ChatDebugDetailPanel, contentContainer));
 		this._register(this.detailPanel.onDidHide(() => {
-			this.list.setSelection([]);
+			if (this.list.getSelection().length > 0) {
+				this.list.setSelection([]);
+			}
+			if (this.tree.getSelection().length > 0) {
+				this.tree.setSelection([]);
+			}
 		}));
 
 		// Resolve event details on selection
