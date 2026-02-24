@@ -257,8 +257,10 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 				revealIfVisible: true,
 			}
 		});
-		this._navigationAnchorBySession.set(key, feedbackId);
-		this._onDidChangeNavigation.fire(sessionResource);
+		setTimeout(() => {
+			this._navigationAnchorBySession.set(key, feedbackId);
+			this._onDidChangeNavigation.fire(sessionResource);
+		}, 50); // delay to ensure editor has revealed the correct position before firing navigation event
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {

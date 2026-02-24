@@ -14,6 +14,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.unifiedAgentsBar.enabled': true,
 		'chat.viewSessions.enabled': false,
 
+		'breadcrumbs.enabled': false,
+
 		'diffEditor.renderSideBySide': false,
 		'diffEditor.hideUnchangedRegions.enabled': true,
 
@@ -43,5 +45,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'terminal.integrated.initialHint': false
 	},
-	donotCache: true
+	donotCache: true,
+	preventExperimentOverride: true,
+	source: 'sessionsDefaults'
 }]);

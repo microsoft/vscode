@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -11,16 +12,28 @@ import { asJson, IRequestService } from '../../../../../platform/request/common/
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ChatConfiguration } from '../constants.js';
 
+export const enum MarketplaceType {
+	Copilot = 'copilot',
+	Claude = 'claude',
+}
+
 export interface IMarketplacePlugin {
 	readonly name: string;
 	readonly description: string;
 	readonly version: string;
+	/** Subdirectory within the repository where the plugin lives. */
 	readonly source: string;
+	/** The `owner/repo` identifier of the marketplace repository. */
 	readonly marketplace: string;
+	/** The type of marketplace this plugin comes from. */
+	readonly marketplaceType: MarketplaceType;
 	readonly readmeUri?: URI;
 }
 
 interface IMarketplaceJson {
+	readonly metadata?: {
+		readonly pluginRoot?: string;
+	};
 	readonly plugins?: readonly {
 		readonly name?: string;
 		readonly description?: string;
@@ -37,11 +50,12 @@ export interface IPluginMarketplaceService {
 }
 
 /**
- * Paths within a repository where marketplace.json can be found, checked in order.
+ * Marketplace definition files by type, checked in order per repository.
+ * The first match determines the marketplace type.
  */
-const MARKETPLACE_JSON_PATHS = [
-	'.github/plugin/marketplace.json',
-	'.claude-plugin/marketplace.json',
+const MARKETPLACE_DEFINITIONS: { type: MarketplaceType; path: string }[] = [
+	{ type: MarketplaceType.Copilot, path: '.github/plugin/marketplace.json' },
+	{ type: MarketplaceType.Claude, path: '.claude-plugin/marketplace.json' },
 ];
 
 export class PluginMarketplaceService implements IPluginMarketplaceService {
@@ -64,11 +78,11 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 	}
 
 	private async _fetchFromRepo(repo: string, token: CancellationToken): Promise<IMarketplacePlugin[]> {
-		for (const jsonPath of MARKETPLACE_JSON_PATHS) {
+		for (const def of MARKETPLACE_DEFINITIONS) {
 			if (token.isCancellationRequested) {
 				return [];
 			}
-			const url = `https://raw.githubusercontent.com/${repo}/main/${jsonPath}`;
+			const url = `https://raw.githubusercontent.com/${repo}/main/${def.path}`;
 			try {
 				const context = await this._requestService.request({ type: 'GET', url }, token);
 				if (context.res.statusCode !== 200) {
@@ -84,16 +98,22 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 					.filter((p): p is { name: string; description?: string; version?: string; source?: string } =>
 						typeof p.name === 'string' && !!p.name
 					)
-					.map(p => {
-						const source = p.source ?? '';
-						return {
+					.flatMap(p => {
+						const source = resolvePluginSource(json.metadata?.pluginRoot, p.source ?? '');
+						if (source === undefined) {
+							this._logService.warn(`[PluginMarketplaceService] Skipping plugin '${p.name}' in ${repo}: invalid source path '${p.source ?? ''}' with pluginRoot '${json.metadata?.pluginRoot ?? ''}'`);
+							return [];
+						}
+
+						return [{
 							name: p.name,
 							description: p.description ?? '',
 							version: p.version ?? '',
 							source,
 							marketplace: repo,
+							marketplaceType: def.type,
 							readmeUri: getMarketplaceReadmeUri(repo, source),
-						};
+						}];
 					});
 			} catch (err) {
 				this._logService.debug(`[PluginMarketplaceService] Failed to fetch marketplace.json from ${url}:`, err);
@@ -105,8 +125,38 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 	}
 }
 
+function normalizeMarketplacePath(value: string): string {
+	let normalized = value.trim().replace(/\\/g, '/');
+	normalized = normalized.replace(/^\.?\/+/, '').replace(/\/+$/g, '');
+	return normalized;
+}
+
+/**
+ * Resolve plugin source from marketplace metadata.
+ * - If pluginRoot exists, plugin source is resolved relative to it.
+ * - If source already includes pluginRoot, it's preserved.
+ * Validation of whether the final path is allowed is performed by the install service.
+ */
+function resolvePluginSource(pluginRoot: string | undefined, source: string): string | undefined {
+	const normalizedRoot = pluginRoot ? normalizeMarketplacePath(pluginRoot) : '';
+	const normalizedSource = normalizeMarketplacePath(source);
+	const repoRoot = URI.file('/');
+	const pluginRootUri = normalizedRoot ? normalizePath(joinPath(repoRoot, normalizedRoot)) : repoRoot;
+
+	if (!normalizedSource) {
+		return normalizedRoot || undefined;
+	}
+
+	if (normalizedRoot && (normalizedSource === normalizedRoot || normalizedSource.startsWith(`${normalizedRoot}/`))) {
+		return normalizedSource;
+	}
+
+	const resolvedUri = normalizePath(joinPath(pluginRootUri, normalizedSource));
+	return relativePath(repoRoot, resolvedUri) ?? undefined;
+}
+
 function getMarketplaceReadmeUri(repo: string, source: string): URI {
-	const normalizedSource = source.trim().replace(/^\/+|\/+$/g, '');
+	const normalizedSource = source.trim().replace(/^\.?\/+|\/+$/g, '');
 	const readmePath = normalizedSource ? `${normalizedSource}/README.md` : 'README.md';
 	return URI.parse(`https://github.com/${repo}/blob/main/${readmePath}`);
 }

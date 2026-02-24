@@ -386,6 +386,31 @@ export class UndoAndCloseSessionAction2 extends KeepOrUndoSessionAction {
 	}
 }
 
+export class CancelSessionAction extends KeepOrUndoSessionAction {
+
+	constructor() {
+		super(false, {
+			id: 'inlineChat2.cancel',
+			title: localize2('cancel', "Cancel"),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, ctxHasRequestInProgress),
+			keybinding: [{
+				when: ContextKeyExpr.or(
+					EditorContextKeys.focus,
+					ChatContextKeys.inputHasFocus,
+				),
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyCode.Escape,
+			}],
+			menu: [{
+				id: MenuId.ChatEditorInlineExecute,
+				group: 'navigation',
+				order: 100,
+				when: ctxHasRequestInProgress
+			}]
+		});
+	}
+}
+
 export class SubmitInlineChatInputAction extends AbstractInlineChatAction {
 
 	constructor() {

@@ -10,12 +10,15 @@ import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { HookType, IHookCommand } from '../promptSyntax/hookSchema.js';
+import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPluginService');
 
 export interface IAgentPluginHook {
-	readonly event: string;
-	readonly command: string;
+	readonly type: HookType;
+	readonly hooks: readonly IHookCommand[];
+	readonly originalId: string;
 }
 
 export interface IAgentPluginCommand {
@@ -41,6 +44,8 @@ export interface IAgentPlugin {
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
 	readonly mcpServerDefinitions: IObservable<readonly IAgentPluginMcpServerDefinition[]>;
+	/** Set when the plugin was installed from a marketplace repository. */
+	readonly fromMarketplace?: IMarketplacePlugin;
 }
 
 export interface IAgentPluginService {

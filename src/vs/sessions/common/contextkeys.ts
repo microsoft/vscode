@@ -6,6 +6,12 @@
 import { localize } from '../../nls.js';
 import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
 
+//#region < --- Welcome --- >
+
+export const SessionsWelcomeCompleteContext = new RawContextKey<boolean>('sessionsWelcomeComplete', false, localize('sessionsWelcomeComplete', "Whether the sessions welcome setup is complete"));
+
+//#endregion
+
 //#region < --- Chat Bar --- >
 
 export const ActiveChatBarContext = new RawContextKey<string>('activeChatBar', '', localize('activeChatBar', "The identifier of the active chat bar panel"));

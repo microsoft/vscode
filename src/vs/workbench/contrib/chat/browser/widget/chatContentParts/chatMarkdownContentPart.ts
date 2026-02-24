@@ -510,6 +510,15 @@ export class CollapsedCodeBlock extends Disposable {
 		this.element.appendChild(this.statusIndicatorContainer);
 		this.element.appendChild(this.pillElement);
 
+		// Toggle show-checkmarks class for the accessibility setting
+		const updateCheckmarks = () => this.element.classList.toggle('show-checkmarks', !!this.configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
+		updateCheckmarks();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
+				updateCheckmarks();
+			}
+		}));
+
 		this.registerListeners();
 	}
 

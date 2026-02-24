@@ -162,23 +162,7 @@ export default class LanguageProvider extends Disposable {
 			return;
 		}
 
-		const config = vscode.workspace.getConfiguration(this.id, file);
-		const reportUnnecessary = config.get<boolean>('showUnused', true);
-		const reportDeprecated = config.get<boolean>('showDeprecated', true);
-		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics.filter(diag => {
-			// Don't bother reporting diagnostics we know will not be rendered
-			if (!reportUnnecessary) {
-				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
-					return false;
-				}
-			}
-			if (!reportDeprecated) {
-				if (diag.reportDeprecated && diag.severity === vscode.DiagnosticSeverity.Hint) {
-					return false;
-				}
-			}
-			return true;
-		}), ranges);
+		this.client.diagnosticsManager.updateDiagnostics(file, this._diagnosticLanguage, diagnosticsKind, diagnostics, ranges);
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {

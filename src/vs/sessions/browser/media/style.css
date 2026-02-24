@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Ensure workbench container is positioned for overlay */
-.agent-sessions-workbench {
-	position: relative;
-}
-
 /* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
 
 /**

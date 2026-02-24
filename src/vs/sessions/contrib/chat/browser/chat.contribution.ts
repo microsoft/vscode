@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -19,10 +19,10 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
-import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
+import './nullInlineChatSessionService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AgenticPromptsService } from './promptsService.js';
@@ -37,6 +37,8 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -47,9 +49,10 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			title: localize2('openInVSCode', 'Open in VS Code'),
 			icon: Codicon.vscodeInsiders,
 			menu: [{
-				id: Menus.OpenSubMenu,
+				id: Menus.TitleBarRight,
 				group: 'navigation',
-				order: 2,
+				order: 10,
+				when: IsAuxiliaryWindowContext.toNegated()
 			}]
 		});
 	}
@@ -125,9 +128,10 @@ export class OpenSessionInTerminalAction extends Action2 {
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
 			menu: [{
-				id: Menus.OpenSubMenu,
+				id: Menus.TitleBarRight,
 				group: 'navigation',
-				order: 1,
+				order: 9,
+				when: IsAuxiliaryWindowContext.toNegated()
 			}]
 		});
 	}
@@ -135,13 +139,27 @@ export class OpenSessionInTerminalAction extends Action2 {
 	override async run(accessor: ServicesAccessor,): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const pathService = accessor.get(IPathService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
-		const repository = isAgentSession(activeSession) && activeSession.providerType !== AgentSessionProviders.Cloud
+		const cwd = (isAgentSession(activeSession) && activeSession.providerType !== AgentSessionProviders.Cloud
 			? activeSession.worktree
-			: undefined;
-		if (repository) {
-			const instance = await terminalService.createTerminal({ config: { cwd: repository } });
+			: undefined) ?? await pathService.userHome();
+
+		// Try to reuse an existing idle terminal with the same cwd
+		const cwdPath = cwd.fsPath;
+		let reusable: ITerminalInstance | undefined;
+		for (const instance of terminalService.instances) {
+			if (instance.cwd && instance.cwd.toLowerCase() === cwdPath.toLowerCase() && !instance.hasChildProcesses) {
+				reusable = instance;
+				break;
+			}
+		}
+
+		if (reusable) {
+			terminalService.setActiveInstance(reusable);
+		} else {
+			const instance = await terminalService.createTerminal({ config: { cwd } });
 			if (instance) {
 				terminalService.setActiveInstance(instance);
 			}
@@ -152,16 +170,7 @@ export class OpenSessionInTerminalAction extends Action2 {
 
 registerAction2(OpenSessionInTerminalAction);
 
-// Register the split button menu item that combines Open in VS Code and Open in Terminal
-MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
-	submenu: Menus.OpenSubMenu,
-	isSplitButton: { togglePrimaryAction: true },
-	title: localize2('open', "Open..."),
-	icon: Codicon.folderOpened,
-	group: 'navigation',
-	order: 9,
-	when: IsAuxiliaryWindowContext.toNegated()
-});
+
 
 
 
