@@ -21,7 +21,7 @@ import {
 } from './chatDebugTypes.js';
 
 /**
- * Shared filter state for the Chat Debug Panel.
+ * Shared filter state for the Agent Debug Panel.
  *
  * Both the Logs view and the Flow Chart view read from this single source of
  * truth. Toggle commands modify the state and fire `onDidChange` so every

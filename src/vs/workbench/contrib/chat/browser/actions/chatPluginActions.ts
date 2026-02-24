@@ -57,6 +57,7 @@ class ManagePluginsAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			menu: [{
 				id: CHAT_CONFIG_MENU_ID,
+				group: '2_plugins',
 			}],
 			f1: true
 		});

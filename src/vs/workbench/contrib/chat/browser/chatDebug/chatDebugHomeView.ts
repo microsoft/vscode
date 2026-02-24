@@ -55,7 +55,7 @@ export class ChatDebugHomeView extends Disposable {
 		DOM.clearNode(this.scrollContent);
 		this.renderDisposables.clear();
 
-		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Chat Debug Panel")));
+		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Panel")));
 
 		// Determine the active session resource
 		const activeWidget = this.chatWidgetService.lastFocusedWidget;

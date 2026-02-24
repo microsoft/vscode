@@ -192,7 +192,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Chat Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
 			new TextBreadcrumbItem(sessionTitle, true),
 			new TextBreadcrumbItem(localize('chatDebug.flowChart', "Agent Flow Chart")),
 		]);
