@@ -50,6 +50,8 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -163,6 +165,7 @@ suite('ChatService', () => {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[IMcpService, new TestMcpService()],
 			[IPromptsService, new MockPromptsService()],
+			[ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService())]
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());

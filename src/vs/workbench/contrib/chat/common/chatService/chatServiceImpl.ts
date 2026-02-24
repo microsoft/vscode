@@ -70,6 +70,9 @@ class CancellableRequest implements IDisposable {
 	) { }
 
 	dispose() {
+		if (this.requestId) {
+			this.toolsService.cancelToolCallsForRequest(this.requestId);
+		}
 		this.cancellationTokenSource.dispose();
 	}
 
