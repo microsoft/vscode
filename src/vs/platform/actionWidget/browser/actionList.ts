@@ -10,7 +10,7 @@ import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/con
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
-import { IAction } from '../../../base/common/actions.js';
+import { IAction, toAction } from '../../../base/common/actions.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
@@ -96,6 +96,11 @@ export interface IActionListItem<T> {
 	 * When true, this item is always shown when filtering produces no other results.
 	 */
 	readonly showAlways?: boolean;
+	/**
+	 * Optional callback invoked when the item is removed via the built-in remove button.
+	 * When set, a close button is automatically added to the item toolbar.
+	 */
+	readonly onRemove?: () => void;
 }
 
 interface IActionMenuTemplateData {
@@ -176,6 +181,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 	constructor(
 		private readonly _supportsPreview: boolean,
+		private readonly _onRemoveItem: ((item: IActionListItem<T>) => void) | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
@@ -297,11 +303,23 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 
 		// Clear and render toolbar actions
 		dom.clearNode(data.toolbar);
-		data.container.classList.toggle('has-toolbar', !!element.toolbarActions?.length);
-		if (element.toolbarActions?.length) {
+		const toolbarActions = [...(element.toolbarActions ?? [])];
+		if (element.onRemove) {
+			toolbarActions.push(toAction({
+				id: 'actionList.remove',
+				label: localize('actionList.remove', "Remove"),
+				class: ThemeIcon.asClassName(Codicon.close),
+				run: () => {
+					element.onRemove!();
+					this._onRemoveItem?.(element);
+				},
+			}));
+		}
+		data.container.classList.toggle('has-toolbar', toolbarActions.length > 0);
+		if (toolbarActions.length > 0) {
 			const actionBar = new ActionBar(data.toolbar);
 			data.elementDisposables.add(actionBar);
-			actionBar.push(element.toolbarActions, { icon: true, label: false });
+			actionBar.push(toolbarActions, { icon: true, label: false });
 		}
 	}
 
@@ -369,7 +387,7 @@ export class ActionList<T> extends Disposable {
 	private readonly _headerLineHeight = 24;
 	private readonly _separatorLineHeight = 8;
 
-	private readonly _allMenuItems: readonly IActionListItem<T>[];
+	private _allMenuItems: IActionListItem<T>[];
 
 	private readonly cts = this._register(new CancellationTokenSource());
 
@@ -437,7 +455,7 @@ export class ActionList<T> extends Disposable {
 
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
-			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService, this._openerService),
+			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), this._keybindingService, this._openerService),
 			new HeaderRenderer(),
 			new SeparatorRenderer(),
 		], {
@@ -482,7 +500,7 @@ export class ActionList<T> extends Disposable {
 		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
-		this._allMenuItems = items;
+		this._allMenuItems = [...items];
 
 		// Create filter input
 		if (this._options?.showFilter) {
@@ -815,7 +833,7 @@ export class ActionList<T> extends Disposable {
 					element.style.width = 'auto';
 					const width = element.getBoundingClientRect().width;
 					element.style.width = '';
-					itemWidths.push(width);
+					itemWidths.push(width + this._computeToolbarWidth(allItems[i]));
 				}
 			}
 
@@ -834,7 +852,7 @@ export class ActionList<T> extends Disposable {
 				element.style.width = 'auto';
 				const width = element.getBoundingClientRect().width;
 				element.style.width = '';
-				itemWidths.push(width);
+				itemWidths.push(width + this._computeToolbarWidth(this._list.element(i)));
 			}
 		}
 		return Math.max(...itemWidths, effectiveMinWidth);
@@ -1015,6 +1033,27 @@ export class ActionList<T> extends Disposable {
 		if (!this._suppressHover) {
 			this._showHoverForElement(element, focusIndex);
 		}
+	}
+
+	private _removeItem(item: IActionListItem<T>): void {
+		const index = this._allMenuItems.indexOf(item);
+		if (index >= 0) {
+			this._allMenuItems.splice(index, 1);
+			this._applyFilter();
+		}
+	}
+
+	private _computeToolbarWidth(item: IActionListItem<T>): number {
+		let actionCount = item.toolbarActions?.length ?? 0;
+		if (item.onRemove) {
+			actionCount++;
+		}
+		if (actionCount === 0) {
+			return 0;
+		}
+		// Each toolbar action button is ~22px (16px icon + padding) plus 6px row gap
+		const actionButtonWidth = 22;
+		return actionCount * actionButtonWidth + 6;
 	}
 
 	private _getRowElement(index: number): HTMLElement | null {

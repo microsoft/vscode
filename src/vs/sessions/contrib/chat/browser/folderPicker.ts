@@ -18,8 +18,6 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { INewSession } from './newSession.js';
-import { toAction } from '../../../../base/common/actions.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const STORAGE_KEY_LAST_FOLDER = 'agentSessions.lastPickedFolder';
 const STORAGE_KEY_RECENT_FOLDERS = 'agentSessions.recentlyPickedFolders';
@@ -152,6 +150,8 @@ export class FolderPicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
+		const listOptions = showFilter ? { showFilter: true, filterPlaceholder: localize('folderPicker.filter', "Filter folders...") } : undefined;
+
 		this.actionWidgetService.show<IFolderItem>(
 			'folderPicker',
 			false,
@@ -164,7 +164,7 @@ export class FolderPicker extends Disposable {
 				getAriaLabel: (item) => item.label ?? '',
 				getWidgetAriaLabel: () => localize('folderPicker.ariaLabel', "Folder Picker"),
 			},
-			showFilter ? { showFilter: true, filterPlaceholder: localize('folderPicker.filter', "Filter folders...") } : undefined,
+			listOptions,
 		);
 	}
 
@@ -248,12 +248,7 @@ export class FolderPicker extends Disposable {
 				label,
 				group: { title: '', icon: Codicon.blank },
 				item: { uri: folder.uri, label },
-				toolbarActions: [toAction({
-					id: 'folderPicker.remove',
-					label: localize('folderPicker.remove', "Remove"),
-					class: ThemeIcon.asClassName(Codicon.close),
-					run: () => this._removeFolder(folder.uri),
-				})],
+				onRemove: () => this._removeFolder(folder.uri),
 			});
 		}
 
@@ -284,10 +279,6 @@ export class FolderPicker extends Disposable {
 
 		// Remove from globally recently opened
 		this.workspacesService.removeRecentlyOpened([folderUri]);
-
-		// Re-show the picker with updated items
-		this.actionWidgetService.hide();
-		this.showPicker();
 	}
 
 	private _isCopilotWorktree(uri: URI): boolean {
