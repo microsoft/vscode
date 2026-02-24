@@ -15,7 +15,6 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { INewSession } from './newSession.js';
 
@@ -42,7 +41,6 @@ export class FolderPicker extends Disposable {
 
 	private _selectedFolderUri: URI | undefined;
 	private _recentlyPickedFolders: URI[] = [];
-	private _cachedRecentFolders: { uri: URI; label?: string }[] = [];
 	private _newSession: INewSession | undefined;
 
 	private _triggerElement: HTMLElement | undefined;
@@ -64,7 +62,6 @@ export class FolderPicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 	) {
 		super();
@@ -82,15 +79,6 @@ export class FolderPicker extends Disposable {
 				this._recentlyPickedFolders = JSON.parse(stored).map((s: string) => URI.parse(s));
 			}
 		} catch { /* ignore */ }
-
-		// Pre-fetch recently opened folders, filtering out copilot worktrees
-		this.workspacesService.getRecentlyOpened().then(recent => {
-			this._cachedRecentFolders = recent.workspaces
-				.filter(isRecentFolder)
-				.filter(r => !this._isCopilotWorktree(r.folderUri))
-				.slice(0, MAX_RECENT_FOLDERS)
-				.map(r => ({ uri: r.folderUri, label: r.label }));
-		}).catch(() => { /* ignore */ });
 	}
 
 	/**
@@ -231,24 +219,20 @@ export class FolderPicker extends Disposable {
 			});
 		}
 
-		// Combine recently picked folders and recently opened folders
-		const allFolders: { uri: URI; label?: string }[] = [
-			...this._recentlyPickedFolders.map(uri => ({ uri })),
-			...this._cachedRecentFolders,
-		];
-		for (const folder of allFolders) {
-			const key = folder.uri.toString();
+		// Recently picked folders
+		for (const folderUri of this._recentlyPickedFolders) {
+			const key = folderUri.toString();
 			if (seenUris.has(key)) {
 				continue;
 			}
 			seenUris.add(key);
-			const label = folder.label || basename(folder.uri);
+			const label = basename(folderUri);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label,
 				group: { title: '', icon: Codicon.blank },
-				item: { uri: folder.uri, label },
-				onRemove: () => this._removeFolder(folder.uri),
+				item: { uri: folderUri, label },
+				onRemove: () => this._removeFolder(folderUri),
 			});
 		}
 
@@ -270,20 +254,8 @@ export class FolderPicker extends Disposable {
 	}
 
 	private _removeFolder(folderUri: URI): void {
-		// Remove from recently picked folders
 		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
 		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
-
-		// Remove from cached recent folders
-		this._cachedRecentFolders = this._cachedRecentFolders.filter(f => !isEqual(f.uri, folderUri));
-
-		// Remove from globally recently opened
-		this.workspacesService.removeRecentlyOpened([folderUri]);
-	}
-
-	private _isCopilotWorktree(uri: URI): boolean {
-		const name = basename(uri);
-		return name.startsWith('copilot-worktree-');
 	}
 
 	private _updateTriggerLabel(trigger: HTMLElement | undefined): void {
