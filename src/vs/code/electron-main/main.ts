@@ -22,7 +22,6 @@ import { IProcessEnvironment, isLinux, isMacintosh, isWindows, OS } from '../../
 import { cwd } from '../../base/common/process.js';
 import { rtrim, trim } from '../../base/common/strings.js';
 import { Promises as FSPromises } from '../../base/node/pfs.js';
-import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { Client as NodeIPCClient } from '../../base/parts/ipc/common/ipc.net.js';
 import { connect as nodeIPCConnect, serve as nodeIPCServe, Server as NodeIPCServer, XDG_RUNTIME_DIR } from '../../base/parts/ipc/node/ipc.net.js';
@@ -283,10 +282,7 @@ class CodeMain {
 			stateService.init(),
 
 			// Configuration service
-			configurationService.initialize(),
-
-			// Accurate Windows version info.
-			isWindows ? initWindowsVersionInfo() : Promise.resolve()
+			configurationService.initialize()
 		]);
 
 		// Initialize user data profiles after initializing the state

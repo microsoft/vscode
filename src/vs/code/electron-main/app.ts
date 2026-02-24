@@ -7,6 +7,7 @@ import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Sessio
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
+import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
@@ -1430,6 +1431,11 @@ export class CodeApplication extends Disposable {
 	}
 
 	private afterWindowOpen(instantiationService: IInstantiationService): void {
+
+		// Accurate Windows version info
+		if (isWindows) {
+			initWindowsVersionInfo();
+		}
 
 		// Windows: mutex
 		this.installMutex();
