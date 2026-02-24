@@ -105,6 +105,25 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(link, 'markdown link should render as anchor');
 		});
 
+		test('renders markdown in plain string question message', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Question',
+					message: 'Please review **details** in [docs](https://example.com)'
+				}
+			]);
+			createWidget(carousel);
+
+			const title = widget.domNode.querySelector('.chat-question-title');
+			assert.ok(title, 'title element should exist');
+			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered for plain string messages');
+			assert.strictEqual(title?.textContent?.includes('**details**'), false, 'markdown syntax should not be shown as raw text');
+			const link = title?.querySelector('a') as HTMLAnchorElement | null;
+			assert.ok(link, 'markdown link should render as anchor');
+		});
+
 		test('renders progress indicator correctly', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1', message: 'Question 1' },
