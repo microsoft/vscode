@@ -524,17 +524,7 @@ class NewChatWidget extends Disposable {
 				const metadata = this.languageModelsService.lookupLanguageModel(id);
 				return metadata ? { metadata, identifier: id } : undefined;
 			})
-			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && this.shouldShowModel(m));
-	}
-
-	private shouldShowModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-		if (!model.metadata.isUserSelectable) {
-			return false;
-		}
-		if (model.metadata.targetChatSessionType === AgentSessionProviders.Background) {
-			return false;
-		}
-		return true;
+			.filter((m): m is ILanguageModelChatMetadataAndIdentifier => !!m && m.metadata.targetChatSessionType === AgentSessionProviders.Background);
 	}
 
 	// --- Welcome: Target & option pickers (dropdown row below input) ---
