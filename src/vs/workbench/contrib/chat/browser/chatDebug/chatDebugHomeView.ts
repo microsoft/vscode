@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isUUID } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
+import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
@@ -22,15 +24,21 @@ export class ChatDebugHomeView extends Disposable {
 	readonly onNavigateToSession = this._onNavigateToSession.event;
 
 	readonly container: HTMLElement;
+	private readonly scrollContent: HTMLElement;
+	private readonly scrollable: DomScrollableElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		parent: HTMLElement,
 		@IChatService private readonly chatService: IChatService,
+		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-home'));
+		this.scrollContent = $('div.chat-debug-home-content');
+		this.scrollable = this._register(new DomScrollableElement(this.scrollContent, {}));
+		DOM.append(this.container, this.scrollable.getDomNode());
 	}
 
 	show(): void {
@@ -43,10 +51,10 @@ export class ChatDebugHomeView extends Disposable {
 	}
 
 	render(): void {
-		DOM.clearNode(this.container);
+		DOM.clearNode(this.scrollContent);
 		this.renderDisposables.clear();
 
-		DOM.append(this.container, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Chat Debug Panel")));
+		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Chat Debug Panel")));
 
 		// Determine the active session ID
 		const activeWidget = this.chatWidgetService.lastFocusedWidget;
@@ -57,8 +65,10 @@ export class ChatDebugHomeView extends Disposable {
 		// List all known chat sessions (from chatService), most recent last → reversed for most recent first.
 		// This does not require events to be collected, so the home view works
 		// without any streaming pipelines being active.
+		const sessionIdsWithEvents = new Set(this.chatDebugService.getSessionIds());
 		const sessionIds = [...this.chatService.chatModels.get()]
 			.map(m => chatSessionResourceToId(m.sessionResource))
+			.filter(id => sessionIdsWithEvents.has(id))
 			.reverse();
 
 		// Sort: active session first
@@ -70,14 +80,14 @@ export class ChatDebugHomeView extends Disposable {
 			}
 		}
 
-		DOM.append(this.container, $('p.chat-debug-home-subtitle', undefined,
+		DOM.append(this.scrollContent, $('p.chat-debug-home-subtitle', undefined,
 			sessionIds.length > 0
 				? localize('chatDebug.homeSubtitle', "Select a chat session to debug")
 				: localize('chatDebug.noSessions', "Send a chat message to get started")
 		));
 
 		if (sessionIds.length > 0) {
-			const sessionList = DOM.append(this.container, $('.chat-debug-home-session-list'));
+			const sessionList = DOM.append(this.scrollContent, $('.chat-debug-home-session-list'));
 			sessionList.setAttribute('role', 'list');
 			sessionList.setAttribute('aria-label', localize('chatDebug.sessionList', "Chat sessions"));
 
@@ -155,5 +165,7 @@ export class ChatDebugHomeView extends Disposable {
 				}
 			}));
 		}
+
+		this.scrollable.scanDomNode();
 	}
 }

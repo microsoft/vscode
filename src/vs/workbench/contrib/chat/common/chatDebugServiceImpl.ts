@@ -62,6 +62,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 				result.push(event);
 			}
 		}
+		result.sort((a, b) => a.created.getTime() - b.created.getTime());
 		return result;
 	}
 

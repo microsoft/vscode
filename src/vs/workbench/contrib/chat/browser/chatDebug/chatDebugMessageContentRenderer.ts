@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -19,12 +20,18 @@ const $ = DOM.$;
 export function setupCollapsibleToggle(chevron: HTMLElement, header: HTMLElement, contentEl: HTMLElement, disposables: DisposableStore, initiallyCollapsed: boolean = false): void {
 	let collapsed = initiallyCollapsed;
 
+	// Accessibility: make header keyboard-focusable and expose toggle semantics
+	header.tabIndex = 0;
+	header.role = 'button';
+	chevron.setAttribute('aria-hidden', 'true');
+
 	const updateState = () => {
 		DOM.clearNode(chevron);
 		const icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 		chevron.classList.add(...ThemeIcon.asClassName(icon).split(' '));
 		contentEl.style.display = collapsed ? 'none' : 'block';
 		header.style.borderRadius = collapsed ? '' : '3px 3px 0 0';
+		header.setAttribute('aria-expanded', String(!collapsed));
 	};
 
 	updateState();
@@ -33,6 +40,13 @@ export function setupCollapsibleToggle(chevron: HTMLElement, header: HTMLElement
 		collapsed = !collapsed;
 		chevron.className = 'chat-debug-message-section-chevron';
 		updateState();
+	}));
+
+	disposables.add(DOM.addDisposableListener(header, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		if (e.key === 'Enter' || e.key === ' ') {
+			e.preventDefault();
+			header.click();
+		}
 	}));
 }
 
@@ -47,11 +61,23 @@ function renderCollapsibleSection(parent: HTMLElement, section: IChatDebugMessag
 	const chevron = DOM.append(header, $(`span.chat-debug-message-section-chevron`));
 	DOM.append(header, $('span.chat-debug-message-section-title', undefined, section.name));
 
-	const contentEl = DOM.append(sectionEl, $('pre.chat-debug-message-section-content'));
+	const contentEl = $('pre.chat-debug-message-section-content');
 	contentEl.textContent = section.content;
 	contentEl.tabIndex = 0;
 
-	setupCollapsibleToggle(chevron, header, contentEl, disposables, initiallyCollapsed);
+	const scrollable = new DomScrollableElement(contentEl, {});
+	disposables.add(scrollable);
+
+	const wrapper = scrollable.getDomNode();
+	wrapper.classList.add('chat-debug-message-section-content-wrapper');
+	DOM.append(sectionEl, wrapper);
+
+	setupCollapsibleToggle(chevron, header, wrapper, disposables, initiallyCollapsed);
+
+	// Scan after toggle so scrollbar dimensions are correct when expanded
+	disposables.add(DOM.addDisposableListener(header, DOM.EventType.CLICK, () => {
+		scrollable.scanDomNode();
+	}));
 }
 
 /**

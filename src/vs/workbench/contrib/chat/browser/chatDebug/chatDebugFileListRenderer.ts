@@ -5,6 +5,7 @@
 
 import '../widget/chatContentParts/media/chatInlineAnchorWidget.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -56,6 +57,7 @@ function getFileLocationLabel(file: { uri: URI; storage?: string; extensionId?: 
  */
 function createInlineFileLink(uri: URI, displayText: string, fileKind: FileKind, openerService: IOpenerService, modelService: IModelService, languageService: ILanguageService, hoverService: IHoverService, labelService: ILabelService, disposables: DisposableStore, hoverSuffix?: string): HTMLElement {
 	const link = $(`a.${InlineAnchorWidget.className}.show-file-icons`);
+	link.tabIndex = -1;
 
 	const iconEl = DOM.append(link, $('span.icon'));
 	const iconClasses = getIconClasses(modelService, languageService, uri, fileKind);
@@ -68,10 +70,64 @@ function createInlineFileLink(uri: URI, displayText: string, fileKind: FileKind,
 	disposables.add(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), link, hoverText));
 	disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, (e) => {
 		e.preventDefault();
+		e.stopPropagation();
 		openerService.open(uri);
 	}));
 
 	return link;
+}
+
+/**
+ * Set up roving tabindex with arrow-key navigation on a list of rows.
+ * The first row starts with tabIndex 0; the rest get -1.
+ * Up/Down arrow keys move focus, Home/End jump to first/last.
+ * Enter on a focused row activates the associated action.
+ */
+function setupFileListNavigation(listEl: HTMLElement, rows: { element: HTMLElement; activate: () => void }[], disposables: DisposableStore): void {
+	if (rows.length === 0) {
+		return;
+	}
+
+	for (let i = 0; i < rows.length; i++) {
+		rows[i].element.tabIndex = i === 0 ? 0 : -1;
+		rows[i].element.setAttribute('role', 'listitem');
+	}
+
+	disposables.add(DOM.addDisposableListener(listEl, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		const target = e.target as HTMLElement;
+		const index = rows.findIndex(r => r.element === target);
+		if (index === -1) {
+			return;
+		}
+
+		let nextIndex: number | undefined;
+		switch (e.key) {
+			case 'ArrowDown':
+				nextIndex = Math.min(index + 1, rows.length - 1);
+				break;
+			case 'ArrowUp':
+				nextIndex = Math.max(index - 1, 0);
+				break;
+			case 'Home':
+				nextIndex = 0;
+				break;
+			case 'End':
+				nextIndex = rows.length - 1;
+				break;
+			case 'Enter': {
+				rows[index].activate();
+				e.preventDefault();
+				return;
+			}
+		}
+
+		if (nextIndex !== undefined && nextIndex !== index) {
+			e.preventDefault();
+			rows[index].element.tabIndex = -1;
+			rows[nextIndex].element.tabIndex = 0;
+			rows[nextIndex].element.focus();
+		}
+	}));
 }
 
 /**
@@ -82,6 +138,7 @@ function appendLocationBadge(row: HTMLElement, file: { extensionId?: string }, b
 	if (file.extensionId) {
 		const link = DOM.append(row, $(`a.${cssClass}.chat-debug-file-list-badge-link`));
 		link.textContent = badgeText;
+		link.tabIndex = -1;
 		disposables.add(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), link, localize('chatDebug.openExtension', "Open {0} in Extensions", file.extensionId)));
 		disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, (e) => {
 			e.preventDefault();
@@ -112,15 +169,25 @@ export function renderFileListContent(content: IChatDebugEventFileListContent, o
 		DOM.append(section, $('div.chat-debug-file-list-section-title', undefined,
 			localize('chatDebug.loadedFiles', "Loaded ({0})", loaded.length)));
 
+		const listEl = DOM.append(section, $('div.chat-debug-file-list-rows'));
+		listEl.setAttribute('role', 'list');
+		listEl.setAttribute('aria-label', localize('chatDebug.loadedFilesList', "Loaded files"));
+
+		const rows: { element: HTMLElement; activate: () => void }[] = [];
 		for (const file of loaded) {
-			const row = DOM.append(section, $('div.chat-debug-file-list-row'));
+			const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
 			DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.check)}`));
 			const locationBadgeText = localize('chatDebug.locationBadge', " ({0})", getFileLocationLabel(file, labelService));
 			// Only include location in tooltip when it's an extension ID (path would be redundant)
 			const hoverSuffix = file.extensionId ? locationBadgeText.trim() : undefined;
 			row.appendChild(createInlineFileLink(file.uri, file.name ?? file.uri.path, FileKind.FILE, openerService, modelService, languageService, hoverService, labelService, disposables, hoverSuffix));
 			appendLocationBadge(row, file, locationBadgeText, 'chat-debug-file-list-badge', openerService, hoverService, disposables);
+			const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
+			row.setAttribute('aria-label', relativeLabel);
+			const uri = file.uri;
+			rows.push({ element: row, activate: () => openerService.open(uri) });
 		}
+		setupFileListNavigation(listEl, rows, disposables);
 	}
 
 	// Skipped files
@@ -130,8 +197,13 @@ export function renderFileListContent(content: IChatDebugEventFileListContent, o
 		DOM.append(section, $('div.chat-debug-file-list-section-title', undefined,
 			localize('chatDebug.skippedFiles', "Skipped ({0})", skipped.length)));
 
+		const listEl = DOM.append(section, $('div.chat-debug-file-list-rows'));
+		listEl.setAttribute('role', 'list');
+		listEl.setAttribute('aria-label', localize('chatDebug.skippedFilesList', "Skipped files"));
+
+		const rows: { element: HTMLElement; activate: () => void }[] = [];
 		for (const file of skipped) {
-			const row = DOM.append(section, $('div.chat-debug-file-list-row'));
+			const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
 			DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(Codicon.close)}`));
 
 			let reasonText = ` (${file.skipReason ?? localize('chatDebug.unknown', "unknown")}`;
@@ -146,7 +218,12 @@ export function renderFileListContent(content: IChatDebugEventFileListContent, o
 			const skippedHoverSuffix = file.extensionId ? reasonText.trim() : undefined;
 			row.appendChild(createInlineFileLink(file.uri, file.name ?? file.uri.path, FileKind.FILE, openerService, modelService, languageService, hoverService, labelService, disposables, skippedHoverSuffix));
 			appendLocationBadge(row, file, reasonText, 'chat-debug-file-list-detail', openerService, hoverService, disposables);
+			const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
+			row.setAttribute('aria-label', relativeLabel);
+			const uri = file.uri;
+			rows.push({ element: row, activate: () => openerService.open(uri) });
 		}
+		setupFileListNavigation(listEl, rows, disposables);
 	}
 
 	// Source folders (paths attempted) - collapsible, initially collapsed
@@ -162,24 +239,31 @@ export function renderFileListContent(content: IChatDebugEventFileListContent, o
 		// Settings gear button on the right side of the header
 		const settingsKey = getSettingsKeyForDiscoveryType(content.discoveryType);
 		if (settingsKey) {
-			const gearBtn = DOM.append(header, $(`span.chat-debug-settings-gear${ThemeIcon.asCSSSelector(Codicon.settingsGear)}`));
-			disposables.add(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), gearBtn, localize('chatDebug.openSettingsTooltip', "Configure locations")));
-			disposables.add(DOM.addDisposableListener(gearBtn, DOM.EventType.MOUSE_ENTER, () => {
-				gearBtn.classList.add('chat-debug-settings-gear-hover-active');
+			const gearBtn = disposables.add(new Button(header, {
+				title: localize('chatDebug.openSettingsTooltip', "Configure locations"),
+				ariaLabel: localize('chatDebug.configureLocations', "Configure locations"),
+				hoverDelegate: getDefaultHoverDelegate('mouse'),
+			}));
+			gearBtn.icon = Codicon.settingsGear;
+			gearBtn.element.classList.add('chat-debug-settings-gear');
+			disposables.add(DOM.addDisposableListener(gearBtn.element, DOM.EventType.MOUSE_ENTER, () => {
 				header.classList.add('chat-debug-settings-gear-header-passthrough');
 			}));
-			disposables.add(DOM.addDisposableListener(gearBtn, DOM.EventType.MOUSE_LEAVE, () => {
-				gearBtn.classList.remove('chat-debug-settings-gear-hover-active');
+			disposables.add(DOM.addDisposableListener(gearBtn.element, DOM.EventType.MOUSE_LEAVE, () => {
 				header.classList.remove('chat-debug-settings-gear-header-passthrough');
 			}));
-			disposables.add(DOM.addDisposableListener(gearBtn, DOM.EventType.CLICK, (e) => {
-				e.preventDefault();
-				e.stopPropagation();
+			disposables.add(gearBtn.onDidClick((e) => {
+				if (e) {
+					DOM.EventHelper.stop(e, true);
+				}
 				openerService.open(URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify([`@id:${settingsKey}`]))}`), { allowCommands: true });
 			}));
 		}
 
 		const contentEl = DOM.append(sectionEl, $('div.chat-debug-source-folder-content'));
+		contentEl.tabIndex = 0;
+		contentEl.setAttribute('role', 'region');
+		contentEl.setAttribute('aria-label', localize('chatDebug.sourceFoldersContent', "Source folders"));
 
 		const capitalizedType = content.discoveryType.charAt(0).toUpperCase() + content.discoveryType.slice(1);
 		const sourcesCaption = capitalizedType.endsWith('s') ? capitalizedType : capitalizedType + 's';

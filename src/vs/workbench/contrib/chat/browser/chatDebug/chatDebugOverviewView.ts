@@ -6,6 +6,7 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -19,7 +20,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { IChatWidgetService } from '../chat.js';
-import { TextBreadcrumbItem } from './chatDebugTypes.js';
+import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 
 const $ = DOM.$;
 
@@ -36,6 +37,7 @@ export class ChatDebugOverviewView extends Disposable {
 
 	readonly container: HTMLElement;
 	private readonly content: HTMLElement;
+	private readonly scrollable: DomScrollableElement;
 	private readonly breadcrumbWidget: BreadcrumbsWidget;
 	private readonly loadDisposables = this._register(new DisposableStore());
 
@@ -55,6 +57,7 @@ export class ChatDebugOverviewView extends Disposable {
 		// Breadcrumb
 		const breadcrumbContainer = DOM.append(this.container, $('.chat-debug-breadcrumb'));
 		this.breadcrumbWidget = this._register(new BreadcrumbsWidget(breadcrumbContainer, 3, undefined, Codicon.chevronRight, defaultBreadcrumbsWidgetStyles));
+		this._register(setupBreadcrumbKeyboardNavigation(breadcrumbContainer, this.breadcrumbWidget));
 		this._register(this.breadcrumbWidget.onDidSelectItem(e => {
 			if (e.type === 'select' && e.item instanceof TextBreadcrumbItem) {
 				this.breadcrumbWidget.setSelection(undefined);
@@ -66,7 +69,12 @@ export class ChatDebugOverviewView extends Disposable {
 			}
 		}));
 
-		this.content = DOM.append(this.container, $('.chat-debug-overview-content'));
+		this.content = $('.chat-debug-overview-content');
+		this.scrollable = this._register(new DomScrollableElement(this.content, {}));
+		const scrollDom = this.scrollable.getDomNode();
+		scrollDom.style.flex = '1';
+		scrollDom.style.minHeight = '0';
+		DOM.append(this.container, scrollDom);
 	}
 
 	setSession(sessionId: string): void {
@@ -126,6 +134,8 @@ export class ChatDebugOverviewView extends Disposable {
 		// Derived overview metrics
 		const events = this.chatDebugService.getEvents(this.currentSessionId);
 		this.renderDerivedOverview(events);
+
+		this.scrollable.scanDomNode();
 	}
 
 	private renderSessionDetails(sessionUri: URI): void {

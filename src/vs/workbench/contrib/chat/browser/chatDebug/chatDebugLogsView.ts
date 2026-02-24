@@ -7,10 +7,12 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { addDisposableListener, Dimension, EventType } from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { IObjectTreeElement } from '../../../../../base/browser/ui/tree/tree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
@@ -31,7 +33,7 @@ import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../com
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer } from './chatDebugEventList.js';
-import { TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
+import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
 import { renderFileListContent, fileListToPlainText } from './chatDebugFileListRenderer.js';
@@ -69,6 +71,8 @@ export class ChatDebugLogsView extends Disposable {
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
 	private readonly detailDisposables = this._register(new DisposableStore());
+	private readonly sessionStateDisposable = this._register(new MutableDisposable());
+	private shimmerRow!: HTMLElement;
 	private currentDetailText: string = '';
 	private currentDetailEventId: string | undefined;
 
@@ -91,6 +95,7 @@ export class ChatDebugLogsView extends Disposable {
 		// Breadcrumb
 		const breadcrumbContainer = DOM.append(this.container, $('.chat-debug-breadcrumb'));
 		this.breadcrumbWidget = this._register(new BreadcrumbsWidget(breadcrumbContainer, 3, undefined, Codicon.chevronRight, defaultBreadcrumbsWidgetStyles));
+		this._register(setupBreadcrumbKeyboardNavigation(breadcrumbContainer, this.breadcrumbWidget));
 		this._register(this.breadcrumbWidget.onDidSelectItem(e => {
 			if (e.type === 'select' && e.item instanceof TextBreadcrumbItem) {
 				this.breadcrumbWidget.setSelection(undefined);
@@ -210,6 +215,13 @@ export class ChatDebugLogsView extends Disposable {
 			[new ChatDebugEventTreeRenderer()],
 			{ identityProvider, accessibilityProvider }
 		));
+
+		// Shimmer row (positioned right below last row to indicate session is running)
+		this.shimmerRow = DOM.append(this.bodyContainer, $('.chat-debug-logs-shimmer-row'));
+		this.shimmerRow.setAttribute('aria-label', localize('chatDebug.loadingMore', "Loading more events…"));
+		this.shimmerRow.setAttribute('aria-busy', 'true');
+		DOM.append(this.shimmerRow, $('span.chat-debug-logs-shimmer-bar'));
+		DOM.hide(this.shimmerRow);
 
 		// Detail panel (sibling of main column so it aligns with table header)
 		this.detailContainer = DOM.append(contentContainer, $('.chat-debug-detail-panel'));
@@ -375,6 +387,11 @@ export class ChatDebugLogsView extends Disposable {
 		} else {
 			this.refreshTree(filtered);
 		}
+		this.updateShimmerPosition(filtered.length);
+	}
+
+	private updateShimmerPosition(itemCount: number): void {
+		this.shimmerRow.style.top = `${itemCount * 28}px`;
 	}
 
 	addEvent(event: IChatDebugEvent): void {
@@ -391,6 +408,32 @@ export class ChatDebugLogsView extends Disposable {
 			}
 		});
 		this.updateBreadcrumb();
+		this.trackSessionState();
+	}
+
+	private trackSessionState(): void {
+		if (!this.currentSessionId) {
+			DOM.hide(this.shimmerRow);
+			this.sessionStateDisposable.clear();
+			return;
+		}
+
+		const sessionUri = LocalChatSessionUri.forSession(this.currentSessionId);
+		const model = this.chatService.getSession(sessionUri);
+		if (!model) {
+			DOM.hide(this.shimmerRow);
+			this.sessionStateDisposable.clear();
+			return;
+		}
+
+		this.sessionStateDisposable.value = autorun(reader => {
+			const inProgress = model.requestInProgress.read(reader);
+			if (inProgress) {
+				DOM.show(this.shimmerRow);
+			} else {
+				DOM.hide(this.shimmerRow);
+			}
+		});
 	}
 
 	private refreshTree(filtered: IChatDebugEvent[]): void {
@@ -525,24 +568,24 @@ export class ChatDebugLogsView extends Disposable {
 				renderFileListContent(resolved, this.openerService, accessor.get(IModelService), accessor.get(ILanguageService), this.hoverService, accessor.get(ILabelService))
 			);
 			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
+			this.appendDetailScrollable(contentEl);
 		} else if (resolved && resolved.kind === 'message') {
 			this.currentDetailText = resolvedMessageToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = renderResolvedMessageContent(resolved);
 			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
+			this.appendDetailScrollable(contentEl);
 		} else if (event.kind === 'userMessage') {
 			this.currentDetailText = messageEventToPlainText(event);
 			const { element: contentEl, disposables: contentDisposables } = renderUserMessageContent(event);
 			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
+			this.appendDetailScrollable(contentEl);
 		} else if (event.kind === 'agentResponse') {
 			this.currentDetailText = messageEventToPlainText(event);
 			const { element: contentEl, disposables: contentDisposables } = renderAgentResponseContent(event);
 			this.detailDisposables.add(contentDisposables);
-			this.detailContainer.appendChild(contentEl);
+			this.appendDetailScrollable(contentEl);
 		} else {
-			const pre = DOM.append(this.detailContainer, $('pre'));
+			const pre = $('pre');
 			pre.tabIndex = 0;
 			if (resolved) {
 				this.currentDetailText = resolved.value;
@@ -550,7 +593,18 @@ export class ChatDebugLogsView extends Disposable {
 				this.currentDetailText = formatEventDetail(event);
 			}
 			pre.textContent = this.currentDetailText;
+			this.appendDetailScrollable(pre);
 		}
+	}
+
+	private appendDetailScrollable(contentEl: HTMLElement): void {
+		const scrollable = new DomScrollableElement(contentEl, {});
+		this.detailDisposables.add(scrollable);
+		const wrapper = scrollable.getDomNode();
+		wrapper.style.flex = '1';
+		wrapper.style.minHeight = '0';
+		this.detailContainer.appendChild(wrapper);
+		scrollable.scanDomNode();
 	}
 
 	private hideDetail(): void {

@@ -17,9 +17,9 @@ import { ChatDebugEditorInput } from '../chatDebug/chatDebugEditorInput.js';
 import { IChatDebugEditorOptions } from '../chatDebug/chatDebugTypes.js';
 
 /**
- * Registers the Troubleshoot action for the chat context menu.
+ * Registers the Open Debug Panel and View Logs actions.
  */
-export function registerChatTroubleshootAction() {
+export function registerChatOpenDebugPanelAction() {
 	registerAction2(class OpenDebugViewAction extends Action2 {
 		constructor() {
 			super({

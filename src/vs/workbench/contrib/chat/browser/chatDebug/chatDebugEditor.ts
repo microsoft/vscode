@@ -61,6 +61,9 @@ export class ChatDebugEditor extends EditorPane {
 	private readonly sessionModelListener = this._register(new MutableDisposable());
 	private readonly modelChangeListeners = this._register(new DisposableMap<string>());
 
+	/** Saved session ID so we can restore it after the editor is re-shown. */
+	private savedSessionId: string | undefined;
+
 	/**
 	 * Stops the streaming pipeline and clears cached events for the
 	 * active session. Called when navigating away from a session or
@@ -70,7 +73,6 @@ export class ChatDebugEditor extends EditorPane {
 		const sessionId = this.chatDebugService.activeSessionId;
 		if (sessionId) {
 			this.chatDebugService.endSession(sessionId);
-			this.chatDebugService.clearSession(sessionId);
 		}
 		this.chatDebugService.activeSessionId = undefined;
 	}
@@ -221,6 +223,7 @@ export class ChatDebugEditor extends EditorPane {
 		if (state === ViewState.Logs) {
 			this.logsView?.show();
 			this.doLayout();
+			this.logsView?.focus();
 		} else {
 			this.logsView?.hide();
 		}
@@ -238,7 +241,6 @@ export class ChatDebugEditor extends EditorPane {
 		const previousSessionId = this.chatDebugService.activeSessionId;
 		if (previousSessionId && previousSessionId !== sessionId) {
 			this.chatDebugService.endSession(previousSessionId);
-			this.chatDebugService.clearSession(previousSessionId);
 		}
 
 		this.chatDebugService.activeSessionId = sessionId;
@@ -291,24 +293,25 @@ export class ChatDebugEditor extends EditorPane {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
-			const options = this.options as IChatDebugEditorOptions | undefined;
-			if (options) {
-				this._applyNavigationOptions(options);
-			} else if (this.viewState === ViewState.Home) {
-				const sessionId = this.chatDebugService.activeSessionId;
-				if (sessionId) {
-					this.navigateToSession(sessionId, 'overview');
-				} else {
-					this.showView(ViewState.Home);
-				}
+			// Restore the current view state; navigation is handled by setOptions
+			if (this.viewState === ViewState.Home) {
+				this.showView(ViewState.Home);
 			} else {
-				// Re-activate the streaming pipeline for the current session
-				const sessionId = this.chatDebugService.activeSessionId;
+				// Re-activate the streaming pipeline for the current session,
+				// restoring the saved session ID if the editor was temporarily hidden.
+				const sessionId = this.chatDebugService.activeSessionId ?? this.savedSessionId;
+				this.savedSessionId = undefined;
 				if (sessionId) {
+					this.chatDebugService.activeSessionId = sessionId;
 					this.chatDebugService.invokeProviders(sessionId);
+				} else {
+					// No active session, fall back to home
+					this.showView(ViewState.Home);
 				}
 			}
 		} else {
+			// Remember the active session so we can restore when re-shown
+			this.savedSessionId = this.chatDebugService.activeSessionId;
 			// Stop the streaming pipeline when the editor is hidden
 			this.endActiveSession();
 		}
@@ -327,7 +330,8 @@ export class ChatDebugEditor extends EditorPane {
 			this.showView(ViewState.Home);
 		} else if (sessionId) {
 			this.navigateToSession(sessionId, 'overview');
-		} else if (this.viewState === ViewState.Home) {
+		} else {
+			this.endActiveSession();
 			this.showView(ViewState.Home);
 		}
 	}
