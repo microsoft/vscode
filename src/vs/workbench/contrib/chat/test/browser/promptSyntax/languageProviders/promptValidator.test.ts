@@ -792,6 +792,67 @@ suite('PromptValidator', () => {
 			assert.ok(markers[0].message.includes('Unknown property \'unknown\''));
 		});
 
+		test('undefined target agent with valid github permissions', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'github:',
+				'  permissions:',
+				'    issues: write',
+				'    contents: read',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('undefined target agent with invalid github permission scope', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'github:',
+				'  permissions:',
+				'    unknown-scope: read',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.ok(markers[0].message.includes('Unknown permission scope \'unknown-scope\''));
+		});
+
+		test('undefined target agent with invalid github permission value', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'github:',
+				'  permissions:',
+				'    metadata: write',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.ok(markers[0].message.includes('Invalid permission value \'write\' for scope \'metadata\''));
+		});
+
+		test('undefined target agent with non-map github attribute', async () => {
+			const content = [
+				'---',
+				'description: "Agent without target"',
+				'github: invalid',
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+			assert.strictEqual(markers[0].message, 'The \'github\' attribute must be an object.');
+		});
+
 		test('vscode target agent validates normally', async () => {
 			const content = [
 				'---',
