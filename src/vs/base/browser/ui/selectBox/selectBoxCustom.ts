@@ -71,6 +71,13 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 			// Make sure we do class removal from prior template rendering
 			data.root.classList.remove('option-disabled');
 		}
+
+		// Separator option - show a CSS border instead of text characters
+		if (element.isSeparator) {
+			data.root.classList.add('option-separator');
+		} else {
+			data.root.classList.remove('option-separator');
+		}
 	}
 
 	disposeTemplate(_templateData: ISelectListTemplateData): void {
@@ -395,13 +402,13 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
 		}
 
-		// Match quick input outline styles - ignore for disabled options
+		// Match action widget outline styles - ignore for disabled options
 		if (this.styles.listFocusOutline) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.listFocusOutline} !important; outline-offset: -1.6px !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1px solid ${this.styles.listFocusOutline} !important; outline-offset: -1px !important; }`);
 		}
 
 		if (this.styles.listHoverOutline) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { outline: 1px solid ${this.styles.listHoverOutline} !important; outline-offset: -1px !important; }`);
 		}
 
 		// Clear list styles on focus and on hover for disabled options
@@ -425,11 +432,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		const background = this.styles.selectBackground ?? '';
 
 		const listBackground = cssJs.asCssValueWithDefault(this.styles.selectListBackground, background);
+		this.selectDropDownContainer.style.backgroundColor = listBackground;
 		this.selectDropDownListContainer.style.backgroundColor = listBackground;
 		this.selectionDetailsPane.style.backgroundColor = listBackground;
-		const optionsBorder = this.styles.focusBorder ?? '';
-		this.selectDropDownContainer.style.outlineColor = optionsBorder;
-		this.selectDropDownContainer.style.outlineOffset = '-1px';
 
 		this.selectList.style(this.styles);
 	}
