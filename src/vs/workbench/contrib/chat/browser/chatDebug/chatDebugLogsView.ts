@@ -11,6 +11,7 @@ import { IObjectTreeElement } from '../../../../../base/browser/ui/tree/tree.js'
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -24,7 +25,7 @@ import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../com
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer } from './chatDebugEventList.js';
-import { TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
+import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 
@@ -59,6 +60,8 @@ export class ChatDebugLogsView extends Disposable {
 	private events: IChatDebugEvent[] = [];
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
+	private readonly sessionStateDisposable = this._register(new MutableDisposable());
+	private shimmerRow!: HTMLElement;
 
 	constructor(
 		parent: HTMLElement,
@@ -75,6 +78,7 @@ export class ChatDebugLogsView extends Disposable {
 		// Breadcrumb
 		const breadcrumbContainer = DOM.append(this.container, $('.chat-debug-breadcrumb'));
 		this.breadcrumbWidget = this._register(new BreadcrumbsWidget(breadcrumbContainer, 3, undefined, Codicon.chevronRight, defaultBreadcrumbsWidgetStyles));
+		this._register(setupBreadcrumbKeyboardNavigation(breadcrumbContainer, this.breadcrumbWidget));
 		this._register(this.breadcrumbWidget.onDidSelectItem(e => {
 			if (e.type === 'select' && e.item instanceof TextBreadcrumbItem) {
 				this.breadcrumbWidget.setSelection(undefined);
@@ -194,6 +198,13 @@ export class ChatDebugLogsView extends Disposable {
 			[new ChatDebugEventTreeRenderer()],
 			{ identityProvider, accessibilityProvider }
 		));
+
+		// Shimmer row (positioned right below last row to indicate session is running)
+		this.shimmerRow = DOM.append(this.bodyContainer, $('.chat-debug-logs-shimmer-row'));
+		this.shimmerRow.setAttribute('aria-label', localize('chatDebug.loadingMore', "Loading more events…"));
+		this.shimmerRow.setAttribute('aria-busy', 'true');
+		DOM.append(this.shimmerRow, $('span.chat-debug-logs-shimmer-bar'));
+		DOM.hide(this.shimmerRow);
 
 		// Detail panel (sibling of main column so it aligns with table header)
 		this.detailPanel = this._register(this.instantiationService.createInstance(ChatDebugDetailPanel, contentContainer));
@@ -345,6 +356,11 @@ export class ChatDebugLogsView extends Disposable {
 		} else {
 			this.refreshTree(filtered);
 		}
+		this.updateShimmerPosition(filtered.length);
+	}
+
+	private updateShimmerPosition(itemCount: number): void {
+		this.shimmerRow.style.top = `${itemCount * 28}px`;
 	}
 
 	addEvent(event: IChatDebugEvent): void {
@@ -361,6 +377,31 @@ export class ChatDebugLogsView extends Disposable {
 			}
 		});
 		this.updateBreadcrumb();
+		this.trackSessionState();
+	}
+
+	private trackSessionState(): void {
+		if (!this.currentSessionResource) {
+			DOM.hide(this.shimmerRow);
+			this.sessionStateDisposable.clear();
+			return;
+		}
+
+		const model = this.chatService.getSession(this.currentSessionResource);
+		if (!model) {
+			DOM.hide(this.shimmerRow);
+			this.sessionStateDisposable.clear();
+			return;
+		}
+
+		this.sessionStateDisposable.value = autorun(reader => {
+			const inProgress = model.requestInProgress.read(reader);
+			if (inProgress) {
+				DOM.show(this.shimmerRow);
+			} else {
+				DOM.hide(this.shimmerRow);
+			}
+		});
 	}
 
 	private refreshTree(filtered: IChatDebugEvent[]): void {
@@ -450,5 +491,6 @@ export class ChatDebugLogsView extends Disposable {
 	private updateMoreFiltersChecked(): void {
 		this.filterWidget.checkMoreFilters(!this.filterState.isAllFiltersDefault());
 	}
+
 
 }

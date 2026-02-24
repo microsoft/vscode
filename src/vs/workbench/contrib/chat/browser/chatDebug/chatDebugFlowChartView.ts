@@ -19,7 +19,7 @@ import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
-import { TextBreadcrumbItem } from './chatDebugTypes.js';
+import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { buildFlowGraph, filterFlowNodes, sliceFlowNodes, layoutFlowGraph, renderFlowChartSVG, FlowChartRenderResult } from './chatDebugFlowChart.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
@@ -98,6 +98,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		// Breadcrumb
 		const breadcrumbContainer = DOM.append(this.container, $('.chat-debug-breadcrumb'));
 		this.breadcrumbWidget = this._register(new BreadcrumbsWidget(breadcrumbContainer, 3, undefined, Codicon.chevronRight, defaultBreadcrumbsWidgetStyles));
+		this._register(setupBreadcrumbKeyboardNavigation(breadcrumbContainer, this.breadcrumbWidget));
 		this._register(this.breadcrumbWidget.onDidSelectItem(e => {
 			if (e.type === 'select' && e.item instanceof TextBreadcrumbItem) {
 				this.breadcrumbWidget.setSelection(undefined);

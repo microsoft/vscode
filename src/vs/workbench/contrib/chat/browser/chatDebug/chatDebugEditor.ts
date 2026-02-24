@@ -61,6 +61,9 @@ export class ChatDebugEditor extends EditorPane {
 	private readonly sessionModelListener = this._register(new MutableDisposable());
 	private readonly modelChangeListeners = this._register(new DisposableMap<string>());
 
+	/** Saved session resource so we can restore it after the editor is re-shown. */
+	private savedSessionResource: URI | undefined;
+
 	/**
 	 * Stops the streaming pipeline and clears cached events for the
 	 * active session. Called when navigating away from a session or
@@ -222,6 +225,7 @@ export class ChatDebugEditor extends EditorPane {
 		if (state === ViewState.Logs) {
 			this.logsView?.show();
 			this.doLayout();
+			this.logsView?.focus();
 		} else {
 			this.logsView?.hide();
 		}
@@ -294,20 +298,29 @@ export class ChatDebugEditor extends EditorPane {
 			if (options) {
 				this._applyNavigationOptions(options);
 			} else if (this.viewState === ViewState.Home) {
-				const sessionResource = this.chatDebugService.activeSessionResource;
+				// Restore the saved session resource if the editor was temporarily hidden
+				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
+				this.savedSessionResource = undefined;
 				if (sessionResource) {
 					this.navigateToSession(sessionResource, 'overview');
 				} else {
 					this.showView(ViewState.Home);
 				}
 			} else {
-				// Re-activate the streaming pipeline for the current session
-				const sessionResource = this.chatDebugService.activeSessionResource;
+				// Re-activate the streaming pipeline for the current session,
+				// restoring the saved session resource if the editor was temporarily hidden.
+				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
+				this.savedSessionResource = undefined;
 				if (sessionResource) {
+					this.chatDebugService.activeSessionResource = sessionResource;
 					this.chatDebugService.invokeProviders(sessionResource);
+				} else {
+					this.showView(ViewState.Home);
 				}
 			}
 		} else {
+			// Remember the active session so we can restore when re-shown
+			this.savedSessionResource = this.chatDebugService.activeSessionResource;
 			// Stop the streaming pipeline when the editor is hidden
 			this.endActiveSession();
 		}

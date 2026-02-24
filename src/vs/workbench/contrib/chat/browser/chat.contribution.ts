@@ -89,7 +89,7 @@ import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
-import { registerChatTroubleshootAction } from './actions/chatTroubleshootAction.js';
+import { registerChatOpenDebugPanelAction } from './actions/chatOpenDebugPanelAction.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
 import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
@@ -1612,7 +1612,7 @@ registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribu
 registerChatActions();
 registerChatAccessibilityActions();
 registerChatCopyActions();
-registerChatTroubleshootAction();
+registerChatOpenDebugPanelAction();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();
 registerChatFileTreeActions();

@@ -13,10 +13,14 @@
 .chat-debug-home {
 	display: flex;
 	flex-direction: column;
+	flex: 1;
+	overflow: hidden;
+}
+.chat-debug-home-content {
+	display: flex;
+	flex-direction: column;
 	align-items: center;
 	padding: 48px 24px;
-	overflow-y: auto;
-	flex: 1;
 }
 .chat-debug-home-title {
 	font-size: 18px;
@@ -123,7 +127,7 @@
 .chat-debug-overview {
 	display: flex;
 	flex-direction: column;
-	overflow-y: auto;
+	overflow: hidden;
 	flex: 1;
 }
 .chat-debug-overview-content {
@@ -324,6 +328,7 @@
 	overflow: hidden;
 }
 .chat-debug-logs-body {
+	position: relative;
 	display: flex;
 	flex-direction: row;
 	flex: 1;
@@ -365,11 +370,42 @@
 	background-color: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1)) !important;
 	color: var(--vscode-errorForeground) !important;
 }
+.monaco-tl-row:has(.chat-debug-log-row.chat-debug-log-error) {
+	background-color: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1)) !important;
+}
 .chat-debug-log-row.chat-debug-log-warning {
+	background-color: var(--vscode-inputValidation-warningBackground, rgba(255, 204, 0, 0.1)) !important;
+}
+.monaco-tl-row:has(.chat-debug-log-row.chat-debug-log-warning) {
 	background-color: var(--vscode-inputValidation-warningBackground, rgba(255, 204, 0, 0.1)) !important;
 }
 .chat-debug-log-row.chat-debug-log-trace {
 	opacity: 0.7;
+}
+.chat-debug-logs-shimmer-row {
+	position: absolute;
+	left: 0;
+	right: 0;
+	display: flex;
+	align-items: center;
+	padding: 0 16px;
+	height: 28px;
+	gap: 40px;
+	pointer-events: none;
+}
+.chat-debug-logs-shimmer-bar {
+	flex: 1;
+	height: 10px;
+	border-radius: 3px;
+	background: linear-gradient(
+		90deg,
+		var(--vscode-descriptionForeground) 25%,
+		var(--vscode-chat-thinkingShimmer, rgba(255, 255, 255, 0.3)) 50%,
+		var(--vscode-descriptionForeground) 75%
+	);
+	background-size: 200% 100%;
+	animation: chat-debug-shimmer 2s linear infinite;
+	opacity: 0.15;
 }
 .chat-debug-detail-panel {
 	flex-shrink: 0;
@@ -408,7 +444,6 @@
 }
 .chat-debug-detail-panel > pre {
 	flex: 1;
-	overflow-y: auto;
 	min-height: 0;
 }
 .chat-debug-detail-panel pre {
@@ -433,7 +468,6 @@
 }
 .chat-debug-file-list {
 	padding: 8px 16px;
-	overflow-y: auto;
 	font-size: 12px;
 	user-select: text;
 	-webkit-user-select: text;
@@ -474,7 +508,7 @@
 .chat-debug-file-list-row {
 	display: flex;
 	align-items: center;
-	padding: 2px 0;
+	padding: 2px 4px;
 	gap: 4px;
 	overflow: hidden;
 }
@@ -525,7 +559,6 @@
 }
 .chat-debug-message-content {
 	padding: 8px 16px;
-	overflow-y: auto;
 	font-size: 12px;
 	user-select: text;
 	-webkit-user-select: text;
@@ -584,6 +617,11 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+.chat-debug-message-section-content-wrapper {
+	border-top: 1px solid var(--vscode-widget-border, transparent);
+	max-height: 300px;
+	overflow: hidden;
+}
 .chat-debug-message-section-content {
 	margin: 0;
 	padding: 8px 12px;
@@ -591,9 +629,6 @@
 	word-break: break-word;
 	font-size: 12px;
 	font-family: var(--vscode-chat-font-family, monospace);
-	border-top: 1px solid var(--vscode-widget-border, transparent);
-	max-height: 300px;
-	overflow-y: auto;
 	background: transparent;
 	outline: none;
 }
@@ -607,18 +642,17 @@
 }
 
 /* ---- File list: settings gear button ---- */
-.chat-debug-settings-gear {
-	cursor: pointer;
+.chat-debug-settings-gear.monaco-button {
 	flex-shrink: 0;
 	opacity: 0.7;
 	border-radius: 3px;
 	padding: 2px;
+	background: none;
+	border: none;
+	color: inherit;
+	min-width: auto;
 }
-.chat-debug-settings-gear:hover {
-	opacity: 1;
-	background: var(--vscode-toolbar-hoverBackground);
-}
-.chat-debug-settings-gear-hover-active {
+.chat-debug-settings-gear.monaco-button:hover {
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
 }

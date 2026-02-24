@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { BreadcrumbsItem } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { BreadcrumbsItem, BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
@@ -79,4 +80,42 @@ export class TextBreadcrumbItem extends BreadcrumbsItem {
 		}
 		DOM.append(container, $('span.chat-debug-breadcrumb-item-label', undefined, this._text));
 	}
+}
+
+/**
+ * Wire up Left/Right arrow, Home/End, and Enter keyboard navigation
+ * on a BreadcrumbsWidget container.
+ */
+export function setupBreadcrumbKeyboardNavigation(container: HTMLElement, widget: BreadcrumbsWidget): IDisposable {
+	return DOM.addDisposableListener(container, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		switch (e.key) {
+			case 'ArrowLeft':
+				e.preventDefault();
+				widget.focusPrev();
+				break;
+			case 'ArrowRight':
+				e.preventDefault();
+				widget.focusNext();
+				break;
+			case 'Home':
+				e.preventDefault();
+				widget.setFocused(widget.getItems()[0]);
+				break;
+			case 'End': {
+				e.preventDefault();
+				const items = widget.getItems();
+				widget.setFocused(items[items.length - 1]);
+				break;
+			}
+			case 'Enter':
+			case ' ': {
+				e.preventDefault();
+				const focused = widget.getFocused();
+				if (focused) {
+					widget.setSelection(focused);
+				}
+				break;
+			}
+		}
+	});
 }
