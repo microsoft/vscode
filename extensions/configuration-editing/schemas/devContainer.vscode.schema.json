@@ -28,6 +28,11 @@
 						"devPort": {
 							"type": "integer",
 							"description": "The port VS Code can use to connect to its backend."
+						},
+						"workspaceFile": {
+							"type": "string",
+							"description": "Path to a .code-workspace file to open instead of the workspaceFolder. Relative paths are resolved against the workspaceFolder. If the file does not exist, VS Code falls back to opening the workspaceFolder with a warning.",
+							"pattern": ".*\\.code-workspace$"
 						}
 					}
 				}
@@ -55,6 +60,13 @@
 			"description": "The port VS Code can use to connect to its backend.",
 			"deprecated": true,
 			"deprecationMessage": "Use 'customizations/vscode/devPort' instead"
+		},
+		"workspaceFile": {
+			"type": "string",
+			"description": "Path to a .code-workspace file to open instead of the workspaceFolder.",
+			"pattern": ".*\\.code-workspace$",
+			"deprecated": true,
+			"deprecationMessage": "Use 'customizations/vscode/workspaceFile' instead"
 		}
 	}
 }

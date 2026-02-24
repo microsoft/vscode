@@ -262,6 +262,13 @@ export interface IWorkbenchConstructionOptions {
 	readonly enableWorkspaceTrust?: boolean;
 
 	/**
+	 * Indicates that the specified workspace file was not found and
+	 * VS Code fell back to opening the workspace folder instead.
+	 * Used to show a warning notification to the user.
+	 */
+	readonly workspaceFileFallback?: boolean;
+
+	/**
 	 * Urls that will be opened externally that are allowed access
 	 * to the opener window. This is primarily used to allow
 	 * `window.close()` to be called from the newly opened window.
