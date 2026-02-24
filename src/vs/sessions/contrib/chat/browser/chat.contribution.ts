@@ -19,8 +19,6 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
-import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
@@ -117,55 +115,6 @@ class NewChatInSessionsWindowAction extends Action2 {
 }
 
 registerAction2(NewChatInSessionsWindowAction);
-
-export class OpenSessionInTerminalAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'agentSession.openInTerminal',
-			title: localize2('openInTerminal', "Open Terminal"),
-			icon: Codicon.terminal,
-			menu: [{
-				id: Menus.OpenSubMenu,
-				group: 'navigation',
-				order: 1,
-			}]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor,): Promise<void> {
-		const terminalService = accessor.get(ITerminalService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const pathService = accessor.get(IPathService);
-
-		const activeSession = sessionsManagementService.activeSession.get();
-		const cwd = (isAgentSession(activeSession) && activeSession.providerType !== AgentSessionProviders.Cloud
-			? activeSession.worktree
-			: undefined) ?? await pathService.userHome();
-
-		// Try to reuse an existing idle terminal with the same cwd
-		const cwdPath = cwd.fsPath;
-		let reusable: ITerminalInstance | undefined;
-		for (const instance of terminalService.instances) {
-			if (instance.cwd && instance.cwd.toLowerCase() === cwdPath.toLowerCase() && !instance.hasChildProcesses) {
-				reusable = instance;
-				break;
-			}
-		}
-
-		if (reusable) {
-			terminalService.setActiveInstance(reusable);
-		} else {
-			const instance = await terminalService.createTerminal({ config: { cwd } });
-			if (instance) {
-				terminalService.setActiveInstance(instance);
-			}
-		}
-		await terminalService.focusActiveInstance();
-	}
-}
-
-registerAction2(OpenSessionInTerminalAction);
 
 // Register the split button menu item that combines Open in VS Code and Open in Terminal
 MenuRegistry.appendMenuItem(Menus.TitleBarRight, {

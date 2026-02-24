@@ -3,14 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
+import { Menus } from '../../../browser/menus.js';
+import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+
+/**
+ * Returns the cwd URI for the given session: worktree for non-cloud agent
+ * sessions, repository otherwise, or `undefined` when neither is available.
+ */
+function getSessionCwd(session: IActiveSessionItem | undefined): URI | undefined {
+	if (isAgentSession(session) && session.providerType !== AgentSessionProviders.Cloud) {
+		return session.worktree ?? session.repository;
+	}
+	return session?.repository;
+}
+
+/**
+ * Finds or creates a terminal for `cwd`, sets it active, and optionally
+ * focuses it. Returns the terminal instance.
+ */
+async function ensureTerminalForCwd(
+	cwd: URI,
+	terminalService: ITerminalService,
+	terminalGroupService: ITerminalGroupService,
+	focus: boolean,
+): Promise<ITerminalInstance> {
+	const cwdPath = cwd.fsPath;
+	let reusable: ITerminalInstance | undefined;
+	for (const instance of terminalGroupService.instances) {
+		if (instance.cwd && instance.cwd.toLowerCase() === cwdPath.toLowerCase()) {
+			reusable = instance;
+			break;
+		}
+	}
+
+	let active: ITerminalInstance;
+	if (reusable) {
+		active = reusable;
+	} else {
+		active = await terminalService.createTerminal({ config: { cwd } });
+	}
+	terminalService.setActiveInstance(active);
+	if (focus) {
+		await terminalService.focusActiveInstance();
+	}
+	return active;
+}
 
 /**
  * Manages terminal instances in the sessions window, ensuring:
@@ -39,7 +90,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// React to active session worktree/repository path changes
 		this._register(autorun(reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
-			const targetPath = session?.worktree ?? session?.repository;
+			const targetPath = getSessionCwd(session);
 			this._onActivePathChanged(targetPath);
 		}));
 
@@ -130,3 +181,32 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 }
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
+
+export class OpenSessionInTerminalAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSession.openInTerminal',
+			title: localize2('openInTerminal', "Open Terminal"),
+			icon: Codicon.terminal,
+			menu: [{
+				id: Menus.OpenSubMenu,
+				group: 'navigation',
+				order: 1,
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const terminalGroupService = accessor.get(ITerminalGroupService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const pathService = accessor.get(IPathService);
+
+		const activeSession = sessionsManagementService.activeSession.get();
+		const cwd = getSessionCwd(activeSession) ?? await pathService.userHome();
+		await ensureTerminalForCwd(cwd, terminalService, terminalGroupService, true);
+	}
+}
+
+registerAction2(OpenSessionInTerminalAction);
