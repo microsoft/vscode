@@ -11,11 +11,11 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
@@ -32,56 +32,22 @@ function getSessionCwd(session: IActiveSessionItem | undefined): URI | undefined
 }
 
 /**
- * Finds or creates a terminal for `cwd`, sets it active, and optionally
- * focuses it. Returns the terminal instance.
- */
-async function ensureTerminalForCwd(
-	cwd: URI,
-	terminalService: ITerminalService,
-	terminalGroupService: ITerminalGroupService,
-	focus: boolean,
-): Promise<ITerminalInstance> {
-	const cwdPath = cwd.fsPath;
-	let reusable: ITerminalInstance | undefined;
-	for (const instance of terminalGroupService.instances) {
-		if (instance.cwd && instance.cwd.toLowerCase() === cwdPath.toLowerCase()) {
-			reusable = instance;
-			break;
-		}
-	}
-
-	let active: ITerminalInstance;
-	if (reusable) {
-		active = reusable;
-	} else {
-		active = await terminalService.createTerminal({ config: { cwd } });
-	}
-	terminalService.setActiveInstance(active);
-	if (focus) {
-		await terminalService.focusActiveInstance();
-	}
-	return active;
-}
-
-/**
  * Manages terminal instances in the sessions window, ensuring:
  * - A terminal exists for the active session's worktree (or repository if no worktree).
- * - Terminals from other worktrees are hidden (or closed if hiding is not possible)
- *   when they are not actively running.
- * - Hidden terminals are unhidden when switching back to their worktree.
+ * - A path→instanceId mapping tracks which terminal belongs to which worktree.
  * - All terminals for a worktree are closed when the session is archived.
  */
 export class SessionsTerminalContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsTerminal';
 
-	private readonly _hiddenInstances = new Set<number>();
+	/** Maps worktree/repository fsPath (lower-cased) to the terminal instance id. */
+	private readonly _pathToInstanceId = new Map<string, number>();
 	private _lastTargetFsPath: string | undefined;
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@ILogService private readonly _logService: ILogService,
 	) {
@@ -104,10 +70,39 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}));
 
-		// Clean up hidden tracking when terminals are disposed
-		this._register(this._terminalGroupService.onDidDisposeInstance(instance => {
-			this._hiddenInstances.delete(instance.instanceId);
+		// Clean up mapping when terminals are disposed
+		this._register(this._terminalService.onDidDisposeInstance(instance => {
+			for (const [path, id] of this._pathToInstanceId) {
+				if (id === instance.instanceId) {
+					this._pathToInstanceId.delete(path);
+					break;
+				}
+			}
 		}));
+	}
+
+	/**
+	 * Ensures a terminal exists for the given cwd, reusing an existing one
+	 * from the mapping or creating a new one. Sets it as active and optionally
+	 * focuses it.
+	 */
+	async ensureTerminal(cwd: URI, focus: boolean): Promise<void> {
+		const key = cwd.fsPath.toLowerCase();
+		const existingId = this._pathToInstanceId.get(key);
+		const existing = existingId !== undefined ? this._terminalService.getInstanceFromId(existingId) : undefined;
+
+		if (existing) {
+			this._terminalService.setActiveInstance(existing);
+		} else {
+			const instance = await this._terminalService.createTerminal({ config: { cwd } });
+			this._pathToInstanceId.set(key, instance.instanceId);
+			this._terminalService.setActiveInstance(instance);
+			this._logService.trace(`[SessionsTerminal] Created terminal ${instance.instanceId} for ${cwd.fsPath}`);
+		}
+
+		if (focus) {
+			await this._terminalService.focusActiveInstance();
+		}
 	}
 
 	private async _onActivePathChanged(targetPath: URI | undefined): Promise<void> {
@@ -121,68 +116,26 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 		this._lastTargetFsPath = targetFsPath;
 
-		let existingInstance: ITerminalInstance | undefined;
-
-		// Iterate over a snapshot to avoid issues when modifying the list
-		for (const instance of [...this._terminalGroupService.instances]) {
-			if (this._matchesCwd(instance, targetFsPath)) {
-				existingInstance ??= instance;
-				// Unhide if this terminal was previously hidden
-				if (this._hiddenInstances.has(instance.instanceId)) {
-					this._unhideTerminal(instance);
-				}
-			} else if (!instance.hasChildProcesses) {
-				this._hideOrCloseTerminal(instance);
-			}
-		}
-
-		if (existingInstance) {
-			this._terminalService.setActiveInstance(existingInstance);
-		} else {
-			const instance = await this._terminalService.createTerminal({ config: { cwd: targetPath } });
-			this._terminalService.setActiveInstance(instance);
-		}
-	}
-
-	private _unhideTerminal(instance: ITerminalInstance): void {
-		const group = this._terminalGroupService.getGroupForInstance(instance);
-		if (group) {
-			group.setVisible(true);
-			this._hiddenInstances.delete(instance.instanceId);
-			this._logService.trace(`[SessionsTerminal] Unhid terminal ${instance.instanceId}`);
-		}
-	}
-
-	private _hideOrCloseTerminal(instance: ITerminalInstance): void {
-		const group = this._terminalGroupService.getGroupForInstance(instance);
-		if (group) {
-			group.setVisible(false);
-			this._hiddenInstances.add(instance.instanceId);
-			this._logService.trace(`[SessionsTerminal] Hid terminal ${instance.instanceId}`);
-		} else {
-			this._terminalService.safeDisposeTerminal(instance);
-			this._logService.trace(`[SessionsTerminal] Closed terminal ${instance.instanceId} (no group)`);
-		}
+		await this.ensureTerminal(targetPath, false);
 	}
 
 	private _closeTerminalsForPath(fsPath: string): void {
-		for (const instance of [...this._terminalGroupService.instances]) {
-			if (this._matchesCwd(instance, fsPath)) {
-				this._hiddenInstances.delete(instance.instanceId);
+		const key = fsPath.toLowerCase();
+		const instanceId = this._pathToInstanceId.get(key);
+		if (instanceId !== undefined) {
+			const instance = this._terminalService.getInstanceFromId(instanceId);
+			if (instance) {
 				this._terminalService.safeDisposeTerminal(instance);
-				this._logService.trace(`[SessionsTerminal] Closed archived terminal ${instance.instanceId}`);
+				this._logService.trace(`[SessionsTerminal] Closed archived terminal ${instanceId}`);
 			}
+			this._pathToInstanceId.delete(key);
 		}
-	}
-
-	private _matchesCwd(instance: ITerminalInstance, fsPath: string): boolean {
-		return !!instance.cwd && instance.cwd.toLowerCase() === fsPath.toLowerCase();
 	}
 }
 
 registerWorkbenchContribution2(SessionsTerminalContribution.ID, SessionsTerminalContribution, WorkbenchPhase.AfterRestored);
 
-export class OpenSessionInTerminalAction extends Action2 {
+class OpenSessionInTerminalAction extends Action2 {
 
 	constructor() {
 		super({
@@ -197,15 +150,14 @@ export class OpenSessionInTerminalAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const terminalService = accessor.get(ITerminalService);
-		const terminalGroupService = accessor.get(ITerminalGroupService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const pathService = accessor.get(IPathService);
+	override async run(_accessor: ServicesAccessor): Promise<void> {
+		const contribution = getWorkbenchContribution<SessionsTerminalContribution>(SessionsTerminalContribution.ID);
+		const sessionsManagementService = _accessor.get(ISessionsManagementService);
+		const pathService = _accessor.get(IPathService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
 		const cwd = getSessionCwd(activeSession) ?? await pathService.userHome();
-		await ensureTerminalForCwd(cwd, terminalService, terminalGroupService, true);
+		await contribution.ensureTerminal(cwd, true);
 	}
 }
 
