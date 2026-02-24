@@ -197,6 +197,7 @@ import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changesView/browser/changesView.contribution.js';
 import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
 import './contrib/configuration/browser/configuration.contribution.js';
+import './contrib/welcome/browser/welcome.contribution.js';
 
 //#endregion
 
