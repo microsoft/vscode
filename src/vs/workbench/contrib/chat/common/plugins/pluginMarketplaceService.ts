@@ -137,6 +137,8 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 			return cached;
 		}
 
+		let repoMayBePrivate = true;
+
 		for (const def of MARKETPLACE_DEFINITIONS) {
 			if (token.isCancellationRequested) {
 				return [];
@@ -146,11 +148,7 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 				const context = await this._requestService.request({ type: 'GET', url }, token);
 				const statusCode = context.res.statusCode;
 				if (statusCode !== 200) {
-					if (statusCode !== undefined && statusCode >= 401 && statusCode <= 404) {
-						this._logService.debug(`[PluginMarketplaceService] ${url} returned status ${statusCode}, attempting clone-based marketplace discovery`);
-						return this._fetchFromClonedRepo(reference, token);
-					}
-
+					repoMayBePrivate &&= statusCode !== undefined && statusCode >= 400 && statusCode < 500;
 					this._logService.debug(`[PluginMarketplaceService] ${url} returned status ${statusCode}, skipping`);
 					continue;
 				}
@@ -195,6 +193,12 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 				continue;
 			}
 		}
+
+		if (repoMayBePrivate) {
+			this._logService.debug(`[PluginMarketplaceService] ${repo} may be private, attempting clone-based marketplace discovery`);
+			return this._fetchFromClonedRepo(reference, token);
+		}
+
 		this._logService.debug(`[PluginMarketplaceService] No marketplace.json found in ${repo}`);
 		return [];
 	}
@@ -257,13 +261,11 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 				continue;
 			}
 
-			const dtoEntry: Dto<IGitHubMarketplaceCacheEntry> = JSON.parse(JSON.stringify({
+			serialized[cacheKey] = {
 				expiresAt: entry.expiresAt,
 				referenceRawValue: entry.referenceRawValue,
 				plugins: entry.plugins,
-			}));
-
-			serialized[cacheKey] = dtoEntry;
+			};
 		}
 
 		if (Object.keys(serialized).length === 0) {
@@ -462,12 +464,7 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 }
 
 function normalizeGitRepoPath(path: string): string | undefined {
-	const normalized = path.replace(/\/+/g, '/');
-	if (!normalized.toLowerCase().endsWith('.git')) {
-		return undefined;
-	}
-
-	const trimmed = normalized.replace(/\/+/g, '/').replace(/\/+$/g, '');
+	const trimmed = path.replace(/\/+/g, '/').replace(/\/+$/g, '');
 	if (!trimmed.toLowerCase().endsWith('.git')) {
 		return undefined;
 	}

@@ -63,7 +63,7 @@ suite('AgentPluginRepositoryService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(INotificationService, { notify: () => undefined } as unknown as INotificationService);
 		instantiationService.stub(IProgressService, progressService);
-		instantiationService.stub(IStorageService, new InMemoryStorageService());
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 
 		return instantiationService.createInstance(AgentPluginRepositoryService);
 	}
@@ -118,7 +118,7 @@ suite('AgentPluginRepositoryService', () => {
 	});
 
 	test('uses indexed repository URI when available', () => {
-		const storage = new InMemoryStorageService();
+		const storage = store.add(new InMemoryStorageService());
 		storage.store('chat.plugins.marketplaces.index.v1', JSON.stringify({
 			'github:microsoft/vscode': {
 				repositoryUri: URI.file('/cache/agentPlugins/indexed/microsoft/vscode'),

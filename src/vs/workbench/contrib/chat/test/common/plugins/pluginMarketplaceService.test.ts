@@ -72,6 +72,17 @@ suite('PluginMarketplaceService', () => {
 		assert.strictEqual(parseMarketplaceReference('git@example.com:org/repo'), undefined);
 	});
 
+	test('parses HTTPS URI with trailing slash after .git', () => {
+		const parsed = parseMarketplaceReference('https://example.com/org/repo.git/');
+		assert.ok(parsed);
+		if (!parsed) {
+			return;
+		}
+		assert.strictEqual(parsed.kind, MarketplaceReferenceKind.GitUri);
+		assert.strictEqual(parsed.canonicalId, 'git:example.com/org/repo.git');
+		assert.deepStrictEqual(parsed.cacheSegments, ['example.com', 'org', 'repo']);
+	});
+
 	test('deduplicates equivalent Git URI forms but keeps shorthand distinct', () => {
 		const parsed = parseMarketplaceReferences([
 			'microsoft/vscode',
@@ -79,8 +90,15 @@ suite('PluginMarketplaceService', () => {
 			'git@github.com:microsoft/vscode.git',
 		]);
 
-		assert.strictEqual(parsed.length, 2);
+		assert.deepStrictEqual(parsed.map(r => r.canonicalId), [
+			'github:microsoft/vscode',
+			'git:github.com/microsoft/vscode.git',
+		]);
+	});
+
+	test('parseMarketplaceReferences ignores non-string entries', () => {
+		const parsed = parseMarketplaceReferences([null, 42, {}, 'microsoft/vscode']);
+		assert.strictEqual(parsed.length, 1);
 		assert.strictEqual(parsed[0].canonicalId, 'github:microsoft/vscode');
-		assert.strictEqual(parsed[1].canonicalId, 'git:github.com/microsoft/vscode.git');
 	});
 });
