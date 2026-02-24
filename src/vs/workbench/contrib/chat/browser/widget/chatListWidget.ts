@@ -839,7 +839,11 @@ export class ChatListWidget extends Disposable {
 			this._container.style.removeProperty('--chat-current-response-min-height');
 		} else {
 			const secondToLastItem = this._viewModel?.getItems().at(-2);
-			const secondToLastItemHeight = Math.min((isRequestVM(secondToLastItem) || isResponseVM(secondToLastItem)) ? secondToLastItem.currentRenderedHeight ?? 150 : 150, 150);
+			const maxRequestShownHeight = 200;
+			const secondToLastItemHeight = Math.min(
+				(isRequestVM(secondToLastItem) || isResponseVM(secondToLastItem)) ?
+					secondToLastItem.currentRenderedHeight ?? 150 : 150,
+				maxRequestShownHeight);
 			const lastItemMinHeight = Math.max(contentHeight - (secondToLastItemHeight + 10), 0);
 			this._container.style.setProperty('--chat-current-response-min-height', lastItemMinHeight + 'px');
 			if (lastItemMinHeight !== this._previousLastItemMinHeight) {

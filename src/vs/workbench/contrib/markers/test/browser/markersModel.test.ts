@@ -34,19 +34,45 @@ suite('MarkersModel Test', () => {
 
 	test('marker ids are unique', function () {
 		const marker1 = anErrorWithRange(3);
-		const marker2 = anErrorWithRange(3);
+		const marker2 = anErrorWithRange(3, 5, 4, 10, 'different message');
 		const marker3 = aWarningWithRange(3);
-		const marker4 = aWarningWithRange(3);
+		const marker4 = aWarningWithRange(5);
 
 		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4]);
 		const actuals = testObject.resourceMarkers[0].markers;
 
+		assert.strictEqual(actuals.length, 4);
 		assert.notStrictEqual(actuals[0].id, actuals[1].id);
 		assert.notStrictEqual(actuals[0].id, actuals[2].id);
 		assert.notStrictEqual(actuals[0].id, actuals[3].id);
 		assert.notStrictEqual(actuals[1].id, actuals[2].id);
 		assert.notStrictEqual(actuals[1].id, actuals[3].id);
 		assert.notStrictEqual(actuals[2].id, actuals[3].id);
+	});
+
+	test('duplicate markers from different owners are deduplicated', function () {
+		// Simulate a task problem matcher and language extension both reporting
+		// the same diagnostic for the same file (#244424).
+		const taskMarker = aMarker('some resource', MarkerSeverity.Error, 10, 5, 11, 10, 'some message', 'eslint');
+		taskMarker.owner = 'taskOwner';
+		const extensionMarker = aMarker('some resource', MarkerSeverity.Error, 10, 5, 11, 10, 'some message', 'eslint');
+		extensionMarker.owner = 'extensionOwner';
+
+		const testObject = new TestMarkersModel([taskMarker, extensionMarker]);
+		const actuals = testObject.resourceMarkers[0].markers;
+
+		assert.strictEqual(actuals.length, 1, 'identical markers from different owners should be deduplicated');
+		assert.strictEqual(actuals[0].marker.message, 'some message');
+	});
+
+	test('markers with different messages are not deduplicated', function () {
+		const marker1 = aMarker('some resource', MarkerSeverity.Error, 10, 5, 11, 10, 'message without period', 'eslint');
+		const marker2 = aMarker('some resource', MarkerSeverity.Error, 10, 5, 11, 10, 'message with period.', 'eslint');
+
+		const testObject = new TestMarkersModel([marker1, marker2]);
+		const actuals = testObject.resourceMarkers[0].markers;
+
+		assert.strictEqual(actuals.length, 2, 'markers with different messages should not be deduplicated');
 	});
 
 	test('sort palces resources with no errors at the end', function () {

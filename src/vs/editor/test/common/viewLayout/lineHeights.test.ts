@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { LineHeightsManager } from '../../../common/viewLayout/lineHeights.js';
+import { CustomLineHeightData, LineHeightsManager } from '../../../common/viewLayout/lineHeights.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('Editor ViewLayout - LineHeightsManager', () => {
@@ -275,5 +275,27 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		assert.strictEqual(manager.heightForLineNumber(4), 40);
 		assert.strictEqual(manager.heightForLineNumber(5), 40);
 		assert.strictEqual(manager.heightForLineNumber(6), 30);
+	});
+
+	test('onLinesInserted with same decoration ID extending to inserted line', () => {
+		const manager = new LineHeightsManager(10, []);
+		// Set up a special line at line 1 with decoration 'decA'
+		manager.insertOrChangeCustomLineHeight('decA', 1, 1, 30);
+		manager.commit();
+
+		assert.strictEqual(manager.heightForLineNumber(1), 30);
+		assert.strictEqual(manager.heightForLineNumber(2), 10);
+
+		// Insert line 2 to line 2, with the same decoration ID 'decA' covering line 2
+		manager.onLinesInserted(2, 2, [
+			new CustomLineHeightData('decA', 2, 2, 30)
+		]);
+
+		// After insertion, the decoration 'decA' now covers line 2
+		// Since insertOrChangeCustomLineHeight removes the old decoration first,
+		// line 1 no longer has the custom height, and line 2 gets it
+		assert.strictEqual(manager.heightForLineNumber(1), 10);
+		assert.strictEqual(manager.heightForLineNumber(2), 30);
+		assert.strictEqual(manager.heightForLineNumber(3), 10);
 	});
 });

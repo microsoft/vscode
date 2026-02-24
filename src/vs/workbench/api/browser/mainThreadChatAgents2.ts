@@ -39,7 +39,7 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 
 interface AgentData {
@@ -194,9 +194,34 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				const chatSession = this._chatService.getSession(request.sessionResource);
 				this._pendingProgress.set(request.requestId, { progress, chatSession });
 				try {
+					const contributedSession = chatSession?.contributedChatSession;
+					let chatSessionContext: IChatSessionContextDto | undefined;
+					if (contributedSession) {
+						let chatSessionResource = contributedSession.chatSessionResource;
+						let isUntitled = contributedSession.isUntitled;
+
+						// For new untitled sessions, invoke the controller's newChatSessionItemHandler
+						// to let the extension create a proper session item before the first request.
+						if (isUntitled) {
+							const newItem = await this._chatSessionService.createNewChatSessionItem(contributedSession.chatSessionType, request, token);
+							if (newItem) {
+								chatSessionResource = newItem.resource;
+								isUntitled = false;
+							}
+						}
+
+						chatSessionContext = {
+							chatSessionResource,
+							isUntitled,
+							initialSessionOptions: contributedSession.initialSessionOptions?.map(o => ({
+								optionId: o.optionId,
+								value: typeof o.value === 'string' ? o.value : o.value.id,
+							})),
+						};
+					}
 					return await this._proxy.$invokeAgent(handle, request, {
 						history,
-						chatSessionContext: chatSession?.contributedChatSession
+						chatSessionContext,
 					}, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
@@ -205,8 +230,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			setRequestTools: (requestId, tools) => {
 				this._proxy.$setRequestTools(requestId, tools);
 			},
-			setYieldRequested: (requestId) => {
-				this._proxy.$setYieldRequested(requestId);
+			setYieldRequested: (requestId, value) => {
+				this._proxy.$setYieldRequested(requestId, value);
 			},
 			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {

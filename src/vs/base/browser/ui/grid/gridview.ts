@@ -738,6 +738,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		}
 
 		this._onDidChange.dispose();
+		this._onDidScroll.dispose();
 		this._onDidSashReset.dispose();
 		this._onDidVisibilityChange.dispose();
 
@@ -933,6 +934,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	dispose(): void {
+		this._onDidSetLinkedNode.dispose();
 		this.disposables.dispose();
 	}
 }
@@ -1832,6 +1834,7 @@ export class GridView implements IDisposable {
 	}
 
 	dispose(): void {
+		this._onDidChangeViewMaximized.dispose();
 		this.onDidSashResetRelay.dispose();
 		this.root.dispose();
 		this.element.remove();

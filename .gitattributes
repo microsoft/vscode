@@ -9,3 +9,5 @@ ThirdPartyNotices.txt eol=crlf
 *.sh eol=lf
 *.rtf -text
 **/*.json linguist-language=jsonc
+
+test/componentFixtures/.screenshots/**/*.png filter=lfs diff=lfs merge=lfs -text

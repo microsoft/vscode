@@ -76,6 +76,7 @@ interface IAgentSessionItemTemplate {
 }
 
 export interface IAgentSessionRendererOptions {
+	readonly disableHover?: boolean;
 	getHoverPosition(): HoverPosition;
 }
 
@@ -111,10 +112,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
-						h('div.agent-session-status@statusContainer', [
-							h('span.agent-session-status-provider-icon@statusProviderIcon'),
-							h('span.agent-session-status-time@statusTime')
-						]),
 						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
@@ -123,9 +120,15 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 								h('span.agent-session-diff-added@addedSpan'),
 								h('span.agent-session-diff-removed@removedSpan')
 							]),
-						h('div.agent-session-badge@badge'),
-						h('span.agent-session-separator@separator'),
 						h('div.agent-session-description@description'),
+						h('div.agent-session-details-right', [
+							h('div.agent-session-badge@badge'),
+							h('span.agent-session-separator@separator'),
+							h('div.agent-session-status@statusContainer', [
+								h('span.agent-session-status-provider-icon@statusProviderIcon'),
+								h('span.agent-session-status-time@statusTime')
+							]),
+						]),
 					])
 				])
 			]
@@ -215,11 +218,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Description (unless diff is shown)
 		if (!hasDiff) {
-			this.renderDescription(session, template, hasBadge);
+			this.renderDescription(session, template);
 		}
 
-		// Separator (dot between badge and description)
-		template.separator.classList.toggle('has-separator', hasBadge && !hasDiff);
+		// Separator (dot between badge and timestamp)
+		template.separator.classList.toggle('has-separator', hasBadge);
 
 		// Status
 		this.renderStatus(session, template);
@@ -290,35 +293,32 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return Codicon.circleSmallFilled;
 	}
 
-	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate, hasBadge: boolean): void {
+	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 		const description = session.element.description;
 		if (description) {
 			this.renderMarkdownOrText(description, template.description, template.elementDisposable);
+			return;
 		}
 
 		// Fallback to state label
-		else {
-			if (session.element.status === AgentSessionStatus.InProgress) {
-				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
-			} else if (session.element.status === AgentSessionStatus.NeedsInput) {
-				template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
-			} else if (hasBadge && session.element.status === AgentSessionStatus.Completed) {
-				template.description.textContent = ''; // no description if completed and has badge
-			} else if (
-				session.element.timing.lastRequestEnded &&
-				session.element.timing.lastRequestStarted &&
-				session.element.timing.lastRequestEnded > session.element.timing.lastRequestStarted
-			) {
-				const duration = this.toDuration(session.element.timing.lastRequestStarted, session.element.timing.lastRequestEnded, false, true);
+		if (session.element.status === AgentSessionStatus.InProgress) {
+			template.description.textContent = localize('chat.session.status.inProgress', "Working...");
+		} else if (session.element.status === AgentSessionStatus.NeedsInput) {
+			template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
+		} else if (
+			session.element.timing.lastRequestEnded &&
+			session.element.timing.lastRequestStarted &&
+			session.element.timing.lastRequestEnded > session.element.timing.lastRequestStarted
+		) {
+			const duration = this.toDuration(session.element.timing.lastRequestStarted, session.element.timing.lastRequestEnded, false, true);
 
-				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-					localize('chat.session.status.failedAfter', "Failed after {0}", duration) :
-					localize('chat.session.status.completedAfter', "Completed in {0}", duration);
-			} else {
-				template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
-					localize('chat.session.status.failed', "Failed") :
-					localize('chat.session.status.completed', "Completed");
-			}
+			template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
+				localize('chat.session.status.failedAfter', "Failed after {0}", duration) :
+				localize('chat.session.status.completedAfter', "Completed in {0}", duration);
+		} else {
+			template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
+				localize('chat.session.status.failed', "Failed") :
+				localize('chat.session.status.completed', "Completed");
 		}
 	}
 
@@ -363,6 +363,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		if (this.options.disableHover) {
+			return;
+		}
+
 		if (!isSessionInProgressStatus(session.element.status) && session.element.isRead()) {
 			return; // the hover is complex and large, for now limit it to in-progress sessions only
 		}
@@ -502,7 +506,7 @@ export class AgentSessionSectionRenderer implements ICompressibleTreeRenderer<IA
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSessionListItem> {
 
-	static readonly ITEM_HEIGHT = 44;
+	static readonly ITEM_HEIGHT = 54;
 	static readonly SECTION_HEIGHT = 26;
 
 	getHeight(element: AgentSessionListItem): number {
@@ -688,7 +692,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		if (othersSessions.length > 0) {
 			result.push({
 				section: AgentSessionSection.More,
-				label: localize('agentSessions.moreSectionWithCount', "More ({0})", othersSessions.length),
+				label: AgentSessionSectionLabels[AgentSessionSection.More],
 				sessions: othersSessions
 			});
 		}
@@ -713,7 +717,6 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 }
 
 export const AgentSessionSectionLabels = {
-	[AgentSessionSection.InProgress]: localize('agentSessions.inProgressSection', "In progress"),
 	[AgentSessionSection.Today]: localize('agentSessions.todaySection', "Today"),
 	[AgentSessionSection.Yesterday]: localize('agentSessions.yesterdaySection', "Yesterday"),
 	[AgentSessionSection.Week]: localize('agentSessions.weekSection', "Last 7 days"),
@@ -731,7 +734,6 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	const startOfYesterday = startOfToday - DAY_THRESHOLD;
 	const weekThreshold = now - WEEK_THRESHOLD;
 
-	const inProgressSessions: IAgentSession[] = [];
 	const todaySessions: IAgentSession[] = [];
 	const yesterdaySessions: IAgentSession[] = [];
 	const weekSessions: IAgentSession[] = [];
@@ -741,8 +743,6 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	for (const session of sessions) {
 		if (session.isArchived()) {
 			archivedSessions.push(session);
-		} else if (isSessionInProgressStatus(session.status)) {
-			inProgressSessions.push(session);
 		} else {
 			const sessionTime = getAgentSessionTime(session.timing);
 			if (sessionTime >= startOfToday) {
@@ -758,12 +758,11 @@ export function groupAgentSessionsByDate(sessions: IAgentSession[]): Map<AgentSe
 	}
 
 	return new Map<AgentSessionSection, IAgentSessionSection>([
-		[AgentSessionSection.InProgress, { section: AgentSessionSection.InProgress, label: AgentSessionSectionLabels[AgentSessionSection.InProgress], sessions: inProgressSessions }],
 		[AgentSessionSection.Today, { section: AgentSessionSection.Today, label: AgentSessionSectionLabels[AgentSessionSection.Today], sessions: todaySessions }],
 		[AgentSessionSection.Yesterday, { section: AgentSessionSection.Yesterday, label: AgentSessionSectionLabels[AgentSessionSection.Yesterday], sessions: yesterdaySessions }],
 		[AgentSessionSection.Week, { section: AgentSessionSection.Week, label: AgentSessionSectionLabels[AgentSessionSection.Week], sessions: weekSessions }],
 		[AgentSessionSection.Older, { section: AgentSessionSection.Older, label: AgentSessionSectionLabels[AgentSessionSection.Older], sessions: olderSessions }],
-		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: localize('agentSessions.archivedSectionWithCount', "Archived ({0})", archivedSessions.length), sessions: archivedSessions }],
+		[AgentSessionSection.Archived, { section: AgentSessionSection.Archived, label: AgentSessionSectionLabels[AgentSessionSection.Archived], sessions: archivedSessions }],
 	]);
 }
 

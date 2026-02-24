@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { API } from '../../tsServer/api';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
-import { hasModifiedUnifiedConfig } from '../../utils/configuration';
+import { hasModifiedUnifiedConfig, readUnifiedConfig, ReadUnifiedConfigOptions } from '../../utils/configuration';
 import { Disposable } from '../../utils/dispose';
 
 export class Condition extends Disposable {
@@ -90,19 +90,6 @@ export function requireMinVersion(
 	);
 }
 
-export function requireGlobalConfiguration(
-	section: string,
-	configValue: string,
-) {
-	return new Condition(
-		() => {
-			const config = vscode.workspace.getConfiguration(section, null);
-			return !!config.get<boolean>(configValue);
-		},
-		vscode.workspace.onDidChangeConfiguration
-	);
-}
-
 /**
  * Requires that a configuration value has been modified from its default value in either the global or workspace scope
  *
@@ -114,6 +101,18 @@ export function requireHasModifiedUnifiedConfig(
 ) {
 	return new Condition(
 		() => hasModifiedUnifiedConfig(configValue, { fallbackSection }),
+		vscode.workspace.onDidChangeConfiguration
+	);
+}
+
+export function requireGlobalUnifiedConfig(
+	configValue: string,
+	options: ReadUnifiedConfigOptions
+) {
+	return new Condition(
+		() => {
+			return !!readUnifiedConfig(configValue, undefined, options);
+		},
 		vscode.workspace.onDidChangeConfiguration
 	);
 }

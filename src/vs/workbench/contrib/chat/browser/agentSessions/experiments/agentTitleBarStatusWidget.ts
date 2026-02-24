@@ -46,6 +46,32 @@ import { LayoutSettings } from '../../../../../services/layout/browser/layoutSer
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+
+// Telemetry types
+type AgentStatusClickAction =
+	| 'openSession'
+	| 'quickAccess'
+	| 'focusSessionsView'
+	| 'toggleChat'
+	| 'setupChat'
+	| 'openQuotaExceededDialog'
+	| 'applyFilter'
+	| 'clearFilter'
+	| 'enterProjection'
+	| 'exitProjection';
+
+type AgentStatusClickEvent = {
+	source: 'pill' | 'sparkle' | 'unread' | 'inProgress';
+	action: AgentStatusClickAction;
+};
+
+type AgentStatusClickClassification = {
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which part of the agent status widget was clicked.' };
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The action taken in response to the click.' };
+	owner: 'joshspicer';
+	comment: 'Tracks interactions with the agent status command center control.';
+};
 
 // Action IDs
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
@@ -117,6 +143,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(undefined, action, options);
 
@@ -993,6 +1020,13 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		// Preserve existing provider filters (session type filters like Local, Background, etc.)
 		const preservedProviders = currentFilter?.providers ?? [];
 
+		// Log telemetry for filter button clicks
+		const isToggleOff = (filterType === 'unread' && isFilteredToUnread) || (filterType === 'inProgress' && isFilteredToInProgress);
+		this.telemetryService.publicLog2<AgentStatusClickEvent, AgentStatusClickClassification>('agentStatusWidget.click', {
+			source: filterType,
+			action: isToggleOff ? 'clearFilter' : 'applyFilter',
+		});
+
 		// Toggle filter based on current state
 		if (filterType === 'unread') {
 			if (isFilteredToUnread) {
@@ -1129,8 +1163,16 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	 */
 	private _handlePillClick(): void {
 		if (this._displayedSession) {
+			this.telemetryService.publicLog2<AgentStatusClickEvent, AgentStatusClickClassification>('agentStatusWidget.click', {
+				source: 'pill',
+				action: 'openSession',
+			});
 			this.instantiationService.invokeFunction(openSession, this._displayedSession);
 		} else {
+			this.telemetryService.publicLog2<AgentStatusClickEvent, AgentStatusClickClassification>('agentStatusWidget.click', {
+				source: 'pill',
+				action: 'quickAccess',
+			});
 			this.commandService.executeCommand(UNIFIED_QUICK_ACCESS_ACTION_ID);
 		}
 	}

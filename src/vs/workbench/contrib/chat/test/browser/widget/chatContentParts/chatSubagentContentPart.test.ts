@@ -22,6 +22,9 @@ import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js
 import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../../accessibility/browser/accessibilityConfiguration.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -274,7 +277,7 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	function getCollapseButtonLabel(button: HTMLElement): HTMLElement | undefined {
-		const label = button.lastElementChild;
+		const label = button.querySelector('.monaco-button-mdlabel');
 		return isHTMLElement(label) ? label : undefined;
 	}
 
@@ -412,6 +415,10 @@ suite('ChatSubagentContentPart', () => {
 		});
 
 		test('finalizeTitle should update button icon to check', () => {
+			// Enable the showCheckmarks setting so the check icon is visible
+			const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			configService.setUserConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks, true);
+
 			const toolInvocation = createMockToolInvocation();
 			const context = createMockRenderContext(false);
 

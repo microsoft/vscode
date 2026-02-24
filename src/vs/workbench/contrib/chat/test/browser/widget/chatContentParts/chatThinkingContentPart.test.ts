@@ -983,6 +983,25 @@ suite('ChatThinkingContentPart', () => {
 			assert.strictEqual(part.getIsActive(), false, 'Should be inactive after markAsInactive');
 		});
 
+		test('dispose should set isActive to false', () => {
+			const content = createThinkingPart('**Active thinking**');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			assert.strictEqual(part.getIsActive(), true, 'Should start as active');
+
+			part.dispose();
+
+			assert.strictEqual(part.getIsActive(), false, 'Should be inactive after dispose');
+		});
+
 		test('collapseContent should collapse the part', () => {
 			const content = createThinkingPart('**Content**\nSome detailed reasoning that differs from the title');
 			const context = createMockRenderContext(false);

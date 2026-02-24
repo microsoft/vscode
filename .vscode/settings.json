@@ -1,13 +1,16 @@
 {
 	// --- Chat ---
 	"inlineChat.enableV2": true,
-	"inlineChat.affordance": "gutter",
+	"inlineChat.affordance": "editor",
 	"inlineChat.renderMode": "hover",
 	"chat.tools.terminal.autoApprove": {
 		"scripts/test.bat": true,
 		"scripts/test.sh": true,
 		"scripts/test-integration.bat": true,
 		"scripts/test-integration.sh": true,
+	},
+	"chat.tools.edits.autoApprove": {
+		".github/skills/azure-pipelines/azure-pipeline.ts": false
 	},
 	"chat.viewSessions.enabled": true,
 	"chat.editing.explainChanges.enabled": true,
@@ -49,7 +52,7 @@
 		"build/**/*.js.map": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
-		}
+		},
 	},
 	"files.associations": {
 		"cglicenses.json": "jsonc",
@@ -69,7 +72,8 @@
 		"extensions/terminal-suggest/src/completions/upstream/**": true,
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
-		"test/integration/browser/out/**": true
+		"test/integration/browser/out/**": true,
+		// "src/vs/sessions/**": true
 	},
 	// --- Search ---
 	"search.exclude": {
@@ -96,10 +100,10 @@
 	// --- TypeScript ---
 	"typescript.experimental.useTsgo": true,
 	"typescript.tsdk": "node_modules/typescript/lib",
-	"typescript.preferences.importModuleSpecifier": "relative",
-	"typescript.preferences.quoteStyle": "single",
+	"js/ts.preferences.importModuleSpecifier": "relative",
+	"js/ts.preferences.quoteStyle": "single",
 	"typescript.tsc.autoDetect": "off",
-	"typescript.preferences.autoImportFileExcludePatterns": [
+	"js/ts.preferences.autoImportFileExcludePatterns": [
 		"@xterm/xterm",
 		"@xterm/headless",
 		"node-pty",
@@ -140,6 +144,9 @@
 		"ts": "warning",
 		"eslint": "warning"
 	},
+	"git.worktreeIncludeFiles": [
+		"product.overrides.json"
+	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,
 	"githubPullRequests.assignCreated": "${user}",
@@ -195,12 +202,24 @@
 		"sash"
 	],
 	// --- Workbench ---
-	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
 	"azureMcp.enabledServices": [
 		"kusto" // Needed for kusto tool in data.prompt.md
 	],
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
-	"debug.breakpointsView.presentation": "tree"
+	"debug.breakpointsView.presentation": "tree",
+	// --- Agent Sessions ---
+	"agentSessions.runScripts": [
+		{
+			"name": "Run",
+			"command": "./scripts/code.sh",
+			"commandWindows": ".\\scripts\\code.bat"
+		},
+		{
+			"name": "Tests",
+			"command": "./scripts/test.sh",
+			"commandWindows": ".\\scripts\\test.bat"
+		}
+	],
 }

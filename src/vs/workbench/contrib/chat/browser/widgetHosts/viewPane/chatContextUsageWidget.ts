@@ -27,71 +27,55 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 const $ = dom.$;
 
 /**
- * A reusable circular progress indicator that displays a pie chart.
- * The pie fills clockwise from the top based on the percentage value.
+ * A reusable circular progress indicator that displays a ring.
+ * The ring fills clockwise from the top based on the percentage value.
  */
 export class CircularProgressIndicator {
 
 	readonly domNode: SVGSVGElement;
 
-	private readonly progressPie: SVGPathElement;
+	private readonly progressCircle: SVGCircleElement;
+	private readonly circumference: number;
 
 	private static readonly CENTER_X = 18;
 	private static readonly CENTER_Y = 18;
-	private static readonly RADIUS = 16;
+	private static readonly RADIUS = 14;
 
 	constructor() {
+		const r = CircularProgressIndicator.RADIUS;
+		this.circumference = 2 * Math.PI * r;
+
 		this.domNode = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 		this.domNode.setAttribute('viewBox', '0 0 36 36');
 		this.domNode.classList.add('circular-progress');
 
-		// Background circle (outline only)
+		// Background circle
 		const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 		bgCircle.setAttribute('cx', String(CircularProgressIndicator.CENTER_X));
 		bgCircle.setAttribute('cy', String(CircularProgressIndicator.CENTER_Y));
-		bgCircle.setAttribute('r', String(CircularProgressIndicator.RADIUS));
+		bgCircle.setAttribute('r', String(r));
 		bgCircle.classList.add('progress-bg');
 		this.domNode.appendChild(bgCircle);
 
-		// Progress pie (filled arc)
-		this.progressPie = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-		this.progressPie.classList.add('progress-pie');
-		this.domNode.appendChild(this.progressPie);
+		// Progress arc (stroke-based ring)
+		this.progressCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+		this.progressCircle.setAttribute('cx', String(CircularProgressIndicator.CENTER_X));
+		this.progressCircle.setAttribute('cy', String(CircularProgressIndicator.CENTER_Y));
+		this.progressCircle.setAttribute('r', String(r));
+		this.progressCircle.classList.add('progress-arc');
+		this.progressCircle.setAttribute('stroke-dasharray', String(this.circumference));
+		this.progressCircle.setAttribute('stroke-dashoffset', String(this.circumference));
+		this.domNode.appendChild(this.progressCircle);
 	}
 
 	/**
-	 * Updates the pie chart to display the given percentage (0-100).
-	 * @param percentage The percentage of the pie to fill (clamped to 0-100)
+	 * Updates the ring to display the given percentage (0-100).
+	 * @param percentage The percentage of the ring to fill (clamped to 0-100)
 	 */
 	setProgress(percentage: number): void {
-		const cx = CircularProgressIndicator.CENTER_X;
-		const cy = CircularProgressIndicator.CENTER_Y;
-		const r = CircularProgressIndicator.RADIUS;
-
-		if (percentage >= 100) {
-			// Full circle - use a circle element's path equivalent
-			this.progressPie.setAttribute('d', `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r} Z`);
-		} else if (percentage <= 0) {
-			// Empty - no path
-			this.progressPie.setAttribute('d', '');
-		} else {
-			// Calculate the arc endpoint
-			const angle = (percentage / 100) * 360;
-			const radians = (angle - 90) * (Math.PI / 180); // Start from top (-90 degrees)
-			const x = cx + r * Math.cos(radians);
-			const y = cy + r * Math.sin(radians);
-			const largeArcFlag = angle > 180 ? 1 : 0;
-
-			// Create pie slice path: move to center, line to top, arc to endpoint, close
-			const d = [
-				`M ${cx} ${cy}`,           // Move to center
-				`L ${cx} ${cy - r}`,       // Line to top
-				`A ${r} ${r} 0 ${largeArcFlag} 1 ${x} ${y}`, // Arc to endpoint
-				'Z'                         // Close path back to center
-			].join(' ');
-
-			this.progressPie.setAttribute('d', d);
-		}
+		const clamped = Math.max(0, Math.min(100, percentage));
+		const offset = this.circumference - (clamped / 100) * this.circumference;
+		this.progressCircle.setAttribute('stroke-dashoffset', String(offset));
 	}
 }
 

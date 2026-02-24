@@ -34,6 +34,68 @@ async function openVscodeDevLink(gitAPI: GitAPI): Promise<vscode.Uri | undefined
 	}
 }
 
+async function createPullRequest(gitAPI: GitAPI, sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined): Promise<void> {
+	if (!sessionResource || !sessionMetadata?.worktreePath) {
+		return;
+	}
+
+	const worktreeUri = vscode.Uri.file(sessionMetadata.worktreePath);
+	const repository = gitAPI.getRepository(worktreeUri);
+
+	if (!repository) {
+		vscode.window.showErrorMessage(vscode.l10n.t('Could not find a git repository for the session worktree.'));
+		return;
+	}
+
+	// Find the GitHub remote
+	const remotes = repository.state.remotes
+		.filter(remote => remote.fetchUrl && getRepositoryFromUrl(remote.fetchUrl));
+
+	if (remotes.length === 0) {
+		vscode.window.showErrorMessage(vscode.l10n.t('Could not find a GitHub remote for this repository.'));
+		return;
+	}
+
+	// Prefer upstream -> origin -> first
+	const gitRemote = remotes.find(r => r.name === 'upstream')
+		?? remotes.find(r => r.name === 'origin')
+		?? remotes[0];
+
+	const remoteInfo = getRepositoryFromUrl(gitRemote.fetchUrl!);
+	if (!remoteInfo) {
+		vscode.window.showErrorMessage(vscode.l10n.t('Could not parse GitHub remote URL.'));
+		return;
+	}
+
+	// Get the current branch (the worktree branch)
+	const head = repository.state.HEAD;
+	if (!head?.name) {
+		vscode.window.showErrorMessage(vscode.l10n.t('Could not determine the current branch.'));
+		return;
+	}
+
+	// Ensure the branch is published to the remote
+	if (!head.upstream) {
+		try {
+			await vscode.window.withProgress(
+				{ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Publishing branch to {0}...', gitRemote.name) },
+				async () => {
+					await repository.push(gitRemote.name, head.name, true);
+				}
+			);
+		} catch (err) {
+			vscode.window.showErrorMessage(vscode.l10n.t('Failed to publish branch: {0}', err instanceof Error ? err.message : String(err)));
+			return;
+		}
+	}
+
+	// Build the GitHub PR creation URL
+	// Format: https://github.com/owner/repo/compare/base...head
+	const prUrl = `https://github.com/${remoteInfo.owner}/${remoteInfo.repo}/compare/${head.name}?expand=1`;
+
+	vscode.env.openExternal(vscode.Uri.parse(prUrl));
+}
+
 async function openOnGitHub(repository: Repository, commit: string): Promise<void> {
 	// Get the unique remotes that contain the commit
 	const branches = await repository.getBranches({ contains: commit, remote: true });
@@ -113,6 +175,10 @@ export function registerCommands(gitAPI: GitAPI): vscode.Disposable {
 
 	disposables.add(vscode.commands.registerCommand('github.openOnVscodeDev', async () => {
 		return openVscodeDevLink(gitAPI);
+	}));
+
+	disposables.add(vscode.commands.registerCommand('github.createPullRequest', async (sessionResource: vscode.Uri | undefined, sessionMetadata: { worktreePath?: string } | undefined) => {
+		return createPullRequest(gitAPI, sessionResource, sessionMetadata);
 	}));
 
 	return disposables;

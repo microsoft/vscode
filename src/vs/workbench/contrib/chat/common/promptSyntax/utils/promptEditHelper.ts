@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { IArrayValue } from '../promptFileParser.js';
+import { ISequenceValue } from '../promptFileParser.js';
 
 const isSimpleNameRegex = /^[\w\/\.-]+$/;
 
@@ -20,8 +20,8 @@ export function formatArrayValue(name: string, quotePreference?: QuotePreference
 
 export type QuotePreference = '\'' | '\"' | '';
 
-export function getQuotePreference(arrayValue: IArrayValue, model: ITextModel): QuotePreference {
-	const firstStringItem = arrayValue.items.find(item => item.type === 'string' && isSimpleNameRegex.test(item.value));
+export function getQuotePreference(arrayValue: ISequenceValue, model: ITextModel): QuotePreference {
+	const firstStringItem = arrayValue.items.find(item => item.type === 'scalar' && isSimpleNameRegex.test(item.value));
 	const firstChar = firstStringItem ? model.getValueInRange(firstStringItem.range).charAt(0) : undefined;
 	if (firstChar === `'` || firstChar === `"`) {
 		return firstChar;

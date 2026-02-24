@@ -40,6 +40,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 	readonly sessionResource: URI;
 	readonly providerHandle: number;
 	readonly history: Array<IChatSessionHistoryItem>;
+	title?: string;
 	private _options?: Record<string, string | IChatSessionProviderOptionItem>;
 	public get options(): Record<string, string | IChatSessionProviderOptionItem> | undefined {
 		return this._options;
@@ -111,6 +112,7 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 			);
 
 			this._options = sessionContent.options;
+			this.title = sessionContent.title;
 			this.history.length = 0;
 			this.history.push(...sessionContent.history.map((turn: IChatSessionHistoryItemDto) => {
 				if (turn.type === 'request') {
@@ -347,6 +349,21 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		return this._proxy.$refreshChatSessionItems(this._handle, token);
 	}
 
+	async newChatSessionItem(request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		const dto = await raceCancellationError(this._proxy.$newChatSessionItem(this._handle, request, token), token);
+		if (!dto) {
+			return undefined;
+		}
+		const item: IChatSessionItem = {
+			...dto,
+			resource: URI.revive(dto.resource),
+			changes: revive(dto.changes),
+		};
+		this._items.set(item.resource, item);
+		this._onDidChangeChatSessionItems.fire();
+		return item;
+	}
+
 	acceptChange(change: { readonly addedOrUpdated: readonly IChatSessionItem[]; readonly removed: readonly URI[] }): void {
 		for (const item of change.addedOrUpdated) {
 			this._items.set(item.resource, item);
@@ -514,7 +531,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
-		const originalModel = this._chatService.getActiveSessionReference(originalResource);
+		const originalModel = this._chatService.acquireExistingSession(originalResource);
 		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
 
 		try {
@@ -569,7 +586,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				await this._chatWidgetService.openSession(modifiedResource, undefined, { preserveFocus: true });
 			} else {
 				// Loading the session to ensure the session is created and editing session is transferred.
-				const ref = await this._chatService.loadSessionForResource(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
+				const ref = await this._chatService.acquireOrLoadSession(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
 				ref?.dispose();
 			}
 		} finally {

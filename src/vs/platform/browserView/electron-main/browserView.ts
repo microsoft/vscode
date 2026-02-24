@@ -175,41 +175,37 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 		// Favicon events
 		webContents.on('page-favicon-updated', async (_event, favicons) => {
-			if (!favicons || favicons.length === 0) {
-				return;
-			}
-
-			const found = favicons.find(f => this._faviconRequestCache.get(f));
-			if (found) {
-				// already have a cached request for this favicon, use it
-				this._lastFavicon = await this._faviconRequestCache.get(found)!;
-				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
-				return;
-			}
-
 			// try each url in order until one works
 			for (const url of favicons) {
-				const request = (async () => {
-					const response = await webContents.session.fetch(url, {
-						cache: 'force-cache'
-					});
-					const type = await response.headers.get('content-type');
-					const buffer = await response.arrayBuffer();
+				if (!this._faviconRequestCache.has(url)) {
+					this._faviconRequestCache.set(url, (async () => {
+						const response = await webContents.session.fetch(url, {
+							cache: 'force-cache'
+						});
+						if (!response.ok) {
+							throw new Error(`Failed to fetch favicon: ${response.status} ${response.statusText}`);
+						}
+						const type = await response.headers.get('content-type');
+						const buffer = await response.arrayBuffer();
 
-					return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
-				})();
-
-				this._faviconRequestCache.set(url, request);
+						return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
+					})());
+				}
 
 				try {
-					this._lastFavicon = await request;
+					this._lastFavicon = await this._faviconRequestCache.get(url)!;
 					this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
-					// On success, leave the promise in the cache and stop looping
+					// On success, stop searching
 					return;
 				} catch (e) {
-					this._faviconRequestCache.delete(url);
-					// On failure, try the next one
+					// On failure, just try the next one
 				}
+			}
+
+			// If we searched all favicons and none worked, clear the favicon
+			if (this._lastFavicon) {
+				this._lastFavicon = undefined;
+				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
 			}
 		});
 
@@ -221,6 +217,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		const fireNavigationEvent = () => {
 			this._onDidNavigate.fire({
 				url: webContents.getURL(),
+				title: webContents.getTitle(),
 				canGoBack: webContents.navigationHistory.canGoBack(),
 				canGoForward: webContents.navigationHistory.canGoForward()
 			});
@@ -253,6 +250,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 				fireLoadingEvent(false);
 				this._onDidNavigate.fire({
 					url: validatedURL,
+					title: '',
 					canGoBack: webContents.navigationHistory.canGoBack(),
 					canGoForward: webContents.navigationHistory.canGoForward()
 				});

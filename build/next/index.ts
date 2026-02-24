@@ -10,10 +10,12 @@ import { promisify } from 'util';
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
+import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
+import { isWebExtension, type IScannedBuiltinExtension } from '../lib/extensions.ts';
 
 const globAsync = promisify(glob);
 
@@ -41,6 +43,7 @@ const options = {
 	watch: process.argv.includes('--watch'),
 	minify: process.argv.includes('--minify'),
 	nls: process.argv.includes('--nls'),
+	manglePrivates: process.argv.includes('--mangle-privates'),
 	excludeTests: process.argv.includes('--exclude-tests'),
 	out: getArgValue('--out'),
 	target: getArgValue('--target') ?? 'desktop', // 'desktop' | 'server' | 'server-web' | 'web'
@@ -61,6 +64,17 @@ const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
 // Entry Points (from build/buildfile.ts)
 // ============================================================================
 
+// Extension host bundles are excluded from private field mangling because they
+// expose API surface to extensions where encapsulation matters.
+const extensionHostEntryPoints = [
+	'vs/workbench/api/node/extensionHostProcess',
+	'vs/workbench/api/worker/extensionHostWorkerMain',
+];
+
+function isExtensionHostBundle(filePath: string): boolean {
+	return extensionHostEntryPoints.some(ep => filePath.endsWith(`${ep}.js`));
+}
+
 // Workers - shared between targets
 const workerEntryPoints = [
 	'vs/editor/common/services/editorWebWorkerMain',
@@ -80,6 +94,7 @@ const desktopWorkerEntryPoints = [
 // Desktop workbench and code entry points
 const desktopEntryPoints = [
 	'vs/workbench/workbench.desktop.main',
+	'vs/sessions/sessions.desktop.main',
 	'vs/workbench/contrib/debug/node/telemetryApp',
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
@@ -90,6 +105,7 @@ const codeEntryPoints = [
 	'vs/code/node/cliProcessMain',
 	'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 	'vs/code/electron-browser/workbench/workbench',
+	'vs/sessions/electron-browser/sessions',
 ];
 
 // Web entry points (used in server-web and vscode-web)
@@ -184,6 +200,8 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 			return new Set([
 				'vs/workbench/workbench.desktop.main',
 				'vs/code/electron-browser/workbench/workbench',
+				'vs/sessions/sessions.desktop.main',
+				'vs/sessions/electron-browser/sessions',
 			]);
 		case 'server':
 			return new Set(); // Server has no UI
@@ -214,18 +232,7 @@ const commonResourcePatterns = [
 	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
-];
-
-// Resources only needed for dev/transpile builds (these get bundled into the main
-// JS/CSS bundles for production, so separate copies are redundant)
-const devOnlyResourcePatterns = [
-	// Fonts (esbuild file loader copies to media/codicon.ttf for production)
-	'vs/base/browser/ui/codicons/codicon/codicon.ttf',
-
-	// Vendor JavaScript libraries (bundled into workbench main JS for production)
-	'vs/base/common/marked/marked.js',
-	'vs/base/common/semver/semver.js',
-	'vs/base/browser/dompurify/dompurify.js',
+	'vs/sessions/contrib/chat/browser/media/*.svg'
 ];
 
 // Resources for desktop target
@@ -235,6 +242,8 @@ const desktopResourcePatterns = [
 	// HTML
 	'vs/code/electron-browser/workbench/workbench.html',
 	'vs/code/electron-browser/workbench/workbench-dev.html',
+	'vs/sessions/electron-browser/sessions.html',
+	'vs/sessions/electron-browser/sessions-dev.html',
 	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
 	'vs/workbench/contrib/webview/browser/pre/*.html',
 
@@ -355,28 +364,6 @@ function getResourcePatternsForTarget(target: BuildTarget): string[] {
 	}
 }
 
-// Test fixtures (only copied for development builds, not production)
-const testFixturePatterns = [
-	'**/test/**/*.json',
-	'**/test/**/*.txt',
-	'**/test/**/*.snap',
-	'**/test/**/*.tst',
-	'**/test/**/*.html',
-	'**/test/**/*.js',
-	'**/test/**/*.jxs',
-	'**/test/**/*.tsx',
-	'**/test/**/*.css',
-	'**/test/**/*.png',
-	'**/test/**/*.md',
-	'**/test/**/*.zip',
-	'**/test/**/*.pdf',
-	'**/test/**/*.qwoff',
-	'**/test/**/*.wuff',
-	'**/test/**/*.less',
-	// Files without extensions (executables, etc.)
-	'**/test/**/fixtures/executable/*',
-];
-
 // ============================================================================
 // Utilities
 // ============================================================================
@@ -392,33 +379,43 @@ async function cleanDir(dir: string): Promise<void> {
  * Scan for built-in extensions in the given directory.
  * Returns an array of extension entries for the builtinExtensionsScannerService.
  */
-function scanBuiltinExtensions(extensionsRoot: string): Array<{ extensionPath: string; packageJSON: unknown }> {
-	const result: Array<{ extensionPath: string; packageJSON: unknown }> = [];
+function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExtension> {
+	const scannedExtensions: Array<IScannedBuiltinExtension> = [];
 	const extensionsPath = path.join(REPO_ROOT, extensionsRoot);
 
 	if (!fs.existsSync(extensionsPath)) {
-		return result;
+		return scannedExtensions;
 	}
 
-	for (const entry of fs.readdirSync(extensionsPath, { withFileTypes: true })) {
-		if (!entry.isDirectory()) {
+	for (const extensionFolder of fs.readdirSync(extensionsPath)) {
+		const packageJSONPath = path.join(extensionsPath, extensionFolder, 'package.json');
+		if (!fs.existsSync(packageJSONPath)) {
 			continue;
 		}
-		const packageJsonPath = path.join(extensionsPath, entry.name, 'package.json');
-		if (fs.existsSync(packageJsonPath)) {
-			try {
-				const packageJSON = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-				result.push({
-					extensionPath: entry.name,
-					packageJSON
-				});
-			} catch (e) {
-				// Skip invalid extensions
+		try {
+			const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
+			if (!isWebExtension(packageJSON)) {
+				continue;
 			}
+			const children = fs.readdirSync(path.join(extensionsPath, extensionFolder));
+			const packageNLSPath = children.filter(child => child === 'package.nls.json')[0];
+			const packageNLS = packageNLSPath ? JSON.parse(fs.readFileSync(path.join(extensionsPath, extensionFolder, packageNLSPath), 'utf8')) : undefined;
+			const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
+			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
+
+			scannedExtensions.push({
+				extensionPath: extensionFolder,
+				packageJSON,
+				packageNLS,
+				readmePath: readme ? path.join(extensionFolder, readme) : undefined,
+				changelogPath: changelog ? path.join(extensionFolder, changelog) : undefined,
+			});
+		} catch (e) {
+			// Skip invalid extensions
 		}
 	}
 
-	return result;
+	return scannedExtensions;
 }
 
 /**
@@ -487,7 +484,7 @@ async function compileStandaloneFiles(outDir: string, doMinify: boolean, target:
 			format: 'cjs', // CommonJS for Electron preload
 			platform: 'node',
 			target: ['es2024'],
-			sourcemap: 'external',
+			sourcemap: 'linked',
 			sourcesContent: false,
 			minify: doMinify,
 			banner: { js: banner },
@@ -498,34 +495,57 @@ async function compileStandaloneFiles(outDir: string, doMinify: boolean, target:
 	console.log(`[standalone] Done`);
 }
 
-async function copyCssFiles(outDir: string, excludeTests = false): Promise<number> {
-	// Copy all CSS files from src to output (they're imported by JS)
-	const cssFiles = await globAsync('**/*.css', {
+/**
+ * Copy ALL non-TypeScript files from src/ to the output directory.
+ * This matches the old gulp build behavior where `gulp.src('src/**')` streams
+ * every file and non-TS files bypass the compiler via tsFilter.restore.
+ * Used for development/transpile builds only - production bundles use
+ * copyResources() with curated per-target patterns instead.
+ */
+async function copyAllNonTsFiles(outDir: string, excludeTests: boolean): Promise<void> {
+	console.log(`[resources] Copying all non-TS files to ${outDir}...`);
+
+	const ignorePatterns = [
+		// Exclude .ts files but keep .d.ts files (they're needed at runtime for type references)
+		'**/*.ts',
+	];
+	if (excludeTests) {
+		ignorePatterns.push('**/test/**');
+	}
+
+	const files = await globAsync('**/*', {
+		cwd: path.join(REPO_ROOT, SRC_DIR),
+		nodir: true,
+		ignore: ignorePatterns,
+	});
+
+	// Re-include .d.ts files that were excluded by the *.ts ignore
+	const dtsFiles = await globAsync('**/*.d.ts', {
 		cwd: path.join(REPO_ROOT, SRC_DIR),
 		ignore: excludeTests ? ['**/test/**'] : [],
 	});
 
-	for (const file of cssFiles) {
+	const allFiles = [...new Set([...files, ...dtsFiles])];
+
+	await Promise.all(allFiles.map(file => {
 		const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
 		const destPath = path.join(REPO_ROOT, outDir, file);
+		return copyFile(srcPath, destPath);
+	}));
 
-		await copyFile(srcPath, destPath);
-	}
-
-	return cssFiles.length;
+	console.log(`[resources] Copied ${allFiles.length} files`);
 }
 
-async function copyResources(outDir: string, target: BuildTarget, excludeDevFiles = false, excludeTests = false): Promise<void> {
+/**
+ * Copy curated resource files for production bundles.
+ * Uses specific per-target patterns matching the old build's vscodeResourceIncludes,
+ * serverResourceIncludes, etc. Only called by bundle() - transpile uses copyAllNonTsFiles().
+ */
+async function copyResources(outDir: string, target: BuildTarget): Promise<void> {
 	console.log(`[resources] Copying to ${outDir} for target '${target}'...`);
 	let copied = 0;
 
-	const ignorePatterns: string[] = [];
-	if (excludeTests) {
-		ignorePatterns.push('**/test/**');
-	}
-	if (excludeDevFiles) {
-		ignorePatterns.push('**/*-dev.html');
-	}
+	const ignorePatterns = ['**/test/**', '**/*-dev.html'];
 
 	const resourcePatterns = getResourcePatternsForTarget(target);
 	for (const pattern of resourcePatterns) {
@@ -543,47 +563,7 @@ async function copyResources(outDir: string, target: BuildTarget, excludeDevFile
 		}
 	}
 
-	// Copy test fixtures (only for development builds)
-	if (!excludeTests) {
-		for (const pattern of testFixturePatterns) {
-			const files = await globAsync(pattern, {
-				cwd: path.join(REPO_ROOT, SRC_DIR),
-			});
-
-			for (const file of files) {
-				const srcPath = path.join(REPO_ROOT, SRC_DIR, file);
-				const destPath = path.join(REPO_ROOT, outDir, file);
-
-				await copyFile(srcPath, destPath);
-				copied++;
-			}
-		}
-	}
-
-	// Copy dev-only resources (vendor JS, codicon font) - only for development/transpile
-	// builds. In production bundles these are inlined by esbuild.
-	if (!excludeDevFiles) {
-		for (const pattern of devOnlyResourcePatterns) {
-			const files = await globAsync(pattern, {
-				cwd: path.join(REPO_ROOT, SRC_DIR),
-				ignore: ignorePatterns,
-			});
-			for (const file of files) {
-				await copyFile(path.join(REPO_ROOT, SRC_DIR, file), path.join(REPO_ROOT, outDir, file));
-				copied++;
-			}
-		}
-	}
-
-	// Copy CSS files (only for development/transpile builds, not production bundles
-	// where CSS is already bundled into combined files like workbench.desktop.main.css)
-	if (!excludeDevFiles) {
-		const cssCount = await copyCssFiles(outDir, excludeTests);
-		copied += cssCount;
-		console.log(`[resources] Copied ${copied} files (${cssCount} CSS)`);
-	} else {
-		console.log(`[resources] Copied ${copied} files (CSS skipped - bundled)`);
-	}
+	console.log(`[resources] Copied ${copied} files`);
 }
 
 // ============================================================================
@@ -740,7 +720,7 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 // Bundle (Goal 2: JS → bundled JS)
 // ============================================================================
 
-async function bundle(outDir: string, doMinify: boolean, doNls: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
+async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
 	await cleanDir(outDir);
 
 	// Write build date file (used by packaging to embed in product.json)
@@ -748,7 +728,7 @@ async function bundle(outDir: string, doMinify: boolean, doNls: boolean, target:
 	await fs.promises.mkdir(outDirPath, { recursive: true });
 	await fs.promises.writeFile(path.join(outDirPath, 'date'), new Date().toISOString(), 'utf8');
 
-	console.log(`[bundle] ${SRC_DIR} → ${outDir} (target: ${target})${doMinify ? ' (minify)' : ''}${doNls ? ' (nls)' : ''}`);
+	console.log(`[bundle] ${SRC_DIR} → ${outDir} (target: ${target})${doMinify ? ' (minify)' : ''}${doNls ? ' (nls)' : ''}${doManglePrivates ? ' (mangle-privates)' : ''}`);
 	const t1 = Date.now();
 
 	// Read TSLib for banner
@@ -819,7 +799,7 @@ ${tslib}`,
 			platform: 'neutral',
 			target: ['es2024'],
 			packages: 'external',
-			sourcemap: 'external',
+			sourcemap: 'linked',
 			sourcesContent: true,
 			minify: doMinify,
 			treeShaking: true,
@@ -871,7 +851,7 @@ ${tslib}`,
 			platform: 'node',
 			target: ['es2024'],
 			packages: 'external',
-			sourcemap: 'external',
+			sourcemap: 'linked',
 			sourcesContent: true,
 			minify: doMinify,
 			treeShaking: true,
@@ -902,6 +882,9 @@ ${tslib}`,
 
 	// Post-process and write all output files
 	let bundled = 0;
+	const mangleStats: { file: string; result: ConvertPrivateFieldsResult }[] = [];
+	// Map from JS file path to pre-mangle content + edits, for source map adjustment
+	const mangleEdits = new Map<string, { preMangleCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
 	for (const { result } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
@@ -912,6 +895,21 @@ ${tslib}`,
 
 			if (file.path.endsWith('.js') || file.path.endsWith('.css')) {
 				let content = file.text;
+
+				// Convert native #private fields to regular properties BEFORE NLS
+				// post-processing, so that the edit offsets align with esbuild's
+				// source map coordinate system (both reference the raw esbuild output).
+				// Skip extension host bundles - they expose API surface to extensions
+				// where true encapsulation matters more than the perf gain.
+				if (file.path.endsWith('.js') && doManglePrivates && !isExtensionHostBundle(file.path)) {
+					const preMangleCode = content;
+					const mangleResult = convertPrivateFields(content, file.path);
+					content = mangleResult.code;
+					if (mangleResult.editCount > 0) {
+						mangleStats.push({ file: path.relative(path.join(REPO_ROOT, outDir), file.path), result: mangleResult });
+						mangleEdits.set(file.path, { preMangleCode, edits: mangleResult.edits });
+					}
+				}
 
 				// Apply NLS post-processing if enabled (JS only)
 				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
@@ -932,16 +930,40 @@ ${tslib}`,
 				}
 
 				await fs.promises.writeFile(file.path, content);
+			} else if (file.path.endsWith('.map')) {
+				// Source maps may need adjustment if private fields were mangled
+				const jsPath = file.path.replace(/\.map$/, '');
+				const editInfo = mangleEdits.get(jsPath);
+				if (editInfo) {
+					const mapJson = JSON.parse(file.text);
+					const adjusted = adjustSourceMap(mapJson, editInfo.preMangleCode, editInfo.edits);
+					await fs.promises.writeFile(file.path, JSON.stringify(adjusted));
+				} else {
+					await fs.promises.writeFile(file.path, file.contents);
+				}
 			} else {
-				// Write other files (source maps, assets) as-is
+				// Write other files (assets, etc.) as-is
 				await fs.promises.writeFile(file.path, file.contents);
 			}
 		}
 		bundled++;
 	}
 
-	// Copy resources (exclude dev files and tests for production)
-	await copyResources(outDir, target, true, true);
+	// Log mangle-privates stats
+	if (doManglePrivates && mangleStats.length > 0) {
+		let totalClasses = 0, totalFields = 0, totalEdits = 0, totalElapsed = 0;
+		for (const { file, result } of mangleStats) {
+			console.log(`[mangle-privates] ${file}: ${result.classCount} classes, ${result.fieldCount} fields, ${result.editCount} edits, ${result.elapsed}ms`);
+			totalClasses += result.classCount;
+			totalFields += result.fieldCount;
+			totalEdits += result.editCount;
+			totalElapsed += result.elapsed;
+		}
+		console.log(`[mangle-privates] Total: ${totalClasses} classes, ${totalFields} fields, ${totalEdits} edits, ${totalElapsed}ms`);
+	}
+
+	// Copy resources (curated per-target patterns for production)
+	await copyResources(outDir, target);
 
 	// Compile standalone TypeScript files (like Electron preload scripts) that cannot be bundled
 	await compileStandaloneFiles(outDir, doMinify, target);
@@ -974,7 +996,7 @@ async function watch(): Promise<void> {
 	const t1 = Date.now();
 	try {
 		await transpile(outDir, false);
-		await copyResources(outDir, 'desktop', false, false);
+		await copyAllNonTsFiles(outDir, false);
 		console.log(`Finished transpilation with 0 errors after ${Date.now() - t1} ms`);
 	} catch (err) {
 		console.error('[watch] Initial build failed:', err);
@@ -1025,9 +1047,6 @@ async function watch(): Promise<void> {
 		}
 	};
 
-	// Extensions to watch and copy (non-TypeScript resources)
-	const copyExtensions = ['.css', '.html', '.js', '.json', '.ttf', '.svg', '.png', '.mp3', '.scm', '.sh', '.ps1', '.psm1', '.fish', '.zsh', '.scpt'];
-
 	// Watch src directory using existing gulp-watch based watcher
 	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 	const srcDir = path.join(REPO_ROOT, SRC_DIR);
@@ -1036,7 +1055,8 @@ async function watch(): Promise<void> {
 	watchStream.on('data', (file: { path: string }) => {
 		if (file.path.endsWith('.ts') && !file.path.endsWith('.d.ts')) {
 			pendingTsFiles.add(file.path);
-		} else if (copyExtensions.some(ext => file.path.endsWith(ext))) {
+		} else {
+			// Copy any non-TS file (matches old gulp build's `src/**` behavior)
 			pendingCopyFiles.add(file.path);
 		}
 
@@ -1075,6 +1095,7 @@ Options for 'transpile':
 Options for 'bundle':
 	--minify           Minify the output bundles
 	--nls              Process NLS (localization) strings
+	--mangle-privates  Convert native #private fields to regular properties
 	--out <dir>        Output directory (default: out-vscode)
 	--target <target>  Build target: desktop (default), server, server-web, web
 	--source-map-base-url <url>  Rewrite sourceMappingURL to CDN URL
@@ -1112,13 +1133,13 @@ async function main(): Promise<void> {
 					console.log(`[transpile] ${SRC_DIR} → ${outDir}${options.excludeTests ? ' (excluding tests)' : ''}`);
 					const t1 = Date.now();
 					await transpile(outDir, options.excludeTests);
-					await copyResources(outDir, 'desktop', false, options.excludeTests);
+					await copyAllNonTsFiles(outDir, options.excludeTests);
 					console.log(`[transpile] Done in ${Date.now() - t1}ms`);
 				}
 				break;
 
 			case 'bundle':
-				await bundle(options.out ?? OUT_VSCODE_DIR, options.minify, options.nls, options.target as BuildTarget, options.sourceMapBaseUrl);
+				await bundle(options.out ?? OUT_VSCODE_DIR, options.minify, options.nls, options.manglePrivates, options.target as BuildTarget, options.sourceMapBaseUrl);
 				break;
 
 			default:

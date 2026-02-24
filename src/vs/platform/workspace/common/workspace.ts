@@ -282,10 +282,6 @@ export interface IWorkspace {
 	 */
 	readonly configuration?: URI | null;
 
-	/**
-	 * Whether this workspace is an agent sessions workspace.
-	 */
-	readonly isAgentSessionsWorkspace?: boolean;
 }
 
 export function isWorkspace(thing: unknown): thing is IWorkspace {
@@ -349,7 +345,6 @@ export class Workspace implements IWorkspace {
 		private _transient: boolean,
 		private _configuration: URI | null,
 		private ignorePathCasing: (key: URI) => boolean,
-		private _isAgentSessionsWorkspace?: boolean,
 	) {
 		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		this.folders = folders;
@@ -360,7 +355,6 @@ export class Workspace implements IWorkspace {
 		this._configuration = workspace.configuration;
 		this._transient = workspace.transient;
 		this.ignorePathCasing = workspace.ignorePathCasing;
-		this._isAgentSessionsWorkspace = workspace.isAgentSessionsWorkspace;
 		this.folders = workspace.folders;
 	}
 
@@ -380,10 +374,6 @@ export class Workspace implements IWorkspace {
 		this._configuration = configuration;
 	}
 
-	get isAgentSessionsWorkspace(): boolean | undefined {
-		return this._isAgentSessionsWorkspace;
-	}
-
 	getFolder(resource: URI): IWorkspaceFolder | null {
 		if (!resource) {
 			return null;
@@ -400,7 +390,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration, isAgentSessionsWorkspace: this.isAgentSessionsWorkspace };
+		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration };
 	}
 }
 

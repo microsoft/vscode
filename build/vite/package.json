@@ -9,14 +9,10 @@
     "preview": "vite preview"
   },
   "devDependencies": {
+    "@vscode/component-explorer": "^0.1.1-12",
+    "@vscode/component-explorer-vite-plugin": "^0.1.1-12",
     "@vscode/rollup-plugin-esm-url": "^1.0.1-1",
-    "vite": "npm:rolldown-vite@latest",
-    "@vscode/component-explorer": "next",
-    "@vscode/component-explorer-vite-plugin": "next"
-  },
-  "overrides": {
-    "@vscode/component-explorer-vite-plugin": {
-      "vite": "$vite"
-    }
+    "rollup": "*",
+    "vite": "npm:rolldown-vite@latest"
   }
 }

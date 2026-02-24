@@ -110,7 +110,7 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 			// Webviews cannot be reparented in the dom as it will destroy their contents.
 			// Mount them to a high level node to avoid this depending on the active container.
-			const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.getModalElement();
+			const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
 			let root: HTMLElement;
 			if (isHTMLElement(modalEditorContainer)) {
 				root = modalEditorContainer;

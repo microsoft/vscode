@@ -28,9 +28,12 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 	readonly canUseDefaultApprovals = false;
 
 	private readonly _sessionFolderAllowlist = new ResourceMap<ResourceSet>();
+	/** Cache of path URI -> resolved git root URI (or null if not in a repo) */
+	private readonly _gitRootCache = new ResourceMap<URI | null>();
 
 	constructor(
 		private readonly _getPathInfo: (ref: ILanguageModelToolConfirmationRef) => IExternalPathInfo | undefined,
+		private readonly _findGitRoot?: (pathUri: URI) => Promise<URI | undefined>,
 	) { }
 
 	getPreConfirmAction(ref: ILanguageModelToolConfirmationRef): ConfirmedReason | undefined {
@@ -80,7 +83,7 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 		const folderUri = pathInfo.isDirectory ? pathUri : dirname(pathUri);
 		const sessionResource = ref.chatSessionResource;
 
-		return [
+		const actions: ILanguageModelToolConfirmationActions[] = [
 			{
 				label: localize('allowFolderSession', 'Allow this folder in this session'),
 				detail: localize('allowFolderSessionDetail', 'Allow reading files from this folder without further confirmation in this chat session'),
@@ -95,5 +98,55 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 				}
 			}
 		];
+
+		// If a git root finder is available, offer to allow the entire repository
+		if (this._findGitRoot) {
+			const findGitRoot = this._findGitRoot;
+			const gitRootCache = this._gitRootCache;
+			const allowlist = this._sessionFolderAllowlist;
+
+			// Check if we already know the git root for this path (or that there is none)
+			const cached = gitRootCache.get(pathUri);
+			if (cached === null) {
+				// Previously resolved: not in a git repository, don't show the option
+			} else if (cached) {
+				// Previously resolved: show with the known repo path
+				actions.push({
+					label: localize('allowRepoSession', 'Allow all files in this repository for this session'),
+					detail: localize('allowRepoSessionDetail', 'Allow reading files from {0}', cached.fsPath),
+					select: async () => {
+						let folders = allowlist.get(sessionResource);
+						if (!folders) {
+							folders = new ResourceSet();
+							allowlist.set(sessionResource, folders);
+						}
+						folders.add(cached);
+						return true;
+					}
+				});
+			} else {
+				// Not yet resolved: show the option and resolve on selection
+				actions.push({
+					label: localize('allowRepoSession', 'Allow all files in this repository for this session'),
+					detail: localize('allowRepoSessionDetailLookup', 'Looks up the containing git repository for this path'),
+					select: async () => {
+						const gitRootUri = await findGitRoot(pathUri);
+						gitRootCache.set(pathUri, gitRootUri ?? null);
+						if (!gitRootUri) {
+							return false;
+						}
+						let folders = allowlist.get(sessionResource);
+						if (!folders) {
+							folders = new ResourceSet();
+							allowlist.set(sessionResource, folders);
+						}
+						folders.add(gitRootUri);
+						return true;
+					}
+				});
+			}
+		}
+
+		return actions;
 	}
 }
