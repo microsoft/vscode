@@ -188,7 +188,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsPromptAttachments: true,
 };
 
-const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate.");
+const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
 
 export class ChatWidget extends Disposable implements IChatWidget {
 
