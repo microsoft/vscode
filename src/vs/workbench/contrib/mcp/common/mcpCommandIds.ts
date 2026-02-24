@@ -33,5 +33,4 @@ export const enum McpCommandIds {
 	StartPromptForServer = 'workbench.mcp.startPromptForServer',
 	StartServer = 'workbench.mcp.startServer',
 	StopServer = 'workbench.mcp.stopServer',
-	TrustServer = 'workbench.mcp.trustServer',
 }
