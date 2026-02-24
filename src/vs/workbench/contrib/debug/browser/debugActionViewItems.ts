@@ -265,7 +265,11 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 })), this.selected);
+		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({
+			text: data.label,
+			isDisabled: disabledIdxs.indexOf(index) !== -1,
+			isSeparator: data.label === SeparatorSelectOption.text,
+		})), this.selected);
 	}
 
 	private _setAriaLabel(title: string): void {
