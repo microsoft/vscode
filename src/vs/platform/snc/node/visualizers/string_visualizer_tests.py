@@ -715,7 +715,7 @@ class TestClickInsideFuzzy(unittest.TestCase):
         # THIS IS THE BUG: visualize() crashes because the in-progress selection
         # overlaps with the existing fuzzy highlight
         # After fix, this should NOT raise an assertion error
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
 
         # Should produce valid HTML without crashing
         self.assertIsInstance(html_output, str)
@@ -1758,7 +1758,7 @@ class TestDropdownInVisualize(unittest.TestCase):
         model = init_model("hello world")
         model['selectionRegex'] = '/(hello)(.*)(world)/'
 
-        html = visualize("hello world", model)
+        html = visualize("hello world", model, None)
 
         # Should contain a dropdown toggle event for segment 1 (the fuzzy one)
         self.assertIn('DropdownToggle', html)
@@ -1770,7 +1770,7 @@ class TestDropdownInVisualize(unittest.TestCase):
         model['selectionRegex'] = '/(hello)(.*)(world)/'
         model['openDropdown'] = {'id': 'fuzzy-pattern-1', 'segmentIndex': 1}
 
-        html = visualize("hello world", model)
+        html = visualize("hello world", model, None)
 
         # Should contain dropdown select events for options
         self.assertIn('DropdownSelect', html)
@@ -2733,7 +2733,7 @@ class TestSearchBoxVisualize(unittest.TestCase):
 
     def test_search_box_present_in_output(self):
         """The search box input element is present in visualize output."""
-        html = visualize("hello world")
+        html = visualize("hello world", init_model("hello world"), None)
         self.assertIn('<input', html)
         self.assertIn('snc-input', html)
         self.assertIn('SearchBoxInput', html)
@@ -2741,7 +2741,7 @@ class TestSearchBoxVisualize(unittest.TestCase):
     def test_search_box_shows_empty_when_no_regex(self):
         """Search box value is empty when there's no selection regex."""
         model = init_model("hello world")
-        html = visualize("hello world", model)
+        html = visualize("hello world", model, None)
         # The value attribute should be empty
         self.assertIn('value=""', html)
 
@@ -2750,7 +2750,7 @@ class TestSearchBoxVisualize(unittest.TestCase):
         model = init_model("hello world")
         model['selectionRegex'] = '/(hello)(.*)(world)/'
 
-        html = visualize("hello world", model)
+        html = visualize("hello world", model, None)
         self.assertIn('/(hello)(.*)(world)/', html)
 
     def test_search_box_shows_regex_after_mouse_selection(self):
@@ -2767,12 +2767,12 @@ class TestSearchBoxVisualize(unittest.TestCase):
         model, _ = update(make_mouse_up_event(6),
                          source_code, 1, model, value)
 
-        html = visualize(value, model)
+        html = visualize(value, model, None)
         self.assertIn('/hello/', html)
 
     def test_search_box_has_placeholder(self):
         """Search box has a placeholder for when it's empty."""
-        html = visualize("hello world")
+        html = visualize("hello world", init_model("hello world"), None)
         self.assertIn('placeholder=', html)
 
 
@@ -3747,7 +3747,7 @@ class TestLiteralDragHandleUpdate(unittest.TestCase):
         self.assertIsNotNone(model.get('handleDrag'))
 
         # The visualize function should use the preview regex which includes the space.
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
         # The space character (index 7) should have highlight styling
         # (border-top indicates literal highlight).
         # We check that the space char is highlighted by looking for border-top near the space.
@@ -3787,35 +3787,35 @@ class TestLiteralDragHandleRendering(unittest.TestCase):
         """Literal selection bracket renders elements with ew-resize cursor."""
         model = init_model(self.value)
         model['selectionRegex'] = '/(hello)/'
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
         self.assertIn('ew-resize', html_output)
 
     def test_literal_segment_has_left_handle(self):
         """First char of literal segment renders a left drag handle."""
         model = init_model(self.value)
         model['selectionRegex'] = '/(hello)/'
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
         self.assertIn("side=&#x27;left&#x27;", html_output)
 
     def test_literal_segment_has_right_handle(self):
         """Last char of literal segment renders a right drag handle."""
         model = init_model(self.value)
         model['selectionRegex'] = '/(hello)/'
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
         self.assertIn("side=&#x27;right&#x27;", html_output)
 
     def test_literal_handle_has_HandleMouseDown_event(self):
         """Drag handle elements have HandleMouseDown event attribute."""
         model = init_model(self.value)
         model['selectionRegex'] = '/(hello)/'
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
         self.assertIn('HandleMouseDown', html_output)
 
     def test_fuzzy_segment_has_no_drag_handles(self):
         """Fuzzy selection does NOT render drag handles."""
         model = init_model(self.value)
         model['selectionRegex'] = '/(.*)/'
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
         self.assertNotIn('ew-resize', html_output)
         self.assertNotIn('HandleMouseDown', html_output)
 
@@ -3823,7 +3823,7 @@ class TestLiteralDragHandleRendering(unittest.TestCase):
         """In /(hello)(.*)(world)/, only literal segments have handles."""
         model = init_model(self.value)
         model['selectionRegex'] = '/(hello)(.*)(world)/'
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
         # Should have handles for hello and world (both literal)
         self.assertIn('HandleMouseDown', html_output)
         # Count occurrences: 2 segments * 2 handles each = 4 HandleMouseDown
@@ -4267,7 +4267,7 @@ class TestRepetitionDropdownRendering(unittest.TestCase):
         # Adjacent literals need groups to be preserved in canonical form
         model['selectionRegex'] = '/(hello)(world)/'
 
-        html_output = visualize("helloworld", model)
+        html_output = visualize("helloworld", model, None)
 
         # Should contain a repetition dropdown toggle event
         self.assertIn('repetition-0', html_output)
@@ -4278,7 +4278,7 @@ class TestRepetitionDropdownRendering(unittest.TestCase):
         # Use canonical form that will produce highlights
         model['selectionRegex'] = '/hello.*world/'
 
-        html_output = visualize("hello world", model)
+        html_output = visualize("hello world", model, None)
 
         # Should contain repetition dropdown toggle events
         # Segment 1 is fuzzy (.*)
@@ -4291,7 +4291,7 @@ class TestRepetitionDropdownRendering(unittest.TestCase):
         model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1,
                                   'exactN': '', 'rangeMin': '', 'rangeMax': ''}
 
-        html_output = visualize("hello world", model)
+        html_output = visualize("hello world", model, None)
 
         # Should contain dropdown select options
         self.assertIn('DropdownSelect', html_output)
@@ -4303,7 +4303,7 @@ class TestRepetitionDropdownRendering(unittest.TestCase):
         model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1,
                                   'exactN': '', 'rangeMin': '', 'rangeMax': ''}
 
-        html_output = visualize("hello world", model)
+        html_output = visualize("hello world", model, None)
 
         # Should contain RepetitionInput events for text fields
         self.assertIn('RepetitionInput', html_output)
@@ -4375,7 +4375,7 @@ class TestHoverPreview(unittest.TestCase):
         model['hoverIdx'] = 5  # 'l' in "hello" (internal index)
         model['hoverType'] = 'literal'
 
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
 
         # The hovered char should have a blue top border (literal style)
         # Extract the span for index 5
@@ -4389,7 +4389,7 @@ class TestHoverPreview(unittest.TestCase):
         model['hoverIdx'] = 5
         model['hoverType'] = 'fuzzy'
 
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
 
         # The hovered char should have a gray bottom border (fuzzy style)
         self.assertIn('border-bottom', html_output)
@@ -4403,7 +4403,7 @@ class TestHoverPreview(unittest.TestCase):
         model['hoverIdx'] = 4
         model['hoverType'] = 'fuzzy'
 
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
 
         # The highlighted char should still have literal border-top (from the selection),
         # not the fuzzy border-bottom from the hover. Count occurrences of border-bottom
@@ -4425,7 +4425,7 @@ class TestHoverPreview(unittest.TestCase):
         model['hoverIdx'] = 5
         model['hoverType'] = 'literal'
 
-        html_output = visualize(self.value, model)
+        html_output = visualize(self.value, model, None)
 
         # Extract the span for index 5 to check it has left+right borders
         import re as _re

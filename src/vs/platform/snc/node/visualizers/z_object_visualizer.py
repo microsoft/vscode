@@ -49,6 +49,8 @@ import os
 from dataclasses import dataclass
 from typing import List, Tuple, Any
 
+from visualizer_utils import ChildEvent, wrap_child_html, route_child_event, aggregate_handled_keys
+
 # VS Code theme colors
 BLUE = "#569cd6"
 GRAY = "#808080"
@@ -192,36 +194,41 @@ def _eval_field(obj, accessor_code: str):
     """
     Evaluate an accessor code against an object.
 
-    Returns (placeholder_args, value_str) tuple.
-    placeholder_args suggest what the arguments are for callables
+    Returns (placeholder_args, value_str, raw_value, is_error) tuple.
+    placeholder_args suggest what the arguments are for callables.
+    raw_value is the actual Python value (None on error or callable).
+    is_error is True if evaluation raised an exception.
     """
     try:
         val = eval(f"obj{accessor_code}")
         val_str = None
     except Exception as e:
-        return ('', str(e))
+        return ('', str(e), None, True)
 
     if callable(val):
         placeholder_args = getattr(val, '__text_signature__', None) or '(...)'
         val_str = val.__doc__.split('\n', 1)[0] if val.__doc__ else None
+        if val_str is None:
+            val_str = repr(val)[:200]
+        return (placeholder_args, val_str, None, False)
 
-    else:
-        placeholder_args = ''
-
+    placeholder_args = ''
     if val_str is None:
         val_str = repr(val)[:200]
 
-    return (placeholder_args, val_str)
+    return (placeholder_args, val_str, val, False)
 
 
 # === Elm architecture functions ===
 
-def init_model(value):
+def init_model(value, get_visualizer=None):
     """
     Initialize the model state for a new visualization.
 
     Priority for fields: dotfile > DEFAULT_FIELDS_FOR_TYPE > non-trivial dir() names.
     """
+    own_keys = ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"]
+
     if value is None or isinstance(value, (int, float)):
         return {
             "fields": [],
@@ -231,7 +238,8 @@ def init_model(value):
             "selected_suggestion_index": None,
             "drag_from_index": None,
             "drag_over_index": None,
-            "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"],
+            "children": {},
+            "handledKeys": own_keys,
         }
 
     full_class_name = _get_full_class_name(value)
@@ -242,19 +250,32 @@ def init_model(value):
     if fields is None:
         fields = _get_non_trivial_names(value)
 
+    fields = list(fields)
+
+    children = {}
+    if get_visualizer is not None:
+        for accessor_code in fields:
+            placeholder_args, val_str, raw_value, is_error = _eval_field(value, accessor_code)
+            if not is_error and not placeholder_args and raw_value is not None:
+                child_vis = get_visualizer(raw_value)
+                children[accessor_code] = child_vis.init_model(raw_value, get_visualizer)
+
+    handled_keys = aggregate_handled_keys(children, own_keys)
+
     return {
-        "fields": list(fields),  # copy to avoid mutation
+        "fields": fields,
         "editing_index": None,
         "adding_field": False,
         "input_value": "",
         "selected_suggestion_index": None,
         "drag_from_index": None,
         "drag_over_index": None,
-        "handledKeys": ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"],
+        "children": children,
+        "handledKeys": handled_keys,
     }
 
 
-def update(event, source_code: str, source_line: int, model: dict, value) -> Tuple[dict, List[Any]]:
+def update(event, source_code: str, source_line: int, model: dict, value, get_visualizer=None) -> Tuple[dict, List[Any]]:
     """
     Update model based on event. Returns (new_model, commands) tuple.
 
@@ -269,8 +290,6 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
 
     if event is None or event.get('pythonEventStr', '') == '' or event.get('eventJSON', '') == '':
         return (model, commands)
-    if model is None:
-        model = init_model(value)
 
     make_python_event = eval(event['pythonEventStr'])
     event_json = event['eventJSON']
@@ -278,6 +297,18 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
 
     if msg is None:
         return (model, commands)
+
+    if isinstance(msg, ChildEvent) and get_visualizer is not None:
+        _obj_ref = value
+        def _child_value_getter(accessor_key, _obj=_obj_ref):
+            return eval(f"_obj{accessor_key}")
+        new_model, child_cmds = route_child_event(
+            event, model, value, _child_value_getter, get_visualizer,
+            source_code=source_code, source_line=source_line,
+        )
+        own_keys = ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"]
+        new_model['handledKeys'] = aggregate_handled_keys(new_model.get('children', {}), own_keys)
+        return (new_model, child_cmds)
 
     full_class_name = _get_full_class_name(value) if value is not None and not isinstance(value, (int, float)) else None
 
@@ -314,7 +345,10 @@ def update(event, source_code: str, source_line: int, model: dict, value) -> Tup
 
         case RemoveFieldClick(index=idx):
             if 0 <= idx < len(model['fields']):
-                model['fields'].pop(idx)
+                removed_accessor = model['fields'].pop(idx)
+                # Clean up child model for the removed field
+                children = model.get('children', {})
+                children.pop(removed_accessor, None)
                 # Cancel editing if the removed field was being edited
                 if model.get('editing_index') is not None:
                     if model['editing_index'] == idx:
@@ -444,12 +478,24 @@ def visualize(obj, model, get_visualizer):
             field_trs.append(_render_input_row(obj, model, is_editing=True, editing_index=i))
         else:
             # Normal display: double-clickable field name with remove/drag handles
-            placeholder_args, val_str = _eval_field(obj, accessor_code)
+            placeholder_args, val_str, raw_value, is_error = _eval_field(obj, accessor_code)
             click_event = repr(FieldClick(index=i))
             remove_event = repr(RemoveFieldClick(index=i))
             drag_start_event = repr(DragStart(index=i))
             drag_over_event = repr(DragOver(index=i))
             drag_end_event = repr(DragEnd(index=i))
+
+            # Render value cell: use subvisualizer for non-callable/non-error values
+            children = model.get('children', {})
+            if not is_error and not placeholder_args and raw_value is not None and get_visualizer is not None:
+                child_vis = get_visualizer(raw_value)
+                child_model = children.get(accessor_code)
+                if child_model is None:
+                    child_model = child_vis.init_model(raw_value, get_visualizer)
+                child_html = child_vis.visualize(raw_value, child_model, get_visualizer)
+                value_td = f'<td>{wrap_child_html(child_html, accessor_code)}</td>'
+            else:
+                value_td = f'<td>{html.escape(val_str)}</td>'
 
             # Visual feedback during drag
             drag_from = model.get('drag_from_index')
@@ -486,7 +532,7 @@ def visualize(obj, model, get_visualizer):
                 f'<td snc-mouse-down="{html.escape(click_event)}" '
                 f'style="color:{BLUE};opacity:0.7;cursor:pointer;padding-right:8px;">'
                 f'{html.escape(accessor_code)}<span style="opacity:0.4">{html.escape(placeholder_args)}</span></td>'
-                f'<td>{html.escape(val_str)}</td>'
+                f'{value_td}'
                 f'</tr>'
             )
 
@@ -533,7 +579,7 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
 
     # Evaluate current input as accessor to show live value
     if input_value.strip():
-        _, val_str = _eval_field(obj, input_value)
+        _, val_str, _, _ = _eval_field(obj, input_value)
     else:
         val_str = ''
 
@@ -600,5 +646,5 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
 
 def field_to_tr(obj, accessor_code):
     """Legacy field rendering (kept for reference, used by visualize internally)."""
-    placeholder_args, val_str = _eval_field(obj, accessor_code)
+    placeholder_args, val_str, _, _ = _eval_field(obj, accessor_code)
     return f'<tr><td style="color:{BLUE};opacity:0.7;">{html.escape(accessor_code)}<span style="opacity:0.4">{html.escape(placeholder_args)}</span></td><td>{html.escape(val_str)}</td></tr>\n'

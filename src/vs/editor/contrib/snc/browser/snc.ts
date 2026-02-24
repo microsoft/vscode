@@ -142,6 +142,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			if (el.hasAttribute(attr_name)) {
 				const pythonEventStr: string = el.getAttribute(attr_name) ?? '';
 				this.onPointerEvent(pythonEventStr, ev);
+				break;
 			}
 			el = el.parentElement;
 		}

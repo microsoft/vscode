@@ -2315,7 +2315,7 @@ def visualize(value, model, get_visualizer) -> str:
         '</div>'
     )
 
-def init_model(value):
+def init_model(value, get_visualizer=None):
     """
     Initialize the model state for a new visualization.
 
@@ -2401,7 +2401,7 @@ def finalize_handle_drag(model: dict, string_value: str) -> dict:
     return model
 
 
-def update(event, source_code: str, source_line: int, model: dict, value: str) -> Tuple[dict, List[Any]]:
+def update(event, source_code: str, source_line: int, model: dict, value: str, get_visualizer=None) -> Tuple[dict, List[Any]]:
     """
     Update model based on event. Returns (new_model, commands) tuple.
 

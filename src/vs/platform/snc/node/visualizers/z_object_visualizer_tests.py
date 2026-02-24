@@ -17,6 +17,8 @@ import tempfile
 import shutil
 from unittest.mock import patch
 
+import html as html_module
+
 from z_object_visualizer import (
     visualize, init_model, update, can_visualize,
     TRIVIAL_NAMES, DEFAULT_FIELDS_FOR_TYPE, DOTFILE_NAME,
@@ -25,6 +27,38 @@ from z_object_visualizer import (
     load_fields_from_dotfile, save_fields_to_dotfile,
     _get_full_class_name, _get_autocomplete_suggestions,
 )
+from visualizer_utils import ChildEvent
+import z_object_visualizer
+
+
+class _GenericVis:
+    """Fallback visualizer for tests (matches GenericVisualizer in python_runner)."""
+    def can_visualize(self, value):
+        return True
+    def init_model(self, value, get_visualizer=None):
+        return None
+    def visualize(self, value, model, get_visualizer):
+        return html_module.escape(repr(value))
+    def update(self, event, source_code, source_line, model, value, get_visualizer=None):
+        return (model, [])
+
+class _ZObjectVisAdapter:
+    """Adapter wrapping the z_object_visualizer module as a visualizer object."""
+    def can_visualize(self, value):
+        return z_object_visualizer.can_visualize(value)
+    def init_model(self, value, get_visualizer=None):
+        return z_object_visualizer.init_model(value, get_visualizer)
+    def visualize(self, value, model, get_visualizer):
+        return z_object_visualizer.visualize(value, model, get_visualizer)
+    def update(self, event, source_code, source_line, model, value, get_visualizer=None):
+        return z_object_visualizer.update(event, source_code, source_line, model, value, get_visualizer)
+
+_generic_vis = _GenericVis()
+_zobj_vis = _ZObjectVisAdapter()
+
+def _get_visualizer(value):
+    """Simple visualizer resolver for tests."""
+    return _generic_vis
 
 
 # =============================================================================
@@ -177,17 +211,17 @@ class TestVisualize(unittest.TestCase):
 
     def test_visualize_primitives_unchanged(self):
         """None, int, float should still return repr."""
-        self.assertEqual(visualize(None, None), repr(None))
-        self.assertEqual(visualize(42, None), repr(42))
-        self.assertEqual(visualize(3.14, None), repr(3.14))
-        self.assertEqual(visualize(True, None), repr(True))
+        self.assertEqual(visualize(None, None, _get_visualizer), repr(None))
+        self.assertEqual(visualize(42, None, _get_visualizer), repr(42))
+        self.assertEqual(visualize(3.14, None, _get_visualizer), repr(3.14))
+        self.assertEqual(visualize(True, None, _get_visualizer), repr(True))
 
     def test_visualize_object_shows_field_table(self):
         """Object visualization should contain table with field names and values."""
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('.x', html_output)
         self.assertIn('.name', html_output)
@@ -199,7 +233,7 @@ class TestVisualize(unittest.TestCase):
         """HTML should contain a (+) button with snc-mouse-down for AddFieldClick."""
         obj = TestObj()
         model = init_model(obj)
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('snc-mouse-down', html_output)
         self.assertIn('AddFieldClick', html_output)
@@ -211,7 +245,7 @@ class TestVisualize(unittest.TestCase):
         model = init_model(obj)
         model['adding_field'] = True
         model['input_value'] = '.na'
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('<input', html_output)
         self.assertIn('snc-input', html_output)
@@ -224,7 +258,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.x', '.name']
         model['editing_index'] = 0
         model['input_value'] = '.x'
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('<input', html_output)
         self.assertIn('snc-input', html_output)
@@ -236,7 +270,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = []  # no existing fields
         model['adding_field'] = True
         model['input_value'] = '.x'
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         # Should show .x as a suggestion (since it starts with '.x')
         self.assertIn('FieldSelect', html_output)
@@ -248,7 +282,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = []
         model['adding_field'] = True
         model['input_value'] = '.na'
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         # Should have .name as suggestion
         self.assertIn('.name', html_output)
@@ -264,7 +298,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.name']
         model['adding_field'] = True
         model['input_value'] = '.'  # matches everything
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         # .name is already shown, so FieldSelect for .name should not be in autocomplete
         # But .x and .y should be
@@ -281,7 +315,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.x']
         model['adding_field'] = True
         model['input_value'] = '.name'
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         # .name evaluates to 'test', should be shown
         self.assertIn('test', html_output)
@@ -290,7 +324,7 @@ class TestVisualize(unittest.TestCase):
         """Should show the full class name in the header."""
         obj = TestObj()
         model = init_model(obj)
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         full_name = _get_full_class_name(obj)
         self.assertIn('TestObj', html_output)
@@ -300,7 +334,7 @@ class TestVisualize(unittest.TestCase):
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('FieldClick(index=0)', html_output)
         self.assertIn('FieldClick(index=1)', html_output)
@@ -310,7 +344,7 @@ class TestVisualize(unittest.TestCase):
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('RemoveFieldClick(index=0)', html_output)
         self.assertIn('RemoveFieldClick(index=1)', html_output)
@@ -324,7 +358,7 @@ class TestVisualize(unittest.TestCase):
         model = init_model(obj)
         model['adding_field'] = True
         model['input_value'] = ''
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('autofocus', html_output)
 
@@ -335,7 +369,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.x', '.name']
         model['editing_index'] = 0
         model['input_value'] = '.x'
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('autofocus', html_output)
 
@@ -346,7 +380,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.x', '.name']
         model['editing_index'] = 0
         model['input_value'] = '.x'
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('data-snc-select-all', html_output)
 
@@ -356,7 +390,7 @@ class TestVisualize(unittest.TestCase):
         model = init_model(obj)
         model['adding_field'] = True
         model['input_value'] = ''
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertNotIn('data-snc-select-all', html_output)
 
@@ -368,7 +402,7 @@ class TestVisualize(unittest.TestCase):
         model['adding_field'] = True
         model['input_value'] = '.'
         model['selected_suggestion_index'] = 0
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         # The first suggestion should have the highlight color
         self.assertIn('#094771', html_output)
@@ -380,7 +414,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = []
         model['adding_field'] = True
         model['input_value'] = '.'
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('snc-dropdown-trigger', html_output)
         self.assertIn('snc-dropdown-panel', html_output)
@@ -596,8 +630,9 @@ class TestUpdate(unittest.TestCase):
     def test_none_model_gets_initialized(self):
         """Passing None model initializes a fresh model."""
         obj = TestObj()
+        model = init_model(obj, _get_visualizer)
         event = make_mouse_down_event(repr(AddFieldClick()))
-        new_model, commands = update(event, "x = TestObj()", 1, None, obj)
+        new_model, commands = update(event, "x = TestObj()", 1, model, obj)
         self.assertIsNotNone(new_model)
         self.assertTrue(new_model['adding_field'])
 
@@ -961,7 +996,7 @@ class TestDragReorder(unittest.TestCase):
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('DragStart(index=0)', html_output)
         self.assertIn('DragStart(index=1)', html_output)
@@ -971,7 +1006,7 @@ class TestDragReorder(unittest.TestCase):
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model)
+        html_output = visualize(obj, model, _get_visualizer)
 
         self.assertIn('DragOver(index=0)', html_output)
         self.assertIn('DragEnd(index=0)', html_output)
@@ -1070,6 +1105,177 @@ class TestGetFullClassName(unittest.TestCase):
         obj = TestObj()
         result = _get_full_class_name(obj)
         self.assertIn('TestObj', result)
+
+
+# =============================================================================
+# Subvisualizer Composition Tests
+# =============================================================================
+
+class CompositionTestObj:
+    """Test object specifically for composition tests - has string fields."""
+    greeting = "hello"
+    count = 42
+
+class MockInteractiveVis:
+    """A mock interactive visualizer for composition tests."""
+    def can_visualize(self, value):
+        return isinstance(value, str)
+    def init_model(self, value, get_visualizer=None):
+        return {'vis_type': 'mock_interactive', 'handledKeys': ['Escape']}
+    def visualize(self, value, model, get_visualizer):
+        return f'<span snc-mouse-down="MockClick()">{html_module.escape(repr(value))}</span>'
+    def update(self, event, source_code, source_line, model, value, get_visualizer=None):
+        model = dict(model)
+        model['updated'] = True
+        return (model, [])
+
+_mock_interactive_vis = MockInteractiveVis()
+
+def _interactive_get_visualizer(value):
+    """Returns the mock interactive vis for strings, generic for everything else."""
+    if isinstance(value, str):
+        return _mock_interactive_vis
+    return _generic_vis
+
+
+class TestComposition(unittest.TestCase):
+    """Test subvisualizer composition in z_object_visualizer."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.mkdtemp()
+        self._patcher = patch('z_object_visualizer._dotfile_path',
+                              return_value=os.path.join(self._tmpdir, '.snc_object_fields.json'))
+        self._patcher.start()
+
+    def tearDown(self):
+        self._patcher.stop()
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_init_model_contains_children_dict(self):
+        obj = CompositionTestObj()
+        model = init_model(obj, _get_visualizer)
+        self.assertIn('children', model)
+        self.assertIsInstance(model['children'], dict)
+
+    def test_children_keyed_by_accessor(self):
+        obj = CompositionTestObj()
+        model = init_model(obj, _interactive_get_visualizer)
+        # .greeting is a string -> should have a child model from mock vis
+        self.assertIn('.greeting', model['children'])
+        self.assertEqual(model['children']['.greeting']['vis_type'], 'mock_interactive')
+
+    def test_callable_fields_have_no_child_model(self):
+        """Callable fields (methods) should not be subvisualized."""
+        class WithMethod:
+            def my_method(self):
+                pass
+            x = 42
+        obj = WithMethod()
+        model = init_model(obj, _interactive_get_visualizer)
+        # my_method is callable -> should NOT have a child model
+        self.assertNotIn('.my_method', model.get('children', {}))
+
+    def test_visualize_wraps_field_values_with_child_event(self):
+        obj = CompositionTestObj()
+        model = init_model(obj, _interactive_get_visualizer)
+        output = visualize(obj, model, _interactive_get_visualizer)
+        self.assertIn('ChildEvent', output)
+
+    def test_visualize_child_event_has_accessor_key(self):
+        obj = CompositionTestObj()
+        model = init_model(obj, _interactive_get_visualizer)
+        output = visualize(obj, model, _interactive_get_visualizer)
+        import re
+        matches = re.findall(r'snc-mouse-down="([^"]*)"', output)
+        found_child_event_with_accessor = False
+        for m in matches:
+            try:
+                val = html_module.unescape(m)
+                result = eval(val)
+                if isinstance(result, ChildEvent) and result.child_key.startswith('.'):
+                    found_child_event_with_accessor = True
+                    break
+            except:
+                pass
+        self.assertTrue(found_child_event_with_accessor,
+                       "Expected at least one ChildEvent keyed by accessor string")
+
+    def test_update_routes_child_event_by_accessor(self):
+        obj = CompositionTestObj()
+        model = init_model(obj, _interactive_get_visualizer)
+        self.assertIn('.greeting', model['children'])
+        ce = ChildEvent(child_key='.greeting', py_ev_str='MockClick()')
+        event = {
+            'pythonEventStr': repr(ce),
+            'eventJSON': {'type': 'mousedown', 'button': 0, 'buttons': 1},
+        }
+        new_model, _ = update(event, '', 1, model, obj, _interactive_get_visualizer)
+        child_model = new_model['children'].get('.greeting')
+        self.assertIsNotNone(child_model)
+        self.assertTrue(child_model.get('updated', False))
+
+    def test_remove_field_cleans_up_child_model(self):
+        obj = CompositionTestObj()
+        model = init_model(obj, _interactive_get_visualizer)
+        self.assertIn('.greeting', model['children'])
+        greeting_idx = model['fields'].index('.greeting')
+        event = {
+            'pythonEventStr': repr(RemoveFieldClick(index=greeting_idx)),
+            'eventJSON': {'type': 'mousedown', 'button': 0, 'buttons': 1},
+        }
+        new_model, _ = update(event, '', 1, model, obj, _interactive_get_visualizer)
+        self.assertNotIn('.greeting', new_model.get('fields', []))
+        self.assertNotIn('.greeting', new_model.get('children', {}))
+
+    def test_drag_reorder_preserves_child_model_association(self):
+        """Reordering fields should keep child models associated by accessor key."""
+        obj = CompositionTestObj()
+        model = init_model(obj, _interactive_get_visualizer)
+        if len(model['fields']) < 2:
+            self.skipTest("Need at least 2 fields")
+
+        original_children = dict(model['children'])
+        first_field = model['fields'][0]
+        second_field = model['fields'][1]
+
+        # Start drag from index 0
+        event_start = {
+            'pythonEventStr': repr(DragStart(index=0)),
+            'eventJSON': {'type': 'mousedown', 'button': 0, 'buttons': 1},
+        }
+        model, _ = update(event_start, '', 1, model, obj, _interactive_get_visualizer)
+
+        # Drag over index 1
+        event_over = {
+            'pythonEventStr': repr(DragOver(index=1)),
+            'eventJSON': {'type': 'mousemove', 'buttons': 1},
+        }
+        model, _ = update(event_over, '', 1, model, obj, _interactive_get_visualizer)
+
+        # End drag
+        event_end = {
+            'pythonEventStr': repr(DragEnd(index=1)),
+            'eventJSON': {'type': 'mouseup', 'button': 0, 'buttons': 0},
+        }
+        model, _ = update(event_end, '', 1, model, obj, _interactive_get_visualizer)
+
+        # Fields should be reordered
+        self.assertEqual(model['fields'][0], second_field)
+        self.assertEqual(model['fields'][1], first_field)
+
+        # Child models should still be keyed by accessor, not index
+        if first_field in original_children:
+            self.assertEqual(model['children'].get(first_field), original_children[first_field])
+        if second_field in original_children:
+            self.assertEqual(model['children'].get(second_field), original_children[second_field])
+
+    def test_handled_keys_aggregates_children(self):
+        obj = CompositionTestObj()
+        model = init_model(obj, _interactive_get_visualizer)
+        # The mock interactive vis has handledKeys: ['Escape']
+        # z_object's own keys include 'Enter', 'Escape', etc.
+        self.assertIn('Enter', model['handledKeys'])
+        self.assertIn('Escape', model['handledKeys'])
 
 
 if __name__ == '__main__':

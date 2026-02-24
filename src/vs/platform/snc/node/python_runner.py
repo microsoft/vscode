@@ -87,8 +87,8 @@ class StaticVisualizer(Protocol):
 class Visualizer(Protocol):
     can_visualize: Callable[[Any], bool]
     visualize: Callable[[Any, Any, Callable[[Any], Any]], str]  # takes value, model, get_visualizer
-    init_model: Callable[[Any], Any]  # takes value
-    update: Callable[[Any, Any, Any, Any, Any], Any]  # takes ui_event, source code, source line, model, value; returns (new model, commands)
+    init_model: Callable[[Any, Callable[[Any], Any]], Any]  # takes value, get_visualizer
+    update: Callable[[Any, Any, Any, Any, Any, Callable[[Any], Any]], Any]  # takes ui_event, source code, source line, model, value, get_visualizer; returns (new model, commands)
 
 
 # Final fallback if there are no visualizers.
@@ -97,13 +97,13 @@ class GenericVisualizer(Visualizer):
     def can_visualize(value) -> bool:
         return True
 
-    def init_model(value) -> Any:
+    def init_model(value, get_visualizer) -> Any:
         return None
 
     def visualize(value, model, get_visualizer) -> str:
         return html.escape(repr(value))
 
-    def update(event: Any, source_code: str, source_line: int, model: Any, value: str) -> Tuple[Any, List[Any]]:
+    def update(event: Any, source_code: str, source_line: int, model: Any, value: str, get_visualizer=None) -> Tuple[Any, List[Any]]:
         return (model, [])
 
 # Wrapper that adds dummy `init_model` and `update` functions to static visualizers
@@ -115,14 +115,14 @@ class VisualizerOfStaticVisualizer():
     def can_visualize(self, value) -> bool:
         return self.vis.can_visualize(value)
 
-    def init_model(self, value) -> Any:
-        return GenericVisualizer.init_model(value)
+    def init_model(self, value, get_visualizer) -> Any:
+        return GenericVisualizer.init_model(value, get_visualizer)
 
     def visualize(self, value, model, get_visualizer) -> str:
         return self.vis.visualize(value)
 
-    def update(self, event, source_code, source_line, model, value) -> Tuple[Any, List[Any]]:
-        return GenericVisualizer.update(event, source_code, source_line, model, value)
+    def update(self, event, source_code, source_line, model, value, get_visualizer=None) -> Tuple[Any, List[Any]]:
+        return GenericVisualizer.update(event, source_code, source_line, model, value, get_visualizer)
 
 
 def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = None) -> None:
@@ -156,13 +156,13 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
     try:
         item_model_and_events = next((m_e for m_e in models_and_events if m_e.get('line') == line and m_e.get('visIndex') == idx_in_line), {})
 
-        model = item_model_and_events['model'] if item_model_and_events.get('model', None) is not None else vis.init_model(value)
+        model = item_model_and_events['model'] if item_model_and_events.get('model', None) is not None else vis.init_model(value, get_visualizer)
 
         # Apply all the events in order, collecting any commands
         if 'events' in item_model_and_events:
             for ev in item_model_and_events['events']:
                 # Add source context to the event
-                model, cmds = vis.update(ev, _source_code, line, model, value)
+                model, cmds = vis.update(ev, _source_code, line, model, value, get_visualizer)
                 commands.extend(cmds)
 
         html_content = vis.visualize(value, model, get_visualizer)
@@ -236,6 +236,10 @@ def log_and_return(line: int, value: Any, last_line_in_containing_loop: int | No
 def _visualizer_from_file(filepath: str) -> Optional[Visualizer]:
     """Load a visualizer module from a Python file."""
     try:
+        vis_dir = os.path.dirname(os.path.abspath(filepath))
+        if vis_dir not in sys.path:
+            sys.path.insert(0, vis_dir) # so visualizers can import e.g. visualizer_utils.py
+
         spec = importlib.util.spec_from_file_location("visualizer", filepath)
         if spec is None or spec.loader is None:
             return None
