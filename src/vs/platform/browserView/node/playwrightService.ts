@@ -237,6 +237,7 @@ class PlaywrightPageManager extends Disposable {
 	private readonly _initStore = this._register(new DisposableStore());
 	private _group: IBrowserViewGroup | undefined;
 	private _browser: Browser | undefined;
+	private _openContext: BrowserContext | undefined = undefined;
 
 	constructor(
 		private readonly logService: ILogService,
@@ -291,7 +292,12 @@ class PlaywrightPageManager extends Disposable {
 			throw new Error('PlaywrightPageManager has not been initialized');
 		}
 
-		const page = await this._browser.newPage();
+		if (!this._openContext) {
+			this._openContext = await this._browser.newContext();
+			this.onContextAdded(this._openContext);
+		}
+
+		const page = await this._openContext.newPage();
 		const viewId = await this.onPageAdded(page);
 
 		this._trackedPages.add(viewId);
