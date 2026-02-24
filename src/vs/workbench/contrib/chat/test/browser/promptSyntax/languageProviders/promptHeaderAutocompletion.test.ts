@@ -141,6 +141,7 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'agents', result: 'agents: ${0:["*"]}' },
 				{ label: 'argument-hint', result: 'argument-hint: $0' },
 				{ label: 'disable-model-invocation', result: 'disable-model-invocation: ${0:true}' },
+				{ label: 'github', result: 'github: $0' },
 				{ label: 'handoffs', result: 'handoffs: $0' },
 				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
 				{ label: 'name', result: 'name: $0' },
