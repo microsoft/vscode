@@ -38,7 +38,7 @@ import { DefaultViewsContext, SearchAgentPluginsContext } from '../../extensions
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType } from '../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceType } from '../common/plugins/pluginMarketplaceService.js';
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 
@@ -63,6 +63,7 @@ interface IMarketplacePluginItem {
 	readonly description: string;
 	readonly source: string;
 	readonly marketplace: string;
+	readonly marketplaceReference: IMarketplaceReference;
 	readonly marketplaceType: MarketplaceType;
 	readonly readmeUri?: URI;
 }
@@ -83,6 +84,7 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		description: plugin.description,
 		source: plugin.source,
 		marketplace: plugin.marketplace,
+		marketplaceReference: plugin.marketplaceReference,
 		marketplaceType: plugin.marketplaceType,
 		readmeUri: plugin.readmeUri,
 	};
@@ -109,6 +111,7 @@ class InstallPluginAction extends Action {
 			version: '',
 			source: this.item.source,
 			marketplace: this.item.marketplace,
+			marketplaceReference: this.item.marketplaceReference,
 			marketplaceType: this.item.marketplaceType,
 			readmeUri: this.item.readmeUri,
 		});
@@ -426,6 +429,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				version: '',
 				source: m.source,
 				marketplace: m.marketplace,
+				marketplaceReference: m.marketplaceReference,
 				marketplaceType: m.marketplaceType,
 			});
 			return !installedPaths.has(expectedUri.toString());
