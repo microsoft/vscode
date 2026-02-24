@@ -21,7 +21,6 @@ import { IRemoteAgentService } from '../../../../services/remote/common/remoteAg
 import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfiguration.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
-import { IChatService } from '../../../chat/common/chatService/chatService.js';
 
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
@@ -32,14 +31,6 @@ export interface ITerminalSandboxService {
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
-	checkIfDomainsAreSandboxed(domains: string[]): SandboxedDomainCheckResult[];
-	addDomainsToAllowList(domains: string[]): Promise<void>;
-}
-
-export interface SandboxedDomainCheckResult {
-	domain: string;
-	isInAllowedList: boolean | undefined;
-	isInDeniedList: boolean | undefined;
 }
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
@@ -56,8 +47,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 	private _remoteEnvDetails: IRemoteAgentEnvironment | null = null;
 	private _appRoot: string;
 	private _os: OperatingSystem = OS;
-	private _allowedDomains: Set<string> = new Set<string>();
-	private _deniedDomains: Set<string> = new Set<string>();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -66,7 +55,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		@ILogService private readonly _logService: ILogService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
-		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
 		this._appRoot = dirname(FileAccess.asFileUri('').path);
@@ -85,16 +73,11 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem)
 			) {
 				this.setNeedsForceUpdateConfigFile();
-				this._setSandboxedDomains();
 			}
 		}));
 
 		this._register(this._trustedDomainService.onDidChangeTrustedDomains(() => {
 			this.setNeedsForceUpdateConfigFile();
-		}));
-
-		this._register(this._chatService.onDidReceiveQuestionCarouselAnswer(e => {
-			void this._handleQuestionCarouselAnswer(e.answers);
 		}));
 	}
 
@@ -160,19 +143,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 		this._srtPath = this._pathJoin(this._appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
 		this._rgPath = this._pathJoin(this._appRoot, 'node_modules', '@vscode', 'ripgrep', 'bin', 'rg');
-	}
-
-	public checkIfDomainsAreSandboxed(domains: string[]): SandboxedDomainCheckResult[] {
-		return domains.map(domain => {
-			const lowerCaseDomain = domain.toLowerCase();
-			const isInAllowedList = this._matchesDomain(lowerCaseDomain, this._allowedDomains);
-			const isInDeniedList = this._matchesDomain(lowerCaseDomain, this._deniedDomains);
-			return {
-				domain,
-				isInAllowedList,
-				isInDeniedList
-			};
-		});
 	}
 
 	private async _createSandboxConfig(): Promise<string | undefined> {
@@ -241,88 +211,4 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			}
 		}
 	}
-
-	public async addDomainsToAllowList(domains: string[]): Promise<void> {
-		const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
-		const existingDomains = new Set(networkSetting.allowedDomains ?? []);
-		for (const domain of domains) {
-			existingDomains.add(domain.toLowerCase());
-		}
-		await this._configurationService.updateValue(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
-			...networkSetting,
-			allowedDomains: Array.from(existingDomains),
-		});
-	}
-
-	private _setSandboxedDomains(): void {
-		const networkSettings = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
-		const allowedDomains = networkSettings.allowedDomains ?? [];
-		const deniedDomains = networkSettings.deniedDomains ?? [];
-		this._allowedDomains.clear();
-		this._deniedDomains.clear();
-		for (const domain of allowedDomains) {
-			if (domain) {
-				this._allowedDomains.add(domain.toLowerCase());
-			}
-		}
-		for (const domain of deniedDomains) {
-			if (domain) {
-				this._deniedDomains.add(domain.toLowerCase());
-			}
-		}
-	}
-
-	private _matchesDomain(domain: string, domains: Set<string>): boolean {
-		if (domains.has(domain)) {
-			return true;
-		}
-		for (const sandboxedDomain of domains) {
-			if (sandboxedDomain.startsWith('*') && domain.endsWith(`${sandboxedDomain.slice(1)}`)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private async _handleQuestionCarouselAnswer(answer: Record<string, unknown> | undefined): Promise<void> {
-		if (!answer) {
-			return;
-		}
-		const yesAnswers = this._isYesAnswer(answer);
-		if (yesAnswers.length === 0) {
-			return;
-		}
-		try {
-			await this.addDomainsToAllowList(yesAnswers);
-			this.setNeedsForceUpdateConfigFile();
-			this._setSandboxedDomains();
-		} catch (error) {
-			this._logService.warn(`TerminalSandboxService: Failed to update sandbox allow list from question carousel answer: ${String(error)}`);
-		}
-	}
-
-	private _isYesAnswer(answer: Record<string, unknown> | undefined): string[] {
-		const yesAnswers: string[] = [];
-		const manageDomainAnswer = answer?.manageDomain as { selectedValue?: string } | undefined;
-		if (!manageDomainAnswer) {
-			return yesAnswers;
-		}
-		const value = manageDomainAnswer.selectedValue;
-		if (!value) {
-			return yesAnswers;
-		}
-		const parts = value.split(':');
-		if (parts.length < 2) {
-			return yesAnswers;
-		}
-		const answerLabel = parts[0].trim().toLowerCase();
-		if (answerLabel !== 'yes') {
-			return yesAnswers;
-		}
-		const answerDomain = parts.slice(1).join(':').trim().toLowerCase();
-		yesAnswers.push(answerDomain);
-		return yesAnswers;
-	}
-
-
 }
