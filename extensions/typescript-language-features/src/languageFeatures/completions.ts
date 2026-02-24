@@ -669,13 +669,12 @@ namespace CompletionConfiguration {
 		modeId: string,
 		scope: UnifiedConfigurationScope
 	): CompletionConfiguration {
-		const config = vscode.workspace.getConfiguration(modeId, scope);
 		return {
 			completeFunctionCalls: readUnifiedConfig<boolean>(CompletionConfiguration.completeFunctionCalls, false, { scope: scope, fallbackSection: modeId }),
 			pathSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.pathSuggestions, true, { scope: scope, fallbackSection: modeId }),
 			autoImportSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.autoImportSuggestions, true, { scope: scope, fallbackSection: modeId }),
 			nameSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.nameSuggestions, true, { scope: scope, fallbackSection: modeId }),
-			importStatementSuggestions: config.get<boolean>(CompletionConfiguration.importStatementSuggestions, true),
+			importStatementSuggestions: readUnifiedConfig<boolean>(CompletionConfiguration.importStatementSuggestions, true, { scope: scope, fallbackSection: modeId }),
 		};
 	}
 }

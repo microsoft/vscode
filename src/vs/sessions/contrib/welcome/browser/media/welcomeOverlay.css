@@ -1,0 +1,147 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Welcome Overlay (blocks the sessions window) ---- */
+
+.sessions-welcome-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 200;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+	opacity: 1;
+	transition: opacity 200ms ease-out;
+}
+
+.sessions-welcome-overlay.sessions-welcome-overlay-dismissed {
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* ---- Card ---- */
+
+.sessions-welcome-card {
+	width: 460px;
+	max-width: 90vw;
+	padding: 32px;
+	border-radius: 8px;
+	background: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-widget-border, transparent);
+	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+	display: flex;
+	flex-direction: column;
+	gap: 24px;
+}
+
+/* ---- Header ---- */
+
+.sessions-welcome-header h2 {
+	margin: 0 0 4px 0;
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-welcome-subtitle {
+	margin: 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* ---- Step List ---- */
+
+.sessions-welcome-step-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.sessions-welcome-step-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 12px;
+	border-radius: 4px;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	background: transparent;
+	transition: background 150ms, color 150ms;
+}
+
+.sessions-welcome-step-item.current {
+	background: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-welcome-step-item.satisfied {
+	color: var(--vscode-testing-iconPassed, var(--vscode-descriptionForeground));
+}
+
+/* ---- Step Indicator (number or check icon) ---- */
+
+.sessions-welcome-step-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	font-size: 12px;
+	font-weight: 600;
+	flex-shrink: 0;
+	border: 1px solid var(--vscode-descriptionForeground);
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-welcome-step-item.current .sessions-welcome-step-indicator {
+	border-color: var(--vscode-focusBorder);
+	color: var(--vscode-focusBorder);
+}
+
+.sessions-welcome-step-item.satisfied .sessions-welcome-step-indicator {
+	border-color: var(--vscode-testing-iconPassed, var(--vscode-focusBorder));
+	color: var(--vscode-testing-iconPassed, var(--vscode-focusBorder));
+}
+
+.sessions-welcome-step-indicator.loading {
+	border: none;
+	animation: sessions-spin 1.5s linear infinite;
+}
+
+@keyframes sessions-spin {
+	to { transform: rotate(360deg); }
+}
+
+.sessions-welcome-step-title {
+	flex: 1;
+}
+
+/* ---- Action Area ---- */
+
+.sessions-welcome-action-area {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.sessions-welcome-action-description {
+	margin: 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-welcome-action-area .monaco-button {
+	width: 100%;
+}
+
+/* ---- Error ---- */
+
+.sessions-welcome-error {
+	margin: 0;
+	font-size: 12px;
+	color: var(--vscode-errorForeground);
+}

@@ -19,7 +19,7 @@ import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logBrowserOpen } from './browserViewTelemetry.js';
+import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);

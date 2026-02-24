@@ -11,7 +11,7 @@
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	margin: 0 0 6px 4px;
+	margin: 0 0 6px 0px;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 
@@ -31,6 +31,14 @@
 			&::before {
 				font-size: var(--vscode-chat-font-size-body-s);
 			}
+		}
+
+		.codicon.codicon-check {
+			display: none;
+		}
+
+		.show-checkmarks & .codicon.codicon-check {
+			display: inline-flex;
 		}
 
 		.status-label {

@@ -34,8 +34,6 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
-export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
-export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -184,17 +182,7 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		if (productService.releaseNotesUrl) {
-			const releaseNotesUrlKey = RELEASE_NOTES_URL.bindTo(contextKeyService);
-			releaseNotesUrlKey.set(productService.releaseNotesUrl);
-		}
-		if (productService.downloadUrl) {
-			const downloadUrlKey = DOWNLOAD_URL.bindTo(contextKeyService);
-			downloadUrlKey.set(productService.downloadUrl);
-		}
-
 		if (isWeb) {
 			return;
 		}

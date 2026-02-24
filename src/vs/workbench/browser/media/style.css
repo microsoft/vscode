@@ -260,7 +260,8 @@ body {
 	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/microsoft/vscode/issues/26045) */
 }
 
-.monaco-workbench .monaco-list:not(.element-focused):not(:active):focus:before {
+.monaco-workbench.hc-black .monaco-list:not(.element-focused):not(:active):focus:before,
+.monaco-workbench.hc-light .monaco-list:not(.element-focused):not(:active):focus:before {
 	position: absolute;
 	top: 0;
 	left: 0;

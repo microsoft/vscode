@@ -18,6 +18,8 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { INewSession } from './newSession.js';
+import { toAction } from '../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 const STORAGE_KEY_LAST_FOLDER = 'agentSessions.lastPickedFolder';
 const STORAGE_KEY_RECENT_FOLDERS = 'agentSessions.recentlyPickedFolders';
@@ -83,10 +85,11 @@ export class FolderPicker extends Disposable {
 			}
 		} catch { /* ignore */ }
 
-		// Pre-fetch recently opened folders
+		// Pre-fetch recently opened folders, filtering out copilot worktrees
 		this.workspacesService.getRecentlyOpened().then(recent => {
 			this._cachedRecentFolders = recent.workspaces
 				.filter(isRecentFolder)
+				.filter(r => !this._isCopilotWorktree(r.folderUri))
 				.slice(0, MAX_RECENT_FOLDERS)
 				.map(r => ({ uri: r.folderUri, label: r.label }));
 		}).catch(() => { /* ignore */ });
@@ -245,6 +248,12 @@ export class FolderPicker extends Disposable {
 				label,
 				group: { title: '', icon: Codicon.blank },
 				item: { uri: folder.uri, label },
+				toolbarActions: [toAction({
+					id: 'folderPicker.remove',
+					label: localize('folderPicker.remove', "Remove"),
+					class: ThemeIcon.asClassName(Codicon.close),
+					run: () => this._removeFolder(folder.uri),
+				})],
 			});
 		}
 
@@ -263,6 +272,27 @@ export class FolderPicker extends Disposable {
 		});
 
 		return items;
+	}
+
+	private _removeFolder(folderUri: URI): void {
+		// Remove from recently picked folders
+		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
+		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		// Remove from cached recent folders
+		this._cachedRecentFolders = this._cachedRecentFolders.filter(f => !isEqual(f.uri, folderUri));
+
+		// Remove from globally recently opened
+		this.workspacesService.removeRecentlyOpened([folderUri]);
+
+		// Re-show the picker with updated items
+		this.actionWidgetService.hide();
+		this.showPicker();
+	}
+
+	private _isCopilotWorktree(uri: URI): boolean {
+		const name = basename(uri);
+		return name.startsWith('copilot-worktree-');
 	}
 
 	private _updateTriggerLabel(trigger: HTMLElement | undefined): void {

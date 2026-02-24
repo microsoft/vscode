@@ -7,7 +7,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { app } from 'electron';
 import { existsSync, unlinkSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
-import { tmpdir } from 'os';
+import { release, tmpdir } from 'os';
 import { Delayer, ProcessTimeRunOnceScheduler, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -30,7 +30,8 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
-import { AbstractUpdateService, createUpdateURL, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
+import { getWindowsRelease } from '../../../base/node/windowsVersion.js';
+import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
 interface IAvailableUpdate {
 	packagePath: string;
@@ -101,6 +102,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			app.setPath('appUpdate', cachePath);
 			await this.unlink(path.join(cachePath, 'session-ending.flag'));
 		}
+
+		// Send telemetry
+		type WindowsUpdateInitEvent = {
+			osRelease: string;
+			osNodeRelease: string;
+		};
+		type WindowsUpdateInitClassification = {
+			osRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Windows OS release version from registry.' };
+			osNodeRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Windows OS release version from os.release().' };
+			owner: 'dmitriv';
+			comment: 'Tracks Windows OS release information during update initialization.';
+		};
+		const osRelease = await getWindowsRelease();
+		const osNodeRelease = release();
+		this.telemetryService.publicLog2<WindowsUpdateInitEvent, WindowsUpdateInitClassification>('windowsUpdateInit', { osRelease, osNodeRelease });
 
 		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
 			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
@@ -179,7 +195,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.setState(State.CheckingForUpdates(explicit));
 		}
 
-		this.requestService.request({ url }, CancellationToken.None)
+		const headers = getUpdateRequestHeaders(this.productService.version);
+		this.requestService.request({ url, headers }, CancellationToken.None)
 			.then<IUpdate | null>(asJson)
 			.then(update => {
 				const updateType = getUpdateType();
@@ -345,7 +362,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			{
 				detached: true,
 				stdio: ['ignore', 'ignore', 'ignore'],
-				windowsVerbatimArguments: true
+				windowsVerbatimArguments: true,
+				env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
 			}
 		);
 
@@ -467,7 +485,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
-				stdio: ['ignore', 'ignore', 'ignore']
+				stdio: ['ignore', 'ignore', 'ignore'],
+				env: { ...process.env, __COMPAT_LAYER: 'RunAsInvoker' }
 			});
 		}
 	}

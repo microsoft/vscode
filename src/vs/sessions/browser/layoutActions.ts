@@ -8,12 +8,12 @@ import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
 
 // Register Icons
@@ -51,6 +51,12 @@ class ToggleSidebarVisibilityAction extends Action2 {
 			menu: [
 				{
 					id: Menus.TitleBarLeft,
+					group: 'navigation',
+					order: 0,
+					when: IsAuxiliaryWindowContext.toNegated()
+				},
+				{
+					id: Menus.TitleBarContext,
 					group: 'navigation',
 					order: 0,
 					when: IsAuxiliaryWindowContext.toNegated()
@@ -99,6 +105,11 @@ class ToggleSecondarySidebarVisibilityAction extends Action2 {
 					id: Menus.TitleBarRight,
 					group: 'navigation',
 					order: 10,
+					when: IsAuxiliaryWindowContext.toNegated()
+				},
+				{
+					id: Menus.TitleBarContext,
+					order: 1,
 					when: IsAuxiliaryWindowContext.toNegated()
 				}
 			]
@@ -150,3 +161,19 @@ class TogglePanelVisibilityAction extends Action2 {
 registerAction2(ToggleSidebarVisibilityAction);
 registerAction2(ToggleSecondarySidebarVisibilityAction);
 registerAction2(TogglePanelVisibilityAction);
+
+// Floating window controls: always-on-top
+MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
+	command: {
+		id: 'workbench.action.toggleWindowAlwaysOnTop',
+		title: localize('toggleWindowAlwaysOnTop', "Toggle Always on Top"),
+		icon: Codicon.pin,
+		toggled: {
+			condition: IsWindowAlwaysOnTopContext,
+			icon: Codicon.pinned,
+		},
+	},
+	when: IsAuxiliaryWindowContext,
+	group: 'navigation',
+	order: 0
+});

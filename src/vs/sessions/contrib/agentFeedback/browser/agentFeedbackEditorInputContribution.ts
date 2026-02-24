@@ -22,12 +22,16 @@ import { localize } from '../../../../nls.js';
 class AgentFeedbackInputWidget implements IOverlayWidget {
 
 	private static readonly _ID = 'agentFeedback.inputWidget';
+	private static readonly _MIN_WIDTH = 150;
+	private static readonly _MAX_WIDTH = 400;
 
 	readonly allowEditorOverflow = false;
 
 	private readonly _domNode: HTMLElement;
-	private readonly _inputElement: HTMLInputElement;
+	private readonly _inputElement: HTMLTextAreaElement;
+	private readonly _measureElement: HTMLElement;
 	private _position: IOverlayWidgetPosition | null = null;
+	private _lineHeight = 0;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -36,12 +40,19 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 		this._domNode.classList.add('agent-feedback-input-widget');
 		this._domNode.style.display = 'none';
 
-		this._inputElement = document.createElement('input');
-		this._inputElement.type = 'text';
+		this._inputElement = document.createElement('textarea');
+		this._inputElement.rows = 1;
 		this._inputElement.placeholder = localize('agentFeedback.addFeedback', "Add Feedback");
 		this._domNode.appendChild(this._inputElement);
 
+		// Hidden element used to measure text width for auto-growing
+		this._measureElement = document.createElement('span');
+		this._measureElement.classList.add('agent-feedback-input-measure');
+		this._domNode.appendChild(this._measureElement);
+
 		this._editor.applyFontInfo(this._inputElement);
+		this._editor.applyFontInfo(this._measureElement);
+		this._lineHeight = this._editor.getOption(EditorOption.lineHeight);
 	}
 
 	getId(): string {
@@ -56,7 +67,7 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 		return this._position;
 	}
 
-	get inputElement(): HTMLInputElement {
+	get inputElement(): HTMLTextAreaElement {
 		return this._inputElement;
 	}
 
@@ -75,6 +86,28 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 
 	clearInput(): void {
 		this._inputElement.value = '';
+		this._autoSize();
+	}
+
+	autoSize(): void {
+		this._autoSize();
+	}
+
+	private _autoSize(): void {
+		const text = this._inputElement.value || this._inputElement.placeholder;
+
+		// Measure the text width using the hidden span
+		this._measureElement.textContent = text;
+		const textWidth = this._measureElement.scrollWidth;
+
+		// Clamp width between min and max
+		const width = Math.max(AgentFeedbackInputWidget._MIN_WIDTH, Math.min(textWidth + 10, AgentFeedbackInputWidget._MAX_WIDTH));
+		this._inputElement.style.width = `${width}px`;
+
+		// Reset height to auto then expand to fit all content, with a minimum of 1 line
+		this._inputElement.style.height = 'auto';
+		const newHeight = Math.max(this._inputElement.scrollHeight, this._lineHeight);
+		this._inputElement.style.height = `${newHeight}px`;
 	}
 }
 
@@ -110,8 +143,11 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			this._mouseDown = true;
 			this._hide();
 		}));
-		this._store.add(this._editor.onMouseUp(() => {
+		this._store.add(this._editor.onMouseUp((e) => {
 			this._mouseDown = false;
+			if (this._isWidgetTarget(e.event.target)) {
+				return;
+			}
 			this._onSelectionChanged();
 		}));
 		this._store.add(this._editor.onDidBlurEditorWidget(() => {
@@ -262,6 +298,12 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			e.stopPropagation();
 		}));
 
+		// Auto-size the textarea as the user types
+		this._widgetListeners.add(addStandardDisposableListener(widget.inputElement, 'input', () => {
+			widget.autoSize();
+			this._updatePosition();
+		}));
+
 		// Hide when input loses focus to something outside both editor and widget
 		this._widgetListeners.add(addStandardDisposableListener(widget.inputElement, 'blur', () => {
 			const win = getWindow(widget.inputElement);
@@ -316,17 +358,34 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const left = scrolledPosition.left;
+		const layoutInfo = this._editor.getLayoutInfo();
+		const widgetDom = this._widget.getDomNode();
+		const widgetHeight = widgetDom.offsetHeight || 30;
+		const widgetWidth = widgetDom.offsetWidth || 150;
 
+		// Compute vertical position, flipping if out of bounds
 		let top: number;
 		if (selection.getDirection() === SelectionDirection.LTR) {
-			// Cursor at end (bottom) of selection → place widget below the cursor line
+			// Cursor at end (bottom) of selection → prefer below the cursor line
 			top = scrolledPosition.top + lineHeight;
+			if (top + widgetHeight > layoutInfo.height) {
+				// Not enough space below → place above the cursor line
+				top = scrolledPosition.top - widgetHeight;
+			}
 		} else {
-			// Cursor at start (top) of selection → place widget above the cursor line
-			const widgetHeight = this._widget.getDomNode().offsetHeight || 30;
+			// Cursor at start (top) of selection → prefer above the cursor line
 			top = scrolledPosition.top - widgetHeight;
+			if (top < 0) {
+				// Not enough space above → place below the cursor line
+				top = scrolledPosition.top + lineHeight;
+			}
 		}
+
+		// Clamp vertical position within editor bounds
+		top = Math.max(0, Math.min(top, layoutInfo.height - widgetHeight));
+
+		// Clamp horizontal position so the widget stays within the editor
+		const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
 
 		this._widget.setPosition({ preference: { top, left } });
 	}

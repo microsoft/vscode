@@ -309,6 +309,33 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.sessions-chat-picker-slot.loading .action-label {
+	opacity: 0.5;
+	cursor: default;
+	pointer-events: none;
+}
+
+.sessions-chat-picker-slot.loading .action-label .codicon-chevron-down {
+	display: none;
+}
+
+.sessions-chat-picker-slot.loading .action-label::after {
+	content: '';
+	display: inline-block;
+	width: 12px;
+	height: 12px;
+	margin-left: 4px;
+	border: 1.5px solid var(--vscode-descriptionForeground);
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: sessions-chat-picker-spin 0.8s linear infinite;
+	flex-shrink: 0;
+}
+
+@keyframes sessions-chat-picker-spin {
+	to { transform: rotate(360deg); }
+}
+
 .sessions-chat-picker-slot .action-label .codicon {
 	font-size: 14px;
 	flex-shrink: 0;

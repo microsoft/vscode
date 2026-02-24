@@ -19,9 +19,8 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
-import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
@@ -30,6 +29,8 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { AgenticPromptsService } from './promptsService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ISessionsConfigurationService, SessionsConfigurationService } from './sessionsConfigurationService.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
 import { ChatViewContainerId, ChatViewId } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
@@ -76,11 +77,15 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 				? 'vscode-exploration'
 				: 'vscode-insiders';
 
+		const params = new URLSearchParams();
+		params.set('windowId', '_blank');
+		params.set('session', activeSession.resource.toString());
+
 		await openerService.open(URI.from({
 			scheme,
 			authority: Schemas.file,
 			path: folderUri.path,
-			query: 'windowId=_blank',
+			query: params.toString(),
 		}), { openExternal: true });
 	}
 }
@@ -107,7 +112,7 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		sessionsManagementService.openNewSession();
+		sessionsManagementService.openNewSessionView();
 	}
 }
 
@@ -130,20 +135,33 @@ export class OpenSessionInTerminalAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor,): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
-		const viewsService = accessor.get(IViewsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const pathService = accessor.get(IPathService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
-		const repository = isAgentSession(activeSession) && activeSession.providerType !== AgentSessionProviders.Cloud
+		const cwd = (isAgentSession(activeSession) && activeSession.providerType !== AgentSessionProviders.Cloud
 			? activeSession.worktree
-			: undefined;
-		if (repository) {
-			const instance = await terminalService.createTerminal({ config: { cwd: repository } });
+			: undefined) ?? await pathService.userHome();
+
+		// Try to reuse an existing idle terminal with the same cwd
+		const cwdPath = cwd.fsPath;
+		let reusable: ITerminalInstance | undefined;
+		for (const instance of terminalService.instances) {
+			if (instance.cwd && instance.cwd.toLowerCase() === cwdPath.toLowerCase() && !instance.hasChildProcesses) {
+				reusable = instance;
+				break;
+			}
+		}
+
+		if (reusable) {
+			terminalService.setActiveInstance(reusable);
+		} else {
+			const instance = await terminalService.createTerminal({ config: { cwd } });
 			if (instance) {
 				terminalService.setActiveInstance(instance);
 			}
 		}
-		await viewsService.openView(TERMINAL_VIEW_ID, true);
+		await terminalService.focusActiveInstance();
 	}
 }
 
@@ -232,3 +250,4 @@ registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
 registerSingleton(ISessionsConfigurationService, SessionsConfigurationService, InstantiationType.Delayed);
+registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);

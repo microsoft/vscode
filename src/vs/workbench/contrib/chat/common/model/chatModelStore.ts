@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, IDisposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
 import { ObservableMap } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -27,7 +27,7 @@ export interface ChatModelStoreDelegate {
 	willDisposeModel: (model: ChatModel) => Promise<void>;
 }
 
-export class ChatModelStore extends Disposable implements IDisposable {
+export class ChatModelStore extends Disposable {
 	private readonly _refCollection: ReferenceCollection<ChatModel>;
 
 	private readonly _models = new ObservableMap<string, ChatModel>();

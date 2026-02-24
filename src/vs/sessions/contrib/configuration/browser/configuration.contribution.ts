@@ -14,6 +14,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.unifiedAgentsBar.enabled': true,
 		'chat.viewSessions.enabled': false,
 
+		'breadcrumbs.enabled': false,
+
 		'diffEditor.renderSideBySide': false,
 		'diffEditor.hideUnchangedRegions.enabled': true,
 
@@ -36,7 +38,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
-		'workbench.editor.useModal': 'on',
+		'workbench.editor.useModal': 'all',
 		'workbench.editor.labelFormat': 'short',
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',

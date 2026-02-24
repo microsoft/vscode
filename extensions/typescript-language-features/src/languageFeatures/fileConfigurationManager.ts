@@ -172,14 +172,11 @@ export default class FileConfigurationManager extends Disposable {
 	}
 
 	private getPreferences(document: vscode.TextDocument): Proto.UserPreferences {
-		const config = vscode.workspace.getConfiguration(
-			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
-			document);
-
 		const fallbackSection = isTypeScriptDocument(document) ? 'typescript' : 'javascript';
 
+		const oldConfig = vscode.workspace.getConfiguration(fallbackSection, document);
 		const preferences: Proto.UserPreferences = {
-			...config.get('unstable'),
+			...oldConfig.get('unstable'),
 			quotePreference: getQuoteStylePreference(document, fallbackSection),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(document, fallbackSection),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(document, fallbackSection),

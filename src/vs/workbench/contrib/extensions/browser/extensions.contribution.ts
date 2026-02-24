@@ -268,7 +268,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'extensions.allowOpenInModalEditor': {
 				type: 'boolean',
 				description: localize('extensions.allowOpenInModalEditor', "Controls whether extensions and MCP servers open in a modal editor overlay."),
-				default: product.quality !== 'stable', // TODO@bpasero figure out the default for stable and retire this setting
+				default: false, // TODO@bpasero figure out the default for stable and retire this setting
 				tags: ['experimental'],
 				experiment: {
 					mode: 'auto'

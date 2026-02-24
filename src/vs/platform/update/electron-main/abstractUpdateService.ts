@@ -7,7 +7,8 @@ import * as os from 'os';
 import { IntervalTimer, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { isMacintosh } from '../../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { getWindowsReleaseSync } from '../../../base/node/windowsVersion.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -32,10 +33,13 @@ export function createUpdateURL(baseUpdateUrl: string, platform: string, quality
 }
 
 /**
- * Builds common headers for macOS update requests, including those issued
+ * Builds common headers for update requests, including those issued
  * via Electron's auto-updater (e.g. setFeedURL({ url, headers })) and
- * manual HTTP requests that bypass the auto-updater. On macOS, this includes
- * the Darwin kernel version which the update server uses for EOL detection.
+ * manual HTTP requests that bypass the auto-updater. The headers include
+ * OS version information which the update server uses for EOL detection.
+ *
+ * On macOS, the User-Agent includes the Darwin kernel version.
+ * On Windows, the User-Agent includes accurate Windows version from the registry.
  */
 export function getUpdateRequestHeaders(productVersion: string): Record<string, string> | undefined {
 	if (isMacintosh) {
@@ -43,6 +47,15 @@ export function getUpdateRequestHeaders(productVersion: string): Record<string, 
 		return {
 			'User-Agent': `Code/${productVersion} Darwin/${darwinVersion}`
 		};
+	}
+
+	if (isWindows) {
+		const match = getWindowsReleaseSync().match(/^(\d+\.\d+)/);
+		if (match) {
+			return {
+				'User-Agent': `Code/${productVersion} Electron/${process.versions.electron} Windows NT ${match[1]}`
+			};
+		}
 	}
 
 	return undefined;

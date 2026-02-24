@@ -128,12 +128,11 @@ export function buildModelPickerItems(
 	updateStateType: StateType,
 	onSelect: (model: ILanguageModelChatMetadataAndIdentifier) => void,
 	manageSettingsUrl: string | undefined,
+	canManageModels: boolean,
 	commandService: ICommandService,
 	chatEntitlementService: IChatEntitlementService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
-	const isPro = isProUser(chatEntitlementService.entitlement);
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
-	let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	if (models.length === 0) {
 		items.push(createModelItem({
 			id: 'auto',
@@ -144,7 +143,29 @@ export function buildModelPickerItems(
 			label: localize('chat.modelPicker.auto', "Auto"),
 			run: () => { }
 		}));
-	} else {
+	}
+
+	if (!canManageModels) {
+		// Flat list: auto first, then all models sorted alphabetically
+		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
+		if (autoModel) {
+			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect), autoModel));
+		}
+		const sortedModels = models
+			.filter(m => m !== autoModel)
+			.sort((a, b) => {
+				const vendorCmp = a.metadata.vendor.localeCompare(b.metadata.vendor);
+				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
+			});
+		for (const model of sortedModels) {
+			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect), model));
+		}
+		return items;
+	}
+
+	const isPro = isProUser(chatEntitlementService.entitlement);
+	let otherModels: ILanguageModelChatMetadataAndIdentifier[] = [];
+	if (models.length) {
 		// Collect all available models into lookup maps
 		const allModelsMap = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
 		const modelsByMetadataId = new Map<string, ILanguageModelChatMetadataAndIdentifier>();
@@ -253,9 +274,6 @@ export function buildModelPickerItems(
 				return aName.localeCompare(bName);
 			});
 
-			if (items.length > 0) {
-				items.push({ kind: ActionListItemKind.Separator });
-			}
 			for (const item of promotedItems) {
 				if (item.kind === 'available') {
 					items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model));
@@ -322,9 +340,7 @@ export function buildModelPickerItems(
 		chatEntitlementService.entitlement === ChatEntitlement.Enterprise ||
 		chatEntitlementService.isInternal
 	) {
-		if (!otherModels.length) {
-			items.push({ kind: ActionListItemKind.Separator });
-		}
+		items.push({ kind: ActionListItemKind.Separator, section: otherModels.length ? ModelPickerSection.Other : undefined });
 		items.push({
 			item: {
 				id: 'manageModels',
@@ -333,12 +349,11 @@ export function buildModelPickerItems(
 				class: undefined,
 				tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
 				label: localize('chat.manageModels', "Manage Models..."),
-				icon: Codicon.settingsGear,
 				run: () => { commandService.executeCommand(MANAGE_CHAT_COMMAND_ID); }
 			},
 			kind: ActionListItemKind.Action,
 			label: localize('chat.manageModels', "Manage Models..."),
-			group: { title: '', icon: Codicon.settingsGear },
+			group: { title: '', icon: Codicon.blank },
 			hideIcon: false,
 			section: otherModels.length ? ModelPickerSection.Other : undefined,
 			showAlways: true,
@@ -509,13 +524,9 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		const models = this._delegate.getModels();
-		const showCuratedModels = this._delegate.showCuratedModels?.() ?? true;
 		const isPro = isProUser(this._entitlementService.entitlement);
-		let controlModelsForTier: IStringDictionary<IModelControlEntry> = {};
-		if (showCuratedModels) {
-			const manifest = this._languageModelsService.getModelsControlManifest();
-			controlModelsForTier = isPro ? manifest.paid : manifest.free;
-		}
+		const manifest = this._languageModelsService.getModelsControlManifest();
+		const controlModelsForTier = isPro ? manifest.paid : manifest.free;
 		const items = buildModelPickerItems(
 			models,
 			this._selectedModel?.identifier,
@@ -525,13 +536,15 @@ export class ModelPickerWidget extends Disposable {
 			this._updateService.state.type,
 			onSelect,
 			this._productService.defaultChatAgent?.manageSettingsUrl,
+			this._delegate.canManageModels(),
 			this._commandService,
-			this._entitlementService
+			this._entitlementService,
 		);
 
 		const listOptions = {
 			showFilter: models.length >= 10,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
+			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
 			minWidth: 300,
 		};

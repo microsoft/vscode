@@ -73,7 +73,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		this.render({
 			allowActionId: AcceptToolConfirmationActionId,
 			skipActionId: SkipToolConfirmationActionId,
-			allowLabel: state.confirmationMessages.confirmResults ? localize('allowReview', "Allow and Review") : localize('allow', "Allow"),
+			allowLabel: state.confirmationMessages.confirmResults ? localize('allowReview', "Allow and Review Once") : localize('allow', "Allow Once"),
 			skipLabel: localize('skip.detail', 'Proceed without running this tool'),
 			partType: 'chatToolConfirmation',
 			subtitle: typeof toolInvocation.originMessage === 'string' ? toolInvocation.originMessage : toolInvocation.originMessage?.value,

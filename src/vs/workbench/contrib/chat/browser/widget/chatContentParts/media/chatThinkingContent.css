@@ -90,7 +90,7 @@
 
 	.chat-used-context-list.chat-thinking-collapsible {
 		border: 1px solid var(--vscode-chat-requestBorder);
-		border-radius: 4px;
+		border-radius: var(--vscode-cornerRadius-medium);
 		margin-bottom: 0;
 		position: relative;
 		overflow: hidden;
@@ -98,22 +98,65 @@
 		.chat-tool-invocation-part {
 			padding: 4px 12px 4px 18px;
 			position: relative;
+		}
 
+		.chat-thinking-tool-wrapper {
 			.chat-used-context {
-				margin-bottom: 0px;
-				margin-left: 2px;
-				padding-left: 2px;
+					margin-bottom: 0px;
+					margin-left: 4px;
+					padding-left: 2px;
+				}
+
+				.chat-used-context {
+					.monaco-button.monaco-text-button {
+						color: var(--vscode-descriptionForeground);
+
+						:hover {
+							color: var(--vscode-foreground);
+						}
+
+						.monaco-button:hover .chat-collapsible-hover-chevron {
+							opacity: 1;
+						}
+					}
+				}
+
+				.chat-used-context:not(.chat-used-context-collapsed) {
+					.monaco-button.monaco-text-button {
+						color: var(--vscode-foreground);
+					}
+				}
+
+				.progress-container,
+				.chat-confirmation-widget-container {
+					margin: 0 0 2px 6px;
+				}
+
+				.codicon:not(.chat-thinking-icon) {
+					display: none;
+				}
+
+				.chat-collapsible-hover-chevron.codicon {
+					display: inline-flex;
+				}
+
+			.chat-used-context.show-checkmarks .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+				display: inline-block;
 			}
 
-			.progress-container,
-			.chat-confirmation-widget-container {
-				margin: 0 0 2px 6px;
+			.show-checkmarks .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
+				display: inline-block;
 			}
 
-			.codicon:not(.chat-thinking-icon) {
-				display: none;
+			.show-checkmarks .progress-container > .codicon.codicon-check {
+				display: inline-flex;
 			}
 
+			.chat-used-context.chat-hook-outcome-blocked,
+			.chat-used-context.chat-hook-outcome-warning {
+					padding: 4px 12px 4px 20px;
+					margin-bottom: 0;
+				}
 		}
 
 		.chat-thinking-item.markdown-content {
@@ -140,6 +183,10 @@
 
 			.status-icon.codicon-check {
 				display: none;
+			}
+
+			.show-checkmarks .status-icon.codicon-check {
+				display: inline-flex;
 			}
 
 			.code:has(.chat-codeblock-pill-container) {

@@ -178,9 +178,9 @@ The main editor part is created but hidden (`display:none`). It exists for futur
 
 #### How It Works
 
-The sessions configuration sets `workbench.editor.useModal` to `'on'` (in `contrib/configuration/browser/configuration.contribution.ts`). This causes `findGroup()` in `editorGroupFinder.ts` to redirect all editor opens (that do not specify an explicit preferred group) to `createModalEditorPart()`, which creates the standard workbench `ModalEditorPart` overlay on-demand.
+The sessions configuration sets `workbench.editor.useModal` to `'all'` (in `contrib/configuration/browser/configuration.contribution.ts`). This causes `findGroup()` in `editorGroupFinder.ts` to redirect all editor opens (that do not specify an explicit preferred group) to `createModalEditorPart()`, which creates the standard workbench `ModalEditorPart` overlay on-demand.
 
-When the setting is `'on'`:
+When the setting is `'all'`:
 - All editors without an explicit preferred group open in the modal editor part
 - The modal is not auto-closed when editors open without explicit `MODAL_GROUP` as preferred group
 
@@ -197,8 +197,8 @@ When the setting is `'on'`:
 
 The setting `workbench.editor.useModal` is an enum with three values:
 - `'off'`: Editors never open in a modal overlay
-- `'default'`: Certain editors (e.g. Settings, Keyboard Shortcuts) may open in a modal overlay when requested via `MODAL_GROUP`
-- `'on'`: All editors open in a modal overlay (used by sessions window)
+- `'some'`: Certain editors (e.g. Settings, Keyboard Shortcuts) may open in a modal overlay when requested via `MODAL_GROUP`
+- `'all'`: All editors open in a modal overlay (used by sessions window)
 
 
 ---
@@ -640,7 +640,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
-| 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`default`/`on`); sessions config uses `on`; removed `editorModal.ts` and editor modal CSS |
+| 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`some`/`all`); sessions config uses `all`; removed `editorModal.ts` and editor modal CSS |
 | 2026-02-17 | Added `-webkit-app-region: drag` to sidebar title area so it can be used to drag the window; interactive children (actions, composite bar, labels) marked `no-drag`; CSS rules scoped to `.agent-sessions-workbench` in `parts/media/sidebarPart.css` |
 | 2026-02-13 | Documentation sync: Updated all file names, class names, and references to match current implementation. `AgenticWorkbench` → `Workbench`, `AgenticSidebarPart` → `SidebarPart`, `AgenticAuxiliaryBarPart` → `AuxiliaryBarPart`, `AgenticPanelPart` → `PanelPart`, `agenticWorkbench.ts` → `workbench.ts`, `agenticWorkbenchMenus.ts` → `menus.ts`, `agenticLayoutActions.ts` → `layoutActions.ts`, `AgenticTitleBarWidget` → `SessionsTitleBarWidget`, `AgenticTitleBarContribution` → `SessionsTitleBarContribution`. Removed references to deleted files (`sidebarRevealButton.ts`, `floatingToolbar.ts`, `agentic.contributions.ts`, `agenticTitleBarWidget.ts`). Updated pane composite architecture from `SyncDescriptor`-based to `AgenticPaneCompositePartService`. Moved account widget docs from titlebar to sidebar footer. Added documentation for sidebar footer, project bar, traffic light spacer, card appearance styling, widget directory, and new contrib structure (`accountMenu/`, `chat/`, `configuration/`, `sessions/`). Updated titlebar actions to reflect Run Script split button and Open submenu. Removed Toggle Maximize panel action (no longer registered). Updated contributions section with all current contributions and their locations. |
 | 2026-02-13 | Changed grid structure: sidebar now spans full window height at root level (HORIZONTAL root orientation); Titlebar moved inside right section; Grid is now `Sidebar \| [Titlebar / TopRight / Panel]` instead of `Titlebar / [Sidebar \| RightSection]`; Panel maximize now excludes both titlebar and sidebar; Floating toolbar positioning no longer depends on titlebar height |
