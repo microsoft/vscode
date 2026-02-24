@@ -23,6 +23,14 @@ def truncate_container(items, limit, show_first=3):
     remaining = len(items) - show_first
     return list(items)[:show_first], remaining
 
+def get_fields(value):
+    return [repr(k) for k in value.keys()]
+
+
+def get_field_value(value, field):
+    return value[eval(field)]
+
+
 def can_visualize(value):
     return isinstance(value, dict)
 

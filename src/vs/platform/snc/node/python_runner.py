@@ -112,6 +112,10 @@ class VisualizerOfStaticVisualizer():
     def __init__(self, static_visualizer_module: StaticVisualizer):
         self.vis = static_visualizer_module
 
+    def __getattr__(self, name):
+        # Forward optional interfaces (e.g. get_fields, get_field_value) to the underlying module
+        return getattr(self.vis, name)
+
     def can_visualize(self, value) -> bool:
         return self.vis.can_visualize(value)
 

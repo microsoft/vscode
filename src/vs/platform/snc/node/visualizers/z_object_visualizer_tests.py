@@ -1278,5 +1278,42 @@ class TestComposition(unittest.TestCase):
         self.assertIn('Escape', model['handledKeys'])
 
 
+class TestGetFields(unittest.TestCase):
+    """Test get_fields / get_field_value on z_object_visualizer."""
+
+    def test_returns_accessor_codes_for_object(self):
+        from z_object_visualizer import get_fields
+        class Point:
+            def __init__(self, x, y):
+                self.x = x
+                self.y = y
+        p = Point(1, 2)
+        fields = get_fields(p)
+        self.assertIn('.x', fields)
+        self.assertIn('.y', fields)
+
+    def test_primitives_return_none(self):
+        from z_object_visualizer import get_fields
+        self.assertIsNone(get_fields(None))
+        self.assertIsNone(get_fields(42))
+        self.assertIsNone(get_fields(3.14))
+
+    def test_get_field_value_returns_raw_value(self):
+        from z_object_visualizer import get_field_value
+        class Point:
+            def __init__(self, x, y):
+                self.x = x
+                self.y = y
+        p = Point(1, 2)
+        self.assertEqual(get_field_value(p, '.x'), 1)
+        self.assertEqual(get_field_value(p, '.y'), 2)
+
+    def test_get_field_value_returns_none_on_error(self):
+        from z_object_visualizer import get_field_value
+        class Empty:
+            pass
+        self.assertIsNone(get_field_value(Empty(), '.nonexistent'))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -124,6 +124,25 @@ def can_visualize(value):
     return True
 
 
+def get_fields(value):
+    if value is None or isinstance(value, (int, float)):
+        return None
+    full_class_name = _get_full_class_name(value)
+    fields = load_fields_from_dotfile(full_class_name)
+    if fields is None:
+        fields = DEFAULT_FIELDS_FOR_TYPE.get(full_class_name)
+    if fields is None:
+        fields = _get_non_trivial_names(value)
+    return list(fields)
+
+
+def get_field_value(value, field):
+    _placeholder_args, _val_str, raw_value, is_error = _eval_field(value, field)
+    if is_error:
+        return None
+    return raw_value
+
+
 # === Dotfile operations ===
 
 def _dotfile_path():

@@ -48,7 +48,7 @@ SELECTION (Programming by Demonstration):
 - Pressing Enter generates regex code: list(re.finditer(r'pattern', var, flags=re.M))
 
 MODEL STATE:
-- selectionRegex: Regex pattern with / delimiters in canonical form.
+- search: Regex pattern with / delimiters in canonical form.
   All segments (literal and fuzzy) are ungrouped by default.
   Groups are only kept when two literal segments are adjacent,
   to disambiguate their boundary:
@@ -265,6 +265,10 @@ def char_to_regex_literal(char: str) -> str:
 
 def span(text, color, style=''):
     return f'<span style="color: {color};{style}">{text}</span>'
+
+def get_fields(value):
+    return None
+
 
 def can_visualize(value):
     return isinstance(value, str)
@@ -2099,20 +2103,20 @@ def _compute_handle_drag_regex(model: dict, string_value: str) -> str | None:
     Compute the regex during an active handle drag, resizing the target literal segment.
 
     Uses the handleDrag state (segmentIndex, side, cursorIdx) plus the current
-    selectionRegex and string_value to determine the new segment boundaries.
+    search and string_value to determine the new segment boundaries.
 
     Args:
         model: The model state (must have handleDrag set)
         string_value: The string being visualized
 
     Returns:
-        The preview regex with the segment resized, or the current selectionRegex on error.
+        The preview regex with the segment resized, or the current search on error.
     """
     handle_drag = model['handleDrag']
     segment_index = handle_drag['segmentIndex']
     side = handle_drag['side']
     cursor_idx = handle_drag['cursorIdx']
-    selection_regex = model.get('selectionRegex')
+    selection_regex = model.get('search')
 
     if selection_regex is None:
         return None
@@ -2145,7 +2149,7 @@ def build_preview_regex(model, string_value: str) -> str | None:
         string_value: The string being visualized
 
     Returns:
-        The preview regex string, or the current selectionRegex if no in-progress selection
+        The preview regex string, or the current search if no in-progress selection
     """
     # Check for handle drag state first
     handle_drag = model.get('handleDrag')
@@ -2159,12 +2163,12 @@ def build_preview_regex(model, string_value: str) -> str | None:
 
     if not (isinstance(a, int) and isinstance(c, int)):
         # No in-progress selection, return existing regex
-        return model.get('selectionRegex')
+        return model.get('search')
 
     anchor_type = model.get('anchorType', 'literal')
     extend_direction = model.get('extendDirection')
     insert_after_segment = model.get('insertAfterSegment')
-    current_regex = model.get('selectionRegex')
+    current_regex = model.get('search')
 
     start = min(a, c)
     # For left-extension, end should NOT include +1 to avoid overlapping
@@ -2269,8 +2273,8 @@ def visualize(value, model, get_visualizer) -> str:
     chars_html = ''.join(char_elements)
 
     # Build the search box at the bottom
-    # Show the canonical selectionRegex (with / delimiters) so other search types can be supported later
-    selection_regex = model.get('selectionRegex')
+    # Show the canonical search (with / delimiters) so other search types can be supported later
+    selection_regex = model.get('search')
     search_box_value = selection_regex if selection_regex else ""
     search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
     search_svg_html = SEARCH_SVG.replace("stroke:#000000;", "stroke:#8C8C8C;").replace("<svg ", f'<svg style="position: absolute; margin-left: 5px; margin-top: 4px; width: 12px; height: 12px;"', 1)
@@ -2323,7 +2327,7 @@ def init_model(value, get_visualizer=None):
         value: The string value being visualized (not stored in model)
     """
     return {
-        "selectionRegex": None,   # Regex pattern with / delimiters in canonical form, e.g., "/hello.*world/"
+        "search": None,   # Regex pattern with / delimiters in canonical form, e.g., "/hello.*world/"
         "anchorIdx": None,
         "anchorType": None,       # "literal" or "fuzzy" - determined when drag starts
         "cursorIdx": None,
@@ -2332,7 +2336,7 @@ def init_model(value, get_visualizer=None):
         "insertAfterSegment": None,  # Segment index to insert after (for clicking inside fuzzy)
         "openDropdown": None,     # {"id": "fuzzy-pattern-0", "segmentIndex": 0} when dropdown is open
         "handleDrag": None,       # {"segmentIndex": int, "side": "left"|"right", "cursorIdx": int} when dragging a handle
-        "undoHistory": [],        # Stack of previous selectionRegex states
+        "undoHistory": [],        # Stack of previous search states
         "redoHistory": [],        # Stack for redo
         "handledKeys": ["Escape", "Enter", "Backspace", "cmd z", "cmd shift z"],  # Keys to intercept from VS Code
         "hoverIdx": None,         # Internal index of the character currently hovered
@@ -2349,7 +2353,7 @@ def is_top_half(event_json):
 
 def finalize_segment(model: dict, string_value: str) -> dict:
     """
-    Finalize the in-progress segment and add it to selectionRegex.
+    Finalize the in-progress segment and add it to search.
 
     Commits the current anchor/cursor selection to the regex pattern,
     saves to undo history, and clears the in-progress state.
@@ -2360,13 +2364,13 @@ def finalize_segment(model: dict, string_value: str) -> dict:
     """
     # Build the new regex using the same logic as preview
     new_regex = build_preview_regex(model, string_value)
-    current_regex = model.get('selectionRegex')
+    current_regex = model.get('search')
 
     # Only update regex and undo history if something changed
     if new_regex != current_regex:
         model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
         model['redoHistory'] = []  # Clear redo on new action
-        model['selectionRegex'] = new_regex
+        model['search'] = new_regex
 
     # Always clear in-progress state
     model['anchorIdx'] = None
@@ -2379,7 +2383,7 @@ def finalize_segment(model: dict, string_value: str) -> dict:
 
 def finalize_handle_drag(model: dict, string_value: str) -> dict:
     """
-    Finalize a handle drag and update selectionRegex.
+    Finalize a handle drag and update search.
 
     Computes the resized regex from the handle drag state, saves to undo history
     if changed, and clears the handleDrag state.
@@ -2389,13 +2393,13 @@ def finalize_handle_drag(model: dict, string_value: str) -> dict:
         string_value: The string being visualized
     """
     new_regex = _compute_handle_drag_regex(model, string_value)
-    current_regex = model.get('selectionRegex')
+    current_regex = model.get('search')
 
     # Only update if something changed
     if new_regex != current_regex:
         model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
         model['redoHistory'] = []
-        model['selectionRegex'] = new_regex
+        model['search'] = new_regex
 
     model['handleDrag'] = None
     return model
@@ -2449,7 +2453,7 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
             model['hoverIdx'] = None
             model['hoverType'] = None
 
-            selection_regex = model.get('selectionRegex')
+            selection_regex = model.get('search')
 
             # Determine selection type based on top/bottom half of character
             anchor_type = 'literal' if is_top_half(event_json) else 'fuzzy'
@@ -2540,7 +2544,7 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                     model['openDropdown'] = None
                 else:
                     # Generate regex code if we have a selection
-                    selection_regex = model.get('selectionRegex')
+                    selection_regex = model.get('search')
 
                     if selection_regex and source_code and source_line:
                         new_code = generate_regex_code_from_pattern(source_code, source_line, selection_regex)
@@ -2551,7 +2555,7 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                 if model.get('openDropdown'):
                     model['openDropdown'] = None
                 else:
-                    selection_regex = model.get('selectionRegex')
+                    selection_regex = model.get('search')
 
                     if selection_regex and source_code and source_line:
                         new_code = generate_regex_delete_from_pattern(source_code, source_line, selection_regex)
@@ -2563,11 +2567,11 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                     model['openDropdown'] = None
                 else:
                     # Clear all selections (save to undo first so it's recoverable)
-                    current_regex = model.get('selectionRegex')
+                    current_regex = model.get('search')
                     if current_regex or model.get('anchorIdx') is not None:
                         model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
                         model['redoHistory'] = []
-                    model['selectionRegex'] = None
+                    model['search'] = None
                     model['anchorIdx'] = None
                     model['cursorIdx'] = None
                     model['dragging'] = False
@@ -2578,9 +2582,9 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                 undo_history = model.get('undoHistory', [])
                 if undo_history:
                     # Push current to redo
-                    model['redoHistory'] = model.get('redoHistory', []) + [model.get('selectionRegex')]
+                    model['redoHistory'] = model.get('redoHistory', []) + [model.get('search')]
                     # Pop from undo
-                    model['selectionRegex'] = undo_history[-1]
+                    model['search'] = undo_history[-1]
                     model['undoHistory'] = undo_history[:-1]
                     # Clear any in-progress selection
                     model['anchorIdx'] = None
@@ -2593,9 +2597,9 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                 redo_history = model.get('redoHistory', [])
                 if redo_history:
                     # Push current to undo
-                    model['undoHistory'] = model.get('undoHistory', []) + [model.get('selectionRegex')]
+                    model['undoHistory'] = model.get('undoHistory', []) + [model.get('search')]
                     # Pop from redo
-                    model['selectionRegex'] = redo_history[-1]
+                    model['search'] = redo_history[-1]
                     model['redoHistory'] = redo_history[:-1]
                     # Clear any in-progress selection
                     model['anchorIdx'] = None
@@ -2629,7 +2633,7 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
             open_dropdown = model.get('openDropdown')
             if open_dropdown and open_dropdown.get('id') == did:
                 segment_index = open_dropdown.get('segmentIndex', 0)
-                current_regex = model.get('selectionRegex')
+                current_regex = model.get('search')
                 if current_regex:
                     # Save to undo history
                     model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
@@ -2638,11 +2642,11 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                     if did.startswith('repetition-'):
                         # Repetition dropdown: option is a quantifier ('1', '?', '*', '+')
                         new_quantifier = '' if option == '1' else option
-                        model['selectionRegex'] = replace_segment_repetition(
+                        model['search'] = replace_segment_repetition(
                             current_regex, segment_index, new_quantifier)
                     else:
                         # Fuzzy pattern dropdown: option is a character class
-                        model['selectionRegex'] = replace_segment_pattern(
+                        model['search'] = replace_segment_pattern(
                             current_regex, segment_index, option)
             # Close the dropdown
             model['openDropdown'] = None
@@ -2675,27 +2679,27 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
 
                 # Apply if we have a valid quantifier
                 if new_quantifier is not None:
-                    current_regex = model.get('selectionRegex')
+                    current_regex = model.get('search')
                     if current_regex:
                         new_regex = replace_segment_repetition(
                             current_regex, segment_index, new_quantifier)
                         if new_regex != current_regex:
                             model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
                             model['redoHistory'] = []
-                            model['selectionRegex'] = new_regex
+                            model['search'] = new_regex
 
                 # Keep dropdown open for further edits
 
         case SearchBoxInput(value=val):
-            # Update selectionRegex directly from search box input.
+            # Update search directly from search box input.
             # The value includes delimiters (e.g., /pattern/) to support
             # different search types in the future.
-            current_regex = model.get('selectionRegex')
+            current_regex = model.get('search')
             new_regex = val if val else None
             if new_regex != current_regex:
                 model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
                 model['redoHistory'] = []
-                model['selectionRegex'] = new_regex
+                model['search'] = new_regex
             # Clear any in-progress drag state since user is editing directly
             model['anchorIdx'] = None
             model['cursorIdx'] = None
