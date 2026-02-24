@@ -359,7 +359,7 @@ function extractSearchFilePattern(fileName: string): string {
 	return `*.${extensionParts.join('.')}`;
 }
 
-function mergeSearchPatternIfNotExists(currentPatterns: string, newPattern: string): string {
+export function mergeSearchPatternIfNotExists(currentPatterns: string, newPattern: string): string {
 	if (!currentPatterns.trim()) {
 		return newPattern;
 	}
