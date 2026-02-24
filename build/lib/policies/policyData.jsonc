@@ -286,39 +286,6 @@
             },
             "type": "boolean",
             "default": true
-        },
-        {
-            "key": "git.addAICoAuthor",
-            "name": "GitAddAICoAuthor",
-            "category": "InteractiveSession",
-            "minimumVersion": "1.110",
-            "localization": {
-                "description": {
-                    "key": "gitAddAICoAuthor",
-                    "value": "Controls whether a 'Co-authored-by' trailer is automatically added to the commit message when AI-generated code is included in the commit."
-                },
-                "enumDescriptions": [
-                    {
-                        "key": "gitAddAICoAuthor.off",
-                        "value": "Never add the AI co-author trailer."
-                    },
-                    {
-                        "key": "gitAddAICoAuthor.chatAndAgent",
-                        "value": "Add the AI co-author trailer when code from chat or agent edits is included."
-                    },
-                    {
-                        "key": "gitAddAICoAuthor.all",
-                        "value": "Add the AI co-author trailer when any AI-generated code is included, such as inline completions, chat, or agent edits."
-                    }
-                ]
-            },
-            "type": "string",
-            "default": "off",
-            "enum": [
-                "off",
-                "chatAndAgent",
-                "all"
-            ]
         }
     ]
 }
