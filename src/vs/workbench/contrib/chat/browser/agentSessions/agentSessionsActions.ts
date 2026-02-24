@@ -13,7 +13,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
-import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
@@ -35,6 +35,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
+import { IChatViewTitleActionContext, isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
 
@@ -575,6 +576,77 @@ export class RenameAgentSessionAction extends BaseAgentSessionAction {
 		const title = await quickInputService.input({ prompt: localize('newChatTitle', "New agent session title"), value: session.label });
 		if (title) {
 			chatService.setChatSessionTitle(session.resource, title);
+		}
+	}
+}
+
+export class RenameChatSessionFromTitleAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.renameSession';
+
+	constructor() {
+		super({
+			id: RenameChatSessionFromTitleAction.ID,
+			title: localize2('renameSession', "Rename..."),
+			category: AGENT_SESSIONS_CATEGORY,
+			icon: Codicon.edit,
+			f1: false,
+			menu: [{
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				group: 'navigation',
+				order: 0,
+			}, {
+				id: MenuId.EditorTitle,
+				when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				group: 'navigation',
+				order: 10,
+			}, {
+				id: MenuId.CompactWindowEditorTitle,
+				when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				group: 'navigation',
+				order: 10,
+			}, {
+				id: MenuId.ChatViewSessionTitleContext,
+				group: '1_edit',
+				order: 1,
+			}],
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatViewTitleActionContext): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		let sessionResource = isChatViewTitleActionContext(context) ? context.sessionResource : undefined;
+
+		// Fallback: get session resource from active chat editor
+		if (!sessionResource) {
+			const editorService = accessor.get(IEditorService);
+			const activeInput = editorService.activeEditorPane?.input;
+			if (activeInput instanceof ChatEditorInput && activeInput.sessionResource) {
+				sessionResource = activeInput.sessionResource;
+			}
+		}
+
+		// Fallback: get session resource from active chat view
+		if (!sessionResource) {
+			const viewsService = accessor.get(IViewsService);
+			const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
+			const widget = chatView?.widget;
+			if (widget?.viewModel) {
+				sessionResource = widget.viewModel.model.sessionResource;
+			}
+		}
+
+		if (!sessionResource) {
+			return;
+		}
+
+		const currentTitle = chatService.getSessionTitle(sessionResource) ?? '';
+		const title = await quickInputService.input({ prompt: localize('newSessionTitle', "New session title"), value: currentTitle });
+		if (title) {
+			chatService.setChatSessionTitle(sessionResource, title);
 		}
 	}
 }
