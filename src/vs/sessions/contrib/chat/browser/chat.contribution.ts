@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -48,9 +48,10 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			title: localize2('openInVSCode', 'Open in VS Code'),
 			icon: Codicon.vscodeInsiders,
 			menu: [{
-				id: Menus.OpenSubMenu,
+				id: Menus.TitleBarRight,
 				group: 'navigation',
-				order: 2,
+				order: 10,
+				when: IsAuxiliaryWindowContext.toNegated()
 			}]
 		});
 	}
@@ -126,9 +127,10 @@ export class OpenSessionInTerminalAction extends Action2 {
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
 			menu: [{
-				id: Menus.OpenSubMenu,
+				id: Menus.TitleBarRight,
 				group: 'navigation',
-				order: 1,
+				order: 9,
+				when: IsAuxiliaryWindowContext.toNegated()
 			}]
 		});
 	}
@@ -167,16 +169,7 @@ export class OpenSessionInTerminalAction extends Action2 {
 
 registerAction2(OpenSessionInTerminalAction);
 
-// Register the split button menu item that combines Open in VS Code and Open in Terminal
-MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
-	submenu: Menus.OpenSubMenu,
-	isSplitButton: { togglePrimaryAction: true },
-	title: localize2('open', "Open..."),
-	icon: Codicon.folderOpened,
-	group: 'navigation',
-	order: 9,
-	when: IsAuxiliaryWindowContext.toNegated()
-});
+
 
 
 
