@@ -654,33 +654,6 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 	};
 }
 
-function patchWin32TunnelCLITask(destinationFolderName: string) {
-	const cwd = path.join(path.dirname(root), destinationFolderName);
-
-	return async () => {
-		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
-		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
-		const baseVersion = packageJson.version.replace(/-.*$/, '');
-
-		const tunnelExe = path.join(cwd, 'bin', `${product.tunnelApplicationName}.exe`);
-		const tunnelBasename = `${product.tunnelApplicationName}.exe`;
-		await rcedit(tunnelExe, {
-			'file-version': baseVersion,
-			'product-version': baseVersion,
-			'version-string': {
-				'CompanyName': 'Microsoft Corporation',
-				'FileDescription': product.nameLong,
-				'FileVersion': packageJson.version,
-				'InternalName': tunnelBasename,
-				'LegalCopyright': 'Copyright (C) 2026 Microsoft. All rights reserved',
-				'OriginalFilename': tunnelBasename,
-				'ProductName': product.nameLong,
-				'ProductVersion': packageJson.version,
-			}
-		});
-	};
-}
-
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
@@ -714,10 +687,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 		gulp.task(vscodeTaskCI);
-
-		if (platform === 'win32') {
-			gulp.task(task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-tunnel-cli-patch`, patchWin32TunnelCLITask(destinationFolderName)));
-		}
 
 		let vscodeTask: task.Task;
 		if (useEsbuildTranspile) {
