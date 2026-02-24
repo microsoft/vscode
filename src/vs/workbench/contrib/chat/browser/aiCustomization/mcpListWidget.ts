@@ -694,7 +694,6 @@ export class McpListWidget extends Disposable {
 		} else {
 			this.collapsedGroups.add(entry.scope);
 		}
-		entry.collapsed = !entry.collapsed;
 		this.filterServers();
 	}
 
