@@ -212,6 +212,10 @@ function isDynamicVariable(obj: any): obj is IDynamicVariable {
 }
 
 function isValidEditorRange(range: IRange): boolean {
+	if (range.startLineNumber < 1 || range.endLineNumber < 1 || range.startColumn < 1 || range.endColumn < 1) {
+		return false;
+	}
+
 	if (range.startLineNumber > range.endLineNumber) {
 		return false;
 	}
