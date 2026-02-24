@@ -293,20 +293,18 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		return Codicon.circleSmallFilled;
 	}
 
-	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
+	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 		const description = session.element.description;
 		if (description) {
 			this.renderMarkdownOrText(description, template.description, template.elementDisposable);
-			return true;
+			return;
 		}
 
 		// Fallback to state label
 		if (session.element.status === AgentSessionStatus.InProgress) {
 			template.description.textContent = localize('chat.session.status.inProgress', "Working...");
-			return true;
 		} else if (session.element.status === AgentSessionStatus.NeedsInput) {
 			template.description.textContent = localize('chat.session.status.needsInput', "Input needed.");
-			return true;
 		} else if (
 			session.element.timing.lastRequestEnded &&
 			session.element.timing.lastRequestStarted &&
@@ -317,12 +315,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 				localize('chat.session.status.failedAfter', "Failed after {0}", duration) :
 				localize('chat.session.status.completedAfter', "Completed in {0}", duration);
-			return true;
 		} else {
 			template.description.textContent = session.element.status === AgentSessionStatus.Failed ?
 				localize('chat.session.status.failed', "Failed") :
 				localize('chat.session.status.completed', "Completed");
-			return true;
 		}
 	}
 
