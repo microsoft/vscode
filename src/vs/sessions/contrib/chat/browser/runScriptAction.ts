@@ -26,6 +26,10 @@ export const RunScriptDropdownMenuId = MenuId.for('AgentSessionsRunScriptDropdow
 const RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
 const CONFIGURE_DEFAULT_RUN_ACTION_ID = 'workbench.action.agentSessions.configureDefaultRunAction';
 
+function getTaskDisplayLabel(task: ITaskEntry): string {
+	return task.label || (task['script'] as string | undefined) || (task['task'] as string | undefined) || '';
+}
+
 interface IRunScriptActionContext {
 	readonly session: IActiveSessionItem;
 	readonly tasks: readonly ITaskEntry[];
@@ -100,8 +104,8 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 						constructor() {
 							super({
 								id: actionId,
-								title: task.label,
-								tooltip: localize('runActionTooltip', "Run '{0}' in terminal", task.label),
+								title: getTaskDisplayLabel(task),
+								tooltip: localize('runActionTooltip', "Run '{0}' in terminal", getTaskDisplayLabel(task)),
 								icon: Codicon.play,
 								category: localize2('agentSessions', 'Agent Sessions'),
 								menu: [{
@@ -158,7 +162,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			items.push({ type: 'separator', label: localize('existingTasks', "Existing Tasks") });
 			for (const task of nonSessionTasks) {
 				items.push({
-					label: task.label,
+					label: getTaskDisplayLabel(task),
 					description: task.command,
 					task,
 					source: 'workspace',
