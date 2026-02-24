@@ -43,8 +43,8 @@ import '../workbench/api/browser/viewsExtensionPoint.js';
 
 import '../workbench/browser/parts/editor/editor.contribution.js';
 import '../workbench/browser/parts/editor/editorParts.js';
+// import '../workbench/browser/parts/paneCompositePartService.js';
 import '../workbench/browser/parts/banner/bannerPart.js';
-// import '../workbench/browser/parts/banner/bannerPart.js';
 import '../workbench/browser/parts/statusbar/statusbarPart.js';
 
 //#endregion
