@@ -1777,8 +1777,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'markdownContent') {
 				return this.renderMarkdown(content, templateData, context);
 			} else if (content.kind === 'references') {
-				if (isResponseVM(context.element) && context.element.model.request?.modeInfo?.modeId === ChatModeKind.Agent) {
-					return this.renderNoContent(other => other.kind === content.kind);
+				if (isResponseVM(context.element)) {
+					const isAgent = context.element.model.request?.modeInfo
+						? context.element.model.request.modeInfo.modeId === ChatModeKind.Agent
+						: this.delegate.currentChatMode() === ChatModeKind.Agent;
+					if (isAgent) {
+						return this.renderNoContent(other => other.kind === content.kind);
+					}
 				}
 				return this.renderContentReferencesListData(content, undefined, context, templateData);
 			} else if (content.kind === 'codeCitations') {
