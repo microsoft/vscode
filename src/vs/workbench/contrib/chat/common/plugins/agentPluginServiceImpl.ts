@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
@@ -30,6 +31,8 @@ import { parseCopilotHooks } from '../promptSyntax/hookCompatibility.js';
 import { parseClaudeHooks } from '../promptSyntax/hookClaudeCompat.js';
 import { agentPluginDiscoveryRegistry, IAgentPlugin, IAgentPluginCommand, IAgentPluginDiscovery, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from './agentPluginService.js';
 import { cloneAndChange } from '../../../../../base/common/objects.js';
+import { IPluginInstallService } from './pluginInstallService.js';
+import { IMarketplacePlugin, IPluginMarketplaceService } from './pluginMarketplaceService.js';
 
 const COMMAND_FILE_SUFFIX = '.md';
 
@@ -148,6 +151,8 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
+		@IPluginInstallService private readonly _pluginInstallService: IPluginInstallService,
+		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IPathService private readonly _pathService: IPathService,
 		@ILogService private readonly _logService: ILogService,
@@ -179,6 +184,8 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		const plugins: IAgentPlugin[] = [];
 		const seenPluginUris = new Set<string>();
 		const config = this._pluginPathsConfig.get();
+		// todo: temporary, we should have a dedicated discovery from the marketplace
+		const marketplacePluginsByInstallUri = await this._getMarketplacePluginsByInstallUri();
 
 		for (const [path, enabled] of Object.entries(config)) {
 			if (!path.trim()) {
@@ -204,7 +211,7 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 				if (!seenPluginUris.has(key)) {
 					const adapter = await this._detectPluginFormatAdapter(stat.resource);
 					seenPluginUris.add(key);
-					plugins.push(this._toPlugin(stat.resource, path, enabled, adapter));
+					plugins.push(this._toPlugin(stat.resource, path, enabled, adapter, marketplacePluginsByInstallUri.get(key)));
 				}
 			}
 		}
@@ -213,6 +220,24 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 
 		plugins.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
 		return plugins;
+	}
+
+	private async _getMarketplacePluginsByInstallUri(): Promise<Map<string, IMarketplacePlugin>> {
+		const result = new Map<string, IMarketplacePlugin>();
+		let marketplacePlugins: readonly IMarketplacePlugin[];
+		try {
+			marketplacePlugins = await this._pluginMarketplaceService.fetchMarketplacePlugins(CancellationToken.None);
+		} catch (err) {
+			this._logService.debug('[ConfiguredAgentPluginDiscovery] Failed to fetch marketplace plugins for provenance mapping:', err);
+			return result;
+		}
+
+		for (const marketplacePlugin of marketplacePlugins) {
+			const installUri = this._pluginInstallService.getPluginInstallUri(marketplacePlugin);
+			result.set(installUri.toString(), marketplacePlugin);
+		}
+
+		return result;
 	}
 
 	/**
@@ -285,7 +310,7 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		}
 	}
 
-	private _toPlugin(uri: URI, configKey: string, initialEnabled: boolean, adapter: IAgentPluginFormatAdapter): IAgentPlugin {
+	private _toPlugin(uri: URI, configKey: string, initialEnabled: boolean, adapter: IAgentPluginFormatAdapter, fromMarketplace: IMarketplacePlugin | undefined): IAgentPlugin {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -353,6 +378,7 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 			commands,
 			skills,
 			mcpServerDefinitions,
+			fromMarketplace,
 		};
 
 		this._pluginEntries.set(key, { store, plugin, adapter });

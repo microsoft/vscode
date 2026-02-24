@@ -11,6 +11,7 @@ import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/de
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { HookType, IHookCommand } from '../promptSyntax/hookSchema.js';
+import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPluginService');
 
@@ -43,6 +44,8 @@ export interface IAgentPlugin {
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
 	readonly mcpServerDefinitions: IObservable<readonly IAgentPluginMcpServerDefinition[]>;
+	/** Set when the plugin was installed from a marketplace repository. */
+	readonly fromMarketplace?: IMarketplacePlugin;
 }
 
 export interface IAgentPluginService {
