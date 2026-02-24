@@ -631,7 +631,7 @@ class CheckoutItemsProcessor extends RefItemsProcessor {
 					}
 				} else {
 					// For local branches, filter out the fetch button
-					const defaultButtons = this.defaultButtons?.filter(button => button.tooltip !== l10n.t('Fetch'));
+					const defaultButtons = this.defaultButtons?.filter(button => button.isFetchAction);
 					if (defaultButtons && defaultButtons.length > 0) {
 						item.buttons = defaultButtons;
 					}
