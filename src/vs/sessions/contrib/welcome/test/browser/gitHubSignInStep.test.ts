@@ -11,6 +11,15 @@ import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { GitHubSignInStep } from '../../browser/steps/gitHubSignInStep.js';
 
+const VALID_ENTITLEMENTS: IDefaultAccount['entitlementsData'] = {
+	access_type_sku: 'free',
+	assigned_date: '',
+	can_signup_for_limited: false,
+	copilot_plan: 'free',
+	organization_login_list: [],
+	analytics_tracking_id: '',
+};
+
 function createAccount(entitlementsData?: IDefaultAccount['entitlementsData']): IDefaultAccount {
 	return {
 		authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
@@ -47,7 +56,7 @@ suite('GitHubSignInStep', () => {
 		} satisfies IDefaultAccountService;
 
 		const step = new GitHubSignInStep(mockService);
-		store.add(step.disposable);
+		store.add(step);
 		return step;
 	}
 
@@ -56,7 +65,7 @@ suite('GitHubSignInStep', () => {
 
 	test('isSatisfied is true when account has valid entitlements', async () => {
 		const step = createStep();
-		resolveGetAccount(createAccount({ access_type_sku: 'free', assigned_date: '', can_signup_for_limited: false, copilot_plan: 'free', organization_login_list: [], analytics_tracking_id: '' }));
+		resolveGetAccount(createAccount(VALID_ENTITLEMENTS));
 		await step.initialized;
 		assert.strictEqual(step.isSatisfied.get(), true);
 	});
@@ -84,7 +93,7 @@ suite('GitHubSignInStep', () => {
 
 	test('isSatisfied reacts to sign-out event', async () => {
 		const step = createStep();
-		resolveGetAccount(createAccount({ access_type_sku: 'free', assigned_date: '', can_signup_for_limited: false, copilot_plan: 'free', organization_login_list: [], analytics_tracking_id: '' }));
+		resolveGetAccount(createAccount(VALID_ENTITLEMENTS));
 		await step.initialized;
 		assert.strictEqual(step.isSatisfied.get(), true);
 
@@ -94,7 +103,7 @@ suite('GitHubSignInStep', () => {
 
 	test('isSatisfied reacts to token expiry event', async () => {
 		const step = createStep();
-		resolveGetAccount(createAccount({ access_type_sku: 'free', assigned_date: '', can_signup_for_limited: false, copilot_plan: 'free', organization_login_list: [], analytics_tracking_id: '' }));
+		resolveGetAccount(createAccount(VALID_ENTITLEMENTS));
 		await step.initialized;
 		assert.strictEqual(step.isSatisfied.get(), true);
 
@@ -108,7 +117,7 @@ suite('GitHubSignInStep', () => {
 		await step.initialized;
 		assert.strictEqual(step.isSatisfied.get(), false);
 
-		onDidChange.fire(createAccount({ access_type_sku: 'free', assigned_date: '', can_signup_for_limited: false, copilot_plan: 'free', organization_login_list: [], analytics_tracking_id: '' }));
+		onDidChange.fire(createAccount(VALID_ENTITLEMENTS));
 		assert.strictEqual(step.isSatisfied.get(), true);
 	});
 });
