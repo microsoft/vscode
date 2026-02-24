@@ -191,6 +191,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly focusedFileTreesByResponseId = new Map<string, number>();
 
 	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
+	private readonly responseTemplateDataByRequestId = new Map<string, IChatListItemTemplate>();
 
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
@@ -364,6 +365,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.codeBlocksByResponseId.clear();
 		this.fileTreesByResponseId.clear();
 		this.focusedFileTreesByResponseId.clear();
+		this.responseTemplateDataByRequestId.clear();
 		this._editorPool.clear();
 		this._toolEditorPool.clear();
 		this._diffEditorPool.clear();
@@ -750,27 +752,27 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || isPendingRequest || !(checkpointEnabled));
 
-		// show checkpoint on response monaco-list row hover as well
-		if (isResponseVM(element) && checkpointEnabled) {
-			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_ENTER, () => {
-				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
-				if (requestTemplateData) {
-					requestTemplateData.checkpointContainer.classList.add('response-hovered');
+		// Track response template data by request ID for cross-row hover effects
+		if (isResponseVM(element)) {
+			this.responseTemplateDataByRequestId.set(element.requestId, templateData);
+			templateData.elementDisposables.add(toDisposable(() => this.responseTemplateDataByRequestId.delete(element.requestId)));
+		}
+
+		// unified hovering
+		if (!isPendingRequest) {
+			const setGroupHover = (hovered: boolean) => {
+				const requestId = isRequestVM(element) ? element.id : isResponseVM(element) ? element.requestId : undefined;
+				if (!requestId) {
+					return;
 				}
-			}));
-			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_LEAVE, () => {
-				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
-				if (requestTemplateData) {
-					requestTemplateData.checkpointContainer.classList.remove('response-hovered');
-				}
-			}));
-			// Ensure 'response-hovered' is cleared if the response row is disposed while hovered
-			templateData.elementDisposables.add(toDisposable(() => {
-				const requestTemplateData = this.templateDataByRequestId.get(element.requestId);
-				if (requestTemplateData) {
-					requestTemplateData.checkpointContainer.classList.remove('response-hovered');
-				}
-			}));
+				const reqData = this.templateDataByRequestId.get(requestId);
+				const resData = this.responseTemplateDataByRequestId.get(requestId);
+				reqData?.checkpointContainer.classList.toggle('group-hovered', hovered);
+				resData?.rowContainer.classList.toggle('group-hovered', hovered);
+			};
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_ENTER, () => setGroupHover(true)));
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_LEAVE, () => setGroupHover(false)));
+			templateData.elementDisposables.add(toDisposable(() => setGroupHover(false)));
 		}
 
 		// Only show restore container when we have a checkpoint and not editing, and not a pending request
