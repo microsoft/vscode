@@ -5,11 +5,11 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact } from 'vscode';
+import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
-import { Git, GitError, Stash, Worktree } from './git';
+import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -1035,6 +1035,27 @@ export class CommandCenter {
 	@command('git.cloneRecursive')
 	async cloneRecursive(url?: string, parentPath?: string): Promise<void> {
 		await this.cloneManager.clone(url, { parentPath, recursive: true });
+	}
+
+	@command('_git.cloneRepository')
+	async cloneRepository(url: string, parentPath: string): Promise<void> {
+		const opts = {
+			location: ProgressLocation.Notification,
+			title: l10n.t('Cloning git repository "{0}"...', url),
+			cancellable: true
+		};
+
+		await window.withProgress(
+			opts,
+			(progress, token) => this.model.git.clone(url, { parentPath, progress }, token)
+		);
+	}
+
+	@command('_git.pull')
+	async pullRepository(repositoryPath: string): Promise<void> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		await repo.pull();
 	}
 
 	@command('git.init')

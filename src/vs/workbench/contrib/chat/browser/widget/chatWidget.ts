@@ -54,7 +54,7 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
 import { IChatModel, IChatModelInputState, IChatResponseModel } from '../../common/model/chatModel.js';
-import { ChatMode, IChatModeService } from '../../common/chatModes.js';
+import { ChatMode, getModeNameForTelemetry, IChatModeService } from '../../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
@@ -1356,7 +1356,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			if (wasHidden) {
 				this.telemetryService.publicLog2<ChatHandoffWidgetShownEvent, ChatHandoffWidgetShownClassification>('chat.handoffWidgetShown', {
-					agent: currentMode.id,
+					agent: getModeNameForTelemetry(currentMode),
 					handoffCount: handoffs.length
 				});
 			}
@@ -1378,10 +1378,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Log telemetry
 		const currentMode = this.input.currentModeObs.get();
-		const fromAgent = currentMode?.id ?? '';
+		const toMode = handoff.agent ? this.chatModeService.findModeByName(handoff.agent) : undefined;
 		this.telemetryService.publicLog2<ChatHandoffClickEvent, ChatHandoffClickClassification>('chat.handoffClicked', {
-			fromAgent: fromAgent,
-			toAgent: agentId || handoff.agent || '',
+			fromAgent: getModeNameForTelemetry(currentMode),
+			toAgent: agentId || (toMode ? getModeNameForTelemetry(toMode) : ''),
 			hasPrompt: Boolean(promptToUse),
 			autoSend: Boolean(handoff.send)
 		});

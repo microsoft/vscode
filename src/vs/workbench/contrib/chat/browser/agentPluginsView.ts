@@ -8,6 +8,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -15,10 +16,9 @@ import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -36,9 +36,9 @@ import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution
 import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
 import { DefaultViewsContext, SearchAgentPluginsContext } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../common/constants.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
-import { IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
+import { IMarketplacePlugin, IPluginMarketplaceService, MarketplaceType } from '../common/plugins/pluginMarketplaceService.js';
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 
@@ -53,6 +53,7 @@ interface IInstalledPluginItem {
 	readonly kind: AgentPluginItemKind.Installed;
 	readonly name: string;
 	readonly description: string;
+	readonly marketplace?: string;
 	readonly plugin: IAgentPlugin;
 }
 
@@ -60,7 +61,9 @@ interface IMarketplacePluginItem {
 	readonly kind: AgentPluginItemKind.Marketplace;
 	readonly name: string;
 	readonly description: string;
+	readonly source: string;
 	readonly marketplace: string;
+	readonly marketplaceType: MarketplaceType;
 	readonly readmeUri?: URI;
 }
 
@@ -68,8 +71,9 @@ type IAgentPluginItem = IInstalledPluginItem | IMarketplacePluginItem;
 
 function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
 	const name = basename(plugin.uri);
-	const description = labelService.getUriLabel(dirname(plugin.uri), { relative: true });
-	return { kind: AgentPluginItemKind.Installed, name, description, plugin };
+	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
+	const marketplace = plugin.fromMarketplace?.marketplace;
+	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
 }
 
 function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePluginItem {
@@ -77,7 +81,9 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		kind: AgentPluginItemKind.Marketplace,
 		name: plugin.name,
 		description: plugin.description,
+		source: plugin.source,
 		marketplace: plugin.marketplace,
+		marketplaceType: plugin.marketplaceType,
 		readmeUri: plugin.readmeUri,
 	};
 }
@@ -91,17 +97,21 @@ class InstallPluginAction extends Action {
 
 	constructor(
 		private readonly item: IMarketplacePluginItem,
-		@IDialogService private readonly dialogService: IDialogService,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 	) {
 		super(InstallPluginAction.ID, localize('install', "Install"), 'extension-action label prominent install');
 	}
 
 	override async run(): Promise<void> {
-		// TODO: implement actual plugin installation
-		this.dialogService.info(
-			localize('installNotSupported', "Plugin Installation"),
-			localize('installNotSupportedDetail', "Installing '{0}' from '{1}' is not yet supported.", this.item.name, this.item.marketplace)
-		);
+		await this.pluginInstallService.installPlugin({
+			name: this.item.name,
+			description: this.item.description,
+			version: '',
+			source: this.item.source,
+			marketplace: this.item.marketplace,
+			marketplaceType: this.item.marketplaceType,
+			readmeUri: this.item.readmeUri,
+		});
 	}
 }
 
@@ -140,28 +150,13 @@ class UninstallPluginAction extends Action {
 
 	constructor(
 		private readonly plugin: IAgentPlugin,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IDialogService private readonly dialogService: IDialogService,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 	) {
 		super(UninstallPluginAction.ID, localize('uninstall', "Uninstall"));
 	}
 
 	override async run(): Promise<void> {
-		const { confirmed } = await this.dialogService.confirm({
-			message: localize('confirmUninstall', "Are you sure you want to uninstall the plugin '{0}'?", basename(this.plugin.uri)),
-			detail: localize('confirmUninstallDetail', "This will remove the plugin path from your settings. The plugin files will not be deleted."),
-		});
-
-		if (!confirmed) {
-			return;
-		}
-
-		const currentPaths = this.configurationService.getValue<readonly unknown[]>(ChatConfiguration.PluginPaths) ?? [];
-		const pluginFsPath = this.plugin.uri.fsPath;
-		const filteredPaths = currentPaths.filter(
-			p => typeof p === 'string' && p !== pluginFsPath
-		);
-		await this.configurationService.updateValue(ChatConfiguration.PluginPaths, filteredPaths, ConfigurationTarget.USER_LOCAL);
+		this.pluginInstallService.uninstallPlugin(this.plugin.uri);
 	}
 }
 
@@ -258,7 +253,7 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 			data.elementDisposables.push(installAction);
 			data.actionbar.push([installAction], { icon: true, label: true });
 		} else {
-			data.detail.textContent = '';
+			data.detail.textContent = element.marketplace ?? '';
 		}
 	}
 
@@ -287,6 +282,12 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 	private readonly queryCts = new MutableDisposable<CancellationTokenSource>();
 	private list: WorkbenchPagedList<IAgentPluginItem> | null = null;
 	private listContainer: HTMLElement | null = null;
+	private currentQuery = '@agentPlugins';
+	private readonly refreshOnPluginsChangedScheduler = this._register(new RunOnceScheduler(() => {
+		if (this.list) {
+			void this.show(this.currentQuery);
+		}
+	}, 0));
 	private bodyTemplate: {
 		messageContainer: HTMLElement;
 		messageBox: HTMLElement;
@@ -306,9 +307,17 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		@IOpenerService openerService: IOpenerService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
+		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		this._register(autorun(reader => {
+			this.agentPluginService.plugins.read(reader);
+			if (this.list && this.isBodyVisible()) {
+				this.refreshOnPluginsChangedScheduler.schedule();
+			}
+		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -400,14 +409,29 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 	}
 
 	async show(query: string): Promise<IPagedModel<IAgentPluginItem>> {
+		this.currentQuery = query;
 		const text = query.replace(/@agentPlugins/i, '').trim();
 
-		const items = await Promise.all([
+		const [installed, marketplace] = await Promise.all([
 			this.queryInstalled(),
 			this.queryMarketplace(text),
 		]);
 
-		const model = new PagedModel(items.flat());
+		// Filter out marketplace items that are already installed
+		const installedPaths = new Set(installed.map(i => i.plugin.uri.toString()));
+		const filteredMarketplace = marketplace.filter(m => {
+			const expectedUri = this.pluginInstallService.getPluginInstallUri({
+				name: m.name,
+				description: m.description,
+				version: '',
+				source: m.source,
+				marketplace: m.marketplace,
+				marketplaceType: m.marketplaceType,
+			});
+			return !installedPaths.has(expectedUri.toString());
+		});
+
+		const model = new PagedModel([...installed, ...filteredMarketplace]);
 		if (this.list) {
 			this.list.model = model;
 		}

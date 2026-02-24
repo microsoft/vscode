@@ -54,7 +54,7 @@ export enum ChatConfiguration {
 	AgentsControlClickBehavior = 'chat.agentsControl.clickBehavior',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
-	AICustomizationMenuEnabled = 'chat.aiCustomizationMenu.enabled',
+	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
 }
 
 /**
