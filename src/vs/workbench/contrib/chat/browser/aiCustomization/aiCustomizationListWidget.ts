@@ -26,7 +26,7 @@ import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platf
 import { Delayer } from '../../../../../base/common/async.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
-import { matchesFuzzy, IMatch } from '../../../../../base/common/filters.js';
+import { matchesContiguousSubString, IMatch } from '../../../../../base/common/filters.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
@@ -905,9 +905,9 @@ export class AICustomizationListWidget extends Disposable {
 			matchedItems = [];
 
 			for (const item of this.allItems) {
-				const nameMatches = matchesFuzzy(query, item.name, true);
-				const descriptionMatches = item.description ? matchesFuzzy(query, item.description, true) : null;
-				const filenameMatches = matchesFuzzy(query, item.filename, true);
+				const nameMatches = matchesContiguousSubString(query, item.name);
+				const descriptionMatches = item.description ? matchesContiguousSubString(query, item.description) : null;
+				const filenameMatches = matchesContiguousSubString(query, item.filename);
 
 				if (nameMatches || descriptionMatches || filenameMatches) {
 					matchedItems.push({
