@@ -184,7 +184,6 @@ export const tocData: ITOCEntry<string> = {
 						'chat.editRequests',
 						'chat.requestQueuing.*',
 						'chat.undoRequests.*',
-						'chat.customAgentInSubagent.*',
 						'chat.editing.autoAcceptDelay',
 						'chat.editing.confirmEditRequest*',
 						'chat.planAgent.defaultModel'

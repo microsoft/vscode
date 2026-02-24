@@ -43,7 +43,7 @@ import { ILanguageModelToolsService } from '../../../common/tools/languageModelT
 import { IRemoteAgentService } from '../../../../../../workbench/services/remote/common/remoteAgentService.js';
 import { basename } from '../../../../../../base/common/resources.js';
 import { match } from '../../../../../../base/common/glob.js';
-import { ChatModeKind } from '../../../common/constants.js';
+import { ChatModeKind, GeneralPurposeAgentName } from '../../../common/constants.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -1036,7 +1036,6 @@ suite('ComputeAutomaticInstructions', () => {
 			const rootFolderUri = URI.file(rootFolder);
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
-			testConfigService.setUserConfiguration('chat.customAgentInSubagent.enabled', true);
 			testConfigService.setUserConfiguration(PromptsConfig.AGENTS_LOCATION_KEY, {
 				[AGENTS_SOURCE_FOLDER]: true,
 				'.claude/agents': true,
@@ -1159,9 +1158,6 @@ suite('ComputeAutomaticInstructions', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			// Enable the config for custom agents
-			testConfigService.setUserConfiguration('chat.customAgentInSubagent.enabled', true);
-
 			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/agents/test-agent-1.agent.md`,
@@ -1235,16 +1231,19 @@ suite('ComputeAutomaticInstructions', () => {
 			assert.equal(agentsList.length, 1, 'There should be one agents list');
 
 			const agents = xmlContents(agentsList[0], 'agent');
-			assert.equal(agents.length, 3, 'There should be three agents');
+			assert.equal(agents.length, 4, 'There should be four agents (General Purpose + 3 custom)');
 
-			assert.equal(xmlContents(agents[0], 'description')[0], 'Test agent 1');
-			assert.equal(xmlContents(agents[0], 'name')[0], `test-agent-1`);
+			// First agent should always be the built-in General Purpose agent
+			assert.equal(xmlContents(agents[0], 'name')[0], GeneralPurposeAgentName);
 
-			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 3');
-			assert.equal(xmlContents(agents[1], 'name')[0], `test-agent-3`);
+			assert.equal(xmlContents(agents[1], 'description')[0], 'Test agent 1');
+			assert.equal(xmlContents(agents[1], 'name')[0], `test-agent-1`);
 
-			assert.equal(xmlContents(agents[2], 'description')[0], 'Test agent 5');
-			assert.equal(xmlContents(agents[2], 'name')[0], `test-agent-5`);
+			assert.equal(xmlContents(agents[2], 'description')[0], 'Test agent 3');
+			assert.equal(xmlContents(agents[2], 'name')[0], `test-agent-3`);
+
+			assert.equal(xmlContents(agents[3], 'description')[0], 'Test agent 5');
+			assert.equal(xmlContents(agents[3], 'name')[0], `test-agent-5`);
 		});
 
 		test('should include skills list when readFile tool available', async () => {

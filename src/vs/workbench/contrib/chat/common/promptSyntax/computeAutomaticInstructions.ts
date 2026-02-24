@@ -26,7 +26,7 @@ import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
 import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatModeKind, GeneralPurposeAgentName } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 
 export type InstructionsCollectionEvent = {
@@ -391,7 +391,18 @@ export class ComputeAutomaticInstructions {
 				entries.push('</skills>', '', ''); // add trailing newline
 			}
 		}
-		if (runSubagentTool && this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
+		if (runSubagentTool) {
+			entries.push('<agents>');
+			entries.push('Here is a list of agents that can be used when running a subagent.');
+			entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
+			entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
+
+			// Built-in General Purpose agent, always available
+			entries.push('<agent>');
+			entries.push(`<name>${GeneralPurposeAgentName}</name>`);
+			entries.push(`<description>Full-capability agent for complex multi-step tasks requiring the complete toolset and high-quality reasoning. Has access to all tools. Inherits the parent agent's model and system prompt. Use for tasks that don't fit a more specialized agent.</description>`);
+			entries.push('</agent>');
+
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
 					return (agent: ICustomAgent) => agent.visibility.agentInvocable;
@@ -401,29 +412,23 @@ export class ComputeAutomaticInstructions {
 				}
 			})();
 			const agents = await this._promptsService.getCustomAgents(token);
-			if (agents.length > 0) {
-				entries.push('<agents>');
-				entries.push('Here is a list of agents that can be used when running a subagent.');
-				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
-				for (const agent of agents) {
-					if (canUseAgent(agent)) {
-						entries.push('<agent>');
-						entries.push(`<name>${agent.name}</name>`);
-						if (agent.description) {
-							entries.push(`<description>${agent.description}</description>`);
-						}
-						if (agent.argumentHint) {
-							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
-						}
-						entries.push('</agent>');
-						if (isInClaudeAgentsFolder(agent.uri)) {
-							telemetryEvent.claudeAgentsCount++;
-						}
+			for (const agent of agents) {
+				if (canUseAgent(agent)) {
+					entries.push('<agent>');
+					entries.push(`<name>${agent.name}</name>`);
+					if (agent.description) {
+						entries.push(`<description>${agent.description}</description>`);
+					}
+					if (agent.argumentHint) {
+						entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+					}
+					entries.push('</agent>');
+					if (isInClaudeAgentsFolder(agent.uri)) {
+						telemetryEvent.claudeAgentsCount++;
 					}
 				}
-				entries.push('</agents>', '', ''); // add trailing newline
 			}
+			entries.push('</agents>', '', ''); // add trailing newline
 		}
 		if (entries.length === 0) {
 			return undefined;

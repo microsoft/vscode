@@ -8,8 +8,8 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { RunSubagentTool } from '../../../../common/tools/builtinTools/runSubagentTool.js';
+import { GeneralPurposeAgentName } from '../../../../common/constants.js';
 import { MockLanguageModelToolsService } from '../mockLanguageModelToolsService.js';
 import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
@@ -21,6 +21,26 @@ import { ExtensionIdentifier } from '../../../../../../../platform/extensions/co
 
 suite('RunSubagentTool', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createTool(opts?: {
+		customAgents?: ICustomAgent[];
+	}) {
+		const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+		const promptsService = new MockPromptsService();
+		if (opts?.customAgents) {
+			promptsService.setCustomModes(opts.customAgents);
+		}
+
+		return testDisposables.add(new RunSubagentTool(
+			{} as IChatAgentService,
+			{} as IChatService,
+			mockToolsService,
+			{} as ILanguageModelsService,
+			new NullLogService(),
+			promptsService,
+			{} as IInstantiationService,
+		));
+	}
 
 	suite('resultText trimming', () => {
 		test('trims leading empty codeblocks (```\\n```) from result', () => {
@@ -44,10 +64,6 @@ suite('RunSubagentTool', () => {
 
 	suite('prepareToolInvocation', () => {
 		test('returns correct toolSpecificData', async () => {
-			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService();
-
-			const promptsService = new MockPromptsService();
 			const customMode: ICustomAgent = {
 				uri: URI.parse('file:///test/custom-agent.md'),
 				name: 'CustomAgent',
@@ -58,19 +74,8 @@ suite('RunSubagentTool', () => {
 				target: Target.Undefined,
 				visibility: { userInvocable: true, agentInvocable: true }
 			};
-			promptsService.setCustomModes([customMode]);
 
-			const tool = testDisposables.add(new RunSubagentTool(
-				{} as IChatAgentService,
-				{} as IChatService,
-				mockToolsService,
-				{} as ILanguageModelsService,
-				new NullLogService(),
-				mockToolsService,
-				configService,
-				promptsService,
-				{} as IInstantiationService,
-			));
+			const tool = createTool({ customAgents: [customMode] });
 
 			const result = await tool.prepareToolInvocation(
 				{
@@ -95,25 +100,89 @@ suite('RunSubagentTool', () => {
 				modelName: undefined,
 			});
 		});
+
+		test('treats undefined agentName as General Purpose', async () => {
+			const tool = createTool();
+
+			const result = await tool.prepareToolInvocation(
+				{
+					parameters: {
+						prompt: 'Test prompt',
+						description: 'Test task',
+						agentName: undefined,
+					},
+					toolCallId: 'test-call-undef',
+					chatSessionResource: URI.parse('test://session'),
+				},
+				CancellationToken.None
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'Test task',
+				agentName: GeneralPurposeAgentName,
+				prompt: 'Test prompt',
+				modelName: undefined,
+			});
+		});
+
+		test('treats empty string agentName as General Purpose', async () => {
+			const tool = createTool();
+
+			const result = await tool.prepareToolInvocation(
+				{
+					parameters: {
+						prompt: 'Test prompt',
+						description: 'Test task',
+						agentName: '',
+					},
+					toolCallId: 'test-call-empty',
+					chatSessionResource: URI.parse('test://session'),
+				},
+				CancellationToken.None
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'Test task',
+				agentName: GeneralPurposeAgentName,
+				prompt: 'Test prompt',
+				modelName: undefined,
+			});
+		});
+
+		test('falls through to raw agentName when agent not found', async () => {
+			const tool = createTool();
+
+			const result = await tool.prepareToolInvocation(
+				{
+					parameters: {
+						prompt: 'Test prompt',
+						description: 'Test task',
+						agentName: 'NonExistentAgent',
+					},
+					toolCallId: 'test-call-unknown',
+					chatSessionResource: URI.parse('test://session'),
+				},
+				CancellationToken.None
+			);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'Test task',
+				agentName: 'NonExistentAgent',
+				prompt: 'Test prompt',
+				modelName: undefined,
+			});
+		});
 	});
 
 	suite('getToolData', () => {
 		test('returns basic tool data', () => {
-			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService();
-			const promptsService = new MockPromptsService();
-
-			const tool = testDisposables.add(new RunSubagentTool(
-				{} as IChatAgentService,
-				{} as IChatService,
-				mockToolsService,
-				{} as ILanguageModelsService,
-				new NullLogService(),
-				mockToolsService,
-				configService,
-				promptsService,
-				{} as IInstantiationService,
-			));
+			const tool = createTool();
 
 			const toolData = tool.getToolData();
 
@@ -121,31 +190,8 @@ suite('RunSubagentTool', () => {
 			assert.ok(toolData.inputSchema);
 			assert.ok(toolData.inputSchema.properties?.prompt);
 			assert.ok(toolData.inputSchema.properties?.description);
-			assert.deepStrictEqual(toolData.inputSchema.required, ['prompt', 'description']);
-		});
-
-		test('includes agentName property when SubagentToolCustomAgents is enabled', () => {
-			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService({
-				'chat.customAgentInSubagent.enabled': true,
-			});
-			const promptsService = new MockPromptsService();
-
-			const tool = testDisposables.add(new RunSubagentTool(
-				{} as IChatAgentService,
-				{} as IChatService,
-				mockToolsService,
-				{} as ILanguageModelsService,
-				new NullLogService(),
-				mockToolsService,
-				configService,
-				promptsService,
-				{} as IInstantiationService,
-			));
-
-			const toolData = tool.getToolData();
-
-			assert.ok(toolData.inputSchema?.properties?.agentName, 'agentName should be in schema when custom agents enabled');
+			assert.ok(toolData.inputSchema.properties?.agentName);
+			assert.deepStrictEqual(toolData.inputSchema.required, ['prompt', 'description', 'agentName']);
 		});
 	});
 
@@ -236,7 +282,6 @@ suite('RunSubagentTool', () => {
 			customAgents?: ICustomAgent[];
 		}) {
 			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
-			const configService = new TestConfigurationService();
 			const promptsService = new MockPromptsService();
 			if (opts.customAgents) {
 				promptsService.setCustomModes(opts.customAgents);
@@ -257,8 +302,6 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				mockLanguageModelsService as ILanguageModelsService,
 				new NullLogService(),
-				mockToolsService,
-				configService,
 				promptsService,
 				{} as IInstantiationService,
 			));
@@ -438,14 +481,14 @@ suite('RunSubagentTool', () => {
 			});
 		});
 
-		test('uses main model when no subagent is specified', async () => {
+		test('uses main model when General Purpose agent is specified', async () => {
 			const mainMeta = createMetadata('GPT-4o', 1);
 			const models = new Map([['main-model-id', mainMeta]]);
 
 			const tool = createTool({ models });
 
 			const result = await tool.prepareToolInvocation({
-				parameters: { prompt: 'test', description: 'test task' },
+				parameters: { prompt: 'test', description: 'test task', agentName: GeneralPurposeAgentName },
 				toolCallId: 'call-6',
 				modelId: 'main-model-id',
 				chatSessionResource: URI.parse('test://session'),
@@ -455,7 +498,7 @@ suite('RunSubagentTool', () => {
 			assert.deepStrictEqual(result.toolSpecificData, {
 				kind: 'subagent',
 				description: 'test task',
-				agentName: undefined,
+				agentName: GeneralPurposeAgentName,
 				prompt: 'test',
 				modelName: 'GPT-4o',
 			});
