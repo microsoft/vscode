@@ -227,9 +227,9 @@ suite('OutputMonitor', () => {
 		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
 
 		const outputMonitorWithPrivateMethod = monitor as unknown as {
-			selectAndHandleOption: (prompt: { prompt: string; options: string[]; detectedRequestForFreeFormInput: boolean }, token: CancellationToken) => Promise<{ suggestedOption: string; sentToTerminal: boolean } | undefined>;
+			[key: string]: ((prompt: { prompt: string; options: string[]; detectedRequestForFreeFormInput: boolean }, token: CancellationToken) => Promise<{ suggestedOption: string | { description: string; option: string }; sentToTerminal: boolean } | undefined>) | undefined;
 		};
-		const optionResult = await outputMonitorWithPrivateMethod.selectAndHandleOption({
+		const optionResult = await outputMonitorWithPrivateMethod['_selectAndHandleOption']!({
 			prompt: 'Continue?',
 			options: ['y', 'n'],
 			detectedRequestForFreeFormInput: false
@@ -240,6 +240,49 @@ suite('OutputMonitor', () => {
 		assert.strictEqual(sendTextCalled, true, 'sendText should be called when auto reply is enabled');
 		assert.strictEqual(optionResult?.sentToTerminal, true, 'option should be auto-sent');
 		assert.strictEqual(optionResult?.suggestedOption, 'y', 'first option should be used as fallback');
+	});
+
+	test('auto reply uses fallback model to derive suggested option', async () => {
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: true
+		}));
+
+		let fallbackModelRequested = false;
+		instantiationService.stub(ILanguageModelsService, {
+			selectLanguageModels: async (selector: { id?: string }) => {
+				if (selector.id === 'copilot-fast') {
+					fallbackModelRequested = true;
+					return ['copilot-fast'];
+				}
+				return [];
+			},
+			sendChatRequest: async () => ({
+				stream: (async function* () {
+					yield { type: 'text', value: 'n' };
+				})(),
+				result: Promise.resolve(undefined)
+			})
+		});
+
+		const monitorCts = new CancellationTokenSource();
+		monitorCts.cancel();
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+
+		const outputMonitorWithPrivateMethod = monitor as unknown as {
+			[key: string]: ((prompt: { prompt: string; options: string[]; detectedRequestForFreeFormInput: boolean }, token: CancellationToken) => Promise<{ suggestedOption: string | { description: string; option: string }; sentToTerminal: boolean } | undefined>) | undefined;
+		};
+		const optionResult = await outputMonitorWithPrivateMethod['_selectAndHandleOption']!({
+			prompt: 'Continue?',
+			options: ['y', 'n'],
+			detectedRequestForFreeFormInput: false
+		}, CancellationToken.None);
+		await Event.toPromise(monitor.onDidFinishCommand);
+		monitorCts.dispose();
+
+		assert.strictEqual(fallbackModelRequested, true, 'fallback model should be requested via _getLanguageModel');
+		assert.strictEqual(sendTextCalled, true, 'sendText should be called when auto reply is enabled');
+		assert.strictEqual(optionResult?.sentToTerminal, true, 'option should be auto-sent');
+		assert.strictEqual(optionResult?.suggestedOption, 'n', 'suggested option should be derived from fallback model response');
 	});
 
 	suite('detectsInputRequiredPattern', () => {
