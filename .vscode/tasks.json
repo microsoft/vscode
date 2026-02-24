@@ -225,7 +225,8 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
-			"problemMatcher": []
+			"problemMatcher": [],
+			"inSessions": true
 		},
 		{
 			"type": "npm",
