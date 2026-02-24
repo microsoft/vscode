@@ -200,14 +200,14 @@
 .sessions-chat-attachment-pill {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
-	padding: 2px 4px 2px 6px;
+	overflow: hidden;
+	font-size: 11px;
+	padding: 0 4px 0 0;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-	font-size: 12px;
-	line-height: 18px;
+	height: 18px;
 	max-width: 200px;
+	width: fit-content;
 }
 
 .sessions-chat-attachment-name {
@@ -217,19 +217,28 @@
 }
 
 .sessions-chat-attachment-pill .codicon {
-	font-size: 12px;
+	font-size: 14px;
 	flex-shrink: 0;
+	padding: 0 3px;
 }
 
 .sessions-chat-attachment-remove {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 16px;
-	height: 16px;
-	border-radius: 2px;
 	cursor: pointer;
 	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	margin-left: 4px;
+}
+
+.sessions-chat-attachment-pill:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-attachment-remove .codicon {
+	font-size: 12px;
+	padding: 0;
 }
 
 .sessions-chat-attachment-remove:hover {
