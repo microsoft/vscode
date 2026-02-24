@@ -7,7 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -46,9 +46,10 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			title: localize2('openInVSCode', 'Open in VS Code'),
 			icon: Codicon.vscodeInsiders,
 			menu: [{
-				id: Menus.OpenSubMenu,
+				id: Menus.TitleBarRight,
 				group: 'navigation',
-				order: 2,
+				order: 10,
+				when: IsAuxiliaryWindowContext.toNegated()
 			}]
 		});
 	}
@@ -116,16 +117,57 @@ class NewChatInSessionsWindowAction extends Action2 {
 
 registerAction2(NewChatInSessionsWindowAction);
 
-// Register the split button menu item that combines Open in VS Code and Open in Terminal
-MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
-	submenu: Menus.OpenSubMenu,
-	isSplitButton: { togglePrimaryAction: true },
-	title: localize2('open', "Open..."),
-	icon: Codicon.folderOpened,
-	group: 'navigation',
-	order: 9,
-	when: IsAuxiliaryWindowContext.toNegated()
-});
+export class OpenSessionInTerminalAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSession.openInTerminal',
+			title: localize2('openInTerminal', "Open Terminal"),
+			icon: Codicon.terminal,
+			menu: [{
+				id: Menus.TitleBarRight,
+				group: 'navigation',
+				order: 9,
+				when: IsAuxiliaryWindowContext.toNegated()
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor,): Promise<void> {
+		const terminalService = accessor.get(ITerminalService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const pathService = accessor.get(IPathService);
+
+		const activeSession = sessionsManagementService.activeSession.get();
+		const cwd = (isAgentSession(activeSession) && activeSession.providerType !== AgentSessionProviders.Cloud
+			? activeSession.worktree
+			: undefined) ?? await pathService.userHome();
+
+		// Try to reuse an existing idle terminal with the same cwd
+		const cwdPath = cwd.fsPath;
+		let reusable: ITerminalInstance | undefined;
+		for (const instance of terminalService.instances) {
+			if (instance.cwd && instance.cwd.toLowerCase() === cwdPath.toLowerCase() && !instance.hasChildProcesses) {
+				reusable = instance;
+				break;
+			}
+		}
+
+		if (reusable) {
+			terminalService.setActiveInstance(reusable);
+		} else {
+			const instance = await terminalService.createTerminal({ config: { cwd } });
+			if (instance) {
+				terminalService.setActiveInstance(instance);
+			}
+		}
+		await terminalService.focusActiveInstance();
+	}
+}
+
+registerAction2(OpenSessionInTerminalAction);
+
+
 
 
 

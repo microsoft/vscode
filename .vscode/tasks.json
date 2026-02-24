@@ -225,6 +225,20 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
+			"problemMatcher": [],
+			"inSessions": true
+		},
+		{
+			"label": "Run Dev Sessions",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
+			"inSessions": true,
 			"problemMatcher": []
 		},
 		{

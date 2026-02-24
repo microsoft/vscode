@@ -4,15 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+// #######################################################################
+// ###                                                                 ###
+// ### !!! PLEASE ADD COMMON IMPORTS INTO WORKBENCH.COMMON.MAIN.TS !!! ###
+// ###                                                                 ###
+// #######################################################################
+
+//#region --- workbench common
+
 import './sessions.common.main.js';
 
-//#region --- workbench (agentic desktop main)
+//#endregion
+
+
+//#region --- workbench (sessions desktop main)
 
 import './electron-browser/sessions.main.js';
-import './electron-browser/titleService.js';
 import '../workbench/electron-browser/desktop.contribution.js';
 
 //#endregion
+
 
 //#region --- workbench parts
 
@@ -31,6 +42,7 @@ import '../workbench/services/update/electron-browser/updateService.js';
 import '../workbench/services/url/electron-browser/urlService.js';
 import '../workbench/services/lifecycle/electron-browser/lifecycleService.js';
 import '../workbench/services/host/electron-browser/nativeHostService.js';
+import './electron-browser/titleService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import '../workbench/services/request/electron-browser/requestService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
@@ -79,6 +91,7 @@ import '../platform/userDataProfile/electron-browser/userDataProfileStorageServi
 import '../workbench/services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
+import '../workbench/services/browserView/electron-browser/playwrightWorkbenchService.js';
 import '../workbench/services/process/electron-browser/processService.js';
 import '../workbench/services/power/electron-browser/powerService.js';
 
@@ -166,7 +179,6 @@ import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribu
 // Chat
 import '../workbench/contrib/chat/electron-browser/chat.contribution.js';
 //import '../workbench/contrib/inlineChat/electron-browser/inlineChat.contribution.js';
-
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 
 // Encryption

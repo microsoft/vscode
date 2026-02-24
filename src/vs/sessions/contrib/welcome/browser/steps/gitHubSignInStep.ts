@@ -6,10 +6,11 @@
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ISessionsWelcomeStep } from '../../common/sessionsWelcomeService.js';
 
-export class GitHubSignInStep implements ISessionsWelcomeStep {
+export class GitHubSignInStep extends Disposable implements ISessionsWelcomeStep {
 
 	readonly id = 'github.signIn';
 	readonly title = localize('githubSignIn.title', "Sign In with GitHub");
@@ -20,25 +21,33 @@ export class GitHubSignInStep implements ISessionsWelcomeStep {
 	readonly isSatisfied: IObservable<boolean>;
 	readonly initialized: Promise<void>;
 
-	/** Caller must dispose this to clean up the event listener. */
-	readonly disposable: IDisposable;
-
 	private readonly _isSatisfied = observableValue<boolean>(this, false);
 
 	constructor(
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
+		super();
+
 		this.isSatisfied = this._isSatisfied;
 
 		// Listen for account changes
-		this.disposable = this.defaultAccountService.onDidChangeDefaultAccount(account => {
-			this._isSatisfied.set(account !== null && account !== undefined, undefined);
-		});
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(account => {
+			this._isSatisfied.set(this.isSignedInWithValidToken(account), undefined);
+		}));
 
 		// Check initial state and mark initialized when resolved
 		this.initialized = this.defaultAccountService.getDefaultAccount().then(account => {
-			this._isSatisfied.set(account !== null && account !== undefined, undefined);
+			this._isSatisfied.set(this.isSignedInWithValidToken(account), undefined);
 		});
+	}
+
+	/**
+	 * Returns `true` when the user is signed in and their token has not
+	 * expired. A `null` value for {@link IDefaultAccount.entitlementsData}
+	 * indicates the OAuth token is expired or revoked (HTTP 401).
+	 */
+	private isSignedInWithValidToken(account: IDefaultAccount | null | undefined): boolean {
+		return account !== null && account !== undefined && account.entitlementsData !== null;
 	}
 
 	async action(): Promise<void> {
