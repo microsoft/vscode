@@ -24,9 +24,13 @@
       "description": "%workspaceTrust%",
       "restrictedConfigurations": [
         "typescript.tsdk",
+        "js/ts.tsdk.path",
         "typescript.tsserver.pluginPaths",
+        "js/ts.tsserver.pluginPaths",
         "typescript.npm",
-        "typescript.tsserver.nodePath"
+        "js/ts.tsserver.npm.path",
+        "typescript.tsserver.nodePath",
+        "js/ts.tsserver.node.path"
       ]
     }
   },
@@ -156,20 +160,78 @@
       {
         "type": "object",
         "properties": {
-          "typescript.tsdk": {
+          "js/ts.tsdk.path": {
             "type": "string",
             "markdownDescription": "%typescript.tsdk.desc%",
             "scope": "window",
+            "order": 1,
+            "keywords": [
+              "TypeScript"
+            ]
+          },
+          "typescript.tsdk": {
+            "type": "string",
+            "markdownDescription": "%typescript.tsdk.desc%",
+            "markdownDeprecationMessage": "%typescript.tsdk.unifiedDeprecationMessage%",
+            "scope": "window",
             "order": 1
           },
-          "typescript.experimental.useTsgo": {
+          "js/ts.experimental.useTsgo": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%typescript.useTsgo%",
             "scope": "window",
             "order": 2,
-            "tags": [
+            "keywords": [
+              "TypeScript",
               "experimental"
+            ]
+          },
+          "typescript.experimental.useTsgo": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%typescript.useTsgo%",
+            "markdownDeprecationMessage": "%typescript.useTsgo.unifiedDeprecationMessage%",
+            "scope": "window",
+            "order": 2,
+            "keywords": [
+              "experimental"
+            ]
+          },
+          "js/ts.locale": {
+            "type": "string",
+            "default": "auto",
+            "enum": [
+              "auto",
+              "de",
+              "es",
+              "en",
+              "fr",
+              "it",
+              "ja",
+              "ko",
+              "ru",
+              "zh-CN",
+              "zh-TW"
+            ],
+            "enumDescriptions": [
+              "%typescript.locale.auto%",
+              "Deutsch",
+              "español",
+              "English",
+              "français",
+              "italiano",
+              "日本語",
+              "한국어",
+              "русский",
+              "中文(简体)",
+              "中文(繁體)"
+            ],
+            "markdownDescription": "%typescript.locale%",
+            "scope": "window",
+            "order": 3,
+            "keywords": [
+              "TypeScript"
             ]
           },
           "typescript.locale": {
@@ -202,8 +264,31 @@
               "中文(繁體)"
             ],
             "markdownDescription": "%typescript.locale%",
+            "markdownDeprecationMessage": "%typescript.locale.unifiedDeprecationMessage%",
             "scope": "window",
             "order": 3
+          },
+          "js/ts.tsc.autoDetect": {
+            "type": "string",
+            "default": "on",
+            "enum": [
+              "on",
+              "off",
+              "build",
+              "watch"
+            ],
+            "markdownEnumDescriptions": [
+              "%typescript.tsc.autoDetect.on%",
+              "%typescript.tsc.autoDetect.off%",
+              "%typescript.tsc.autoDetect.build%",
+              "%typescript.tsc.autoDetect.watch%"
+            ],
+            "description": "%typescript.tsc.autoDetect%",
+            "scope": "window",
+            "order": 4,
+            "keywords": [
+              "TypeScript"
+            ]
           },
           "typescript.tsc.autoDetect": {
             "type": "string",
@@ -221,6 +306,7 @@
               "%typescript.tsc.autoDetect.watch%"
             ],
             "description": "%typescript.tsc.autoDetect%",
+            "markdownDeprecationMessage": "%typescript.tsc.autoDetect.unifiedDeprecationMessage%",
             "scope": "window",
             "order": 4
           }
@@ -245,7 +331,7 @@
               "%typescript.preferences.quoteStyle.double%"
             ],
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -301,7 +387,7 @@
             "default": "shortest",
             "description": "%typescript.preferences.importModuleSpecifier%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -367,7 +453,7 @@
             "default": "auto",
             "description": "%typescript.preferences.importModuleSpecifierEnding%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -437,7 +523,7 @@
             "default": "auto",
             "description": "%typescript.preferences.jsxAttributeCompletionStyle%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -491,7 +577,7 @@
             "default": "auto",
             "markdownDescription": "%typescript.preferences.includePackageJsonAutoImports%",
             "scope": "window",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -519,7 +605,7 @@
             },
             "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
             "scope": "resource",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -549,7 +635,7 @@
             },
             "markdownDescription": "%typescript.preferences.autoImportSpecifierExcludeRegexes%",
             "scope": "resource",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -577,7 +663,7 @@
             "default": false,
             "markdownDescription": "%typescript.preferences.preferTypeOnlyAutoImports%",
             "scope": "resource",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -593,7 +679,7 @@
             "default": true,
             "description": "%typescript.preferences.useAliasesForRenames%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -617,7 +703,7 @@
             "default": true,
             "description": "%typescript.preferences.renameMatchingJsxTags%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -713,7 +799,7 @@
                 "default": "default"
               }
             },
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -887,7 +973,7 @@
             "default": true,
             "description": "%format.enable%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -911,7 +997,7 @@
             "default": true,
             "description": "%format.insertSpaceAfterCommaDelimiter%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -935,7 +1021,7 @@
             "default": false,
             "description": "%format.insertSpaceAfterConstructor%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -959,7 +1045,7 @@
             "default": true,
             "description": "%format.insertSpaceAfterSemicolonInForStatements%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -983,7 +1069,7 @@
             "default": true,
             "description": "%format.insertSpaceBeforeAndAfterBinaryOperators%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1007,7 +1093,7 @@
             "default": true,
             "description": "%format.insertSpaceAfterKeywordsInControlFlowStatements%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1031,7 +1117,7 @@
             "default": true,
             "description": "%format.insertSpaceAfterFunctionKeywordForAnonymousFunctions%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1055,7 +1141,7 @@
             "default": false,
             "description": "%format.insertSpaceBeforeFunctionParenthesis%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1079,7 +1165,7 @@
             "default": false,
             "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1103,7 +1189,7 @@
             "default": false,
             "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1127,7 +1213,7 @@
             "default": true,
             "description": "%format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1151,7 +1237,7 @@
             "default": true,
             "description": "%format.insertSpaceAfterOpeningAndBeforeClosingEmptyBraces%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1175,7 +1261,7 @@
             "default": false,
             "description": "%format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1199,7 +1285,7 @@
             "default": false,
             "description": "%format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1223,7 +1309,7 @@
             "default": false,
             "description": "%format.insertSpaceAfterTypeAssertion%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -1239,7 +1325,7 @@
             "default": false,
             "description": "%format.placeOpenBraceOnNewLineForFunctions%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1263,7 +1349,7 @@
             "default": false,
             "description": "%format.placeOpenBraceOnNewLineForControlBlocks%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1297,7 +1383,7 @@
               "%format.semicolons.insert%",
               "%format.semicolons.remove%"
             ],
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1341,7 +1427,7 @@
             "default": true,
             "description": "%format.indentSwitchCase%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1371,7 +1457,7 @@
             "default": true,
             "description": "%configuration.validate.enable%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1395,7 +1481,7 @@
             "default": true,
             "description": "%typescript.reportStyleChecksAsWarnings%",
             "scope": "window",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -1411,7 +1497,7 @@
             "default": true,
             "description": "%configuration.suggestionActions.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1430,12 +1516,24 @@
             "markdownDeprecationMessage": "%configuration.suggestionActions.enabled.unifiedDeprecationMessage%",
             "scope": "resource"
           },
-          "typescript.tsserver.experimental.enableProjectDiagnostics": {
+          "js/ts.tsserver.experimental.enableProjectDiagnostics": {
             "type": "boolean",
             "default": false,
             "description": "%configuration.tsserver.experimental.enableProjectDiagnostics%",
             "scope": "window",
-            "tags": [
+            "keywords": [
+              "JavaScript",
+              "TypeScript",
+              "experimental"
+            ]
+          },
+          "typescript.tsserver.experimental.enableProjectDiagnostics": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.tsserver.experimental.enableProjectDiagnostics%",
+            "markdownDeprecationMessage": "%configuration.tsserver.experimental.enableProjectDiagnostics.unifiedDeprecationMessage%",
+            "scope": "window",
+            "keywords": [
               "experimental"
             ]
           }
@@ -1538,7 +1636,7 @@
             "default": "prompt",
             "description": "%typescript.updateImportsOnFileMove.enabled%",
             "scope": "resource",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1582,7 +1680,7 @@
             "default": true,
             "description": "%typescript.autoClosingTags%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1614,7 +1712,7 @@
             "default": "allOpenProjects",
             "markdownDescription": "%typescript.workspaceSymbols.scope%",
             "scope": "window",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -1638,7 +1736,7 @@
             "default": false,
             "description": "%configuration.preferGoToSourceDefinition%",
             "scope": "window",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1662,7 +1760,7 @@
             "default": true,
             "markdownDescription": "%typescript.workspaceSymbols.excludeLibrarySymbols%",
             "scope": "window",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -1678,7 +1776,7 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.updateImportsOnPaste%",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1714,7 +1812,7 @@
             "default": true,
             "description": "%typescript.suggest.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1738,7 +1836,7 @@
             "default": true,
             "description": "%configuration.suggest.autoImports%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1762,7 +1860,7 @@
             "default": true,
             "markdownDescription": "%configuration.suggest.names%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript"
             ]
           },
@@ -1778,7 +1876,7 @@
             "default": false,
             "description": "%configuration.suggest.completeFunctionCalls%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1802,7 +1900,7 @@
             "default": true,
             "description": "%configuration.suggest.paths%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1826,7 +1924,7 @@
             "default": true,
             "description": "%configuration.suggest.completeJSDocs%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1850,7 +1948,7 @@
             "default": true,
             "markdownDescription": "%configuration.suggest.jsdoc.generateReturns%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1874,7 +1972,7 @@
             "default": true,
             "description": "%configuration.suggest.includeAutomaticOptionalChainCompletions%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1898,7 +1996,7 @@
             "default": true,
             "description": "%configuration.suggest.includeCompletionsForImportStatements%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1922,7 +2020,7 @@
             "default": true,
             "description": "%configuration.suggest.classMemberSnippets.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1946,7 +2044,7 @@
             "default": true,
             "description": "%configuration.suggest.objectLiteralMethodSnippets.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -1968,7 +2066,7 @@
             "default": false,
             "description": "%configuration.referencesCodeLens.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -1992,7 +2090,7 @@
             "default": false,
             "markdownDescription": "%configuration.referencesCodeLens.showOnAllFunctions%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -2016,7 +2114,7 @@
             "default": false,
             "description": "%configuration.implementationsCodeLens.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -2032,7 +2130,7 @@
             "default": false,
             "markdownDescription": "%configuration.implementationsCodeLens.showOnInterfaceMethods%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -2048,7 +2146,7 @@
             "default": false,
             "markdownDescription": "%configuration.implementationsCodeLens.showOnAllClassMethods%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -2080,7 +2178,7 @@
             "default": "none",
             "markdownDescription": "%configuration.inlayHints.parameterNames.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -2124,7 +2222,7 @@
             "default": true,
             "markdownDescription": "%configuration.inlayHints.parameterNames.suppressWhenArgumentMatchesName%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -2148,7 +2246,7 @@
             "default": false,
             "markdownDescription": "%configuration.inlayHints.parameterTypes.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -2172,7 +2270,7 @@
             "default": false,
             "markdownDescription": "%configuration.inlayHints.variableTypes.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -2196,7 +2294,7 @@
             "default": true,
             "markdownDescription": "%configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -2220,7 +2318,7 @@
             "default": false,
             "markdownDescription": "%configuration.inlayHints.propertyDeclarationTypes.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -2244,7 +2342,7 @@
             "default": false,
             "markdownDescription": "%configuration.inlayHints.functionLikeReturnTypes.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "JavaScript",
               "TypeScript"
             ]
@@ -2268,7 +2366,7 @@
             "default": false,
             "markdownDescription": "%configuration.inlayHints.enumMemberValues.enabled%",
             "scope": "language-overridable",
-            "tags": [
+            "keywords": [
               "TypeScript"
             ]
           },
@@ -2285,54 +2383,152 @@
         "type": "object",
         "title": "%configuration.serverAdvanced%",
         "properties": {
+          "js/ts.tsdk.promptToUseWorkspaceVersion": {
+            "type": "boolean",
+            "default": false,
+            "description": "%typescript.enablePromptUseWorkspaceTsdk%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript"
+            ]
+          },
           "typescript.enablePromptUseWorkspaceTsdk": {
             "type": "boolean",
             "default": false,
             "description": "%typescript.enablePromptUseWorkspaceTsdk%",
+            "markdownDeprecationMessage": "%typescript.enablePromptUseWorkspaceTsdk.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.automaticTypeAcquisition.enabled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.automaticTypeAcquisition.enabled%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript",
+              "usesOnlineServices"
+            ]
           },
           "typescript.disableAutomaticTypeAcquisition": {
             "type": "boolean",
             "default": false,
             "markdownDescription": "%typescript.disableAutomaticTypeAcquisition%",
+            "markdownDeprecationMessage": "%typescript.disableAutomaticTypeAcquisition.unifiedDeprecationMessage%",
             "scope": "window",
-            "tags": [
+            "keywords": [
               "usesOnlineServices"
+            ]
+          },
+          "js/ts.tsserver.node.path": {
+            "type": "string",
+            "description": "%configuration.tsserver.nodePath%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript"
             ]
           },
           "typescript.tsserver.nodePath": {
             "type": "string",
             "description": "%configuration.tsserver.nodePath%",
+            "markdownDeprecationMessage": "%configuration.tsserver.nodePath.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.npm.path": {
+            "type": "string",
+            "markdownDescription": "%typescript.npm%",
+            "scope": "machine",
+            "keywords": [
+              "TypeScript"
+            ]
           },
           "typescript.npm": {
             "type": "string",
             "markdownDescription": "%typescript.npm%",
+            "markdownDeprecationMessage": "%typescript.npm.unifiedDeprecationMessage%",
             "scope": "machine"
+          },
+          "js/ts.tsserver.checkNpmIsInstalled": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%typescript.check.npmIsInstalled%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript"
+            ]
           },
           "typescript.check.npmIsInstalled": {
             "type": "boolean",
             "default": true,
             "markdownDescription": "%typescript.check.npmIsInstalled%",
+            "markdownDeprecationMessage": "%typescript.check.npmIsInstalled.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.web.projectWideIntellisense.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.tsserver.web.projectWideIntellisense.enabled%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript"
+            ]
           },
           "typescript.tsserver.web.projectWideIntellisense.enabled": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.tsserver.web.projectWideIntellisense.enabled%",
+            "markdownDeprecationMessage": "%configuration.tsserver.web.projectWideIntellisense.enabled.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.web.projectWideIntellisense.suppressSemanticErrors": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript"
+            ]
           },
           "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": {
             "type": "boolean",
             "default": false,
             "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
+            "markdownDeprecationMessage": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.web.typeAcquisition.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.tsserver.web.typeAcquisition.enabled%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript"
+            ]
           },
           "typescript.tsserver.web.typeAcquisition.enabled": {
             "type": "boolean",
             "default": true,
             "description": "%configuration.tsserver.web.typeAcquisition.enabled%",
+            "markdownDeprecationMessage": "%configuration.tsserver.web.typeAcquisition.enabled.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.useSyntaxServer": {
+            "type": "string",
+            "scope": "window",
+            "description": "%configuration.tsserver.useSyntaxServer%",
+            "default": "auto",
+            "enum": [
+              "always",
+              "never",
+              "auto"
+            ],
+            "enumDescriptions": [
+              "%configuration.tsserver.useSyntaxServer.always%",
+              "%configuration.tsserver.useSyntaxServer.never%",
+              "%configuration.tsserver.useSyntaxServer.auto%"
+            ],
+            "keywords": [
+              "TypeScript"
+            ]
           },
           "typescript.tsserver.useSyntaxServer": {
             "type": "string",
@@ -2348,15 +2544,26 @@
               "%configuration.tsserver.useSyntaxServer.always%",
               "%configuration.tsserver.useSyntaxServer.never%",
               "%configuration.tsserver.useSyntaxServer.auto%"
+            ],
+            "markdownDeprecationMessage": "%configuration.tsserver.useSyntaxServer.unifiedDeprecationMessage%"
+          },
+          "js/ts.tsserver.maxMemory": {
+            "type": "number",
+            "default": 3072,
+            "markdownDescription": "%configuration.tsserver.maxMemory%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript"
             ]
           },
           "typescript.tsserver.maxTsServerMemory": {
             "type": "number",
             "default": 3072,
             "markdownDescription": "%configuration.tsserver.maxTsServerMemory%",
+            "markdownDeprecationMessage": "%configuration.tsserver.maxTsServerMemory.unifiedDeprecationMessage%",
             "scope": "window"
           },
-          "typescript.tsserver.watchOptions": {
+          "js/ts.tsserver.watchOptions": {
             "description": "%configuration.tsserver.watchOptions%",
             "scope": "window",
             "default": "vscode",
@@ -2427,13 +2634,116 @@
                   }
                 }
               }
+            ],
+            "keywords": [
+              "TypeScript"
+            ]
+          },
+          "typescript.tsserver.watchOptions": {
+            "description": "%configuration.tsserver.watchOptions%",
+            "scope": "window",
+            "default": "vscode",
+            "markdownDeprecationMessage": "%configuration.tsserver.watchOptions.unifiedDeprecationMessage%",
+            "oneOf": [
+              {
+                "type": "string",
+                "const": "vscode",
+                "description": "%configuration.tsserver.watchOptions.vscode%"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "watchFile": {
+                    "type": "string",
+                    "description": "%configuration.tsserver.watchOptions.watchFile%",
+                    "enum": [
+                      "fixedChunkSizePolling",
+                      "fixedPollingInterval",
+                      "priorityPollingInterval",
+                      "dynamicPriorityPolling",
+                      "useFsEvents",
+                      "useFsEventsOnParentDirectory"
+                    ],
+                    "enumDescriptions": [
+                      "%configuration.tsserver.watchOptions.watchFile.fixedChunkSizePolling%",
+                      "%configuration.tsserver.watchOptions.watchFile.fixedPollingInterval%",
+                      "%configuration.tsserver.watchOptions.watchFile.priorityPollingInterval%",
+                      "%configuration.tsserver.watchOptions.watchFile.dynamicPriorityPolling%",
+                      "%configuration.tsserver.watchOptions.watchFile.useFsEvents%",
+                      "%configuration.tsserver.watchOptions.watchFile.useFsEventsOnParentDirectory%"
+                    ],
+                    "default": "useFsEvents"
+                  },
+                  "watchDirectory": {
+                    "type": "string",
+                    "description": "%configuration.tsserver.watchOptions.watchDirectory%",
+                    "enum": [
+                      "fixedChunkSizePolling",
+                      "fixedPollingInterval",
+                      "dynamicPriorityPolling",
+                      "useFsEvents"
+                    ],
+                    "enumDescriptions": [
+                      "%configuration.tsserver.watchOptions.watchDirectory.fixedChunkSizePolling%",
+                      "%configuration.tsserver.watchOptions.watchDirectory.fixedPollingInterval%",
+                      "%configuration.tsserver.watchOptions.watchDirectory.dynamicPriorityPolling%",
+                      "%configuration.tsserver.watchOptions.watchDirectory.useFsEvents%"
+                    ],
+                    "default": "useFsEvents"
+                  },
+                  "fallbackPolling": {
+                    "type": "string",
+                    "description": "%configuration.tsserver.watchOptions.fallbackPolling%",
+                    "enum": [
+                      "fixedPollingInterval",
+                      "priorityPollingInterval",
+                      "dynamicPriorityPolling"
+                    ],
+                    "enumDescriptions": [
+                      "configuration.tsserver.watchOptions.fallbackPolling.fixedPollingInterval",
+                      "configuration.tsserver.watchOptions.fallbackPolling.priorityPollingInterval",
+                      "configuration.tsserver.watchOptions.fallbackPolling.dynamicPriorityPolling"
+                    ]
+                  },
+                  "synchronousWatchDirectory": {
+                    "type": "boolean",
+                    "description": "%configuration.tsserver.watchOptions.synchronousWatchDirectory%"
+                  }
+                }
+              }
+            ]
+          },
+          "js/ts.tsserver.tracing.enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "%typescript.tsserver.enableTracing%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript"
             ]
           },
           "typescript.tsserver.enableTracing": {
             "type": "boolean",
             "default": false,
             "description": "%typescript.tsserver.enableTracing%",
+            "markdownDeprecationMessage": "%typescript.tsserver.enableTracing.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.log": {
+            "type": "string",
+            "enum": [
+              "off",
+              "terse",
+              "normal",
+              "verbose",
+              "requestTime"
+            ],
+            "default": "off",
+            "description": "%typescript.tsserver.log%",
+            "scope": "window",
+            "keywords": [
+              "TypeScript"
+            ]
           },
           "typescript.tsserver.log": {
             "type": "string",
@@ -2446,7 +2756,21 @@
             ],
             "default": "off",
             "description": "%typescript.tsserver.log%",
+            "markdownDeprecationMessage": "%typescript.tsserver.log.unifiedDeprecationMessage%",
             "scope": "window"
+          },
+          "js/ts.tsserver.pluginPaths": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "%typescript.tsserver.pluginPaths.item%"
+            },
+            "default": [],
+            "description": "%typescript.tsserver.pluginPaths%",
+            "scope": "machine",
+            "keywords": [
+              "TypeScript"
+            ]
           },
           "typescript.tsserver.pluginPaths": {
             "type": "array",
@@ -2456,6 +2780,7 @@
             },
             "default": [],
             "description": "%typescript.tsserver.pluginPaths%",
+            "markdownDeprecationMessage": "%typescript.tsserver.pluginPaths.unifiedDeprecationMessage%",
             "scope": "machine"
           }
         }

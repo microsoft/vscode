@@ -141,7 +141,7 @@ export class AICustomizationOverviewView extends ViewPane {
 
 			// Hover tooltip
 			this._register(this.hoverService.setupDelayedHoverAtMouse(sectionElement, () => ({
-				content: localize('openSection', "Open {0} in AI Customizations editor", section.label),
+				content: localize('openSection', "Open {0} in Chat Customizations editor", section.label),
 				appearance: { compact: true, skipFadeInAnimation: true }
 			})));
 		}

@@ -75,7 +75,7 @@
     "perf": "node scripts/code-perf.js",
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)",
     "install-local-component-explorer": "npm install ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-0.1.0.tgz ../vscode-packages/js-component-explorer/dist/vscode-component-explorer-cli-0.1.0.tgz --no-save && cd build/vite && npm install ../../../vscode-packages/js-component-explorer/dist/vscode-component-explorer-vite-plugin-0.1.0.tgz --no-save",
-    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/vite && npm install @vscode/component-explorer-vite-plugin@next && npm install @vscode/component-explorer"
+    "install-latest-component-explorer": "npm install @vscode/component-explorer@next @vscode/component-explorer-cli@next && cd build/vite && npm install @vscode/component-explorer-vite-plugin@next && npm install @vscode/component-explorer@next"
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.23",
@@ -152,8 +152,8 @@
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
     "@typescript/native-preview": "^7.0.0-dev.20260130",
-    "@vscode/component-explorer": "^0.1.1-11",
-    "@vscode/component-explorer-cli": "^0.1.1-7",
+    "@vscode/component-explorer": "^0.1.1-12",
+    "@vscode/component-explorer-cli": "^0.1.1-8",
     "@vscode/gulp-electron": "https://github.com/microsoft/vscode-gulp-electron.git#405e3df0e4e9c37fcf549cbe6f5cef8d5ba5ddff",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",

@@ -465,7 +465,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		//#region Editor Context Menu
 
-		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.generateDocs' | 'chat.internal.generateTests', actualCommand: string): void {
+		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review', actualCommand: string): void {
 
 			CommandsRegistry.registerCommand(coreCommand, async accessor => {
 				const commandService = accessor.get(ICommandService);
@@ -492,9 +492,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 						break;
 					}
-					case 'chat.internal.review':
-					case 'chat.internal.generateDocs':
-					case 'chat.internal.generateTests': {
+					case 'chat.internal.review': {
 						const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
 						if (result) {
 							await commandService.executeCommand(actualCommand);
@@ -506,8 +504,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
 		registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
 		registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
-		registerGenerateCodeCommand('chat.internal.generateDocs', 'github.copilot.chat.generateDocs');
-		registerGenerateCodeCommand('chat.internal.generateTests', 'github.copilot.chat.generateTests');
 
 		const internalGenerateCodeContext = ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
@@ -525,54 +521,29 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			when: internalGenerateCodeContext
 		});
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 			command: {
 				id: 'chat.internal.fix',
 				title: localize('fix', "Fix"),
 			},
-			group: '1_action',
-			order: 1,
+			group: '1_chat',
+			order: 5,
 			when: ContextKeyExpr.and(
 				internalGenerateCodeContext,
 				EditorContextKeys.readOnly.negate()
 			)
 		});
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+		MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 			command: {
 				id: 'chat.internal.review',
 				title: localize('review', "Code Review"),
 			},
-			group: '1_action',
-			order: 2,
+			group: '1_chat',
+			order: 6,
 			when: internalGenerateCodeContext
 		});
 
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-			command: {
-				id: 'chat.internal.generateDocs',
-				title: localize('generateDocs', "Generate Docs"),
-			},
-			group: '2_generate',
-			order: 1,
-			when: ContextKeyExpr.and(
-				internalGenerateCodeContext,
-				EditorContextKeys.readOnly.negate()
-			)
-		});
-
-		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-			command: {
-				id: 'chat.internal.generateTests',
-				title: localize('generateTests', "Generate Tests"),
-			},
-			group: '2_generate',
-			order: 2,
-			when: ContextKeyExpr.and(
-				internalGenerateCodeContext,
-				EditorContextKeys.readOnly.negate()
-			)
-		});
 	}
 
 	private registerUrlLinkHandler(): void {

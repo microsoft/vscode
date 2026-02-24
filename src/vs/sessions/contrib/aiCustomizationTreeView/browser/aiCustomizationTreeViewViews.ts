@@ -557,7 +557,7 @@ export class AICustomizationViewPane extends ViewPane {
 							? localize('fileAriaLabel', "{0}, {1}", element.name, element.description)
 							: element.name;
 					},
-					getWidgetAriaLabel: () => localize('aiCustomizationTree', "AI Customization Items"),
+					getWidgetAriaLabel: () => localize('aiCustomizationTree', "Chat Customization Items"),
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: (element: AICustomizationTreeItem) => {

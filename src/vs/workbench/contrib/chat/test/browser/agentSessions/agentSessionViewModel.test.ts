@@ -1226,6 +1226,71 @@ suite('AgentSessions', () => {
 			assert.strictEqual(filter.exclude(inProgressSession), true);
 			assert.strictEqual(filter.exclude(failedSession), true);
 		});
+
+		test('should exclude sessions from non-allowed providers when allowedProviders is set', () => {
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{
+					filterMenuId: MenuId.ViewTitle,
+					allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
+				}
+			));
+
+			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
+			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.Claude });
+			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
+			const localSession = createSession({ providerType: AgentSessionProviders.Local });
+
+			assert.strictEqual(filter.exclude(backgroundSession), false, 'Background should be allowed');
+			assert.strictEqual(filter.exclude(cloudSession), false, 'Cloud should be allowed');
+			assert.strictEqual(filter.exclude(claudeSession), true, 'Claude should be excluded');
+			assert.strictEqual(filter.exclude(codexSession), true, 'Codex should be excluded');
+			assert.strictEqual(filter.exclude(localSession), true, 'Local should be excluded');
+		});
+
+		test('should not exclude any provider when allowedProviders is not set', () => {
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			const claudeSession = createSession({ providerType: AgentSessionProviders.Claude });
+			const codexSession = createSession({ providerType: AgentSessionProviders.Codex });
+			const unknownSession = createSession({ providerType: 'some-unknown-type' });
+
+			assert.strictEqual(filter.exclude(claudeSession), false);
+			assert.strictEqual(filter.exclude(codexSession), false);
+			assert.strictEqual(filter.exclude(unknownSession), false);
+		});
+
+		test('should still apply user excludes on top of allowedProviders', () => {
+			const storageService = instantiationService.get(IStorageService);
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{
+					filterMenuId: MenuId.ViewTitle,
+					allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
+				}
+			));
+
+			// User excludes Cloud via storage
+			const excludes = {
+				providers: [AgentSessionProviders.Cloud],
+				states: [],
+				archived: false,
+				read: false,
+			};
+			storageService.store(storageKey, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+
+			const backgroundSession = createSession({ providerType: AgentSessionProviders.Background });
+			const cloudSession = createSession({ providerType: AgentSessionProviders.Cloud });
+			const claudeSession = createSession({ providerType: AgentSessionProviders.Claude });
+
+			assert.strictEqual(filter.exclude(backgroundSession), false, 'Background is allowed and not user-excluded');
+			assert.strictEqual(filter.exclude(cloudSession), true, 'Cloud is allowed but user-excluded');
+			assert.strictEqual(filter.exclude(claudeSession), true, 'Claude is not in allowedProviders');
+		});
 	});
 
 	suite('AgentSessionsViewModel - Session Archiving', () => {

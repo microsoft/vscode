@@ -52,6 +52,8 @@ import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.j
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -165,6 +167,7 @@ suite('ChatService', () => {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[IMcpService, new TestMcpService()],
 			[IPromptsService, new MockPromptsService()],
+			[ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService())]
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
@@ -443,7 +446,7 @@ suite('ChatService', () => {
 				await completeRequest.p;
 				return {};
 			},
-			setYieldRequested(requestId: string) {
+			setYieldRequested(requestId: string, value: boolean) {
 				setYieldRequestedCalled = true;
 			},
 		};

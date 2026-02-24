@@ -29,6 +29,7 @@ registerEditorContribution(InlineChatController.ID, InlineChatController, Editor
 registerAction2(InlineChatActions.KeepSessionAction2);
 registerAction2(InlineChatActions.UndoSessionAction2);
 registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
+registerAction2(InlineChatActions.CancelSessionAction);
 
 // --- browser
 

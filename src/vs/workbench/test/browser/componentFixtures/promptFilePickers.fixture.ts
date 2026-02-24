@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { ResourceSet } from '../../../../base/common/map.js';
@@ -85,15 +86,7 @@ export default defineThemedFixtureGroup({
 	}),
 });
 
-async function renderPromptFilePickerFixture({ container, disposableStore, theme, type, placeholder, seedData }: RenderPromptPickerOptions): Promise<HTMLElement> {
-	container.style.width = 'fit-content';
-	container.style.minHeight = '0';
-	container.style.padding = '8px';
-	container.style.boxSizing = 'border-box';
-	container.style.background = 'var(--vscode-editor-background)';
-	container.style.border = '1px solid var(--vscode-editorWidget-border)';
-	container.style.position = 'relative';
-
+async function renderPromptFilePickerFixture({ container, disposableStore, theme, type, placeholder, seedData }: RenderPromptPickerOptions): Promise<void> {
 	const quickInputHost = document.createElement('div');
 	quickInputHost.style.position = 'relative';
 	const hostWidth = 800;
@@ -207,5 +200,45 @@ async function renderPromptFilePickerFixture({ container, disposableStore, theme
 		type,
 	});
 
-	return container;
+	// Wait for the quickpick widget to render and have dimensions
+	const quickInputWidget = await waitForElement<HTMLElement>(
+		quickInputHost,
+		'.quick-input-widget',
+		el => el.offsetWidth > 0 && el.offsetHeight > 0
+	);
+
+	if (quickInputWidget) {
+		// Reset positioning
+		quickInputWidget.style.position = 'relative';
+		quickInputWidget.style.top = '0';
+		quickInputWidget.style.left = '0';
+
+		// Move widget to container and remove host
+		container.appendChild(quickInputWidget);
+		quickInputHost.remove();
+
+		// Set explicit dimensions on container to match widget
+		const rect = quickInputWidget.getBoundingClientRect();
+		container.style.width = `${rect.width}px`;
+		container.style.height = `${rect.height}px`;
+	}
+}
+
+async function waitForElement<T extends HTMLElement>(
+	root: HTMLElement,
+	selector: string,
+	condition: (el: T) => boolean,
+	timeout = 2000
+): Promise<T | null> {
+	const start = Date.now();
+	while (Date.now() - start < timeout) {
+		const el = root.querySelector<T>(selector);
+		if (el && condition(el)) {
+			// Wait one more frame to ensure layout is complete
+			await new Promise(resolve => mainWindow.requestAnimationFrame(resolve));
+			return el;
+		}
+		await new Promise(resolve => setTimeout(resolve, 10));
+	}
+	return root.querySelector<T>(selector);
 }

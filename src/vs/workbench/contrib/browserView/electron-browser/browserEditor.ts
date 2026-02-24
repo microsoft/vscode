@@ -413,6 +413,7 @@ export class BrowserEditor extends EditorPane {
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
 			url: this._model.url,
+			title: this._model.title,
 			canGoBack: this._model.canGoBack,
 			canGoForward: this._model.canGoForward
 		});
