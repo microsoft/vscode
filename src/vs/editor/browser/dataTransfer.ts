@@ -29,7 +29,7 @@ export function toVSDataTransfer(dataTransfer: DataTransfer): VSDataTransfer {
 
 function createFileDataTransferItemFromFile(file: File): IDataTransferItem {
 	const path = getPathForFile(file);
-	const uri = path ? URI.parse(path!) : undefined;
+	const uri = path ? URI.parse(path) : undefined;
 	return createFileDataTransferItem(file.name, uri, async () => {
 		return new Uint8Array(await file.arrayBuffer());
 	});

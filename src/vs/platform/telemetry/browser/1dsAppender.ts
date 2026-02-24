@@ -10,7 +10,7 @@ export class OneDataSystemWebAppender extends AbstractOneDataSystemAppender {
 	constructor(
 		isInternalTelemetry: boolean,
 		eventPrefix: string,
-		defaultData: { [key: string]: any } | null,
+		defaultData: { [key: string]: unknown } | null,
 		iKeyOrClientFactory: string | (() => IAppInsightsCore), // allow factory function for testing
 	) {
 		super(isInternalTelemetry, eventPrefix, defaultData, iKeyOrClientFactory);

@@ -254,7 +254,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 		}, err => {
 			const messageOrError =
-				err instanceof Error ? (<Error>err).message : err;
+				err instanceof Error ? err.message : err;
 			// different error cases
 			if (messageOrError === 'invalid') {
 				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url!.toString()));

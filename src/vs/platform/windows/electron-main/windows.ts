@@ -39,8 +39,9 @@ export interface IWindowsMainService {
 	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
-
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
+
+	openSessionsWindow(openConfig: IBaseOpenConfiguration): Promise<ICodeWindow[]>;
 
 	sendToFocused(channel: string, ...args: unknown[]): void;
 	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
@@ -196,7 +197,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
 	if (useNativeTabs) {
-		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
+		options.tabbingIdentifier = productService.nameShort; // this opts in to native macOS tabs
 	}
 
 	const hideNativeTitleBar = !hasNativeTitlebar(configurationService, overrides?.forceNativeTitlebar ? TitlebarStyle.NATIVE : undefined);

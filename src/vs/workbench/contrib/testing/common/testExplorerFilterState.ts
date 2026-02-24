@@ -80,7 +80,7 @@ const trimExtraWhitespace = (str: string) => str.replace(/\s\s+/g, ' ').trim();
 
 export class TestExplorerFilterState extends Disposable implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
-	private readonly focusEmitter = new Emitter<void>();
+	private readonly focusEmitter = this._register(new Emitter<void>());
 	/**
 	 * Mapping of terms to whether they're included in the text.
 	 */

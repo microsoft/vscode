@@ -400,6 +400,20 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 		}
 		return false;
 	}
+
+	public appendKeybinding(label: string, commandId: string | undefined | null, context?: IContextKeyService, enforceContextCheck?: boolean): string {
+		if (commandId) {
+			const keybindingLabel = this.lookupKeybinding(commandId, context, enforceContextCheck)?.getLabel();
+			if (keybindingLabel) {
+				return nls.localize(
+					{ key: 'keybindingLabel', comment: ['UI element label', 'A keybinding label'] },
+					"{0} ({1})",
+					label,
+					keybindingLabel);
+			}
+		}
+		return label;
+	}
 }
 
 class KeybindingModifierSet {

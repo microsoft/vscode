@@ -6,7 +6,7 @@
 import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
 
-export = new class NoAnyCasts implements eslint.Rule.RuleModule {
+export default new class NoAnyCasts implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {

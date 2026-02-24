@@ -720,6 +720,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.yeoman.code.ext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.cordova.high" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.cordova.low" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.azure.yaml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.xamarin.android" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.xamarin.ios" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.android.cpp" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -1275,6 +1276,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
 			tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
 			tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
+
+			tags['workspace.azure.yaml'] = nameSet.has('azure.yaml') || nameSet.has('azure.yml');
 
 			tags['workspace.java.pom'] = nameSet.has('pom.xml');
 			tags['workspace.java.gradle'] = nameSet.has('build.gradle') || nameSet.has('settings.gradle') || nameSet.has('build.gradle.kts') || nameSet.has('settings.gradle.kts') || nameSet.has('gradlew') || nameSet.has('gradlew.bat');

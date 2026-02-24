@@ -21,7 +21,7 @@ import { LineTokens } from '../../tokens/lineTokens.js';
 export class BracketPairsTextModelPart extends Disposable implements IBracketPairsTextModelPart {
 	private readonly bracketPairsTree = this._register(new MutableDisposable<IReference<BracketPairsTree>>());
 
-	private readonly onDidChangeEmitter = new Emitter<void>();
+	private readonly onDidChangeEmitter = this._register(new Emitter<void>());
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
 	private get canBuildAST() {

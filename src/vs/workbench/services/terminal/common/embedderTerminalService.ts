@@ -79,7 +79,7 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	readonly onProcessData: Event<IProcessDataEvent | string>;
 	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
 	readonly onProcessReady = this._onProcessReady.event;
-	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty<any>>());
+	private readonly _onDidChangeProperty = this._register(new Emitter<IProcessProperty>());
 	readonly onDidChangeProperty = this._onDidChangeProperty.event;
 	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
 	readonly onProcessExit = this._onProcessExit.event;
@@ -127,7 +127,7 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 	resize(): void {
 		// no-op
 	}
-	clearBuffer(): void | Promise<void> {
+	clearBuffer(): void {
 		// no-op
 	}
 	acknowledgeDataEvent(): void {
@@ -146,7 +146,7 @@ class EmbedderTerminalProcess extends Disposable implements ITerminalChildProces
 		throw new Error(`refreshProperty is not suppported in EmbedderTerminalProcess. property: ${property}`);
 	}
 
-	updateProperty(property: ProcessPropertyType, value: any): Promise<void> {
+	updateProperty(property: ProcessPropertyType, value: unknown): Promise<void> {
 		throw new Error(`updateProperty is not suppported in EmbedderTerminalProcess. property: ${property}, value: ${value}`);
 	}
 }

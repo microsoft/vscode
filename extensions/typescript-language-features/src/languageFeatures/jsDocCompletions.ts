@@ -8,6 +8,7 @@ import { DocumentSelector } from '../configuration/documentSelector';
 import { LanguageDescription } from '../configuration/languageDescription';
 import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { readUnifiedConfig } from '../utils/configuration';
 import FileConfigurationManager from './fileConfigurationManager';
 
 
@@ -45,7 +46,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.CompletionItem[] | undefined> {
-		if (!vscode.workspace.getConfiguration(this.language.id, document).get('suggest.completeJSDocs')) {
+		if (!readUnifiedConfig<boolean>('suggest.completeJSDocs', true, { scope: document, fallbackSection: this.language.id })) {
 			return undefined;
 		}
 

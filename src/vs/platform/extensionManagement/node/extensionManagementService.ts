@@ -297,7 +297,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	private async downloadAndExtractGalleryExtension(extensionKey: ExtensionKey, gallery: IGalleryExtension, operation: InstallOperation, options: InstallExtensionTaskOptions, token: CancellationToken): Promise<ExtractExtensionResult> {
-		const { verificationStatus, location } = await this.downloadExtension(gallery, operation, !options.donotVerifySignature, options.context?.[EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT]);
+		const { verificationStatus, location } = await this.downloadExtension(gallery, operation, !options.donotVerifySignature, options.context?.[EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT] as TargetPlatform | undefined);
 		try {
 
 			if (token.isCancellationRequested) {
@@ -534,7 +534,7 @@ type UpdateMetadataErrorEvent = {
 export class ExtensionsScanner extends Disposable {
 
 	private readonly obsoletedResource: URI;
-	private readonly obsoleteFileLimiter: Queue<any>;
+	private readonly obsoleteFileLimiter: Queue<IStringDictionary<boolean>>;
 
 	private readonly _onExtract = this._register(new Emitter<URI>());
 	readonly onExtract = this._onExtract.event;

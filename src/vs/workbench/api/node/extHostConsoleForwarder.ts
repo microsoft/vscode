@@ -48,7 +48,7 @@ export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 
 		Object.defineProperty(stream, 'write', {
 			set: () => { },
-			get: () => (chunk: Uint8Array | string, encoding?: BufferEncoding, callback?: (err?: Error) => void) => {
+			get: () => (chunk: Uint8Array | string, encoding?: BufferEncoding, callback?: (err?: Error | null) => void) => {
 				if (!this._isMakingConsoleCall) {
 					// eslint-disable-next-line local/code-no-any-casts
 					buf += (chunk as any).toString(encoding);

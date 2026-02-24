@@ -134,4 +134,64 @@ suite('RepositoryCache', () => {
 		cache.delete(repo, b);
 		assert.strictEqual(cache.get(repo), undefined, 'repo should be pruned when last folder removed');
 	});
+
+	test('normalizes URLs with trailing .git', () => {
+		const memento = new InMemoryMemento();
+		const folder = Uri.file('/workspace/repo');
+		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, [{ uri: folder, name: 'workspace', index: 0 }]);
+
+		// Set with .git extension
+		cache.set('https://example.com/repo.git', folder.fsPath);
+
+		// Should be able to get with or without .git
+		const withGit = cache.get('https://example.com/repo.git');
+		const withoutGit = cache.get('https://example.com/repo');
+
+		assert.ok(withGit, 'should find repo when querying with .git');
+		assert.ok(withoutGit, 'should find repo when querying without .git');
+		assert.deepStrictEqual(withGit, withoutGit, 'should return same result regardless of .git suffix');
+	});
+
+	test('normalizes URLs with trailing slashes and .git', () => {
+		const memento = new InMemoryMemento();
+		const folder = Uri.file('/workspace/repo');
+		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, [{ uri: folder, name: 'workspace', index: 0 }]);
+
+		// Set with .git and trailing slashes
+		cache.set('https://example.com/repo.git///', folder.fsPath);
+
+		// Should be able to get with various combinations
+		const variations = [
+			'https://example.com/repo.git///',
+			'https://example.com/repo.git/',
+			'https://example.com/repo.git',
+			'https://example.com/repo/',
+			'https://example.com/repo'
+		];
+
+		const results = variations.map(url => cache.get(url));
+
+		// All should return the same non-undefined result
+		assert.ok(results[0], 'should find repo with original URL');
+		for (let i = 1; i < results.length; i++) {
+			assert.deepStrictEqual(results[i], results[0], `variation ${variations[i]} should return same result`);
+		}
+	});
+
+	test('handles URLs without .git correctly', () => {
+		const memento = new InMemoryMemento();
+		const folder = Uri.file('/workspace/repo');
+		const cache = new TestRepositoryCache(memento, new MockLogOutputChannel(), undefined, [{ uri: folder, name: 'workspace', index: 0 }]);
+
+		// Set without .git extension
+		cache.set('https://example.com/repo', folder.fsPath);
+
+		// Should be able to get with or without .git
+		const withoutGit = cache.get('https://example.com/repo');
+		const withGit = cache.get('https://example.com/repo.git');
+
+		assert.ok(withoutGit, 'should find repo when querying without .git');
+		assert.ok(withGit, 'should find repo when querying with .git');
+		assert.deepStrictEqual(withoutGit, withGit, 'should return same result regardless of .git suffix');
+	});
 });

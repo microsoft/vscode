@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -12,7 +13,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
-import { IToolInvocationContext, ToolProgress } from '../../../chat/common/languageModelToolsService.js';
+import { IToolInvocationContext, ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
@@ -21,6 +22,7 @@ import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
 import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/types.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IReconnectionTaskData } from '../../../tasks/browser/terminalTaskSystem.js';
+import { isString } from '../../../../../base/common/types.js';
 
 
 export function getTaskDefinition(id: string) {
@@ -37,14 +39,35 @@ export function getTaskDefinition(id: string) {
 }
 
 export function getTaskRepresentation(task: IConfiguredTask | Task): string {
-	if ('label' in task && task.label) {
-		return task.label;
-	} else if ('script' in task && task.script) {
-		return task.script;
-	} else if ('command' in task && task.command) {
-		return typeof task.command === 'string' ? task.command : task.command.name?.toString() || '';
+	if (Object.hasOwn(task, 'label') && (task as IConfiguredTask).label) {
+		return (task as IConfiguredTask).label!;
+	} else if (Object.hasOwn(task, 'script') && (task as IConfiguredTask).script) {
+		return (task as IConfiguredTask).script!;
+	} else if (Object.hasOwn(task, 'command') && (task as IConfiguredTask).command) {
+		const command = (task as IConfiguredTask).command;
+		return isString(command) ? command : command!.name?.toString() || '';
 	}
 	return '';
+}
+
+export function getTaskKey(task: Task): string {
+	return task.getKey() ?? task.getMapKey();
+}
+
+export function tasksMatch(a: Task, b: Task): boolean {
+	if (!a || !b) {
+		return false;
+	}
+
+	if (getTaskKey(a) === getTaskKey(b)) {
+		return true;
+	}
+
+	if (a.getCommonTaskId?.() === b.getCommonTaskId?.()) {
+		return true;
+	}
+
+	return a._id === b._id;
 }
 
 export async function getTaskForTool(id: string | undefined, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService, allowParentTask?: boolean): Promise<Task | undefined> {
@@ -59,7 +82,7 @@ export async function getTaskForTool(id: string | undefined, taskDefinition: { t
 		}
 	}
 	for (const configTask of configTasks) {
-		if ((!allowParentTask && !configTask.type) || ('hide' in configTask && configTask.hide)) {
+		if ((!allowParentTask && !configTask.type) || (Object.hasOwn(configTask, 'hide') && configTask.hide)) {
 			// Skip these as they are not included in the agent prompt and we need to align with
 			// the indices used there.
 			continue;
@@ -122,11 +145,12 @@ export interface IConfiguredTask {
 	label?: string;
 	type?: string;
 	script?: string;
-	command?: string;
+	command?: string | { name?: string };
 	args?: string[];
 	isBackground?: boolean;
 	problemMatcher?: string[];
 	group?: string;
+	hide?: boolean;
 }
 
 export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService): Promise<Task[] | undefined> {
@@ -134,7 +158,7 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 		return undefined;
 	}
 	const dependencyTasks = await Promise.all(parentTask.configurationProperties.dependsOn.map(async (dep: ITaskDependency) => {
-		const depId: string | undefined = typeof dep.task === 'string' ? dep.task : dep.task?._key;
+		const depId: string | undefined = isString(dep.task) ? dep.task : dep.task?._key;
 		if (!depId) {
 			return undefined;
 		}
@@ -155,7 +179,8 @@ export async function collectTerminalResults(
 	token: CancellationToken,
 	disposableStore: DisposableStore,
 	isActive?: (task: Task) => Promise<boolean>,
-	dependencyTasks?: Task[]
+	dependencyTasks?: Task[],
+	taskService?: ITaskService
 ): Promise<Array<{
 	name: string;
 	output: string;
@@ -184,9 +209,11 @@ export async function collectTerminalResults(
 		taskLabelToTaskMap[dependencyTask._label] = dependencyTask;
 	}
 
-	for (const instance of terminals) {
-		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
+	// Process all terminals in parallel
+	const terminalNames = terminals.map(t => t.shellLaunchConfig.name ?? t.title ?? 'unknown');
+	progress.report({ message: new MarkdownString(`Checking output for ${terminalNames.map(n => `\`${n}\``).join(', ')}`) });
 
+	const terminalPromises = terminals.map(async (instance) => {
 		let terminalTask = task;
 
 		// For composite tasks, find the actual dependency task running in this terminal
@@ -194,16 +221,16 @@ export async function collectTerminalResults(
 			// Use reconnection data if possible to match, since the properties here are unique
 			const reconnectionData = instance.reconnectionProperties?.data as IReconnectionTaskData | undefined;
 			if (reconnectionData) {
-				if (reconnectionData.lastTask in commonTaskIdToTaskMap) {
+				if (Object.hasOwn(commonTaskIdToTaskMap, reconnectionData.lastTask)) {
 					terminalTask = commonTaskIdToTaskMap[reconnectionData.lastTask];
-				} else if (reconnectionData.id in taskIdToTaskMap) {
+				} else if (Object.hasOwn(taskIdToTaskMap, reconnectionData.id)) {
 					terminalTask = taskIdToTaskMap[reconnectionData.id];
 				}
 			} else {
 				// Otherwise, fallback to label matching
-				if (instance.shellLaunchConfig.name && instance.shellLaunchConfig.name in taskLabelToTaskMap) {
+				if (instance.shellLaunchConfig.name && Object.hasOwn(taskLabelToTaskMap, instance.shellLaunchConfig.name)) {
 					terminalTask = taskLabelToTaskMap[instance.shellLaunchConfig.name];
-				} else if (instance.title in taskLabelToTaskMap) {
+				} else if (Object.hasOwn(taskLabelToTaskMap, instance.title)) {
 					terminalTask = taskLabelToTaskMap[instance.title];
 				}
 			}
@@ -215,13 +242,30 @@ export async function collectTerminalResults(
 			isActive: isActive ? () => isActive(terminalTask) : undefined,
 			instance,
 			dependencyTasks,
-			sessionId: invocationContext.sessionId
+			sessionResource: invocationContext.sessionResource
 		};
 
-		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
-		await Event.toPromise(outputMonitor.onDidFinishCommand);
+		// For tasks with problem matchers, wait until the task becomes busy before creating the output monitor
+		if (terminalTask.configurationProperties.problemMatchers && terminalTask.configurationProperties.problemMatchers.length > 0 && taskService) {
+			const maxWaitTime = 1000; // Wait up to 1 second
+			const startTime = Date.now();
+			while (!token.isCancellationRequested && Date.now() - startTime < maxWaitTime) {
+				const busyTasks = await taskService.getBusyTasks();
+				if (busyTasks.some(t => tasksMatch(t, terminalTask))) {
+					break;
+				}
+				await timeout(100);
+			}
+		}
+
+		const hasProblemMatchers = terminalTask.configurationProperties.problemMatchers && terminalTask.configurationProperties.problemMatchers.length > 0;
+		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, hasProblemMatchers ? taskProblemPollFn : undefined, invocationContext, token, task._label));
+		await Promise.race([
+			Event.toPromise(outputMonitor.onDidFinishCommand),
+			Event.toPromise(token.onCancellationRequested as Event<unknown>)
+		]);
 		const pollingResult = outputMonitor.pollingResult;
-		results.push({
+		return {
 			name: instance.shellLaunchConfig.name ?? instance.title ?? 'unknown',
 			output: pollingResult?.output ?? '',
 			pollDurationMs: pollingResult?.pollDurationMs ?? 0,
@@ -235,8 +279,11 @@ export async function collectTerminalResults(
 			inputToolManualShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualShownCount ?? 0,
 			inputToolFreeFormInputShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount ?? 0,
 			inputToolFreeFormInputCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputCount ?? 0,
-		});
-	}
+		};
+	});
+
+	const parallelResults = await Promise.all(terminalPromises);
+	results.push(...parallelResults);
 	return results;
 }
 

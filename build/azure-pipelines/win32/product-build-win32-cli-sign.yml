@@ -42,7 +42,7 @@ jobs:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password"
 
-      - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY build
+      - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY build
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 

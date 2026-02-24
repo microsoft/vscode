@@ -64,6 +64,7 @@ import { TestTreeSitterLibraryService } from '../common/services/testTreeSitterL
 import { IInlineCompletionsService, InlineCompletionsService } from '../../browser/services/inlineCompletionsService.js';
 import { EditorCommand } from '../../browser/editorExtensions.js';
 import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
+import { IUserInteractionService, MockUserInteractionService } from '../../../platform/userInteraction/browser/userInteractionService.js';
 
 export interface ITestCodeEditor extends IActiveCodeEditor {
 	getViewModel(): ViewModel | undefined;
@@ -194,7 +195,7 @@ function _withTestCodeEditor(arg: ITextModel | string | string[] | ITextBufferFa
 	const editor = disposables.add(instantiateTestCodeEditor(instantiationService, model, options));
 	const viewModel = editor.getViewModel()!;
 	viewModel.setHasFocus(true);
-	const result = callback(<ITestCodeEditor>editor, editor.getViewModel()!, instantiationService);
+	const result = callback(editor, editor.getViewModel()!, instantiationService);
 	if (result) {
 		return result.then(() => disposables.dispose());
 	}
@@ -247,6 +248,7 @@ export function createCodeEditorServices(disposables: Pick<DisposableStore, 'add
 	define(ILanguageFeaturesService, LanguageFeaturesService);
 	define(ITreeSitterLibraryService, TestTreeSitterLibraryService);
 	define(IInlineCompletionsService, InlineCompletionsService);
+	define(IUserInteractionService, MockUserInteractionService);
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 	disposables.add(toDisposable(() => {

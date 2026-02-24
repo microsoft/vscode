@@ -45,7 +45,7 @@ export class FileQueryCacheState {
 
 	constructor(
 		private cacheQuery: (cacheKey: string) => IFileQuery,
-		private loadFn: (query: IFileQuery) => Promise<any>,
+		private loadFn: (query: IFileQuery) => Promise<unknown>,
 		private disposeFn: (cacheKey: string) => Promise<void>,
 		private previousCacheState: FileQueryCacheState | undefined
 	) {

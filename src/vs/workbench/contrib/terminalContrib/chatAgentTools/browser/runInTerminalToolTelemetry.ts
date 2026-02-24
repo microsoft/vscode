@@ -516,6 +516,16 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'yum',
 	'zypper',
 
+	// AI tools
+	'aider',
+	'amp',
+	'claude',
+	'codex',
+	'copilot',
+	'gemini',
+	'toad',
+	'q',
+
 	// Misc Windows executables
 	'taskkill',
 	'taskkill.exe',

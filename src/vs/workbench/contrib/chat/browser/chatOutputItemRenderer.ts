@@ -9,11 +9,13 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { matchesMimeType } from '../../../../base/common/dataTransfer.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import * as nls from '../../../../nls.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWebview, IWebviewService, WebviewContentPurpose } from '../../../contrib/webview/browser/webview.js';
@@ -50,10 +52,12 @@ export interface RenderedOutputPart extends IDisposable {
 
 interface RenderOutputPartWebviewOptions {
 	readonly origin?: string;
+	readonly webviewState?: string;
 }
 
 
 interface RendererEntry {
+	readonly viewType: string;
 	readonly renderer: IChatOutputItemRenderer;
 	readonly options: RegisterOptions;
 }
@@ -68,8 +72,9 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 	private readonly _renderers = new Map</*viewType*/ string, RendererEntry>();
 
 	constructor(
-		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
 		super();
 
@@ -79,7 +84,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 	}
 
 	registerRenderer(viewType: string, renderer: IChatOutputItemRenderer, options: RegisterOptions): IDisposable {
-		this._renderers.set(viewType, { renderer, options });
+		this._renderers.set(viewType, { viewType, renderer, options });
 		return {
 			dispose: () => {
 				this._renderers.delete(viewType);
@@ -102,6 +107,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 		const webview = store.add(this._webviewService.createWebviewElement({
 			title: '',
 			origin: webviewOptions.origin ?? generateUuid(),
+			providedViewType: rendererData.viewType,
 			options: {
 				enableFindWidget: false,
 				purpose: WebviewContentPurpose.ChatOutputItem,
@@ -110,6 +116,7 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 			contentOptions: {},
 			extension: rendererData.options.extension ? rendererData.options.extension : undefined,
 		}));
+		webview.setContextKeyService(store.add(this._contextKeyService.createScoped(parent)));
 
 		const onDidChangeHeight = store.add(new Emitter<number>());
 		store.add(autorun(reader => {
@@ -119,6 +126,10 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 				parent.style.height = `${height.height}px`;
 			}
 		}));
+
+		if (webviewOptions.webviewState) {
+			webview.state = webviewOptions.webviewState;
+		}
 
 		webview.mountTo(parent, getWindow(parent));
 		await rendererData.renderer.renderOutputPart(mime, data, webview, token);
@@ -171,14 +182,30 @@ export class ChatOutputRendererService extends Disposable implements IChatOutput
 	}
 }
 
-interface IChatOutputRendererContribution {
-	readonly viewType: string;
-	readonly mimeTypes: readonly string[];
-}
+const chatOutputRendererContributionSchema = {
+	type: 'object',
+	additionalProperties: false,
+	required: ['viewType', 'mimeTypes'],
+	properties: {
+		viewType: {
+			type: 'string',
+			description: nls.localize('chatOutputRenderer.viewType', 'Unique identifier for the renderer.'),
+		},
+		mimeTypes: {
+			type: 'array',
+			description: nls.localize('chatOutputRenderer.mimeTypes', 'MIME types that this renderer can handle'),
+			items: {
+				type: 'string'
+			}
+		}
+	}
+} as const satisfies IJSONSchema;
+
+type IChatOutputRendererContribution = TypeFromJsonSchema<typeof chatOutputRendererContributionSchema>;
 
 const chatOutputRenderContributionPoint = ExtensionsRegistry.registerExtensionPoint<IChatOutputRendererContribution[]>({
 	extensionPoint: 'chatOutputRenderers',
-	activationEventsGenerator: function* (contributions: readonly IChatOutputRendererContribution[]) {
+	activationEventsGenerator: function* (contributions) {
 		for (const contrib of contributions) {
 			yield `onChatOutputRenderer:${contrib.viewType}`;
 		}
@@ -186,24 +213,7 @@ const chatOutputRenderContributionPoint = ExtensionsRegistry.registerExtensionPo
 	jsonSchema: {
 		description: nls.localize('vscode.extension.contributes.chatOutputRenderer', 'Contributes a renderer for specific MIME types in chat outputs'),
 		type: 'array',
-		items: {
-			type: 'object',
-			additionalProperties: false,
-			required: ['viewType', 'mimeTypes'],
-			properties: {
-				viewType: {
-					type: 'string',
-					description: nls.localize('chatOutputRenderer.viewType', 'Unique identifier for the renderer.'),
-				},
-				mimeTypes: {
-					type: 'array',
-					description: nls.localize('chatOutputRenderer.mimeTypes', 'MIME types that this renderer can handle'),
-					items: {
-						type: 'string'
-					}
-				}
-			}
-		}
+		items: chatOutputRendererContributionSchema,
 	}
 });
 

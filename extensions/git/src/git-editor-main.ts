@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { IPCClient } from './ipc/ipcClient';
 
-function fatal(err: any): void {
+function fatal(err: unknown): void {
 	console.error(err);
 	process.exit(1);
 }

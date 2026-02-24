@@ -18,19 +18,19 @@ import { ISerializedModelContentChangedEvent } from '../../../editor/common/text
 
 export class ExtHostDocuments implements ExtHostDocumentsShape {
 
-	private readonly _onDidAddDocument = new Emitter<vscode.TextDocument>();
-	private readonly _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
-	private readonly _onDidChangeDocument = new Emitter<Omit<vscode.TextDocumentChangeEvent, 'detailedReason'>>();
-	private readonly _onDidChangeDocumentWithReason = new Emitter<vscode.TextDocumentChangeEvent>();
-	private readonly _onDidSaveDocument = new Emitter<vscode.TextDocument>();
+	private readonly _toDispose = new DisposableStore();
+
+	private readonly _onDidAddDocument = this._toDispose.add(new Emitter<vscode.TextDocument>());
+	private readonly _onDidRemoveDocument = this._toDispose.add(new Emitter<vscode.TextDocument>());
+	private readonly _onDidChangeDocument = this._toDispose.add(new Emitter<Omit<vscode.TextDocumentChangeEvent, 'detailedReason'>>());
+	private readonly _onDidChangeDocumentWithReason = this._toDispose.add(new Emitter<vscode.TextDocumentChangeEvent>());
+	private readonly _onDidSaveDocument = this._toDispose.add(new Emitter<vscode.TextDocument>());
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;
 	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event as Event<vscode.TextDocumentChangeEvent>;
 	readonly onDidChangeDocumentWithReason: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocumentWithReason.event;
 	readonly onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
-
-	private readonly _toDispose = new DisposableStore();
 	private _proxy: MainThreadDocumentsShape;
 	private _documentsAndEditors: ExtHostDocumentsAndEditors;
 	private _documentLoader = new Map<string, Promise<ExtHostDocumentData>>();

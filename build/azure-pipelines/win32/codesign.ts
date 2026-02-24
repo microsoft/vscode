@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, usePwsh } from 'zx';
-import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign';
-import { e } from '../common/publish';
+import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign.ts';
+import { e } from '../common/publish.ts';
 
 async function main() {
 	usePwsh();
@@ -20,7 +20,7 @@ async function main() {
 	// 3. Codesign context menu appx package (insiders only)
 	const codesignTask1 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows', codeSigningFolderPath, '*.dll,*.exe,*.node');
 	const codesignTask2 = spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.ps1');
-	const codesignTask3 = process.env['VSCODE_QUALITY'] === 'insider'
+	const codesignTask3 = process.env['VSCODE_QUALITY'] !== 'exploration'
 		? spawnCodesignProcess(esrpCliDLLPath, 'sign-windows-appx', codeSigningFolderPath, '*.appx')
 		: undefined;
 
@@ -43,11 +43,8 @@ async function main() {
 
 	// Package client
 	if (process.env['BUILT_CLIENT']) {
-		// Product version
-		const version = await $`node -p "require('../VSCode-win32-${arch}/resources/app/package.json').version"`;
-
 		printBanner('Package client');
-		const clientArchivePath = `.build/win32-${arch}/VSCode-win32-${arch}-${version}.zip`;
+		const clientArchivePath = `.build/win32-${arch}/VSCode-win32-${arch}.zip`;
 		await $`7z.exe a -tzip ${clientArchivePath} ../VSCode-win32-${arch}/* "-xr!CodeSignSummary*.md"`.pipe(process.stdout);
 		await $`7z.exe l ${clientArchivePath}`.pipe(process.stdout);
 	}
@@ -71,7 +68,7 @@ async function main() {
 	// Sign setup
 	if (process.env['BUILT_CLIENT']) {
 		printBanner('Sign setup packages (system, user)');
-		const task = $`npm exec -- npm-run-all -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`;
+		const task = $`npm exec -- npm-run-all2 -lp "gulp vscode-win32-${arch}-system-setup -- --sign" "gulp vscode-win32-${arch}-user-setup -- --sign"`;
 		await streamProcessOutputAndCheckResult('Sign setup packages (system, user)', task);
 	}
 }

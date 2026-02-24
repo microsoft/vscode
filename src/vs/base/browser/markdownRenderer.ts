@@ -8,13 +8,13 @@ import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, pars
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
 import { KeyCode } from '../common/keyCodes.js';
-import { Lazy } from '../common/lazy.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
 import { FileAccess, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
-import { dirname, resolvePath } from '../common/resources.js';
+import { basename as pathBasename } from '../common/path.js';
+import { basename, dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
 import { URI, UriComponents } from '../common/uri.js';
 import * as DOM from './dom.js';
@@ -22,7 +22,7 @@ import * as domSanitize from './domSanitize.js';
 import { convertTagToPlaintext } from './domSanitize.js';
 import { StandardKeyboardEvent } from './keyboardEvent.js';
 import { StandardMouseEvent } from './mouseEvent.js';
-import { renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
+import { renderIcon, renderLabelWithIcons } from './ui/iconLabel/iconLabels.js';
 
 export type MarkdownActionHandler = (linkContent: string, mdStr: IMarkdownString) => void;
 
@@ -115,6 +115,62 @@ const defaultMarkedRenderers = Object.freeze({
 	},
 });
 
+/**
+ * Blockquote renderer that processes GitHub-style alert syntax.
+ * Transforms blockquotes like "> [!NOTE]" into structured alert markup with icons.
+ *
+ * Based on GitHub's alert syntax: https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts
+ */
+function createAlertBlockquoteRenderer(fallbackRenderer: (this: marked.Renderer, token: marked.Tokens.Blockquote) => string) {
+	return function (this: marked.Renderer, token: marked.Tokens.Blockquote): string {
+		const { tokens } = token;
+		// Check if this blockquote starts with alert syntax [!TYPE]
+		const firstToken = tokens[0];
+		if (firstToken?.type !== 'paragraph') {
+			return fallbackRenderer.call(this, token);
+		}
+
+		const paragraphTokens = firstToken.tokens;
+		if (!paragraphTokens || paragraphTokens.length === 0) {
+			return fallbackRenderer.call(this, token);
+		}
+
+		const firstTextToken = paragraphTokens[0];
+		if (firstTextToken?.type !== 'text') {
+			return fallbackRenderer.call(this, token);
+		}
+
+		const pattern = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*?\n*/i;
+		const match = firstTextToken.raw.match(pattern);
+		if (!match) {
+			return fallbackRenderer.call(this, token);
+		}
+
+		// Remove the alert marker from the token
+		firstTextToken.raw = firstTextToken.raw.replace(pattern, '');
+		firstTextToken.text = firstTextToken.text.replace(pattern, '');
+
+		const alertIcons: Record<string, string> = {
+			'note': 'info',
+			'tip': 'light-bulb',
+			'important': 'comment',
+			'warning': 'alert',
+			'caution': 'stop'
+		};
+
+		const type = match[1];
+		const typeCapitalized = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+		const severity = type.toLowerCase();
+		const iconHtml = renderIcon({ id: alertIcons[severity] }).outerHTML;
+
+		// Render the remaining content
+		const content = this.parser.parse(tokens);
+
+		// Return alert markup with icon and severity (skipping the first 3 characters: `<p>`)
+		return `<blockquote data-severity="${severity}"><p><span>${iconHtml}${typeCapitalized}</span>${content.substring(3)}</blockquote>\n`;
+	};
+}
+
 export interface IRenderedMarkdown extends IDisposable {
 	readonly element: HTMLElement;
 }
@@ -164,7 +220,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	let outElement: HTMLElement;
 	if (target) {
 		outElement = target;
-		DOM.reset(target, ...renderedContent.children);
+		DOM.reset(target, ...renderedContent.childNodes);
 	} else {
 		outElement = renderedContent;
 	}
@@ -175,6 +231,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 				return;
 			}
 			const renderedElements = new Map(tuples);
+			// eslint-disable-next-line no-restricted-syntax
 			const placeholderElements = outElement.querySelectorAll<HTMLDivElement>(`div[data-code]`);
 			for (const placeholderElement of placeholderElements) {
 				const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
@@ -186,6 +243,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		});
 	} else if (syncCodeBlocks.length > 0) {
 		const renderedElements = new Map(syncCodeBlocks);
+		// eslint-disable-next-line no-restricted-syntax
 		const placeholderElements = outElement.querySelectorAll<HTMLDivElement>(`div[data-code]`);
 		for (const placeholderElement of placeholderElements) {
 			const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
@@ -197,6 +255,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	// Signal size changes for image tags
 	if (options.asyncRenderCallback) {
+		// eslint-disable-next-line no-restricted-syntax
 		for (const img of outElement.getElementsByTagName('img')) {
 			const listener = disposables.add(DOM.addDisposableListener(img, 'load', () => {
 				listener.dispose();
@@ -227,6 +286,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	// Remove/disable inputs
+	// eslint-disable-next-line no-restricted-syntax
 	for (const input of [...outElement.getElementsByTagName('input')]) {
 		if (input.attributes.getNamedItem('type')?.value === 'checkbox') {
 			input.setAttribute('disabled', '');
@@ -254,6 +314,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 }
 
 function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRenderOptions, root: HTMLElement) {
+	// eslint-disable-next-line no-restricted-syntax
 	for (const el of root.querySelectorAll('img, audio, video, source')) {
 		const src = el.getAttribute('src'); // Get the raw 'src' attribute value as text, not the resolved 'src'
 		if (src) {
@@ -275,6 +336,7 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 		}
 	}
 
+	// eslint-disable-next-line no-restricted-syntax
 	for (const el of root.querySelectorAll('a')) {
 		const href = el.getAttribute('href'); // Get the raw 'href' attribute value as text, not the resolved 'href'
 		el.setAttribute('href', ''); // Clear out href. We use the `data-href` for handling clicks instead
@@ -299,6 +361,10 @@ function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOp
 	renderer.image = defaultMarkedRenderers.image;
 	renderer.link = defaultMarkedRenderers.link;
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
+
+	if (markdown.supportAlertSyntax) {
+		renderer.blockquote = createAlertBlockquoteRenderer(renderer.blockquote);
+	}
 
 	// Will collect [id, renderedElement] tuples
 	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
@@ -369,6 +435,7 @@ function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, ev
 		onUnexpectedError(err);
 	} finally {
 		event.preventDefault();
+		event.stopPropagation();
 	}
 }
 
@@ -493,6 +560,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 	// Custom markdown attributes
 	'data-code',
 	'data-href',
+	'data-severity',
 
 	// Only allow very specific styles
 	{
@@ -531,7 +599,9 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
 		Schemas.vscodeRemoteResource,
-		Schemas.vscodeNotebookCell
+		Schemas.vscodeNotebookCell,
+		// For links that are handled entirely by the action handler
+		Schemas.internal,
 	];
 
 	if (isTrusted) {
@@ -568,6 +638,7 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 				Schemas.vscodeRemoteResource,
 			]
 		},
+		allowRelativeMediaPaths: !!mdStrConfig.baseUri,
 		replaceWithPlaintext: options.replaceWithPlaintext,
 	};
 }
@@ -580,6 +651,8 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	/** Controls if the ``` of code blocks should be preserved in the output or not */
 	readonly includeCodeBlocksFences?: boolean;
+	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
+	readonly useLinkFormatter?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -591,7 +664,15 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { async: false, renderer: options?.includeCodeBlocksFences ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
+	const renderer = createPlainTextRenderer();
+	if (options?.includeCodeBlocksFences) {
+		renderer.code = codeBlockFences;
+	}
+	if (options?.useLinkFormatter) {
+		renderer.link = linkFormatter;
+	}
+
+	const html = marked.parse(value, { async: false, renderer });
 	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
@@ -669,15 +750,22 @@ function createPlainTextRenderer(): marked.Renderer {
 	};
 	return renderer;
 }
-const plainTextRenderer = new Lazy<marked.Renderer>(createPlainTextRenderer);
 
-const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
-	const renderer = createPlainTextRenderer();
-	renderer.code = ({ text }: marked.Tokens.Code): string => {
-		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
-	};
-	return renderer;
-});
+const codeBlockFences = ({ text }: marked.Tokens.Code): string => {
+	return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
+};
+
+const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
+	try {
+		if (href) {
+			const uri = URI.parse(href);
+			return text.trim() || basename(uri);
+		}
+	} catch (e) {
+		return text.trim() || pathBasename(href);
+	}
+	return text;
+};
 
 function mergeRawTokenText(tokens: marked.Token[]): string {
 	let mergedTokenText = '';
@@ -950,7 +1038,7 @@ function completeWithString(tokens: marked.Token[] | marked.Token, closingString
 	// If it was completed correctly, this should be a single token.
 	// Expecting either a Paragraph or a List
 	const trimmedRawText = shouldTrim ? mergedRawText.trimEnd() : mergedRawText;
-	return marked.lexer(trimmedRawText + closingString)[0] as marked.Token;
+	return marked.lexer(trimmedRawText + closingString)[0];
 }
 
 function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {

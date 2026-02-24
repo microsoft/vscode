@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { validateConstraint } from '../../../base/common/types.js';
 import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
 import * as extHostTypes from './extHostTypes.js';

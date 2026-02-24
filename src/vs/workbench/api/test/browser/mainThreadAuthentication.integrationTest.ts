@@ -91,7 +91,11 @@ suite('MainThreadAuthentication', () => {
 
 	test('provider registration completes without errors', async () => {
 		// Test basic registration - this should complete without throwing
-		await mainThreadAuthentication.$registerAuthenticationProvider('test-provider', 'Test Provider', false);
+		await mainThreadAuthentication.$registerAuthenticationProvider({
+			id: 'test-provider',
+			label: 'Test Provider',
+			supportsMultipleAccounts: false
+		});
 
 		// Test unregistration - this should also complete without throwing
 		await mainThreadAuthentication.$unregisterAuthenticationProvider('test-provider');
@@ -125,7 +129,11 @@ suite('MainThreadAuthentication', () => {
 		rpcProtocol.set(ExtHostContext.ExtHostAuthentication, mockExtHost);
 
 		// Register a provider
-		await mainThreadAuthentication.$registerAuthenticationProvider('test-suppress', 'Test Suppress', false);
+		await mainThreadAuthentication.$registerAuthenticationProvider({
+			id: 'test-suppress',
+			label: 'Test Suppress',
+			supportsMultipleAccounts: false
+		});
 
 		// Reset the flag
 		unregisterEventFired = false;
@@ -142,9 +150,21 @@ suite('MainThreadAuthentication', () => {
 	test('concurrent provider registrations complete without errors', async () => {
 		// Register multiple providers simultaneously
 		const registrationPromises = [
-			mainThreadAuthentication.$registerAuthenticationProvider('concurrent-1', 'Concurrent 1', false),
-			mainThreadAuthentication.$registerAuthenticationProvider('concurrent-2', 'Concurrent 2', false),
-			mainThreadAuthentication.$registerAuthenticationProvider('concurrent-3', 'Concurrent 3', false)
+			mainThreadAuthentication.$registerAuthenticationProvider({
+				id: 'concurrent-1',
+				label: 'Concurrent 1',
+				supportsMultipleAccounts: false
+			}),
+			mainThreadAuthentication.$registerAuthenticationProvider({
+				id: 'concurrent-2',
+				label: 'Concurrent 2',
+				supportsMultipleAccounts: false
+			}),
+			mainThreadAuthentication.$registerAuthenticationProvider({
+				id: 'concurrent-3',
+				label: 'Concurrent 3',
+				supportsMultipleAccounts: false
+			})
 		];
 
 		await Promise.all(registrationPromises);

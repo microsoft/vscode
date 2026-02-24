@@ -1006,7 +1006,7 @@ class MoveFocusedViewAction extends Action2 {
 		}
 
 		const viewDescriptor = viewDescriptorService.getViewDescriptorById(focusedViewId);
-		if (!viewDescriptor || !viewDescriptor.canMoveView) {
+		if (!viewDescriptor?.canMoveView) {
 			dialogService.error(localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
 			return;
 		}
@@ -1059,7 +1059,7 @@ class MoveFocusedViewAction extends Action2 {
 			.map(viewletId => {
 				return {
 					id: viewletId,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(viewletId)!)!.title
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(viewletId)!).title
 				};
 			}));
 
@@ -1080,7 +1080,7 @@ class MoveFocusedViewAction extends Action2 {
 			.map(panel => {
 				return {
 					id: panel,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!).title
 				};
 			}));
 
@@ -1101,7 +1101,7 @@ class MoveFocusedViewAction extends Action2 {
 			.map(panel => {
 				return {
 					id: panel,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!).title
 				};
 			}));
 
@@ -1184,6 +1184,9 @@ abstract class BaseResizeViewAction extends Action2 {
 	protected static readonly RESIZE_INCREMENT = 60; // This is a css pixel size
 
 	protected resizePart(widthChange: number, heightChange: number, layoutService: IWorkbenchLayoutService, partToResize?: Parts): void {
+		if (layoutService.activeContainer !== layoutService.mainContainer) {
+			return; // we do not support resizing in auxiliary windows
+		}
 
 		let part: Parts | undefined;
 		if (partToResize === undefined) {

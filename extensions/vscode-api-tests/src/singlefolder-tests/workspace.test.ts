@@ -1149,12 +1149,12 @@ suite('vscode API - workspace', () => {
 			const we = new vscode.WorkspaceEdit();
 			we.insert(file, new vscode.Position(0, 5), '2');
 			we.renameFile(file, newFile);
-			await vscode.workspace.applyEdit(we);
+			assert.ok(await vscode.workspace.applyEdit(we));
 		}
 
 		// show the new document
 		{
-			const document = await vscode.workspace.openTextDocument(newFile);
+			const document = await vscode.workspace.openTextDocument(newFile); // FAILS here
 			await vscode.window.showTextDocument(document);
 			assert.strictEqual(document.getText(), 'hello2');
 			assert.strictEqual(document.isDirty, true);

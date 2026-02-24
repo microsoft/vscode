@@ -5,9 +5,9 @@
 
 import './media/notificationsToasts.css';
 import { localize } from '../../../../nls.js';
-import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind } from '../../../common/notifications.js';
+import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemContentChangeKind, NotificationsSettings, NotificationsPosition, getNotificationsPosition } from '../../../common/notifications.js';
 import { IDisposable, dispose, toDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $, isElementInBottomRightQuarter, isHTMLElement, isEditableElement, getActiveElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, Dimension, scheduleAtNextAnimationFrame, isAncestorOfActiveElement, getWindow, $, isHTMLElement, isEditableElement, getActiveElement, getDomNodePagePosition, getClientArea } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { NotificationsList } from './notificationsList.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
@@ -26,6 +26,9 @@ import { IntervalCounter } from '../../../../base/common/async.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { NotificationsToastsVisibleContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from '../../../../platform/window/common/window.js';
 
 interface INotificationToast {
 	readonly item: INotificationViewItem;
@@ -84,7 +87,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(themeService);
 
@@ -97,6 +102,13 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		// Layout
 		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
+
+		// Position changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
+				this.updateNotificationPosition();
+			}
+		}));
 
 		// Delay some tasks until after we have restored
 		// to reduce UI pressure from the startup phase
@@ -123,6 +135,35 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		}));
 	}
 
+	private updateNotificationPosition(): void {
+		if (!this.notificationsToastsContainer) {
+			return;
+		}
+
+		const position = getNotificationsPosition(this.configurationService);
+		this.notificationsToastsContainer.classList.remove('bottom-right', 'bottom-left', 'top-right');
+		this.notificationsToastsContainer.classList.add(position);
+
+		this.updateTopOffset();
+	}
+
+	private updateTopOffset(): void {
+		if (!this.notificationsToastsContainer) {
+			return;
+		}
+
+		const position = getNotificationsPosition(this.configurationService);
+		if (position === NotificationsPosition.TOP_RIGHT) {
+			let topOffset = 3;
+			if (this.layoutService.isVisible(Parts.TITLEBAR_PART, mainWindow)) {
+				topOffset += DEFAULT_CUSTOM_TITLEBAR_HEIGHT;
+			}
+			this.notificationsToastsContainer.style.top = `${topOffset}px`;
+		} else {
+			this.notificationsToastsContainer.style.top = '';
+		}
+	}
+
 	private onDidChangeNotification(e: INotificationChangeEvent): void {
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
@@ -137,13 +178,17 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			return; // do not show toasts while notification center is visible
 		}
 
+		if (this.environmentService.enableSmokeTestDriver) {
+			return; // disable in smoke tests to prevent covering elements
+		}
+
 		if (item.priority === NotificationPriority.SILENT) {
 			return; // do not show toasts for silenced notifications
 		}
 
 		if (item.priority === NotificationPriority.OPTIONAL) {
 			const activeElement = getActiveElement();
-			if (isHTMLElement(activeElement) && isEditableElement(activeElement) && isElementInBottomRightQuarter(activeElement, this.layoutService.mainContainer)) {
+			if (isHTMLElement(activeElement) && isEditableElement(activeElement) && this.isElementInNotificationQuarter(activeElement)) {
 				return; // skip showing optional toast that potentially covers input fields
 			}
 		}
@@ -169,6 +214,22 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		itemDisposables.add(scheduleAtNextAnimationFrame(getWindow(this.container), () => this.doAddToast(item, itemDisposables)));
 	}
 
+	private isElementInNotificationQuarter(element: HTMLElement): boolean {
+		const position = getNotificationsPosition(this.configurationService);
+		const domPosition = getDomNodePagePosition(element);
+		const clientArea = getClientArea(this.layoutService.mainContainer);
+
+		switch (position) {
+			case NotificationsPosition.BOTTOM_LEFT:
+				return domPosition.left < clientArea.width / 2 && domPosition.top > clientArea.height / 2;
+			case NotificationsPosition.TOP_RIGHT:
+				return domPosition.left > clientArea.width / 2 && domPosition.top < clientArea.height / 2;
+			case NotificationsPosition.BOTTOM_RIGHT:
+			default:
+				return domPosition.left > clientArea.width / 2 && domPosition.top > clientArea.height / 2;
+		}
+	}
+
 	private doAddToast(item: INotificationViewItem, itemDisposables: DisposableStore): void {
 
 		// Lazily create toasts containers
@@ -178,6 +239,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 			this.container.appendChild(notificationsToastsContainer);
 		}
+
+		// Apply position class
+		this.updateNotificationPosition();
 
 		// Make Visible
 		notificationsToastsContainer.classList.add('visible');
@@ -525,6 +589,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		this.workbenchDimensions = dimension;
 
 		const maxDimensions = this.computeMaxDimensions();
+
+		// Update position offset
+		this.updateTopOffset();
 
 		// Hide toasts that exceed height
 		if (maxDimensions.height) {

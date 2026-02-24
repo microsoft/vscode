@@ -32,7 +32,7 @@ class GitIgnoreDecorationProvider implements FileDecorationProvider {
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		const onDidChangeRepository = anyEvent<any>(
+		const onDidChangeRepository = anyEvent<unknown>(
 			filterEvent(workspace.onDidSaveTextDocument, e => /\.gitignore$|\.git\/info\/exclude$/.test(e.uri.path)),
 			model.onDidOpenRepository,
 			model.onDidCloseRepository
@@ -257,7 +257,7 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 				return [];
 			}
 
-			const changes = await this.repository.diffBetween(ancestor, currentHistoryItemRemoteRef.id);
+			const changes = await this.repository.diffBetweenWithStats(ancestor, currentHistoryItemRemoteRef.id);
 			return changes;
 		} catch (err) {
 			return [];

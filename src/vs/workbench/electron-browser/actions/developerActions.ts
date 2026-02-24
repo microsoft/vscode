@@ -123,6 +123,23 @@ export class ShowGPUInfoAction extends Action2 {
 	}
 }
 
+export class ShowContentTracingAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.showContentTracing',
+			title: localize2('showContentTracing', 'Show Content Tracing'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const nativeHostService = accessor.get(INativeHostService);
+		nativeHostService.openContentTracingWindow();
+	}
+}
+
 export class StopTracing extends Action2 {
 
 	static readonly ID = 'workbench.action.stopTracing';

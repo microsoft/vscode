@@ -30,6 +30,8 @@ import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from '../..
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { SettingValueType } from '../../../services/preferences/common/preferences.js';
+import { validatePropertyName } from '../../../services/preferences/common/preferencesValidation.js';
+import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsWidgets.css';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from './preferencesIcons.js';
@@ -908,6 +910,7 @@ interface IObjectSetValueOptions {
 	isReadOnly?: boolean;
 	keySuggester?: IObjectKeySuggester;
 	valueSuggester?: IObjectValueSuggester;
+	propertyNames?: IJSONSchema;
 }
 
 interface IObjectRenderEditWidgetOptions {
@@ -924,6 +927,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	private showAddButton: boolean = true;
 	private keySuggester: IObjectKeySuggester = () => undefined;
 	private valueSuggester: IObjectValueSuggester = () => undefined;
+	private propertyNames: IJSONSchema | undefined;
 
 	constructor(
 		container: HTMLElement,
@@ -940,6 +944,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		this.showAddButton = options?.showAddButton ?? this.showAddButton;
 		this.keySuggester = options?.keySuggester ?? this.keySuggester;
 		this.valueSuggester = options?.valueSuggester ?? this.valueSuggester;
+		this.propertyNames = options?.propertyNames;
 
 		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
 			this.model.setEditKey('none');
@@ -1031,6 +1036,11 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	protected renderItem(item: IObjectDataItem, idx: number): RowElementGroup {
 		const rowElement = $('.setting-list-row');
 		rowElement.classList.add('setting-list-object-row');
+
+		// Mark row as invalid if the key doesn't match propertyNames.pattern
+		if (this.propertyNames && item.key.data && !validatePropertyName(this.propertyNames, item.key.data)) {
+			rowElement.classList.add('invalid-key');
+		}
 
 		const keyElement = DOM.append(rowElement, $('.setting-list-object-key'));
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));

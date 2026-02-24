@@ -25,7 +25,7 @@ import { onCaseInsensitiveFileSystem } from './utils/fs.electron';
 import { Lazy } from './utils/lazy';
 import { getPackageInfo } from './utils/packageInfo';
 import * as temp from './utils/temp.electron';
-import { conditionalRegistration, requireGlobalConfiguration, requireHasVsCodeExtension } from './languageFeatures/util/dependentRegistration';
+import { conditionalRegistration, requireGlobalUnifiedConfig, requireHasVsCodeExtension } from './languageFeatures/util/dependentRegistration';
 import { DisposableStore } from './utils/dispose';
 
 export function activate(
@@ -53,8 +53,14 @@ export function activate(
 		new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
 	}
 
+	// Register features that work in both TSGO and non-TSGO modes
+	import('./languageFeatures/tsconfig').then(module => {
+		context.subscriptions.push(module.register());
+	});
+
+	// Conditionally register features based on whether TSGO is enabled
 	context.subscriptions.push(conditionalRegistration([
-		requireGlobalConfiguration('typescript', 'experimental.useTsgo'),
+		requireGlobalUnifiedConfig('experimental.useTsgo', { fallbackSection: 'typescript' }),
 		requireHasVsCodeExtension(tsNativeExtensionId),
 	], () => {
 		// TSGO. Only register a small set of features that don't use TS Server
@@ -93,10 +99,6 @@ export function activate(
 
 		import('./task/taskProvider').then(module => {
 			disposables.add(module.register(new Lazy(() => lazyClientHost.value.serviceClient)));
-		});
-
-		import('./languageFeatures/tsconfig').then(module => {
-			disposables.add(module.register());
 		});
 
 		disposables.add(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));

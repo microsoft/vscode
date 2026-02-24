@@ -45,6 +45,7 @@ import { InMemoryUserDataProfilesService, IUserDataProfile, IUserDataProfilesSer
 import { NullPolicyService } from '../../../policy/common/policy.js';
 import { IUserDataProfileStorageService } from '../../../userDataProfile/common/userDataProfileStorageService.js';
 import { TestUserDataProfileStorageService } from '../../../userDataProfile/test/common/userDataProfileStorageService.test.js';
+import { IMeteredConnectionService } from '../../../meteredConnection/common/meteredConnection.js';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -67,7 +68,7 @@ export class UserDataSyncClient extends Disposable {
 			userRoamingDataHome,
 			cacheHome: joinPath(userRoamingDataHome, 'cache'),
 			argvResource: joinPath(userRoamingDataHome, 'argv.json'),
-			sync: 'on',
+			sync: 'on'
 		});
 
 		this.instantiationService.stub(IProductService, {
@@ -100,6 +101,8 @@ export class UserDataSyncClient extends Disposable {
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
 		this.instantiationService.stub(IConfigurationService, configurationService);
+
+		this.instantiationService.stub(IMeteredConnectionService, { isConnectionMetered: false, onDidChangeIsConnectionMetered: new Emitter<boolean>().event });
 
 		this.instantiationService.stub(IRequestService, this.testServer);
 
@@ -176,7 +179,7 @@ const ALL_SERVER_RESOURCES: ServerResource[] = [...ALL_SYNC_RESOURCES, 'machines
 
 export class UserDataSyncTestServer implements IRequestService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	readonly url: string = 'http://host:3000';
 	private session: string | null = null;
@@ -366,7 +369,7 @@ export class UserDataSyncTestServer implements IRequestService {
 
 export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	async resolveDefaultCoreIgnoredSettings(): Promise<string[]> {
 		return getDefaultIgnoredSettings();

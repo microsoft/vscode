@@ -33,6 +33,7 @@ export const Context = {
 	Visible: historyNavigationVisible,
 	HasFocusedSuggestion: new RawContextKey<boolean>('suggestWidgetHasFocusedSuggestion', false, localize('suggestWidgetHasSelection', "Whether any suggestion is focused")),
 	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false, localize('suggestWidgetDetailsVisible', "Whether suggestion details are visible")),
+	DetailsFocused: new RawContextKey<boolean>('suggestWidgetDetailsFocused', false, localize('suggestWidgetDetailsFocused', "Whether the details pane of the suggest widget has focus")),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
 	MakesTextEdit: new RawContextKey<boolean>('suggestionMakesTextEdit', true, localize('suggestionMakesTextEdit', "Whether inserting the current suggestion yields in a change or has everything already been typed")),
 	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true, localize('acceptSuggestionOnEnter', "Whether suggestions are inserted when pressing Enter")),
@@ -323,7 +324,7 @@ export async function provideSuggestionItems(
 
 	if (token.isCancellationRequested) {
 		disposables.dispose();
-		return Promise.reject<any>(new CancellationError());
+		return Promise.reject(new CancellationError());
 	}
 
 	return new CompletionItemModel(
@@ -402,7 +403,7 @@ CommandsRegistry.registerCommand('_executeCompletionItemProvider', async (access
 			suggestions: []
 		};
 
-		const resolving: Promise<any>[] = [];
+		const resolving: Promise<unknown>[] = [];
 		const actualPosition = ref.object.textEditorModel.validatePosition(position);
 		const completions = await provideSuggestionItems(completionProvider, ref.object.textEditorModel, actualPosition, undefined, { triggerCharacter: triggerCharacter ?? undefined, triggerKind: triggerCharacter ? languages.CompletionTriggerKind.TriggerCharacter : languages.CompletionTriggerKind.Invoke });
 		for (const item of completions.items) {

@@ -192,6 +192,10 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		await this._proxy.updateIcon(id, userInitiated, icon, color);
 	}
 
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		await this._proxy.setNextCommandId(id, commandLine, commandId);
+	}
+
 	async updateProperty<T extends ProcessPropertyType>(id: number, property: ProcessPropertyType, value: IProcessPropertyMap[T]): Promise<void> {
 		return this._proxy.updateProperty(id, property, value);
 	}
@@ -348,7 +352,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 					this._storageService.remove(TerminalStorageKeys.TerminalLayoutInfo, StorageScope.WORKSPACE);
 				}
 			} catch (e: unknown) {
-				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', e && typeof e === 'object' && 'message' in e ? e.message : e);
+				this._logService.warn('LocalTerminalBackend#getTerminalLayoutInfo Error', (<{ message?: string }>e).message ?? e);
 			}
 		}
 

@@ -400,12 +400,12 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			extensions = this.filterRecentlyUpdatedExtensions(local, query, options);
 		}
 
-		else if (/@feature:/i.test(query.value)) {
-			const result = this.filterExtensionsByFeature(local, query);
-			if (result) {
-				extensions = result.extensions;
-				description = result.description;
-			}
+		else if (/@restartrequired/i.test(query.value)) {
+			extensions = this.filterRestartRequiredExtensions(local, query, options);
+		}
+
+		else if (/@contribute:/i.test(query.value)) {
+			extensions = this.filterExtensionsByFeature(local, query);
 		}
 
 		else if (includeBuiltin) {
@@ -665,12 +665,25 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		return this.sortExtensions(result, options);
 	}
 
-	private filterExtensionsByFeature(local: IExtension[], query: Query): { extensions: IExtension[]; description: string } | undefined {
-		const value = query.value.replace(/@feature:/g, '').trim();
+	private filterRestartRequiredExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
+		local = local.filter(e => e.runtimeState !== undefined);
+
+		value = value.replace(/@restartrequired/gi, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		const result = local.filter(e =>
+			(e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1)
+			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
+
+		return this.sortExtensions(result, options);
+	}
+
+	private filterExtensionsByFeature(local: IExtension[], query: Query): IExtension[] {
+		const value = query.value.replace(/@contribute:/g, '').trim();
 		const featureId = value.split(' ')[0];
 		const feature = Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).getExtensionFeature(featureId);
 		if (!feature) {
-			return undefined;
+			return [];
 		}
 		if (this.extensionsViewState) {
 			this.extensionsViewState.filters.featureId = featureId;
@@ -688,10 +701,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 					result.push([e, accessData?.accessTimes.length ?? 0]);
 				}
 			}
-			return {
-				extensions: result.sort(([, a], [, b]) => b - a).map(([e]) => e),
-				description: localize('showingExtensionsForFeature', "Extensions using {0} in the last 30 days", feature.label)
-			};
+			return result.sort(([, a], [, b]) => b - a).map(([e]) => e);
 		} finally {
 			renderer?.dispose();
 		}
@@ -1164,6 +1174,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			|| this.isSearchDeprecatedExtensionsQuery(query)
 			|| this.isSearchWorkspaceUnsupportedExtensionsQuery(query)
 			|| this.isSearchRecentlyUpdatedQuery(query)
+			|| this.isRestartRequiredQuery(query)
 			|| this.isSearchExtensionUpdatesQuery(query)
 			|| this.isSortInstalledExtensionsQuery(query, sortBy)
 			|| this.isFeatureExtensionsQuery(query);
@@ -1253,6 +1264,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		return /@recentlyUpdated/i.test(query);
 	}
 
+	static isRestartRequiredQuery(query: string): boolean {
+		return /@restartrequired/i.test(query);
+	}
+
 	static isSearchExtensionUpdatesQuery(query: string): boolean {
 		return /@updates/i.test(query);
 	}
@@ -1262,7 +1277,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 	}
 
 	static isFeatureExtensionsQuery(query: string): boolean {
-		return /@feature:/i.test(query);
+		return /@contribute:/i.test(query);
 	}
 
 	override focus(): void {

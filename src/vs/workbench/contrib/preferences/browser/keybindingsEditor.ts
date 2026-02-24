@@ -15,6 +15,7 @@ import { HighlightedLabel } from '../../../../base/browser/ui/highlightedlabel/h
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IAction, Action, Separator } from '../../../../base/common/actions.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -23,7 +24,7 @@ import { KeybindingsEditorModel, KEYBINDING_ENTRY_TEMPLATE_ID } from '../../../s
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService, IUserFriendlyKeybinding } from '../../../../platform/keybinding/common/keybinding.js';
 import { DefineKeybindingWidget, KeybindingsSearchWidget } from './keybindingWidgets.js';
-import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, CONTEXT_WHEN_FOCUS } from '../common/preferences.js';
+import { CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE, KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_ADD, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND_TITLE, CONTEXT_WHEN_FOCUS } from '../common/preferences.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IKeybindingEditingService } from '../../../services/keybinding/common/keybindingEditing.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
@@ -42,13 +43,13 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MenuRegistry, MenuId, isIMenuItem } from '../../../../platform/actions/common/actions.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { WORKBENCH_BACKGROUND } from '../../../common/theme.js';
-import { IKeybindingItemEntry, IKeybindingsEditorPane } from '../../../services/preferences/common/preferences.js';
+import { IKeybindingItemEntry, IKeybindingsEditorPane, IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { keybindingsRecordKeysIcon, keybindingsSortIcon, keybindingsAddIcon, preferencesClearInputIcon, keybindingsEditIcon } from './preferencesIcons.js';
 import { ITableRenderer, ITableVirtualDelegate } from '../../../../base/browser/ui/table/table.js';
 import { KeybindingsEditorInput } from '../../../services/preferences/browser/keybindingsEditorInput.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ToolBar } from '../../../../base/browser/ui/toolbar/toolbar.js';
-import { defaultKeybindingLabelStyles, defaultToggleStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultKeybindingLabelStyles, defaultToggleStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { isString } from '../../../../base/common/types.js';
@@ -108,6 +109,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 	private keybindingsEditorContextKey: IContextKey<boolean>;
 	private keybindingFocusContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
+	private searchHasValueContextKey: IContextKey<boolean>;
 
 	private readonly sortByPrecedenceAction: Action;
 	private readonly recordKeysAction: Action;
@@ -129,16 +131,18 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		@IEditorService private readonly editorService: IEditorService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
 		super(KeybindingsEditor.ID, group, telemetryService, themeService, storageService);
-		this.delayedFiltering = new Delayer<void>(300);
+		this.delayedFiltering = this._register(new Delayer<void>(300));
 		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(!!this.keybindingFocusContextKey.get())));
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
-		this.searchHistoryDelayer = new Delayer<void>(500);
+		this.searchHasValueContextKey = CONTEXT_KEYBINDINGS_SEARCH_HAS_VALUE.bindTo(this.contextKeyService);
+		this.searchHistoryDelayer = this._register(new Delayer<void>(500));
 
 		this.recordKeysAction = this._register(new Action(KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, localize('recordKeysLabel', "Record Keys"), ThemeIcon.asClassName(keybindingsRecordKeysIcon)));
 		this.recordKeysAction.checked = false;
@@ -321,6 +325,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 
 	clearSearchResults(): void {
 		this.searchWidget.clear();
+		this.searchHasValueContextKey.set(false);
 	}
 
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): void {
@@ -361,7 +366,8 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 
 		const clearInputAction = this._register(new Action(KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Keybindings Search Input"), ThemeIcon.asClassName(preferencesClearInputIcon), false, async () => this.clearSearchResults()));
 
-		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
+		const searchRowContainer = DOM.append(this.headerContainer, $('.search-row-container'));
+		const searchContainer = DOM.append(searchRowContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(KeybindingsSearchWidget, searchContainer, {
 			ariaLabel: fullTextSearchPlaceholder,
 			placeholder: fullTextSearchPlaceholder,
@@ -375,7 +381,9 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 			})
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => {
-			clearInputAction.enabled = !!searchValue;
+			const hasValue = !!searchValue;
+			clearInputAction.enabled = hasValue;
+			this.searchHasValueContextKey.set(hasValue);
 			this.delayedFiltering.trigger(() => this.filterKeybindings());
 			this.updateSearchOptions();
 		}));
@@ -421,6 +429,11 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		}));
 		toolBar.setActions(actions);
 		this._register(this.keybindingsService.onDidUpdateKeybindings(() => toolBar.setActions(actions)));
+
+		const openKeybindingsJsonContainer = DOM.append(searchRowContainer, $('.open-keybindings-json'));
+		const openKeybindingsJsonButton = this._register(new Button(openKeybindingsJsonContainer, { secondary: true, title: true, ...defaultButtonStyles }));
+		openKeybindingsJsonButton.label = localize('openKeybindingsJson', "Edit as JSON");
+		this._register(openKeybindingsJsonButton.onDidClick(() => this.preferencesService.openGlobalKeybindingSettings(true, { groupId: this.group.id })));
 	}
 
 	private updateSearchOptions(): void {
@@ -821,7 +834,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		};
 	}
 
-	private onKeybindingEditingError(error: any): void {
+	private onKeybindingEditingError(error: unknown): void {
 		this.notificationService.error(typeof error === 'string' ? error : localize('error', "Error '{0}' while editing the keybinding. Please open 'keybindings.json' file and check for errors.", `${error}`));
 	}
 }
@@ -881,23 +894,21 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 	}
 
 	private createEditAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
-		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: ThemeIcon.asClassName(keybindingsEditIcon),
 			enabled: true,
 			id: 'editKeybinding',
-			tooltip: keybinding ? localize('editKeybindingLabelWithKey', "Change Keybinding {0}", `(${keybinding.getLabel()})`) : localize('editKeybindingLabel', "Change Keybinding"),
+			tooltip: this.keybindingsService.appendKeybinding(localize('editKeybindingLabel', "Change Keybinding"), KEYBINDINGS_EDITOR_COMMAND_DEFINE),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry, false)
 		};
 	}
 
 	private createAddAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
-		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
 			class: ThemeIcon.asClassName(keybindingsAddIcon),
 			enabled: true,
 			id: 'addKeybinding',
-			tooltip: keybinding ? localize('addKeybindingLabelWithKey', "Add Keybinding {0}", `(${keybinding.getLabel()})`) : localize('addKeybindingLabel', "Add Keybinding"),
+			tooltip: this.keybindingsService.appendKeybinding(localize('addKeybindingLabel', "Add Keybinding"), KEYBINDINGS_EDITOR_COMMAND_DEFINE),
 			run: () => this.keybindingsEditor.defineKeybinding(keybindingItemEntry, false)
 		};
 	}

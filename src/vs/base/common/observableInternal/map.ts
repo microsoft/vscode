@@ -51,7 +51,7 @@ export class ObservableMap<K, V> implements Map<K, V> {
 		}
 	}
 
-	forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: any): void {
+	forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void, thisArg?: unknown): void {
 		this._data.forEach((value, key, _map) => {
 			callbackfn.call(thisArg, value, key, this);
 		});

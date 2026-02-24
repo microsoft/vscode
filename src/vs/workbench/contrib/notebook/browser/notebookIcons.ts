@@ -33,6 +33,7 @@ export const toggleWhitespace = registerIcon('notebook-diff-cell-toggle-whitespa
 export const renderOutputIcon = registerIcon('notebook-render-output', Codicon.preview, localize('renderOutputIcon', 'Icon to render output in diff editor.'));
 export const mimetypeIcon = registerIcon('notebook-mimetype', Codicon.code, localize('mimetypeIcon', 'Icon for a mime type in notebook editors.'));
 export const copyIcon = registerIcon('notebook-copy', Codicon.copy, localize('copyIcon', 'Icon to copy content to clipboard'));
+export const saveIcon = registerIcon('notebook-save', Codicon.save, localize('saveIcon', 'Icon to save content to disk'));
 
 export const previousChangeIcon = registerIcon('notebook-diff-editor-previous-change', Codicon.arrowUp, localize('previousChangeIcon', 'Icon for the previous change action in the diff editor.'));
 export const nextChangeIcon = registerIcon('notebook-diff-editor-next-change', Codicon.arrowDown, localize('nextChangeIcon', 'Icon for the next change action in the diff editor.'));

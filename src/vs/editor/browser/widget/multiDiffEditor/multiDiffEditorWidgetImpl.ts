@@ -142,6 +142,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._instantiationService = this._register(this._parentInstantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this._contextKeyService])
 		));
+
+		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
+
 		this._lastDocStates = {};
 
 		this._register(autorunWithStore((reader, store) => {
@@ -218,6 +221,32 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			_element.replaceChildren();
 		}));
 
+		// Automatically select the first change in the first file when items are loaded
+		this._register(autorun(reader => {
+			/** @description Initialize first change */
+			const viewModel = this._viewModel.read(reader);
+			if (!viewModel) {
+				return;
+			}
+
+			// Only initialize when loading is complete
+			if (!viewModel.isLoading.read(reader)) {
+				const items = viewModel.items.read(reader);
+				if (items.length === 0) {
+					return;
+				}
+
+				// Only initialize if there's no active item yet
+				const activeDiffItem = viewModel.activeDiffItem.read(reader);
+				if (activeDiffItem) {
+					return;
+				}
+
+				// Navigate to the first change using the existing navigation logic
+				this.goToNextChange();
+			}
+		}));
+
 		this._register(this._register(autorun(reader => {
 			/** @description Render all */
 			globalTransaction(tx => {
@@ -230,6 +259,17 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
 	}
 
+	public getRootElement(): HTMLElement {
+		return this._elements.root;
+	}
+
+	public getContextKeyService(): IContextKeyService {
+		return this._contextKeyService;
+	}
+
+	public getScopedInstantiationService(): IInstantiationService {
+		return this._instantiationService;
+	}
 	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {
 		const viewItems = this._viewItems.get();
 		const index = viewItems.findIndex(
@@ -310,6 +350,74 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		} else {
 			return { diffEditor: editor, editor: editor.getOriginalEditor() };
 		}
+	}
+
+	public goToNextChange(): void {
+		this._navigateToChange('next');
+	}
+
+	public goToPreviousChange(): void {
+		this._navigateToChange('previous');
+	}
+
+	private _navigateToChange(direction: 'next' | 'previous'): void {
+		const viewItems = this._viewItems.get();
+		if (viewItems.length === 0) {
+			return;
+		}
+
+		const activeViewModel = this._viewModel.get()?.activeDiffItem.get();
+		const currentIndex = activeViewModel ? viewItems.findIndex(v => v.viewModel === activeViewModel) : -1;
+
+		// Start with first file if no active item
+		if (currentIndex === -1) {
+			this._goToFile(0, 'first');
+			return;
+		}
+
+		// Try current file first - expand if collapsed
+		const currentItem = viewItems[currentIndex];
+		if (currentItem.viewModel.collapsed.get()) {
+			currentItem.viewModel.collapsed.set(false, undefined);
+		}
+
+		const editor = currentItem.template.get()?.editor;
+		if (editor?.getDiffComputationResult()?.changes2?.length) {
+			const pos = editor.getModifiedEditor().getPosition()?.lineNumber || 1;
+			const changes = editor.getDiffComputationResult()!.changes2!;
+			const hasNext = direction === 'next' ? changes.some(c => c.modified.startLineNumber > pos) : changes.some(c => c.modified.endLineNumberExclusive <= pos);
+
+			if (hasNext) {
+				editor.goToDiff(direction);
+				return;
+			}
+		}
+
+		// Move to next/previous file
+		const nextIndex = (currentIndex + (direction === 'next' ? 1 : -1) + viewItems.length) % viewItems.length;
+		this._goToFile(nextIndex, direction === 'next' ? 'first' : 'last');
+	}
+
+	private _goToFile(index: number, position: 'first' | 'last'): void {
+		const item = this._viewItems.get()[index];
+		if (item.viewModel.collapsed.get()) {
+			item.viewModel.collapsed.set(false, undefined);
+		}
+
+		this.reveal({ original: item.viewModel.originalUri, modified: item.viewModel.modifiedUri });
+
+		const editor = item.template.get()?.editor;
+		if (editor?.getDiffComputationResult()?.changes2?.length) {
+			if (position === 'first') {
+				editor.revealFirstDiff();
+			} else {
+				const lastChange = editor.getDiffComputationResult()!.changes2!.at(-1)!;
+				const modifiedEditor = editor.getModifiedEditor();
+				modifiedEditor.setPosition({ lineNumber: lastChange.modified.startLineNumber, column: 1 });
+				modifiedEditor.revealLineInCenter(lastChange.modified.startLineNumber);
+			}
+		}
+		editor?.focus();
 	}
 
 	private render(reader: IReader | undefined) {

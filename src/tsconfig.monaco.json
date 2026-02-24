@@ -11,9 +11,10 @@
 		"moduleResolution": "nodenext",
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "ES2022",
+		"target": "ES2024",
 		"sourceMap": false,
-		"declaration": true
+		"declaration": true,
+		"skipLibCheck": true
 	},
 	"include": [
 		"typings/css.d.ts",

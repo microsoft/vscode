@@ -12,7 +12,7 @@ import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
 import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
-import { IModelContentChangedEvent } from '../../textModelEvents.js';
+import { FontTokensUpdate, IModelContentChangedEvent } from '../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
 import { ContiguousMultilineTokens } from '../../tokens/contiguousMultilineTokens.js';
 import { ContiguousMultilineTokensBuilder } from '../../tokens/contiguousMultilineTokensBuilder.js';
@@ -123,6 +123,9 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				setTokens: (tokens) => {
 					this.setTokens(tokens);
 				},
+				setFontInfo: (changes: FontTokensUpdate) => {
+					this.setFontInfo(changes);
+				},
 				backgroundTokenizationFinished: () => {
 					if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
 						// We already did a full tokenization and don't go back to progressing.
@@ -158,6 +161,9 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				this._debugBackgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, {
 					setTokens: (tokens) => {
 						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
+					},
+					setFontInfo: (changes: FontTokensUpdate) => {
+						this.setFontInfo(changes);
 					},
 					backgroundTokenizationFinished() {
 						// NO OP
@@ -208,6 +214,10 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		}
 
 		return { changes: changes };
+	}
+
+	private setFontInfo(changes: FontTokensUpdate): void {
+		this._onDidChangeFontTokens.fire({ changes });
 	}
 
 	private refreshAllVisibleLineTokens(): void {

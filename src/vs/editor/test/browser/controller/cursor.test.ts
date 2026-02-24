@@ -1335,7 +1335,7 @@ suite('Editor Controller - Cursor', () => {
 			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				return new EncodedTokenizationResult(new Uint32Array(0), state);
+				return new EncodedTokenizationResult(new Uint32Array(0), [], state);
 			}
 		};
 
@@ -1533,7 +1533,7 @@ suite('Editor Controller', () => {
 					);
 					startIndex += tokens[i].length;
 				}
-				return new EncodedTokenizationResult(result, state);
+				return new EncodedTokenizationResult(result, [], state);
 
 				function advance(): void {
 					if (state instanceof BaseState) {
@@ -2239,6 +2239,37 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #256039: paste from multiple cursors with empty selections and multiCursorPaste full', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+			editorOpts: {
+				multiCursorPaste: 'full'
+			}
+		}, (editor, model, viewModel) => {
+			// 2 cursors on lines 1 and 2
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+
+			viewModel.paste(
+				'line1\nline2\n',
+				true,
+				['line1\n', 'line2\n']
+			);
+
+			// Each cursor gets its respective line
+			assert.strictEqual(model.getValue(), [
+				'line1',
+				'line1',
+				'line2',
+				'line2',
+				'line3'
+			].join('\n'));
+		});
+	});
+
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
 		const model = createTextModel(
 			[
@@ -2794,7 +2825,7 @@ suite('Editor Controller', () => {
 			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				return new EncodedTokenizationResult(new Uint32Array(0), state);
+				return new EncodedTokenizationResult(new Uint32Array(0), [], state);
 			}
 		};
 

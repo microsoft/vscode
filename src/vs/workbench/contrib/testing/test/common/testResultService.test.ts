@@ -194,11 +194,11 @@ suite('Workbench - Test Results Service', () => {
 			r.markComplete();
 
 			const c = makeEmptyCounts();
-			c[TestResultState.Unset] = 3;
+			c[TestResultState.Skipped] = 3;
 			c[TestResultState.Passed] = 1;
 			assert.deepStrictEqual(r.counts, c);
 
-			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestResultState.Unset);
+			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestResultState.Skipped);
 			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())?.ownComputedState, TestResultState.Passed);
 		});
 	});

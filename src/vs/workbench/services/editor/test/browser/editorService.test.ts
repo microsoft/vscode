@@ -2319,6 +2319,7 @@ suite('EditorService', () => {
 			isSymbolicLink: false,
 			readonly: false,
 			locked: false,
+			executable: false,
 			children: undefined
 		}));
 		await activeEditorChangePromise;

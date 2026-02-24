@@ -77,15 +77,8 @@ export class NotebookProviderInfo {
 	}
 
 	static selectorMatches(selector: NotebookSelector, resource: URI): boolean {
-		if (typeof selector === 'string') {
-			// filenamePattern
-			if (glob.match(selector.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
-				return true;
-			}
-		}
-
-		if (glob.isRelativePattern(selector)) {
-			if (glob.match(selector, basename(resource.fsPath).toLowerCase())) {
+		if (typeof selector === 'string' || glob.isRelativePattern(selector)) {
+			if (glob.match(selector, basename(resource.fsPath), { ignoreCase: true })) {
 				return true;
 			}
 		}
@@ -97,9 +90,9 @@ export class NotebookProviderInfo {
 		const filenamePattern = selector.include;
 		const excludeFilenamePattern = selector.exclude;
 
-		if (glob.match(filenamePattern, basename(resource.fsPath).toLowerCase())) {
+		if (glob.match(filenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
 			if (excludeFilenamePattern) {
-				if (glob.match(excludeFilenamePattern, basename(resource.fsPath).toLowerCase())) {
+				if (glob.match(excludeFilenamePattern, basename(resource.fsPath), { ignoreCase: true })) {
 					return false;
 				}
 			}

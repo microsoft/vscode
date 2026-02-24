@@ -35,7 +35,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -74,6 +74,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { ExtensionGalleryResourceType, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -989,10 +990,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	get onChange(): Event<IExtension | undefined> { return this._onChange.event; }
 
 	private extensionsNotification: IExtensionsNotification & { readonly key: string } | undefined;
-	private readonly _onDidChangeExtensionsNotification = new Emitter<IExtensionsNotification | undefined>();
+	private readonly _onDidChangeExtensionsNotification = this._register(new Emitter<IExtensionsNotification | undefined>());
 	readonly onDidChangeExtensionsNotification = this._onDidChangeExtensionsNotification.event;
 
-	private readonly _onReset = new Emitter<void>();
+	private readonly _onReset = this._register(new Emitter<void>());
 	get onReset() { return this._onReset.event; }
 
 	private installing: IExtension[] = [];
@@ -1037,6 +1038,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IAllowedExtensionsService private readonly allowedExtensionsService: IAllowedExtensionsService,
+		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService
 	) {
 		super();
 
@@ -1128,7 +1130,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}));
 		this._register(this.extensionEnablementService.onEnablementChanged(platformExtensions => {
-			if (this.getAutoUpdateValue() === 'onlyEnabledExtensions' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
+			if (this.isAutoCheckUpdatesEnabled() && this.getAutoUpdateValue() === 'onlyEnabledExtensions' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
 				this.checkForUpdates('Extension enablement changed');
 			}
 		}));
@@ -1148,6 +1150,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this._register(this.allowedExtensionsService.onDidChangeAllowedExtensionsConfigValue(() => {
 			if (this.isAutoCheckUpdatesEnabled()) {
 				this.checkForUpdates('Allowed extensions changed');
+			}
+		}));
+
+		this._register(this.meteredConnectionService.onDidChangeIsConnectionMetered(() => {
+			if (this.isAutoCheckUpdatesEnabled()) {
+				this.checkForUpdates('Connection is no longer metered');
+			}
+			if (isWeb && !this.isAutoUpdateEnabled()) {
+				this.autoUpdateBuiltinExtensions();
 			}
 		}));
 
@@ -1174,6 +1185,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private isAutoUpdateEnabled(): boolean {
+		if (this.meteredConnectionService.isConnectionMetered) {
+			return false;
+		}
 		return this.getAutoUpdateValue() !== false;
 	}
 
@@ -1435,6 +1449,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					message: computedNotificiations[0].message,
 					severity: computedNotificiations[0].severity,
 					extensions: computedNotificiations[0].extensions,
+					query: computedNotificiations[0].query,
+					action: computedNotificiations[0].action,
 					key: computedNotificiations[0].key,
 					dismiss: () => {
 						this.setDismissedNotifications([...this.getDismissedNotifications(), computedNotificiations[0].key]);
@@ -1483,6 +1499,34 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					severity: Severity.Warning,
 					extensions: invalidExtensions,
 					key: 'invalidExtensions:' + invalidExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => `${e.identifier.id.toLowerCase()}@${e.local?.manifest.version}`).join('-'),
+				});
+			}
+		}
+
+		if (!this.configurationService.getValue(AutoRestartConfigurationKey)) {
+			const restartRequiredExtensions = this.local.filter(e => e.runtimeState !== undefined && (e.runtimeState.action === ExtensionRuntimeActionType.RestartExtensions || e.runtimeState.action === ExtensionRuntimeActionType.ReloadWindow));
+			if (restartRequiredExtensions.length) {
+				const needsReload = restartRequiredExtensions.some(e => e.runtimeState?.action === ExtensionRuntimeActionType.ReloadWindow);
+				computedNotificiations.push({
+					message: needsReload
+						? nls.localize('extensions need reload', "Extensions require a window reload to take effect.")
+						: nls.localize('extensions need restart', "Extensions require a restart to take effect."),
+					severity: Severity.Info,
+					extensions: restartRequiredExtensions,
+					query: '@restartrequired',
+					action: {
+						label: needsReload
+							? nls.localize('reload window', "Reload Window")
+							: nls.localize('restart extensions action', "Restart Extensions"),
+						run: () => {
+							if (needsReload) {
+								this.hostService.reload();
+							} else {
+								this.updateRunningExtensions();
+							}
+						}
+					},
+					key: 'restartRequired:' + restartRequiredExtensions.sort((a, b) => a.identifier.id.localeCompare(b.identifier.id)).map(e => e.identifier.id.toLowerCase()).join('-'),
 				});
 			}
 		}
@@ -1563,7 +1607,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extension) {
 			throw new Error(`Extension not found. ${extension}`);
 		}
-		await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : ACTIVE_GROUP);
+		const useModal = this.configurationService.getValue<boolean>('extensions.allowOpenInModalEditor');
+		await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : useModal ? MODAL_GROUP : ACTIVE_GROUP);
 	}
 
 	async openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void> {
@@ -2073,6 +2118,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private isAutoCheckUpdatesEnabled(): boolean {
+		if (this.meteredConnectionService.isConnectionMetered) {
+			return false;
+		}
 		return this.configurationService.getValue(AutoCheckUpdatesConfigurationKey);
 	}
 
@@ -2099,6 +2147,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async autoUpdateBuiltinExtensions(): Promise<void> {
+		if (this.meteredConnectionService.isConnectionMetered) {
+			return;
+		}
 		await this.checkForUpdates(undefined, true);
 		const toUpdate = this.outdated.filter(e => e.isBuiltin);
 		await Promises.settled(toUpdate.map(e => this.install(e, e.local?.preRelease ? { installPreReleaseVersion: true } : undefined)));
@@ -2120,6 +2171,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async autoUpdateExtensions(): Promise<void> {
+		if (this.meteredConnectionService.isConnectionMetered) {
+			this.logService.trace('[Extensions]: Skipping auto-update because connection is metered');
+			return;
+		}
+
 		const toUpdate: IExtension[] = [];
 		const disabledAutoUpdate = [];
 		const consentRequired = [];
@@ -2684,9 +2740,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const extensionsToUninstall: UninstallExtensionInfo[] = [{ extension: extension.local }];
-		for (const packExtension of this.getAllPackedExtensions(extension, this.local)) {
-			if (packExtension.local && !extensionsToUninstall.some(e => areSameExtensions(e.extension.identifier, packExtension.identifier))) {
-				extensionsToUninstall.push({ extension: packExtension.local });
+		if (!areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId })) {
+			for (const packExtension of this.getAllPackedExtensions(extension, this.local)) {
+				if (packExtension.local && !extensionsToUninstall.some(e => areSameExtensions(e.extension.identifier, packExtension.identifier))) {
+					extensionsToUninstall.push({ extension: packExtension.local });
+				}
 			}
 		}
 

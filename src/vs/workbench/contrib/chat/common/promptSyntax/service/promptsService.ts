@@ -13,6 +13,53 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { PromptsType } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
+import { IChatRequestHooks } from '../hookSchema.js';
+import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
+
+/**
+ * Entry emitted by the prompts service when discovery logging occurs.
+ * A debug bridge (e.g. contribution) can listen and forward these to IChatDebugService.
+ */
+export interface IPromptDiscoveryLogEntry {
+	readonly sessionId: string;
+	readonly name: string;
+	readonly details?: string;
+	readonly category?: string;
+	/** When present, the bridge should store this for later event resolution. */
+	readonly discoveryInfo?: IPromptDiscoveryInfo;
+}
+
+/**
+ * Activation events for prompt file providers.
+ */
+export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
+export const INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT = 'onInstructionsProvider';
+export const PROMPT_FILE_PROVIDER_ACTIVATION_EVENT = 'onPromptFileProvider';
+export const SKILL_PROVIDER_ACTIVATION_EVENT = 'onSkillProvider';
+
+/**
+ * Context for querying prompt files.
+ */
+export interface IPromptFileContext { }
+
+/**
+ * Represents a prompt file resource from an external provider.
+ */
+export interface IPromptFileResource {
+	/**
+	 * The URI to the agent or prompt resource file.
+	 */
+	readonly uri: URI;
+	/**
+	 * Optional externally provided prompt command name.
+	 */
+	readonly name?: string;
+	/**
+	 * Optional externally provided prompt command description.
+	 */
+	readonly description?: string;
+}
 
 /**
  * Provides prompt services.
@@ -26,6 +73,14 @@ export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
 	extension = 'extension'
+}
+
+/**
+ * The type of source for extension agents.
+ */
+export enum ExtensionAgentSourceType {
+	contribution = 'contribution',
+	provider = 'provider',
 }
 
 /**
@@ -64,8 +119,10 @@ export interface IPromptPathBase {
 export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.extension;
 	readonly extension: IExtensionDescription;
-	readonly name: string;
-	readonly description: string;
+	readonly source: ExtensionAgentSourceType;
+	readonly name?: string;
+	readonly description?: string;
+	readonly when?: string;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
@@ -77,9 +134,37 @@ export interface IUserPromptPath extends IPromptPathBase {
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
+	readonly type: ExtensionAgentSourceType;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 };
+
+/**
+ * The visibility/availability of an agent.
+ * - 'all': available as custom agent in picker AND can be used as subagent
+ * - 'user': only available in the custom agent picker
+ * - 'agent': only usable as subagent by the subagent tool
+ * - 'hidden': neither in picker nor usable as subagent
+ */
+export type ICustomAgentVisibility = {
+	readonly userInvocable: boolean;
+	readonly agentInvocable: boolean;
+};
+
+export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibility {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	const v = obj as { userInvocable?: unknown; agentInvocable?: unknown };
+	return typeof v.userInvocable === 'boolean' && typeof v.agentInvocable === 'boolean';
+}
+
+export enum Target {
+	VSCode = 'vscode',
+	GitHubCopilot = 'github-copilot',
+	Claude = 'claude',
+	Undefined = 'undefined',
+}
 
 export interface ICustomAgent {
 	/**
@@ -105,7 +190,7 @@ export interface ICustomAgent {
 	/**
 	 * Model metadata in the prompt header.
 	 */
-	readonly model?: string;
+	readonly model?: readonly string[];
 
 	/**
 	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.
@@ -113,9 +198,14 @@ export interface ICustomAgent {
 	readonly argumentHint?: string;
 
 	/**
-	 * Target metadata in the prompt header.
+	 * Target of the agent: Copilot, VSCode, Claude, or undefined if not specified.
 	 */
-	readonly target?: string;
+	readonly target: Target;
+
+	/**
+	 * What visibility the agent has (user invocable, subagent invocable).
+	 */
+	readonly visibility: ICustomAgentVisibility;
 
 	/**
 	 * Contents of the custom agent file body and other agent instructions.
@@ -128,6 +218,12 @@ export interface ICustomAgent {
 	readonly handOffs?: readonly IHandOff[];
 
 	/**
+	 * List of subagent names that can be used by the agent.
+	 * If empty, no subagents are available. If ['*'] or undefined, all agents can be used.
+	 */
+	readonly agents?: readonly string[];
+
+	/**
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;
@@ -137,6 +233,120 @@ export interface IAgentInstructions {
 	readonly content: string;
 	readonly toolReferences: readonly IVariableReference[];
 	readonly metadata?: Record<string, boolean | string | number>;
+}
+
+export interface IChatPromptSlashCommand {
+	readonly name: string;
+	readonly description: string | undefined;
+	readonly argumentHint: string | undefined;
+	readonly promptPath: IPromptPath;
+	readonly parsedPromptFile: ParsedPromptFile;
+}
+
+export interface IAgentSkill {
+	readonly uri: URI;
+	readonly storage: PromptsStorage;
+	readonly name: string;
+	readonly description: string | undefined;
+	/**
+	 * If true, the skill should not be automatically loaded by the agent.
+	 * Use for workflows you want to trigger manually with /name.
+	 */
+	readonly disableModelInvocation: boolean;
+	/**
+	 * If false, the skill is hidden from the / menu.
+	 * Use for background knowledge users shouldn't invoke directly.
+	 */
+	readonly userInvocable: boolean;
+}
+
+/**
+ * Type of agent instruction file.
+ */
+export enum AgentFileType {
+	agentsMd = 'agentsMd',
+	claudeMd = 'claudeMd',
+	copilotInstructionsMd = 'copilotInstructionsMd',
+}
+
+/**
+ * Represents a resolved agent instruction file with its real path for duplicate detection.
+ * Used by listAgentInstructions to filter out symlinks pointing to the same file.
+ */
+export interface IResolvedAgentFile {
+	readonly uri: URI;
+	/**
+	 * The real path of the file, if it is a symlink.
+	 */
+	readonly realPath: URI | undefined;
+	readonly type: AgentFileType;
+}
+
+export interface Logger {
+	logInfo(message: string): void;
+}
+
+/**
+ * Reason why a prompt file was skipped during discovery.
+ */
+export type PromptFileSkipReason =
+	| 'missing-name'
+	| 'missing-description'
+	| 'name-mismatch'
+	| 'duplicate-name'
+	| 'parse-error'
+	| 'disabled'
+	| 'all-hooks-disabled'
+	| 'claude-hooks-disabled';
+
+/**
+ * Result of discovering a single prompt file.
+ */
+export interface IPromptFileDiscoveryResult {
+	readonly uri: URI;
+	readonly storage: PromptsStorage;
+	readonly status: 'loaded' | 'skipped';
+	readonly name?: string;
+	readonly skipReason?: PromptFileSkipReason;
+	/** Error message if parse-error */
+	readonly errorMessage?: string;
+	/** For duplicates, the URI of the file that took precedence */
+	readonly duplicateOf?: URI;
+	/** Extension ID if from extension */
+	readonly extensionId?: string;
+	/** Whether the skill is user-invocable in the / menu (set user-invocable: false to hide it) */
+	readonly userInvocable?: boolean;
+	/** If true, the skill won't be automatically loaded by the agent (disable-model-invocation: true) */
+	readonly disableModelInvocation?: boolean;
+}
+
+/**
+ * Diagnostic information about a source folder that was searched during discovery.
+ */
+export interface IPromptSourceFolderResult {
+	readonly uri: URI;
+	readonly storage: PromptsStorage;
+	/** Whether the folder exists on disk */
+	readonly exists: boolean;
+	/** Number of matching files found in this folder */
+	readonly fileCount: number;
+	/** Error message if resolution failed */
+	readonly errorMessage?: string;
+}
+
+/**
+ * Summary of prompt file discovery for a specific type.
+ */
+export interface IPromptDiscoveryInfo {
+	readonly type: PromptsType;
+	readonly files: readonly IPromptFileDiscoveryResult[];
+	/** Source folders that were searched, with their existence and file count */
+	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
+}
+
+export interface IConfiguredHooksInfo {
+	readonly hooks: IChatRequestHooks;
+	readonly hasDisabledClaudeHooks: boolean;
 }
 
 /**
@@ -164,40 +374,41 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
 	 */
-	getSourceFolders(type: PromptsType): readonly IPromptPath[];
+	getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * Returns a prompt command if the command name.
-	 * Undefined is returned if the name does not look like a file name of a prompt file.
+	 * Get a list of resolved prompt source folders with full metadata.
+	 * This includes displayPath, isDefault, and storage information.
+	 * Used for diagnostics and config-info displays.
 	 */
-	asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined;
+	getResolvedSourceFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]>;
+
+	/**
+	 * Validates if the provided command name is a valid prompt slash command.
+	 */
+	isValidSlashCommandName(name: string): boolean;
 
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<ParsedPromptFile | undefined>;
+	resolvePromptSlashCommand(command: string, token: CancellationToken): Promise<IChatPromptSlashCommand | undefined>;
 
 	/**
-	 * Gets the prompt file for a slash command from cache if available.
-	 * @param command - name of the prompt command without slash
+	 * Event that is triggered when the slash command to ParsedPromptFile cache is updated.
+	 * Event handlers can use {@link resolvePromptSlashCommand} to retrieve the latest data.
 	 */
-	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined;
-
-	/**
-	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
-	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
-	 */
-	readonly onDidChangeParsedPromptFilesCache: Event<void>;
+	readonly onDidChangeSlashCommands: Event<void>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
+	 * @param sessionId Optional session ID to scope debug logging to a specific session.
 	 */
-	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
+	getPromptSlashCommands(token: CancellationToken, sessionId?: string): Promise<readonly IChatPromptSlashCommand[]>;
 
 	/**
 	 * Returns the prompt command name for the given URI.
 	 */
-	getPromptCommandName(uri: URI): Promise<string>;
+	getPromptSlashCommandName(uri: URI, token: CancellationToken): Promise<string>;
 
 	/**
 	 * Event that is triggered when the list of custom agents changes.
@@ -206,8 +417,9 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Finds all available custom agents
+	 * @param sessionId Optional session ID to scope debug logging to a specific session.
 	 */
-	getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]>;
+	getCustomAgents(token: CancellationToken, sessionId?: string): Promise<readonly ICustomAgent[]>;
 
 	/**
 	 * Parses the provided URI
@@ -216,45 +428,83 @@ export interface IPromptsService extends IDisposable {
 	parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile>;
 
 	/**
-	 * Returns the prompt file type for the given URI.
-	 * @param resource the URI of the resource
-	 */
-	getPromptFileType(resource: URI): PromptsType | undefined;
-
-	/**
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
 	 * Not intended for extension authors; used by contribution point handler.
 	 */
-	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable;
+	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined, when?: string): IDisposable;
 
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;
 
 	/**
-	 * Gets list of all AGENTS.md files in the workspace.
+	 * Gets list of AGENTS.md files, including optionally nested ones from subfolders.
 	 */
-	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]>;
+	listNestedAgentMDs(token: CancellationToken): Promise<IResolvedAgentFile[]>;
 
 	/**
-	 * Gets list of AGENTS.md files.
-	 * @param includeNested Whether to include AGENTS.md files from subfolders, or only from the root.
+	 * Gets combined list of agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md).
+	 * Combines results from listAgentMDs (non-nested), listClaudeMDs, and listCopilotInstructionsMDs.
 	 */
-	listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]>;
-
-	/**
-	 * Gets list of .github/copilot-instructions.md files.
-	 */
-	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]>;
+	listAgentInstructions(token: CancellationToken, logger?: Logger): Promise<IResolvedAgentFile[]>;
 
 	/**
 	 * For a chat mode file URI, return the name of the agent file that it should use.
 	 * @param oldURI
 	 */
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined;
-}
 
-export interface IChatPromptSlashCommand {
-	readonly command: string;
-	readonly detail: string;
-	readonly promptPath?: IPromptPath;
+	/**
+	 * Returns the list of disabled prompt file URIs for a given type. By default no prompt files are disabled.
+	 */
+	getDisabledPromptFiles(type: PromptsType): ResourceSet;
+
+	/**
+	 * Persists the set of disabled prompt file URIs for the given type.
+	 */
+	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
+
+	/**
+	 * Registers a prompt file provider that can provide prompt files for repositories.
+	 * @param extension The extension registering the provider.
+	 * @param type The type of contribution.
+	 * @param provider The provider implementation with optional change event.
+	 * @returns A disposable that unregisters the provider when disposed.
+	 */
+	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: {
+		onDidChangePromptFiles?: Event<void>;
+		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
+	}): IDisposable;
+
+	/**
+	 * Gets list of agent skills files.
+	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 */
+	findAgentSkills(token: CancellationToken, sessionId?: string): Promise<IAgentSkill[] | undefined>;
+
+	/**
+	 * Gets detailed discovery information for a prompt type.
+	 * This includes all files found and their load/skip status with reasons.
+	 * Used for diagnostics and config-info displays.
+	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 */
+	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken, sessionId?: string): Promise<IPromptDiscoveryInfo>;
+
+	/**
+	 * Gets all hooks collected from hooks.json files.
+	 * The result is cached and invalidated when hook files change.
+	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 */
+	getHooks(token: CancellationToken, sessionId?: string): Promise<IConfiguredHooksInfo | undefined>;
+
+	/**
+	 * Gets all instruction files, logging discovery info to the debug log.
+	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 */
+	getInstructionFiles(token: CancellationToken, sessionId?: string): Promise<readonly IPromptPath[]>;
+
+	/**
+	 * Fired when a discovery-related log entry is produced.
+	 * Listeners (such as a debug bridge) can forward these to IChatDebugService.
+	 */
+	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry>;
 }

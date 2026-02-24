@@ -66,7 +66,7 @@ impl SimpleResponse {
 	pub fn url_path_basename(&self) -> Option<String> {
 		self.url.as_ref().and_then(|u| {
 			u.path_segments()
-				.and_then(|s| s.last().map(|s| s.to_owned()))
+				.and_then(|mut s| s.next_back().map(|s| s.to_owned()))
 		})
 	}
 }
@@ -176,7 +176,7 @@ impl SimpleHttp for ReqwestSimpleHttp {
 			url: Some(res.url().clone()),
 			read: Box::pin(
 				res.bytes_stream()
-					.map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+					.map_err(futures::io::Error::other)
 					.into_async_read()
 					.compat(),
 			),

@@ -9,12 +9,12 @@ import fs from 'fs';
 import https from 'https';
 import path from 'path';
 import { createHash } from 'crypto';
-import { DebianArchString } from './types';
+import type { DebianArchString } from './types.ts';
 
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
-const REPO_ROOT = path.dirname(path.dirname(path.dirname(__dirname)));
+const REPO_ROOT = path.dirname(path.dirname(path.dirname(import.meta.dirname)));
 
 const ghApiHeaders: Record<string, string> = {
 	Accept: 'application/vnd.github.v3+json',
@@ -78,7 +78,7 @@ async function fetchUrl(options: IFetchOptions, retries = 10, retryDelay = 1000)
 	try {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), 30 * 1000);
-		const version = '20250407-330404';
+		const version = '20260212-405735';
 		try {
 			const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
 				headers: ghApiHeaders,
@@ -188,7 +188,7 @@ export async function getChromiumSysroot(arch: DebianArchString): Promise<string
 	if (result.status !== 0) {
 		throw new Error('Cannot retrieve sysroots.json. Stderr:\n' + result.stderr);
 	}
-	const sysrootInfo = require(sysrootDictLocation);
+	const sysrootInfo = JSON.parse(fs.readFileSync(sysrootDictLocation, 'utf8'));
 	const sysrootArch = `bullseye_${arch}`;
 	const sysrootDict: SysrootDictEntry = sysrootInfo[sysrootArch];
 	const tarballFilename = sysrootDict['Tarball'];
@@ -229,7 +229,7 @@ export async function getChromiumSysroot(arch: DebianArchString): Promise<string
 	}
 	const sha = getSha(tarball);
 	if (sha !== tarballSha) {
-		throw new Error(`Tarball sha1sum is wrong. Expected ${tarballSha}, actual ${sha}`);
+		throw new Error(`Tarball checksum is wrong. Expected ${tarballSha}, actual ${sha}`);
 	}
 
 	const proc = spawnSync('tar', ['xf', tarball, '-C', sysroot]);

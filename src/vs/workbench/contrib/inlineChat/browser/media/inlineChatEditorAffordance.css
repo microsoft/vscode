@@ -1,0 +1,46 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.inline-chat-content-widget {
+	background-color: var(--vscode-panel-background);
+	padding: 0 1px;
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	box-shadow: 0 4px 8px var(--vscode-widget-shadow);
+	cursor: pointer;
+	min-width: var(--vscode-inline-chat-affordance-height);
+	min-height: var(--vscode-inline-chat-affordance-height);
+	line-height: var(--vscode-inline-chat-affordance-height);
+	border: 1px solid var(--vscode-input-border, transparent);
+	z-index: 100;
+}
+
+.inline-chat-content-widget .action-label.codicon.codicon-light-bulb,
+.inline-chat-content-widget .action-label.codicon.codicon-lightbulb-sparkle,
+.inline-edits-view-gutter-indicator .codicon.codicon-light-bulb,
+.inline-edits-view-gutter-indicator .codicon.codicon-lightbulb-sparkle {
+	margin: 0;
+	color: var(--vscode-editorLightBulb-foreground);
+}
+
+.inline-chat-content-widget .action-label.codicon.codicon-lightbulb-autofix,
+.inline-chat-content-widget .action-label.codicon.codicon-lightbulb-sparkle-autofix,
+.inline-edits-view-gutter-indicator .codicon.codicon-lightbulb-autofix,
+.inline-edits-view-gutter-indicator .codicon.codicon-lightbulb-sparkle-autofix {
+	margin: 0;
+	color: var(--vscode-editorLightBulbAutoFix-foreground, var(--vscode-editorLightBulb-foreground));
+}
+
+.inline-chat-content-widget .action-label.codicon.codicon-sparkle-filled,
+.inline-edits-view-gutter-indicator .codicon.codicon-sparkle-filled {
+	margin: 0;
+	color: var(--vscode-editorLightBulbAi-foreground, var(--vscode-icon-foreground));
+}
+
+.inline-chat-content-widget .inline-chat-keybinding {
+	opacity: 0.7;
+	margin-left: 4px;
+}

@@ -43,6 +43,10 @@ class TestTerminal extends Disposable implements Partial<ITerminalInstance> {
 	override dispose(): void {
 		super.dispose();
 	}
+
+	private readonly _onDisposed = this._register(new Emitter<ITerminalInstance>());
+	readonly onDisposed = this._onDisposed.event;
+
 }
 
 class TestTask extends CommonTask {

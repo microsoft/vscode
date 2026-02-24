@@ -13,7 +13,7 @@ import { OperationKind, OperationResult } from './operation';
 import { truncate } from './util';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
-import { getHistoryItemHover, getHistoryItemHoverCommitHashCommands, processHistoryItemRemoteHoverCommands } from './historyProvider';
+import { getCommitHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -198,11 +198,11 @@ export class GitTimelineProvider implements TimelineProvider {
 			const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(this.model, repo, message) ?? message;
 
 			const commands: Command[][] = [
-				getHistoryItemHoverCommitHashCommands(uri, c.hash),
-				processHistoryItemRemoteHoverCommands(commitRemoteSourceCommands, c.hash)
+				getHoverCommitHashCommands(uri, c.hash),
+				processHoverRemoteCommands(commitRemoteSourceCommands, c.hash)
 			];
 
-			item.tooltip = getHistoryItemHover(avatars?.get(c.hash), c.authorName, c.authorEmail, date, messageWithLinks, c.shortStat, commands);
+			item.tooltip = getCommitHover(avatars?.get(c.hash), c.authorName, c.authorEmail, date, messageWithLinks, c.shortStat, commands);
 
 			const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 			if (cmd) {
@@ -227,7 +227,7 @@ export class GitTimelineProvider implements TimelineProvider {
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new ThemeIcon('git-commit');
 				item.description = '';
-				item.tooltip = getHistoryItemHover(undefined, you, undefined, date, Resource.getStatusText(index.type), undefined, undefined);
+				item.tooltip = getCommitHover(undefined, you, undefined, date, Resource.getStatusText(index.type), undefined, undefined);
 
 				const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 				if (cmd) {
@@ -249,7 +249,7 @@ export class GitTimelineProvider implements TimelineProvider {
 					const item = new GitTimelineItem('', index ? '~' : 'HEAD', l10n.t('Uncommitted Changes'), date.getTime(), 'working', 'git:file:working');
 					item.iconPath = new ThemeIcon('circle-outline');
 					item.description = '';
-					item.tooltip = getHistoryItemHover(undefined, you, undefined, date, Resource.getStatusText(working.type), undefined, undefined);
+					item.tooltip = getCommitHover(undefined, you, undefined, date, Resource.getStatusText(working.type), undefined, undefined);
 
 					const cmd = this.commands.resolveTimelineOpenDiffCommand(item, uri);
 					if (cmd) {

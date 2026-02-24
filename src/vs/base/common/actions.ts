@@ -228,7 +228,7 @@ export class Separator implements IAction {
 	readonly tooltip: string = '';
 	readonly class: string = 'separator';
 	readonly enabled: boolean = false;
-	readonly checked: boolean = false;
+	readonly checked: undefined = undefined;
 	async run() { }
 }
 

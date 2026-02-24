@@ -194,7 +194,6 @@
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	padding: 4px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	margin: 4px 5px; /* allows button focus outline to be visible */
@@ -228,19 +227,14 @@
 	outline-width: 1px;
 	outline-style: solid;
 	outline-color: var(--vscode-focusBorder);
-	border-radius: 2px;
+	border-radius: 4px;
 }
 
-.monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
-	padding-left: 10px;
-	padding-right: 10px;
-}
 
 .monaco-dialog-box.align-vertical > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-text-button {
 	width: 100%;
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-dropdown-button {
-	padding-left: 5px;
-	padding-right: 5px;
+	padding: 0 4px;
 }

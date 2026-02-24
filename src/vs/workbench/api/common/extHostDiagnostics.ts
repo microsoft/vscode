@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { localize } from '../../../nls.js';
 import { IMarkerData, MarkerSeverity } from '../../../platform/markers/common/markers.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -186,7 +184,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		this.#proxy?.$clear(this._owner);
 	}
 
-	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void {
+	forEach(callback: (uri: URI, diagnostics: ReadonlyArray<vscode.Diagnostic>, collection: DiagnosticCollection) => unknown, thisArg?: unknown): void {
 		this._checkDisposed();
 		for (const [uri, values] of this) {
 			callback.call(thisArg, uri, values, this);

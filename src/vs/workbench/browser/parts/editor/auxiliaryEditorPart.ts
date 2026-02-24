@@ -5,6 +5,7 @@
 
 import { onDidChangeFullscreen } from '../../../../base/browser/browser.js';
 import { $, getActiveWindow, hide, show } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isNative } from '../../../../base/common/platform.js';
@@ -20,10 +21,10 @@ import { EditorPart, IEditorPartUIState } from './editorPart.js';
 import { IAuxiliaryTitlebarPart } from '../titlebar/titlebarPart.js';
 import { WindowTitle } from '../titlebar/windowTitle.js';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IAuxiliaryEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { IWorkbenchLayoutService, shouldShowCustomTitleBar } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts, shouldShowCustomTitleBar } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { ITitleService } from '../../../services/title/browser/titleService.js';
@@ -270,7 +271,7 @@ export class AuxiliaryEditorPart {
 					if (typeof canMoveVeto === 'string') {
 						group.openEditor(editor);
 						event.veto(canMoveVeto);
-						break;
+						return;
 					}
 				}
 			}
@@ -303,8 +304,14 @@ export class AuxiliaryEditorPart {
 			}
 		}));
 
-		disposables.add(editorPart.onDidAddGroup(() => {
+		disposables.add(editorPart.onDidAddGroup(group => {
 			updateCompact(false); // leave compact mode when a group is added
+
+			disposables.add(group.onDidActiveEditorChange(() => {
+				if (group.count > 1) {
+					updateCompact(false); // leave compact mode when more than 1 editor is active
+				}
+			}));
 		}));
 
 		disposables.add(editorPart.activeGroup.onDidActiveEditorChange(() => {
@@ -354,6 +361,13 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
+	protected override handleContextKeys(): void {
+		const isAuxiliaryWindowContext = IsAuxiliaryWindowContext.bindTo(this.scopedContextKeyService);
+		isAuxiliaryWindowContext.set(true);
+
+		super.handleContextKeys();
+	}
+
 	updateOptions(options: { compact: boolean }): void {
 		this.isCompact = options.compact;
 
@@ -396,13 +410,19 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 	private doRemoveLastGroup(preserveFocus?: boolean): void {
 		const restoreFocus = !preserveFocus && this.shouldRestoreFocus(this.container);
 
-		// Activate next group
+		// Activate next group when closing
 		const mostRecentlyActiveGroups = this.editorPartsView.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
 		if (nextActiveGroup) {
-			nextActiveGroup.groupsView.activateGroup(nextActiveGroup);
+			nextActiveGroup.groupsView.activateGroup(nextActiveGroup, undefined, GroupActivationReason.PART_CLOSE);
+		}
 
-			if (restoreFocus) {
+		// Deal with focus: focus the next recently used group but skip
+		// this if the next group is in the main part and the main part
+		// is currently hidden, as that would make it visible.
+		if (nextActiveGroup && restoreFocus) {
+			const nextGroupInHiddenMainPart = nextActiveGroup.groupsView === this.editorPartsView.mainPart && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
+			if (!nextGroupInHiddenMainPart) {
 				nextActiveGroup.focus();
 			}
 		}
@@ -433,6 +453,9 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 
 			// Then merge remaining to main part
 			result = this.mergeGroupsToMainPart();
+			if (!result) {
+				return false; // Do not close when editors could not be merged back
+			}
 		}
 
 		this._onWillClose.fire();

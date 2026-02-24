@@ -28,7 +28,6 @@
     "terminal": {
       "completionProviders": [
         {
-          "id": "terminal-suggest",
           "description": "Show suggestions for commands, arguments, flags, and file paths based upon the Fig spec."
         }
       ]
@@ -37,8 +36,8 @@
   "scripts": {
     "compile": "npx gulp compile-extension:terminal-suggest",
     "watch": "npx gulp watch-extension:terminal-suggest",
-    "pull-zshbuiltins": "ts-node ./scripts/pullZshBuiltins.ts",
-    "pull-fishbuiltins": "ts-node ./scripts/pullFishBuiltins.ts"
+    "pull-zshbuiltins": "node ./scripts/pullZshBuiltins.ts",
+    "pull-fishbuiltins": "node ./scripts/pullFishBuiltins.ts"
   },
   "main": "./out/terminalSuggestMain",
   "activationEvents": [

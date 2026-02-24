@@ -36,7 +36,7 @@ const perfMark = (name, options = {}) => {
 			...options
 		}
 	});
-}
+};
 
 perfMark('scriptStart');
 

@@ -46,6 +46,8 @@ export interface IExtensionHostInitData {
 		readonly firstSessionDate: string;
 		readonly msftInternal?: boolean;
 	};
+	remoteExtensionTips?: { readonly [remoteName: string]: unknown };
+	virtualWorkspaceExtensionTips?: { readonly [remoteName: string]: unknown };
 	logLevel: LogLevel;
 	loggers: UriDto<ILoggerResource>[];
 	logsLocation: URI;
@@ -65,13 +67,15 @@ export interface IEnvironment {
 	appLanguage: string;
 	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
+	isPortable?: boolean;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
 	globalStorageHome: URI;
 	workspaceStorageHome: URI;
 	useHostProxy?: boolean;
 	skipWorkspaceStorageLock?: boolean;
-	extensionLogLevel?: [string, string][];
+	extensionLogLevel?: [string, LogLevel][];
+	isSessionsWindow?: boolean;
 }
 
 export interface IStaticWorkspaceData {
@@ -83,9 +87,9 @@ export interface IStaticWorkspaceData {
 }
 
 export interface MessagePortLike {
-	postMessage(message: any, transfer?: any[]): void;
-	addEventListener(type: 'message', listener: (e: any) => unknown): void;
-	removeEventListener(type: 'message', listener: (e: any) => unknown): void;
+	postMessage(message: unknown, transfer?: Transferable[]): void;
+	addEventListener(type: 'message', listener: (e: MessageEvent<unknown>) => unknown): void;
+	removeEventListener(type: 'message', listener: (e: MessageEvent<unknown>) => unknown): void;
 	start(): void;
 }
 
