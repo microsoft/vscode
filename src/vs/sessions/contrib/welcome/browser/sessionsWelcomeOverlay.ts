@@ -57,12 +57,7 @@ export class SessionsWelcomeOverlay extends Disposable {
 		this._register(autorun(reader => {
 			const steps = this.welcomeService.steps.read(reader);
 			const current = this.welcomeService.currentStep.read(reader);
-			const isComplete = this.welcomeService.isComplete.read(reader);
-
-			if (isComplete) {
-				this.dismiss();
-				return;
-			}
+			this.welcomeService.isComplete.read(reader);
 
 			// Render step indicators
 			this.renderStepList(stepList, steps, current);
@@ -135,7 +130,7 @@ export class SessionsWelcomeOverlay extends Disposable {
 		}
 	}
 
-	private dismiss(): void {
+	dismiss(): void {
 		this.overlay.classList.add('sessions-welcome-overlay-dismissed');
 		this._onDidDismiss.fire();
 		// Allow CSS transition to finish before disposing

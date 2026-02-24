@@ -13,9 +13,11 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { localize2 } from '../../../../nls.js';
 import { ISessionsWelcomeService } from '../common/sessionsWelcomeService.js';
 import { SessionsWelcomeService } from './sessionsWelcomeService.js';
 import { SessionsWelcomeOverlay } from './sessionsWelcomeOverlay.js';
@@ -42,6 +44,8 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -127,12 +131,39 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 			this.layoutService.mainContainer,
 		));
 
-		// Mark welcome as complete once the overlay is dismissed (all steps satisfied)
+		// When all steps are satisfied, restart the extension host (so the
+		// chat extension picks up the auth session cleanly) then dismiss.
 		this.overlayRef.value.add(overlay.onDidDismiss(() => {
 			this.overlayRef.clear();
-			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			this.watchForSignOutOrTokenExpiry();
 		}));
+
+		this.overlayRef.value.add(autorun(reader => {
+			const isComplete = this.welcomeService.isComplete.read(reader);
+			if (!isComplete) {
+				return;
+			}
+
+			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			this.restartExtensionHostThenDismiss(overlay);
+		}));
+	}
+
+	/**
+	 * After the welcome flow completes (extension installed + user signed in),
+	 * restart the extension host so the chat extension picks up the new auth
+	 * session cleanly, then dismiss the overlay. The overlay stays visible
+	 * during the restart so the user doesn't see a broken intermediate state.
+	 */
+	private async restartExtensionHostThenDismiss(overlay: SessionsWelcomeOverlay): Promise<void> {
+		this.logService.info('[sessions welcome] Restarting extension host after welcome completion');
+		const stopped = await this.extensionService.stopExtensionHosts(
+			localize('sessionsWelcome.restart', "Completing sessions setup")
+		);
+		if (stopped) {
+			await this.extensionService.startExtensionHosts();
+		}
+		overlay.dismiss();
 	}
 }
 
