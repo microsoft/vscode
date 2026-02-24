@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -100,6 +100,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _activeSession = observableValue<IActiveSessionItem | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
+	private readonly _activeSessionDisposables = this._register(new DisposableStore());
 
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
 	private lastSelectedSession: URI | undefined;
@@ -128,18 +129,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		// Save on shutdown
 		this._register(this.storageService.onWillSaveState(() => this.saveLastSelectedSession()));
-
-		// Update active session when session options change
-		this._register(this.chatSessionsService.onDidChangeSessionOptions(sessionResource => {
-			const currentActive = this._activeSession.get();
-			if (currentActive && currentActive.resource.toString() === sessionResource.toString()) {
-				// Re-fetch the repository from session options and update the active session
-				const repository = this.getRepositoryFromSessionOption(sessionResource);
-				if (currentActive.repository?.toString() !== repository?.toString()) {
-					this._activeSession.set({ ...currentActive, repository }, undefined);
-				}
-			}
-		}));
 
 		// Update active session when the agent sessions model changes (e.g., metadata updates with worktree/repository info)
 		this._register(this.agentSessionsService.model.onDidChangeSessions(() => this.refreshActiveSessionFromModel()));
@@ -172,13 +161,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return;
 		}
 
-		const [repository, worktree] = this.getRepositoryFromMetadata(agentSession.metadata);
-		const activeSessionItem: IActiveSessionItem = {
-			...agentSession,
-			repository,
-			worktree,
-		};
-		this._activeSession.set(activeSessionItem, undefined);
+		this.setActiveSession(agentSession);
 	}
 
 	private showNextSession(): void {
@@ -255,11 +238,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			newSession = new RemoteNewSession(sessionResource, target, this.chatSessionsService, this.logService);
 		}
 		this._newSession.value = newSession;
-		this._activeSession.set({
-			...newSession,
-			repository: newSession.repoUri,
-			worktree: undefined,
-		}, undefined);
+		this.setActiveSession(newSession);
 		return newSession;
 	}
 
@@ -275,11 +254,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	 * Open a new remote session - load the model first, then show it in the ChatViewPane.
 	 */
 	private async openNewSession(newSession: INewSession): Promise<void> {
-		this._activeSession.set({
-			...newSession,
-			repository: newSession.repoUri,
-			worktree: undefined,
-		}, undefined);
+		this.setActiveSession(newSession);
 		const sessionResource = newSession.resource;
 		const chatWidget = await this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		if (!chatWidget?.viewModel) {
@@ -400,15 +375,38 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._activeSession.set(undefined, undefined);
 	}
 
-	private setActiveSession(session: IAgentSession): void {
-		this.lastSelectedSession = session.resource;
-		const [repository, worktree] = this.getRepositoryFromMetadata(session.metadata);
-		const activeSessionItem: IActiveSessionItem = {
-			...session,
-			repository,
-			worktree,
-		};
-		this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
+	private setActiveSession(session: IAgentSession | INewSession | undefined): void {
+		this._activeSessionDisposables.clear();
+		let activeSessionItem: IActiveSessionItem | undefined;
+		if (session) {
+			if (isAgentSession(session)) {
+				this.lastSelectedSession = session.resource;
+				const [repository, worktree] = this.getRepositoryFromMetadata(session.metadata);
+				activeSessionItem = {
+					...session,
+					repository,
+					worktree,
+				};
+			} else {
+				activeSessionItem = {
+					...session,
+					repository: session.repoUri,
+					worktree: undefined,
+				};
+				this._activeSessionDisposables.add(session.onDidChange(e => {
+					if (e === 'repoUri') {
+						this._activeSession.set({
+							...session,
+							repository: session.repoUri,
+							worktree: undefined,
+						}, undefined);
+					}
+				}));
+			}
+			this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}, repository: ${activeSessionItem.repository?.toString() ?? 'none'}`);
+		} else {
+			this.logService.info('[ActiveSessionService] Active session cleared');
+		}
 		this._activeSession.set(activeSessionItem, undefined);
 	}
 
