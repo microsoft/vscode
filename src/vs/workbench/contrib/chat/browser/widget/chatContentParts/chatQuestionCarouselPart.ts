@@ -25,7 +25,13 @@ import { ChatTreeItem } from '../../chat.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import './media/chatQuestionCarousel.css';
+
+const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
+const NEXT_QUESTION_ACTION_ID = 'workbench.action.chat.nextQuestion';
 
 export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, unknown> | undefined) => void;
@@ -65,6 +71,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * that should be disposed when transitioning to summary view.
 	 */
 	private readonly _interactiveUIStore: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
+	private readonly _inChatQuestionCarouselContextKey: IContextKey<boolean>;
 
 	constructor(
 		public readonly carousel: IChatQuestionCarousel,
@@ -73,10 +80,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
 		this.domNode = dom.$('.chat-question-carousel-container');
+		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
+		const focusTracker = this._register(dom.trackFocus(this.domNode));
+		this._register(focusTracker.onDidFocus(() => this._inChatQuestionCarouselContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this._inChatQuestionCarouselContextKey.set(false)));
+		this._register({ dispose: () => this._inChatQuestionCarouselContextKey.reset() });
 
 		// Set up accessibility attributes for the carousel container
 		this.domNode.tabIndex = 0;
@@ -137,11 +151,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const arrowsContainer = dom.$('.chat-question-nav-arrows');
 
 		const previousLabel = localize('previous', 'Previous');
+		const previousLabelWithKeybinding = this.getLabelWithKeybinding(previousLabel, PREVIOUS_QUESTION_ACTION_ID);
 		const prevButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 		prevButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-prev');
 		prevButton.label = `$(${Codicon.chevronLeft.id})`;
-		prevButton.element.setAttribute('aria-label', previousLabel);
-		interactiveStore.add(this._hoverService.setupDelayedHover(prevButton.element, { content: previousLabel }));
+		prevButton.element.setAttribute('aria-label', previousLabelWithKeybinding);
+		interactiveStore.add(this._hoverService.setupDelayedHover(prevButton.element, { content: previousLabelWithKeybinding }));
 		this._prevButton = prevButton;
 
 		const nextButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
@@ -430,6 +445,24 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		return dom.isAncestorOfActiveElement(this.domNode);
 	}
 
+	public navigateToPreviousQuestion(): boolean {
+		if (this._currentIndex <= 0) {
+			return false;
+		}
+
+		this.navigate(-1);
+		return true;
+	}
+
+	public navigateToNextQuestion(): boolean {
+		if (this._currentIndex >= this.carousel.questions.length - 1) {
+			return false;
+		}
+
+		this.navigate(1);
+		return true;
+	}
+
 	private renderCurrentQuestion(focusContainerForScreenReader: boolean = false): void {
 		if (!this._questionContainer || !this._prevButton || !this._nextButton) {
 			return;
@@ -515,6 +548,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const isLastQuestion = this._currentIndex === this.carousel.questions.length - 1;
 		const submitLabel = localize('submit', 'Submit');
 		const nextLabel = localize('next', 'Next');
+		const nextLabelWithKeybinding = this.getLabelWithKeybinding(nextLabel, NEXT_QUESTION_ACTION_ID);
 		if (isLastQuestion) {
 			this._nextButton!.label = submitLabel;
 			this._nextButton!.element.setAttribute('aria-label', submitLabel);
@@ -523,10 +557,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._nextButtonHover.value = this._hoverService.setupDelayedHover(this._nextButton!.element, { content: submitLabel });
 		} else {
 			this._nextButton!.label = `$(${Codicon.chevronRight.id})`;
-			this._nextButton!.element.setAttribute('aria-label', nextLabel);
+			this._nextButton!.element.setAttribute('aria-label', nextLabelWithKeybinding);
 			// Keep secondary style for next
 			this._nextButton!.element.classList.remove('chat-question-nav-submit');
-			this._nextButtonHover.value = this._hoverService.setupDelayedHover(this._nextButton!.element, { content: nextLabel });
+			this._nextButtonHover.value = this._hoverService.setupDelayedHover(this._nextButton!.element, { content: nextLabelWithKeybinding });
 		}
 
 		// Update aria-label to reflect the current question
@@ -539,6 +573,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		this._onDidChangeHeight.fire();
+	}
+
+	private getLabelWithKeybinding(label: string, actionId: string): string {
+		const keybindingLabel = this._keybindingService.lookupKeybinding(actionId, this._contextKeyService)?.getLabel();
+		return keybindingLabel
+			? localize('chat.questionCarousel.labelWithKeybinding', '{0} ({1})', label, keybindingLabel)
+			: label;
 	}
 
 	private renderInput(container: HTMLElement, question: IChatQuestion): void {

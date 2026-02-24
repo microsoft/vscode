@@ -164,6 +164,7 @@ logger.warn = (msg, options) => {
 };
 
 export default defineConfig({
+	base: './',
 	plugins: [
 		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
@@ -171,6 +172,7 @@ export default defineConfig({
 		componentExplorer({
 			logLevel: 'verbose',
 			include: join(__dirname, '../../src/**/*.fixture.ts'),
+			build: 'all',
 		}),
 	],
 	customLogger: logger,
@@ -188,6 +190,7 @@ export default defineConfig({
 	},
 	root: '../..', // To support /out/... paths
 	build: {
+		outDir: join(__dirname, 'dist'),
 		rollupOptions: {
 			input: {
 				//index: path.resolve(__dirname, 'index.html'),

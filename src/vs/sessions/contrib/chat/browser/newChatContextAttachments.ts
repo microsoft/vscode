@@ -12,6 +12,8 @@ import { Emitter } from '../../../../base/common/event.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -24,6 +26,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 
 import { IChatRequestVariableEntry, OmittedState } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
 import { getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
@@ -60,6 +63,7 @@ export class NewChatContextAttachments extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 	}
@@ -88,14 +92,24 @@ export class NewChatContextAttachments extends Disposable {
 
 		for (const entry of this._attachedContext) {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
+			pill.tabIndex = 0;
+			pill.role = 'button';
 			const icon = entry.kind === 'image' ? Codicon.fileMedia : Codicon.file;
 			dom.append(pill, renderIcon(icon));
 			dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 
+			// Click to open the resource
+			const resource = URI.isUri(entry.value) ? entry.value : isLocation(entry.value) ? entry.value.uri : undefined;
+			if (resource) {
+				pill.style.cursor = 'pointer';
+				this._renderDisposables.add(registerOpenEditorListeners(pill, async () => {
+					await this.openerService.open(resource, { fromUserGesture: true });
+				}));
+			}
+
 			const removeButton = dom.append(pill, dom.$('.sessions-chat-attachment-remove'));
 			removeButton.title = localize('removeAttachment', "Remove");
-			removeButton.tabIndex = 0;
-			removeButton.role = 'button';
+			removeButton.tabIndex = -1;
 			dom.append(removeButton, renderIcon(Codicon.close));
 			this._renderDisposables.add(dom.addDisposableListener(removeButton, dom.EventType.CLICK, (e) => {
 				e.stopPropagation();

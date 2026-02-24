@@ -34,7 +34,7 @@
 }
 
 .sessions-chat-input-area:focus-within {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
 }
 
 /* Editor */
@@ -57,8 +57,9 @@
 .sessions-chat-toolbar {
 	display: flex;
 	align-items: center;
-	padding: 4px 8px;
+	padding: 0 6px 6px 6px;
 	gap: 4px;
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-toolbar-spacer {
@@ -75,52 +76,73 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 3px 8px;
+	height: 16px;
+	padding: 3px 6px;
 	border-radius: 4px;
 	font-size: 12px;
 	cursor: pointer;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 }
 
 .sessions-chat-model-picker .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
 }
 
 .sessions-chat-model-picker .action-label .codicon {
 	font-size: 12px;
 }
 
-/* Send button */
+/* Send button - wraps a Button widget */
 .sessions-chat-send-button {
 	display: flex;
 	align-items: center;
+}
+
+.sessions-chat-send-button .monaco-button {
+	display: flex;
+	align-items: center;
 	justify-content: center;
-	width: 26px;
-	height: 26px;
+	width: 22px;
+	height: 22px;
+	min-width: 22px;
+	padding: 0;
 	border-radius: 4px;
-	cursor: pointer;
-	color: var(--vscode-descriptionForeground);
-	background: transparent;
-	border: none;
-	outline: none;
+	color: var(--vscode-icon-foreground);
+	background: transparent !important;
+	border: none !important;
 }
 
-.sessions-chat-send-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
+.sessions-chat-send-button .monaco-button:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
 }
 
-.sessions-chat-send-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.sessions-chat-send-button .codicon {
+.sessions-chat-send-button .monaco-button .codicon {
 	font-size: 16px;
 }
 
-/* Attach row (above editor, inside input area) */
+/* Loading spinner in toolbar */
+.sessions-chat-loading-spinner {
+	display: none;
+	width: 12px;
+	height: 12px;
+	margin-right: 4px;
+	border: 1.5px solid var(--vscode-icon-foreground);
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: sessions-chat-spin 0.8s linear infinite;
+	opacity: 0.6;
+	flex-shrink: 0;
+}
+
+.sessions-chat-loading-spinner.visible {
+	display: block;
+}
+
+@keyframes sessions-chat-spin {
+	to { transform: rotate(360deg); }
+}
+
+/* Attach row (pills only, above editor, inside input area) */
 .sessions-chat-attach-row {
 	display: flex;
 	flex-wrap: wrap;
@@ -129,16 +151,20 @@
 	padding: 4px 6px 0 6px;
 }
 
+.sessions-chat-attach-row:has(.sessions-chat-attached-context:empty) {
+	display: none;
+}
+
 /* Attach context button */
 .sessions-chat-attach-button {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 26px;
-	height: 26px;
+	width: 22px;
+	height: 22px;
 	border-radius: 4px;
 	cursor: pointer;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-icon-foreground);
 	background: transparent;
 	border: none;
 	outline: none;
@@ -146,7 +172,6 @@
 
 .sessions-chat-attach-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
 }
 
 .sessions-chat-attach-button:focus-visible {
@@ -175,14 +200,14 @@
 .sessions-chat-attachment-pill {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
-	padding: 2px 4px 2px 6px;
+	overflow: hidden;
+	font-size: 11px;
+	padding: 0 4px 0 0;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-	font-size: 12px;
-	line-height: 18px;
+	height: 18px;
 	max-width: 200px;
+	width: fit-content;
 }
 
 .sessions-chat-attachment-name {
@@ -192,19 +217,28 @@
 }
 
 .sessions-chat-attachment-pill .codicon {
-	font-size: 12px;
+	font-size: 14px;
 	flex-shrink: 0;
+	padding: 0 3px;
 }
 
 .sessions-chat-attachment-remove {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 16px;
-	height: 16px;
-	border-radius: 2px;
 	cursor: pointer;
 	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	margin-left: 4px;
+}
+
+.sessions-chat-attachment-pill:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-attachment-remove .codicon {
+	font-size: 12px;
+	padding: 0;
 }
 
 .sessions-chat-attachment-remove:hover {

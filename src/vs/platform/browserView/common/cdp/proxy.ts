@@ -69,7 +69,19 @@ export class CDPBrowserProxy extends Disposable implements ICDPConnection {
 				await this.attachToTarget(targetInfo.targetId, true);
 			}
 		});
-		this._targets.onDidUnregisterTarget(async ({ targetInfo }) => {
+		this._targets.onDidUnregisterTarget(({ targetInfo }) => {
+			// Close any sessions attached to the destroyed target. Snapshot first
+			// to avoid mutating _sessions while iterating (onClose fires synchronously).
+			const toDispose: ICDPConnection[] = [];
+			for (const [, connection] of this._sessions) {
+				if (this._sessionTargetIds.get(connection) === targetInfo.targetId) {
+					toDispose.push(connection);
+				}
+			}
+			for (const connection of toDispose) {
+				connection.dispose();
+			}
+
 			if (this._discover) {
 				this.sendBrowserEvent('Target.targetDestroyed', { targetId: targetInfo.targetId });
 			}

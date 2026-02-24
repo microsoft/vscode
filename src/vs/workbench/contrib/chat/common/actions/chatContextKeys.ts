@@ -39,6 +39,7 @@ export namespace ChatContextKeys {
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
+	export const inChatQuestionCarousel = new RawContextKey<boolean>('inChatQuestionCarousel', false, { type: 'boolean', description: localize('inChatQuestionCarousel', "True when focus is in the chat question carousel.") });
 	export const inChatEditor = new RawContextKey<boolean>('inChatEditor', false, { type: 'boolean', description: localize('inChatEditor', "Whether focus is in a chat editor.") });
 	export const inChatTodoList = new RawContextKey<boolean>('inChatTodoList', false, { type: 'boolean', description: localize('inChatTodoList', "True when focus is in the chat todo list.") });
 	export const inChatTip = new RawContextKey<boolean>('inChatTip', false, { type: 'boolean', description: localize('inChatTip', "True when focus is in a chat tip.") });
@@ -86,6 +87,7 @@ export namespace ChatContextKeys {
 	export const hasFileAttachments = new RawContextKey<boolean>('chatHasFileAttachments', false, { type: 'boolean', description: localize('chatHasFileAttachments', "True when the chat has file attachments.") });
 	export const chatSessionIsEmpty = new RawContextKey<boolean>('chatSessionIsEmpty', true, { type: 'boolean', description: localize('chatSessionIsEmpty', "True when the current chat session has no requests.") });
 	export const hasPendingRequests = new RawContextKey<boolean>('chatHasPendingRequests', false, { type: 'boolean', description: localize('chatHasPendingRequests', "True when there are pending requests in the queue.") });
+	export const chatSessionHasDebugData = new RawContextKey<boolean>('chatSessionHasDebugData', false, { type: 'boolean', description: localize('chatSessionHasDebugData', "True when the current chat session has debug log data.") });
 
 	export const remoteJobCreating = new RawContextKey<boolean>('chatRemoteJobCreating', false, { type: 'boolean', description: localize('chatRemoteJobCreating', "True when a remote coding agent job is being created.") });
 	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));

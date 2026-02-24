@@ -24,7 +24,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IGalleryMcpServer, IInstallableMcpServer, IGalleryMcpServerConfiguration, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
-import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpDevModeConfig, IMcpSandboxConfiguration, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLocalMcpServer, IWorkbencMcpServerInstallOptions } from '../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -132,6 +132,10 @@ export interface McpServerDefinition {
 	readonly devMode?: IMcpDevModeConfig;
 	/** Static description of server tools/data, used to hydrate the cache. */
 	readonly staticMetadata?: McpServerStaticMetadata;
+	/** Indicates if the sandbox is enabled for this server. */
+	readonly sandboxEnabled?: boolean;
+	/** Sandbox configuration to apply for this server. */
+	readonly sandbox?: IMcpSandboxConfiguration;
 
 
 	readonly presentation?: {
@@ -164,6 +168,8 @@ export namespace McpServerDefinition {
 		readonly launch: McpServerLaunch.Serialized;
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
 		readonly staticMetadata?: McpServerStaticMetadata;
+		readonly sandboxEnabled?: boolean;
+		readonly sandbox?: IMcpSandboxConfiguration;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -177,6 +183,8 @@ export namespace McpServerDefinition {
 			cacheNonce: def.cacheNonce,
 			staticMetadata: def.staticMetadata,
 			launch: McpServerLaunch.fromSerialized(def.launch),
+			sandboxEnabled: def.sandboxEnabled,
+			sandbox: def.sandboxEnabled ? def.sandbox : undefined,
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
 	}
@@ -189,7 +197,9 @@ export namespace McpServerDefinition {
 			&& objectsEqual(a.launch, b.launch)
 			&& objectsEqual(a.presentation, b.presentation)
 			&& objectsEqual(a.variableReplacement, b.variableReplacement)
-			&& objectsEqual(a.devMode, b.devMode);
+			&& objectsEqual(a.devMode, b.devMode)
+			&& a.sandboxEnabled === b.sandboxEnabled
+			&& objectsEqual(a.sandbox, b.sandbox);
 	}
 }
 

@@ -343,6 +343,7 @@ export interface IChatWidget {
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
+	readonly onDidChangeActiveInputEditor: Event<void>;
 	readonly onDidFocus: Event<void>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
@@ -402,6 +403,16 @@ export interface IChatWidget {
 	 * @returns Whether the operation succeeded (i.e., the focus was toggled).
 	 */
 	toggleQuestionCarouselFocus(): boolean;
+	/**
+	 * Navigates to the previous question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a previous question exists).
+	 */
+	navigateToPreviousQuestion(): boolean;
+	/**
+	 * Navigates to the next question in the question carousel.
+	 * @returns Whether the operation succeeded (i.e., a next question exists).
+	 */
+	navigateToNextQuestion(): boolean;
 	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.

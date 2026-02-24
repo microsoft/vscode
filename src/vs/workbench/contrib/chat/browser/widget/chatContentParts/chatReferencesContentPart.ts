@@ -47,6 +47,7 @@ import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 const $ = dom.$;
 
@@ -72,11 +73,13 @@ export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1)), context, hoverMessage,
-			hoverService);
+			hoverService, configurationService);
+		this.icon = Codicon.check;
 	}
 
 	protected override initContent(): HTMLElement {
@@ -160,8 +163,9 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(data, labelOverride, context, contentReferencesListPool, undefined, openerService, menuService, instantiationService, contextMenuService, hoverService);
+		super(data, labelOverride, context, contentReferencesListPool, undefined, openerService, menuService, instantiationService, contextMenuService, hoverService, configurationService);
 		if (data.length === 0) {
 			dom.hide(this.domNode);
 		}

@@ -68,6 +68,7 @@ export abstract class InlineChatRunOptions {
 	position?: IPosition;
 	modelSelector?: ILanguageModelChatSelector;
 	resolveOnResponse?: boolean;
+	attachDiagnostics?: boolean;
 
 	static isInlineChatRunOptions(options: unknown): options is InlineChatRunOptions {
 
@@ -75,7 +76,7 @@ export abstract class InlineChatRunOptions {
 			return false;
 		}
 
-		const { initialSelection, initialRange, message, autoSend, position, attachments, modelSelector, resolveOnResponse } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, attachments, modelSelector, resolveOnResponse, attachDiagnostics } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -85,6 +86,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
 			|| typeof modelSelector !== 'undefined' && !isILanguageModelChatSelector(modelSelector)
 			|| typeof resolveOnResponse !== 'undefined' && typeof resolveOnResponse !== 'boolean'
+			|| typeof attachDiagnostics !== 'undefined' && typeof attachDiagnostics !== 'boolean'
 		) {
 			return false;
 		}
@@ -149,6 +151,7 @@ export class InlineChatController implements IEditorContribution {
 		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		const editorObs = observableCodeEditor(_editor);
 
@@ -506,22 +509,28 @@ export class InlineChatController implements IEditorContribution {
 		try {
 			await this._applyModelDefaults(session, sessionStore);
 
-			// ADD diagnostics
-			const entries: IChatRequestVariableEntry[] = [];
-			for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
-				if (range.intersectRanges(this._editor.getSelection())) {
-					const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
-					entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
-				}
+			if (arg) {
+				arg.attachDiagnostics ??= this._configurationService.getValue(InlineChatConfigKeys.RenderMode) === 'zone';
 			}
-			if (entries.length > 0) {
-				this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
-				this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
-					? localize('fixN', "Fix the attached problems")
-					: localize('fix1', "Fix the attached problem"),
-					true
-				);
-				this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+
+			// ADD diagnostics (only when explicitly requested)
+			if (arg?.attachDiagnostics) {
+				const entries: IChatRequestVariableEntry[] = [];
+				for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
+					if (range.intersectRanges(this._editor.getSelection())) {
+						const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
+						entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
+					}
+				}
+				if (entries.length > 0) {
+					this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
+					const msg = entries.length > 1
+						? localize('fixN', "Fix the attached problems")
+						: localize('fix1', "Fix the attached problem");
+					this._zone.value.widget.chatWidget.input.setValue(msg, true);
+					arg.message = msg;
+					this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+				}
 			}
 
 			// Check args
@@ -591,6 +600,7 @@ export class InlineChatController implements IEditorContribution {
 		if (!session) {
 			return;
 		}
+		this._chatService.cancelCurrentRequestForSession(session.chatModel.sessionResource);
 		await session.editingSession.reject();
 		session.dispose();
 	}
@@ -687,7 +697,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 
 	const chatService = accessor.get(IChatService);
 	const uri = editor.getModel().uri;
-	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline);
+	const chatModelRef = chatService.startNewLocalSession(ChatAgentLocation.EditorInline);
 	const chatModel = chatModelRef.object as ChatModel;
 
 	chatModel.startEditingSession(true);
@@ -739,7 +749,7 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	const chatService = accessor.get(IChatService);
 	const notebookService = accessor.get(INotebookService);
 	const isNotebook = notebookService.hasSupportedNotebooks(uri);
-	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline);
+	const chatModelRef = chatService.startNewLocalSession(ChatAgentLocation.EditorInline);
 	const chatModel = chatModelRef.object as ChatModel;
 
 	chatModel.startEditingSession(true);

@@ -118,28 +118,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 							openerService.open(modeResource.get());
 						}
 					});
-				} else if (customAgentTarget === Target.Undefined) {
-					const label = localize('configureToolsFor', "Configure tools for {0} agent", mode.label.get());
-					toolbarActions.push({
-						id: `configureTools:${mode.id}`,
-						label,
-						tooltip: label,
-						class: ThemeIcon.asClassName(Codicon.tools),
-						enabled: true,
-						run: async () => {
-							// Hide the picker before opening the tools configuration
-							actionWidgetService.hide();
-							// First switch to the mode if not already selected
-							if (currentMode.id !== mode.id) {
-								await commandService.executeCommand(
-									ToggleAgentModeActionId,
-									{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
-								);
-							}
-							// Then open the tools picker
-							await commandService.executeCommand('workbench.action.chat.configureTools', pickerOptions.actionContext, { source: 'modePicker' });
-						}
-					});
 				}
 			}
 
@@ -227,19 +205,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 					filteredCustomModes,
 					mode => isModeConsideredBuiltIn(mode, this._productService) ? 'builtin' : 'custom');
 
-				const modeSupportsVSCode = (mode: IChatMode) => {
-					const target = mode.target.get();
-					return target === Target.Undefined || target === Target.VSCode;
-				};
-
-				const customBuiltinModeActions = customModes.builtin?.filter(modeSupportsVSCode)?.map(mode => {
+				const customBuiltinModeActions = customModes.builtin?.map(mode => {
 					const action = makeActionFromCustomMode(mode, currentMode);
 					action.category = agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory;
 					return action;
 				}) ?? [];
 				customBuiltinModeActions.sort((a, b) => a.label.localeCompare(b.label));
 
-				const customModeActions = customModes.custom?.filter(modeSupportsVSCode)?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
+				const customModeActions = customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? [];
 				customModeActions.sort((a, b) => a.label.localeCompare(b.label));
 
 				const orderedModes = coalesce([

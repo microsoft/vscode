@@ -78,10 +78,7 @@ export function registerChatForkActions() {
 					}
 				}
 
-				const modelRef = chatService.loadSessionFromContent(cleanData);
-				if (!modelRef) {
-					return;
-				}
+				const modelRef = chatService.loadSessionFromData(cleanData);
 
 				// Defer navigation until after the slash command flow completes.
 				const newSessionResource = modelRef.object.sessionResource;
@@ -177,7 +174,7 @@ export function registerChatForkActions() {
 				}
 			}
 
-			const modelRef = chatService.loadSessionFromContent(forkedData);
+			const modelRef = chatService.loadSessionFromData(forkedData);
 
 			if (!modelRef) {
 				return;

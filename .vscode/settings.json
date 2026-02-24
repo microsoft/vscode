@@ -1,7 +1,7 @@
 {
 	// --- Chat ---
 	"inlineChat.enableV2": true,
-	"inlineChat.affordance": "gutter",
+	"inlineChat.affordance": "editor",
 	"inlineChat.renderMode": "hover",
 	"chat.tools.terminal.autoApprove": {
 		"scripts/test.bat": true,
@@ -98,11 +98,11 @@
 		"**/*.snap": true,
 	},
 	// --- TypeScript ---
-	"typescript.experimental.useTsgo": true,
-	"typescript.tsdk": "node_modules/typescript/lib",
+	"js/ts.experimental.useTsgo": true,
+	"js/ts.tsdk.path": "node_modules/typescript/lib",
 	"js/ts.preferences.importModuleSpecifier": "relative",
 	"js/ts.preferences.quoteStyle": "single",
-	"typescript.tsc.autoDetect": "off",
+	"js/ts.tsc.autoDetect": "off",
 	"js/ts.preferences.autoImportFileExcludePatterns": [
 		"@xterm/xterm",
 		"@xterm/headless",

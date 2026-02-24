@@ -10,14 +10,21 @@ import { URI } from '../../../../base/common/uri.js';
 import { IGitService, IGitExtensionDelegate, GitRef, GitRefQuery, IGitRepository, GitRepositoryState } from '../common/gitService.js';
 import { ISettableObservable, observableValueOpts } from '../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
+import { AutoOpenBarrier } from '../../../../base/common/async.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class GitService extends Disposable implements IGitService {
 	declare readonly _serviceBrand: undefined;
 
 	private _delegate: IGitExtensionDelegate | undefined;
+	private _delegateBarrier = new AutoOpenBarrier(10_000);
 
 	get repositories(): Iterable<IGitRepository> {
 		return this._delegate?.repositories ?? [];
+	}
+
+	constructor(@ILogService private readonly logService: ILogService) {
+		super();
 	}
 
 	setDelegate(delegate: IGitExtensionDelegate): IDisposable {
@@ -25,10 +32,12 @@ export class GitService extends Disposable implements IGitService {
 		// extension can only run in one extension host process per
 		// window.
 		if (this._delegate) {
-			throw new BugIndicatingError('GitService delegate is already set.');
+			this.logService.error('[GitService][setDelegate] GitExtension delegate is already set.');
+			throw new BugIndicatingError('GitExtension delegate is already set.');
 		}
 
 		this._delegate = delegate;
+		this._delegateBarrier.open();
 
 		return toDisposable(() => {
 			this._delegate = undefined;
@@ -36,7 +45,13 @@ export class GitService extends Disposable implements IGitService {
 	}
 
 	async openRepository(uri: URI): Promise<IGitRepository | undefined> {
+		// We need to wait for the delegate to be set before we can open a repository.
+		// At the moment we are waiting for 10 seconds before we automatically open the
+		// barrier.
+		await this._delegateBarrier.wait();
+
 		if (!this._delegate) {
+			this.logService.warn('[GitService][openRepository] GitExtension delegate is not set after 10 seconds. Cannot open repository.');
 			return undefined;
 		}
 

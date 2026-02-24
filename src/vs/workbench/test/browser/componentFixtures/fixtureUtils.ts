@@ -95,6 +95,7 @@ import '../../../../platform/theme/common/colors/editorColors.js';
 import '../../../../platform/theme/common/colors/listColors.js';
 import '../../../../platform/theme/common/colors/miscColors.js';
 import '../../../common/theme.js';
+import { isThenable } from '../../../../base/common/async.js';
 
 /**
  * A storage service that never stores anything and always returns the default/fallback value.
@@ -478,7 +479,7 @@ export interface ComponentFixtureContext {
 }
 
 export interface ComponentFixtureOptions {
-	render: (context: ComponentFixtureContext) => HTMLElement | Promise<HTMLElement>;
+	render: (context: ComponentFixtureContext) => void | Promise<void>;
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -486,6 +487,10 @@ type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
 /**
  * Creates Dark and Light fixture variants from a single render function.
  * The render function receives a context with container and disposableStore.
+ *
+ * Note: If render returns a Promise, the async work will run in background.
+ * Component-explorer waits 2 animation frames after sync render returns,
+ * which should be sufficient for most async setup, but timing is not guaranteed.
  */
 export function defineComponentFixture(options: ComponentFixtureOptions): ThemedFixtures {
 	const createFixture = (theme: typeof darkTheme | typeof lightTheme) => defineFixture({
@@ -496,8 +501,9 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		render: (container: HTMLElement) => {
 			const disposableStore = new DisposableStore();
 			setupTheme(container, theme);
-			options.render({ container, disposableStore, theme });
-			return disposableStore;
+			// Start render (may be async) - component-explorer will wait 2 rAF after this returns
+			const result = options.render({ container, disposableStore, theme });
+			return isThenable(result) ? result.then(() => disposableStore) : disposableStore;
 		},
 	});
 

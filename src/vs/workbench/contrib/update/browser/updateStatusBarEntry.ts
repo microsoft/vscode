@@ -170,7 +170,10 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 				entry,
 				'status.update',
 				StatusbarAlignment.LEFT,
-				-Number.MAX_VALUE
+				{
+					location: { id: 'status.host', priority: Number.MAX_VALUE },
+					alignment: StatusbarAlignment.LEFT
+				}
 			);
 		}
 	}

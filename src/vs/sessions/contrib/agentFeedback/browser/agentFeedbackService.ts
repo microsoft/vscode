@@ -13,6 +13,7 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -65,6 +66,11 @@ export interface IAgentFeedbackService {
 	getMostRecentSessionForResource(resourceUri: URI): URI | undefined;
 
 	/**
+	 * Set the navigation anchor to a specific feedback item, open its editor, and fire a navigation event.
+	 */
+	revealFeedback(sessionResource: URI, feedbackId: string): Promise<void>;
+
+	/**
 	 * Navigate to next/previous feedback item in a session.
 	 */
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined;
@@ -100,6 +106,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	constructor(
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 	}
@@ -119,7 +126,35 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			range,
 			sessionResource,
 		};
-		feedbackItems.push(feedback);
+
+		// Insert at the correct sorted position.
+		// Files are grouped by recency: first feedback for a new file appears after
+		// all existing files. Within a file, items are sorted by startLineNumber.
+		const resourceStr = resourceUri.toString();
+		const hasExistingForFile = feedbackItems.some(f => f.resourceUri.toString() === resourceStr);
+
+		if (!hasExistingForFile) {
+			// New file — append at the end
+			feedbackItems.push(feedback);
+		} else {
+			// Find insertion point: after the last item for a different file that
+			// precedes this file's block, then within this file's block by line number.
+			let insertIdx = feedbackItems.length;
+			for (let i = 0; i < feedbackItems.length; i++) {
+				if (feedbackItems[i].resourceUri.toString() === resourceStr
+					&& feedbackItems[i].range.startLineNumber > range.startLineNumber) {
+					insertIdx = i;
+					break;
+				}
+				// If we passed the last item for this file without finding a larger
+				// line number, insert right after the file's block.
+				if (feedbackItems[i].resourceUri.toString() === resourceStr) {
+					insertIdx = i + 1;
+				}
+			}
+			feedbackItems.splice(insertIdx, 0, feedback);
+		}
+
 		this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 		this._onDidChangeNavigation.fire(sessionResource);
 
@@ -206,6 +241,26 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		}
 
 		return false;
+	}
+
+	async revealFeedback(sessionResource: URI, feedbackId: string): Promise<void> {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		const feedback = feedbackItems?.find(f => f.id === feedbackId);
+		if (!feedback) {
+			return;
+		}
+		await this._editorService.openEditor({
+			resource: feedback.resourceUri,
+			options: {
+				preserveFocus: false,
+				revealIfVisible: true,
+			}
+		});
+		setTimeout(() => {
+			this._navigationAnchorBySession.set(key, feedbackId);
+			this._onDidChangeNavigation.fire(sessionResource);
+		}, 50); // delay to ensure editor has revealed the correct position before firing navigation event
 	}
 
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {
