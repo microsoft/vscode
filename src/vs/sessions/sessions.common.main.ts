@@ -19,6 +19,7 @@ import '../workbench/browser/actions/textInputActions.js';
 import '../workbench/browser/actions/developerActions.js';
 import '../workbench/browser/actions/helpActions.js';
 import '../workbench/browser/actions/listCommands.js';
+// import '../workbench/browser/actions/layoutActions.js';
 import '../workbench/browser/actions/navigationActions.js';
 import '../workbench/browser/actions/windowActions.js';
 import '../workbench/browser/actions/workspaceActions.js';
@@ -43,6 +44,7 @@ import '../workbench/api/browser/viewsExtensionPoint.js';
 import '../workbench/browser/parts/editor/editor.contribution.js';
 import '../workbench/browser/parts/editor/editorParts.js';
 import '../workbench/browser/parts/banner/bannerPart.js';
+// import '../workbench/browser/parts/banner/bannerPart.js';
 import '../workbench/browser/parts/statusbar/statusbarPart.js';
 
 //#endregion
