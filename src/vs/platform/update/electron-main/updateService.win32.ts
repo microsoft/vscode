@@ -7,7 +7,7 @@ import { ChildProcess, spawn } from 'child_process';
 import { app } from 'electron';
 import { existsSync, unlinkSync } from 'fs';
 import { mkdir, readFile, unlink } from 'fs/promises';
-import { tmpdir } from 'os';
+import { release, tmpdir } from 'os';
 import { Delayer, timeout } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -30,6 +30,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, IRequestService } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
+import { getWindowsRelease } from '../../../base/node/windowsVersion.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
 
 interface IAvailableUpdate {
@@ -103,6 +104,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				await unlink(path.join(cachePath, 'session-ending.flag'));
 			} catch { }
 		}
+
+		// Send telemetry
+		type WindowsUpdateInitEvent = {
+			osRelease: string;
+			osNodeRelease: string;
+		};
+		type WindowsUpdateInitClassification = {
+			osRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Windows OS release version from registry.' };
+			osNodeRelease: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Windows OS release version from os.release().' };
+			owner: 'dmitriv';
+			comment: 'Tracks Windows OS release information during update initialization.';
+		};
+		const osRelease = await getWindowsRelease();
+		const osNodeRelease = release();
+		this.telemetryService.publicLog2<WindowsUpdateInitEvent, WindowsUpdateInitClassification>('windowsUpdateInit', { osRelease, osNodeRelease });
 
 		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
 			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
