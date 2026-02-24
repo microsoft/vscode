@@ -228,6 +228,18 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Run Dev Sessions",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
+			"problemMatcher": []
+		},
+		{
 			"type": "npm",
 			"script": "electron",
 			"label": "Download electron"
