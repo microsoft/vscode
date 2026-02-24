@@ -185,6 +185,10 @@
 				display: none;
 			}
 
+			.show-checkmarks .status-icon.codicon-check {
+				display: inline-flex;
+			}
+
 			.code:has(.chat-codeblock-pill-container) {
 				margin-bottom: 0px;
 
