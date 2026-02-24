@@ -23,6 +23,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -165,13 +166,19 @@ class OpenPluginFolderAction extends Action {
 
 	constructor(
 		private readonly plugin: IAgentPlugin,
+		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
-		super(OpenPluginFolderAction.ID, localize('openContainingFolder', "Open Containing Folder"));
+		super(OpenPluginFolderAction.ID, localize('openPluginFolder', "Open Plugin Folder"));
 	}
 
 	override async run(): Promise<void> {
-		await this.openerService.open(dirname(this.plugin.uri));
+		try {
+			await this.commandService.executeCommand('revealFileInOS', this.plugin.uri);
+		} catch {
+			// Fallback for web where 'revealFileInOS' is not available
+			await this.openerService.open(dirname(this.plugin.uri));
+		}
 	}
 }
 
