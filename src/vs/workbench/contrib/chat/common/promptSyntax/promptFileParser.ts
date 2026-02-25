@@ -83,7 +83,6 @@ export namespace PromptHeaderAttributes {
 	export const metadata = 'metadata';
 	export const agents = 'agents';
 	export const userInvokable = 'user-invokable';
-	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
 	export const icon = 'icon';
 }
