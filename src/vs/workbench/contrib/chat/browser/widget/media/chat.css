@@ -285,6 +285,10 @@
 	margin-bottom: 16px;
 }
 
+.interactive-item-container > .value .chat-used-context .chat-used-context-list {
+	margin-bottom: 0;
+}
+
 .interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) {
 	.codicon {
 		font-size: inherit;
