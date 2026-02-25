@@ -2313,6 +2313,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .show-checkmarks .progress-container > .codicon.codicon-check,
 .progress-container.show-checkmarks > .codicon.codicon-check {
 	display: inline-flex;
+	margin-left: 4px;
 }
 
 .interactive-item-container .chat-command-button {

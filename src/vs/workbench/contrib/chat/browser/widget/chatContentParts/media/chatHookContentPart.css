@@ -37,6 +37,9 @@
 	padding-top: 6px;
 }
 
-.chat-used-context.chat-hook-outcome-warning .chat-used-context-label .monaco-button {
-	gap: 4px;
+.chat-used-context.chat-hook-outcome-warning,
+.chat-used-context.chat-hook-outcome-blocked {
+	.chat-used-context-label .monaco-button {
+		gap: 4px;
+	}
 }
