@@ -515,6 +515,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private renderSelectDropDown(container: HTMLElement, preLayoutPosition?: boolean): IDisposable {
 		container.appendChild(this.selectDropDownContainer);
 
+		// Inherit font-size from the select button so the dropdown matches
+		const computedFontSize = dom.getWindow(this.selectElement).getComputedStyle(this.selectElement).fontSize;
+		if (computedFontSize) {
+			this.selectDropDownContainer.style.fontSize = computedFontSize;
+		}
+
 		// Pre-Layout allows us to change position
 		this.layoutSelectDropDown(preLayoutPosition);
 
