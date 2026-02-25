@@ -397,6 +397,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
+		sessionsToolbar.context = sessionsControl;
+
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
 			if (hasFocus) {
