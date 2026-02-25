@@ -791,6 +791,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					tools: undefined,
+					icon: undefined,
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
@@ -848,6 +849,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: Target.Undefined,
+					icon: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
@@ -925,6 +927,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					icon: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -941,6 +944,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					tools: undefined,
 					target: Target.Undefined,
+					icon: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
@@ -1010,6 +1014,7 @@ suite('PromptsService', () => {
 					},
 					handOffs: undefined,
 					model: undefined,
+					icon: undefined,
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
@@ -1027,6 +1032,7 @@ suite('PromptsService', () => {
 						metadata: undefined
 					},
 					handOffs: undefined,
+					icon: undefined,
 					argumentHint: undefined,
 					tools: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
@@ -1047,6 +1053,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: Target.Undefined,
+					icon: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
@@ -1123,6 +1130,7 @@ suite('PromptsService', () => {
 						metadata: undefined
 					},
 					handOffs: undefined,
+					icon: undefined,
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
@@ -1144,6 +1152,7 @@ suite('PromptsService', () => {
 					},
 					handOffs: undefined,
 					argumentHint: undefined,
+					icon: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent.md'),
@@ -1165,6 +1174,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					icon: undefined,
 					uri: URI.joinPath(rootFolderUri, '.claude/agents/claude-agent2.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1220,6 +1230,7 @@ suite('PromptsService', () => {
 					target: Target.Undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					agents: undefined,
+					icon: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local }
 				}
@@ -1289,6 +1300,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: Target.Undefined,
+					icon: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/restricted-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1307,6 +1319,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: Target.Undefined,
+					icon: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/no-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
@@ -1325,6 +1338,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: Target.Undefined,
+					icon: undefined,
 					visibility: { userInvocable: true, agentInvocable: true },
 					uri: URI.joinPath(rootFolderUri, '.github/agents/full-access-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
