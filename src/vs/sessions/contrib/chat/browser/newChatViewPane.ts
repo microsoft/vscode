@@ -799,7 +799,7 @@ class NewChatWidget extends Disposable {
 					localize('sessions.signinRequired', "Sign in to use Sessions")
 			});
 			if (success) {
-				this._send({ ...options, skipSetup: true });
+				return await this._send({ ...options, skipSetup: true });
 			}
 			return;
 		}
