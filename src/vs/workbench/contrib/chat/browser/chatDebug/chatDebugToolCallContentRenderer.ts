@@ -106,7 +106,7 @@ export async function renderToolCallContent(content: IChatDebugEventToolCallCont
 		const tokenizedHtml = result.isJSON
 			? await tokenizeToString(languageService, plainText, 'json')
 			: undefined;
-		renderSection(sectionsContainer, localize('chatDebug.toolCall.output', "Output"), plainText, tokenizedHtml, disposables, true);
+		renderSection(sectionsContainer, localize('chatDebug.toolCall.output', "Output"), plainText, tokenizedHtml, disposables);
 	}
 
 	return { element: container, disposables };

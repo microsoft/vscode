@@ -3743,6 +3743,7 @@ export class ChatDebugEventModelTurnContent {
 	cachedTokens?: number;
 	totalTokens?: number;
 	errorMessage?: string;
+	sections?: ChatDebugMessageSection[];
 
 	constructor(requestName: string) {
 		this.requestName = requestName;

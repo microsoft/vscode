@@ -582,6 +582,13 @@ declare module 'vscode' {
 		errorMessage?: string;
 
 		/**
+		 * Optional structured sections containing the full request/response details
+		 * (e.g., system prompt, user prompt, tools, response).
+		 * Rendered as collapsible sections in the detail view alongside the metadata.
+		 */
+		sections?: ChatDebugMessageSection[];
+
+		/**
 		 * Create a new ChatDebugEventModelTurnContent.
 		 * @param requestName The short name identifying this request.
 		 */

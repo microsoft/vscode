@@ -19,6 +19,8 @@ export interface FlowNode {
 	readonly isError?: boolean;
 	readonly created: number;
 	readonly children: FlowNode[];
+	/** Present on merged discovery nodes: the individual nodes that were merged. */
+	readonly mergedNodes?: FlowNode[];
 }
 
 export interface FlowFilterOptions {
@@ -37,6 +39,10 @@ export interface LayoutNode {
 	readonly y: number;
 	readonly width: number;
 	readonly height: number;
+	/** Number of individual nodes merged into this one (for discovery merging). */
+	readonly mergedCount?: number;
+	/** Whether the merged node is currently expanded (individual nodes shown to the right). */
+	readonly isMergedExpanded?: boolean;
 }
 
 export interface LayoutEdge {
@@ -196,70 +202,7 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		};
 	}
 
-	return mergeModelTurns(roots.map(toFlowNode));
-}
-
-/**
- * Absorbs model turn nodes into the subsequent sibling node.
- *
- * Each model turn represents an LLM call that decides what to do next
- * (call tools, respond, etc.). Rather than showing model turns as separate
- * boxes, we merge their metadata (token count, LLM latency) into the next
- * node's sublabel and tooltip so the diagram stays compact while
- * preserving the correlation.
- */
-function mergeModelTurns(nodes: FlowNode[]): FlowNode[] {
-	const result: FlowNode[] = [];
-	let pendingModelTurn: FlowNode | undefined;
-
-	for (const node of nodes) {
-		if (node.kind === 'modelTurn') {
-			pendingModelTurn = node;
-			continue;
-		}
-
-		const merged = applyModelTurnInfo(node, pendingModelTurn);
-		pendingModelTurn = undefined;
-		result.push(merged);
-	}
-
-	// If the last node was a model turn with no successor, keep it
-	if (pendingModelTurn) {
-		result.push(pendingModelTurn);
-	}
-
-	return result;
-}
-
-/**
- * Enriches a node with model turn metadata and recursively
- * merges model turns within its children.
- */
-function applyModelTurnInfo(node: FlowNode, modelTurn: FlowNode | undefined): FlowNode {
-	const mergedChildren = node.children.length > 0 ? mergeModelTurns(node.children) : node.children;
-
-	if (!modelTurn) {
-		return mergedChildren !== node.children ? { ...node, children: mergedChildren } : node;
-	}
-
-	// Build compact annotation from model turn info (e.g. "500 tok · LLM 2.3s")
-	const annotation = modelTurn.sublabel;
-	const newSublabel = annotation
-		? (node.sublabel ? `${node.sublabel} \u00b7 ${annotation}` : annotation)
-		: node.sublabel;
-
-	// Enrich tooltip with model turn details
-	const modelTooltip = modelTurn.tooltip ?? (modelTurn.label !== 'Model Turn' ? modelTurn.label : undefined);
-	const newTooltip = modelTooltip
-		? (node.tooltip ? `${node.tooltip}\n\nModel: ${modelTooltip}` : `Model: ${modelTooltip}`)
-		: node.tooltip;
-
-	return {
-		...node,
-		sublabel: newSublabel,
-		tooltip: newTooltip,
-		children: mergedChildren,
-	};
+	return roots.map(toFlowNode);
 }
 
 // ---- Flow node filtering ----
@@ -390,6 +333,159 @@ export function sliceFlowNodes(nodes: readonly FlowNode[], maxCount: number): Fl
 	return { nodes: sliced, totalCount, shownCount };
 }
 
+// ---- Discovery node merging ----
+
+function isDiscoveryNode(node: FlowNode): boolean {
+	return node.kind === 'generic' && node.category === 'discovery';
+}
+
+/**
+ * Merges consecutive prompt-discovery nodes (generic events with
+ * `category === 'discovery'`) into a single summary node.
+ *
+ * The merged node always stays in the graph and carries the individual
+ * nodes in `mergedNodes`.  Expansion (showing the individual nodes to the
+ * right) is handled at the layout level.
+ *
+ * Operates recursively on children.
+ */
+export function mergeDiscoveryNodes(
+	nodes: readonly FlowNode[],
+): FlowNode[] {
+	const result: FlowNode[] = [];
+
+	let i = 0;
+	while (i < nodes.length) {
+		const node = nodes[i];
+
+		// Non-discovery node: recurse into children and pass through.
+		if (!isDiscoveryNode(node)) {
+			const mergedChildren = mergeDiscoveryNodes(node.children);
+			result.push(mergedChildren !== node.children ? { ...node, children: mergedChildren } : node);
+			i++;
+			continue;
+		}
+
+		// Accumulate a run of consecutive discovery nodes.
+		const run: FlowNode[] = [node];
+		let j = i + 1;
+		while (j < nodes.length && isDiscoveryNode(nodes[j])) {
+			run.push(nodes[j]);
+			j++;
+		}
+
+		if (run.length < 2) {
+			// Single discovery node — nothing to merge.
+			result.push(node);
+			i = j;
+			continue;
+		}
+
+		// Build a stable id from the first node so the expand state persists.
+		const mergedId = `merged-discovery:${run[0].id}`;
+
+		// Build a merged summary node.
+		const labels = run.map(n => n.label);
+		const uniqueLabels = [...new Set(labels)];
+		const summaryLabel = uniqueLabels.length <= 2
+			? uniqueLabels.join(', ')
+			: `${uniqueLabels[0]} +${run.length - 1} more`;
+
+		result.push({
+			id: mergedId,
+			kind: 'generic',
+			category: 'discovery',
+			label: summaryLabel,
+			sublabel: `${run.length} discovery steps`,
+			tooltip: run.map(n => n.label + (n.sublabel ? `: ${n.sublabel}` : '')).join('\n'),
+			created: run[0].created,
+			children: [],
+			mergedNodes: run,
+		});
+		i = j;
+	}
+
+	return result;
+}
+
+// ---- Tool call node merging ----
+
+function isToolCallNode(node: FlowNode): boolean {
+	return node.kind === 'toolCall';
+}
+
+/**
+ * Returns the tool name from a tool-call node's label.
+ * Tool call labels are set to `event.toolName` (possibly with a leading
+ * emoji prefix stripped), so the label itself is the canonical tool name.
+ */
+function getToolName(node: FlowNode): string {
+	return node.label;
+}
+
+/**
+ * Merges consecutive tool-call nodes that invoke the same tool into a
+ * single summary node.
+ *
+ * This mirrors `mergeDiscoveryNodes`: the merged node carries the
+ * individual nodes in `mergedNodes` and expansion is handled at the
+ * layout level.
+ *
+ * Operates recursively on children.
+ */
+export function mergeToolCallNodes(
+	nodes: readonly FlowNode[],
+): FlowNode[] {
+	const result: FlowNode[] = [];
+
+	let i = 0;
+	while (i < nodes.length) {
+		const node = nodes[i];
+
+		// Non-tool-call node: recurse into children and pass through.
+		if (!isToolCallNode(node)) {
+			const mergedChildren = mergeToolCallNodes(node.children);
+			result.push(mergedChildren !== node.children ? { ...node, children: mergedChildren } : node);
+			i++;
+			continue;
+		}
+
+		// Accumulate a run of consecutive tool-call nodes with the same tool name.
+		const toolName = getToolName(node);
+		const run: FlowNode[] = [node];
+		let j = i + 1;
+		while (j < nodes.length && isToolCallNode(nodes[j]) && getToolName(nodes[j]) === toolName) {
+			run.push(nodes[j]);
+			j++;
+		}
+
+		if (run.length < 2) {
+			// Single tool call — recurse into children, nothing to merge.
+			const mergedChildren = mergeToolCallNodes(node.children);
+			result.push(mergedChildren !== node.children ? { ...node, children: mergedChildren } : node);
+			i = j;
+			continue;
+		}
+
+		// Build a stable id from the first node so the expand state persists.
+		const mergedId = `merged-toolCall:${run[0].id}`;
+
+		result.push({
+			id: mergedId,
+			kind: 'toolCall',
+			label: toolName,
+			sublabel: `${run.length} calls`,
+			tooltip: run.map(n => n.label + (n.sublabel ? `: ${n.sublabel}` : '')).join('\n'),
+			created: run[0].created,
+			children: [],
+			mergedNodes: run,
+		});
+		i = j;
+	}
+
+	return result;
+}
+
 // ---- Event helpers ----
 
 /**
@@ -399,11 +495,18 @@ export function sliceFlowNodes(nodes: readonly FlowNode[], maxCount: number): Fl
  */
 function getEffectiveKind(event: IChatDebugEvent): IChatDebugEvent['kind'] {
 	if (event.kind === 'generic') {
-		const name = event.name.toLowerCase();
-		if (name === 'user message') {
+		const name = event.name.toLowerCase().replace(/[\s_-]+/g, '');
+		if (name === 'usermessage' || name === 'userprompt' || name === 'user' || name.startsWith('usermessage')) {
 			return 'userMessage';
 		}
-		if (name === 'agent response' || name === 'response') {
+		if (name === 'response' || name.startsWith('agentresponse') || name.startsWith('assistantresponse') || name.startsWith('modelresponse')) {
+			return 'agentResponse';
+		}
+		const cat = event.category?.toLowerCase();
+		if (cat === 'user' || cat === 'usermessage') {
+			return 'userMessage';
+		}
+		if (cat === 'response' || cat === 'agentresponse') {
 			return 'agentResponse';
 		}
 	}
@@ -414,15 +517,27 @@ function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['
 	const kind = effectiveKind ?? event.kind;
 	switch (kind) {
 		case 'userMessage':
-			return 'User Message';
+			return 'User';
 		case 'modelTurn':
 			return event.kind === 'modelTurn' ? (event.model ?? 'Model Turn') : 'Model Turn';
 		case 'toolCall':
 			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : '';
 		case 'subagentInvocation':
 			return event.kind === 'subagentInvocation' ? event.agentName : '';
-		case 'agentResponse':
+		case 'agentResponse': {
+			if (event.kind === 'agentResponse') {
+				return event.message || 'Response';
+			}
+			// Remapped generic event — extract model name from parenthesized suffix
+			// e.g. "Agent response (claude-opus-4.5)" → "claude-opus-4.5"
+			if (event.kind === 'generic') {
+				const match = /\(([^)]+)\)\s*$/.exec(event.name);
+				if (match) {
+					return match[1];
+				}
+			}
 			return 'Response';
+		}
 		case 'generic':
 			return event.kind === 'generic' ? event.name : '';
 	}
@@ -463,15 +578,30 @@ function getEventSublabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEven
 		}
 		case 'userMessage':
 		case 'agentResponse': {
-			// For proper typed events, use the message property;
-			// for remapped generic events, use the details property.
-			const text = (event.kind === 'userMessage' || event.kind === 'agentResponse')
-				? event.message
-				: event.kind === 'generic' ? event.details : undefined;
+			// For proper typed events, prefer the first section's content
+			// (which has the actual message text) over the `message` field
+			// (which is a short summary/name). Fall back to `message` when
+			// no sections are available. For remapped generic events, use
+			// the details property.
+			let text: string | undefined;
+			if (event.kind === 'userMessage' || event.kind === 'agentResponse') {
+				text = event.sections[0]?.content || event.message;
+			} else if (event.kind === 'generic') {
+				text = event.details;
+			}
 			if (!text) {
 				return undefined;
 			}
-			const firstLine = text.split('\n')[0].trim();
+			// Find the first non-empty line (content may start with newlines)
+			const lines = text.split('\n');
+			let firstLine = '';
+			for (const line of lines) {
+				const trimmed = line.trim();
+				if (trimmed) {
+					firstLine = trimmed;
+					break;
+				}
+			}
 			if (!firstLine) {
 				return undefined;
 			}

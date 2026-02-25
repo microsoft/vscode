@@ -121,7 +121,7 @@ export class ChatDebugDetailPanel extends Disposable {
 				renderCustomizationDiscoveryContent(resolved, this.openerService, accessor.get(IModelService), accessor.get(ILanguageService), this.hoverService, accessor.get(ILabelService))
 			);
 			this.detailDisposables.add(contentDisposables);
-			this.element.appendChild(contentEl);
+			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'toolCall') {
 			this.currentDetailText = toolCallContentToPlainText(resolved);
 			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));

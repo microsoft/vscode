@@ -277,6 +277,7 @@ export interface IChatDebugEventModelTurnContent {
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
 	readonly errorMessage?: string;
+	readonly sections?: readonly IChatDebugMessageSection[];
 }
 
 /**

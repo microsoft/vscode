@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IChatDebugEventModelTurnContent } from '../../common/chatDebugService.js';
+import { renderCollapsibleSection } from './chatDebugCollapsible.js';
 
 const $ = DOM.$;
 
@@ -68,6 +69,17 @@ export function renderModelTurnContent(content: IChatDebugEventModelTurnContent)
 		DOM.append(detailsContainer, $('div.chat-debug-model-turn-error', undefined, localize('chatDebug.modelTurn.error', "Error: {0}", content.errorMessage)));
 	}
 
+	// Collapsible sections (e.g., system prompt, user prompt, tools, response)
+	if (content.sections && content.sections.length > 0) {
+		const sectionsContainer = DOM.append(container, $('div.chat-debug-message-sections'));
+		DOM.append(sectionsContainer, $('div.chat-debug-message-sections-label', undefined,
+			localize('chatDebug.modelTurn.sections', "Sections ({0})", content.sections.length)));
+
+		for (const section of content.sections) {
+			renderCollapsibleSection(sectionsContainer, section, disposables);
+		}
+	}
+
 	return { element: container, disposables };
 }
 
@@ -110,6 +122,15 @@ export function modelTurnContentToPlainText(content: IChatDebugEventModelTurnCon
 	}
 	if (content.errorMessage) {
 		lines.push(localize('chatDebug.modelTurn.errorLabel', "Error: {0}", content.errorMessage));
+	}
+
+	if (content.sections && content.sections.length > 0) {
+		lines.push('');
+		for (const section of content.sections) {
+			lines.push(`--- ${section.name} ---`);
+			lines.push(section.content);
+			lines.push('');
+		}
 	}
 
 	return lines.join('\n');

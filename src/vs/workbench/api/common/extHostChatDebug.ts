@@ -281,6 +281,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					cachedTokens: mt.cachedTokens,
 					totalTokens: mt.totalTokens,
 					errorMessage: mt.errorMessage,
+					sections: mt.sections?.map(s => ({ name: s.name, content: s.content })),
 				};
 			}
 			default:

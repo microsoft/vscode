@@ -1493,6 +1493,7 @@ export interface IChatDebugEventModelTurnContentDto {
 	readonly cachedTokens?: number;
 	readonly totalTokens?: number;
 	readonly errorMessage?: string;
+	readonly sections?: readonly IChatDebugMessageSectionDto[];
 }
 
 export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | IChatDebugEventMessageContentDto | IChatDebugEventToolCallContentDto | IChatDebugEventModelTurnContentDto;
