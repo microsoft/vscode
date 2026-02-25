@@ -769,8 +769,12 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		} else if (promptType === PromptsType.prompt) {
 			// Use getPromptSlashCommands which has parsed name/description from frontmatter
+			// Filter out skills since they have their own section
 			const commands = await this.promptsService.getPromptSlashCommands(CancellationToken.None);
 			for (const command of commands) {
+				if (command.promptPath.type === PromptsType.skill) {
+					continue;
+				}
 				const filename = basename(command.promptPath.uri);
 				items.push({
 					id: command.promptPath.uri.toString(),
