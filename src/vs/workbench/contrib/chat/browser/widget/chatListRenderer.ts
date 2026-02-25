@@ -614,6 +614,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return;
 			}
 
+			// Don't let sticky scroll templates update heights - they share the same
+			// view model element and would corrupt the real row's cached height.
+			if (dom.findParentWithClass(template.rowContainer, 'monaco-tree-sticky-row')) {
+				return;
+			}
+
 			const entry = entries[0];
 			if (entry) {
 				const height = entry.borderBoxSize.at(0)?.blockSize;
@@ -676,7 +682,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.currentElement = element;
-		this.templateDataByRequestId.set(element.id, templateData);
+		// Don't update the template map for sticky scroll renders - their templates
+		// get disposed independently and would leave stale references.
+		if (!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row')) {
+			this.templateDataByRequestId.set(element.id, templateData);
+		}
 
 		// Handle pending divider with simplified rendering
 		if (isPendingDividerVM(element)) {
@@ -779,7 +789,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1) && !isPendingRequest;
 		templateData.checkpointRestoreContainer.classList.toggle('hidden', !(shouldShowRestore && checkpointEnabled));
 
-		const editing = element.id === this.viewModel?.editing?.id;
+		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
+		const editing = !isStickyScrollRow && element.id === this.viewModel?.editing?.id;
 		const isInput = this.configService.getValue<string>('chat.editRequests') === 'input';
 
 		templateData.elementDisposables.add(autorun(r => {
@@ -1090,24 +1101,69 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}));
 		}
 
-		let content: IChatRendererContent[] = [];
-		if (!element.confirmation) {
-			const markdown = isChatFollowup(element.message) ?
-				element.message.message :
-				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
-			content = [{ content: new MarkdownString(markdown), kind: 'markdownContent' }];
+		dom.clearNode(templateData.value);
+		const parts: IChatContentPart[] = [];
+		const content: IChatRendererContent[] = [];
 
+		if (!element.confirmation) {
+			const store = new DisposableStore();
+			templateData.elementDisposables.add(store);
+
+			const message = element.message;
+			const plainTextContent = isChatFollowup(message)
+				? dom.$('span', undefined, message.message)
+				: this.markdownDecorationsRenderer.renderParsedRequestToPlainText(message, store);
+
+			const container = dom.$('.rendered-markdown');
+			const innerContent = dom.$('.chat-request-text');
+			innerContent.appendChild(plainTextContent);
+			container.appendChild(innerContent);
+
+			// In minimal mode, show inline progress ellipsis
 			if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
 				templateData.value.classList.add('inline-progress');
 				templateData.elementDisposables.add(toDisposable(() => templateData.value.classList.remove('inline-progress')));
-				content.push({ content: new MarkdownString('<span></span>', { supportHtml: true }), kind: 'markdownContent' });
+				container.appendChild(dom.$('span'));
 			} else {
 				templateData.value.classList.remove('inline-progress');
 			}
-		}
 
-		dom.clearNode(templateData.value);
-		const parts: IChatContentPart[] = [];
+			// Wire up request-specific behaviors
+			container.tabIndex = 0;
+			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
+				container.classList.add('clickable');
+				store.add(dom.addDisposableListener(container, dom.EventType.CLICK, (e: MouseEvent) => {
+					if (this.viewModel?.editing?.id === element.id) {
+						return;
+					}
+
+					const selection = dom.getWindow(templateData.rowContainer).getSelection();
+					if (selection && !selection.isCollapsed && selection.toString().length > 0) {
+						return;
+					}
+
+					e.preventDefault();
+					e.stopPropagation();
+					this._onDidClickRequest.fire(templateData);
+				}));
+				store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
+			}
+			store.add(dom.addDisposableListener(container, dom.EventType.FOCUS, () => {
+				this.hoverVisible(templateData.requestHover);
+			}));
+			store.add(dom.addDisposableListener(container, dom.EventType.BLUR, () => {
+				this.hoverHidden(templateData.requestHover);
+			}));
+
+			templateData.value.appendChild(container);
+			const plainTextPart: IChatContentPart = {
+				domNode: container,
+				hasSameContent: (other) => other.kind === 'markdownContent',
+				dispose: () => store.dispose(),
+				addDisposable: (d) => store.add(d),
+			};
+			parts.push(plainTextPart);
+		}
 
 		let inlineSlashCommandRendered = false;
 		content.forEach((data, contentIndex) => {
@@ -2378,51 +2434,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth.get(), this.codeBlockModelCollection, {});
-		if (isRequestVM(element)) {
-			markdownPart.domNode.tabIndex = 0;
-			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {
-				markdownPart.domNode.classList.add('clickable');
-				markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.CLICK, (e: MouseEvent) => {
-					if (this.viewModel?.editing?.id === element.id) {
-						return;
-					}
-
-					// Don't handle clicks on links
-					const clickedElement = e.target as HTMLElement;
-					if (clickedElement.tagName === 'A') {
-						return;
-					}
-
-					// Don't handle if there's a text selection in the window
-					const selection = dom.getWindow(templateData.rowContainer).getSelection();
-					if (selection && !selection.isCollapsed && selection.toString().length > 0) {
-						return;
-					}
-
-					// Don't handle if there's a selection in code block
-					const monacoEditor = dom.findParentWithClass(clickedElement, 'monaco-editor');
-					if (monacoEditor) {
-						const editorPart = Array.from(this.editorsInUse()).find(editor =>
-							editor.element.contains(monacoEditor));
-
-						if (editorPart?.editor.getSelection()?.isEmpty() === false) {
-							return;
-						}
-					}
-
-					e.preventDefault();
-					e.stopPropagation();
-					this._onDidClickRequest.fire(templateData);
-				}));
-				markdownPart.addDisposable(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), markdownPart.domNode, localize('requestMarkdownPartTitle', "Click to Edit"), { trapFocus: true }));
-			}
-			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.FOCUS, () => {
-				this.hoverVisible(templateData.requestHover);
-			}));
-			markdownPart.addDisposable(dom.addDisposableListener(markdownPart.domNode, dom.EventType.BLUR, () => {
-				this.hoverHidden(templateData.requestHover);
-			}));
-		}
 
 		this.handleRenderedCodeblocks(element, markdownPart, codeBlockStartIndex);
 
@@ -2536,7 +2547,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.elementDisposables.clear();
 
 		if (templateData.currentElement && !this.viewModel?.editing) {
-			this.templateDataByRequestId.delete(templateData.currentElement.id);
+			// Only delete if the map currently points to this template instance,
+			// to avoid removing the main row's entry when a sticky scroll row is disposed.
+			const mapped = this.templateDataByRequestId.get(templateData.currentElement.id);
+			if (mapped === templateData) {
+				this.templateDataByRequestId.delete(templateData.currentElement.id);
+			}
 		}
 
 		if (isRequestVM(node.element) && node.element.id === this.viewModel?.editing?.id && details?.onScroll) {
