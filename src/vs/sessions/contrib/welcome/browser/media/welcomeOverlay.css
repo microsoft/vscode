@@ -34,9 +34,7 @@
 	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
 	display: flex;
 	flex-direction: column;
-	align-items: center;
 	gap: 20px;
-	text-align: center;
 }
 
 /* ---- Header ---- */
@@ -44,7 +42,6 @@
 .sessions-welcome-header {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
 	gap: 8px;
 }
 
@@ -72,14 +69,12 @@
 .sessions-welcome-action-area {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
 	gap: 12px;
 	width: 100%;
 }
 
 .sessions-welcome-action-area .monaco-button {
 	width: 100%;
-	max-width: 320px;
 	padding: 8px 16px;
 }
 
