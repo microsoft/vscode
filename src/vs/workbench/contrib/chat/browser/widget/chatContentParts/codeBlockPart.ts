@@ -411,10 +411,22 @@ export class CodeBlockPart extends Disposable {
 		return this.editor.getContentHeight();
 	}
 
-	async render(data: ICodeBlockData, width: number) {
+	async render(data: ICodeBlockData, width: number, text?: string) {
 		this.currentCodeBlockData = data;
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
+		}
+
+		// Set initial toolbar context immediately with available text so copy works during streaming
+		if (text !== undefined) {
+			this.toolbar.context = {
+				code: text,
+				codeBlockIndex: data.codeBlockIndex,
+				element: data.element,
+				languageId: data.languageId,
+				codemapperUri: data.codemapperUri,
+				chatSessionResource: data.chatSessionResource
+			} satisfies ICodeBlockActionContext;
 		}
 
 		if (this.getEditorOptionsFromConfig().wordWrap === 'on') {

@@ -407,7 +407,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			this._codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 		});
 
-		editorInfo.render(data, currentWidth);
+		editorInfo.render(data, currentWidth, text);
 
 		return ref;
 	}
