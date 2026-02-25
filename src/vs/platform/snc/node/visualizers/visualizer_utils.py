@@ -1,7 +1,6 @@
 """Shared utilities for visualizer composition in Sculpt-n-Code."""
 
 import html
-import re as re_module
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Tuple
 
@@ -13,30 +12,22 @@ class ChildEvent:
     py_ev_str: str
 
 
-_SNC_ATTR_RE = re_module.compile(
-    r'\b(snc-(?:mouse-down|mouse-move|mouse-up|key-down|input))="([^"]*)"'
-)
+def wrap_child_html_parts(child_html: str, child_key: str) -> list:
+    """Like wrap_child_html but returns a list of string fragments.
+
+    Callers building HTML via a single-join pattern can extend their list
+    with these parts instead of concatenating an intermediate string.
+    """
+    return ['<span snc-child-key="', html.escape(repr(child_key)), '">', child_html, '</span>']
 
 
 def wrap_child_html(child_html: str, child_key: str) -> str:
-    """Rewrite snc-* attributes in child HTML to wrap values in ChildEvent envelopes.
+    """Wrap child HTML in a span whose snc-child-key attribute holds repr(child_key).
 
-    For each snc-* attribute found:
-      1. HTML-unescape the attribute value to recover the raw Python expression.
-      2. Wrap it: ChildEvent(child_key=<repr>, py_ev_str=<repr>)
-      3. HTML-escape the wrapped string and substitute back.
-
-    This allows the parent visualizer's update() to receive a ChildEvent
-    that it can dispatch to the correct child.
+    The TypeScript frontend reads this attribute at event-dispatch time and
+    wraps the pythonEventStr in a envelope: ChildEvent(child_key, pythonEventStr).
     """
-    def _replacer(match: re_module.Match) -> str:
-        attr_name = match.group(1)
-        original_escaped = match.group(2)
-        original = html.unescape(original_escaped)
-        wrapped = f"ChildEvent({child_key!r}, {original!r})"
-        return f'{attr_name}="{html.escape(wrapped)}"'
-
-    return _SNC_ATTR_RE.sub(_replacer, child_html)
+    return ''.join(wrap_child_html_parts(child_html, child_key))
 
 
 def route_child_event(
@@ -62,7 +53,11 @@ def route_child_event(
     Returns:
         (updated_model, commands) with the child's model stored back.
     """
-    make_python_event = eval(event['pythonEventStr'])
+    try:
+        make_python_event = eval(event['pythonEventStr'])
+    except Exception as e:
+        return (model, [])
+
     event_json = event['eventJSON']
     msg = make_python_event(event_json) if callable(make_python_event) else make_python_event
 
@@ -85,6 +80,7 @@ def route_child_event(
 
     children[child_key] = new_child_model
     model['children'] = children
+    model['focused_child'] = child_key
     return (model, commands)
 
 

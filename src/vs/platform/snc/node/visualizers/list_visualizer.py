@@ -2,9 +2,10 @@
 
 import html
 import random
+from math import sqrt
 from typing import Any, Callable, List, Tuple
 
-from visualizer_utils import ChildEvent, wrap_child_html, route_child_event, aggregate_handled_keys
+from visualizer_utils import ChildEvent, wrap_child_html, wrap_child_html_parts, route_child_event, aggregate_handled_keys
 
 # VS Code theme colors
 BLUE = "#569cd6"
@@ -94,19 +95,32 @@ def init_model(lst, get_visualizer=None):
     return {'children': children, 'handledKeys': handled_keys, 'display_mode': 'list', 'columns': []}
 
 
-def _visualize_table(lst, model, get_visualizer):
+def _visualize_table(lst, model, get_visualizer, max_width=None, max_height=None, small=False):
     children = model.get('children', {})
     columns = model.get('columns', [])
+    focused_child = model.get('focused_child')
 
-    header_cells = [f'<th style="padding:0 8px;"></th>', *[f'<th style="padding:0 8px;color:{BLUE};text-align:left;">{html.escape(col)}</th>' for col in columns]]
-    header_row = f'<tr>{"".join(header_cells)}</tr>'
+    max_column_width = round(800 / sqrt(len(columns)))
 
-    body_rows = []
+    strs = ['<table style="border-collapse:collapse;font-family:monospace;"><tr><th style="padding:0 8px;"></th>']
+    for col in columns:
+        strs.append('<th style="padding:0 8px;color:')
+        strs.append(BLUE)
+        strs.append(';text-align:left;">')
+        strs.append(html.escape(col))
+        strs.append('</th>')
+    strs.append('</tr>')
+
     for i, item in enumerate(lst):
         vis = get_visualizer(item)
         item_get_field_value = getattr(vis, 'get_field_value', None)
 
-        row_cells = [f'<td style="color:{GRAY};padding:0 8px;text-align:right;">{i}</td>']
+        strs.append('<tr><td style="color:')
+        strs.append(GRAY)
+        strs.append(';padding:0 8px;text-align:right;">')
+        strs.append(str(i))
+        strs.append('</td>')
+
         for col in columns:
             composite_key = f"{i}{CELL_KEY_SEP}{col}"
             try:
@@ -119,27 +133,26 @@ def _visualize_table(lst, model, get_visualizer):
                 cell_model = children.get(composite_key)
                 if cell_model is None:
                     cell_model = cell_vis.init_model(cell_value, get_visualizer)
-                cell_html = cell_vis.visualize(cell_value, cell_model, get_visualizer)
-                wrapped = wrap_child_html(cell_html, composite_key)
-                row_cells.append(f'<td style="padding:0 8px;">{wrapped}</td>')
+                child_small = (composite_key != focused_child)
+                cell_html = cell_vis.visualize(cell_value, cell_model, get_visualizer, max_width=max_column_width, max_height=80, small=child_small)
+                strs.append('<td style="padding:0 8px;">')
+                strs.extend(wrap_child_html_parts(cell_html, composite_key))
+                strs.append('</td>')
             else:
-                row_cells.append(f'<td style="padding:0 8px;"></td>')
+                strs.append('<td style="padding:0 8px;"></td>')
 
-        body_rows.append(f'<tr>{"".join(row_cells)}</tr>')
+        strs.append('</tr>')
 
-    return (
-        f'<table style="border-collapse:collapse;font-family:monospace;">'
-        f'{header_row}'
-        f'{"".join(body_rows)}'
-        f'</table>'
-    )
+    strs.append('</table>')
+    return ''.join(strs)
 
 
-def visualize(lst: list, model: dict, get_visualizer):
+def visualize(lst: list, model: dict, get_visualizer, max_width=None, max_height=None, small=False):
     if model.get('display_mode') == 'table':
-        return _visualize_table(lst, model, get_visualizer)
+        return _visualize_table(lst, model, get_visualizer, max_width=max_width, max_height=max_height, small=small)
 
     children = model.get('children', {})
+    focused_child = model.get('focused_child')
     items_html_parts = []
 
     for i, item in enumerate(lst):
@@ -148,7 +161,8 @@ def visualize(lst: list, model: dict, get_visualizer):
         child_model = children.get(key)
         if child_model is None:
             child_model = vis.init_model(item, get_visualizer)
-        child_html = vis.visualize(item, child_model, get_visualizer)
+        child_small = (key != focused_child)
+        child_html = vis.visualize(item, child_model, get_visualizer, small=child_small)
         items_html_parts.append(wrap_child_html(child_html, key))
 
     items_html = '\n'.join(items_html_parts)

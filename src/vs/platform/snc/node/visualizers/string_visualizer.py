@@ -316,7 +316,7 @@ def render_dropdown(
 
     # Dropdown container (absolutely positioned below trigger)
     dropdown_html = (
-        '<div class="snc-dropdown-panel" data-snc-dropdown-align="left" style="'
+        '<div class="snc-dropdown-panel" snc-dropdown-align="left" style="'
         'position: absolute;'
         'left: 0;'
         'top: 100%;'
@@ -338,6 +338,186 @@ def render_dropdown(
     )
 
 
+def _overlay_html(content: str, side: str, seg_type: str, color: str) -> str:
+    """Generate an overlay span for pattern/repetition display.
+
+    Args:
+        content: The text to display in the overlay
+        side: 'left' or 'right' positioning
+        seg_type: 'literal' or 'fuzzy' - affects vertical positioning
+        color: The color for the overlay text
+    """
+    if not content:
+        return ''
+    v_align = 'text-top' if seg_type == 'literal' else 'baseline'
+    top = -7 if seg_type == 'literal' else 3
+    h_pos = 'left: -1px;' if side == 'left' else 'right: 0px;'
+    return (
+        f'<span style="position: relative; display: inline-block; vertical-align: {v_align}"><span style="'
+        'position: absolute;'
+        f'{h_pos}'
+        f'top: {top}px;'
+        'font-size: 5px;'
+        'font-style: normal;'
+        'font-weight: bold;'
+        'padding: 0;'
+        f'color: {color};'
+        'pointer-events: none;'
+        'z-index: 10;'
+        'line-height: 6px;'
+        f'">{html.escape(content)}</span></span>'
+    )
+
+
+def _fuzzy_dropdown_html(pat_str: str, segment_index: int, color: str, model: dict) -> str:
+    """Generate a dropdown for fuzzy pattern selection.
+
+    Args:
+        pat_str: Current pattern string to display
+        segment_index: Index of this segment (for dropdown ID)
+        color: The color for the trigger text
+        model: The model state (needed for dropdown open state)
+    """
+    dropdown_id = f'fuzzy-pattern-{segment_index}'
+    open_dropdown = model.get('openDropdown') if model else None
+    is_open = open_dropdown is not None and open_dropdown.get('id') == dropdown_id
+
+    trigger_style = (
+        'position: absolute;'
+        'left: -1px;'
+        'top: 3px;'
+        'font-size: 5px;'
+        'font-style: normal;'
+        'font-weight: bold;'
+        'padding: 0;'
+        f'color: {color};'
+        'z-index: 10;'
+        'line-height: 6px;'
+    )
+
+    return render_dropdown(
+        dropdown_id=dropdown_id,
+        options=FUZZY_PATTERN_OPTIONS,
+        is_open=is_open,
+        trigger_content=html.escape(pat_str) if pat_str else '.*',
+        trigger_style=trigger_style,
+    )
+
+
+def _repetition_dropdown_html(rep_str: str, segment_index: int, seg_type: str, color: str, model: dict) -> str:
+    """Generate a clickable dropdown for repetition selection.
+
+    Args:
+        rep_str: Current repetition display string (e.g., '1', '*', '+')
+        segment_index: Index of this segment (for dropdown ID)
+        seg_type: 'literal' or 'fuzzy' - affects vertical positioning
+        color: The color for the trigger text
+        model: The model state (needed for dropdown open state)
+    """
+    dropdown_id = f'repetition-{segment_index}'
+    open_dropdown = model.get('openDropdown') if model else None
+    is_open = open_dropdown is not None and open_dropdown.get('id') == dropdown_id
+
+    v_align = 'text-top' if seg_type == 'literal' else 'baseline'
+    top = -7 if seg_type == 'literal' else 3
+
+    trigger_style = (
+        'position: absolute;'
+        'right: 0px;'
+        f'top: {top}px;'
+        'font-size: 5px;'
+        'font-style: normal;'
+        'font-weight: bold;'
+        'padding: 0;'
+        f'color: {color};'
+        'z-index: 10;'
+        'line-height: 6px;'
+    )
+
+    if not is_open:
+        trigger_event = repr(DropdownToggle(dropdown_id))
+        return (
+            f'<span style="position: relative; display: inline-block; vertical-align: {v_align}">'
+            f'<span snc-mouse-down="{html.escape(trigger_event)}" '
+            f'style="cursor: pointer; {trigger_style}">{html.escape(rep_str)}</span>'
+            f'</span>'
+        )
+
+    trigger_event = repr(DropdownToggle(dropdown_id))
+    trigger_html = (
+        f'<span snc-mouse-down="{html.escape(trigger_event)}" '
+        f'style="cursor: pointer; {trigger_style}">{html.escape(rep_str)}</span>'
+    )
+
+    options_html = []
+    for value, label in REPETITION_OPTIONS:
+        select_event = repr(DropdownSelect(dropdown_id, value))
+        option_html = (
+            f'<div snc-mouse-down="{html.escape(select_event)}" '
+            'style="padding: 2px 6px; cursor: pointer; white-space: nowrap;"'
+            f'class="snc-dropdown-option">{html.escape(label)}</div>'
+        )
+        options_html.append(option_html)
+
+    exact_n = open_dropdown.get('exactN', '') if open_dropdown else ''
+    exact_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='exact', value=e.get('value', ''))"
+    options_html.append(
+        f'<div style="padding: 2px 6px; white-space: nowrap; display: flex; align-items: center;">'
+        f'{{'
+        f'<input type="text" snc-input="{html.escape(exact_input_event)}" '
+        f'value="{html.escape(exact_n)}" '
+        f'style="width: 24px; background: #1e1e1e; color: #dcdcaa; border: 1px solid #3c3c3c; '
+        f'border-radius: 2px; padding: 1px 3px; font-size: 10px; font-family: inherit; outline: none;" '
+        f'placeholder="n" />'
+        f'}}'
+        f'</div>'
+    )
+
+    range_min = open_dropdown.get('rangeMin', '') if open_dropdown else ''
+    range_max = open_dropdown.get('rangeMax', '') if open_dropdown else ''
+    min_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='min', value=e.get('value', ''))"
+    max_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='max', value=e.get('value', ''))"
+    options_html.append(
+        f'<div style="padding: 2px 6px; white-space: nowrap; display: flex; align-items: center;">'
+        f'{{'
+        f'<input type="text" snc-input="{html.escape(min_input_event)}" '
+        f'value="{html.escape(range_min)}" '
+        f'style="width: 24px; background: #1e1e1e; color: #dcdcaa; border: 1px solid #3c3c3c; '
+        f'border-radius: 2px; padding: 1px 3px; font-size: 10px; font-family: inherit; outline: none;" '
+        f'placeholder="n" />'
+        f','
+        f'<input type="text" snc-input="{html.escape(max_input_event)}" '
+        f'value="{html.escape(range_max)}" '
+        f'style="width: 24px; background: #1e1e1e; color: #dcdcaa; border: 1px solid #3c3c3c; '
+        f'border-radius: 2px; padding: 1px 3px; font-size: 10px; font-family: inherit; outline: none;" '
+        f'placeholder="n" />'
+        f'}}'
+        f'</div>'
+    )
+
+    dropdown_panel = (
+        '<div class="snc-dropdown-panel" snc-dropdown-align="right" style="'
+        'position: absolute;'
+        'right: 0;'
+        'top: 100%;'
+        'background: #252526;'
+        'border: 1px solid #3c3c3c;'
+        'border-radius: 3px;'
+        'z-index: 100;'
+        'min-width: 80px;'
+        'box-shadow: 0 2px 8px rgba(0,0,0,0.4);'
+        'font-size: 11px;'
+        'line-height: 1.4;'
+        f'">{"".join(options_html)}</div>'
+    )
+
+    return (
+        f'<span class="snc-dropdown-trigger" style="position: relative; display: inline-block; vertical-align: {v_align}">'
+        f'{trigger_html}{dropdown_panel}</span>'
+    )
+
+HTML_ESCAPE_CHARS = '<>&\'"'
+
 def char_span(string, index, is_special, highlight=None, model=None):
     """Render a character span with optional selection highlighting.
 
@@ -348,189 +528,7 @@ def char_span(string, index, is_special, highlight=None, model=None):
         highlight: None or a highlight tuple (start, end, type, pattern_display, repetition, segment_index)
         model: The model state (needed for dropdown open state)
     """
-
-    def overlay_html(content: str, side: str, seg_type: str, color: str) -> str:
-        """Generate an overlay span for pattern/repetition display.
-
-        Args:
-            content: The text to display in the overlay
-            side: 'left' or 'right' positioning
-            seg_type: 'literal' or 'fuzzy' - affects vertical positioning
-            color: The color for the overlay text
-        """
-        if not content:
-            return ''
-        v_align = 'text-top' if seg_type == 'literal' else 'baseline'
-        top = -7 if seg_type == 'literal' else 3
-        h_pos = 'left: -1px;' if side == 'left' else 'right: 0px;'
-        return (
-            f'<span style="position: relative; display: inline-block; vertical-align: {v_align}"><span style="'
-            'position: absolute;'
-            f'{h_pos}'
-            f'top: {top}px;'
-            'font-size: 5px;'
-            'font-style: normal;'
-            'font-weight: bold;'
-            'padding: 0;'
-            f'color: {color};'
-            'pointer-events: none;'
-            'z-index: 10;'
-            'line-height: 6px;'
-            f'">{html.escape(content)}</span></span>'
-        )
-
-    def fuzzy_dropdown_html(pat_str: str, segment_index: int, color: str) -> str:
-        """Generate a dropdown for fuzzy pattern selection.
-
-        Args:
-            pat_str: Current pattern string to display
-            segment_index: Index of this segment (for dropdown ID)
-            color: The color for the trigger text
-        """
-        dropdown_id = f'fuzzy-pattern-{segment_index}'
-        open_dropdown = model.get('openDropdown') if model else None
-        is_open = open_dropdown is not None and open_dropdown.get('id') == dropdown_id
-
-        # Style for the trigger (positioned like overlay_html but clickable)
-        trigger_style = (
-            'position: absolute;'
-            'left: -1px;'
-            'top: 3px;'
-            'font-size: 5px;'
-            'font-style: normal;'
-            'font-weight: bold;'
-            'padding: 0;'
-            f'color: {color};'
-            'z-index: 10;'
-            'line-height: 6px;'
-        )
-
-        return render_dropdown(
-            dropdown_id=dropdown_id,
-            options=FUZZY_PATTERN_OPTIONS,
-            is_open=is_open,
-            trigger_content=html.escape(pat_str) if pat_str else '.*',
-            trigger_style=trigger_style,
-        )
-
-    def repetition_dropdown_html(rep_str: str, segment_index: int, seg_type: str, color: str) -> str:
-        """Generate a clickable dropdown for repetition selection.
-
-        Args:
-            rep_str: Current repetition display string (e.g., '1', '*', '+')
-            segment_index: Index of this segment (for dropdown ID)
-            seg_type: 'literal' or 'fuzzy' - affects vertical positioning
-            color: The color for the trigger text
-        """
-        dropdown_id = f'repetition-{segment_index}'
-        open_dropdown = model.get('openDropdown') if model else None
-        is_open = open_dropdown is not None and open_dropdown.get('id') == dropdown_id
-
-        v_align = 'text-top' if seg_type == 'literal' else 'baseline'
-        top = -7 if seg_type == 'literal' else 3
-
-        # Style for the trigger (positioned like overlay_html but clickable)
-        trigger_style = (
-            'position: absolute;'
-            'right: 0px;'
-            f'top: {top}px;'
-            'font-size: 5px;'
-            'font-style: normal;'
-            'font-weight: bold;'
-            'padding: 0;'
-            f'color: {color};'
-            'z-index: 10;'
-            'line-height: 6px;'
-        )
-
-        if not is_open:
-            # Just render the trigger
-            trigger_event = repr(DropdownToggle(dropdown_id))
-            return (
-                f'<span style="position: relative; display: inline-block; vertical-align: {v_align}">'
-                f'<span snc-mouse-down="{html.escape(trigger_event)}" '
-                f'style="cursor: pointer; {trigger_style}">{html.escape(rep_str)}</span>'
-                f'</span>'
-            )
-
-        # Dropdown is open: render trigger + options panel
-        trigger_event = repr(DropdownToggle(dropdown_id))
-        trigger_html = (
-            f'<span snc-mouse-down="{html.escape(trigger_event)}" '
-            f'style="cursor: pointer; {trigger_style}">{html.escape(rep_str)}</span>'
-        )
-
-        # Build simple option items (1, ?, *, +)
-        options_html = []
-        for value, label in REPETITION_OPTIONS:
-            select_event = repr(DropdownSelect(dropdown_id, value))
-            option_html = (
-                f'<div snc-mouse-down="{html.escape(select_event)}" '
-                'style="padding: 2px 6px; cursor: pointer; white-space: nowrap;"'
-                f'class="snc-dropdown-option">{html.escape(label)}</div>'
-            )
-            options_html.append(option_html)
-
-        # {n} text input row
-        exact_n = open_dropdown.get('exactN', '') if open_dropdown else ''
-        exact_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='exact', value=e.get('value', ''))"
-        options_html.append(
-            f'<div style="padding: 2px 6px; white-space: nowrap; display: flex; align-items: center;">'
-            f'{{'
-            f'<input type="text" snc-input="{html.escape(exact_input_event)}" '
-            f'value="{html.escape(exact_n)}" '
-            f'style="width: 24px; background: #1e1e1e; color: #dcdcaa; border: 1px solid #3c3c3c; '
-            f'border-radius: 2px; padding: 1px 3px; font-size: 10px; font-family: inherit; outline: none;" '
-            f'placeholder="n" />'
-            f'}}'
-            f'</div>'
-        )
-
-        # {n,m} text input row
-        range_min = open_dropdown.get('rangeMin', '') if open_dropdown else ''
-        range_max = open_dropdown.get('rangeMax', '') if open_dropdown else ''
-        min_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='min', value=e.get('value', ''))"
-        max_input_event = f"lambda e: RepetitionInput(dropdown_id='{dropdown_id}', field='max', value=e.get('value', ''))"
-        options_html.append(
-            f'<div style="padding: 2px 6px; white-space: nowrap; display: flex; align-items: center;">'
-            f'{{'
-            f'<input type="text" snc-input="{html.escape(min_input_event)}" '
-            f'value="{html.escape(range_min)}" '
-            f'style="width: 24px; background: #1e1e1e; color: #dcdcaa; border: 1px solid #3c3c3c; '
-            f'border-radius: 2px; padding: 1px 3px; font-size: 10px; font-family: inherit; outline: none;" '
-            f'placeholder="n" />'
-            f','
-            f'<input type="text" snc-input="{html.escape(max_input_event)}" '
-            f'value="{html.escape(range_max)}" '
-            f'style="width: 24px; background: #1e1e1e; color: #dcdcaa; border: 1px solid #3c3c3c; '
-            f'border-radius: 2px; padding: 1px 3px; font-size: 10px; font-family: inherit; outline: none;" '
-            f'placeholder="n" />'
-            f'}}'
-            f'</div>'
-        )
-
-        dropdown_panel = (
-            '<div class="snc-dropdown-panel" data-snc-dropdown-align="right" style="'
-            'position: absolute;'
-            'right: 0;'
-            'top: 100%;'
-            'background: #252526;'
-            'border: 1px solid #3c3c3c;'
-            'border-radius: 3px;'
-            'z-index: 100;'
-            'min-width: 80px;'
-            'box-shadow: 0 2px 8px rgba(0,0,0,0.4);'
-            'font-size: 11px;'
-            'line-height: 1.4;'
-            f'">{"".join(options_html)}</div>'
-        )
-
-        return (
-            f'<span class="snc-dropdown-trigger" style="position: relative; display: inline-block; vertical-align: {v_align}">'
-            f'{trigger_html}{dropdown_panel}</span>'
-        )
-
-    styles = f'color: {GRAY if is_special else STRING}; padding-right: 1px;'
+    styles = f'color:{GRAY};' if is_special else ''
     pat_html = ''
     repetition_html = ''
 
@@ -543,9 +541,9 @@ def char_span(string, index, is_special, highlight=None, model=None):
             styles += f' border-left: 1px solid {color}; margin-left: -1px;'
             if seg_type == 'fuzzy':
                 # Fuzzy segments get a dropdown for pattern selection
-                pat_html = f'<span style="position: relative; display: inline-block; vertical-align: baseline">{fuzzy_dropdown_html(pat_str, segment_index, color)}</span>'
+                pat_html = f'<span style="position: relative; display: inline-block; vertical-align: baseline">{_fuzzy_dropdown_html(pat_str, segment_index, color, model)}</span>'
             else:
-                pat_html = overlay_html(pat_str, 'left', seg_type, color)
+                pat_html = _overlay_html(pat_str, 'left', seg_type, color)
                 # Left drag handle for literal segments (3px x 4px invisible box at upper-left corner)
                 left_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='left'))
                 pat_html += (
@@ -571,7 +569,7 @@ def char_span(string, index, is_special, highlight=None, model=None):
             else:
                 rep_str = f'{min_count}-{max_count}'
             # Render repetition as a clickable dropdown (for both literal and fuzzy)
-            repetition_html = repetition_dropdown_html(rep_str, segment_index, seg_type, color)
+            repetition_html = _repetition_dropdown_html(rep_str, segment_index, seg_type, color, model)
             if seg_type == 'literal':
                 # Right drag handle for literal segments (3px x 4px invisible box at upper-right corner)
                 right_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='right'))
@@ -583,16 +581,21 @@ def char_span(string, index, is_special, highlight=None, model=None):
                 )
     elif model is not None and model.get('hoverIdx') == index and not model.get('dragging'):
         # Hover preview: show border indicating literal/fuzzy on the hovered character
-        hover_type = model.get('hoverType', 'literal')
-        color = '#00aeff' if hover_type == 'literal' else '#868686'
-        border_side = 'top' if hover_type == 'literal' else 'bottom'
-        gradient_dir = 'bottom' if hover_type == 'literal' else 'top'
-        styles += f' border-{border_side}: 1px solid {color}; border-image: linear-gradient(to {gradient_dir}, {color} 20%, transparent 20%) 1;'
-        styles += f' border-left: 1px solid {color}; margin-left: -1px;'
-        styles += f' border-right: 1px solid {color}; padding-right: 0px;'
+        is_literal = model.get('hoverType', 'literal') == 'literal'
+        color = '#00aeff' if is_literal else '#868686'
+        border_side = 'top' if is_literal else 'bottom'
+        gradient_dir = 'bottom' if is_literal else 'top'
+        styles += (
+            f' border-{border_side}: 1px solid {color}; border-image: linear-gradient(to {gradient_dir}, {color} 20%, transparent 20%) 1;'
+            f' border-left: 1px solid {color}; margin-left: -1px;'
+            f' border-right: 1px solid {color}; padding-right: 0px;'
+        )
 
-    return f'{pat_html}<span snc-mouse-move="{html.escape(repr(MouseMove(index)))}" snc-mouse-down="{html.escape(repr(MouseDown(index)))}" snc-mouse-up="{html.escape(repr(MouseUp(index)))}" style="{styles}">{html.escape(string)}</span>{repetition_html}'
-
+    # snc-mouse="5" is shorthand for snc-mouse-move="MouseMove(5)" snc-mouse-down="MouseDown(5)" snc-mouse-up="MouseUp(5)"
+    # (this abbreviation speeds up the string visualization quite a bit)
+    return f'{pat_html}<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
+    # index_str = str(index)
+    # return f'{pat_html}<span snc-mouse-move="MouseMove({index_str})" snc-mouse-down="MouseDown({index_str})" snc-mouse-up="MouseUp({index_str})" style="color:{GRAY if is_special else STRING};padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
 
 # === Index mapping functions ===
 
@@ -2091,7 +2094,7 @@ def vis_char_with_index(char, i, highlight_by_index, model=None):
         model: The model state (needed for dropdown open state)
     """
     if char == '\n':
-        return (char_span('$', i, True, highlight_by_index.get(i), model) + (char_span('\\n', i+1, True, highlight_by_index.get(i+1), model) + '\n   ' + char_span('^', i+2, True, highlight_by_index.get(i+2), model)), i + 3)
+        return (char_span('$', i, True, highlight_by_index.get(i), model) + (char_span('\\n', i+1, True, highlight_by_index.get(i+1), model) + '\n  ' + char_span('^', i+2, True, highlight_by_index.get(i+2), model)), i + 3)
     elif char == '\t':
         return (char_span('\\t', i, True, highlight_by_index.get(i), model), i + 1)
 
@@ -2241,7 +2244,7 @@ def build_preview_regex(model, string_value: str) -> str | None:
             return append_segment_to_regex(current_regex, 'literal', selected_text)
 
 
-def visualize(value, model, get_visualizer) -> str:
+def visualize(value, model, get_visualizer, max_width=None, max_height=None, small=False) -> str:
 
     # Build highlight_by_index from highlights (uses preview regex to include in-progress selection)
     preview_regex = build_preview_regex(model, value)
@@ -2270,22 +2273,24 @@ def visualize(value, model, get_visualizer) -> str:
     char_elements.append(char_span('\\Z', index, True, highlight_by_index.get(index), model))
     index += 1
 
-    chars_html = ''.join(char_elements)
+    # chars_html = ''.join(char_elements)
 
-    # Build the search box at the bottom
-    # Show the canonical search (with / delimiters) so other search types can be supported later
-    selection_regex = model.get('search')
-    search_box_value = selection_regex if selection_regex else ""
-    search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
-    search_svg_html = SEARCH_SVG.replace("stroke:#000000;", "stroke:#8C8C8C;").replace("<svg ", f'<svg style="position: absolute; margin-left: 5px; margin-top: 4px; width: 12px; height: 12px;"', 1)
-    search_box_html = (
-        f'<div style="margin-top: 4px; white-space: normal;">'
-        f'{search_svg_html}'
-        f'<input type="text" tabindex="0"'
-        f' snc-input="{html.escape(search_input_event)}"'
-        f' value="{html.escape(search_box_value)}"'
-        f' placeholder="Search"'
-        f' spellcheck="false"'
+    # Build the search box at the bottom (hidden when small)
+    if small:
+        search_box_html = ''
+    else:
+        selection_regex = model.get('search')
+        search_box_value = selection_regex if selection_regex else ""
+        search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
+        search_svg_html = SEARCH_SVG.replace("stroke:#000000;", "stroke:#8C8C8C;").replace("<svg ", f'<svg style="position: absolute; margin-left: 5px; margin-top: 4px; width: 12px; height: 12px;"', 1)
+        search_box_html = (
+            f'<div style="margin-top: 4px; white-space: normal;">'
+            f'{search_svg_html}'
+            f'<input type="text" tabindex="0"'
+            f' snc-input="{html.escape(search_input_event)}"'
+            f' value="{html.escape(search_box_value)}"'
+            f' placeholder="Search"'
+            f' spellcheck="false"'
         f' style="'
         f'background: #1e1e1e;'
         f'color: #dcdcaa;'
@@ -2295,7 +2300,7 @@ def visualize(value, model, get_visualizer) -> str:
         f'font-family: inherit;'
         f'font-size: 12px;'
         f'outline: none;'
-        f'width: 100%;'
+        f'width: {str(max_width) + "px" if max_width is not None else "100%"};'
         f'box-sizing: border-box;'
         f'"'
         f' />'
@@ -2304,20 +2309,20 @@ def visualize(value, model, get_visualizer) -> str:
 
     string_div_style = (
         'line-height: 28px;'
-        'max-height: 600px;'
-        'max-width: 800px;'
+        f'max-height: {(max_height or 600) - 32}px;'
+        f'max-width: {max_width or 800}px;'
         'overflow: auto;'
         'scrollbar-width: thin;'
         'scrollbar-color: rgba(127, 127, 127, 0.1) transparent;'
     )
 
     # Add tabindex to make div focusable for keyboard events, and snc-key-down handler
-    return (
-        f'<div tabindex="0" snc-key-down="{html.escape(repr(KeyDown()))}" style="color: {STRING}; white-space: pre; user-select: none; outline: none;">'
-        f'''<div style="{string_div_style}">{chars_html}</div>'''
-        f'{search_box_html}'
-        '</div>'
-    )
+    # doing it like this to try to make less string garbage
+    return ''.join([
+        f'''<div tabindex="0" snc-key-down="{html.escape(repr(KeyDown()))}" style="color: {STRING}; white-space: pre; user-select: none; outline: none;"><div style="{string_div_style}">''',
+        *char_elements,
+        f'''</div>{search_box_html}</div>''',
+    ])
 
 def init_model(value, get_visualizer=None):
     """

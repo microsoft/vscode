@@ -8,7 +8,7 @@ Run:
 import unittest
 import html
 
-from visualizer_utils import ChildEvent, wrap_child_html, route_child_event, aggregate_handled_keys
+from visualizer_utils import ChildEvent, wrap_child_html, wrap_child_html_parts, route_child_event, aggregate_handled_keys
 
 
 class TestChildEvent(unittest.TestCase):
@@ -31,105 +31,80 @@ class TestChildEvent(unittest.TestCase):
 
 
 class TestWrapChildHtml(unittest.TestCase):
-    """Test wrap_child_html rewrites snc-* attributes correctly."""
+    """Test wrap_child_html wraps child HTML in a span with snc-child-key."""
 
-    def test_wraps_simple_repr_value(self):
+    def test_wraps_in_span_with_data_attribute(self):
         child_html = '<span snc-mouse-down="MouseDown(index=5)">X</span>'
         wrapped = wrap_child_html(child_html, '0')
-        self.assertIn('ChildEvent', wrapped)
-        self.assertNotIn('snc-mouse-down="MouseDown(index=5)"', wrapped)
+        self.assertIn('snc-child-key=', wrapped)
+        self.assertTrue(wrapped.startswith('<span '))
+        self.assertTrue(wrapped.endswith('</span>'))
 
-    def test_wrapped_attr_evals_to_child_event(self):
+    def test_child_html_preserved_inside_wrapper(self):
         child_html = '<span snc-mouse-down="MouseDown(index=5)">X</span>'
         wrapped = wrap_child_html(child_html, '0')
-        # Extract attribute value and unescape
+        self.assertIn(child_html, wrapped)
+
+    def test_child_key_repr_in_data_attribute(self):
+        """The data attribute should contain the Python repr of the child key."""
         import re
-        match = re.search(r'snc-mouse-down="([^"]*)"', wrapped)
+        wrapped = wrap_child_html('<span>X</span>', 'mykey')
+        match = re.search(r'snc-child-key="([^"]*)"', wrapped)
         self.assertIsNotNone(match)
         attr_value = html.unescape(match.group(1))
-        result = eval(attr_value)
-        self.assertIsInstance(result, ChildEvent)
-        self.assertEqual(result.child_key, '0')
-        self.assertEqual(result.py_ev_str, 'MouseDown(index=5)')
+        self.assertEqual(attr_value, repr('mykey'))
 
-    def test_wraps_html_escaped_value(self):
-        """Attribute values are HTML-escaped in real visualizer output."""
-        inner_expr = "MouseDown(index=5)"
-        child_html = f'<span snc-mouse-down="{html.escape(inner_expr)}">X</span>'
-        wrapped = wrap_child_html(child_html, '0')
+    def test_child_key_with_special_chars_is_escaped(self):
+        """Keys with HTML-special chars should be properly escaped in the attribute."""
         import re
-        match = re.search(r'snc-mouse-down="([^"]*)"', wrapped)
-        attr_value = html.unescape(match.group(1))
-        result = eval(attr_value)
-        self.assertEqual(result.py_ev_str, 'MouseDown(index=5)')
-
-    def test_wraps_lambda_expression(self):
-        """Lambda expressions (used by snc-input) should survive wrapping."""
-        inner_expr = "lambda e: FieldInput(value=e.get('value', ''))"
-        child_html = f'<input snc-input="{html.escape(inner_expr)}" />'
-        wrapped = wrap_child_html(child_html, 'mykey')
-        import re
-        match = re.search(r'snc-input="([^"]*)"', wrapped)
+        wrapped = wrap_child_html('<span>X</span>', '0::field<name>')
+        match = re.search(r'snc-child-key="([^"]*)"', wrapped)
         self.assertIsNotNone(match)
         attr_value = html.unescape(match.group(1))
-        result = eval(attr_value)
-        self.assertIsInstance(result, ChildEvent)
-        self.assertEqual(result.child_key, 'mykey')
-        self.assertEqual(result.py_ev_str, inner_expr)
+        self.assertEqual(eval(attr_value), '0::field<name>')
 
-    def test_wraps_all_snc_attrs(self):
-        """All five snc-* attribute types should be wrapped."""
-        child_html = (
-            '<span'
-            ' snc-mouse-down="A"'
-            ' snc-mouse-move="B"'
-            ' snc-mouse-up="C"'
-            '>X</span>'
-            '<div snc-key-down="D" snc-input="E"></div>'
-        )
+    def test_snc_attrs_not_modified(self):
+        """snc-* attributes in child HTML should be left untouched."""
+        child_html = '<span snc-mouse-down="MouseDown(index=5)">X</span>'
         wrapped = wrap_child_html(child_html, '0')
-        for attr_name in ['snc-mouse-down', 'snc-mouse-move', 'snc-mouse-up', 'snc-key-down', 'snc-input']:
-            self.assertIn(f'{attr_name}=', wrapped)
-        # None should have the raw unwrapped values
-        for raw_val in ['="A"', '="B"', '="C"', '="D"', '="E"']:
-            self.assertNotIn(raw_val, wrapped)
+        self.assertIn('snc-mouse-down="MouseDown(index=5)"', wrapped)
 
-    def test_preserves_non_snc_attributes(self):
-        """Non-snc attributes and regular content should not be modified."""
+    def test_preserves_all_child_content(self):
         child_html = '<span class="foo" style="color:red" snc-mouse-down="X">hello</span>'
         wrapped = wrap_child_html(child_html, '0')
         self.assertIn('class="foo"', wrapped)
         self.assertIn('style="color:red"', wrapped)
         self.assertIn('>hello</span>', wrapped)
 
-    def test_expression_with_double_quotes(self):
-        """Expressions containing double quotes should be handled via repr escaping."""
-        inner_expr = 'lambda e: Foo(x="bar")'
-        child_html = f'<span snc-mouse-down="{html.escape(inner_expr)}">X</span>'
-        wrapped = wrap_child_html(child_html, '0')
-        import re
-        match = re.search(r'snc-mouse-down="([^"]*)"', wrapped)
-        self.assertIsNotNone(match)
-        attr_value = html.unescape(match.group(1))
-        result = eval(attr_value)
-        self.assertEqual(result.py_ev_str, inner_expr)
-
-    def test_no_snc_attrs_returns_unchanged(self):
-        child_html = '<span class="foo">bar</span>'
-        wrapped = wrap_child_html(child_html, '0')
-        self.assertEqual(wrapped, child_html)
-
-    def test_multiple_elements_with_same_attr(self):
-        """Multiple elements with the same snc-* attr should all be wrapped."""
+    def test_multiple_elements_preserved(self):
         child_html = '<span snc-mouse-down="A">1</span><span snc-mouse-down="B">2</span>'
         wrapped = wrap_child_html(child_html, '0')
-        import re
-        matches = re.findall(r'snc-mouse-down="([^"]*)"', wrapped)
-        self.assertEqual(len(matches), 2)
-        result_a = eval(html.unescape(matches[0]))
-        result_b = eval(html.unescape(matches[1]))
-        self.assertEqual(result_a.py_ev_str, 'A')
-        self.assertEqual(result_b.py_ev_str, 'B')
+        self.assertIn('snc-mouse-down="A"', wrapped)
+        self.assertIn('snc-mouse-down="B"', wrapped)
+
+
+class TestWrapChildHtmlParts(unittest.TestCase):
+    """Test wrap_child_html_parts returns a list that joins to the same result as wrap_child_html."""
+
+    def test_returns_list(self):
+        parts = wrap_child_html_parts('<span>X</span>', '0')
+        self.assertIsInstance(parts, list)
+
+    def test_joins_to_same_as_wrap_child_html(self):
+        child_html = '<span snc-mouse-down="MouseDown(index=5)">X</span>'
+        self.assertEqual(''.join(wrap_child_html_parts(child_html, '0')),
+                         wrap_child_html(child_html, '0'))
+
+    def test_special_chars_same_as_wrap_child_html(self):
+        child_html = '<span>X</span>'
+        key = '0::field<name>'
+        self.assertEqual(''.join(wrap_child_html_parts(child_html, key)),
+                         wrap_child_html(child_html, key))
+
+    def test_complex_child_html_same_as_wrap_child_html(self):
+        child_html = '<span class="foo" style="color:red" snc-mouse-down="X">hello</span>'
+        self.assertEqual(''.join(wrap_child_html_parts(child_html, 'k')),
+                         wrap_child_html(child_html, 'k'))
 
 
 class TestRouteChildEvent(unittest.TestCase):

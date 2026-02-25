@@ -477,7 +477,7 @@ def update(event, source_code: str, source_line: int, model: dict, value, get_vi
     return (model, commands)
 
 
-def visualize(obj, model, get_visualizer):
+def visualize(obj, model, get_visualizer, max_width=None, max_height=None, small=False):
     """
     Render the object as HTML with configurable field inspection.
 
@@ -506,12 +506,14 @@ def visualize(obj, model, get_visualizer):
 
             # Render value cell: use subvisualizer for non-callable/non-error values
             children = model.get('children', {})
+            focused_child = model.get('focused_child')
             if not is_error and not placeholder_args and raw_value is not None and get_visualizer is not None:
                 child_vis = get_visualizer(raw_value)
                 child_model = children.get(accessor_code)
                 if child_model is None:
                     child_model = child_vis.init_model(raw_value, get_visualizer)
-                child_html = child_vis.visualize(raw_value, child_model, get_visualizer)
+                child_small = (accessor_code != focused_child)
+                child_html = child_vis.visualize(raw_value, child_model, get_visualizer, max_width=500, small=child_small)
                 value_td = f'<td>{wrap_child_html(child_html, accessor_code)}</td>'
             else:
                 value_td = f'<td>{html.escape(val_str)}</td>'
@@ -614,7 +616,7 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
             select_event = repr(FieldSelect(accessor=suggestion))
             is_selected = (selected_idx == i)
             bg = '#094771' if is_selected else SUGGESTION_BG
-            scroll_attr = ' data-snc-scroll-into-view' if is_selected else ''
+            scroll_attr = ' snc-scroll-into-view' if is_selected else ''
             items.append(
                 f'<div snc-mouse-down="{html.escape(select_event)}" '
                 f'class="snc-dropdown-option"'
@@ -624,7 +626,7 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
                 f'>{html.escape(suggestion)}</div>'
             )
         suggestion_html = (
-            f'<div class="snc-dropdown-panel" data-snc-dropdown-align="left" style="'
+            f'<div class="snc-dropdown-panel" snc-dropdown-align="left" style="'
             f'position:absolute;left:0;top:100%;'
             f'border:1px solid {INPUT_BORDER};'
             f'max-height:200px;overflow-y:auto;background:{SUGGESTION_BG};'
@@ -637,7 +639,7 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
     # can move the panel outside the overflow-clipped widget
     extra_attrs = ' autofocus'
     if is_editing:
-        extra_attrs += ' data-snc-select-all'
+        extra_attrs += ' snc-select-all'
     input_html = (
         f'<span class="snc-dropdown-trigger" style="position:relative;display:inline-block;">'
         f'<input type="text" snc-input="{html.escape(input_event)}" '

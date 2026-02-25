@@ -4414,8 +4414,8 @@ class TestHoverPreview(unittest.TestCase):
         # Actually, simpler: count border-bottom with #868686 - should be 0
         # because the only hover char is inside the literal segment.
         import re as _re
-        # Find spans with MouseMove(index=4) and check they don't have fuzzy border
-        spans = _re.findall(r'<span[^>]*snc-mouse-move="MouseMove\(index=4\)"[^>]*style="([^"]*)"', html_output)
+        # Find spans with MouseMove(4) and check they don't have fuzzy border
+        spans = _re.findall(r'<span[^>]*snc-mouse-move="MouseMove\(4\)"[^>]*style="([^"]*)"', html_output)
         for style in spans:
             self.assertNotIn('#868686', style)
 
@@ -4429,8 +4429,8 @@ class TestHoverPreview(unittest.TestCase):
 
         # Extract the span for index 5 to check it has left+right borders
         import re as _re
-        spans = _re.findall(r'<span[^>]*snc-mouse-move="MouseMove\(index=5\)"[^>]*style="([^"]*)"', html_output)
-        self.assertTrue(len(spans) > 0, "Should find span with MouseMove(index=5)")
+        spans = _re.findall(r'<span[^>]*snc-mouse-move="MouseMove\(5\)"[^>]*style="([^"]*)"', html_output)
+        self.assertTrue(len(spans) > 0, "Should find span with MouseMove(5)")
         style = spans[0]
         self.assertIn('border-left', style)
         self.assertIn('border-right', style)
@@ -4451,6 +4451,32 @@ class TestGetFields(unittest.TestCase):
     def test_returns_none_for_empty_string(self):
         from string_visualizer import get_fields
         self.assertIsNone(get_fields(""))
+
+
+class TestSmallParameter(unittest.TestCase):
+    """Test that small=True hides the search box."""
+
+    def test_visualize_accepts_small_parameter(self):
+        model = init_model("hello")
+        output = visualize("hello", model, None, small=True)
+        self.assertIn('>h</span>', output)
+
+    def test_search_box_present_when_not_small(self):
+        model = init_model("hello")
+        output = visualize("hello", model, None, small=False)
+        self.assertIn('Search', output)
+        self.assertIn('<input', output)
+
+    def test_search_box_hidden_when_small(self):
+        model = init_model("hello")
+        output = visualize("hello", model, None, small=True)
+        self.assertNotIn('<input', output)
+        self.assertNotIn('Search', output)
+
+    def test_search_box_present_by_default(self):
+        model = init_model("hello")
+        output = visualize("hello", model, None)
+        self.assertIn('Search', output)
 
 
 if __name__ == '__main__':

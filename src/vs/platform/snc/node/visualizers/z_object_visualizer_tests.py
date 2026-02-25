@@ -37,7 +37,7 @@ class _GenericVis:
         return True
     def init_model(self, value, get_visualizer=None):
         return None
-    def visualize(self, value, model, get_visualizer):
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
         return html_module.escape(repr(value))
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return (model, [])
@@ -48,8 +48,8 @@ class _ZObjectVisAdapter:
         return z_object_visualizer.can_visualize(value)
     def init_model(self, value, get_visualizer=None):
         return z_object_visualizer.init_model(value, get_visualizer)
-    def visualize(self, value, model, get_visualizer):
-        return z_object_visualizer.visualize(value, model, get_visualizer)
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+        return z_object_visualizer.visualize(value, model, get_visualizer, max_width=max_width, max_height=max_height, small=small)
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return z_object_visualizer.update(event, source_code, source_line, model, value, get_visualizer)
 
@@ -374,7 +374,7 @@ class TestVisualize(unittest.TestCase):
         self.assertIn('autofocus', html_output)
 
     def test_visualize_input_has_select_all_when_editing(self):
-        """Input should have data-snc-select-all when editing (not when adding)."""
+        """Input should have snc-select-all when editing (not when adding)."""
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
@@ -382,17 +382,17 @@ class TestVisualize(unittest.TestCase):
         model['input_value'] = '.x'
         html_output = visualize(obj, model, _get_visualizer)
 
-        self.assertIn('data-snc-select-all', html_output)
+        self.assertIn('snc-select-all', html_output)
 
     def test_visualize_input_no_select_all_when_adding(self):
-        """Input should NOT have data-snc-select-all when adding."""
+        """Input should NOT have snc-select-all when adding."""
         obj = TestObj()
         model = init_model(obj)
         model['adding_field'] = True
         model['input_value'] = ''
         html_output = visualize(obj, model, _get_visualizer)
 
-        self.assertNotIn('data-snc-select-all', html_output)
+        self.assertNotIn('snc-select-all', html_output)
 
     def test_visualize_highlights_selected_suggestion(self):
         """Selected suggestion should have highlight background."""
@@ -1122,7 +1122,7 @@ class MockInteractiveVis:
         return isinstance(value, str)
     def init_model(self, value, get_visualizer=None):
         return {'vis_type': 'mock_interactive', 'handledKeys': ['Escape']}
-    def visualize(self, value, model, get_visualizer):
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
         return f'<span snc-mouse-down="MockClick()">{html_module.escape(repr(value))}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         model = dict(model)
@@ -1175,30 +1175,29 @@ class TestComposition(unittest.TestCase):
         # my_method is callable -> should NOT have a child model
         self.assertNotIn('.my_method', model.get('children', {}))
 
-    def test_visualize_wraps_field_values_with_child_event(self):
+    def test_visualize_wraps_field_values_with_child_key(self):
         obj = CompositionTestObj()
         model = init_model(obj, _interactive_get_visualizer)
         output = visualize(obj, model, _interactive_get_visualizer)
-        self.assertIn('ChildEvent', output)
+        self.assertIn('snc-child-key=', output)
 
-    def test_visualize_child_event_has_accessor_key(self):
+    def test_visualize_child_key_has_accessor(self):
         obj = CompositionTestObj()
         model = init_model(obj, _interactive_get_visualizer)
         output = visualize(obj, model, _interactive_get_visualizer)
         import re
-        matches = re.findall(r'snc-mouse-down="([^"]*)"', output)
-        found_child_event_with_accessor = False
+        matches = re.findall(r'snc-child-key="([^"]*)"', output)
+        found_accessor_key = False
         for m in matches:
             try:
-                val = html_module.unescape(m)
-                result = eval(val)
-                if isinstance(result, ChildEvent) and result.child_key.startswith('.'):
-                    found_child_event_with_accessor = True
+                key = eval(html_module.unescape(m))
+                if key.startswith('.'):
+                    found_accessor_key = True
                     break
             except:
                 pass
-        self.assertTrue(found_child_event_with_accessor,
-                       "Expected at least one ChildEvent keyed by accessor string")
+        self.assertTrue(found_accessor_key,
+                       "Expected at least one snc-child-key with accessor string")
 
     def test_update_routes_child_event_by_accessor(self):
         obj = CompositionTestObj()

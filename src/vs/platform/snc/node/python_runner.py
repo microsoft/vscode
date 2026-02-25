@@ -86,7 +86,7 @@ class StaticVisualizer(Protocol):
 
 class Visualizer(Protocol):
     can_visualize: Callable[[Any], bool]
-    visualize: Callable[[Any, Any, Callable[[Any], Any]], str]  # takes value, model, get_visualizer
+    visualize: Callable[[Any, Any, Callable[[Any], Any]], str]  # takes value, model, get_visualizer; optional max_width, max_height kwargs
     init_model: Callable[[Any, Callable[[Any], Any]], Any]  # takes value, get_visualizer
     update: Callable[[Any, Any, Any, Any, Any, Callable[[Any], Any]], Any]  # takes ui_event, source code, source line, model, value, get_visualizer; returns (new model, commands)
 
@@ -100,7 +100,7 @@ class GenericVisualizer(Visualizer):
     def init_model(value, get_visualizer) -> Any:
         return None
 
-    def visualize(value, model, get_visualizer) -> str:
+    def visualize(value, model, get_visualizer, max_width=None, max_height=None, small=False) -> str:
         return html.escape(repr(value))
 
     def update(event: Any, source_code: str, source_line: int, model: Any, value: str, get_visualizer=None) -> Tuple[Any, List[Any]]:
@@ -122,11 +122,49 @@ class VisualizerOfStaticVisualizer():
     def init_model(self, value, get_visualizer) -> Any:
         return GenericVisualizer.init_model(value, get_visualizer)
 
-    def visualize(self, value, model, get_visualizer) -> str:
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False) -> str:
         return self.vis.visualize(value)
 
     def update(self, event, source_code, source_line, model, value, get_visualizer=None) -> Tuple[Any, List[Any]]:
         return GenericVisualizer.update(event, source_code, source_line, model, value, get_visualizer)
+
+
+def _type_fingerprint(value: Any, depth: int = 3) -> str:
+    """Compute a recursive type fingerprint for model cache invalidation.
+
+    Produces strings like "builtins.list[re.Match]" so that stale models
+    from a previous run with a different value type are discarded.
+    """
+    try:
+        if depth <= 0:
+            return '*'
+
+        cls = type(value)
+        base = f"{cls.__module__}.{cls.__qualname__}"
+
+        if isinstance(value, (list, tuple)):
+            if not value:
+                return base
+            elem_fps = sorted({_type_fingerprint(v, depth - 1) for v in value[:3]})
+            return f"{base}[{'|'.join(elem_fps)}]"
+
+        if isinstance(value, dict):
+            if not value:
+                return base
+            items = list(value.items())[:3]
+            key_fps = sorted({_type_fingerprint(k, depth - 1) for k, _ in items})
+            val_fps = sorted({_type_fingerprint(v, depth - 1) for _, v in items})
+            return f"{base}[{','.join(key_fps)}:{','.join(val_fps)}]"
+
+        if isinstance(value, (set, frozenset)):
+            if not value:
+                return base
+            elem_fps = sorted({_type_fingerprint(v, depth - 1) for v in list(value)[:3]})
+            return f"{base}[{'|'.join(elem_fps)}]"
+
+        return base
+    except Exception:
+        return '?'
 
 
 def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = None) -> None:
@@ -160,14 +198,30 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
     try:
         item_model_and_events = next((m_e for m_e in models_and_events if m_e.get('line') == line and m_e.get('visIndex') == idx_in_line), {})
 
-        model = item_model_and_events['model'] if item_model_and_events.get('model', None) is not None else vis.init_model(value, get_visualizer)
+        fingerprint = _type_fingerprint(value)
+        cached_model = item_model_and_events.get('model')
+        fingerprint_matches = (
+            cached_model is not None
+            and isinstance(cached_model, dict)
+            and cached_model.get('_type_fingerprint') == fingerprint
+        )
 
-        # Apply all the events in order, collecting any commands
-        if 'events' in item_model_and_events:
+        if fingerprint_matches:
+            model = cached_model
+            if isinstance(model, dict):
+                del model['_type_fingerprint']
+        else:
+            model = vis.init_model(value, get_visualizer)
+
+        # Only replay events when the cached model was reused; if the type
+        # changed the old events belong to a different visualizer.
+        if fingerprint_matches and 'events' in item_model_and_events:
             for ev in item_model_and_events['events']:
-                # Add source context to the event
                 model, cmds = vis.update(ev, _source_code, line, model, value, get_visualizer)
                 commands.extend(cmds)
+
+        if isinstance(model, dict):
+            model['_type_fingerprint'] = fingerprint
 
         html_content = vis.visualize(value, model, get_visualizer)
 

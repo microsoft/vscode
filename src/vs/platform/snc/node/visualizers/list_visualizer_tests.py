@@ -33,11 +33,28 @@ class MockStringVisualizer:
         return None
     def init_model(self, value, get_visualizer=None):
         return {'selection': None, 'handledKeys': ['Escape', 'Enter']}
-    def visualize(self, value, model, get_visualizer):
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
         return f'<span snc-mouse-down="MouseDown(index=0)">{html.escape(value)}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         model = dict(model)
         model['last_event'] = event['pythonEventStr']
+        return (model, [])
+
+
+class SmallTrackingVisualizer:
+    """Mock visualizer that records the small= kwarg passed to visualize()."""
+    def __init__(self):
+        self.visualize_calls = []
+    def can_visualize(self, value):
+        return isinstance(value, str)
+    def get_fields(self, value):
+        return None
+    def init_model(self, value, get_visualizer=None):
+        return {'handledKeys': []}
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+        self.visualize_calls.append({'value': value, 'small': small})
+        return f'<span>{html.escape(value)}</span>'
+    def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return (model, [])
 
 
@@ -47,7 +64,7 @@ class MockIntVisualizer:
         return isinstance(value, int)
     def init_model(self, value, get_visualizer=None):
         return None
-    def visualize(self, value, model, get_visualizer):
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
         return f'<span>{value}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return (model, [])
@@ -63,7 +80,7 @@ class MockDictVisualizer:
         return value[eval(field)]
     def init_model(self, value, get_visualizer=None):
         return None
-    def visualize(self, value, model, get_visualizer):
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
         return f'<span>{html.escape(repr(value))}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return (model, [])
@@ -85,7 +102,7 @@ class MockObjectVisualizer:
             return None
     def init_model(self, value, get_visualizer=None):
         return None
-    def visualize(self, value, model, get_visualizer):
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
         return f'<span>{html.escape(repr(value))}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return (model, [])
@@ -101,8 +118,8 @@ class ListVisualizerAdapter:
         return list_visualizer.get_field_value(value, field)
     def init_model(self, value, get_visualizer=None):
         return list_visualizer.init_model(value, get_visualizer)
-    def visualize(self, value, model, get_visualizer):
-        return list_visualizer.visualize(value, model, get_visualizer)
+    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+        return list_visualizer.visualize(value, model, get_visualizer, max_width=max_width, max_height=max_height, small=small)
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return list_visualizer.update(event, source_code, source_line, model, value, get_visualizer)
 
@@ -187,28 +204,22 @@ class TestVisualize(unittest.TestCase):
         lst = ["hello"]
         model = init_model(lst, mock_get_visualizer)
         output = visualize(lst, model, mock_get_visualizer)
-        self.assertIn('ChildEvent', output)
+        self.assertIn('snc-child-key=', output)
 
     def test_child_html_is_wrapped_with_correct_key(self):
         lst = ["hello"]
         model = init_model(lst, mock_get_visualizer)
         output = visualize(lst, model, mock_get_visualizer)
-        matches = re.findall(r'snc-mouse-down="([^"]*)"', output)
+        matches = re.findall(r'snc-child-key="([^"]*)"', output)
         self.assertTrue(len(matches) > 0)
-        attr_value = html.unescape(matches[0])
-        result = eval(attr_value)
-        self.assertIsInstance(result, ChildEvent)
-        self.assertEqual(result.child_key, '0')
+        self.assertEqual(eval(html.unescape(matches[0])), '0')
 
     def test_multiple_items_have_different_keys(self):
         lst = ["a", "b"]
         model = init_model(lst, mock_get_visualizer)
         output = visualize(lst, model, mock_get_visualizer)
-        matches = re.findall(r'snc-mouse-down="([^"]*)"', output)
-        keys = set()
-        for m in matches:
-            result = eval(html.unescape(m))
-            keys.add(result.child_key)
+        matches = re.findall(r'snc-child-key="([^"]*)"', output)
+        keys = {eval(html.unescape(m)) for m in matches}
         self.assertIn('0', keys)
         self.assertIn('1', keys)
 
@@ -268,7 +279,7 @@ class TestUpdate(unittest.TestCase):
         class CmdVis:
             def can_visualize(self, v): return True
             def init_model(self, v, get_visualizer=None): return {}
-            def visualize(self, v, m, gv): return '<span snc-mouse-down="X">x</span>'
+            def visualize(self, v, m, gv, max_width=None, max_height=None): return '<span snc-mouse-down="X">x</span>'
             def update(self, event, sc, sl, model, value, gv=None):
                 return (model, ['test_command'])
 
@@ -419,20 +430,18 @@ class TestTableRendering(unittest.TestCase):
         self.assertIn('Alice', output)
 
     def test_cell_html_wrapped_with_composite_key(self):
-        """Cell HTML should have snc events wrapped with composite ChildEvent keys."""
+        """Cell HTML should be inside a snc-child-key span with composite key."""
         lst = [{'name': 'test_str'}]
         model = init_model(lst, mock_get_visualizer)
         output = visualize(lst, model, mock_get_visualizer)
-        # The string visualizer mock emits snc-mouse-down, which should be wrapped
-        # with a ChildEvent using the composite key
-        matches = re.findall(r'snc-mouse-down="([^"]*)"', output)
+        matches = re.findall(r'snc-child-key="([^"]*)"', output)
         found_composite = False
         for m in matches:
-            result = eval(html.unescape(m))
-            if isinstance(result, ChildEvent) and '\x00' in result.child_key:
+            key = eval(html.unescape(m))
+            if '\x00' in key:
                 found_composite = True
                 break
-        self.assertTrue(found_composite, "Expected composite key ChildEvent in cell HTML")
+        self.assertTrue(found_composite, "Expected composite key in snc-child-key")
 
     def test_missing_field_renders_empty_cell(self):
         lst = [{'a': 1}, {'b': 2}]
@@ -494,7 +503,7 @@ class TestTableEventRouting(unittest.TestCase):
         class CmdVis:
             def can_visualize(self, v): return isinstance(v, str)
             def init_model(self, v, get_visualizer=None): return {}
-            def visualize(self, v, m, gv): return '<span snc-mouse-down="X">x</span>'
+            def visualize(self, v, m, gv, max_width=None, max_height=None): return '<span snc-mouse-down="X">x</span>'
             def update(self, event, sc, sl, model, value, gv=None):
                 return (model, ['table_cmd'])
 
@@ -512,6 +521,125 @@ class TestTableEventRouting(unittest.TestCase):
         event = make_child_mouse_event("0\x00'k'", 'X')
         _, commands = update(event, '', 1, model, lst, get_vis)
         self.assertIn('table_cmd', commands)
+
+
+class TestVisualizeMaxDimensions(unittest.TestCase):
+    """Test that visualize() accepts optional max_width and max_height."""
+
+    def test_list_mode_accepts_max_width_and_max_height(self):
+        lst = ["hello"]
+        model = init_model(lst, mock_get_visualizer)
+        output_default = visualize(lst, model, mock_get_visualizer)
+        output_with_dims = visualize(lst, model, mock_get_visualizer, max_width=100, max_height=50)
+        self.assertEqual(output_default, output_with_dims)
+
+    def test_table_mode_accepts_max_width_and_max_height(self):
+        lst = [{'name': 'Alice'}, {'name': 'Bob'}]
+        model = init_model(lst, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, max_width=200, max_height=100)
+        self.assertIn('<table', output)
+
+    def test_empty_list_accepts_max_width_and_max_height(self):
+        lst = []
+        model = init_model(lst, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, max_width=50, max_height=50)
+        self.assertIn('[', output)
+
+
+class TestSmallParameter(unittest.TestCase):
+    """Test that visualize() passes small=True to nested children, except focused."""
+
+    def test_visualize_accepts_small_parameter(self):
+        lst = ["hello"]
+        model = init_model(lst, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, small=True)
+        self.assertIn('hello', output)
+
+    def test_children_receive_small_true_by_default(self):
+        tracker = SmallTrackingVisualizer()
+        get_vis = lambda v: tracker
+        lst = ["a", "b"]
+        model = init_model(lst, get_vis)
+        visualize(lst, model, get_vis)
+        self.assertEqual(len(tracker.visualize_calls), 2)
+        self.assertTrue(tracker.visualize_calls[0]['small'])
+        self.assertTrue(tracker.visualize_calls[1]['small'])
+
+    def test_focused_child_receives_small_false(self):
+        tracker = SmallTrackingVisualizer()
+        get_vis = lambda v: tracker
+        lst = ["a", "b"]
+        model = init_model(lst, get_vis)
+        model['focused_child'] = '1'
+        tracker.visualize_calls.clear()
+        visualize(lst, model, get_vis)
+        self.assertTrue(tracker.visualize_calls[0]['small'])
+        self.assertFalse(tracker.visualize_calls[1]['small'])
+
+    def test_no_focused_child_all_small(self):
+        tracker = SmallTrackingVisualizer()
+        get_vis = lambda v: tracker
+        lst = ["a"]
+        model = init_model(lst, get_vis)
+        visualize(lst, model, get_vis)
+        self.assertTrue(tracker.visualize_calls[0]['small'])
+
+    def test_table_mode_children_receive_small_true(self):
+        tracker = SmallTrackingVisualizer()
+        def get_vis(v):
+            if isinstance(v, dict):
+                return _mock_dict_vis
+            return tracker
+        lst = [{'name': 'Alice'}]
+        model = init_model(lst, get_vis)
+        tracker.visualize_calls.clear()
+        visualize(lst, model, get_vis)
+        self.assertTrue(all(c['small'] for c in tracker.visualize_calls))
+
+    def test_table_mode_focused_child_receives_small_false(self):
+        tracker = SmallTrackingVisualizer()
+        def get_vis(v):
+            if isinstance(v, dict):
+                return _mock_dict_vis
+            return tracker
+        lst = [{'name': 'Alice'}, {'name': 'Bob'}]
+        model = init_model(lst, get_vis)
+        model['focused_child'] = "0\x00'name'"
+        tracker.visualize_calls.clear()
+        visualize(lst, model, get_vis)
+        alice_call = next(c for c in tracker.visualize_calls if c['value'] == 'Alice')
+        bob_call = next(c for c in tracker.visualize_calls if c['value'] == 'Bob')
+        self.assertFalse(alice_call['small'])
+        self.assertTrue(bob_call['small'])
+
+
+class TestFocusTracking(unittest.TestCase):
+    """Test that update() sets focused_child when routing child events."""
+
+    def test_child_event_sets_focused_child(self):
+        lst = ["hello", "world"]
+        model = init_model(lst, mock_get_visualizer)
+        event = make_child_mouse_event('0', 'MouseDown(index=0)')
+        new_model, _ = update(event, '', 1, model, lst, mock_get_visualizer)
+        self.assertEqual(new_model.get('focused_child'), '0')
+
+    def test_second_child_event_changes_focus(self):
+        lst = ["hello", "world"]
+        model = init_model(lst, mock_get_visualizer)
+        event1 = make_child_mouse_event('0', 'MouseDown(index=0)')
+        model, _ = update(event1, '', 1, model, lst, mock_get_visualizer)
+        self.assertEqual(model.get('focused_child'), '0')
+        event2 = make_child_mouse_event('1', 'MouseDown(index=0)')
+        model, _ = update(event2, '', 1, model, lst, mock_get_visualizer)
+        self.assertEqual(model.get('focused_child'), '1')
+
+    def test_table_cell_event_sets_focused_child(self):
+        lst = [{'name': 'Alice'}]
+        model = init_model(lst, mock_get_visualizer)
+        composite_key = "0\x00'name'"
+        event = make_child_mouse_event(composite_key, 'MouseDown(index=0)')
+        new_model, _ = update(event, '', 1, model, lst, mock_get_visualizer)
+        self.assertEqual(new_model.get('focused_child'), composite_key)
 
 
 if __name__ == '__main__':

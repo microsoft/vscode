@@ -102,15 +102,15 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 
 
 		this._register(dom.addDisposableListener(this.domNode, 'mousedown', (ev: MouseEvent) => {
-			this.dispatch_as_python_event('snc-mouse-down', ev);
+			this.dispatch_mouse_python_event('snc-mouse-down', ev);
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'mousemove', (ev: MouseEvent) => {
 			if (this.moveThrottleTimer) { return; }
 			this.moveThrottleTimer = setTimeout(() => { this.moveThrottleTimer = null; }, this.moveThrottleDelay);
-			this.dispatch_as_python_event('snc-mouse-move', ev);
+			this.dispatch_mouse_python_event('snc-mouse-move', ev);
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'mouseup', (ev: MouseEvent) => {
-			this.dispatch_as_python_event('snc-mouse-up', ev);
+			this.dispatch_mouse_python_event('snc-mouse-up', ev);
 		}));
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (ev: KeyboardEvent) => {
 			// For input/textarea elements, only dispatch certain keys to Python.
@@ -132,15 +132,38 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		this.editor.addOverlayWidget(this);
 	}
 
-	private dispatch_as_python_event(attr_name: string, ev: MouseEvent): void {
+	private wrapWithChildKeys(pythonEventStr: string, from: Element | null, stop: Element | null): string {
+		let el = from;
+		while (el && el !== stop) {
+			const childKey = el.getAttribute('snc-child-key');
+			if (childKey) {
+				pythonEventStr = `ChildEvent(${childKey}, ${JSON.stringify(pythonEventStr)})`;
+			}
+			el = el.parentElement;
+		}
+		return pythonEventStr;
+	}
+
+	private dispatch_mouse_python_event(attr_name: string, ev: MouseEvent): void {
 		if (!ev.target) { return; }
 
 		let node = ev.target as Node;
 		let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : (node.parentElement);
 
 		while (el && el != this.domNode) {
-			if (el.hasAttribute(attr_name)) {
-				const pythonEventStr: string = el.getAttribute(attr_name) ?? '';
+			if (el.hasAttribute(attr_name) || el.hasAttribute(`snc-mouse`)) {
+				let pythonEventStr: string;
+				if (el.hasAttribute(`snc-mouse`)) {
+					// snc-mouse="5" is shorthand for snc-mouse-move="MouseMove(5)" snc-mouse-down="MouseDown(5)" snc-mouse-up="MouseUp(5)"
+					pythonEventStr = {
+						'snc-mouse-move': `MouseMove(${el.getAttribute(`snc-mouse`)})`,
+						'snc-mouse-down': `MouseDown(${el.getAttribute(`snc-mouse`)})`,
+						'snc-mouse-up': `MouseUp(${el.getAttribute(`snc-mouse`)})`,
+					}[attr_name] ?? '';
+				} else {
+					pythonEventStr = el.getAttribute(attr_name) ?? '';
+				}
+				pythonEventStr = this.wrapWithChildKeys(pythonEventStr, el.parentElement, this.domNode);
 				this.onPointerEvent(pythonEventStr, ev);
 				break;
 			}
@@ -157,7 +180,8 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		// Walk up to find element with the keyboard event handler attribute
 		while (el) {
 			if (el.hasAttribute(attr_name)) {
-				const pythonEventStr: string = el.getAttribute(attr_name) ?? '';
+				let pythonEventStr: string = el.getAttribute(attr_name) ?? '';
+				pythonEventStr = this.wrapWithChildKeys(pythonEventStr, el.parentElement, this.domNode);
 				this.onKeyboardEvent(pythonEventStr, ev);
 				return;
 			}
@@ -176,11 +200,11 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		const target = ev.target as HTMLElement;
 		if (!target) { return; }
 
-		// Walk up from target to find element with snc-input attribute
 		let el: Element | null = target;
 		while (el && el !== this.domNode) {
 			if (el.hasAttribute(attr_name)) {
-				const pythonEventStr: string = el.getAttribute(attr_name) ?? '';
+				let pythonEventStr: string = el.getAttribute(attr_name) ?? '';
+				pythonEventStr = this.wrapWithChildKeys(pythonEventStr, el.parentElement, this.domNode);
 				const value = (target as HTMLInputElement).value ?? '';
 				this.onInputEvent(pythonEventStr, value);
 				return;
@@ -260,10 +284,10 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			|| el.scrollWidth > el.clientWidth;
 	}
 
-	updateContent(html: string): void {
+	updateContent(html: string): boolean {
 		// Avoid tearing down/rebuilding DOM when content did not change.
 		if (this.lastRenderedHtml === html) {
-			return;
+			return false;
 		}
 
 		// Any pending focus restoration from an older render should be ignored.
@@ -318,7 +342,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		this.updateLayoutMode();
 
 		// Scroll any element marked for scroll-into-view (e.g. selected autocomplete item)
-		const scrollTarget = (this.hoistedDropdown ?? this.domNode).querySelector('[data-snc-scroll-into-view]') as HTMLElement | null;
+		const scrollTarget = (this.hoistedDropdown ?? this.domNode).querySelector('[snc-scroll-into-view]') as HTMLElement | null;
 		if (scrollTarget) {
 			scrollTarget.scrollIntoView({ block: 'nearest' });
 		}
@@ -357,7 +381,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				if (autoFocusEl && savedSelectionStart === null) {
 					autoFocusEl.focus({ preventScroll: true });
 					// Select all text if requested (e.g. editing an existing field)
-					if (autoFocusEl.hasAttribute('data-snc-select-all') && autoFocusEl instanceof HTMLInputElement) {
+					if (autoFocusEl.hasAttribute('snc-select-all') && autoFocusEl instanceof HTMLInputElement) {
 						autoFocusEl.select();
 					}
 				} else if (focusedIndex >= 0) {
@@ -380,6 +404,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				}
 			});
 		}
+		return true;
 	}
 
 	usesBlockLayout(): boolean {
@@ -405,7 +430,19 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 
 		// Get trigger's viewport position before moving anything
 		const triggerRect = trigger.getBoundingClientRect();
-		const align = panel.getAttribute('data-snc-dropdown-align') || 'left';
+		const align = panel.getAttribute('snc-dropdown-align') || 'left';
+
+		// Capture child-key chain before removing from DOM (ancestors will be lost)
+		const childKeyChain: string[] = [];
+		let ancestor = panel.parentElement;
+		while (ancestor && ancestor !== this.domNode) {
+			const ck = ancestor.getAttribute('snc-child-key');
+			if (ck) { childKeyChain.push(ck); }
+			ancestor = ancestor.parentElement;
+		}
+		if (childKeyChain.length > 0) {
+			panel.setAttribute('snc-child-key-chain', JSON.stringify(childKeyChain));
+		}
 
 		// Remove from the widget DOM
 		panel.remove();
@@ -426,6 +463,18 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 		this.editor.getContainerDomNode().appendChild(panel);
 		this.hoistedDropdown = panel;
 
+		// Apply saved child-key chain from before hoisting
+		const wrapHoistedEvent = (raw: string, attrEl: Element): string => {
+			let wrapped = this.wrapWithChildKeys(raw, attrEl.parentElement, panel);
+			const chainStr = panel.getAttribute('snc-child-key-chain');
+			if (chainStr) {
+				for (const ck of JSON.parse(chainStr) as string[]) {
+					wrapped = `ChildEvent(${ck}, ${JSON.stringify(wrapped)})`;
+				}
+			}
+			return wrapped;
+		};
+
 		// Wire up event listeners on the hoisted panel
 		// (since it's outside this.domNode, normal event bubbling won't reach our listeners)
 		this.hoistedDropdownListeners.push(
@@ -435,7 +484,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				let el: Element | null = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : (node.parentElement);
 				while (el && el !== panel.parentElement) {
 					if (el.hasAttribute('snc-mouse-down')) {
-						const pythonEventStr: string = el.getAttribute('snc-mouse-down') ?? '';
+						const pythonEventStr = wrapHoistedEvent(el.getAttribute('snc-mouse-down') ?? '', el);
 						this.onPointerEvent(pythonEventStr, ev);
 					}
 					el = el.parentElement;
@@ -455,7 +504,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				let el: Element | null = target;
 				while (el && el !== panel.parentElement) {
 					if (el.hasAttribute('snc-key-down')) {
-						const pythonEventStr: string = el.getAttribute('snc-key-down') ?? '';
+						const pythonEventStr = wrapHoistedEvent(el.getAttribute('snc-key-down') ?? '', el);
 						this.onKeyboardEvent(pythonEventStr, ev);
 						return;
 					}
@@ -465,7 +514,8 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				// the visualizer's wrapper div inside this.domNode, not in the panel)
 				const keyHandler = this.domNode.querySelector('[snc-key-down]');
 				if (keyHandler) {
-					const pythonEventStr: string = keyHandler.getAttribute('snc-key-down') ?? '';
+					let pythonEventStr: string = keyHandler.getAttribute('snc-key-down') ?? '';
+					pythonEventStr = this.wrapWithChildKeys(pythonEventStr, keyHandler.parentElement, this.domNode);
 					this.onKeyboardEvent(pythonEventStr, ev);
 				}
 			})
@@ -477,7 +527,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				let el: Element | null = target;
 				while (el && el !== panel.parentElement) {
 					if (el.hasAttribute('snc-input')) {
-						const pythonEventStr: string = el.getAttribute('snc-input') ?? '';
+						const pythonEventStr = wrapHoistedEvent(el.getAttribute('snc-input') ?? '', el);
 						const value = (target as HTMLInputElement).value ?? '';
 						this.onInputEvent(pythonEventStr, value);
 						return;
@@ -542,6 +592,12 @@ export class SNCController extends Disposable implements IEditorContribution {
 	private runFirstItemReceivedMsById: Map<string, number> = new Map(); // When first 'item' message received (frontend)
 	private runFirstRenderMsById: Map<string, number> = new Map();    // When first render completed synchronously (frontend)
 	private runFirstRenderFrameMsById: Map<string, number> = new Map(); // When first render frame completed via rAF (frontend)
+
+	// Event-target timing: same measurements but for the visualizer that received the event
+	private runEventTargetById: Map<string, { line: number; visIndex: number }> = new Map();
+	private runEventTargetItemReceivedMsById: Map<string, number> = new Map();
+	private runEventTargetRenderMsById: Map<string, number> = new Map();
+	private runEventTargetRenderFrameMsById: Map<string, number> = new Map();
 
 
 	constructor(
@@ -865,6 +921,11 @@ export class SNCController extends Disposable implements IEditorContribution {
 		// console.log("presentLines", presentLines)
 
 
+		// Collect widgets that need repositioning; calling updatePosition()
+		// inside changeViewZones would force a synchronous render while the
+		// zone data structures are mid-mutation, causing crashes in ViewZones.render.
+		const widgetsToReposition: VisualizationWidget[] = [];
+
 		this.editor.changeViewZones((accessor) => {
 			// Remove widgets/view zones for lines no longer present
 			for (const [line, widgets] of Array.from(this.visualizationWidgets.entries())) {
@@ -902,29 +963,35 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 				if (existing && existing.length === stepItems.length) {
 					// Incremental update: reuse widgets, just update content
+					let anyChanged = false;
 					for (let i = 0; i < stepItems.length; i++) {
-						existing[i].updateContent(stepItems[i].html);
-						existing[i].updatePosition();
+						if (existing[i].updateContent(stepItems[i].html)) {
+							anyChanged = true;
+						}
 					}
 
-					// Adjust view zone height if needed
-					const viewZoneHeightInPx = getViewZoneHeightInPx(existing);
-					const existingZoneId = this.viewZones.get(lineNumber);
-					if (viewZoneHeightInPx > 0) {
-						if (existingZoneId) {
+					if (anyChanged) {
+						widgetsToReposition.push(...existing);
+
+						// Adjust view zone height if needed
+						const viewZoneHeightInPx = getViewZoneHeightInPx(existing);
+						const existingZoneId = this.viewZones.get(lineNumber);
+						if (viewZoneHeightInPx > 0) {
+							if (existingZoneId) {
+								accessor.removeZone(existingZoneId);
+							}
+							const viewZone: IViewZone = {
+								afterLineNumber: lineNumber,
+								heightInPx: viewZoneHeightInPx,
+								domNode: document.createElement('div'),
+								suppressMouseDown: false
+							};
+							const viewZoneId = accessor.addZone(viewZone);
+							this.viewZones.set(lineNumber, viewZoneId);
+						} else if (existingZoneId) {
 							accessor.removeZone(existingZoneId);
+							this.viewZones.delete(lineNumber);
 						}
-						const viewZone: IViewZone = {
-							afterLineNumber: lineNumber,
-							heightInPx: viewZoneHeightInPx,
-							domNode: document.createElement('div'),
-							suppressMouseDown: false
-						};
-						const viewZoneId = accessor.addZone(viewZone);
-						this.viewZones.set(lineNumber, viewZoneId);
-					} else if (existingZoneId) {
-						accessor.removeZone(existingZoneId);
-						this.viewZones.delete(lineNumber);
 					}
 				} else {
 					// Rebuild for this line
@@ -952,6 +1019,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 					}
 					if (widgets.length > 0) {
 						this.visualizationWidgets.set(lineNumber, widgets);
+						widgetsToReposition.push(...widgets);
 					}
 
 					const viewZoneHeightInPx = getViewZoneHeightInPx(widgets);
@@ -968,6 +1036,10 @@ export class SNCController extends Disposable implements IEditorContribution {
 				}
 			}
 		});
+
+		for (const widget of widgetsToReposition) {
+			widget.updatePosition();
+		}
 		this.applySyntaxErrorClassToWidgets();
 	}
 
@@ -1167,6 +1239,41 @@ export class SNCController extends Disposable implements IEditorContribution {
 		if (parts.length > 0) {
 			console.log(`SNC Timing Summary: ${parts.join(' | ')}`);
 		}
+
+		// Event-target timing (only when this run was triggered by an event)
+		const eventTarget = this.runEventTargetById.get(runId);
+		if (eventTarget) {
+			const evtItemMs = this.runEventTargetItemReceivedMsById.get(runId);
+			const evtRenderMs = this.runEventTargetRenderMsById.get(runId);
+			const evtFrameMs = this.runEventTargetRenderFrameMsById.get(runId);
+
+			const triggerToEvtItem = typeof evtItemMs === 'number' ? evtItemMs - triggerMs : undefined;
+			const evtItemToRender = (typeof evtItemMs === 'number' && typeof evtRenderMs === 'number')
+				? evtRenderMs - evtItemMs : undefined;
+			const evtRenderToFrame = (typeof evtRenderMs === 'number' && typeof evtFrameMs === 'number')
+				? evtFrameMs - evtRenderMs : undefined;
+			const triggerToEvtFrame = typeof evtFrameMs === 'number' ? evtFrameMs - triggerMs : undefined;
+			const triggerToEvtRender = typeof evtRenderMs === 'number' ? evtRenderMs - triggerMs : undefined;
+
+			const evtParts: string[] = [];
+			if (triggerToEvtItem !== undefined) {
+				evtParts.push(`trigger→evtItem: ${Math.round(triggerToEvtItem)}ms`);
+			}
+			if (evtItemToRender !== undefined) {
+				evtParts.push(`evtItem→render: ${Math.round(evtItemToRender)}ms`);
+			}
+			if (evtRenderToFrame !== undefined) {
+				evtParts.push(`render→frame: ${Math.round(evtRenderToFrame)}ms`);
+			}
+			if (triggerToEvtFrame !== undefined) {
+				evtParts.push(`TOTAL trigger→frame: ${Math.round(triggerToEvtFrame)}ms`);
+			} else if (triggerToEvtRender !== undefined) {
+				evtParts.push(`TOTAL trigger→render: ${Math.round(triggerToEvtRender)}ms`);
+			}
+			if (evtParts.length > 0) {
+				console.log(`SNC Event Target [${eventTarget.line}:${eventTarget.visIndex}]: ${evtParts.join(' | ')}`);
+			}
+		}
 	}
 
 	private async runProgram(content: string, uiEvent?: UiEvent): Promise<void> {
@@ -1223,6 +1330,15 @@ export class SNCController extends Disposable implements IEditorContribution {
 						this.runFirstItemReceivedMsById.set(msg.runId, now());
 					}
 
+					// Timing: event-target item arrival
+					const eventTarget = this.runEventTargetById.get(msg.runId);
+					const isEventTargetItem = eventTarget
+						&& msg.item.line === eventTarget.line
+						&& msg.item.visIndex === eventTarget.visIndex;
+					if (isEventTargetItem && !this.runEventTargetItemReceivedMsById.has(msg.runId)) {
+						this.runEventTargetItemReceivedMsById.set(msg.runId, now());
+					}
+
 					// replace prior items as new ones come in
 					let found = false;
 					this.visualizationItems = this.visualizationItems.map(visItem => {
@@ -1256,6 +1372,16 @@ export class SNCController extends Disposable implements IEditorContribution {
 							});
 						}
 
+						// Track event-target render timing (may arrive later than firstItem)
+						if (this.runEventTargetItemReceivedMsById.has(msg.runId)
+							&& !this.runEventTargetRenderMsById.has(msg.runId)) {
+							this.runEventTargetRenderMsById.set(msg.runId, now());
+							const runId = msg.runId;
+							dom.getActiveWindow().requestAnimationFrame(() => {
+								this.runEventTargetRenderFrameMsById.set(runId, now());
+							});
+						}
+
 						this.streamUpdateTimer = setTimeout(() => {
 							this.streamUpdateTimer = null;
 						}, 16);
@@ -1276,6 +1402,10 @@ export class SNCController extends Disposable implements IEditorContribution {
 					this.runFirstItemReceivedMsById.delete(msg.runId);
 					this.runFirstRenderMsById.delete(msg.runId);
 					this.runFirstRenderFrameMsById.delete(msg.runId);
+					this.runEventTargetById.delete(msg.runId);
+					this.runEventTargetItemReceivedMsById.delete(msg.runId);
+					this.runEventTargetRenderMsById.delete(msg.runId);
+					this.runEventTargetRenderFrameMsById.delete(msg.runId);
 
 					clearTimeout(this.streamUpdateTimer);
 
@@ -1310,6 +1440,10 @@ export class SNCController extends Disposable implements IEditorContribution {
 					this.runFirstItemReceivedMsById.delete(msg.runId);
 					this.runFirstRenderMsById.delete(msg.runId);
 					this.runFirstRenderFrameMsById.delete(msg.runId);
+					this.runEventTargetById.delete(msg.runId);
+					this.runEventTargetItemReceivedMsById.delete(msg.runId);
+					this.runEventTargetRenderMsById.delete(msg.runId);
+					this.runEventTargetRenderFrameMsById.delete(msg.runId);
 
 					this.currentRunId = null;
 					this.eventsBeingHandledCurrentRun = [];
@@ -1336,6 +1470,9 @@ export class SNCController extends Disposable implements IEditorContribution {
 		const nowMs = (typeof performance !== 'undefined' ? performance.now() : Date.now());
 		// Track trigger time for timing measurement
 		this.runTriggerMsById.set(runId, nowMs);
+		if (uiEvent) {
+			this.runEventTargetById.set(runId, { line: uiEvent.line, visIndex: uiEvent.visIndex });
+		}
 
 		this.eventsBeingHandledCurrentRun = models_and_events.map(m_e => ({
 			line: m_e.line,
