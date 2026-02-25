@@ -683,7 +683,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.editorSaveIndicator.className = 'editor-save-indicator visible';
 				this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 				this.editorSaveIndicator.title = localize('saving', "Saving...");
-				saveDelayer.trigger(async () => { await this.textFileService.save(uri); });
+				saveDelayer.trigger(async () => {
+					try {
+						await this.textFileService.save(uri);
+					} catch (error) {
+						console.error('Failed to save AI customization file:', error);
+						this.editorSaveIndicator.className = 'editor-save-indicator visible error';
+						this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.error));
+						this.editorSaveIndicator.title = localize('saveFailed', "Save Failed");
+					}
+				});
 			}));
 			this.editorModelChangeDisposables.add(this.workingCopyService.onDidSave(e => {
 				if (isEqual(e.workingCopy.resource, uri)) {
