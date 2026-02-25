@@ -759,7 +759,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		const trimmed = message.text.trimStart();
-		const match = /^\/(create-(?:instruction|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
+		const match = /^\/(create-(?:instructions|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
 		return match ? this._toCreateSlashCommandTrackingId(match[1]) : undefined;
 	}
 

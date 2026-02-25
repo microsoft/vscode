@@ -1377,7 +1377,7 @@ suite('CreateSlashCommandsUsageTracker', () => {
 		assert.strictEqual(value, true, 'Context key should be true when create commands have been used');
 	});
 
-	test('detects create-instruction slash command via text fallback', () => {
+	test('detects create-instructions slash command via text fallback', () => {
 		const sessionResource = URI.parse('chat:session1');
 		const tracker = createTracker();
 		tracker.syncContextKey(contextKeyService);
@@ -1385,7 +1385,7 @@ suite('CreateSlashCommandsUsageTracker', () => {
 		sessions.set(sessionResource.toString(), {
 			lastRequest: {
 				message: {
-					text: '/create-instruction test',
+					text: '/create-instructions test',
 					parts: [],
 				},
 			},
@@ -1394,7 +1394,7 @@ suite('CreateSlashCommandsUsageTracker', () => {
 		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
 
 		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
-		assert.strictEqual(value, true, 'Context key should be true after /create-instruction is used');
+		assert.strictEqual(value, true, 'Context key should be true after /create-instructions is used');
 		assert.strictEqual(
 			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
 			true,

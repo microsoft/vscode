@@ -65,7 +65,7 @@ export class CreateSlashCommandsUsageTracker extends Disposable {
 
 	private static _isCreateSlashCommand(command: string): boolean {
 		switch (command) {
-			case 'create-instruction':
+			case 'create-instructions':
 			case 'create-prompt':
 			case 'create-agent':
 			case 'create-skill':
