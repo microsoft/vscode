@@ -75,6 +75,7 @@ class SelectListRenderer implements IListRenderer<ISelectOptionItem, ISelectList
 		// Separator option - show a CSS border instead of text characters
 		if (element.isSeparator) {
 			data.root.classList.add('option-separator');
+			data.root.classList.add('option-disabled');
 		} else {
 			data.root.classList.remove('option-separator');
 		}
@@ -738,6 +739,10 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			mouseSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: element => {
+					if (element.isSeparator) {
+						return localize('selectBoxSeparator', "separator");
+					}
+
 					let label = element.text;
 					if (element.detail) {
 						label += `. ${element.detail}`;

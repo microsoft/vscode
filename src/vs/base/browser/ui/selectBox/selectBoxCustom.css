@@ -45,7 +45,7 @@
 	padding: 5px 6px;
 }
 
-/* Remove focus ring around the list */
+/* Remove list-level focus ring — individual rows show their own focus indicators */
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list:focus::before {
 	outline: 0 !important;
 }
