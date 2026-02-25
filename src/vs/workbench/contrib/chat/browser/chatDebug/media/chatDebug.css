@@ -21,6 +21,9 @@
 	flex-direction: column;
 	align-items: center;
 	padding: 48px 24px;
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
 }
 .chat-debug-home-title {
 	font-size: 18px;
@@ -60,6 +63,13 @@
 }
 .chat-debug-home-session-item:hover {
 	background: var(--vscode-list-hoverBackground);
+}
+.chat-debug-home-session-item:disabled {
+	cursor: default;
+	opacity: 0.7;
+}
+.chat-debug-home-session-item:disabled:hover {
+	background: transparent;
 }
 .chat-debug-home-session-item-title {
 	flex: 1;
@@ -132,6 +142,9 @@
 }
 .chat-debug-overview-content {
 	padding: 16px 24px;
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
 }
 .chat-debug-overview-title-row {
 	display: flex;
@@ -271,18 +284,14 @@
 	flex: 1;
 	max-width: 500px;
 }
+.chat-debug-editor-header .viewpane-filter-container .monaco-inputbox {
+	border-color: var(--vscode-panelInput-border, transparent) !important;
+}
 .chat-debug-view-mode-toggle.monaco-button {
 	width: auto;
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-	padding: 4px 8px;
-	border-radius: 2px;
-	font-size: 12px;
-	cursor: pointer;
-}
-.chat-debug-view-mode-toggle.monaco-button:focus {
-	border-color: var(--vscode-focusBorder);
 }
 .chat-debug-view-mode-labels {
 	display: grid;
@@ -343,13 +352,16 @@
 	align-items: center;
 	padding: 0 16px;
 	height: 28px;
-	border-bottom: 1px solid var(--vscode-widget-border, transparent);
 	font-size: 12px;
 }
 .chat-debug-log-row .chat-debug-log-created {
 	width: 160px;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
+}
+.monaco-list:focus .monaco-list-row.selected .chat-debug-log-created,
+.monaco-list:focus .monaco-list-row.focused .chat-debug-log-created {
+	color: inherit;
 }
 .chat-debug-log-row .chat-debug-log-name {
 	width: 200px;
@@ -415,7 +427,7 @@
 	border-left: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
 	border-top: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
 	box-shadow: -6px 0 6px -6px var(--vscode-widget-shadow);
-	background: var(--vscode-editorWidget-background);
+	background: var(--vscode-panel-background);
 	font-size: 12px;
 	position: relative;
 	overflow: hidden;
@@ -442,9 +454,10 @@
 	opacity: 1;
 	background: var(--vscode-toolbar-hoverBackground);
 }
-.chat-debug-detail-panel > pre {
+.chat-debug-detail-content {
 	flex: 1;
 	min-height: 0;
+	overflow-y: auto;
 }
 .chat-debug-detail-panel pre {
 	margin: 0;
@@ -462,10 +475,6 @@
 }
 
 /* ---- File List Content ---- */
-.chat-debug-detail-panel > .chat-debug-file-list {
-	flex: 1;
-	min-height: 0;
-}
 .chat-debug-file-list {
 	padding: 8px 16px;
 	font-size: 12px;
@@ -553,10 +562,6 @@
 }
 
 /* ---- Message Content (User Message / Agent Response) ---- */
-.chat-debug-detail-panel > .chat-debug-message-content {
-	flex: 1;
-	min-height: 0;
-}
 .chat-debug-message-content {
 	padding: 8px 16px;
 	font-size: 12px;
@@ -620,7 +625,7 @@
 .chat-debug-message-section-content-wrapper {
 	border-top: 1px solid var(--vscode-widget-border, transparent);
 	max-height: 300px;
-	overflow: hidden;
+	overflow-y: auto;
 }
 .chat-debug-message-section-content {
 	margin: 0;

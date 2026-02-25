@@ -89,7 +89,7 @@ import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
-import { registerChatOpenDebugPanelAction } from './actions/chatOpenDebugPanelAction.js';
+import { registerChatOpenAgentDebugPanelAction } from './actions/chatOpenAgentDebugPanelAction.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
 import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
@@ -141,9 +141,11 @@ import './widget/input/editor/chatInputEditorHover.js';
 import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
 import { AgentPluginService, ConfiguredAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
+import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginsViewsContribution } from './agentPluginsView.js';
+import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { PluginInstallService } from './pluginInstallService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
@@ -662,7 +664,7 @@ configurationRegistry.registerConfiguration({
 			items: {
 				type: 'string',
 			},
-			markdownDescription: nls.localize('chat.plugins.marketplaces', "GitHub repositories to use as plugin marketplaces. Each entry should be in `owner/repo` format."),
+			markdownDescription: nls.localize('chat.plugins.marketplaces', "Plugin marketplaces to query. Entries may be GitHub shorthand (`owner/repo`), direct Git repository URIs (`https://...git`, `ssh://...git`, or `git@host:path.git`), or local repository URIs (`file:///...`). Equivalent GitHub shorthand and URI entries are deduplicated."),
 			default: ['github/copilot-plugins', 'github/awesome-copilot'],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -1620,7 +1622,7 @@ registerWorkbenchContribution2(AgentPluginsViewsContribution.ID, AgentPluginsVie
 registerChatActions();
 registerChatAccessibilityActions();
 registerChatCopyActions();
-registerChatOpenDebugPanelAction();
+registerChatOpenAgentDebugPanelAction();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();
 registerChatFileTreeActions();
@@ -1660,6 +1662,7 @@ registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
 registerSingleton(IAgentPluginService, AgentPluginService, InstantiationType.Delayed);
 registerSingleton(IPluginMarketplaceService, PluginMarketplaceService, InstantiationType.Delayed);
+registerSingleton(IAgentPluginRepositoryService, AgentPluginRepositoryService, InstantiationType.Delayed);
 registerSingleton(IPluginInstallService, PluginInstallService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConfirmationService, InstantiationType.Delayed);
