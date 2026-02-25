@@ -198,11 +198,6 @@ export interface ICustomAgent {
 	readonly argumentHint?: string;
 
 	/**
-	 * Icon for the agent, specified as a codicon name (e.g., 'github', 'bell').
-	 */
-	readonly icon?: string;
-
-	/**
 	 * Target of the agent: Copilot, VSCode, Claude, or undefined if not specified.
 	 */
 	readonly target: Target;

@@ -10,7 +10,6 @@ import { ILanguageModelToolsService } from '../languageModelToolsService.js';
 import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
 import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
-import { GetUserDataHomeTool, GetUserDataHomeToolData } from './getUserDataHomeTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
 
@@ -39,10 +38,6 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const confirmationTool = instantiationService.createInstance(ConfirmationTool);
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 		this._register(toolsService.registerTool(ConfirmationToolWithOptionsData, confirmationTool));
-
-		const getUserDataHomeTool = instantiationService.createInstance(GetUserDataHomeTool);
-		this._register(toolsService.registerTool(GetUserDataHomeToolData, getUserDataHomeTool));
-		this._register(toolsService.agentToolSet.addTool(GetUserDataHomeToolData));
 
 		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));
 
