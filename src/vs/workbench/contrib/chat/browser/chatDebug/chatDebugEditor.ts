@@ -30,7 +30,7 @@ const $ = DOM.$;
 
 type ChatDebugPanelOpenedClassification = {
 	owner: 'vijayu';
-	comment: 'Event fired when the chat debug panel is opened';
+	comment: 'Event fired when the agent debug panel is opened';
 };
 
 type ChatDebugViewSwitchedEvent = {

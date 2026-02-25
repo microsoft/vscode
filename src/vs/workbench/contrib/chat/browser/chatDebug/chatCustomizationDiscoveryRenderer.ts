@@ -22,7 +22,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IChatDebugEventFileListContent } from '../../common/chatDebugService.js';
 import { InlineAnchorWidget } from '../widget/chatContentParts/chatInlineAnchorWidget.js';
-import { setupCollapsibleToggle } from './chatDebugMessageContentRenderer.js';
+import { setupCollapsibleToggle } from './chatDebugCollapsible.js';
 
 const $ = DOM.$;
 
@@ -153,7 +153,7 @@ function appendLocationBadge(row: HTMLElement, file: { extensionId?: string }, b
 /**
  * Render a file list resolved content as a rich HTML element.
  */
-export function renderFileListContent(content: IChatDebugEventFileListContent, openerService: IOpenerService, modelService: IModelService, languageService: ILanguageService, hoverService: IHoverService, labelService: ILabelService): { element: HTMLElement; disposables: DisposableStore } {
+export function renderCustomizationDiscoveryContent(content: IChatDebugEventFileListContent, openerService: IOpenerService, modelService: IModelService, languageService: ILanguageService, hoverService: IHoverService, labelService: ILabelService): { element: HTMLElement; disposables: DisposableStore } {
 	const disposables = new DisposableStore();
 	const container = $('div.chat-debug-file-list');
 	container.tabIndex = 0;

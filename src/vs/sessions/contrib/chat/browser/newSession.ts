@@ -196,6 +196,8 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	) {
 		super();
 
+		this._updateWhenClauseKeys();
+
 		this._register(this.chatSessionsService.onDidChangeOptionGroups(() => {
 			this._updateWhenClauseKeys();
 			this._onDidChangeOptionGroups.fire();

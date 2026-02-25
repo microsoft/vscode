@@ -13,28 +13,42 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { CompletionContext, CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../editor/common/model.js';
+import { IDecorationOptions } from '../../../../editor/common/editorCommon.js';
+import { Position } from '../../../../editor/common/core/position.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { getWordAtText } from '../../../../editor/common/core/wordHelper.js';
+import { themeColorFromId } from '../../../../base/common/themables.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { inputPlaceholderForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
@@ -59,6 +73,20 @@ import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession
 import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+
+/**
+ * Minimal slash command descriptor for the sessions new-chat widget.
+ * Self-contained copy of the essential fields from core's `IChatSlashData`
+ * to avoid a direct dependency on the workbench chat slash command service.
+ */
+interface ISessionsSlashCommandData {
+	readonly command: string;
+	readonly detail: string;
+	readonly sortText?: string;
+	readonly executeImmediately?: boolean;
+	readonly execute: (args: string) => void;
+}
 
 const STORAGE_KEY_LAST_MODEL = 'sessions.selectedModel';
 
@@ -126,6 +154,9 @@ class NewChatWidget extends Disposable {
 	// Attached context
 	private readonly _contextAttachments: NewChatContextAttachments;
 
+	// Slash commands
+	private readonly _slashCommands: ISessionsSlashCommandData[] = [];
+
 	constructor(
 		options: INewChatWidgetOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -138,6 +169,10 @@ class NewChatWidget extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IThemeService private readonly themeService: IThemeService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
@@ -159,6 +194,9 @@ class NewChatWidget extends Disposable {
 			this._branchPicker.setVisible(isLocal);
 			this._focusEditor();
 		}));
+
+		// Register slash commands
+		this._registerSlashCommands();
 
 		this._register(this._branchPicker.onDidChangeLoading(loading => {
 			this._branchLoading = loading;
@@ -187,6 +225,12 @@ class NewChatWidget extends Disposable {
 
 	render(container: HTMLElement): void {
 		const wrapper = dom.append(container, dom.$('.sessions-chat-widget'));
+
+		// Overflow widget DOM node at the top level so the suggest widget
+		// is not clipped by any overflow:hidden ancestor.
+		const editorOverflowWidgetsDomNode = dom.append(container, dom.$('.sessions-chat-editor-overflow.monaco-editor'));
+		this._register({ dispose: () => editorOverflowWidgetsDomNode.remove() });
+
 		const welcomeElement = dom.append(wrapper, dom.$('.chat-full-welcome'));
 
 		// Watermark letterpress
@@ -209,7 +253,7 @@ class NewChatWidget extends Disposable {
 		const attachedContextContainer = dom.append(attachRow, dom.$('.sessions-chat-attached-context'));
 		this._contextAttachments.renderAttachedContext(attachedContextContainer);
 
-		this._createEditor(inputArea);
+		this._createEditor(inputArea, editorOverflowWidgetsDomNode);
 		this._createBottomToolbar(inputArea);
 		this._inputSlot.appendChild(inputArea);
 
@@ -356,7 +400,7 @@ class NewChatWidget extends Disposable {
 
 	// --- Editor ---
 
-	private _createEditor(container: HTMLElement): void {
+	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
 		const editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
 
 		const uri = URI.from({ scheme: 'sessions-chat', path: `input-${Date.now()}` });
@@ -374,12 +418,22 @@ class NewChatWidget extends Disposable {
 			wrappingStrategy: 'advanced',
 			stickyScroll: { enabled: false },
 			renderWhitespace: 'none',
+			overflowWidgetsDomNode,
+			suggest: {
+				showIcons: false,
+				showSnippets: false,
+				showWords: true,
+				showStatusBar: false,
+				insertMode: 'insert',
+			},
 		};
 
 		const widgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				ContextMenuController.ID,
+				SuggestController.ID,
+				SnippetController2.ID,
 			]),
 		};
 
@@ -388,8 +442,15 @@ class NewChatWidget extends Disposable {
 		));
 		this._editor.setModel(textModel);
 
+		// Ensure suggest widget renders above the input (not clipped by container)
+		SuggestController.get(this._editor)?.forceRenderingAbove();
+
 		this._register(this._editor.onKeyDown(e => {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+				// Don't send if the suggest widget is visible (let it accept the completion)
+				if (this._editor.contextKeyService.getContextKeyValue<boolean>('suggestWidgetVisible')) {
+					return;
+				}
 				e.preventDefault();
 				e.stopPropagation();
 				this._send();
@@ -399,6 +460,12 @@ class NewChatWidget extends Disposable {
 		this._register(this._editor.onDidContentSizeChange(() => {
 			this._editor.layout();
 		}));
+
+		// Register slash command completions for this editor
+		this._registerSlashCommandCompletions();
+
+		// Register slash command decorations (blue highlight + placeholder)
+		this._registerSlashCommandDecorations();
 
 		this._register(this._editor.onDidChangeModelContent(() => {
 			this._updateSendButtonState();
@@ -731,7 +798,21 @@ class NewChatWidget extends Disposable {
 	private _send(): void {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
-		if (!query || !session || session.disabled || this._sending) {
+		if (!query || !session || this._sending) {
+			return;
+		}
+
+		// If the session is disabled due to missing folder/repo, open the picker
+		if (session.disabled) {
+			if (!this._hasRequiredRepoOrFolderSelection(session.target)) {
+				this._openRepoOrFolderPicker(session.target);
+			}
+			return;
+		}
+
+		// Check for slash commands first
+		if (this._tryExecuteSlashCommand(query)) {
+			this._editor.getModel()?.setValue('');
 			return;
 		}
 
@@ -760,6 +841,240 @@ class NewChatWidget extends Disposable {
 			this._updateSendButtonState();
 			this._updateInputLoadingState();
 		});
+	}
+
+	// --- Slash commands ---
+
+	private _registerSlashCommands(): void {
+		const openSection = (section: AICustomizationManagementSection) =>
+			() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, section);
+
+		this._slashCommands.push({
+			command: 'agents',
+			detail: localize('slashCommand.agents', "View and manage custom agents"),
+			sortText: 'z3_agents',
+			executeImmediately: true,
+			execute: openSection(AICustomizationManagementSection.Agents),
+		});
+		this._slashCommands.push({
+			command: 'skills',
+			detail: localize('slashCommand.skills', "View and manage skills"),
+			sortText: 'z3_skills',
+			executeImmediately: true,
+			execute: openSection(AICustomizationManagementSection.Skills),
+		});
+		this._slashCommands.push({
+			command: 'instructions',
+			detail: localize('slashCommand.instructions', "View and manage instructions"),
+			sortText: 'z3_instructions',
+			executeImmediately: true,
+			execute: openSection(AICustomizationManagementSection.Instructions),
+		});
+		this._slashCommands.push({
+			command: 'prompts',
+			detail: localize('slashCommand.prompts', "View and manage prompt files"),
+			sortText: 'z3_prompts',
+			executeImmediately: true,
+			execute: openSection(AICustomizationManagementSection.Prompts),
+		});
+		this._slashCommands.push({
+			command: 'hooks',
+			detail: localize('slashCommand.hooks', "View and manage hooks"),
+			sortText: 'z3_hooks',
+			executeImmediately: true,
+			execute: openSection(AICustomizationManagementSection.Hooks),
+		});
+		this._slashCommands.push({
+			command: 'mcp',
+			detail: localize('slashCommand.mcp', "View and manage MCP servers"),
+			sortText: 'z3_mcp',
+			executeImmediately: true,
+			execute: openSection(AICustomizationManagementSection.McpServers),
+		});
+		this._slashCommands.push({
+			command: 'models',
+			detail: localize('slashCommand.models', "View and manage models"),
+			sortText: 'z3_models',
+			executeImmediately: true,
+			execute: openSection(AICustomizationManagementSection.Models),
+		});
+	}
+
+	private static readonly _slashDecoType = 'sessions-slash-command';
+	private static readonly _slashPlaceholderDecoType = 'sessions-slash-placeholder';
+	private static _slashDecosRegistered = false;
+
+	private _registerSlashCommandDecorations(): void {
+		if (!NewChatWidget._slashDecosRegistered) {
+			NewChatWidget._slashDecosRegistered = true;
+			this.codeEditorService.registerDecorationType('sessions-chat', NewChatWidget._slashDecoType, {
+				color: themeColorFromId(chatSlashCommandForeground),
+				backgroundColor: themeColorFromId(chatSlashCommandBackground),
+				borderRadius: '3px',
+			});
+			this.codeEditorService.registerDecorationType('sessions-chat', NewChatWidget._slashPlaceholderDecoType, {});
+		}
+
+		this._register(this._editor.onDidChangeModelContent(() => this._updateSlashCommandDecorations()));
+		this._updateSlashCommandDecorations();
+	}
+
+	private _updateSlashCommandDecorations(): void {
+		const model = this._editor.getModel();
+		const value = model?.getValue() ?? '';
+		const match = value.match(/^\/(\w+)\s?/);
+
+		if (!match) {
+			this._editor.setDecorationsByType('sessions-chat', NewChatWidget._slashDecoType, []);
+			this._editor.setDecorationsByType('sessions-chat', NewChatWidget._slashPlaceholderDecoType, []);
+			return;
+		}
+
+		const commandName = match[1];
+		const slashCommand = this._slashCommands.find(c => c.command === commandName);
+		if (!slashCommand) {
+			this._editor.setDecorationsByType('sessions-chat', NewChatWidget._slashDecoType, []);
+			this._editor.setDecorationsByType('sessions-chat', NewChatWidget._slashPlaceholderDecoType, []);
+			return;
+		}
+
+		// Highlight the slash command text in blue
+		const commandEnd = match[0].trimEnd().length;
+		const commandDeco: IDecorationOptions[] = [{
+			range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: commandEnd + 1 },
+		}];
+		this._editor.setDecorationsByType('sessions-chat', NewChatWidget._slashDecoType, commandDeco);
+
+		// Show the command description as a placeholder after the command
+		const restOfInput = value.slice(match[0].length).trim();
+		if (!restOfInput && slashCommand.detail) {
+			const placeholderCol = match[0].length + 1;
+			const placeholderDeco: IDecorationOptions[] = [{
+				range: { startLineNumber: 1, startColumn: placeholderCol, endLineNumber: 1, endColumn: model!.getLineMaxColumn(1) },
+				renderOptions: {
+					after: {
+						contentText: slashCommand.detail,
+						color: this._getPlaceholderColor(),
+					}
+				}
+			}];
+			this._editor.setDecorationsByType('sessions-chat', NewChatWidget._slashPlaceholderDecoType, placeholderDeco);
+		} else {
+			this._editor.setDecorationsByType('sessions-chat', NewChatWidget._slashPlaceholderDecoType, []);
+		}
+	}
+
+	private _getPlaceholderColor(): string | undefined {
+		const theme = this.themeService.getColorTheme();
+		return theme.getColor(inputPlaceholderForeground)?.toString();
+	}
+
+	/**
+	 * Attempts to parse and execute a slash command from the input.
+	 * Returns `true` if a command was handled.
+	 */
+	private _tryExecuteSlashCommand(query: string): boolean {
+		const match = query.match(/^\/(\w+)\s*(.*)/s);
+		if (!match) {
+			return false;
+		}
+
+		const commandName = match[1];
+		const slashCommand = this._slashCommands.find(c => c.command === commandName);
+		if (!slashCommand) {
+			return false;
+		}
+
+		slashCommand.execute(match[2]?.trim() ?? '');
+		return true;
+	}
+
+	private _registerSlashCommandCompletions(): void {
+		const uri = this._editor.getModel()?.uri;
+		if (!uri) {
+			return;
+		}
+
+		// Built-in slash commands
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: uri.scheme, hasAccessToAllModels: true }, {
+			_debugDisplayName: 'sessionsSlashCommands',
+			triggerCharacters: ['/'],
+			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				const range = this._computeCompletionRanges(model, position, /\/\w*/g);
+				if (!range) {
+					return null;
+				}
+
+				// Only allow slash commands at the start of input
+				const textBefore = model.getValueInRange(new Range(1, 1, range.replace.startLineNumber, range.replace.startColumn));
+				if (textBefore.trim() !== '') {
+					return null;
+				}
+
+				return {
+					suggestions: this._slashCommands.map((c, i): CompletionItem => {
+						const withSlash = `/${c.command}`;
+						return {
+							label: withSlash,
+							insertText: `${withSlash} `,
+							detail: c.detail,
+							range,
+							sortText: c.sortText ?? 'a'.repeat(i + 1),
+							kind: CompletionItemKind.Text,
+						};
+					})
+				};
+			}
+		}));
+	}
+
+	/**
+	 * Compute insert and replace ranges for completion at the given position.
+	 * Minimal copy of the helper from chatInputCompletions.
+	 */
+	private _computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp): { insert: Range; replace: Range } | undefined {
+		const varWord = getWordAtText(position.column, reg, model.getLineContent(position.lineNumber), 0);
+		if (!varWord && model.getWordUntilPosition(position).word) {
+			return;
+		}
+
+		if (!varWord && position.column > 1) {
+			const textBefore = model.getValueInRange(new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column));
+			if (textBefore !== ' ') {
+				return;
+			}
+		}
+
+		let insert: Range;
+		let replace: Range;
+		if (!varWord) {
+			insert = replace = Range.fromPositions(position);
+		} else {
+			insert = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, position.column);
+			replace = new Range(position.lineNumber, varWord.startColumn, position.lineNumber, varWord.endColumn);
+		}
+
+		return { insert, replace };
+	}
+
+	/**
+	 * Checks whether the required folder/repo selection exists for the given session type.
+	 * For Local/Background targets, checks the folder picker.
+	 * For other targets, checks extension-contributed repo/folder option groups.
+	 */
+	private _hasRequiredRepoOrFolderSelection(sessionType: AgentSessionProviders): boolean {
+		if (sessionType === AgentSessionProviders.Local || sessionType === AgentSessionProviders.Background) {
+			return !!this._folderPicker.selectedFolderUri;
+		}
+		return !!this._repoPicker.selectedRepo;
+	}
+
+	private _openRepoOrFolderPicker(sessionType: AgentSessionProviders): void {
+		if (sessionType === AgentSessionProviders.Local || sessionType === AgentSessionProviders.Background) {
+			this._folderPicker.showPicker();
+		} else {
+			this._repoPicker.showPicker();
+		}
 	}
 
 	// --- Layout ---

@@ -192,7 +192,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Chat Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
 			new TextBreadcrumbItem(sessionTitle, true),
 			new TextBreadcrumbItem(localize('chatDebug.flowChart', "Agent Flow Chart")),
 		]);
@@ -224,7 +224,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		// Build, filter, slice, and render the flow chart
 		const flowNodes = buildFlowGraph(events);
 		const filtered = filterFlowNodes(flowNodes, {
-			isKindVisible: kind => this.filterState.isKindVisible(kind),
+			isKindVisible: (kind, category) => this.filterState.isKindVisible(kind, category),
 			textFilter: this.filterState.textFilter,
 		});
 
@@ -541,9 +541,17 @@ export class ChatDebugFlowChartView extends Disposable {
 		}
 		const svgWidth = parseFloat(this.svgElement.getAttribute('width') || '0');
 		const svgHeight = parseFloat(this.svgElement.getAttribute('height') || '0');
+		if (svgWidth <= 0 || svgHeight <= 0) {
+			return;
+		}
 
-		this.translateX = (containerRect.width - svgWidth) / 2;
-		this.translateY = Math.max(20, (containerRect.height - svgHeight) / 2);
+		const PADDING = 20;
+		// Pin the top of the diagram near the top of the viewport so the start
+		// of the flow is immediately visible. Center horizontally when the
+		// diagram fits; otherwise align to the left edge with padding so
+		// nothing is clipped behind overflow:hidden.
+		this.translateX = Math.max(PADDING, (containerRect.width - svgWidth) / 2);
+		this.translateY = PADDING;
 		this.applyTransform();
 	}
 }

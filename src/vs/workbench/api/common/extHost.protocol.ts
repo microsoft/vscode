@@ -3525,7 +3525,8 @@ export interface ChatSessionDto {
 }
 
 export interface IChatSessionProviderOptions {
-	optionGroups?: IChatSessionProviderOptionGroup[];
+	optionGroups?: readonly IChatSessionProviderOptionGroup[];
+	newSessionOptions?: Record<string, string | IChatSessionProviderOptionItem>;
 }
 
 export interface IChatSessionItemsChange {

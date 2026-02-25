@@ -16,7 +16,7 @@ export const HandleDialogBrowserToolData: IToolData = {
 	toolReferenceName: 'handleDialog',
 	displayName: localize('handleDialogBrowserTool.displayName', 'Handle Dialog'),
 	userDescription: localize('handleDialogBrowserTool.userDescription', 'Respond to a dialog in a browser page'),
-	modelDescription: 'Respond to a pending dialog (alert, confirm, prompt) or file chooser dialog on a browser page.',
+	modelDescription: 'Respond to a pending modal (alert, confirm, prompt) or file chooser dialog on a browser page.',
 	icon: Codicon.comment,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -26,29 +26,29 @@ export const HandleDialogBrowserToolData: IToolData = {
 				type: 'string',
 				description: `The browser page ID, acquired from context or ${OpenPageToolId}.`
 			},
-			accept: {
+			acceptModal: {
 				type: 'boolean',
-				description: 'Whether to accept (true) or dismiss (false) the dialog.'
+				description: 'Whether to accept (true) or dismiss (false) a modal dialog.'
 			},
 			promptText: {
 				type: 'string',
-				description: 'Text to enter into a prompt dialog. Only applicable for prompt dialogs.'
+				description: 'Text to enter into a prompt dialog.'
 			},
-			files: {
+			selectFiles: {
 				type: 'array',
 				items: { type: 'string' },
-				description: 'Absolute paths of files to select. Required for file chooser dialogs.'
+				description: 'Absolute paths of files to select, or empty to dismiss. Required for file chooser dialogs.'
 			},
 		},
-		required: ['pageId', 'accept'],
+		required: ['pageId'],
 	},
 };
 
 interface IHandleDialogBrowserToolParams {
 	pageId: string;
-	accept: boolean;
+	acceptModal: boolean;
 	promptText?: string;
-	files?: string[];
+	selectFiles?: string[];
 }
 
 export class HandleDialogBrowserTool implements IToolImpl {
@@ -70,12 +70,20 @@ export class HandleDialogBrowserTool implements IToolImpl {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
 		}
 
+		if (params.selectFiles !== undefined && (params.acceptModal !== undefined || params.promptText !== undefined)) {
+			return errorResult(`Invalid parameters. 'selectFiles' cannot be used with 'acceptModal' or 'promptText'.`);
+		}
+
+		if (!Array.isArray(params.selectFiles) && (params.acceptModal === undefined || params.acceptModal === null)) {
+			return errorResult(`Invalid parameters. Either 'selectFiles' or 'acceptModal' must be provided.`);
+		}
+
 		try {
 			let result;
-			if (params.files !== undefined) {
-				result = await this.playwrightService.replyToFileChooser(params.pageId, params.accept ? params.files : []);
+			if (params.selectFiles !== undefined) {
+				result = await this.playwrightService.replyToFileChooser(params.pageId, params.selectFiles);
 			} else {
-				result = await this.playwrightService.replyToDialog(params.pageId, params.accept, params.promptText);
+				result = await this.playwrightService.replyToDialog(params.pageId, params.acceptModal, params.promptText);
 			}
 			return { content: [{ kind: 'text', value: result.summary }] };
 		} catch (e) {

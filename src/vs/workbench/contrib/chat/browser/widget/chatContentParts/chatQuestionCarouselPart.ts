@@ -498,8 +498,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			title.setAttribute('aria-label', messageContent);
 
-			if (isMarkdownString(questionText)) {
-				const renderedTitle = questionRenderStore.add(this._markdownRendererService.render(MarkdownString.lift(questionText)));
+			if (question.message !== undefined) {
+				const messageMd = isMarkdownString(questionText) ? MarkdownString.lift(questionText) : new MarkdownString(questionText);
+				const renderedTitle = questionRenderStore.add(this._markdownRendererService.render(messageMd));
 				title.appendChild(renderedTitle.element);
 			} else {
 				// Check for subtitle in parentheses at the end
@@ -1224,11 +1225,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private getQuestionText(questionText: string | IMarkdownString): string {
-		if (typeof questionText === 'string') {
-			return questionText;
-		}
-
-		return renderAsPlaintext(questionText);
+		const md = typeof questionText === 'string' ? new MarkdownString(questionText) : questionText;
+		return renderAsPlaintext(md);
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
