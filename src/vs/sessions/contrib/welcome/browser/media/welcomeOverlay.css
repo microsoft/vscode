@@ -27,14 +27,16 @@
 .sessions-welcome-card {
 	width: 520px;
 	max-width: 90vw;
-	padding: 32px 40px;
+	padding: 40px;
 	border-radius: 8px;
 	background: var(--vscode-sideBar-background);
-	border: 1px solid var(--vscode-widget-border, transparent);
+	border: 1px solid var(--vscode-focusBorder);
 	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
 	display: flex;
 	flex-direction: column;
-	gap: 20px;
+	align-items: center;
+	gap: 24px;
+	text-align: center;
 }
 
 /* ---- Header ---- */
@@ -42,7 +44,13 @@
 .sessions-welcome-header {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	align-items: center;
+	gap: 16px;
+}
+
+.sessions-welcome-header .sessions-welcome-icon {
+	font-size: 64px;
+	color: var(--vscode-foreground);
 }
 
 .sessions-welcome-header h2 {
@@ -52,18 +60,12 @@
 	color: var(--vscode-foreground);
 }
 
-.sessions-welcome-subtitle {
-	margin: 0;
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.4;
-}
-
 /* ---- Action Area ---- */
 
 .sessions-welcome-action-area {
 	display: flex;
 	flex-direction: column;
+	align-items: center;
 	gap: 12px;
 	width: 100%;
 }
