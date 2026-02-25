@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { equals } from '../../../../base/common/objects.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -35,18 +36,12 @@ const repositoryOptionId = 'repository';
  * - For agent session items: repository is the workingDirectory from metadata
  * - For new sessions: repository comes from the session option with id 'repository'
  */
-export type IActiveSessionItem = (INewSession | IAgentSession) & {
-	readonly label?: string;
-	/**
-	 * The repository URI for this session.
-	 */
+export interface IActiveSessionItem {
+	readonly resource: URI;
+	readonly label: string | undefined;
 	readonly repository: URI | undefined;
-
-	/**
-	 * The worktree URI for this session.
-	 */
 	readonly worktree: URI | undefined;
-};
+}
 
 export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
@@ -383,29 +378,39 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this.lastSelectedSession = session.resource;
 				const [repository, worktree] = this.getRepositoryFromMetadata(session.metadata);
 				activeSessionItem = {
-					...session,
+					label: session.label,
+					resource: session.resource,
 					repository,
 					worktree,
 				};
 			} else {
 				activeSessionItem = {
-					...session,
+					label: undefined,
+					resource: session.resource,
 					repository: session.repoUri,
 					worktree: undefined,
 				};
 				this._activeSessionDisposables.add(session.onDidChange(e => {
 					if (e === 'repoUri') {
 						this._activeSession.set({
-							...session,
+							label: undefined,
+							resource: session.resource,
 							repository: session.repoUri,
 							worktree: undefined,
 						}, undefined);
 					}
 				}));
 			}
-			this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}, repository: ${activeSessionItem.repository?.toString() ?? 'none'}`);
+		}
+
+		if (equals(this._activeSession.get(), activeSessionItem)) {
+			return;
+		}
+
+		if (activeSessionItem) {
+			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}, repository: ${activeSessionItem.repository?.toString() ?? 'none'}`);
 		} else {
-			this.logService.info('[ActiveSessionService] Active session cleared');
+			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
 		this._activeSession.set(activeSessionItem, undefined);
 	}

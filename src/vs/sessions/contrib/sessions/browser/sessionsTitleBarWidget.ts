@@ -25,7 +25,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { getAgentChangesSummary, hasValidDiff, IAgentSession, isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { getAgentChangesSummary, hasValidDiff } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -328,14 +328,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return undefined;
 		}
 
-		let changes: IAgentSession['changes'] | undefined;
-
-		if (isAgentSession(activeSession)) {
-			changes = activeSession.changes;
-		} else {
-			const agentSession = this.agentSessionsService.getSession(activeSession.resource);
-			changes = agentSession?.changes;
-		}
+		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+		const changes = agentSession?.changes;
 
 		if (!changes || !hasValidDiff(changes)) {
 			return undefined;
