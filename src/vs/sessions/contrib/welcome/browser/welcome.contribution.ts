@@ -168,13 +168,12 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 	private _needsChatSetup(): boolean {
 		const { sentiment, entitlement } = this.chatEntitlementService;
 		if (
-			!sentiment?.installed ||
-			sentiment?.disabled ||
-			sentiment?.untrusted ||
-			entitlement === ChatEntitlement.Available ||
+			!sentiment?.installed ||						// Extension not installed: run setup to install
+			sentiment?.disabled ||							// Extension disabled: run setup to enable
+			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
 			(
-				entitlement === ChatEntitlement.Unknown &&
-				!this.chatEntitlementService.anonymous
+				entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
+				!this.chatEntitlementService.anonymous		// unless anonymous access is enabled
 			)
 		) {
 			return true;
