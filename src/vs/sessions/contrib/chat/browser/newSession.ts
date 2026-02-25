@@ -269,7 +269,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 			return [];
 		}
 		return groups
-			.filter(g => !isModelOptionGroup(g) && !isRepoOrFolderGroup(g) && this._isOptionGroupVisible(g))
+			.filter(g => !isModelOptionGroup(g) && this._isOptionGroupVisible(g))
 			.map(g => ({ group: g, value: this._getValueForGroup(g) }));
 	}
 
@@ -340,12 +340,4 @@ function isModelOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
 	}
 	const nameLower = group.name.toLowerCase();
 	return nameLower === 'model' || nameLower === 'models';
-}
-
-function isRepoOrFolderGroup(group: IChatSessionProviderOptionGroup): boolean {
-	const idLower = group.id.toLowerCase();
-	const nameLower = group.name.toLowerCase();
-	return idLower === 'repositories' || idLower === 'folders' ||
-		nameLower === 'repository' || nameLower === 'repositories' ||
-		nameLower === 'folder' || nameLower === 'folders';
 }
