@@ -377,7 +377,16 @@
 			"type": "shell",
 			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json",
 			"isBackground": true,
-			"problemMatcher": []
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*VITE.*",
+					"endsPattern": "(Local|Network):.*"
+				}
+			}
 		}
 	]
 }
