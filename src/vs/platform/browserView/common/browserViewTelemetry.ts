@@ -9,6 +9,8 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 export type IntegratedBrowserOpenSource =
 	/** Created via CDP, such as by the agent using Playwright tools. */
 	| 'cdpCreated'
+	/** Opened via a (non-agentic) chat tool invocation. */
+	| 'chatTool'
 	/** Opened via the "Open Integrated Browser" command without a URL argument.
 	 * This typically means the user ran the command manually from the Command Palette. */
 	| 'commandWithoutUrl'

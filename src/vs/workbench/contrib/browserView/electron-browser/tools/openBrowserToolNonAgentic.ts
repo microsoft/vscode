@@ -27,11 +27,11 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const params = context.parameters as IOpenBrowserToolParams;
 		return {
-			invocationMessage: localize('browser.open.invocation', "Opening browser page at {0}", params.url ?? 'about:blank'),
-			pastTenseMessage: localize('browser.open.past', "Opened browser page at {0}", params.url ?? 'about:blank'),
+			invocationMessage: localize('browser.open.nonAgentic.invocation', "Opening browser page at {0}", params.url ?? 'about:blank'),
+			pastTenseMessage: localize('browser.open.nonAgentic.past', "Opened browser page at {0}", params.url ?? 'about:blank'),
 			confirmationMessages: {
-				title: localize('browser.open.confirmTitle', 'Open Browser Page?'),
-				message: localize('browser.open.confirmMessage', 'This will open {0} in the integrated browser. The agent will not be able to read its contents.', params.url ?? 'about:blank'),
+				title: localize('browser.open.nonAgentic.confirmTitle', 'Open Browser Page?'),
+				message: localize('browser.open.nonAgentic.confirmMessage', 'This will open {0} in the integrated browser. The agent will not be able to read its contents.', params.url ?? 'about:blank'),
 				allowAutoConfirm: true,
 			},
 		};
@@ -44,7 +44,7 @@ export class OpenBrowserToolNonAgentic implements IToolImpl {
 			return errorResult('The "url" parameter is required.');
 		}
 
-		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
+		logBrowserOpen(this.telemetryService, 'chatTool');
 
 		const browserUri = BrowserViewUri.forUrl(params.url);
 		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true } });
