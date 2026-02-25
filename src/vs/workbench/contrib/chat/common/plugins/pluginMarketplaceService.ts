@@ -68,6 +68,9 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 	) { }
 
 	async fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]> {
+		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
+			return [];
+		}
 		const repos: string[] = this._configurationService.getValue(ChatConfiguration.PluginMarketplaces) ?? [];
 		const results = await Promise.all(
 			repos
