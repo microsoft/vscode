@@ -140,7 +140,12 @@ export function toolCallContentToPlainText(content: IChatDebugEventToolCallConte
 	if (content.output) {
 		lines.push('');
 		lines.push(`[${localize('chatDebug.toolCall.output', "Output")}]`);
-		lines.push(content.output);
+		try {
+			const parsed = JSON.parse(content.output);
+			lines.push(JSON.stringify(parsed, null, 2));
+		} catch {
+			lines.push(content.output);
+		}
 	}
 
 	return lines.join('\n');
