@@ -405,7 +405,7 @@ export class CancelSessionAction extends KeepOrUndoSessionAction {
 				id: MenuId.ChatEditorInlineExecute,
 				group: 'navigation',
 				order: 100,
-				when: ctxHasRequestInProgress
+				when: ContextKeyExpr.and(CTX_HOVER_MODE, ctxHasRequestInProgress)
 			}]
 		});
 	}

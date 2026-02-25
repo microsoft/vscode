@@ -87,7 +87,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[InlineChatConfigKeys.FixDiagnostics]: {
 			description: localize('fixDiagnostics', "Controls whether the Fix action is shown for diagnostics in the editor."),
-			default: false,
+			default: true,
 			type: 'boolean',
 			experiment: {
 				mode: 'auto'

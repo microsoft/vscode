@@ -506,6 +506,36 @@ suite('Modal Editor Group', () => {
 		modalPart.close();
 	});
 
+	test('modal editor part remembers maximized state across instances', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		// Open modal and maximize it
+		const modalPart1 = await parts.createModalEditorPart();
+		modalPart1.toggleMaximized();
+		assert.strictEqual(modalPart1.maximized, true);
+		modalPart1.close();
+
+		// Open a new modal - should remember maximized state
+		const modalPart2 = await parts.createModalEditorPart();
+		assert.strictEqual(modalPart2.maximized, true);
+		modalPart2.close();
+
+		// Open another modal after un-maximizing
+		const modalPart3 = await parts.createModalEditorPart();
+		assert.strictEqual(modalPart3.maximized, true);
+		modalPart3.toggleMaximized();
+		assert.strictEqual(modalPart3.maximized, false);
+		modalPart3.close();
+
+		// Should now remember non-maximized state
+		const modalPart4 = await parts.createModalEditorPart();
+		assert.strictEqual(modalPart4.maximized, false);
+		modalPart4.close();
+	});
+
 	suite('useModal: all', () => {
 
 		test('findGroup creates modal and returns its active group', async () => {

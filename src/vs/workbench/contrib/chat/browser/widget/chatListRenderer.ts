@@ -1403,9 +1403,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
+		if (!element.isComplete) {
+			return false;
+		}
+		if (this.environmentService.isSessionsWindow) {
+			return true; // show changes per turn in sessions window to make it clear which changes belong to which turn
+		}
 		// Only show file changes summary for local sessions - background sessions already have their own file changes part
 		const isLocalSession = getChatSessionType(element.sessionResource) === localChatSessionType;
-		return element.isComplete && isLocalSession && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
+		return isLocalSession && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
