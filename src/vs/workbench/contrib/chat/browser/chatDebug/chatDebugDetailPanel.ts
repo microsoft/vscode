@@ -23,6 +23,7 @@ import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
 import { renderFileListContent, fileListToPlainText } from './chatDebugFileListRenderer.js';
 import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
 import { renderToolCallContent, toolCallContentToPlainText } from './chatDebugToolCallContentRenderer.js';
+import { renderModelTurnContent, modelTurnContentToPlainText } from './chatDebugModelTurnContentRenderer.js';
 
 const $ = DOM.$;
 
@@ -131,6 +132,11 @@ export class ChatDebugDetailPanel extends Disposable {
 		} else if (resolved && resolved.kind === 'message') {
 			this.currentDetailText = resolvedMessageToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = renderResolvedMessageContent(resolved);
+			this.detailDisposables.add(contentDisposables);
+			this.element.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'modelTurn') {
+			this.currentDetailText = modelTurnContentToPlainText(resolved);
+			const { element: contentEl, disposables: contentDisposables } = renderModelTurnContent(resolved);
 			this.detailDisposables.add(contentDisposables);
 			this.element.appendChild(contentEl);
 		} else if (event.kind === 'userMessage') {

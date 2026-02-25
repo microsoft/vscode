@@ -265,6 +265,24 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					output: tc.output,
 				};
 			}
+			case 'modelTurnContent': {
+				const mt = result as vscode.ChatDebugEventModelTurnContent;
+				return {
+					kind: 'modelTurn',
+					requestName: mt.requestName,
+					model: mt.model,
+					status: mt.status,
+					durationInMillis: mt.durationInMillis,
+					timeToFirstTokenInMillis: mt.timeToFirstTokenInMillis,
+					maxInputTokens: mt.maxInputTokens,
+					maxOutputTokens: mt.maxOutputTokens,
+					inputTokens: mt.inputTokens,
+					outputTokens: mt.outputTokens,
+					cachedTokens: mt.cachedTokens,
+					totalTokens: mt.totalTokens,
+					errorMessage: mt.errorMessage,
+				};
+			}
 			default:
 				return undefined;
 		}

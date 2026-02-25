@@ -143,6 +143,37 @@ declare module 'vscode' {
 		durationInMillis?: number;
 
 		/**
+		 * The number of cached input tokens reused from a previous request.
+		 */
+		cachedTokens?: number;
+
+		/**
+		 * The time in milliseconds from sending the request to receiving the
+		 * first response token.
+		 */
+		timeToFirstTokenInMillis?: number;
+
+		/**
+		 * The maximum number of prompt/input tokens allowed for this request.
+		 */
+		maxInputTokens?: number;
+
+		/**
+		 * The maximum number of response/output tokens allowed for this request.
+		 */
+		maxOutputTokens?: number;
+
+		/**
+		 * The short name or label identifying this request (e.g., "panel/editAgent").
+		 */
+		requestName?: string;
+
+		/**
+		 * The outcome status of the model turn (e.g., "success", "failure", "canceled").
+		 */
+		status?: string;
+
+		/**
 		 * Create a new ChatDebugModelTurnEvent.
 		 * @param created The timestamp when the event was created.
 		 */
@@ -485,12 +516,85 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Structured model turn content for a resolved chat debug event,
+	 * containing request metadata, token usage, and timing for rich rendering.
+	 */
+	export class ChatDebugEventModelTurnContent {
+		/**
+		 * The short name or label identifying this request (e.g., "panel/editAgent").
+		 */
+		requestName: string;
+
+		/**
+		 * The identifier of the model used (e.g., "claude-sonnet-4.5").
+		 */
+		model?: string;
+
+		/**
+		 * The outcome status of the model turn (e.g., "success", "failure", "canceled").
+		 */
+		status?: string;
+
+		/**
+		 * How long the model turn took to complete, in milliseconds.
+		 */
+		durationInMillis?: number;
+
+		/**
+		 * The time in milliseconds from sending the request to receiving the
+		 * first response token.
+		 */
+		timeToFirstTokenInMillis?: number;
+
+		/**
+		 * The maximum number of prompt/input tokens allowed for this request.
+		 */
+		maxInputTokens?: number;
+
+		/**
+		 * The maximum number of response/output tokens allowed for this request.
+		 */
+		maxOutputTokens?: number;
+
+		/**
+		 * The number of tokens in the input/prompt.
+		 */
+		inputTokens?: number;
+
+		/**
+		 * The number of tokens in the model's output/completion.
+		 */
+		outputTokens?: number;
+
+		/**
+		 * The number of cached input tokens reused from a previous request.
+		 */
+		cachedTokens?: number;
+
+		/**
+		 * The total number of tokens consumed (input + output).
+		 */
+		totalTokens?: number;
+
+		/**
+		 * An error message, if the model turn failed.
+		 */
+		errorMessage?: string;
+
+		/**
+		 * Create a new ChatDebugEventModelTurnContent.
+		 * @param requestName The short name identifying this request.
+		 */
+		constructor(requestName: string);
+	}
+
+	/**
 	 * Union of all resolved event content types.
 	 * Extensions may also return {@link ChatDebugUserMessageEvent} or
 	 * {@link ChatDebugAgentResponseEvent} from resolve, which will be
 	 * automatically converted to structured message content.
 	 */
-	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugEventToolCallContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
+	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugEventToolCallContent | ChatDebugEventModelTurnContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
 
 	/**
 	 * Union of all chat debug event types. Each type is a class,

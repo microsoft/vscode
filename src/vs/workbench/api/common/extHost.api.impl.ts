@@ -2077,6 +2077,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatDebugMessageContentType: extHostTypes.ChatDebugMessageContentType,
 			ChatDebugEventMessageContent: extHostTypes.ChatDebugEventMessageContent,
 			ChatDebugEventToolCallContent: extHostTypes.ChatDebugEventToolCallContent,
+			ChatDebugEventModelTurnContent: extHostTypes.ChatDebugEventModelTurnContent,
 			ChatRequestEditorData: extHostTypes.ChatRequestEditorData,
 			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,

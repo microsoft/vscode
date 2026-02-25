@@ -160,12 +160,16 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 	function toFlowNode(event: IChatDebugEvent): FlowNode {
 		const children = event.id ? idToChildren.get(event.id) : undefined;
 
+		// Remap generic events with well-known names to their proper kind
+		// so they get correct styling and sublabel treatment.
+		const effectiveKind = getEffectiveKind(event);
+
 		// For subagent invocations, enrich with description from the
 		// filtered-out completion sibling, or fall back to the event's own field.
-		let sublabel = getEventSublabel(event);
+		let sublabel = getEventSublabel(event, effectiveKind);
 		let tooltip = getEventTooltip(event);
 		let description: string | undefined;
-		if (event.kind === 'subagentInvocation') {
+		if (effectiveKind === 'subagentInvocation') {
 			description = getSubagentDescription(event);
 			if (description) {
 				sublabel = truncateLabel(description, 30) + (sublabel ? ` \u00b7 ${sublabel}` : '');
@@ -180,9 +184,9 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 
 		return {
 			id: event.id ?? `event-${events.indexOf(event)}`,
-			kind: event.kind,
+			kind: effectiveKind,
 			category: event.kind === 'generic' ? event.category : undefined,
-			label: getEventLabel(event),
+			label: getEventLabel(event, effectiveKind),
 			sublabel,
 			description,
 			tooltip,
@@ -388,56 +392,90 @@ export function sliceFlowNodes(nodes: readonly FlowNode[], maxCount: number): Fl
 
 // ---- Event helpers ----
 
-function getEventLabel(event: IChatDebugEvent): string {
-	switch (event.kind) {
-		case 'userMessage': {
-			const firstLine = event.message.split('\n')[0];
-			return firstLine.length > 40 ? firstLine.substring(0, 37) + '...' : firstLine;
+/**
+ * Remaps generic events with well-known names (e.g. "User message",
+ * "Agent response") to their proper typed kind so they receive
+ * correct colors, labels, and sublabel treatment in the flow chart.
+ */
+function getEffectiveKind(event: IChatDebugEvent): IChatDebugEvent['kind'] {
+	if (event.kind === 'generic') {
+		const name = event.name.toLowerCase();
+		if (name === 'user message') {
+			return 'userMessage';
 		}
+		if (name === 'agent response' || name === 'response') {
+			return 'agentResponse';
+		}
+	}
+	return event.kind;
+}
+
+function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['kind']): string {
+	const kind = effectiveKind ?? event.kind;
+	switch (kind) {
+		case 'userMessage':
+			return 'User Message';
 		case 'modelTurn':
-			return event.model ?? 'Model Turn';
+			return event.kind === 'modelTurn' ? (event.model ?? 'Model Turn') : 'Model Turn';
 		case 'toolCall':
-			return event.toolName;
+			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : '';
 		case 'subagentInvocation':
-			return event.agentName;
+			return event.kind === 'subagentInvocation' ? event.agentName : '';
 		case 'agentResponse':
 			return 'Response';
 		case 'generic':
-			return event.name;
+			return event.kind === 'generic' ? event.name : '';
 	}
 }
 
-function getEventSublabel(event: IChatDebugEvent): string | undefined {
-	switch (event.kind) {
+function getEventSublabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['kind']): string | undefined {
+	const kind = effectiveKind ?? event.kind;
+	switch (kind) {
 		case 'modelTurn': {
 			const parts: string[] = [];
-			if (event.totalTokens) {
+			if (event.kind === 'modelTurn' && event.totalTokens) {
 				parts.push(`${event.totalTokens} tokens`);
 			}
-			if (event.durationInMillis) {
+			if (event.kind === 'modelTurn' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
 			}
 			return parts.length > 0 ? parts.join(' \u00b7 ') : undefined;
 		}
 		case 'toolCall': {
 			const parts: string[] = [];
-			if (event.result) {
+			if (event.kind === 'toolCall' && event.result) {
 				parts.push(event.result);
 			}
-			if (event.durationInMillis) {
+			if (event.kind === 'toolCall' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
 			}
 			return parts.length > 0 ? parts.join(' \u00b7 ') : undefined;
 		}
 		case 'subagentInvocation': {
 			const parts: string[] = [];
-			if (event.status) {
+			if (event.kind === 'subagentInvocation' && event.status) {
 				parts.push(event.status);
 			}
-			if (event.durationInMillis) {
+			if (event.kind === 'subagentInvocation' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
 			}
 			return parts.length > 0 ? parts.join(' \u00b7 ') : undefined;
+		}
+		case 'userMessage':
+		case 'agentResponse': {
+			// For proper typed events, use the message property;
+			// for remapped generic events, use the details property.
+			const text = (event.kind === 'userMessage' || event.kind === 'agentResponse')
+				? event.message
+				: event.kind === 'generic' ? event.details : undefined;
+			if (!text) {
+				return undefined;
+			}
+			const firstLine = text.split('\n')[0].trim();
+			if (!firstLine) {
+				return undefined;
+			}
+			return firstLine.length > 60 ? firstLine.substring(0, 57) + '...' : firstLine;
 		}
 		default:
 			return undefined;
