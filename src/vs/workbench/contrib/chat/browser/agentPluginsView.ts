@@ -318,6 +318,12 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				this.refreshOnPluginsChangedScheduler.schedule();
 			}
 		}));
+
+		this._register(this.pluginMarketplaceService.onDidChangeMarketplaces(() => {
+			if (this.list && this.isBodyVisible()) {
+				this.refreshOnPluginsChangedScheduler.schedule();
+			}
+		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {

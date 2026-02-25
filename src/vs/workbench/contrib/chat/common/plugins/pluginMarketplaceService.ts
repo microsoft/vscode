@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
 import { joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -46,6 +47,7 @@ export const IPluginMarketplaceService = createDecorator<IPluginMarketplaceServi
 
 export interface IPluginMarketplaceService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeMarketplaces: Event<void>;
 	fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]>;
 }
 
@@ -61,11 +63,18 @@ const MARKETPLACE_DEFINITIONS: { type: MarketplaceType; path: string }[] = [
 export class PluginMarketplaceService implements IPluginMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 
+	readonly onDidChangeMarketplaces: Event<void>;
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@ILogService private readonly _logService: ILogService,
-	) { }
+	) {
+		this.onDidChangeMarketplaces = Event.filter(
+			_configurationService.onDidChangeConfiguration,
+			e => e.affectsConfiguration(ChatConfiguration.PluginsEnabled) || e.affectsConfiguration(ChatConfiguration.PluginMarketplaces),
+		) as Event<void>;
+	}
 
 	async fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]> {
 		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
