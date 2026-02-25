@@ -28,7 +28,7 @@ import { TestChatEntitlementService } from '../../../../test/common/workbenchTes
 import { IChatService } from '../../common/chatService/chatService.js';
 import { MockChatService } from '../common/chatService/mockChatService.js';
 import { CreateSlashCommandsUsageTracker } from '../../browser/createSlashCommandsUsageTracker.js';
-import { ChatRequestSlashCommandPart } from '../../common/requestParser/chatParserTypes.js';
+import { ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -115,6 +115,38 @@ suite('ChatTipService', () => {
 		assert.ok(tip, 'Should return a welcome tip');
 		assert.ok(tip.id.startsWith('tip.'), 'Tip should have a valid ID');
 		assert.ok(tip.content.value.length > 0, 'Tip should have content');
+	});
+
+	test('records # file reference usage for attach files tip eligibility', () => {
+		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
+		instantiationService.stub(IChatService, {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: () => undefined,
+		} as Partial<IChatService> as IChatService);
+
+		createService();
+
+		submitRequestEmitter.fire({
+			chatSessionResource: URI.parse('chat:session-attach-file'),
+			message: {
+				text: 'what does #file:README.md say',
+				parts: [new ChatRequestDynamicVariablePart(
+					new OffsetRange(10, 26),
+					new Range(1, 11, 1, 27),
+					'#file:README.md',
+					'file',
+					undefined,
+					URI.file('/workspace/README.md'),
+					undefined,
+					undefined,
+					true,
+					false,
+				)],
+			},
+		});
+
+		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
+		assert.ok(executedCommands.includes('chat.tips.attachFiles.referenceUsed'));
 	});
 
 	test('returns Auto switch tip when current model is gpt-4.1', () => {
@@ -1306,13 +1338,13 @@ suite('CreateSlashCommandsUsageTracker', () => {
 
 	let storageService: InMemoryStorageService;
 	let contextKeyService: MockContextKeyService;
-	let submitRequestEmitter: Emitter<{ readonly chatSessionResource: URI }>;
+	let submitRequestEmitter: Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
 	let sessions: Map<string, { lastRequest: { message: { text: string; parts: readonly { kind: string }[] } } | undefined }>;
 
 	setup(() => {
 		storageService = testDisposables.add(new InMemoryStorageService());
 		contextKeyService = new MockContextKeyService();
-		submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI }>());
+		submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
 		sessions = new Map();
 	});
 
@@ -1422,6 +1454,26 @@ suite('CreateSlashCommandsUsageTracker', () => {
 			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
 			true,
 			'Storage should persist when create-agent slash command part is detected',
+		);
+	});
+
+	test('detects create command from submitted message payload when session has no last request', () => {
+		const sessionResource = URI.parse('chat:session-payload');
+		const tracker = createTracker();
+		tracker.syncContextKey(contextKeyService);
+
+		submitRequestEmitter.fire({
+			chatSessionResource: sessionResource,
+			message: {
+				text: '/create-prompt payload-test',
+				parts: [],
+			},
+		});
+
+		assert.strictEqual(
+			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
+			true,
+			'Storage should persist usage detected from submitted message payload',
 		);
 	});
 

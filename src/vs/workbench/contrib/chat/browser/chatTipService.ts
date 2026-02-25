@@ -25,6 +25,7 @@ import { IChatService } from '../common/chatService/chatService.js';
 import { CreateSlashCommandsUsageTracker } from './createSlashCommandsUsageTracker.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ChatRequestDynamicVariablePart, IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -39,6 +40,8 @@ type ChatTipClassification = {
 	owner: 'meganrogge';
 	comment: 'Tracks user interactions with chat tips to understand which tips resonate and which are dismissed.';
 };
+
+const ATTACH_FILES_REFERENCE_TRACKING_COMMAND = 'chat.tips.attachFiles.referenceUsed';
 
 export const IChatTipService = createDecorator<IChatTipService>('chatTipService');
 
@@ -222,7 +225,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 	{
 		id: 'tip.attachFiles',
 		message: localize('tip.attachFiles', "Tip: Reference files or folders with # to give the agent more context about the task."),
-		excludeWhenCommandsExecuted: ['workbench.action.chat.attachContext', 'workbench.action.chat.attachFile', 'workbench.action.chat.attachFolder', 'workbench.action.chat.attachSelection'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.attachContext', 'workbench.action.chat.attachFile', 'workbench.action.chat.attachFolder', 'workbench.action.chat.attachSelection', ATTACH_FILES_REFERENCE_TRACKING_COMMAND],
 	},
 	{
 		id: 'tip.codeActions',
@@ -407,15 +410,7 @@ export class TipEligibilityTracker extends Disposable {
 
 		if (this._pendingCommands.size > 0) {
 			this._commandListener.value = commandService.onDidExecuteCommand(e => {
-				if (this._pendingCommands.has(e.commandId)) {
-					this._executedCommands.add(e.commandId);
-					this._persistSet(TipEligibilityTracker._COMMANDS_STORAGE_KEY, this._executedCommands);
-					this._pendingCommands.delete(e.commandId);
-
-					if (this._pendingCommands.size === 0) {
-						this._commandListener.clear();
-					}
-				}
+				this.recordCommandExecuted(e.commandId);
 			});
 		}
 
@@ -460,6 +455,20 @@ export class TipEligibilityTracker extends Disposable {
 				}
 			}
 		}));
+	}
+
+	recordCommandExecuted(commandId: string): void {
+		if (!this._pendingCommands.has(commandId)) {
+			return;
+		}
+
+		this._executedCommands.add(commandId);
+		this._persistSet(TipEligibilityTracker._COMMANDS_STORAGE_KEY, this._executedCommands);
+		this._pendingCommands.delete(commandId);
+
+		if (this._pendingCommands.size === 0) {
+			this._commandListener.clear();
+		}
 	}
 
 	/**
@@ -684,6 +693,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			}
 		}));
 
+		this._register(this._chatService.onDidSubmitRequest(e => {
+			const message = e.message ?? this._chatService.getSession(e.chatSessionResource)?.lastRequest?.message;
+			if (message && this._hasFileOrFolderReference(message)) {
+				this._tracker.recordCommandExecuted(ATTACH_FILES_REFERENCE_TRACKING_COMMAND);
+			}
+		}));
+
 		// Track whether yolo mode was ever enabled
 		this._yoloModeEverEnabled = this._storageService.getBoolean(ChatTipService._YOLO_EVER_ENABLED_KEY, StorageScope.APPLICATION, false);
 		if (!this._yoloModeEverEnabled && this._configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
@@ -716,6 +732,17 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				}
 			}));
 		}
+	}
+
+	private _hasFileOrFolderReference(message: IParsedChatRequest): boolean {
+		return message.parts.some(part => {
+			if (part.kind !== ChatRequestDynamicVariablePart.Kind) {
+				return false;
+			}
+
+			const dynamicPart = part as ChatRequestDynamicVariablePart;
+			return dynamicPart.isFile === true || dynamicPart.isDirectory === true;
+		});
 	}
 
 	resetSession(): void {
