@@ -361,7 +361,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.listWidget.onDidSelectItem(item => {
 			if (this.workspaceService.preferManualCreation) {
 				const isWorkspaceFile = item.storage === PromptsStorage.local;
-				const isReadOnly = item.storage === PromptsStorage.extension;
+				const isReadOnly = item.storage === PromptsStorage.extension || item.storage === PromptsStorage.plugin;
 				this.showEmbeddedEditor(item.uri, item.name, isWorkspaceFile, isReadOnly);
 			} else {
 				this.editorService.openEditor({ resource: item.uri });

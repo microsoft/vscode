@@ -33,7 +33,7 @@ import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAU
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, Target, IPromptDiscoveryLogEntry } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, Target, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { IChatRequestHooks, IHookCommand, HookType } from '../hookSchema.js';
@@ -44,6 +44,7 @@ import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { getCanonicalPluginCommandId, IAgentPlugin, IAgentPluginService } from '../../plugins/agentPluginService.js';
+import { assertNever } from '../../../../../../base/common/assert.js';
 
 /**
  * Error thrown when a skill file is missing the required name attribute.
@@ -152,7 +153,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly _onDidContributedWhenChange = this._register(new Emitter<void>());
 	private readonly _onDidPluginPromptFilesChange = this._register(new Emitter<void>());
 	private readonly _onDidPluginHooksChange = this._register(new Emitter<void>());
-	private _pluginPromptFilesByType = new Map<PromptsType, readonly ILocalPromptPath[]>();
+	private _pluginPromptFilesByType = new Map<PromptsType, readonly IPluginPromptPath[]>();
 
 	constructor(
 		@ILogService public readonly logger: ILogService,
@@ -246,14 +247,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	) {
 		return autorun(reader => {
 			const plugins = this.agentPluginService.plugins.read(reader);
-			const nextFiles: ILocalPromptPath[] = [];
+			const nextFiles: IPluginPromptPath[] = [];
 			for (const plugin of plugins) {
 				for (const item of getItems(plugin, reader)) {
 					nextFiles.push({
 						uri: item.uri,
-						storage: PromptsStorage.local,
+						storage: PromptsStorage.plugin,
 						type,
 						name: getCanonicalPluginCommandId(plugin, item.name),
+						pluginUri: plugin.uri,
 					});
 				}
 			}
@@ -476,6 +478,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
 			case PromptsStorage.user:
 				return this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
+			case PromptsStorage.plugin:
+				return this._pluginPromptFilesByType.get(type) ?? [];
 			default:
 				throw new Error(`[listPromptFilesForStorage] Unsupported prompt storage type: ${storage}`);
 		}
@@ -832,7 +836,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			case PromptsStorage.extension: {
 				return localize('extension.with.id', 'Extension: {0}', promptPath.extension.displayName ?? promptPath.extension.id);
 			}
-			default: throw new Error('Unknown prompt storage type');
+			case PromptsStorage.plugin: return localize('plugin.capitalized', 'Plugin');
+			default: assertNever(promptPath, 'Unknown prompt storage type');
 		}
 	}
 
@@ -1108,6 +1113,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			configWorkspace: number;
 			extensionContribution: number;
 			extensionAPI: number;
+			plugin: number;
 			skippedDuplicateName: number;
 			skippedMissingName: number;
 			skippedMissingDescription: number;
@@ -1127,6 +1133,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			configWorkspace: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of custom configured workspace skills.' };
 			extensionContribution: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of extension contributed skills.' };
 			extensionAPI: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of extension API provided skills.' };
+			plugin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of plugin provided skills.' };
 			skippedDuplicateName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to duplicate names.' };
 			skippedMissingName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing name attribute.' };
 			skippedMissingDescription: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of skills skipped due to missing description attribute.' };
@@ -1148,6 +1155,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			configPersonal: skillsBySource.get(PromptFileSource.ConfigPersonal) ?? 0,
 			extensionContribution: skillsBySource.get(PromptFileSource.ExtensionContribution) ?? 0,
 			extensionAPI: skillsBySource.get(PromptFileSource.ExtensionAPI) ?? 0,
+			plugin: skillsBySource.get(PromptFileSource.Plugin) ?? 0,
 			skippedDuplicateName,
 			skippedMissingName,
 			skippedMissingDescription,
@@ -1383,10 +1391,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const allSkills: Array<IResolvedPromptFile> = [];
 		const discoveredSkills = await this.fileLocator.findAgentSkills(token);
 		const extensionSkills = await this.getExtensionPromptFiles(PromptsType.skill, token);
+		const pluginSkills = this._pluginPromptFilesByType.get(PromptsType.skill) ?? [];
 		allSkills.push(...discoveredSkills, ...extensionSkills.map((extPath) => ({
 			fileUri: extPath.uri,
 			storage: extPath.storage,
 			source: extPath.source === ExtensionAgentSourceType.contribution ? PromptFileSource.ExtensionContribution : PromptFileSource.ExtensionAPI
+		})), ...pluginSkills.map((p) => ({
+			fileUri: p.uri,
+			storage: p.storage,
+			source: PromptFileSource.Plugin,
 		})));
 
 		const getPriority = (skill: IResolvedPromptFile | IExtensionPromptPath): number => {
@@ -1396,13 +1409,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 			if (skill.storage === PromptsStorage.user) {
 				return 1; // personal
 			}
-			if (skill.source === PromptFileSource.ExtensionAPI) {
-				return 2;
+			if (skill.storage === PromptsStorage.plugin) {
+				return 2; // plugin
 			}
-			if (skill.source === PromptFileSource.ExtensionContribution) {
+			if (skill.source === PromptFileSource.ExtensionAPI) {
 				return 3;
 			}
-			return 4;
+			if (skill.source === PromptFileSource.ExtensionContribution) {
+				return 4;
+			}
+			return 5;
 		};
 		// Stable sort; we should keep order consistent to the order in the user's configuration object
 		allSkills.sort((a, b) => getPriority(a) - getPriority(b));
@@ -1750,6 +1766,11 @@ namespace IAgentSource {
 				storage: PromptsStorage.extension,
 				extensionId: promptPath.extension.identifier,
 				type: promptPath.source
+			};
+		} else if (promptPath.storage === PromptsStorage.plugin) {
+			return {
+				storage: PromptsStorage.plugin,
+				pluginUri: promptPath.pluginUri
 			};
 		} else {
 			return {

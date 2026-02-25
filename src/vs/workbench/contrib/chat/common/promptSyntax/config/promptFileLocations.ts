@@ -111,6 +111,7 @@ export enum PromptFileSource {
 	ConfigPersonal = 'config-personal',
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
+	Plugin = 'plugin',
 }
 
 /**
