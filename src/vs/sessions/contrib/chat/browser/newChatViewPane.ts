@@ -41,6 +41,9 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { localize } from '../../../../nls.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
@@ -150,6 +153,8 @@ class NewChatWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
@@ -771,6 +776,13 @@ class NewChatWidget extends Disposable {
 			return;
 		}
 
+		// If chat is not set up (extension not installed or user not signed in),
+		// trigger the standard chat setup flow before proceeding.
+		if (this._needsChatSetup()) {
+			this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { inputValue: query });
+			return;
+		}
+
 		// If the session is disabled due to missing folder/repo, open the picker
 		if (session.disabled) {
 			if (!this._hasRequiredRepoOrFolderSelection(session.target)) {
@@ -830,6 +842,19 @@ class NewChatWidget extends Disposable {
 		} else {
 			this._repoPicker.showPicker();
 		}
+	}
+
+	private _needsChatSetup(): boolean {
+		const context = this.chatEntitlementService.context?.value;
+		if (!context) {
+			return false; // setup not applicable in this environment
+		}
+		const state = context.state;
+		return !state.installed ||
+			state.disabled ||
+			state.untrusted ||
+			state.entitlement === ChatEntitlement.Available ||
+			(state.entitlement === ChatEntitlement.Unknown && !this.chatEntitlementService.anonymous);
 	}
 
 	// --- Layout ---
