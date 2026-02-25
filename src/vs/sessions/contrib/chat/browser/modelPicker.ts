@@ -40,6 +40,7 @@ export class CloudModelPicker extends Disposable {
 	private _session: RemoteNewSession | undefined;
 	private _selectedModel: IModelItem | undefined;
 	private _models: IModelItem[] = [];
+	private _modelGroupId: string | undefined;
 
 	get selectedModel(): IModelItem | undefined {
 		return this._selectedModel;
@@ -60,9 +61,9 @@ export class CloudModelPicker extends Disposable {
 		this._loadModels(session);
 
 		// Sync selected model to the new session
-		if (this._selectedModel) {
+		if (this._selectedModel && this._modelGroupId) {
 			session.setModelId(this._selectedModel.id);
-			session.setOptionValue('models', { id: this._selectedModel.id, name: this._selectedModel.name });
+			session.setOptionValue(this._modelGroupId, { id: this._selectedModel.id, name: this._selectedModel.name });
 		}
 
 		// Re-load models when option groups change
@@ -115,6 +116,7 @@ export class CloudModelPicker extends Disposable {
 	private _loadModels(session: RemoteNewSession): void {
 		const modelOption = session.getModelOptionGroup();
 		if (modelOption?.group.items.length) {
+			this._modelGroupId = modelOption.group.id;
 			this._models = modelOption.group.items.map(item => ({
 				id: item.id,
 				name: item.name,
@@ -180,9 +182,9 @@ export class CloudModelPicker extends Disposable {
 		this._selectedModel = item;
 		this._updateTriggerLabel();
 
-		if (this._session) {
+		if (this._session && this._modelGroupId) {
 			this._session.setModelId(item.id);
-			this._session.setOptionValue('models', { id: item.id, name: item.name });
+			this._session.setOptionValue(this._modelGroupId, { id: item.id, name: item.name });
 		}
 		this._onDidChange.fire({ id: item.id, name: item.name, description: item.description });
 	}
