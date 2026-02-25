@@ -6,6 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsolationMode } from './sessionTargetPicker.js';
@@ -202,6 +203,13 @@ export class RemoteNewSession extends Disposable implements INewSession {
 			this._updateWhenClauseKeys();
 			this._onDidChangeOptionGroups.fire();
 			this._onDidChange.fire('options');
+		}));
+		this._register(this.chatSessionsService.onDidChangeSessionOptions((e: URI | undefined) => {
+			if (isEqual(this.resource, e)) {
+				this._onDidChangeOptionGroups.fire();
+				this._onDidChange.fire('options');
+				this._onDidChange.fire('disabled');
+			}
 		}));
 		this._register(this.contextKeyService.onDidChangeContext(e => {
 			if (this._whenClauseKeys.size > 0 && e.affectsSome(this._whenClauseKeys)) {
