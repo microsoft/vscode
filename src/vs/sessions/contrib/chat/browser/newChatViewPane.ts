@@ -94,6 +94,7 @@ class NewChatWidget extends Disposable {
 
 	// Input
 	private _editor!: CodeEditorWidget;
+	private _editorContainer!: HTMLElement;
 	private readonly _currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentLanguageModel', undefined);
 	private readonly _modelPickerDisposable = this._register(new MutableDisposable());
 
@@ -374,7 +375,7 @@ class NewChatWidget extends Disposable {
 	// --- Editor ---
 
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
-		const editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
+		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
 
 		const uri = URI.from({ scheme: 'sessions-chat', path: `input-${Date.now()}` });
 		const textModel = this._register(this.modelService.createModel('', null, uri, true));
@@ -436,6 +437,9 @@ class NewChatWidget extends Disposable {
 		}));
 
 		this._register(this._editor.onDidContentSizeChange(() => {
+			const contentHeight = this._editor.getContentHeight();
+			const clampedHeight = Math.min(200, Math.max(50, contentHeight));
+			this._editorContainer.style.height = `${clampedHeight}px`;
 			this._editor.layout();
 		}));
 
