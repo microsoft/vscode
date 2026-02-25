@@ -769,7 +769,15 @@ class NewChatWidget extends Disposable {
 	private _send(): void {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
-		if (!query || !session || session.disabled || this._sending) {
+		if (!query || !session || this._sending) {
+			return;
+		}
+
+		// If the session is disabled due to missing folder/repo, open the picker
+		if (session.disabled) {
+			if (!this._hasRequiredRepoOrFolderSelection(session.target)) {
+				this._openRepoOrFolderPicker(session.target);
+			}
 			return;
 		}
 
@@ -798,6 +806,64 @@ class NewChatWidget extends Disposable {
 			this._updateSendButtonState();
 			this._updateInputLoadingState();
 		});
+	}
+
+	/**
+	 * Checks whether the required folder/repo selection exists for the given session type.
+	 * For Local/Background targets, checks the folder picker.
+	 * For other targets, checks extension-contributed repo/folder option groups.
+	 */
+	private _hasRequiredRepoOrFolderSelection(sessionType: AgentSessionProviders): boolean {
+		if (sessionType === AgentSessionProviders.Local || sessionType === AgentSessionProviders.Background) {
+			return !!this._folderPicker.selectedFolderUri;
+		}
+
+		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(sessionType);
+		if (!optionGroups) {
+			return true;
+		}
+		for (const group of optionGroups) {
+			if (!isRepoOrFolderGroup(group)) {
+				continue;
+			}
+			const selected = this._selectedOptions.get(group.id);
+			if (selected) {
+				return true;
+			}
+			const defaultItem = this._getDefaultOptionForGroup(group);
+			if (defaultItem) {
+				return true;
+			}
+		}
+		// No repo/folder groups exist — nothing required
+		return !optionGroups.some(g => isRepoOrFolderGroup(g));
+	}
+
+	/**
+	 * Opens the appropriate folder/repo picker for the given session type.
+	 * For Local/Background targets, opens the folder picker.
+	 * For other targets, opens the first visible repo/folder extension picker widget.
+	 */
+	private _openRepoOrFolderPicker(sessionType: AgentSessionProviders): void {
+		if (sessionType === AgentSessionProviders.Local || sessionType === AgentSessionProviders.Background) {
+			this._folderPicker.showPicker();
+			return;
+		}
+
+		const optionGroups = this.chatSessionsService.getOptionGroupsForSessionType(sessionType);
+		if (!optionGroups) {
+			return;
+		}
+		for (const group of optionGroups) {
+			if (!isRepoOrFolderGroup(group)) {
+				continue;
+			}
+			const widget = this._pickerWidgets.get(group.id);
+			if (widget) {
+				widget.show();
+				return;
+			}
+		}
 	}
 
 	// --- Layout ---
