@@ -70,7 +70,7 @@ export class HandleDialogBrowserTool implements IToolImpl {
 			return errorResult(`No page ID provided. Use '${OpenPageToolId}' first.`);
 		}
 
-		if (params.selectFiles && (params.acceptModal || params.promptText)) {
+		if (params.selectFiles !== undefined && (params.acceptModal !== undefined || params.promptText !== undefined)) {
 			return errorResult(`Invalid parameters. 'selectFiles' cannot be used with 'acceptModal' or 'promptText'.`);
 		}
 
