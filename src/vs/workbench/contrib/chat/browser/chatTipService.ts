@@ -986,6 +986,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return false;
 		}
 
+		this._createSlashCommandsUsageTracker.syncContextKey(this._contextKeyService);
 		return this._hasNavigableTip(this._contextKeyService);
 	}
 
