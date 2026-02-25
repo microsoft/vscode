@@ -50,7 +50,7 @@ class SessionsWelcomeOverlay extends Disposable {
 		const iconEl = append(header, $('span.sessions-welcome-icon'));
 		iconEl.appendChild(renderIcon(Codicon.agent));
 		append(header, $('h2', undefined, localize('welcomeTitle', "Sign in to use Sessions")));
-		append(header, $('p.sessions-welcome-subtitle', undefined, localize('welcomeSubtitle', "Sign in with your GitHub account to get started.")));
+		append(header, $('p.sessions-welcome-subtitle', undefined, localize('welcomeSubtitle', "Agent-powered development with GitHub Copilot.")));
 
 		// Action area
 		const actionArea = append(card, $('.sessions-welcome-action-area'));
