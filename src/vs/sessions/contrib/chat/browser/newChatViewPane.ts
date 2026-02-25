@@ -431,7 +431,7 @@ class NewChatWidget extends Disposable {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && e.altKey) {
 				e.preventDefault();
 				e.stopPropagation();
-				this._send(/* openNewAfterSend */ true);
+				this._send({ openNewAfterSend: true });
 			}
 		}));
 
@@ -514,7 +514,7 @@ class NewChatWidget extends Disposable {
 			ariaLabel: localize('send', "Send"),
 		}));
 		sendButton.icon = Codicon.send;
-		this._register(sendButton.onDidClick(() => this._send(this._altKeyDown)));
+		this._register(sendButton.onDidClick(() => this._send({ openNewAfterSend: this._altKeyDown })));
 		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Alt') {
 				this._altKeyDown = true;
@@ -782,7 +782,7 @@ class NewChatWidget extends Disposable {
 		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
-	private async _send(skipSetup?: boolean, openNewAfterSend = false): Promise<void> {
+	private async _send(options?: { skipSetup?: boolean; openNewAfterSend?: boolean }): Promise<void> {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
 		if (!query || !session || this._sending) {
@@ -791,10 +791,10 @@ class NewChatWidget extends Disposable {
 
 		// If chat is not set up (extension not installed or user not signed in),
 		// trigger the standard chat setup flow first, then re-submit.
-		if (!skipSetup && this._needsChatSetup()) {
+		if (!options?.skipSetup && this._needsChatSetup()) {
 			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
 			if (success) {
-				this._send(true);
+				this._send({ ...options, skipSetup: true });
 			}
 			return;
 		}
@@ -825,7 +825,7 @@ class NewChatWidget extends Disposable {
 
 		this.sessionsManagementService.sendRequestForNewSession(
 			session.resource,
-			openNewAfterSend ? { openNewSessionView: true } : undefined
+			options?.openNewAfterSend ? { openNewSessionView: true } : undefined
 		).then(() => {
 			// Release ref without disposing - the service owns disposal
 			this._newSession.clearAndLeak();
