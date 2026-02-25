@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { IChatDebugEvent } from '../../common/chatDebugService.js';
 
 // ---- Data model ----
@@ -389,14 +390,14 @@ export function mergeDiscoveryNodes(
 		const uniqueLabels = [...new Set(labels)];
 		const summaryLabel = uniqueLabels.length <= 2
 			? uniqueLabels.join(', ')
-			: `${uniqueLabels[0]} +${run.length - 1} more`;
+			: localize('discoveryMergedLabel', "{0} +{1} more", uniqueLabels[0], run.length - 1);
 
 		result.push({
 			id: mergedId,
 			kind: 'generic',
 			category: 'discovery',
 			label: summaryLabel,
-			sublabel: `${run.length} discovery steps`,
+			sublabel: localize('discoveryStepsCount', "{0} discovery steps", run.length),
 			tooltip: run.map(n => n.label + (n.sublabel ? `: ${n.sublabel}` : '')).join('\n'),
 			created: run[0].created,
 			children: [],
@@ -474,7 +475,7 @@ export function mergeToolCallNodes(
 			id: mergedId,
 			kind: 'toolCall',
 			label: toolName,
-			sublabel: `${run.length} calls`,
+			sublabel: localize('toolCallsCount', "{0} calls", run.length),
 			tooltip: run.map(n => n.label + (n.sublabel ? `: ${n.sublabel}` : '')).join('\n'),
 			created: run[0].created,
 			children: [],
@@ -517,16 +518,16 @@ function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['
 	const kind = effectiveKind ?? event.kind;
 	switch (kind) {
 		case 'userMessage':
-			return 'User';
+			return localize('userLabel', "User");
 		case 'modelTurn':
-			return event.kind === 'modelTurn' ? (event.model ?? 'Model Turn') : 'Model Turn';
+			return event.kind === 'modelTurn' ? (event.model ?? localize('modelTurnLabel', "Model Turn")) : localize('modelTurnLabel', "Model Turn");
 		case 'toolCall':
 			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : '';
 		case 'subagentInvocation':
 			return event.kind === 'subagentInvocation' ? event.agentName : '';
 		case 'agentResponse': {
 			if (event.kind === 'agentResponse') {
-				return event.message || 'Response';
+				return event.message || localize('responseLabel', "Response");
 			}
 			// Remapped generic event — extract model name from parenthesized suffix
 			// e.g. "Agent response (claude-opus-4.5)" → "claude-opus-4.5"
@@ -536,7 +537,7 @@ function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['
 					return match[1];
 				}
 			}
-			return 'Response';
+			return localize('responseLabel', "Response");
 		}
 		case 'generic':
 			return event.kind === 'generic' ? event.name : '';
@@ -549,7 +550,7 @@ function getEventSublabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEven
 		case 'modelTurn': {
 			const parts: string[] = [];
 			if (event.kind === 'modelTurn' && event.totalTokens) {
-				parts.push(`${event.totalTokens} tokens`);
+				parts.push(localize('tokenCount', "{0} tokens", event.totalTokens));
 			}
 			if (event.kind === 'modelTurn' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
@@ -640,14 +641,14 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 			const parts: string[] = [event.toolName];
 			if (event.input) {
 				const input = event.input.trim();
-				parts.push(`Input: ${input.length > TOOLTIP_MAX_LENGTH ? input.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : input}`);
+				parts.push(localize('tooltipInput', "Input: {0}", input.length > TOOLTIP_MAX_LENGTH ? input.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : input));
 			}
 			if (event.output) {
 				const output = event.output.trim();
-				parts.push(`Output: ${output.length > TOOLTIP_MAX_LENGTH ? output.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : output}`);
+				parts.push(localize('tooltipOutput', "Output: {0}", output.length > TOOLTIP_MAX_LENGTH ? output.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : output));
 			}
 			if (event.result) {
-				parts.push(`Result: ${event.result}`);
+				parts.push(localize('tooltipResult', "Result: {0}", event.result));
 			}
 			return parts.join('\n');
 		}
@@ -657,13 +658,13 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 				parts.push(event.description);
 			}
 			if (event.status) {
-				parts.push(`Status: ${event.status}`);
+				parts.push(localize('tooltipStatus', "Status: {0}", event.status));
 			}
 			if (event.toolCallCount !== undefined) {
-				parts.push(`Tool calls: ${event.toolCallCount}`);
+				parts.push(localize('tooltipToolCalls', "Tool calls: {0}", event.toolCallCount));
 			}
 			if (event.modelTurnCount !== undefined) {
-				parts.push(`Model turns: ${event.modelTurnCount}`);
+				parts.push(localize('tooltipModelTurns', "Model turns: {0}", event.modelTurnCount));
 			}
 			return parts.join('\n');
 		}
@@ -680,16 +681,16 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 				parts.push(event.model);
 			}
 			if (event.totalTokens) {
-				parts.push(`Tokens: ${event.totalTokens}`);
+				parts.push(localize('tooltipTokens', "Tokens: {0}", event.totalTokens));
 			}
 			if (event.inputTokens) {
-				parts.push(`Input tokens: ${event.inputTokens}`);
+				parts.push(localize('tooltipInputTokens', "Input tokens: {0}", event.inputTokens));
 			}
 			if (event.outputTokens) {
-				parts.push(`Output tokens: ${event.outputTokens}`);
+				parts.push(localize('tooltipOutputTokens', "Output tokens: {0}", event.outputTokens));
 			}
 			if (event.durationInMillis) {
-				parts.push(`Duration: ${formatDuration(event.durationInMillis)}`);
+				parts.push(localize('tooltipDuration', "Duration: {0}", formatDuration(event.durationInMillis)));
 			}
 			return parts.length > 0 ? parts.join('\n') : undefined;
 		}
