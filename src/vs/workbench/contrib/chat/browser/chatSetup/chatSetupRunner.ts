@@ -9,6 +9,7 @@ import { IButton } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
@@ -81,7 +82,7 @@ export class ChatSetup {
 		this.skipDialogOnce = true;
 	}
 
-	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<IChatSetupResult> {
+	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<IChatSetupResult> {
 		if (this.pendingRun) {
 			return this.pendingRun;
 		}
@@ -95,7 +96,7 @@ export class ChatSetup {
 		}
 	}
 
-	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<IChatSetupResult> {
+	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<IChatSetupResult> {
 		this.context.update({ later: false });
 
 		const dialogSkipped = this.skipDialogOnce;
@@ -161,7 +162,7 @@ export class ChatSetup {
 		return { success, dialogSkipped };
 	}
 
-	private async showDialog(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous }): Promise<ChatSetupStrategy> {
+	private async showDialog(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous; dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<ChatSetupStrategy> {
 		const disposables = new DisposableStore();
 
 		const useCloseButton = await this.experimentService.getTreatment<boolean>('chatSetupDialogCloseButton');
@@ -175,7 +176,7 @@ export class ChatSetup {
 				type: 'none',
 				extraClasses: ['chat-setup-dialog'],
 				detail: ' ', // workaround allowing us to render the message in large
-				icon: Codicon.copilotLarge,
+				icon: options?.dialogIcon ?? Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: useCloseButton ? buttons.length : buttons.length - 1,
 				disableCloseButton: !useCloseButton,
@@ -231,7 +232,11 @@ export class ChatSetup {
 		return buttons;
 	}
 
-	private getDialogTitle(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous }): string {
+	private getDialogTitle(options?: { forceSignInDialog?: boolean; forceAnonymous?: ChatSetupAnonymous; dialogTitle?: string }): string {
+		if (options?.dialogTitle) {
+			return options.dialogTitle;
+		}
+
 		if (this.chatEntitlementService.anonymous) {
 			if (options?.forceAnonymous) {
 				return localize('startUsing', "Start using AI Features");

@@ -247,9 +247,43 @@ export interface IChatDebugEventMessageContent {
 }
 
 /**
+ * Structured tool call content for a resolved debug event.
+ * Contains the tool name, status, arguments, and output for rich rendering.
+ */
+export interface IChatDebugEventToolCallContent {
+	readonly kind: 'toolCall';
+	readonly toolName: string;
+	readonly result?: 'success' | 'error';
+	readonly durationInMillis?: number;
+	readonly input?: string;
+	readonly output?: string;
+}
+
+/**
+ * Structured model turn content for a resolved debug event.
+ * Contains request metadata, token usage, and timing for rich rendering.
+ */
+export interface IChatDebugEventModelTurnContent {
+	readonly kind: 'modelTurn';
+	readonly requestName: string;
+	readonly model?: string;
+	readonly status?: string;
+	readonly durationInMillis?: number;
+	readonly timeToFirstTokenInMillis?: number;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
+	readonly totalTokens?: number;
+	readonly errorMessage?: string;
+	readonly sections?: readonly IChatDebugMessageSection[];
+}
+
+/**
  * Union of all resolved event content types.
  */
-export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent;
+export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent | IChatDebugEventModelTurnContent;
 
 /**
  * Provider interface for debug events.

@@ -30,6 +30,14 @@ function makeTask(label: string, command?: string, inSessions?: boolean): ITaskE
 	return { label, type: 'shell', command: command ?? label, inSessions };
 }
 
+function makeNpmTask(label: string, script: string, inSessions?: boolean): ITaskEntry {
+	return { label, type: 'npm', script, inSessions };
+}
+
+function makeUnsupportedTask(label: string, inSessions?: boolean): ITaskEntry {
+	return { label, type: 'gulp', command: label, inSessions };
+}
+
 function tasksJsonContent(tasks: ITaskEntry[]): string {
 	return JSON.stringify({ version: '2.0.0', tasks });
 }
@@ -44,6 +52,7 @@ suite('SessionsConfigurationService', () => {
 	let sentCommands: { command: string }[];
 	let committedFiles: { session: IActiveSessionItem; fileUris: URI[] }[];
 	let storageService: InMemoryStorageService;
+	let readFileCalls: URI[];
 
 	const userSettingsUri = URI.parse('file:///user/settings.json');
 	const repoUri = URI.parse('file:///repo');
@@ -55,11 +64,13 @@ suite('SessionsConfigurationService', () => {
 		createdTerminals = [];
 		sentCommands = [];
 		committedFiles = [];
+		readFileCalls = [];
 
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
 			override async readFile(resource: URI) {
+				readFileCalls.push(resource);
 				const content = fileContents.get(resource.toString());
 				if (content === undefined) {
 					throw new Error('file not found');
@@ -128,6 +139,8 @@ suite('SessionsConfigurationService', () => {
 			makeTask('build', 'npm run build', true),
 			makeTask('lint', 'npm run lint', false),
 			makeTask('test', 'npm test', true),
+			makeNpmTask('watch', 'watch', true),
+			makeUnsupportedTask('gulp-task', true),
 		]));
 		// user tasks.json — empty
 		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
@@ -140,7 +153,7 @@ suite('SessionsConfigurationService', () => {
 		await new Promise(r => setTimeout(r, 10));
 		const tasks = obs.get();
 
-		assert.deepStrictEqual(tasks.map(t => t.label), ['build', 'test']);
+		assert.deepStrictEqual(tasks.map(t => t.label), ['build', 'test', 'watch']);
 	});
 
 	test('getSessionTasks returns empty array when no worktree', async () => {
@@ -167,14 +180,38 @@ suite('SessionsConfigurationService', () => {
 		assert.deepStrictEqual(obs.get().map(t => t.label), ['serve']);
 	});
 
+	test('getSessionTasks does not re-read files on repeated calls for the same folder', async () => {
+		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
+		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
+		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
+			makeTask('build', 'npm run build', true),
+		]));
+		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
+
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+
+		// Call getSessionTasks multiple times for the same session/folder
+		service.getSessionTasks(session);
+		service.getSessionTasks(session);
+		service.getSessionTasks(session);
+
+		await new Promise(r => setTimeout(r, 10));
+
+		// _refreshSessionTasks reads two files (workspace + user tasks.json).
+		// If refresh triggered more than once, we'd see > 2 reads.
+		assert.strictEqual(readFileCalls.length, 2, 'should read files only once (no duplicate refresh)');
+	});
+
 	// --- getNonSessionTasks ---
 
-	test('getNonSessionTasks returns only tasks without inSessions', async () => {
+	test('getNonSessionTasks returns only tasks without inSessions and with supported types', async () => {
 		const worktreeTasksUri = URI.parse('file:///worktree/.vscode/tasks.json');
 		fileContents.set(worktreeTasksUri.toString(), tasksJsonContent([
 			makeTask('build', 'npm run build', true),
 			makeTask('lint', 'npm run lint', false),
 			makeTask('test', 'npm test'),
+			makeNpmTask('watch', 'watch', false),
+			makeUnsupportedTask('gulp-task', false),
 		]));
 		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
 		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
@@ -182,7 +219,7 @@ suite('SessionsConfigurationService', () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
 		const nonSessionTasks = await service.getNonSessionTasks(session);
 
-		assert.deepStrictEqual(nonSessionTasks.map(t => t.label), ['lint', 'test']);
+		assert.deepStrictEqual(nonSessionTasks.map(t => t.label), ['lint', 'test', 'watch']);
 	});
 
 	test('getNonSessionTasks reads from repository when no worktree', async () => {
@@ -303,6 +340,28 @@ suite('SessionsConfigurationService', () => {
 		assert.strictEqual(createdTerminals[0].name, 'build');
 		assert.strictEqual(sentCommands.length, 1);
 		assert.strictEqual(sentCommands[0].command, 'npm run build');
+	});
+
+	test('runTask resolves npm task to npm run <script>', async () => {
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const task = makeNpmTask('watch', 'watch');
+
+		await service.runTask(task, session);
+
+		assert.strictEqual(createdTerminals.length, 1);
+		assert.strictEqual(createdTerminals[0].name, 'watch');
+		assert.strictEqual(sentCommands.length, 1);
+		assert.strictEqual(sentCommands[0].command, 'npm run watch');
+	});
+
+	test('runTask does nothing for npm task without script', async () => {
+		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const task: ITaskEntry = { label: 'broken', type: 'npm', inSessions: true };
+
+		await service.runTask(task, session);
+
+		assert.strictEqual(createdTerminals.length, 0);
+		assert.strictEqual(sentCommands.length, 0);
 	});
 
 	test('runTask does nothing when no cwd available', async () => {

@@ -177,7 +177,7 @@ export class BranchPicker extends Disposable {
 		return this._branches.map(branch => ({
 			kind: ActionListItemKind.Action,
 			label: branch,
-			group: { title: '', icon: this._selectedBranch === branch ? Codicon.check : Codicon.blank },
+			group: { title: '', icon: Codicon.gitBranch },
 			item: { name: branch },
 		}));
 	}

@@ -753,6 +753,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				}));
 				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, groupsWithCallbacks);
 			}
+			if (options?.newSessionOptions) {
+				this._chatSessionsService.setNewSessionOptionsForSessionType(chatSessionScheme, options.newSessionOptions);
+			}
 		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}
 

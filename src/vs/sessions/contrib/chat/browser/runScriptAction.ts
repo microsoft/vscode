@@ -225,7 +225,10 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			return;
 		}
 
-		await this._sessionsConfigService.createAndAddTask(command, session, target);
+		const newTask = await this._sessionsConfigService.createAndAddTask(command, session, target);
+		if (newTask) {
+			await this._sessionsConfigService.runTask(newTask, session);
+		}
 	}
 
 	private async _pickStorageTarget(session: IActiveSessionItem): Promise<TaskStorageTarget | undefined> {
@@ -267,13 +270,13 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			picker.onDidAccept(() => {
 				const selected = picker.activeItems[0];
 				if (selected && (selected.target !== 'workspace' || hasWorktree)) {
-					picker.dispose();
 					resolve(selected.target);
+					picker.dispose();
 				}
 			});
 			picker.onDidHide(() => {
-				picker.dispose();
 				resolve(undefined);
+				picker.dispose();
 			});
 			picker.show();
 		});

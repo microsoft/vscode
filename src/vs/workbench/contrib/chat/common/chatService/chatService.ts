@@ -1345,7 +1345,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
+	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
@@ -1409,7 +1409,7 @@ export interface IChatService {
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
-	cancelCurrentRequestForSession(sessionResource: URI): void;
+	cancelCurrentRequestForSession(sessionResource: URI, isInlineChat?: boolean): void;
 	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */

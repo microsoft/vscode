@@ -67,7 +67,7 @@ export interface ISessionsConfigurationService {
 	 * Creates a new shell task with `inSessions: true` and writes it to
 	 * the appropriate tasks.json (user or workspace).
 	 */
-	createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void>;
+	createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<ITaskEntry | undefined>;
 
 	/**
 	 * Runs a task entry in a terminal, resolving the correct platform
@@ -88,6 +88,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly _LAST_RUN_TASK_LABELS_KEY = 'agentSessions.lastRunTaskLabels';
+	private static readonly _SUPPORTED_TASK_TYPES = new Set(['shell', 'npm']);
 
 	private readonly _sessionTasks = observableValue<readonly ITaskEntry[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
@@ -151,10 +152,10 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 	}
 
-	async createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void> {
+	async createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<ITaskEntry | undefined> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
-			return;
+			return undefined;
 		}
 
 		const tasksJson = await this._readTasksJson(tasksJsonUri);
@@ -174,6 +175,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (target === 'workspace') {
 			await this._commitTasksFile(session);
 		}
+
+		return newTask;
 	}
 
 	async runTask(task: ITaskEntry, session: IActiveSessionItem): Promise<void> {
@@ -265,7 +268,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (workspaceUri) {
 			const workspaceJson = await this._readTasksJson(workspaceUri);
 			if (workspaceJson.tasks) {
-				result.push(...workspaceJson.tasks);
+				result.push(...workspaceJson.tasks.filter(t => this._isSupportedTask(t)));
 			}
 		}
 
@@ -274,14 +277,27 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (userUri) {
 			const userJson = await this._readTasksJson(userUri);
 			if (userJson.tasks) {
-				result.push(...userJson.tasks);
+				result.push(...userJson.tasks.filter(t => this._isSupportedTask(t)));
 			}
 		}
 
 		return result;
 	}
 
+	private _isSupportedTask(task: ITaskEntry): boolean {
+		return !!task.type && SessionsConfigurationService._SUPPORTED_TASK_TYPES.has(task.type);
+	}
+
 	private _resolveCommand(task: ITaskEntry): string | undefined {
+		if (task.type === 'npm') {
+			if (!task.script) {
+				return undefined;
+			}
+			if (task.path) {
+				return `npm --prefix ${task.path} run ${task.script}`;
+			}
+			return `npm run ${task.script}`;
+		}
 		if (isWindows && task.windows?.command) {
 			return task.windows.command;
 		}
@@ -321,12 +337,12 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
 		const tasksJson = await this._readTasksJson(tasksUri);
-		const sessionTasks = (tasksJson.tasks ?? []).filter(t => t.inSessions);
+		const sessionTasks = (tasksJson.tasks ?? []).filter(t => t.inSessions && this._isSupportedTask(t));
 
 		// Also include user-level session tasks
 		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
 		const userJson = await this._readTasksJson(userUri);
-		const userSessionTasks = (userJson.tasks ?? []).filter(t => t.inSessions);
+		const userSessionTasks = (userJson.tasks ?? []).filter(t => t.inSessions && this._isSupportedTask(t));
 
 		transaction(tx => this._sessionTasks.set([...sessionTasks, ...userSessionTasks], tx));
 	}

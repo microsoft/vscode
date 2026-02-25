@@ -332,7 +332,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	/**
 	 * Store option groups with onSearch callbacks per provider handle
 	 */
-	private readonly _providerOptionGroups = new Map<number, vscode.ChatSessionProviderOptionGroup[]>();
+	private readonly _providerOptionGroups = new Map<number, readonly vscode.ChatSessionProviderOptionGroup[]>();
 
 	constructor(
 		private readonly commands: ExtHostCommands,
@@ -598,13 +598,17 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		try {
-			const { optionGroups } = await provider.provideChatSessionProviderOptions(token);
-			if (!optionGroups) {
+			const result = await provider.provideChatSessionProviderOptions(token);
+			if (!result) {
 				return;
 			}
-			this._providerOptionGroups.set(handle, optionGroups);
+			const { optionGroups, newSessionOptions } = result;
+			if (optionGroups) {
+				this._providerOptionGroups.set(handle, optionGroups);
+			}
 			return {
 				optionGroups,
+				newSessionOptions,
 			};
 		} catch (error) {
 			this._logService.error(`Error calling provideChatSessionProviderOptions for handle ${handle}:`, error);

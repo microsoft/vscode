@@ -24,7 +24,7 @@ export const NavigateBrowserToolData: IToolData = {
 		properties: {
 			pageId: {
 				type: 'string',
-				description: `The browser page ID to navigate, acquired from context or ${OpenPageToolId}.`
+				description: `The browser page ID to navigate, acquired from context or the open tool.`
 			},
 			type: {
 				type: 'string',

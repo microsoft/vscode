@@ -91,8 +91,11 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		const pluginsEnabled = observableConfigValue(ChatConfiguration.PluginsEnabled, true, configurationService);
 
 		const discoveries: IAgentPluginDiscovery[] = [];
 		for (const descriptor of agentPluginDiscoveryRegistry.getAll()) {
@@ -103,7 +106,12 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 		}
 
 
-		this.allPlugins = derived(read => this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read))));
+		this.allPlugins = derived(read => {
+			if (!pluginsEnabled.read(read)) {
+				return [];
+			}
+			return this._dedupeAndSort(discoveries.flatMap(d => d.plugins.read(read)));
+		});
 
 		this.plugins = derived(reader => {
 			const all = this.allPlugins.read(reader);
