@@ -82,6 +82,13 @@ suite('shellQuotePluginRootInCommand', () => {
 		);
 	});
 
+	test('does not consume shell operators adjacent to token', () => {
+		assert.strictEqual(
+			shellQuotePluginRootInCommand('cd ${PLUGIN_ROOT}&& echo ok', '/my dir', TOKEN),
+			'cd "/my dir"&& echo ok',
+		);
+	});
+
 	test('handles token at start, middle and end of command', () => {
 		assert.strictEqual(
 			shellQuotePluginRootInCommand('${PLUGIN_ROOT}/a ${PLUGIN_ROOT}/b ${PLUGIN_ROOT}/c', '/sp ace', TOKEN),

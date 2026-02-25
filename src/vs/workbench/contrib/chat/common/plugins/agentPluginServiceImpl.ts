@@ -113,7 +113,7 @@ export function shellQuotePluginRootInCommand(command: string, fsPath: string, t
 	const escapedToken = escapeRegExpCharacters(token);
 	const pattern = new RegExp(
 		// Capture an optional leading quote so we know if it's already quoted
-		`(["']?)` + escapedToken + `([^\\s"']*)`,
+		`(["']?)` + escapedToken + `([\\w./\\\\~:-]*)`,
 		'g',
 	);
 
@@ -141,19 +141,36 @@ class ClaudePluginFormatAdapter implements IAgentPluginFormatAdapter {
 	parseHooks(json: unknown, pluginUri: URI, userHome: string): IAgentPluginHook[] {
 		const token = '${CLAUDE_PLUGIN_ROOT}';
 		const fsPath = pluginUri.fsPath;
-		const typedJson = json as { hooks?: Record<string, { hooks: Mutable<IHookCommand>[]; originalId: string }[]> };
+		const typedJson = json as { hooks?: Record<string, unknown[]> };
+
+		const mutateHookCommand = (hook: Mutable<IHookCommand>): void => {
+			for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
+				if (typeof hook[field] === 'string') {
+					hook[field] = shellQuotePluginRootInCommand(hook[field], fsPath, token);
+				}
+			}
+
+			hook.env ??= {};
+			hook.env.CLAUDE_PLUGIN_ROOT = fsPath;
+		};
 
 		for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
-			for (const { hooks } of lifecycle) {
-				for (const hook of hooks || []) {
-					for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
-						if (typeof hook[field] === 'string') {
-							hook[field] = shellQuotePluginRootInCommand(hook[field], fsPath, token);
-						}
-					}
+			if (!Array.isArray(lifecycle)) {
+				continue;
+			}
 
-					hook.env ??= {};
-					hook.env.CLAUDE_PLUGIN_ROOT = fsPath;
+			for (const lifecycleEntry of lifecycle) {
+				if (!lifecycleEntry || typeof lifecycleEntry !== 'object') {
+					continue;
+				}
+
+				const entry = lifecycleEntry as { hooks?: Mutable<IHookCommand>[] } & Mutable<IHookCommand>;
+				if (Array.isArray(entry.hooks)) {
+					for (const hook of entry.hooks) {
+						mutateHookCommand(hook);
+					}
+				} else {
+					mutateHookCommand(entry);
 				}
 			}
 		}
