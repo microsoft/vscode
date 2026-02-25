@@ -792,7 +792,12 @@ class NewChatWidget extends Disposable {
 		// If chat is not set up (extension not installed or user not signed in),
 		// trigger the standard chat setup flow first, then re-submit.
 		if (!options?.skipSetup && this._needsChatSetup()) {
-			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
+			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
+				dialogIcon: Codicon.agent,
+				dialogTitle: this.chatEntitlementService.anonymous ?
+					localize('sessions.startUsingSessions', "Start using Sessions") :
+					localize('sessions.signinRequired', "Sign in to use Sessions")
+			});
 			if (success) {
 				this._send({ ...options, skipSetup: true });
 			}
