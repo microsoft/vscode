@@ -282,7 +282,7 @@
 }
 
 .interactive-item-container > .value .chat-used-context {
-	margin-bottom: 10px;
+	margin-bottom: 16px;
 }
 
 .interactive-item-container .value .rendered-markdown:not(:has(.chat-extensions-content-part)) {

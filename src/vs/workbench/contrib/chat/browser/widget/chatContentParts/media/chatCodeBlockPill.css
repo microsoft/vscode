@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-item-container.interactive-response .value .chat-markdown-part.rendered-markdown .code:has(.chat-codeblock-pill-container) {
-	margin-bottom: 8px;
+	margin-bottom: 16px;
 }
 
 .chat-markdown-part.rendered-markdown .code .chat-codeblock-pill-container {
 	display: flex;
 	align-items: center;
 	gap: 5px;
-	margin: 0 0 6px 0px;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 

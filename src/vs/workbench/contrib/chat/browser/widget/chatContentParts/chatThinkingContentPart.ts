@@ -445,6 +445,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		} else {
 			this.autoScrollEnabled = false;
 		}
+
+		this.updateOverflowClasses(scrollTop, maxScrollTop);
 	}
 
 	// try to schedule scroll
@@ -497,6 +499,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			height: viewportHeight,
 			scrollHeight: contentHeight
 		});
+
+		const scrollTop = this.scrollableElement.getScrollPosition().scrollTop;
+		const maxScrollTop = contentHeight - viewportHeight;
+		this.updateOverflowClasses(scrollTop, maxScrollTop);
+	}
+
+	private updateOverflowClasses(scrollTop: number, maxScrollTop: number): void {
+		const overflowTop = scrollTop > 0;
+		const overflowBottom = maxScrollTop > 0 && scrollTop < maxScrollTop - 10;
+		this.wrapper.classList.toggle('chat-thinking-overflow-top', overflowTop);
+		this.wrapper.classList.toggle('chat-thinking-overflow-bottom', overflowBottom);
 	}
 
 	private scrollToBottom(): void {

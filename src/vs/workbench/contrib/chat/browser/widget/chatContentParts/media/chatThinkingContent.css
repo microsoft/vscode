@@ -42,10 +42,14 @@
 		}
 	}
 
+	&.chat-thinking-active > .chat-used-context-label {
+		display: none;
+	}
+
 	&.chat-thinking-active > .chat-used-context-label .monaco-button.monaco-icon-button {
 
 		.codicon.codicon-circle-filled {
-			display: none;
+			visibility: hidden;
 		}
 
 		.chat-thinking-title-shimmer {
@@ -89,14 +93,15 @@
 	}
 
 	.chat-used-context-list.chat-thinking-collapsible {
-		border: 1px solid var(--vscode-chat-requestBorder);
-		border-radius: var(--vscode-cornerRadius-medium);
+		border: none;
+		border-radius: 0;
+		padding: 0;
 		margin-bottom: 0;
 		position: relative;
 		overflow: hidden;
 
 		.chat-tool-invocation-part {
-			padding: 4px 12px 4px 18px;
+			padding: 4px 12px 4px 13px;
 			position: relative;
 		}
 
@@ -154,13 +159,13 @@
 
 			.chat-used-context.chat-hook-outcome-blocked,
 			.chat-used-context.chat-hook-outcome-warning {
-					padding: 4px 12px 4px 20px;
+					padding: 4px 12px 4px 15px;
 					margin-bottom: 0;
 				}
 		}
 
 		.chat-thinking-item.markdown-content {
-			padding: 6px 12px 6px 24px;
+			padding: 4px 12px 4px 19px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
 
@@ -179,7 +184,7 @@
 		}
 
 		.chat-thinking-tool-wrapper .chat-markdown-part.rendered-markdown {
-			padding: 5px 12px 4px 20px;
+			padding: 4px 12px 4px 15px;
 
 			.status-icon.codicon-check {
 				display: none;
@@ -211,7 +216,7 @@
 			&::before {
 				content: '';
 				position: absolute;
-				left: 10.5px;
+				left: 5.5px;
 				top: 0px;
 				bottom: 0px;
 				width: 1px;
@@ -235,7 +240,7 @@
 
 			> .chat-thinking-icon {
 				position: absolute;
-				left: 5px;
+				left: 0px;
 				top: 9px;
 				width: 12px;
 				height: 12px;
@@ -253,7 +258,7 @@
 		}
 
 		.chat-thinking-spinner-item {
-			padding: 6px 12px 6px 24px;
+			padding: 4px 12px 4px 19px;
 			font-size: var(--vscode-chat-font-size-body-s);
 
 			.chat-thinking-spinner-label {
@@ -263,7 +268,7 @@
 	}
 
 	.chat-thinking-item {
-		padding: 6px 12px;
+		padding: 4px 12px;
 		position: relative;
 
 		.progress-container {
@@ -310,12 +315,36 @@
 	.chat-terminal-thinking-content .rendered-markdown [data-code] {
 		margin-bottom: 0px;
 	}
+
+	&.shimmer-running .chat-terminal-running-shimmer {
+		background: linear-gradient(
+			90deg,
+			var(--vscode-descriptionForeground) 0%,
+			var(--vscode-descriptionForeground) 30%,
+			var(--vscode-chat-thinkingShimmer) 50%,
+			var(--vscode-descriptionForeground) 70%,
+			var(--vscode-descriptionForeground) 100%
+		);
+		background-size: 400% 100%;
+		background-clip: text;
+		-webkit-background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: chat-thinking-shimmer 2s linear infinite;
+	}
 }
 
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode {
 	outline: none;
 
+	&.chat-thinking-box:has(.chat-thinking-streaming) > .chat-used-context-label {
+		display: none;
+	}
+
 	> .monaco-scrollable-element > .shadow {
+		display: none;
+	}
+
+	> .monaco-scrollable-element > .scrollbar {
 		display: none;
 	}
 
@@ -327,6 +356,18 @@
 		max-height: 200px;
 		overflow: hidden;
 		display: block;
+	}
+
+	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming.chat-thinking-overflow-top.chat-thinking-overflow-bottom {
+		mask-image: linear-gradient(to bottom, transparent, black 24px, black calc(100% - 24px), transparent);
+	}
+
+	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming.chat-thinking-overflow-top:not(.chat-thinking-overflow-bottom) {
+		mask-image: linear-gradient(to bottom, transparent, black 24px);
+	}
+
+	&.chat-used-context-collapsed .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming.chat-thinking-overflow-bottom:not(.chat-thinking-overflow-top) {
+		mask-image: linear-gradient(to bottom, black calc(100% - 24px), transparent);
 	}
 
 	&:not(.chat-used-context-collapsed) .chat-used-context-list.chat-thinking-collapsible.chat-thinking-streaming {

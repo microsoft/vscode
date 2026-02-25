@@ -358,7 +358,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this.markdownPart = this._register(_instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {}, currentWidthDelegate(), codeBlockModelCollection, markdownOptions));
 
 		elements.message.append(this.markdownPart.domNode);
-		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
+		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, Codicon.check, terminalData.autoApproveInfo));
 		this._decoration.update();
 
 		// Keep thinking-container semantics separate from wrapper semantics.
@@ -1504,6 +1504,8 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 
 		if (isComplete) {
 			this.icon = Codicon.check;
+		} else {
+			this.domNode.classList.add('shimmer-running');
 		}
 
 		this._setCodeFormattedTitle();
@@ -1521,11 +1523,15 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		const prefixText = this._isComplete
 			? localize('chat.terminal.ran.prefix', "Ran ")
 			: localize('chat.terminal.running.prefix', "Running ");
-		const ranText = document.createTextNode(prefixText);
+		const prefixSpan = document.createElement('span');
+		prefixSpan.textContent = prefixText;
+		if (!this._isComplete) {
+			prefixSpan.classList.add('chat-terminal-running-shimmer');
+		}
 		const codeElement = document.createElement('code');
 		codeElement.textContent = this._commandText;
 
-		labelElement.appendChild(ranText);
+		labelElement.appendChild(prefixSpan);
 		labelElement.appendChild(codeElement);
 	}
 
@@ -1535,6 +1541,7 @@ class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleContentPart 
 		}
 		this._isComplete = true;
 		this.icon = Codicon.check;
+		this.domNode.classList.remove('shimmer-running');
 		this._setCodeFormattedTitle();
 	}
 
