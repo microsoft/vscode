@@ -7,6 +7,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
+import { PromptsStorage } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
@@ -45,6 +46,11 @@ export interface IAICustomizationWorkspaceService {
 	 * The sections to show in the AI Customization Management Editor sidebar.
 	 */
 	readonly managementSections: readonly AICustomizationManagementSection[];
+
+	/**
+	 * The storage sources to show as groups in the customization list.
+	 */
+	readonly visibleStorageSources: readonly PromptsStorage[];
 
 	/**
 	 * Whether the primary creation action should create a file directly
