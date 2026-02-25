@@ -16,7 +16,7 @@ export interface ISourceCounts {
 	readonly extension: number;
 }
 
-const storageToCountKey: Record<string, keyof ISourceCounts> = {
+const storageToCountKey: Partial<Record<PromptsStorage, keyof ISourceCounts>> = {
 	[PromptsStorage.local]: 'workspace',
 	[PromptsStorage.user]: 'user',
 	[PromptsStorage.extension]: 'extension',
