@@ -25,22 +25,36 @@
 /* ---- Card ---- */
 
 .sessions-welcome-card {
-	width: 460px;
+	width: 520px;
 	max-width: 90vw;
-	padding: 32px;
+	padding: 32px 40px;
 	border-radius: 8px;
 	background: var(--vscode-sideBar-background);
 	border: 1px solid var(--vscode-widget-border, transparent);
 	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
 	display: flex;
 	flex-direction: column;
-	gap: 24px;
+	align-items: center;
+	gap: 20px;
+	text-align: center;
 }
 
 /* ---- Header ---- */
 
+.sessions-welcome-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+}
+
+.sessions-welcome-header .sessions-welcome-icon {
+	font-size: 32px;
+	color: var(--vscode-foreground);
+}
+
 .sessions-welcome-header h2 {
-	margin: 0 0 4px 0;
+	margin: 0;
 	font-size: 18px;
 	font-weight: 600;
 	color: var(--vscode-foreground);
@@ -50,6 +64,7 @@
 	margin: 0;
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
 }
 
 /* ---- Action Area ---- */
@@ -57,11 +72,15 @@
 .sessions-welcome-action-area {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
 }
 
 .sessions-welcome-action-area .monaco-button {
 	width: 100%;
+	max-width: 320px;
+	padding: 8px 16px;
 }
 
 /* ---- Spinner ---- */

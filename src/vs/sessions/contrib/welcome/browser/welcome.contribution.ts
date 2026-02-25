@@ -45,10 +45,12 @@ class SessionsWelcomeOverlay extends Disposable {
 
 		const card = append(this.overlay, $('.sessions-welcome-card'));
 
-		// Header
+		// Header with icon
 		const header = append(card, $('.sessions-welcome-header'));
-		append(header, $('h2', undefined, localize('welcomeTitle', "VS Code - Sessions")));
-		append(header, $('p.sessions-welcome-subtitle', undefined, localize('welcomeSubtitle', "Sign in to get started.")));
+		const iconEl = append(header, $('span.sessions-welcome-icon'));
+		iconEl.appendChild(renderIcon(Codicon.agent));
+		append(header, $('h2', undefined, localize('welcomeTitle', "VS Code Sessions")));
+		append(header, $('p.sessions-welcome-subtitle', undefined, localize('welcomeSubtitle', "Sign in to get started with agent-powered coding sessions.")));
 
 		// Action area
 		const actionArea = append(card, $('.sessions-welcome-action-area'));
