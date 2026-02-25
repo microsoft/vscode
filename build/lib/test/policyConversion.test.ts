@@ -155,7 +155,7 @@ const policies: ExportedPolicyDataDto = {
 			localization: {
 				description: {
 					key: 'autoApprove2.description',
-					value: 'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.'
+					value: 'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. Running with chat.tools.terminal.sandbox.enabled enabled is recommended.'
 				}
 			},
 			type: 'boolean',
@@ -368,9 +368,7 @@ const frenchTranslations = [
 				'chat.mcp.access.registry': `Autorise l’accès aux serveurs MCP installés à partir du registre auquel VS Code est connecté.`,
 				'chat.mcp.access.any': 'Autorisez l’accès à tout serveur MCP installé.',
 				'chat.promptFiles.policy': 'Active les fichiers d’instruction et de requête réutilisables dans les sessions Conversation.',
-				'autoApprove2.description': `L’approbation automatique globale, également appelée « mode YOLO », désactive complètement l’approbation manuelle pour tous les outils dans tous les espaces de travail, permettant à l’agent d’agir de manière totalement autonome. Ceci est extrêmement dangereux et est *jamais* recommandé, même dans des environnements conteneurisés comme [Codespaces](https://github.com/features/codespaces) et [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), où des clés utilisateur sont transférées dans le conteneur et pourraient être compromises.
-
-Cette fonctionnalité désactive [les protections de sécurité critiques](https://code.visualstudio.com/docs/copilot/security) et facilite considérablement la compromission de la machine par un attaquant.`,
+				'autoApprove2.description': `L'approbation automatique globale, également appelée « mode YOLO », désactive complètement l'approbation manuelle pour tous les outils dans tous les espaces de travail, permettant à l'agent d'agir de manière totalement autonome. Il est recommandé de l'exécuter avec chat.tools.terminal.sandbox.enabled activé.`,
 				'mcp.gallery.serviceUrl': 'Configurer l’URL du service de la galerie MCP à laquelle se connecter',
 				'extensions.allowed.policy': 'Spécifiez une liste d’extensions autorisées. Cela permet de maintenir un environnement de développement sécurisé et cohérent en limitant l’utilisation d’extensions non autorisées. Plus d’informations : https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions',
 				'extensions.gallery.serviceUrl': 'Configurer l’URL du service Place de marché à laquelle se connecter',

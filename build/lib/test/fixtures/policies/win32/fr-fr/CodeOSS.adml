@@ -27,9 +27,7 @@
 			<string id="ChatPromptFiles">ChatPromptFiles</string>
 			<string id="ChatPromptFiles_chat_promptFiles_policy">Active les fichiers d’instruction et de requête réutilisables dans les sessions Conversation.</string>
 			<string id="ChatToolsAutoApprove">ChatToolsAutoApprove</string>
-			<string id="ChatToolsAutoApprove_autoApprove2_description">L’approbation automatique globale, également appelée « mode YOLO », désactive complètement l’approbation manuelle pour tous les outils dans tous les espaces de travail, permettant à l’agent d’agir de manière totalement autonome. Ceci est extrêmement dangereux et est *jamais* recommandé, même dans des environnements conteneurisés comme [Codespaces](https://github.com/features/codespaces) et [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers), où des clés utilisateur sont transférées dans le conteneur et pourraient être compromises.
-
-Cette fonctionnalité désactive [les protections de sécurité critiques](https://code.visualstudio.com/docs/copilot/security) et facilite considérablement la compromission de la machine par un attaquant.</string>
+			<string id="ChatToolsAutoApprove_autoApprove2_description">L'approbation automatique globale, également appelée « mode YOLO », désactive complètement l'approbation manuelle pour tous les outils dans tous les espaces de travail, permettant à l'agent d'agir de manière totalement autonome. Il est recommandé de l'exécuter avec chat.tools.terminal.sandbox.enabled activé.</string>
 			<string id="McpGalleryServiceUrl">McpGalleryServiceUrl</string>
 			<string id="McpGalleryServiceUrl_mcp_gallery_serviceUrl">Configurer l’URL du service de la galerie MCP à laquelle se connecter</string>
 			<string id="AllowedExtensions">AllowedExtensions</string>
