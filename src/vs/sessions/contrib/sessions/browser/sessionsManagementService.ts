@@ -23,6 +23,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -114,6 +115,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -309,11 +311,23 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this.openNewSessionView();
 		}
 
-		// 2. Apply selected options (repository, branch, etc.) to the contributed session
-		if (selectedOptions && selectedOptions.size > 0) {
-			const modelRef = this.chatService.acquireExistingSession(session.resource);
-			if (modelRef) {
-				const model = modelRef.object;
+		// 2. Apply selected model and options to the session
+		const modelRef = this.chatService.acquireExistingSession(session.resource);
+		if (modelRef) {
+			const model = modelRef.object;
+
+			// Set the selected model on the input model so the model picker reflects it
+			if (session.modelId) {
+				const languageModel = this.languageModelsService.lookupLanguageModel(session.modelId);
+				if (languageModel) {
+					model.inputModel.setState({
+						selectedModel: { identifier: session.modelId, metadata: languageModel }
+					});
+				}
+			}
+
+			// Apply selected options (repository, branch, etc.) to the contributed session
+			if (selectedOptions && selectedOptions.size > 0) {
 				const contributedSession = model.contributedChatSession;
 				if (contributedSession) {
 					const initialSessionOptions = [...selectedOptions.entries()].map(
@@ -324,8 +338,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 						initialSessionOptions,
 					});
 				}
-				modelRef.dispose();
 			}
+			modelRef.dispose();
 		}
 
 		// 3. Send the request
