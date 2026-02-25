@@ -374,6 +374,22 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(gptItem.disabled, true);
 	});
 
+	test('Other Models places unavailable models after available models', () => {
+		const auto = createAutoModel();
+		const availableModel = createModel('zeta', 'Zeta');
+		const unavailableModel = createModel('alpha', 'Alpha');
+		const items = callBuild([auto, availableModel, unavailableModel], {
+			controlModels: {
+				'alpha': { label: 'Alpha', minVSCodeVersion: '2.0.0', exists: true },
+			},
+			currentVSCodeVersion: '1.90.0',
+		});
+		const actions = getActionItems(items);
+		const otherModelLabels = actions.slice(2).map(a => a.label!).filter(l => !l.includes('Manage Models'));
+		assert.deepStrictEqual(otherModelLabels, ['Zeta', 'Alpha']);
+		assert.strictEqual(actions.find(a => a.label === 'Alpha')?.disabled, true);
+	});
+
 	test('no duplicate models across sections', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');

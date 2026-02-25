@@ -116,7 +116,7 @@ function createModelAction(
  * 2. Promoted section (selected + recently used + featured models from control manifest)
  *    - Available models sorted alphabetically, followed by unavailable models
  *    - Unavailable models show upgrade/update/admin status
- * 3. Other Models (collapsible toggle, sorted by vendor then name)
+ * 3. Other Models (collapsible toggle, available first, then sorted by vendor then name)
  *    - Last item is "Manage Models..." (always visible during filtering)
  */
 export function buildModelPickerItems(
@@ -265,10 +265,15 @@ export function buildModelPickerItems(
 			}
 		}
 
-		// Render promoted section: sorted alphabetically by name
+		// Render promoted section: available first, then sorted alphabetically by name
 		let hasShownActionLink = false;
 		if (promotedItems.length > 0) {
 			promotedItems.sort((a, b) => {
+				const aAvail = a.kind === 'available' ? 0 : 1;
+				const bAvail = b.kind === 'available' ? 0 : 1;
+				if (aAvail !== bAvail) {
+					return aAvail - bAvail;
+				}
 				const aName = a.kind === 'available' ? a.model.metadata.name : a.entry.label;
 				const bName = b.kind === 'available' ? b.model.metadata.name : b.entry.label;
 				return aName.localeCompare(bName);
@@ -291,6 +296,13 @@ export function buildModelPickerItems(
 		otherModels = models
 			.filter(m => !placed.has(m.identifier) && !placed.has(m.metadata.id))
 			.sort((a, b) => {
+				const aEntry = controlModels[a.metadata.id] ?? controlModels[a.identifier];
+				const bEntry = controlModels[b.metadata.id] ?? controlModels[b.identifier];
+				const aAvail = aEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, aEntry.minVSCodeVersion) ? 1 : 0;
+				const bAvail = bEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, bEntry.minVSCodeVersion) ? 1 : 0;
+				if (aAvail !== bAvail) {
+					return aAvail - bAvail;
+				}
 				const aCopilot = a.metadata.vendor === 'copilot' ? 0 : 1;
 				const bCopilot = b.metadata.vendor === 'copilot' ? 0 : 1;
 				if (aCopilot !== bCopilot) {
