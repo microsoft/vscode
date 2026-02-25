@@ -20,7 +20,7 @@ import { IUntitledTextResourceEditorInput } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
-import { renderFileListContent, fileListToPlainText } from './chatDebugFileListRenderer.js';
+import { renderCustomizationDiscoveryContent, fileListToPlainText } from './chatCustomizationDiscoveryRenderer.js';
 import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
 
 const $ = DOM.$;
@@ -36,6 +36,7 @@ export class ChatDebugDetailPanel extends Disposable {
 	readonly onDidHide = this._onDidHide.event;
 
 	readonly element: HTMLElement;
+	private readonly contentContainer: HTMLElement;
 	private readonly detailDisposables = this._register(new DisposableStore());
 	private currentDetailText: string = '';
 	private currentDetailEventId: string | undefined;
@@ -51,6 +52,7 @@ export class ChatDebugDetailPanel extends Disposable {
 	) {
 		super();
 		this.element = DOM.append(parent, $('.chat-debug-detail-panel'));
+		this.contentContainer = $('.chat-debug-detail-content');
 		DOM.hide(this.element);
 
 		// Handle Ctrl+A / Cmd+A to select all within the detail panel
@@ -83,10 +85,12 @@ export class ChatDebugDetailPanel extends Disposable {
 
 		DOM.show(this.element);
 		DOM.clearNode(this.element);
+		DOM.clearNode(this.contentContainer);
 		this.detailDisposables.clear();
 
 		// Header with action buttons
 		const header = DOM.append(this.element, $('.chat-debug-detail-header'));
+		this.element.appendChild(this.contentContainer);
 
 		const fullScreenButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.openInEditor', "Open in Editor"), title: localize('chatDebug.openInEditor', "Open in Editor") }));
 		fullScreenButton.element.classList.add('chat-debug-detail-button');
@@ -112,27 +116,27 @@ export class ChatDebugDetailPanel extends Disposable {
 		if (resolved && resolved.kind === 'fileList') {
 			this.currentDetailText = fileListToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = this.instantiationService.invokeFunction(accessor =>
-				renderFileListContent(resolved, this.openerService, accessor.get(IModelService), accessor.get(ILanguageService), this.hoverService, accessor.get(ILabelService))
+				renderCustomizationDiscoveryContent(resolved, this.openerService, accessor.get(IModelService), accessor.get(ILanguageService), this.hoverService, accessor.get(ILabelService))
 			);
 			this.detailDisposables.add(contentDisposables);
-			this.element.appendChild(contentEl);
+			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'message') {
 			this.currentDetailText = resolvedMessageToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = renderResolvedMessageContent(resolved);
 			this.detailDisposables.add(contentDisposables);
-			this.element.appendChild(contentEl);
+			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'userMessage') {
 			this.currentDetailText = messageEventToPlainText(event);
 			const { element: contentEl, disposables: contentDisposables } = renderUserMessageContent(event);
 			this.detailDisposables.add(contentDisposables);
-			this.element.appendChild(contentEl);
+			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'agentResponse') {
 			this.currentDetailText = messageEventToPlainText(event);
 			const { element: contentEl, disposables: contentDisposables } = renderAgentResponseContent(event);
 			this.detailDisposables.add(contentDisposables);
-			this.element.appendChild(contentEl);
+			this.contentContainer.appendChild(contentEl);
 		} else {
-			const pre = DOM.append(this.element, $('pre'));
+			const pre = DOM.append(this.contentContainer, $('pre'));
 			pre.tabIndex = 0;
 			if (resolved) {
 				this.currentDetailText = resolved.value;
@@ -147,6 +151,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		this.currentDetailEventId = undefined;
 		DOM.hide(this.element);
 		DOM.clearNode(this.element);
+		DOM.clearNode(this.contentContainer);
 		this.detailDisposables.clear();
 		this._onDidHide.fire();
 	}
