@@ -118,6 +118,11 @@ export interface IChatTipService {
 	navigateToPreviousTip(): IChatTip | undefined;
 
 	/**
+	 * Returns whether there are multiple eligible tips for navigation.
+	 */
+	hasMultipleTips(): boolean;
+
+	/**
 	 * Clears all dismissed tips so they can be shown again.
 	 */
 	clearDismissedTips(): void;
@@ -976,6 +981,15 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		return this._navigateTip(-1, this._contextKeyService);
 	}
 
+	hasMultipleTips(): boolean {
+		if (!this._contextKeyService) {
+			return false;
+		}
+
+		this._createSlashCommandsUsageTracker.syncContextKey(this._contextKeyService);
+		return this._hasNavigableTip(this._contextKeyService);
+	}
+
 	private _navigateTip(direction: 1 | -1, contextKeyService: IContextKeyService): IChatTip | undefined {
 		this._createSlashCommandsUsageTracker.syncContextKey(contextKeyService);
 		if (!this._shownTip) {
@@ -987,20 +1001,57 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return undefined;
 		}
 
+		const candidate = this._getNavigableTip(direction, currentIndex, contextKeyService);
+		if (candidate) {
+			this._logTipTelemetry(this._shownTip.id, direction === 1 ? 'navigateNext' : 'navigatePrevious');
+			this._shownTip = candidate;
+			this._tipRequestId = 'welcome';
+			this._storageService.store(ChatTipService._LAST_TIP_ID_KEY, candidate.id, StorageScope.APPLICATION, StorageTarget.USER);
+			this._logTipTelemetry(candidate.id, 'shown');
+			this._trackTipCommandClicks(candidate);
+			const tip = this._createTip(candidate);
+			this._onDidNavigateTip.fire(tip);
+			return tip;
+		}
+
+		return undefined;
+	}
+
+	private _hasNavigableTip(contextKeyService: IContextKeyService): boolean {
+		if (!this._shownTip) {
+			return false;
+		}
+
+		const currentIndex = TIP_CATALOG.findIndex(t => t.id === this._shownTip!.id);
+		if (currentIndex === -1) {
+			return false;
+		}
+
+		return !!this._getNavigableTip(1, currentIndex, contextKeyService);
+	}
+
+	private _getNavigableTip(direction: 1 | -1, currentIndex: number, contextKeyService: IContextKeyService): ITipDefinition | undefined {
 		const dismissedIds = new Set(this._getDismissedTipIds());
+
+		let eligibleTipCount = 0;
+		for (const tip of TIP_CATALOG) {
+			if (!dismissedIds.has(tip.id) && this._isEligible(tip, contextKeyService)) {
+				eligibleTipCount++;
+				if (eligibleTipCount > 1) {
+					break;
+				}
+			}
+		}
+
+		if (eligibleTipCount <= 1) {
+			return undefined;
+		}
+
 		for (let i = 1; i < TIP_CATALOG.length; i++) {
 			const idx = ((currentIndex + direction * i) % TIP_CATALOG.length + TIP_CATALOG.length) % TIP_CATALOG.length;
 			const candidate = TIP_CATALOG[idx];
 			if (!dismissedIds.has(candidate.id) && this._isEligible(candidate, contextKeyService)) {
-				this._logTipTelemetry(this._shownTip.id, direction === 1 ? 'navigateNext' : 'navigatePrevious');
-				this._shownTip = candidate;
-				this._tipRequestId = 'welcome';
-				this._storageService.store(ChatTipService._LAST_TIP_ID_KEY, candidate.id, StorageScope.APPLICATION, StorageTarget.USER);
-				this._logTipTelemetry(candidate.id, 'shown');
-				this._trackTipCommandClicks(candidate);
-				const tip = this._createTip(candidate);
-				this._onDidNavigateTip.fire(tip);
-				return tip;
+				return candidate;
 			}
 		}
 

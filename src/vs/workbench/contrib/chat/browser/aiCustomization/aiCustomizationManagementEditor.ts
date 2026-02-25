@@ -453,22 +453,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		// Persist selection
 		this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, section, StorageScope.PROFILE, StorageTarget.USER);
 
-		// Update editor tab title
-		this.updateEditorTitle();
-
 		// Update content visibility
 		this.updateContentVisibility();
 
 		// Load items for the new section (only for prompts-based sections)
 		if (this.isPromptsSection(section)) {
 			void this.listWidget.setSection(section);
-		}
-	}
-
-	private updateEditorTitle(): void {
-		const sectionItem = this.sections.find(s => s.id === this.selectedSection);
-		if (sectionItem && this.input instanceof AICustomizationManagementEditorInput) {
-			this.input.setSectionLabel(sectionItem.label);
 		}
 	}
 
@@ -577,9 +567,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.sectionContextKey.set(this.selectedSection);
 
 		await super.setInput(input, options, context, token);
-
-		// Set initial editor tab title
-		this.updateEditorTitle();
 
 		if (this.dimension) {
 			this.layout(this.dimension);
