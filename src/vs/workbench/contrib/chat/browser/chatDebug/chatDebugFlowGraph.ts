@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../../../../nls.js';
 import { IChatDebugEvent } from '../../common/chatDebugService.js';
 
 // ---- Data model ----
@@ -19,6 +20,8 @@ export interface FlowNode {
 	readonly isError?: boolean;
 	readonly created: number;
 	readonly children: FlowNode[];
+	/** Present on merged discovery nodes: the individual nodes that were merged. */
+	readonly mergedNodes?: FlowNode[];
 }
 
 export interface FlowFilterOptions {
@@ -37,6 +40,10 @@ export interface LayoutNode {
 	readonly y: number;
 	readonly width: number;
 	readonly height: number;
+	/** Number of individual nodes merged into this one (for discovery merging). */
+	readonly mergedCount?: number;
+	/** Whether the merged node is currently expanded (individual nodes shown to the right). */
+	readonly isMergedExpanded?: boolean;
 }
 
 export interface LayoutEdge {
@@ -160,12 +167,16 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 	function toFlowNode(event: IChatDebugEvent): FlowNode {
 		const children = event.id ? idToChildren.get(event.id) : undefined;
 
+		// Remap generic events with well-known names to their proper kind
+		// so they get correct styling and sublabel treatment.
+		const effectiveKind = getEffectiveKind(event);
+
 		// For subagent invocations, enrich with description from the
 		// filtered-out completion sibling, or fall back to the event's own field.
-		let sublabel = getEventSublabel(event);
+		let sublabel = getEventSublabel(event, effectiveKind);
 		let tooltip = getEventTooltip(event);
 		let description: string | undefined;
-		if (event.kind === 'subagentInvocation') {
+		if (effectiveKind === 'subagentInvocation') {
 			description = getSubagentDescription(event);
 			if (description) {
 				sublabel = truncateLabel(description, 30) + (sublabel ? ` \u00b7 ${sublabel}` : '');
@@ -180,9 +191,9 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 
 		return {
 			id: event.id ?? `event-${events.indexOf(event)}`,
-			kind: event.kind,
+			kind: effectiveKind,
 			category: event.kind === 'generic' ? event.category : undefined,
-			label: getEventLabel(event),
+			label: getEventLabel(event, effectiveKind),
 			sublabel,
 			description,
 			tooltip,
@@ -192,70 +203,7 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		};
 	}
 
-	return mergeModelTurns(roots.map(toFlowNode));
-}
-
-/**
- * Absorbs model turn nodes into the subsequent sibling node.
- *
- * Each model turn represents an LLM call that decides what to do next
- * (call tools, respond, etc.). Rather than showing model turns as separate
- * boxes, we merge their metadata (token count, LLM latency) into the next
- * node's sublabel and tooltip so the diagram stays compact while
- * preserving the correlation.
- */
-function mergeModelTurns(nodes: FlowNode[]): FlowNode[] {
-	const result: FlowNode[] = [];
-	let pendingModelTurn: FlowNode | undefined;
-
-	for (const node of nodes) {
-		if (node.kind === 'modelTurn') {
-			pendingModelTurn = node;
-			continue;
-		}
-
-		const merged = applyModelTurnInfo(node, pendingModelTurn);
-		pendingModelTurn = undefined;
-		result.push(merged);
-	}
-
-	// If the last node was a model turn with no successor, keep it
-	if (pendingModelTurn) {
-		result.push(pendingModelTurn);
-	}
-
-	return result;
-}
-
-/**
- * Enriches a node with model turn metadata and recursively
- * merges model turns within its children.
- */
-function applyModelTurnInfo(node: FlowNode, modelTurn: FlowNode | undefined): FlowNode {
-	const mergedChildren = node.children.length > 0 ? mergeModelTurns(node.children) : node.children;
-
-	if (!modelTurn) {
-		return mergedChildren !== node.children ? { ...node, children: mergedChildren } : node;
-	}
-
-	// Build compact annotation from model turn info (e.g. "500 tok · LLM 2.3s")
-	const annotation = modelTurn.sublabel;
-	const newSublabel = annotation
-		? (node.sublabel ? `${node.sublabel} \u00b7 ${annotation}` : annotation)
-		: node.sublabel;
-
-	// Enrich tooltip with model turn details
-	const modelTooltip = modelTurn.tooltip ?? (modelTurn.label !== 'Model Turn' ? modelTurn.label : undefined);
-	const newTooltip = modelTooltip
-		? (node.tooltip ? `${node.tooltip}\n\nModel: ${modelTooltip}` : `Model: ${modelTooltip}`)
-		: node.tooltip;
-
-	return {
-		...node,
-		sublabel: newSublabel,
-		tooltip: newTooltip,
-		children: mergedChildren,
-	};
+	return roots.map(toFlowNode);
 }
 
 // ---- Flow node filtering ----
@@ -386,58 +334,279 @@ export function sliceFlowNodes(nodes: readonly FlowNode[], maxCount: number): Fl
 	return { nodes: sliced, totalCount, shownCount };
 }
 
+// ---- Discovery node merging ----
+
+function isDiscoveryNode(node: FlowNode): boolean {
+	return node.kind === 'generic' && node.category === 'discovery';
+}
+
+/**
+ * Merges consecutive prompt-discovery nodes (generic events with
+ * `category === 'discovery'`) into a single summary node.
+ *
+ * The merged node always stays in the graph and carries the individual
+ * nodes in `mergedNodes`.  Expansion (showing the individual nodes to the
+ * right) is handled at the layout level.
+ *
+ * Operates recursively on children.
+ */
+export function mergeDiscoveryNodes(
+	nodes: readonly FlowNode[],
+): FlowNode[] {
+	const result: FlowNode[] = [];
+
+	let i = 0;
+	while (i < nodes.length) {
+		const node = nodes[i];
+
+		// Non-discovery node: recurse into children and pass through.
+		if (!isDiscoveryNode(node)) {
+			const mergedChildren = mergeDiscoveryNodes(node.children);
+			result.push(mergedChildren !== node.children ? { ...node, children: mergedChildren } : node);
+			i++;
+			continue;
+		}
+
+		// Accumulate a run of consecutive discovery nodes.
+		const run: FlowNode[] = [node];
+		let j = i + 1;
+		while (j < nodes.length && isDiscoveryNode(nodes[j])) {
+			run.push(nodes[j]);
+			j++;
+		}
+
+		if (run.length < 2) {
+			// Single discovery node — nothing to merge.
+			result.push(node);
+			i = j;
+			continue;
+		}
+
+		// Build a stable id from the first node so the expand state persists.
+		const mergedId = `merged-discovery:${run[0].id}`;
+
+		// Build a merged summary node.
+		const labels = run.map(n => n.label);
+		const uniqueLabels = [...new Set(labels)];
+		const summaryLabel = uniqueLabels.length <= 2
+			? uniqueLabels.join(', ')
+			: localize('discoveryMergedLabel', "{0} +{1} more", uniqueLabels[0], run.length - 1);
+
+		result.push({
+			id: mergedId,
+			kind: 'generic',
+			category: 'discovery',
+			label: summaryLabel,
+			sublabel: localize('discoveryStepsCount', "{0} discovery steps", run.length),
+			tooltip: run.map(n => n.label + (n.sublabel ? `: ${n.sublabel}` : '')).join('\n'),
+			created: run[0].created,
+			children: [],
+			mergedNodes: run,
+		});
+		i = j;
+	}
+
+	return result;
+}
+
+// ---- Tool call node merging ----
+
+function isToolCallNode(node: FlowNode): boolean {
+	return node.kind === 'toolCall';
+}
+
+/**
+ * Returns the tool name from a tool-call node's label.
+ * Tool call labels are set to `event.toolName` (possibly with a leading
+ * emoji prefix stripped), so the label itself is the canonical tool name.
+ */
+function getToolName(node: FlowNode): string {
+	return node.label;
+}
+
+/**
+ * Merges consecutive tool-call nodes that invoke the same tool into a
+ * single summary node.
+ *
+ * This mirrors `mergeDiscoveryNodes`: the merged node carries the
+ * individual nodes in `mergedNodes` and expansion is handled at the
+ * layout level.
+ *
+ * Operates recursively on children.
+ */
+export function mergeToolCallNodes(
+	nodes: readonly FlowNode[],
+): FlowNode[] {
+	const result: FlowNode[] = [];
+
+	let i = 0;
+	while (i < nodes.length) {
+		const node = nodes[i];
+
+		// Non-tool-call node: recurse into children and pass through.
+		if (!isToolCallNode(node)) {
+			const mergedChildren = mergeToolCallNodes(node.children);
+			result.push(mergedChildren !== node.children ? { ...node, children: mergedChildren } : node);
+			i++;
+			continue;
+		}
+
+		// Accumulate a run of consecutive tool-call nodes with the same tool name.
+		const toolName = getToolName(node);
+		const run: FlowNode[] = [node];
+		let j = i + 1;
+		while (j < nodes.length && isToolCallNode(nodes[j]) && getToolName(nodes[j]) === toolName) {
+			run.push(nodes[j]);
+			j++;
+		}
+
+		if (run.length < 2) {
+			// Single tool call — recurse into children, nothing to merge.
+			const mergedChildren = mergeToolCallNodes(node.children);
+			result.push(mergedChildren !== node.children ? { ...node, children: mergedChildren } : node);
+			i = j;
+			continue;
+		}
+
+		// Build a stable id from the first node so the expand state persists.
+		const mergedId = `merged-toolCall:${run[0].id}`;
+
+		result.push({
+			id: mergedId,
+			kind: 'toolCall',
+			label: toolName,
+			sublabel: localize('toolCallsCount', "{0} calls", run.length),
+			tooltip: run.map(n => n.label + (n.sublabel ? `: ${n.sublabel}` : '')).join('\n'),
+			created: run[0].created,
+			children: [],
+			mergedNodes: run,
+		});
+		i = j;
+	}
+
+	return result;
+}
+
 // ---- Event helpers ----
 
-function getEventLabel(event: IChatDebugEvent): string {
-	switch (event.kind) {
-		case 'userMessage': {
-			const firstLine = event.message.split('\n')[0];
-			return firstLine.length > 40 ? firstLine.substring(0, 37) + '...' : firstLine;
+/**
+ * Remaps generic events with well-known names (e.g. "User message",
+ * "Agent response") to their proper typed kind so they receive
+ * correct colors, labels, and sublabel treatment in the flow chart.
+ */
+function getEffectiveKind(event: IChatDebugEvent): IChatDebugEvent['kind'] {
+	if (event.kind === 'generic') {
+		const name = event.name.toLowerCase().replace(/[\s_-]+/g, '');
+		if (name === 'usermessage' || name === 'userprompt' || name === 'user' || name.startsWith('usermessage')) {
+			return 'userMessage';
 		}
+		if (name === 'response' || name.startsWith('agentresponse') || name.startsWith('assistantresponse') || name.startsWith('modelresponse')) {
+			return 'agentResponse';
+		}
+		const cat = event.category?.toLowerCase();
+		if (cat === 'user' || cat === 'usermessage') {
+			return 'userMessage';
+		}
+		if (cat === 'response' || cat === 'agentresponse') {
+			return 'agentResponse';
+		}
+	}
+	return event.kind;
+}
+
+function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['kind']): string {
+	const kind = effectiveKind ?? event.kind;
+	switch (kind) {
+		case 'userMessage':
+			return localize('userLabel', "User");
 		case 'modelTurn':
-			return event.model ?? 'Model Turn';
+			return event.kind === 'modelTurn' ? (event.model ?? localize('modelTurnLabel', "Model Turn")) : localize('modelTurnLabel', "Model Turn");
 		case 'toolCall':
-			return event.toolName;
+			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : '';
 		case 'subagentInvocation':
-			return event.agentName;
-		case 'agentResponse':
-			return 'Response';
+			return event.kind === 'subagentInvocation' ? event.agentName : '';
+		case 'agentResponse': {
+			if (event.kind === 'agentResponse') {
+				return event.message || localize('responseLabel', "Response");
+			}
+			// Remapped generic event — extract model name from parenthesized suffix
+			// e.g. "Agent response (claude-opus-4.5)" → "claude-opus-4.5"
+			if (event.kind === 'generic') {
+				const match = /\(([^)]+)\)\s*$/.exec(event.name);
+				if (match) {
+					return match[1];
+				}
+			}
+			return localize('responseLabel', "Response");
+		}
 		case 'generic':
-			return event.name;
+			return event.kind === 'generic' ? event.name : '';
 	}
 }
 
-function getEventSublabel(event: IChatDebugEvent): string | undefined {
-	switch (event.kind) {
+function getEventSublabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['kind']): string | undefined {
+	const kind = effectiveKind ?? event.kind;
+	switch (kind) {
 		case 'modelTurn': {
 			const parts: string[] = [];
-			if (event.totalTokens) {
-				parts.push(`${event.totalTokens} tokens`);
+			if (event.kind === 'modelTurn' && event.totalTokens) {
+				parts.push(localize('tokenCount', "{0} tokens", event.totalTokens));
 			}
-			if (event.durationInMillis) {
+			if (event.kind === 'modelTurn' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
 			}
 			return parts.length > 0 ? parts.join(' \u00b7 ') : undefined;
 		}
 		case 'toolCall': {
 			const parts: string[] = [];
-			if (event.result) {
+			if (event.kind === 'toolCall' && event.result) {
 				parts.push(event.result);
 			}
-			if (event.durationInMillis) {
+			if (event.kind === 'toolCall' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
 			}
 			return parts.length > 0 ? parts.join(' \u00b7 ') : undefined;
 		}
 		case 'subagentInvocation': {
 			const parts: string[] = [];
-			if (event.status) {
+			if (event.kind === 'subagentInvocation' && event.status) {
 				parts.push(event.status);
 			}
-			if (event.durationInMillis) {
+			if (event.kind === 'subagentInvocation' && event.durationInMillis) {
 				parts.push(formatDuration(event.durationInMillis));
 			}
 			return parts.length > 0 ? parts.join(' \u00b7 ') : undefined;
+		}
+		case 'userMessage':
+		case 'agentResponse': {
+			// For proper typed events, prefer the first section's content
+			// (which has the actual message text) over the `message` field
+			// (which is a short summary/name). Fall back to `message` when
+			// no sections are available. For remapped generic events, use
+			// the details property.
+			let text: string | undefined;
+			if (event.kind === 'userMessage' || event.kind === 'agentResponse') {
+				text = event.sections[0]?.content || event.message;
+			} else if (event.kind === 'generic') {
+				text = event.details;
+			}
+			if (!text) {
+				return undefined;
+			}
+			// Find the first non-empty line (content may start with newlines)
+			const lines = text.split('\n');
+			let firstLine = '';
+			for (const line of lines) {
+				const trimmed = line.trim();
+				if (trimmed) {
+					firstLine = trimmed;
+					break;
+				}
+			}
+			if (!firstLine) {
+				return undefined;
+			}
+			return firstLine.length > 60 ? firstLine.substring(0, 57) + '...' : firstLine;
 		}
 		default:
 			return undefined;
@@ -472,14 +641,14 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 			const parts: string[] = [event.toolName];
 			if (event.input) {
 				const input = event.input.trim();
-				parts.push(`Input: ${input.length > TOOLTIP_MAX_LENGTH ? input.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : input}`);
+				parts.push(localize('tooltipInput', "Input: {0}", input.length > TOOLTIP_MAX_LENGTH ? input.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : input));
 			}
 			if (event.output) {
 				const output = event.output.trim();
-				parts.push(`Output: ${output.length > TOOLTIP_MAX_LENGTH ? output.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : output}`);
+				parts.push(localize('tooltipOutput', "Output: {0}", output.length > TOOLTIP_MAX_LENGTH ? output.substring(0, TOOLTIP_MAX_LENGTH) + '\u2026' : output));
 			}
 			if (event.result) {
-				parts.push(`Result: ${event.result}`);
+				parts.push(localize('tooltipResult', "Result: {0}", event.result));
 			}
 			return parts.join('\n');
 		}
@@ -489,13 +658,13 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 				parts.push(event.description);
 			}
 			if (event.status) {
-				parts.push(`Status: ${event.status}`);
+				parts.push(localize('tooltipStatus', "Status: {0}", event.status));
 			}
 			if (event.toolCallCount !== undefined) {
-				parts.push(`Tool calls: ${event.toolCallCount}`);
+				parts.push(localize('tooltipToolCalls', "Tool calls: {0}", event.toolCallCount));
 			}
 			if (event.modelTurnCount !== undefined) {
-				parts.push(`Model turns: ${event.modelTurnCount}`);
+				parts.push(localize('tooltipModelTurns', "Model turns: {0}", event.modelTurnCount));
 			}
 			return parts.join('\n');
 		}
@@ -512,16 +681,16 @@ function getEventTooltip(event: IChatDebugEvent): string | undefined {
 				parts.push(event.model);
 			}
 			if (event.totalTokens) {
-				parts.push(`Tokens: ${event.totalTokens}`);
+				parts.push(localize('tooltipTokens', "Tokens: {0}", event.totalTokens));
 			}
 			if (event.inputTokens) {
-				parts.push(`Input tokens: ${event.inputTokens}`);
+				parts.push(localize('tooltipInputTokens', "Input tokens: {0}", event.inputTokens));
 			}
 			if (event.outputTokens) {
-				parts.push(`Output tokens: ${event.outputTokens}`);
+				parts.push(localize('tooltipOutputTokens', "Output tokens: {0}", event.outputTokens));
 			}
 			if (event.durationInMillis) {
-				parts.push(`Duration: ${formatDuration(event.durationInMillis)}`);
+				parts.push(localize('tooltipDuration', "Duration: {0}", formatDuration(event.durationInMillis)));
 			}
 			return parts.length > 0 ? parts.join('\n') : undefined;
 		}

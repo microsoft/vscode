@@ -15,13 +15,10 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { EditorExtensionsRegistry } from '../../../../editor/browser/editorExtensions.js';
 import { IEditorConstructionOptions } from '../../../../editor/browser/config/editorConfiguration.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-
-
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -33,14 +30,15 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
@@ -68,6 +66,8 @@ import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
 
 const STORAGE_KEY_LAST_MODEL = 'sessions.selectedModel';
+const MIN_EDITOR_HEIGHT = 50;
+const MAX_EDITOR_HEIGHT = 200;
 
 // #region --- Chat Welcome Widget ---
 
@@ -96,6 +96,7 @@ class NewChatWidget extends Disposable {
 
 	// Input
 	private _editor!: CodeEditorWidget;
+	private _editorContainer!: HTMLElement;
 	private readonly _currentLanguageModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentLanguageModel', undefined);
 	private readonly _modelPickerDisposable = this._register(new MutableDisposable());
 
@@ -106,6 +107,7 @@ class NewChatWidget extends Disposable {
 	// Send button
 	private _sendButton: Button | undefined;
 	private _sending = false;
+	private _altKeyDown = false;
 
 	// Repository loading
 	private readonly _openRepositoryCts = this._register(new MutableDisposable<CancellationTokenSource>());
@@ -150,6 +152,8 @@ class NewChatWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
@@ -373,7 +377,8 @@ class NewChatWidget extends Disposable {
 	// --- Editor ---
 
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
-		const editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
+		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
+		editorContainer.style.height = `${MIN_EDITOR_HEIGHT}px`;
 
 		const uri = URI.from({ scheme: 'sessions-chat', path: `input-${Date.now()}` });
 		const textModel = this._register(this.modelService.createModel('', null, uri, true));
@@ -427,9 +432,25 @@ class NewChatWidget extends Disposable {
 				e.stopPropagation();
 				this._send();
 			}
+			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && e.altKey) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._send({ openNewAfterSend: true });
+			}
 		}));
 
-		this._register(this._editor.onDidContentSizeChange(() => {
+		let previousHeight = -1;
+		this._register(this._editor.onDidContentSizeChange(e => {
+			if (!e.contentHeightChanged) {
+				return;
+			}
+			const contentHeight = this._editor.getContentHeight();
+			const clampedHeight = Math.min(MAX_EDITOR_HEIGHT, Math.max(MIN_EDITOR_HEIGHT, contentHeight));
+			if (clampedHeight === previousHeight) {
+				return;
+			}
+			previousHeight = clampedHeight;
+			this._editorContainer.style.height = `${clampedHeight}px`;
 			this._editor.layout();
 		}));
 
@@ -508,7 +529,19 @@ class NewChatWidget extends Disposable {
 			ariaLabel: localize('send', "Send"),
 		}));
 		sendButton.icon = Codicon.send;
-		this._register(sendButton.onDidClick(() => this._send()));
+		this._register(sendButton.onDidClick(() => this._send({ openNewAfterSend: this._altKeyDown })));
+		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_DOWN, e => {
+			if (e.key === 'Alt') {
+				this._altKeyDown = true;
+				sendButton.icon = Codicon.runAbove;
+			}
+		}));
+		this._register(dom.addDisposableListener(dom.getWindow(container), dom.EventType.KEY_UP, e => {
+			if (e.key === 'Alt') {
+				this._altKeyDown = false;
+				sendButton.icon = Codicon.send;
+			}
+		}));
 		this._updateSendButtonState();
 	}
 
@@ -764,10 +797,25 @@ class NewChatWidget extends Disposable {
 		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
-	private _send(): void {
+	private async _send(options?: { skipSetup?: boolean; openNewAfterSend?: boolean }): Promise<void> {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
 		if (!query || !session || this._sending) {
+			return;
+		}
+
+		// If chat is not set up (extension not installed or user not signed in),
+		// trigger the standard chat setup flow first, then re-submit.
+		if (!options?.skipSetup && this._needsChatSetup()) {
+			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
+				dialogIcon: Codicon.agent,
+				dialogTitle: this.chatEntitlementService.anonymous ?
+					localize('sessions.startUsingSessions', "Start using Sessions") :
+					localize('sessions.signinRequired', "Sign in to use Sessions")
+			});
+			if (success) {
+				return await this._send({ ...options, skipSetup: true });
+			}
 			return;
 		}
 
@@ -796,7 +844,8 @@ class NewChatWidget extends Disposable {
 		this._updateInputLoadingState();
 
 		this.sessionsManagementService.sendRequestForNewSession(
-			session.resource
+			session.resource,
+			options?.openNewAfterSend ? { openNewSessionView: true } : undefined
 		).then(() => {
 			// Release ref without disposing - the service owns disposal
 			this._newSession.clearAndLeak();
@@ -830,6 +879,24 @@ class NewChatWidget extends Disposable {
 		} else {
 			this._repoPicker.showPicker();
 		}
+	}
+
+	private _needsChatSetup(): boolean {
+		const { sentiment, entitlement } = this.chatEntitlementService;
+		if (
+			!sentiment?.installed ||						// Extension not installed: run setup to install
+			sentiment?.disabled ||							// Extension disabled: run setup to enable
+			sentiment?.untrusted ||							// Workspace untrusted: run setup to ask for trust
+			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
+			(
+				entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
+				!this.chatEntitlementService.anonymous		// unless anonymous access is enabled
+			)
+		) {
+			return true;
+		}
+
+		return false;
 	}
 
 	// --- Layout ---

@@ -740,14 +740,19 @@
 .chat-debug-flowchart-subgraph:hover rect.chat-debug-flowchart-subgraph-header {
 	opacity: 0.25;
 }
-.chat-debug-flowchart-node:focus {
-	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
-	border-radius: 6px;
+.chat-debug-flowchart-focus-ring {
+	display: none;
+}
+.chat-debug-flowchart-node:focus,
+.chat-debug-flowchart-node:focus-visible {
+	outline: none !important;
+}
+.chat-debug-flowchart-node:focus .chat-debug-flowchart-focus-ring {
+	display: inline;
 }
 .chat-debug-flowchart-subgraph-header:focus {
 	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
+	outline-offset: 2px;
 }
 .chat-debug-flowchart-empty {
 	display: flex;

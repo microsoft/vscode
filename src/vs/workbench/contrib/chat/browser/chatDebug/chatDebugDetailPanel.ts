@@ -22,6 +22,8 @@ import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugServic
 import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
 import { renderCustomizationDiscoveryContent, fileListToPlainText } from './chatCustomizationDiscoveryRenderer.js';
 import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
+import { renderToolCallContent, toolCallContentToPlainText } from './chatDebugToolCallContentRenderer.js';
+import { renderModelTurnContent, modelTurnContentToPlainText } from './chatDebugModelTurnContentRenderer.js';
 
 const $ = DOM.$;
 
@@ -120,9 +122,25 @@ export class ChatDebugDetailPanel extends Disposable {
 			);
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'toolCall') {
+			this.currentDetailText = toolCallContentToPlainText(resolved);
+			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
+			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, languageService);
+			if (this.currentDetailEventId !== event.id) {
+				// Another event was selected while we were rendering
+				contentDisposables.dispose();
+				return;
+			}
+			this.detailDisposables.add(contentDisposables);
+			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'message') {
 			this.currentDetailText = resolvedMessageToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = renderResolvedMessageContent(resolved);
+			this.detailDisposables.add(contentDisposables);
+			this.contentContainer.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'modelTurn') {
+			this.currentDetailText = modelTurnContentToPlainText(resolved);
+			const { element: contentEl, disposables: contentDisposables } = renderModelTurnContent(resolved);
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'userMessage') {

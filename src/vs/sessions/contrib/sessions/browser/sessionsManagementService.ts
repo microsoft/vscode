@@ -5,6 +5,7 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { equals } from '../../../../base/common/objects.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -22,6 +23,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -35,18 +37,12 @@ const repositoryOptionId = 'repository';
  * - For agent session items: repository is the workingDirectory from metadata
  * - For new sessions: repository comes from the session option with id 'repository'
  */
-export type IActiveSessionItem = (INewSession | IAgentSession) & {
-	readonly label?: string;
-	/**
-	 * The repository URI for this session.
-	 */
+export interface IActiveSessionItem {
+	readonly resource: URI;
+	readonly label: string | undefined;
 	readonly repository: URI | undefined;
-
-	/**
-	 * The worktree URI for this session.
-	 */
 	readonly worktree: URI | undefined;
-};
+}
 
 export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
@@ -82,8 +78,10 @@ export interface ISessionsManagementService {
 	/**
 	 * Open a new session, apply options, and send the initial request.
 	 * Looks up the session by resource URI and builds send options from it.
+	 * When `openNewSessionView` is true, opens a new session view after sending
+	 * instead of navigating to the newly created session.
 	 */
-	sendRequestForNewSession(sessionResource: URI): Promise<void>;
+	sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean }): Promise<void>;
 
 	/**
 	 * Commit files in a worktree and refresh the agent sessions model
@@ -117,6 +115,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
@@ -265,7 +264,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this.logService.info(`[ActiveSessionService] Active session changed (new): ${sessionResource.toString()}, repository: ${repository?.toString() ?? 'none'}`);
 	}
 
-	async sendRequestForNewSession(sessionResource: URI): Promise<void> {
+	async sendRequestForNewSession(sessionResource: URI, options?: { openNewSessionView?: boolean }): Promise<void> {
 		const session = this._newSession.value;
 		if (!session) {
 			this.logService.error(`[SessionsManagementService] No new session found for resource: ${sessionResource.toString()}`);
@@ -299,21 +298,36 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		};
 
 		await this.chatSessionsService.getOrCreateChatSession(session.resource, CancellationToken.None);
-		await this.doSendRequestForNewSession(session, query, sendOptions, session.selectedOptions);
+		await this.doSendRequestForNewSession(session, query, sendOptions, session.selectedOptions, options?.openNewSessionView);
 
 		// Clean up the session after sending (setter disposes the previous value)
 		this._newSession.value = undefined;
 	}
 
-	private async doSendRequestForNewSession(session: INewSession, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>): Promise<void> {
+	private async doSendRequestForNewSession(session: INewSession, query: string, sendOptions: IChatSendRequestOptions, selectedOptions?: ReadonlyMap<string, IChatSessionProviderOptionItem>, openNewSessionView?: boolean): Promise<void> {
 		// 1. Open the session - loads the model and shows the ChatViewPane
 		await this.openSession(session.resource);
+		if (openNewSessionView) {
+			this.openNewSessionView();
+		}
 
-		// 2. Apply selected options (repository, branch, etc.) to the contributed session
-		if (selectedOptions && selectedOptions.size > 0) {
-			const modelRef = this.chatService.acquireExistingSession(session.resource);
-			if (modelRef) {
-				const model = modelRef.object;
+		// 2. Apply selected model and options to the session
+		const modelRef = this.chatService.acquireExistingSession(session.resource);
+		if (modelRef) {
+			const model = modelRef.object;
+
+			// Set the selected model on the input model so the model picker reflects it
+			if (session.modelId) {
+				const languageModel = this.languageModelsService.lookupLanguageModel(session.modelId);
+				if (languageModel) {
+					model.inputModel.setState({
+						selectedModel: { identifier: session.modelId, metadata: languageModel }
+					});
+				}
+			}
+
+			// Apply selected options (repository, branch, etc.) to the contributed session
+			if (selectedOptions && selectedOptions.size > 0) {
 				const contributedSession = model.contributedChatSession;
 				if (contributedSession) {
 					const initialSessionOptions = [...selectedOptions.entries()].map(
@@ -324,8 +338,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 						initialSessionOptions,
 					});
 				}
-				modelRef.dispose();
 			}
+			modelRef.dispose();
 		}
 
 		// 3. Send the request
@@ -361,7 +375,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			listener?.dispose();
 		}
 
-		if (newSession) {
+		if (newSession && !openNewSessionView) {
 			this.setActiveSession(newSession);
 		}
 	}
@@ -383,29 +397,39 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this.lastSelectedSession = session.resource;
 				const [repository, worktree] = this.getRepositoryFromMetadata(session.metadata);
 				activeSessionItem = {
-					...session,
+					label: session.label,
+					resource: session.resource,
 					repository,
 					worktree,
 				};
 			} else {
 				activeSessionItem = {
-					...session,
+					label: undefined,
+					resource: session.resource,
 					repository: session.repoUri,
 					worktree: undefined,
 				};
 				this._activeSessionDisposables.add(session.onDidChange(e => {
 					if (e === 'repoUri') {
 						this._activeSession.set({
-							...session,
+							label: undefined,
+							resource: session.resource,
 							repository: session.repoUri,
 							worktree: undefined,
 						}, undefined);
 					}
 				}));
 			}
-			this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}, repository: ${activeSessionItem.repository?.toString() ?? 'none'}`);
+		}
+
+		if (equals(this._activeSession.get(), activeSessionItem)) {
+			return;
+		}
+
+		if (activeSessionItem) {
+			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}, repository: ${activeSessionItem.repository?.toString() ?? 'none'}`);
 		} else {
-			this.logService.info('[ActiveSessionService] Active session cleared');
+			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
 		this._activeSession.set(activeSessionItem, undefined);
 	}

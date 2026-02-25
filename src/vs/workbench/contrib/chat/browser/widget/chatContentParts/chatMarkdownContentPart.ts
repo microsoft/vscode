@@ -15,6 +15,7 @@ import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { autorun, autorunSelfDisposable, derived } from '../../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../../base/common/strings.js';
@@ -88,6 +89,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	readonly codeblocksPartId = String(++ChatMarkdownContentPart.ID_POOL);
 	readonly domNode: HTMLElement;
+
+	// This Event exists for one specific scenario and the pattern shouldn't be copied without a good reason
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock | MarkdownDiffBlockPart>[] = [];
 
@@ -407,7 +412,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			this._codeblocks[data.codeBlockPartIndex].codemapperUri = e.codemapperUri;
 		});
 
-		editorInfo.render(data, currentWidth);
+		editorInfo.render(data, currentWidth).then(() => {
+			// There is a scenario where we set the model on the editor in a request and the ResizeObserver is not triggered.
+			// Work around it with this targeted onDidHeightChange. But this pattern generally shouldn't be necessary and
+			// shouldn't be copied elsewhere.
+			if (!this._store.isDisposed && isRequestVM(data.element)) {
+				this._onDidChangeHeight.fire();
+			}
+		});
 
 		return ref;
 	}

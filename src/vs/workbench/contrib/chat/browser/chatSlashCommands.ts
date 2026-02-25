@@ -173,7 +173,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 					],
 					custom: {
 						disableCloseAction: true,
-						markdownDetails: [{ markdown: new MarkdownString(globalAutoApproveDescription.value) }],
+						markdownDetails: [{ markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }) }],
 					}
 				});
 				if (result.result !== true) {

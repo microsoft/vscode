@@ -620,7 +620,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			[NotificationsSettings.NOTIFICATIONS_POSITION]: {
 				'type': 'string',
 				'enum': [NotificationsPosition.BOTTOM_RIGHT, NotificationsPosition.BOTTOM_LEFT, NotificationsPosition.TOP_RIGHT],
-				'default': product.quality !== 'stable' ? NotificationsPosition.TOP_RIGHT : NotificationsPosition.BOTTOM_RIGHT,
+				'default': NotificationsPosition.BOTTOM_RIGHT,
 				'description': localize('notificationsPosition', "Controls the position of the notification toasts and notification center."),
 				'enumDescriptions': [
 					localize('workbench.notifications.position.bottom-right', "Show notifications in the bottom right corner."),
