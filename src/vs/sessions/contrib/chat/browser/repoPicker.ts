@@ -26,12 +26,6 @@ interface IRepoItem {
 	readonly name: string;
 }
 
-function isValidRepoItem(value: unknown): value is IRepoItem {
-	return typeof value === 'object' && value !== null
-		&& typeof (value as IRepoItem).id === 'string'
-		&& typeof (value as IRepoItem).name === 'string';
-}
-
 /**
  * A self-contained widget for selecting the repository in cloud sessions.
  * Uses the `github.copilot.chat.cloudSessions.openRepository` command for
@@ -67,10 +61,7 @@ export class RepoPicker extends Disposable {
 		try {
 			const last = this.storageService.get(STORAGE_KEY_LAST_REPO, StorageScope.PROFILE);
 			if (last) {
-				const parsed = JSON.parse(last);
-				if (isValidRepoItem(parsed)) {
-					this._selectedRepo = parsed;
-				}
+				this._selectedRepo = JSON.parse(last);
 			}
 		} catch { /* ignore */ }
 
@@ -78,10 +69,7 @@ export class RepoPicker extends Disposable {
 		try {
 			const stored = this.storageService.get(STORAGE_KEY_RECENT_REPOS, StorageScope.PROFILE);
 			if (stored) {
-				const parsed = JSON.parse(stored);
-				if (Array.isArray(parsed)) {
-					this._recentlyPickedRepos = parsed.filter(isValidRepoItem);
-				}
+				this._recentlyPickedRepos = JSON.parse(stored);
 			}
 		} catch { /* ignore */ }
 	}
