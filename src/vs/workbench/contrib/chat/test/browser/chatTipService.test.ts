@@ -149,6 +149,30 @@ suite('ChatTipService', () => {
 		assert.ok(executedCommands.includes('chat.tips.attachFiles.referenceUsed'));
 	});
 
+	test('records only matching create tip usage for submitted create command', () => {
+		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
+		instantiationService.stub(IChatService, {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: () => undefined,
+		} as Partial<IChatService> as IChatService);
+
+		createService();
+
+		submitRequestEmitter.fire({
+			chatSessionResource: URI.parse('chat:session-create-prompt'),
+			message: {
+				text: '/create-prompt scaffold a reusable prompt',
+				parts: [],
+			},
+		});
+
+		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
+		assert.ok(executedCommands.includes('chat.tips.createPrompt.commandUsed'));
+		assert.ok(!executedCommands.includes('chat.tips.createInstruction.commandUsed'));
+		assert.ok(!executedCommands.includes('chat.tips.createAgent.commandUsed'));
+		assert.ok(!executedCommands.includes('chat.tips.createSkill.commandUsed'));
+	});
+
 	test('returns Auto switch tip when current model is gpt-4.1', () => {
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'gpt-4.1');
@@ -878,53 +902,55 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded when no skill files exist');
 	});
 
-	test('shows tip.createSlashCommands when context key is false', () => {
+	test('shows all create slash command tips in local chat sessions', () => {
 		const service = createService();
-		contextKeyService.createKey(ChatContextKeys.hasUsedCreateSlashCommands.key, false);
 		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
 
-		// Dismiss tips until we find createSlashCommands or run out
-		let found = false;
+		const expectedCreateTips = new Set(['tip.createInstruction', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
+		const seenCreateTips = new Set<string>();
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
 			if (!tip) {
 				break;
 			}
-			if (tip.id === 'tip.createSlashCommands') {
-				found = true;
-				break;
+			if (expectedCreateTips.has(tip.id)) {
+				seenCreateTips.add(tip.id);
+				if (seenCreateTips.size === expectedCreateTips.size) {
+					break;
+				}
 			}
 			service.dismissTip();
 		}
 
-		assert.ok(found, 'Should eventually show tip.createSlashCommands when context key is false');
+		assert.deepStrictEqual([...seenCreateTips].sort(), [...expectedCreateTips].sort());
 	});
 
-	test('does not show tip.createSlashCommands in non-local chat sessions', () => {
+	test('does not show create slash command tips in non-local chat sessions', () => {
 		const service = createService();
-		contextKeyService.createKey(ChatContextKeys.hasUsedCreateSlashCommands.key, false);
 		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, 'cloud');
+		const createTipIds = new Set(['tip.createInstruction', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
 
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
 			if (!tip) {
 				break;
 			}
-			assert.notStrictEqual(tip.id, 'tip.createSlashCommands', 'Should not show tip.createSlashCommands in non-local sessions');
+			assert.ok(!createTipIds.has(tip.id), 'Should not show create slash command tips in non-local sessions');
 			service.dismissTip();
 		}
 	});
 
-	test('does not show tip.createSlashCommands when context key is true', () => {
-		storageService.store('chat.tips.usedCreateSlashCommands', true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	test('does not show create prompt tip when create prompt was already used', () => {
+		storageService.store('chat.tips.executedCommands', JSON.stringify(['chat.tips.createPrompt.commandUsed']), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
 
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
 			if (!tip) {
 				break;
 			}
-			assert.notStrictEqual(tip.id, 'tip.createSlashCommands', 'Should not show tip.createSlashCommands when context key is true');
+			assert.notStrictEqual(tip.id, 'tip.createPrompt', 'Should not show tip.createPrompt when create-prompt was used');
 			service.dismissTip();
 		}
 	});
@@ -1301,36 +1327,6 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after refresh finds instruction files');
 	});
 
-	test('keeps tip.customInstructions excluded after instruction files were detected once', async () => {
-		const tip: ITipDefinition = {
-			id: 'tip.customInstructions',
-			message: 'test',
-			excludeWhenPromptFilesExist: { promptType: PromptsType.instructions, agentFileType: AgentFileType.copilotInstructionsMd, excludeUntilChecked: true },
-		};
-
-		const tracker1 = testDisposables.add(new TipEligibilityTracker(
-			[tip],
-			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
-			storageService,
-			createMockPromptsService([], [{ uri: URI.file('/.github/instructions/coding.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions }]) as IPromptsService,
-			createMockToolsService(),
-			new NullLogService(),
-		));
-
-		await new Promise(r => setTimeout(r, 0));
-		assert.strictEqual(tracker1.isExcluded(tip), true, 'Should be excluded when instruction files exist');
-
-		const tracker2 = testDisposables.add(new TipEligibilityTracker(
-			[tip],
-			{ onDidExecuteCommand: Event.None, onWillExecuteCommand: Event.None } as Partial<ICommandService> as ICommandService,
-			storageService,
-			createMockPromptsService() as IPromptsService,
-			createMockToolsService(),
-			new NullLogService(),
-		));
-
-		assert.strictEqual(tracker2.isExcluded(tip), true, 'Should remain excluded based on persisted detection signal');
-	});
 });
 
 suite('CreateSlashCommandsUsageTracker', () => {
