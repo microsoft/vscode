@@ -324,6 +324,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _targetObservable: ISettableObservable<Target>;
 	private readonly _visibilityObservable: ISettableObservable<ICustomAgentVisibility | undefined>;
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
+	private readonly _iconObservable: ISettableObservable<ThemeIcon | undefined>;
 	private _source: IAgentSource;
 
 	public readonly id: string;
@@ -337,7 +338,7 @@ export class CustomChatMode implements IChatMode {
 	}
 
 	get icon(): IObservable<ThemeIcon | undefined> {
-		return constObservable(undefined);
+		return this._iconObservable;
 	}
 
 	public get isBuiltin(): boolean {
@@ -403,6 +404,7 @@ export class CustomChatMode implements IChatMode {
 		this._targetObservable = observableValue('target', customChatMode.target);
 		this._visibilityObservable = observableValue('visibility', customChatMode.visibility);
 		this._agentsObservable = observableValue('agents', customChatMode.agents);
+		this._iconObservable = observableValue('icon', customChatMode.icon ? ThemeIcon.fromId(customChatMode.icon) : undefined);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
@@ -422,6 +424,7 @@ export class CustomChatMode implements IChatMode {
 			this._targetObservable.set(newData.target, tx);
 			this._visibilityObservable.set(newData.visibility, tx);
 			this._agentsObservable.set(newData.agents, tx);
+			this._iconObservable.set(newData.icon ? ThemeIcon.fromId(newData.icon) : undefined, tx);
 			this._modeInstructions.set(newData.agentInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 			this._source = newData.source;

@@ -85,6 +85,7 @@ export namespace PromptHeaderAttributes {
 	export const userInvokable = 'user-invokable';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
+	export const icon = 'icon';
 }
 
 export namespace GithubPromptHeaderAttributes {
@@ -176,6 +177,10 @@ export class PromptHeader {
 
 	public get description(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.description);
+	}
+
+	public get icon(): string | undefined {
+		return this.getStringAttribute(PromptHeaderAttributes.icon);
 	}
 
 	public get agent(): string | undefined {

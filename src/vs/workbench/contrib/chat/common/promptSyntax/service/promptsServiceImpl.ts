@@ -715,11 +715,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 				if (target === Target.Claude && model) {
 					model = mapClaudeModels(model);
 				}
-				let { description, tools, handOffs, argumentHint, agents } = ast.header;
+				let { description, tools, handOffs, argumentHint, agents, icon } = ast.header;
 				if (target === Target.Claude && tools) {
 					tools = mapClaudeTools(tools);
 				}
-				return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, agentInstructions, source };
+				return { uri, name, description, model, tools, handOffs, argumentHint, icon, target, visibility, agents, agentInstructions, source };
 			})
 		);
 
