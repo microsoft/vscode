@@ -292,6 +292,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
+	private readonly _sessionTypeNewSessionOptions: Map<string, Record<string, string | IChatSessionProviderOptionItem>> = new Map();
 	private readonly _sessionTypeIcons: Map<string, ThemeIcon | { light: URI; dark: URI }> = new Map();
 	private readonly _sessionTypeWelcomeTitles: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
@@ -1036,7 +1037,23 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
-		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		let session: IChatSession;
+		if (sessionResource.path.startsWith('/untitled')) {
+			const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
+			session = {
+				sessionResource: sessionResource,
+				onWillDispose: Event.None,
+				history: [],
+				options: newSessionOptions ?? {},
+				dispose: () => { }
+			};
+
+			for (const [optionId, value] of Object.entries(newSessionOptions ?? {})) {
+				this.setSessionOption(sessionResource, optionId, value);
+			}
+		} else {
+			session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		}
 
 		// Make sure another session wasn't created while we were awaiting the provider
 		{
@@ -1092,6 +1109,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined {
 		return this._sessionTypeOptions.get(chatSessionType);
+	}
+
+	public getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined {
+		return this._sessionTypeNewSessionOptions.get(chatSessionType);
+	}
+
+	public setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void {
+		this._sessionTypeNewSessionOptions.set(chatSessionType, options);
 	}
 
 	/**

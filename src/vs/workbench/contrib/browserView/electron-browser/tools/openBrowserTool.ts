@@ -32,7 +32,7 @@ export const OpenBrowserToolData: IToolData = {
 	},
 };
 
-interface IOpenBrowserToolParams {
+export interface IOpenBrowserToolParams {
 	url: string;
 }
 

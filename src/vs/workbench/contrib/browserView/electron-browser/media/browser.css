@@ -97,24 +97,20 @@
 		}
 	}
 
-	.browser-container {
+	.browser-container-wrapper {
 		flex: 1;
 		min-height: 0;
-		margin: 0 2px 2px;
-		overflow: visible;
 		position: relative;
 		z-index: 0; /* Important: creates a new stacking context for the gradient border trick */
-		outline: none !important;
-		border-radius: 2px;
 
 		&.shared {
 			&::before {
 				content: '';
 				position: absolute;
 				top: -2px;
-				left: -2px;
-				right: -2px;
-				bottom: -2px;
+				left: 0;
+				right: 0;
+				bottom: 0;
 				z-index: -2;
 				background: linear-gradient(135deg in lab,
 					color-mix(in srgb, #51a2ff 100%, transparent),
@@ -127,15 +123,32 @@
 			&::after {
 				content: '';
 				position: absolute;
-				top: 0;
-				left: 0;
-				right: 0;
-				bottom: 0;
+				top: 1px;
+				left: 3px;
+				right: 3px;
+				bottom: 3px;
 				z-index: -1;
 				background-color: var(--vscode-editor-background);
 				pointer-events: none;
 			}
 		}
+	}
+
+	.browser-container {
+		/*
+		 * Snap dimensions to multiples of 1/zoomFactor CSS pixels so that
+		 * width*zoomFactor and height*zoomFactor are always integers. This
+		 * avoids sub-pixel mismatches between the WebContentsView
+		 * (whose bounds are rounded to integer DIPs) and this CSS container,
+		 * which would cause visible shifts when swapping between the live
+		 * view and the placeholder screenshot.
+		 */
+		width: round(down, 100% - 4px, calc(1px / var(--zoom-factor, 1)));
+		height: round(down, 100% - 2px, calc(1px / var(--zoom-factor, 1)));
+		margin: 0 auto;
+		overflow: visible;
+		position: relative;
+		outline: none !important;
 	}
 
 	.browser-placeholder-screenshot {

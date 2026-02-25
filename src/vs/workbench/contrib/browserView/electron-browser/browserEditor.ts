@@ -236,6 +236,7 @@ export class BrowserEditor extends EditorPane {
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
 
 	private _navigationBar!: BrowserNavigationBar;
+	private _browserContainerWrapper!: HTMLElement;
 	private _browserContainer!: HTMLElement;
 	private _placeholderScreenshot!: HTMLElement;
 	private _overlayPauseContainer!: HTMLElement;
@@ -325,10 +326,15 @@ export class BrowserEditor extends EditorPane {
 		});
 		this._register(toDisposable(() => this._findWidget.rawValue?.dispose()));
 
+		// Create browser container wrapper (flex item that fills remaining space)
+		this._browserContainerWrapper = $('.browser-container-wrapper');
+		this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
+		root.appendChild(this._browserContainerWrapper);
+
 		// Create browser container (stub element for positioning)
 		this._browserContainer = $('.browser-container');
 		this._browserContainer.tabIndex = 0; // make focusable
-		root.appendChild(this._browserContainer);
+		this._browserContainerWrapper.appendChild(this._browserContainer);
 
 		// Create placeholder screenshot (background placeholder when WebContentsView is hidden)
 		this._placeholderScreenshot = $('.browser-placeholder-screenshot');
@@ -497,6 +503,8 @@ export class BrowserEditor extends EditorPane {
 		// Listen for zoom level changes and update browser view zoom factor
 		this._inputDisposables.add(onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
+				// Update CSS variable for size calculations
+				this._browserContainerWrapper.style.setProperty('--zoom-factor', String(getZoomFactor(this.window)));
 				this.layoutBrowserContainer();
 			}
 		}));
@@ -652,7 +660,7 @@ export class BrowserEditor extends EditorPane {
 		const sharingEnabled = this.contextKeyService.contextMatchesRules(canShareBrowserWithAgentContext);
 		const isShared = sharingEnabled && !!this._model && this._model.sharedWithAgent;
 
-		this._browserContainer.classList.toggle('shared', isShared);
+		this._browserContainerWrapper.classList.toggle('shared', isShared);
 		this._navigationBar.setShared(isShared);
 	}
 

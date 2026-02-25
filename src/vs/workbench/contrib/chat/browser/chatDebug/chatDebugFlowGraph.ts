@@ -10,6 +10,8 @@ import { IChatDebugEvent } from '../../common/chatDebugService.js';
 export interface FlowNode {
 	readonly id: string;
 	readonly kind: IChatDebugEvent['kind'];
+	/** For `generic` nodes: the event category (e.g. `'discovery'`). Used to narrow filtering. */
+	readonly category?: string;
 	readonly label: string;
 	readonly sublabel?: string;
 	readonly description?: string;
@@ -20,7 +22,7 @@ export interface FlowNode {
 }
 
 export interface FlowFilterOptions {
-	readonly isKindVisible: (kind: string) => boolean;
+	readonly isKindVisible: (kind: string, category?: string) => boolean;
 	readonly textFilter: string;
 }
 
@@ -179,6 +181,7 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 		return {
 			id: event.id ?? `event-${events.indexOf(event)}`,
 			kind: event.kind,
+			category: event.kind === 'generic' ? event.category : undefined,
 			label: getEventLabel(event),
 			sublabel,
 			description,
@@ -277,11 +280,11 @@ export function filterFlowNodes(nodes: FlowNode[], options: FlowFilterOptions): 
 	return result;
 }
 
-function filterByKind(nodes: FlowNode[], isKindVisible: (kind: string) => boolean): FlowNode[] {
+function filterByKind(nodes: FlowNode[], isKindVisible: (kind: string, category?: string) => boolean): FlowNode[] {
 	const result: FlowNode[] = [];
 	let changed = false;
 	for (const node of nodes) {
-		if (!isKindVisible(node.kind)) {
+		if (!isKindVisible(node.kind, node.category)) {
 			changed = true;
 			// For subagents, drop the entire subgraph
 			if (node.kind === 'subagentInvocation') {
@@ -301,6 +304,7 @@ function filterByKind(nodes: FlowNode[], isKindVisible: (kind: string) => boolea
 	}
 	return changed ? result : nodes;
 }
+
 
 function nodeMatchesText(node: FlowNode, text: string): boolean {
 	return node.label.toLowerCase().includes(text) ||

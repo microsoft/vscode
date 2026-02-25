@@ -3,73 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from '../../../../base/common/actions.js';
-import { dirname, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { ChatConfiguration } from '../common/constants.js';
+import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, MarketplaceType } from '../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin } from '../common/plugins/pluginMarketplaceService.js';
 
 export class PluginInstallService implements IPluginInstallService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _cacheRoot: URI;
-
 	constructor(
-		@ICommandService private readonly _commandService: ICommandService,
+		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
-		@ILogService private readonly _logService: ILogService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IProgressService private readonly _progressService: IProgressService,
-	) {
-		this._cacheRoot = joinPath(environmentService.cacheHome, 'agentPlugins');
-	}
+	) { }
 
 	async installPlugin(plugin: IMarketplacePlugin): Promise<void> {
-		const repoDir = this._getRepoCacheDir(plugin.marketplaceType, plugin.marketplace);
-		const repoExists = await this._fileService.exists(repoDir);
-
-		if (!repoExists) {
-			const repoUrl = `https://github.com/${plugin.marketplace}.git`;
-			try {
-				await this._progressService.withProgress(
-					{
-						location: ProgressLocation.Notification,
-						title: localize('installingPlugin', "Installing plugin '{0}'...", plugin.name),
-						cancellable: false,
-					},
-					async () => {
-						await this._commandService.executeCommand('_git.cloneRepository', repoUrl, dirname(repoDir).fsPath);
-					}
-				);
-			} catch (err) {
-				this._logService.error(`[PluginInstallService] Failed to clone ${repoUrl}:`, err);
-				this._notificationService.notify({
-					severity: Severity.Error,
-					message: localize('cloneFailed', "Failed to install plugin '{0}': {1}", plugin.name, err?.message ?? String(err)),
-					actions: {
-						primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-							this._commandService.executeCommand('git.showOutput');
-						})],
-					},
-				});
-				return;
-			}
+		try {
+			await this._pluginRepositoryService.ensureRepository(plugin.marketplaceReference, {
+				progressTitle: localize('installingPlugin', "Installing plugin '{0}'...", plugin.name),
+				failureLabel: plugin.name,
+				marketplaceType: plugin.marketplaceType,
+			});
+		} catch {
+			return;
 		}
 
 		let pluginDir: URI;
 		try {
-			pluginDir = this._getPluginDir(repoDir, plugin.source);
+			pluginDir = this._pluginRepositoryService.getPluginInstallUri(plugin);
 		} catch {
 			this._notificationService.notify({
 				severity: Severity.Error,
@@ -91,58 +58,11 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	async updatePlugin(plugin: IMarketplacePlugin): Promise<void> {
-		const repoDir = this._getRepoCacheDir(plugin.marketplaceType, plugin.marketplace);
-		const repoExists = await this._fileService.exists(repoDir);
-		if (!repoExists) {
-			this._logService.warn(`[PluginInstallService] Cannot update plugin '${plugin.name}': repository not cloned`);
-			return;
-		}
-
-		try {
-			await this._progressService.withProgress(
-				{
-					location: ProgressLocation.Notification,
-					title: localize('updatingPlugin', "Updating plugin '{0}'...", plugin.name),
-					cancellable: false,
-				},
-				async () => {
-					await this._commandService.executeCommand('_git.pull', repoDir.fsPath);
-				}
-			);
-		} catch (err) {
-			this._logService.error(`[PluginInstallService] Failed to update ${plugin.marketplace}:`, err);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('pullFailed', "Failed to update plugin '{0}': {1}", plugin.name, err?.message ?? String(err)),
-				actions: {
-					primary: [new Action('showGitOutput', localize('showGitOutput', "Show Git Output"), undefined, true, () => {
-						this._commandService.executeCommand('git.showOutput');
-					})],
-				},
-			});
-		}
-	}
-
-	/**
-	 * Computes the cache directory for a marketplace repository.
-	 * Structure: `cacheRoot/{type}/{owner}/{repo}`
-	 */
-	private _getRepoCacheDir(type: MarketplaceType, marketplace: string): URI {
-		const [owner, repo] = marketplace.split('/');
-		return joinPath(this._cacheRoot, type, owner, repo);
-	}
-
-	/**
-	 * Computes the plugin directory within a cloned repository using the
-	 * marketplace plugin's `source` field (the subdirectory path within the repo).
-	 */
-	private _getPluginDir(repoDir: URI, source: string): URI {
-		const normalizedSource = source.trim().replace(/^\.?\/+|\/+$/g, '');
-		const pluginDir = normalizedSource ? joinPath(repoDir, normalizedSource) : repoDir;
-		if (!isEqualOrParent(pluginDir, repoDir)) {
-			throw new Error(`Invalid plugin source path '${source}'`);
-		}
-		return pluginDir;
+		return this._pluginRepositoryService.pullRepository(plugin.marketplaceReference, {
+			pluginName: plugin.name,
+			failureLabel: plugin.name,
+			marketplaceType: plugin.marketplaceType,
+		});
 	}
 
 	async uninstallPlugin(pluginUri: URI): Promise<void> {
@@ -150,8 +70,7 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	getPluginInstallUri(plugin: IMarketplacePlugin): URI {
-		const repoDir = this._getRepoCacheDir(plugin.marketplaceType, plugin.marketplace);
-		return this._getPluginDir(repoDir, plugin.source);
+		return this._pluginRepositoryService.getPluginInstallUri(plugin);
 	}
 
 	/**
