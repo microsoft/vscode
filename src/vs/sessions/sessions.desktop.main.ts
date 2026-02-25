@@ -212,6 +212,7 @@ import './contrib/configuration/browser/configuration.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/logs/browser/logs.contribution.js';
+import './contrib/welcome/browser/welcome.contribution.js';
 
 //#endregion
 
