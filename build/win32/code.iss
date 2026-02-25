@@ -1508,7 +1508,7 @@ var
 begin
   // Check if the user has forced Windows 10 style context menus on Windows 11
   SubKey := 'Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32';
-  Result := RegKeyExists(HKEY_CURRENT_USER, SubKey);
+  Result := RegKeyExists(HKEY_CURRENT_USER, SubKey) or RegKeyExists(HKEY_LOCAL_MACHINE, SubKey);
 end;
 
 function ShouldUseWindows11ContextMenu(): Boolean;
