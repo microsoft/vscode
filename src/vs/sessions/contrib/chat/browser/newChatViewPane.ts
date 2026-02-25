@@ -769,7 +769,7 @@ class NewChatWidget extends Disposable {
 		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
-	private async _send(): Promise<void> {
+	private async _send(force?: boolean): Promise<void> {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
 		if (!query || !session || this._sending) {
@@ -778,10 +778,10 @@ class NewChatWidget extends Disposable {
 
 		// If chat is not set up (extension not installed or user not signed in),
 		// trigger the standard chat setup flow first, then re-submit.
-		if (this._needsChatSetup()) {
+		if (!force && this._needsChatSetup()) {
 			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_ACTION_ID, undefined, { inputValue: query });
-			if (success && !this._needsChatSetup()) {
-				this._send();
+			if (success) {
+				this._send(true);
 			}
 			return;
 		}
