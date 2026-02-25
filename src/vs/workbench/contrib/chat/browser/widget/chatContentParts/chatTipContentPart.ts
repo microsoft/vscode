@@ -6,7 +6,6 @@
 import './media/chatTipContent.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
-import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
@@ -115,7 +114,6 @@ export class ChatTipContentPart extends Disposable {
 		dom.clearNode(this.domNode);
 		this._toolbar.clear();
 
-		this.domNode.appendChild(renderIcon(Codicon.lightbulb));
 		const markdownContent = this._renderer.render(tip.content, {
 			actionHandler: (link, md) => { this._handleTipAction(link, md).catch(onUnexpectedError); }
 		});
