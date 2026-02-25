@@ -51,7 +51,7 @@ import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../.
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
-import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_PENDING_CONFIRMATION, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { InlineChatAffordance } from './inlineChatAffordance.js';
 import { InlineChatInputWidget, InlineChatSessionOverlayWidget } from './inlineChatOverlayWidget.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
@@ -157,6 +157,7 @@ export class InlineChatController implements IEditorContribution {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		const ctxFileBelongsToChat = CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.bindTo(contextKeyService);
+		const ctxPendingConfirmation = CTX_INLINE_CHAT_PENDING_CONFIRMATION.bindTo(contextKeyService);
 		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
 		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
 
@@ -354,16 +355,19 @@ export class InlineChatController implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 			const renderMode = this._renderMode.read(r);
 			if (!session || renderMode !== 'hover') {
+				ctxPendingConfirmation.set(false);
 				sessionOverlayWidget.hide();
 				return;
 			}
 			const lastRequest = session.chatModel.lastRequestObs.read(r);
 			const isInProgress = lastRequest?.response?.isInProgress.read(r);
+			const isPendingConfirmation = !!lastRequest?.response?.isPendingConfirmation.read(r);
+			ctxPendingConfirmation.set(isPendingConfirmation);
 			const entry = session.editingSession.readEntry(session.uri, r);
 			// When there's no entry (no changes made) and the response is complete, the widget should be hidden.
 			// When there's an entry in Modified state, it needs to be settled (accepted/rejected).
 			const isNotSettled = entry ? entry.state.read(r) === ModifiedFileEntryState.Modified : false;
-			if (isInProgress || isNotSettled) {
+			if (isInProgress || isNotSettled || isPendingConfirmation) {
 				sessionOverlayWidget.show(session);
 			} else {
 				sessionOverlayWidget.hide();

@@ -324,6 +324,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	private fireItemHeightChange(template: IChatListItemTemplate, measuredHeight?: number): void {
+		if (!template.currentElement || !template.rowContainer.isConnected) {
+			return;
+		}
+
+		const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
+		if (height === 0 || !height) {
+			return;
+		}
+
+		const normalizedHeight = Math.ceil(height);
+		template.currentElement.currentRenderedHeight = normalizedHeight;
+		if (template.currentElement !== this._elementBeingRendered) {
+			this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
+		}
+	}
+
 	/**
 	 * Compute a rate to render at in words/s.
 	 */
@@ -610,23 +627,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 
 		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver((entries) => {
-			if (!template.currentElement) {
-				return;
-			}
-
 			const entry = entries[0];
 			if (entry) {
-				const height = entry.borderBoxSize.at(0)?.blockSize;
-				if (height === 0 || !height || !template.rowContainer.isConnected) {
-					// Don't fire for changes that happen from the row being removed from the DOM
-					return;
-				}
-
-				const normalizedHeight = Math.ceil(height);
-				template.currentElement.currentRenderedHeight = normalizedHeight;
-				if (template.currentElement !== this._elementBeingRendered) {
-					this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
-				}
+				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
 			}
 		}));
 		templateDisposables.add(resizeObserver.observe(rowContainer));
@@ -1403,9 +1406,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
+		if (!element.isComplete) {
+			return false;
+		}
+		if (this.environmentService.isSessionsWindow) {
+			return true; // show changes per turn in sessions window to make it clear which changes belong to which turn
+		}
 		// Only show file changes summary for local sessions - background sessions already have their own file changes part
 		const isLocalSession = getChatSessionType(element.sessionResource) === localChatSessionType;
-		return element.isComplete && isLocalSession && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
+		return isLocalSession && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
@@ -2378,6 +2387,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth.get(), this.codeBlockModelCollection, {});
+		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
 			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {

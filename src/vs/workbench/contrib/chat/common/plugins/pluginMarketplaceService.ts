@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Event } from '../../../../../base/common/event.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { revive } from '../../../../../base/common/marshalling.js';
@@ -72,6 +73,7 @@ export const IPluginMarketplaceService = createDecorator<IPluginMarketplaceServi
 
 export interface IPluginMarketplaceService {
 	readonly _serviceBrand: undefined;
+	readonly onDidChangeMarketplaces: Event<void>;
 	fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]>;
 }
 
@@ -99,6 +101,8 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _gitHubMarketplaceCache = new Lazy<Map<string, IGitHubMarketplaceCacheEntry>>(() => this._loadPersistedGitHubMarketplaceCache());
 
+	readonly onDidChangeMarketplaces: Event<void>;
+
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IRequestService private readonly _requestService: IRequestService,
@@ -106,9 +110,18 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
-	) { }
+	) {
+		this.onDidChangeMarketplaces = Event.filter(
+			_configurationService.onDidChangeConfiguration,
+			e => e.affectsConfiguration(ChatConfiguration.PluginsEnabled) || e.affectsConfiguration(ChatConfiguration.PluginMarketplaces),
+		) as Event<unknown> as Event<void>;
+	}
 
 	async fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]> {
+		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
+			return [];
+		}
+
 		const configuredRefs = this._configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
 		const refs = parseMarketplaceReferences(configuredRefs);
 

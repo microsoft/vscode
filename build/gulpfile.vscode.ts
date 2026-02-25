@@ -255,7 +255,6 @@ gulp.task(coreCIOld);
 
 const coreCIEsbuild = task.define('core-ci-esbuild', task.series(
 	copyCodiconsTask,
-	cleanExtensionsBuildTask,
 	compileNonNativeExtensionsBuildTask,
 	compileExtensionMediaBuildTask,
 	writeISODate('out-build'),

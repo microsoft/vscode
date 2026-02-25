@@ -330,6 +330,11 @@ export interface IEditorOptions {
 export interface IModalEditorPartOptions {
 
 	/**
+	 * Whether the modal editor should be maximized.
+	 */
+	readonly maximized?: boolean;
+
+	/**
 	 * The navigation context for navigating between items
 	 * within this modal editor. Pass `undefined` to clear.
 	 */

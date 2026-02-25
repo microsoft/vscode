@@ -650,6 +650,12 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
+		[ChatConfiguration.PluginsEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.plugins.enabled', "Enable agent plugin integration in chat."),
+			default: true,
+			tags: ['preview'],
+		},
 		[ChatConfiguration.PluginPaths]: {
 			type: 'object',
 			additionalProperties: { type: 'boolean' },

@@ -289,6 +289,10 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 
 //#region List View
 
+interface IAgentPluginsListViewOptions {
+	installedOnly?: boolean;
+}
+
 export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPluginItem> {
 
 	private readonly actionStore = this._register(new DisposableStore());
@@ -308,6 +312,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 	} | undefined;
 
 	constructor(
+		private readonly listOptions: IAgentPluginsListViewOptions,
 		options: IViewletViewOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -327,6 +332,12 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 		this._register(autorun(reader => {
 			this.agentPluginService.plugins.read(reader);
+			if (this.list && this.isBodyVisible()) {
+				this.refreshOnPluginsChangedScheduler.schedule();
+			}
+		}));
+
+		this._register(this.pluginMarketplaceService.onDidChangeMarketplaces(() => {
 			if (this.list && this.isBodyVisible()) {
 				this.refreshOnPluginsChangedScheduler.schedule();
 			}
@@ -423,29 +434,40 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 	async show(query: string): Promise<IPagedModel<IAgentPluginItem>> {
 		this.currentQuery = query;
-		const text = query.replace(/@agentPlugins/i, '').trim();
+		const text = query.replace(/@agentPlugins/i, '').trim().toLowerCase();
 
-		const [installed, marketplace] = await Promise.all([
-			this.queryInstalled(),
-			this.queryMarketplace(text),
-		]);
+		let installed = this.queryInstalled();
+		if (text) {
+			installed = installed.filter(p =>
+				p.name.toLowerCase().includes(text) ||
+				p.description.toLowerCase().includes(text)
+			);
+		}
 
-		// Filter out marketplace items that are already installed
-		const installedPaths = new Set(installed.map(i => i.plugin.uri.toString()));
-		const filteredMarketplace = marketplace.filter(m => {
-			const expectedUri = this.pluginInstallService.getPluginInstallUri({
-				name: m.name,
-				description: m.description,
-				version: '',
-				source: m.source,
-				marketplace: m.marketplace,
-				marketplaceReference: m.marketplaceReference,
-				marketplaceType: m.marketplaceType,
+		let items: IAgentPluginItem[] = installed;
+
+		if (!this.listOptions.installedOnly) {
+			const marketplace = await this.queryMarketplace(text);
+
+			// Filter out marketplace items that are already installed
+			const installedPaths = new Set(installed.map(i => i.plugin.uri.toString()));
+			const filteredMarketplace = marketplace.filter(m => {
+				const expectedUri = this.pluginInstallService.getPluginInstallUri({
+					name: m.name,
+					description: m.description,
+					version: '',
+					source: m.source,
+					marketplace: m.marketplace,
+					marketplaceReference: m.marketplaceReference,
+					marketplaceType: m.marketplaceType,
+				});
+				return !installedPaths.has(expectedUri.toString());
 			});
-			return !installedPaths.has(expectedUri.toString());
-		});
 
-		const model = new PagedModel([...installed, ...filteredMarketplace]);
+			items = [...installed, ...filteredMarketplace];
+		}
+
+		const model = new PagedModel(items);
 		if (this.list) {
 			this.list.model = model;
 		}
@@ -487,16 +509,6 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 //#endregion
 
-//#region Default browse view
-
-class DefaultBrowseAgentPluginsView extends AgentPluginsListView {
-	override async show(_query: string): Promise<IPagedModel<IAgentPluginItem>> {
-		return super.show('@agentPlugins');
-	}
-}
-
-//#endregion
-
 //#region Browse command
 
 class AgentPluginsBrowseCommand extends Action2 {
@@ -526,7 +538,6 @@ class AgentPluginsBrowseCommand extends Action2 {
 }
 
 //#endregion
-
 //#region Views contribution
 
 export class AgentPluginsViewsContribution extends Disposable implements IWorkbenchContribution {
@@ -550,7 +561,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 			{
 				id: InstalledAgentPluginsViewId,
 				name: localize2('agent-plugins-installed', "Agent Plugins - Installed"),
-				ctorDescriptor: new SyncDescriptor(AgentPluginsListView),
+				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{ installedOnly: true }]),
 				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledAgentPluginsContext, ChatContextKeys.Setup.hidden.negate()),
 				weight: 30,
 				order: 5,
@@ -559,7 +570,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 			{
 				id: 'workbench.views.agentPlugins.default.marketplace',
 				name: localize2('agent-plugins', "Agent Plugins"),
-				ctorDescriptor: new SyncDescriptor(DefaultBrowseAgentPluginsView),
+				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{}]),
 				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledAgentPluginsContext.toNegated(), ChatContextKeys.Setup.hidden.negate()),
 				weight: 30,
 				order: 5,
@@ -569,7 +580,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 			{
 				id: 'workbench.views.agentPlugins.marketplace',
 				name: localize2('agent-plugins', "Agent Plugins"),
-				ctorDescriptor: new SyncDescriptor(AgentPluginsListView),
+				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{}]),
 				when: ContextKeyExpr.and(SearchAgentPluginsContext, ChatContextKeys.Setup.hidden.negate()),
 			},
 		], VIEW_CONTAINER);

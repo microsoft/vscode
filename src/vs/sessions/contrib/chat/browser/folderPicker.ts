@@ -214,25 +214,29 @@ export class FolderPicker extends Disposable {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: basename(currentFolderUri),
-				group: { title: '', icon: Codicon.check },
+				group: { title: '', icon: Codicon.folder },
 				item: { uri: currentFolderUri, label: basename(currentFolderUri) },
 			});
 		}
 
-		// Recently picked folders
+		// Recently picked folders (sorted by name)
+		const dedupedFolders: { uri: URI; label: string }[] = [];
 		for (const folderUri of this._recentlyPickedFolders) {
 			const key = folderUri.toString();
 			if (seenUris.has(key)) {
 				continue;
 			}
 			seenUris.add(key);
-			const label = basename(folderUri);
+			dedupedFolders.push({ uri: folderUri, label: basename(folderUri) });
+		}
+		dedupedFolders.sort((a, b) => a.label.localeCompare(b.label));
+		for (const folder of dedupedFolders) {
 			items.push({
 				kind: ActionListItemKind.Action,
-				label,
-				group: { title: '', icon: Codicon.blank },
-				item: { uri: folderUri, label },
-				onRemove: () => this._removeFolder(folderUri),
+				label: folder.label,
+				group: { title: '', icon: Codicon.folder },
+				item: { uri: folder.uri, label: folder.label },
+				onRemove: () => this._removeFolder(folder.uri),
 			});
 		}
 
@@ -246,7 +250,7 @@ export class FolderPicker extends Disposable {
 		items.push({
 			kind: ActionListItemKind.Action,
 			label: localize('browseFolder', "Browse..."),
-			group: { title: '', icon: Codicon.folderOpened },
+			group: { title: '', icon: Codicon.search },
 			item: { uri: URI.from({ scheme: 'command', path: 'browse' }), label: localize('browseFolder', "Browse...") },
 		});
 
