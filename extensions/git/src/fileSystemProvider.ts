@@ -131,6 +131,22 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.cache = cache;
 	}
 
+	private async getOrOpenRepository(uri: string | Uri): Promise<Repository | undefined> {
+		const repository = this.model.getRepository(uri);
+		if (repository) {
+			return repository;
+		}
+
+		try {
+			const fsPath = typeof uri === 'string' ? uri : uri.fsPath;
+			await this.model.openRepository(fsPath, true, true);
+			return this.model.getRepository(uri);
+		} catch (err) {
+			this.logger.error(`[GitFileSystemProvider][getOrOpenRepository] Failed to open repository for ${uri.toString()}: ${err}`);
+			return undefined;
+		}
+	}
+
 	watch(): Disposable {
 		return EmptyDisposable;
 	}
@@ -139,7 +155,11 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		await this.model.isInitialized;
 
 		const { submoduleOf, path, ref } = fromGitUri(uri);
-		const repository = submoduleOf ? this.model.getRepository(submoduleOf) : this.model.getRepository(uri);
+
+		const repository = submoduleOf
+			? await this.getOrOpenRepository(submoduleOf)
+			: await this.getOrOpenRepository(uri);
+
 		if (!repository) {
 			this.logger.warn(`[GitFileSystemProvider][stat] Repository not found - ${uri.toString()}`);
 			throw FileSystemError.FileNotFound();
@@ -175,7 +195,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		const { path, ref, submoduleOf } = fromGitUri(uri);
 
 		if (submoduleOf) {
-			const repository = this.model.getRepository(submoduleOf);
+			const repository = await this.getOrOpenRepository(submoduleOf);
 
 			if (!repository) {
 				throw FileSystemError.FileNotFound();
@@ -190,7 +210,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 			}
 		}
 
-		const repository = this.model.getRepository(uri);
+		const repository = await this.getOrOpenRepository(uri);
 
 		if (!repository) {
 			this.logger.warn(`[GitFileSystemProvider][readFile] Repository not found - ${uri.toString()}`);
