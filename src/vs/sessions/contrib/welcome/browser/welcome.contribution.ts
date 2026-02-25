@@ -41,6 +41,9 @@ class SessionsWelcomeOverlay extends Disposable {
 		super();
 
 		this.overlay = append(container, $('.sessions-welcome-overlay'));
+		this.overlay.setAttribute('role', 'dialog');
+		this.overlay.setAttribute('aria-modal', 'true');
+		this.overlay.setAttribute('aria-label', localize('welcomeOverlay.aria', "Sign in to use Sessions"));
 		this._register(toDisposable(() => this.overlay.remove()));
 
 		const card = append(this.overlay, $('.sessions-welcome-card'));
@@ -64,6 +67,9 @@ class SessionsWelcomeOverlay extends Disposable {
 		errorContainer.style.display = 'none';
 
 		this._register(actionButton.onDidClick(() => this._runSetup(actionButton, spinnerContainer, errorContainer)));
+
+		// Focus the button so the overlay traps keyboard input
+		actionButton.focus();
 	}
 
 	private async _runSetup(button: Button, spinner: HTMLElement, error: HTMLElement): Promise<void> {
@@ -100,6 +106,7 @@ class SessionsWelcomeOverlay extends Disposable {
 				spinner.style.display = 'none';
 			}
 		} catch (err) {
+			this.logService.error('[sessions welcome] Setup failed:', err);
 			error.textContent = localize('sessions.setupError', "Something went wrong. Please try again.");
 			error.style.display = '';
 			button.enabled = true;
@@ -127,7 +134,6 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService _logService: ILogService,
 	) {
 		super();
 
