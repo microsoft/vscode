@@ -177,7 +177,6 @@ export class ChatSlashCommandsContribution extends Disposable {
 						{ label: nls.localize('autoApprove.cancel.button', 'Cancel'), run: () => false },
 					],
 					custom: {
-						disableCloseAction: true,
 						markdownDetails: [{ markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }) }],
 					}
 				});

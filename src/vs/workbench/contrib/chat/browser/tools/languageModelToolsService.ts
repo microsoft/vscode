@@ -1107,7 +1107,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			],
 			custom: {
 				icon: Codicon.warning,
-				disableCloseAction: true,
 				markdownDetails: [{
 					markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
 				}],
