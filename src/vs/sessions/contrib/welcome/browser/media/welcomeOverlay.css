@@ -22,19 +22,13 @@
 	pointer-events: none;
 }
 
-/* ---- Card ---- */
+/* ---- Card (borderless, centered content) ---- */
 
 .sessions-welcome-card {
-	width: 380px;
-	max-width: 90vw;
-	padding: 24px 28px;
-	border-radius: 8px;
-	background: var(--vscode-sideBar-background);
-	border: 1px solid var(--vscode-focusBorder);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 16px;
+	gap: 20px;
 	text-align: center;
 }
 
@@ -44,17 +38,17 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 10px;
+	gap: 12px;
 }
 
-.sessions-welcome-header .sessions-welcome-icon {
-	font-size: 48px;
+.sessions-welcome-header .sessions-welcome-icon .codicon {
+	font-size: 64px;
 	color: var(--vscode-descriptionForeground);
 }
 
 .sessions-welcome-header h2 {
 	margin: 0;
-	font-size: 18px;
+	font-size: 20px;
 	font-weight: 600;
 	color: var(--vscode-foreground);
 }
@@ -66,7 +60,7 @@
 	flex-direction: column;
 	align-items: center;
 	gap: 10px;
-	width: 100%;
+	width: 280px;
 }
 
 .sessions-welcome-action-area .monaco-button {
