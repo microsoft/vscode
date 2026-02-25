@@ -98,7 +98,7 @@
 		"**/*.snap": true,
 	},
 	// --- TypeScript ---
-	"js/ts.experimental.useTsgo": true,
+	"js/ts.experimental.useTsgo": false,
 	"js/ts.tsdk.path": "node_modules/typescript/lib",
 	"js/ts.preferences.importModuleSpecifier": "relative",
 	"js/ts.preferences.quoteStyle": "single",
