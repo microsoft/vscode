@@ -518,6 +518,10 @@ def _repetition_dropdown_html(rep_str: str, segment_index: int, seg_type: str, c
 
 HTML_ESCAPE_CHARS = '<>&\'"'
 
+def text_group_span(chars: list, start_index: int) -> str:
+    text = ''.join(html.escape(c) if c in HTML_ESCAPE_CHARS else c for c in chars)
+    return f'<span snc-text-start="{start_index}" style="letter-spacing:1px;">{text}</span>'
+
 def char_span(string, index, is_special, highlight=None, model=None):
     return ''.join(char_span_els(string, index, is_special, highlight, model))
 
@@ -2290,10 +2294,35 @@ def visualize_els(value, model, get_visualizer, max_width=None, max_height=None,
     char_els.append(char_span('\\A', 0, True, highlight_by_index.get(0), model))
     char_els.append(char_span('^', 1, True, highlight_by_index.get(1), model))
 
+    hover_idx = model.get('hoverIdx') if model and not model.get('dragging') else None
+    group_chars = []
+    group_start = None
+
+    def flush_group():
+        nonlocal group_chars, group_start
+        if group_chars and group_start is not None:
+            char_els.append(text_group_span(group_chars, group_start))
+            group_chars = []
+            group_start = None
+
     index = 2
     for char in value:
-        char_htmls, index = vis_char_with_index_els(char, index, highlight_by_index, model)
-        char_els.extend(char_htmls)
+        is_plain = (
+            char != '\n' and char != '\t'
+            and highlight_by_index.get(index) is None
+            and index != hover_idx
+        )
+        if is_plain:
+            if group_start is None:
+                group_start = index
+            group_chars.append(char)
+            index += 1
+        else:
+            flush_group()
+            char_htmls, index = vis_char_with_index_els(char, index, highlight_by_index, model)
+            char_els.extend(char_htmls)
+
+    flush_group()
 
     # (must match internal index scheme for 1:1 correspondence with extract_by_internal_indices)
     char_els.append(char_span('$', index, True, highlight_by_index.get(index), model))

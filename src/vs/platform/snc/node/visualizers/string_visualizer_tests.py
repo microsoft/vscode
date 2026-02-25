@@ -4429,8 +4429,8 @@ class TestHoverPreview(unittest.TestCase):
 
         # Extract the span for index 5 to check it has left+right borders
         import re as _re
-        spans = _re.findall(r'<span[^>]*snc-mouse-move="MouseMove\(5\)"[^>]*style="([^"]*)"', html_output)
-        self.assertTrue(len(spans) > 0, "Should find span with MouseMove(5)")
+        spans = _re.findall(r'<span[^>]*snc-mouse="5"[^>]*style="([^"]*)"', html_output)
+        self.assertTrue(len(spans) > 0, "Should find span with snc-mouse=5")
         style = spans[0]
         self.assertIn('border-left', style)
         self.assertIn('border-right', style)
@@ -4459,7 +4459,7 @@ class TestSmallParameter(unittest.TestCase):
     def test_visualize_accepts_small_parameter(self):
         model = init_model("hello")
         output = visualize("hello", model, None, small=True)
-        self.assertIn('>h</span>', output)
+        self.assertIn('hello</span>', output)
 
     def test_search_box_present_when_not_small(self):
         model = init_model("hello")
@@ -4477,6 +4477,119 @@ class TestSmallParameter(unittest.TestCase):
         model = init_model("hello")
         output = visualize("hello", model, None)
         self.assertIn('Search', output)
+
+
+class TestTextGrouping(unittest.TestCase):
+    """Test that consecutive plain characters are grouped into a single span
+    using snc-text-start instead of individual snc-mouse spans."""
+
+    def test_plain_string_uses_grouped_span(self):
+        """For 'hello' with no highlights/hover, the 5 plain chars should be
+        in a single snc-text-start span, not 5 individual snc-mouse spans."""
+        model = init_model("hello")
+        output = visualize("hello", model, None)
+        self.assertIn('snc-text-start="2"', output)
+        import re as _re
+        individual_plain = _re.findall(r'snc-mouse="[2-6]"', output)
+        self.assertEqual(len(individual_plain), 0,
+                         "Plain chars should not have individual snc-mouse spans")
+
+    def test_grouped_span_contains_all_plain_chars(self):
+        """The grouped span's text content should contain the full plain text."""
+        model = init_model("hello")
+        output = visualize("hello", model, None)
+        self.assertIn('snc-text-start="2"', output)
+        import re as _re
+        match = _re.search(r'<span snc-text-start="2"[^>]*>([^<]+)</span>', output)
+        self.assertIsNotNone(match, "Should find grouped span starting at index 2")
+        self.assertEqual(match.group(1), "hello")
+
+    def test_special_chars_always_individual_spans(self):
+        """Prefix/suffix markers and \\n/\\t always get individual snc-mouse spans."""
+        model = init_model("a\nb")
+        output = visualize("a\nb", model, None)
+        import re as _re
+        self.assertIn('snc-mouse="0"', output)
+        self.assertIn('snc-mouse="1"', output)
+        for special_idx in [3, 4, 5]:
+            self.assertIn(f'snc-mouse="{special_idx}"', output,
+                          f"Newline expansion index {special_idx} should be individual span")
+
+    def test_group_flushes_at_newline(self):
+        """'ab\\ncd' should produce groups for 'ab' and 'cd', with \\n chars individual."""
+        model = init_model("ab\ncd")
+        output = visualize("ab\ncd", model, None)
+        self.assertIn('snc-text-start="2"', output)
+        self.assertIn('snc-text-start="7"', output)
+
+    def test_group_flushes_at_tab(self):
+        """'ab\\tcd' should produce groups for 'ab' and 'cd', with \\t individual."""
+        model = init_model("ab\tcd")
+        output = visualize("ab\tcd", model, None)
+        self.assertIn('snc-text-start="2"', output)
+        self.assertIn('snc-text-start="5"', output)
+        self.assertIn('snc-mouse="4"', output)
+
+    def test_hover_breaks_group(self):
+        """When hoverIdx points to a plain char, that char gets its own span
+        and the surrounding chars are in separate groups."""
+        model = init_model("hello")
+        model['hoverIdx'] = 4
+        model['hoverType'] = 'literal'
+        output = visualize("hello", model, None)
+        self.assertIn('snc-mouse="4"', output)
+        self.assertIn('snc-text-start="2"', output)
+        self.assertIn('snc-text-start="5"', output)
+
+    def test_highlight_breaks_group(self):
+        """Highlighted chars get individual spans; surrounding plain chars are grouped."""
+        model = init_model("hello world")
+        model['search'] = '/(hello)/'
+        output = visualize("hello world", model, None)
+        import re as _re
+        for idx in range(2, 7):
+            self.assertIn(f'snc-mouse="{idx}"', output,
+                          f"Highlighted char at index {idx} should be individual span")
+        self.assertIn('snc-text-start=', output)
+
+    def test_start_index_correctness_across_groups(self):
+        """With 'ab\\tcd', verify snc-text-start values match internal indexing."""
+        model = init_model("ab\tcd")
+        output = visualize("ab\tcd", model, None)
+        import re as _re
+        starts = _re.findall(r'snc-text-start="(\d+)"', output)
+        self.assertIn('2', starts, "First group should start at index 2")
+        self.assertIn('5', starts, "Second group should start at index 5")
+
+    def test_html_escape_in_grouped_span(self):
+        """Characters like < and & are HTML-escaped inside grouped spans."""
+        model = init_model("a<b")
+        output = visualize("a<b", model, None)
+        import re as _re
+        match = _re.search(r'<span snc-text-start="2"[^>]*>(.*?)</span>', output)
+        self.assertIsNotNone(match)
+        self.assertIn('&lt;', match.group(1))
+
+    def test_single_plain_char_still_grouped(self):
+        """Even a single plain char between specials should use grouped span."""
+        model = init_model("\na\n")
+        output = visualize("\na\n", model, None)
+        self.assertIn('snc-text-start="5"', output)
+
+    def test_empty_string_no_grouped_spans(self):
+        """An empty string should have no snc-text-start spans."""
+        model = init_model("")
+        output = visualize("", model, None)
+        self.assertNotIn('snc-text-start', output)
+
+    def test_grouped_span_has_letter_spacing(self):
+        """Grouped spans should have letter-spacing:1px for consistent spacing."""
+        model = init_model("hello")
+        output = visualize("hello", model, None)
+        import re as _re
+        match = _re.search(r'<span snc-text-start="2"[^>]*style="([^"]*)"', output)
+        self.assertIsNotNone(match)
+        self.assertIn('letter-spacing:1px', match.group(1))
 
 
 if __name__ == '__main__':

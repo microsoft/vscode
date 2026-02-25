@@ -29,7 +29,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	private lastOnscreenPixelPosition: IOverlayWidgetPositionCoordinates | null = null;
 	private readonly visIndex: number;
 	private readonly lineNumber: number;
-	private readonly onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void;
+	private readonly onPointerEvent: (pythonEventStr: string, ev: MouseEvent, overrideRect?: DOMRect) => void;
 	private readonly onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void;
 	private readonly onInputEvent: (pythonEventStr: string, value: string) => void;
 	private moveThrottleTimer: any = null;
@@ -40,7 +40,7 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 	private hoistedDropdownListeners: IDisposable[] = [];
 	private useBlockLayout = false;
 
-	constructor(editor: ICodeEditor, lineNumber: number, visIndex: number, onPointerEvent: (pythonEventStr: string, ev: MouseEvent) => void, onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void, onInputEvent: (pythonEventStr: string, value: string) => void) {
+	constructor(editor: ICodeEditor, lineNumber: number, visIndex: number, onPointerEvent: (pythonEventStr: string, ev: MouseEvent, overrideRect?: DOMRect) => void, onKeyboardEvent: (pythonEventStr: string, ev: KeyboardEvent) => void, onInputEvent: (pythonEventStr: string, value: string) => void) {
 		super();
 		this.editor = editor;
 		this.position = new Position(lineNumber, 1);
@@ -165,9 +165,36 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 				}
 				pythonEventStr = this.wrapWithChildKeys(pythonEventStr, el.parentElement, this.domNode);
 				this.onPointerEvent(pythonEventStr, ev);
-				break;
+				return;
 			}
 			el = el.parentElement;
+		}
+
+		// Fallback: use caretRangeFromPoint for grouped text spans (snc-text-start)
+		const caretRange = document.caretRangeFromPoint(ev.clientX, ev.clientY);
+		if (caretRange && caretRange.startContainer.nodeType === Node.TEXT_NODE) {
+			let groupEl = caretRange.startContainer.parentElement;
+			while (groupEl && groupEl !== this.domNode) {
+				const startAttr = groupEl.getAttribute('snc-text-start');
+				if (startAttr !== null) {
+					const textLen = caretRange.startContainer.textContent?.length ?? 1;
+					const offset = Math.min(caretRange.startOffset, textLen - 1);
+					const charIndex = parseInt(startAttr) + offset;
+					let pythonEventStr: string = {
+						'snc-mouse-move': `MouseMove(${charIndex})`,
+						'snc-mouse-down': `MouseDown(${charIndex})`,
+						'snc-mouse-up': `MouseUp(${charIndex})`,
+					}[attr_name] ?? '';
+					pythonEventStr = this.wrapWithChildKeys(pythonEventStr, groupEl.parentElement, this.domNode);
+					// Build a per-character rect for accurate offsetY/elementHeight
+					const charRange = document.createRange();
+					charRange.setStart(caretRange.startContainer, offset);
+					charRange.setEnd(caretRange.startContainer, Math.min(offset + 1, textLen));
+					this.onPointerEvent(pythonEventStr, ev, charRange.getBoundingClientRect());
+					return;
+				}
+				groupEl = groupEl.parentElement;
+			}
 		}
 	}
 
@@ -1010,7 +1037,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 							this.editor,
 							lineNumber,
 							visIndex,
-							(pythonEventStr, ev) => { this.onPointerEvent(lineNumber, visIndex, pythonEventStr, ev); },
+							(pythonEventStr, ev, overrideRect?) => { this.onPointerEvent(lineNumber, visIndex, pythonEventStr, ev, overrideRect); },
 							(pythonEventStr, ev) => { this.onKeyboardEvent(lineNumber, visIndex, pythonEventStr, ev); },
 							(pythonEventStr, value) => { this.onInputEvent(lineNumber, visIndex, pythonEventStr, value); }
 						);
@@ -1047,9 +1074,8 @@ export class SNCController extends Disposable implements IEditorContribution {
 	 * Handle pointer event from VisualizationWidget
 	 */
 
-	private onPointerEvent(lineNumber: number, visIndex: number, pythonEventStr: string, ev: MouseEvent): void {
-		const target = ev.target as HTMLElement;
-		const rect = target.getBoundingClientRect();
+	private onPointerEvent(lineNumber: number, visIndex: number, pythonEventStr: string, ev: MouseEvent, overrideRect?: DOMRect): void {
+		const rect = overrideRect ?? (ev.target as HTMLElement).getBoundingClientRect();
 
 		const eventJSON = { type: ev.type, button: ev.button, buttons: ev.buttons, detail: ev.detail, offsetY: ev.clientY - rect.top, elementHeight: rect.height, timeStamp: ev.timeStamp, altKey: ev.altKey, ctrlKey: ev.ctrlKey, metaKey: ev.metaKey, shiftKey: ev.shiftKey };
 
