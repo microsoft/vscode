@@ -45,11 +45,6 @@
 	gap: 8px;
 }
 
-.sessions-welcome-header .sessions-welcome-icon {
-	font-size: 32px;
-	color: var(--vscode-foreground);
-}
-
 .sessions-welcome-header h2 {
 	margin: 0;
 	font-size: 18px;
