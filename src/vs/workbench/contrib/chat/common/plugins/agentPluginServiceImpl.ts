@@ -562,15 +562,14 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 
 		const skills: IAgentPluginSkill[] = [];
 		for (const child of stat.children) {
-			if (!child.isFile || extname(child.resource).toLowerCase() !== COMMAND_FILE_SUFFIX) {
+			const skillMd = URI.joinPath(child.resource, 'SKILL.md');
+			if (!(await this._pathExists(skillMd))) {
 				continue;
 			}
 
-			const name = basename(child.resource).slice(0, -COMMAND_FILE_SUFFIX.length);
-
 			skills.push({
-				uri: child.resource,
-				name,
+				uri: skillMd,
+				name: basename(child.resource),
 			});
 		}
 

@@ -196,8 +196,8 @@ registerAction2(class extends Action2 {
 		const fileName = basename(uri);
 		const storage = extractStorage(context);
 
-		// Extension files cannot be deleted
-		if (storage === PromptsStorage.extension) {
+		// Extension and plugin files cannot be deleted
+		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin) {
 			await dialogService.info(
 				localize('cannotDeleteExtension', "Cannot Delete Extension File"),
 				localize('cannotDeleteExtensionDetail', "Files provided by extensions cannot be deleted. You can disable the extension if you no longer want to use this customization.")

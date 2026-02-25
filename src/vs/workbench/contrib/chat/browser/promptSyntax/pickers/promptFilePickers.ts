@@ -27,6 +27,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { PromptFileRewriter } from '../promptFileRewriter.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
+import { assertNever } from '../../../../../../base/common/assert.js';
 
 /**
  * Options for the {@link askToSelectInstructions} function.
@@ -507,6 +508,17 @@ export class PromptFilePickers {
 			result.push({ type: 'separator', label: localize('separator.user', "User Data") });
 			result.push(...sortByLabel(await Promise.all(users.map(u => this._createPromptPickItem(u, buttons, getVisibility(u), token)))));
 		}
+
+		// Plugin files are read-only so only copy button is available
+		const plugins = await this._promptsService.listPromptFilesForStorage(options.type, PromptsStorage.plugin, token);
+		if (plugins.length) {
+			const pluginButtons: IQuickInputButton[] = [];
+			if (options.optionCopy !== false) {
+				pluginButtons.push(COPY_BUTTON);
+			}
+			result.push({ type: 'separator', label: localize('separator.plugins', "Plugins") });
+			result.push(...sortByLabel(await Promise.all(plugins.map(p => this._createPromptPickItem(p, pluginButtons, getVisibility(p), token)))));
+		}
 		return result;
 	}
 
@@ -552,6 +564,11 @@ export class PromptFilePickers {
 			case PromptsStorage.user:
 				tooltip = undefined;
 				break;
+			case PromptsStorage.plugin:
+				tooltip = promptFile.name;
+				break;
+			default:
+				assertNever(promptFile);
 		}
 		let iconClass: string | undefined;
 		if (visibility === false) {
