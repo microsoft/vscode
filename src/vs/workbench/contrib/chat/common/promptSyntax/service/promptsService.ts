@@ -72,7 +72,8 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
-	extension = 'extension'
+	extension = 'extension',
+	plugin = 'plugin',
 }
 
 /**
@@ -87,7 +88,7 @@ export enum ExtensionAgentSourceType {
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath;
 
 
 export interface IPromptPathBase {
@@ -131,12 +132,20 @@ export interface IUserPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.user;
 }
 
+export interface IPluginPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.plugin;
+	readonly pluginUri: URI;
+}
+
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
 	readonly type: ExtensionAgentSourceType;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
+} | {
+	readonly storage: PromptsStorage.plugin;
+	readonly pluginUri: URI;
 };
 
 /**
