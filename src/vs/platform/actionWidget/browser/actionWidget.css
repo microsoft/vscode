@@ -228,7 +228,7 @@
 }
 
 .action-widget .monaco-list-row .action-list-item-toolbar .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover{
-	background-color: var(--vscode-list-activeSelectionBackground);
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 .action-widget-delegate-label {

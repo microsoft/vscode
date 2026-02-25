@@ -295,19 +295,47 @@ export class ChatStatusDashboard extends DomWidget {
 				if (currentModel) {
 					const modelContainer = this.element.appendChild($('div.model-selection'));
 
-					modelContainer.appendChild($('span.model-text', undefined, localize('modelLabel', "Model: {0}", currentModel.name)));
+					modelContainer.appendChild($('span.model-text', undefined, localize('modelLabel', "Model")));
 
 					const actionBar = modelContainer.appendChild($('div.model-action-bar'));
 					const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
 					toolbar.push([toAction({
 						id: 'workbench.action.selectInlineCompletionsModel',
-						label: localize('selectModel', "Select Model"),
+						label: currentModel.name,
 						tooltip: localize('selectModel', "Select Model"),
 						class: ThemeIcon.asClassName(Codicon.gear),
 						run: async () => {
 							await this.showModelPicker(provider);
 						}
-					})], { icon: true, label: false });
+					})], { icon: false, label: true });
+				}
+			}
+		}
+
+		// Provider Options
+		{
+			const providers = this.languageFeaturesService.inlineCompletionsProvider.allNoModel();
+			for (const provider of providers) {
+				if (provider.providerOptions && provider.providerOptions.length > 0) {
+					for (const option of provider.providerOptions) {
+						const currentValue = option.values.find(v => v.id === option.currentValueId);
+						if (currentValue) {
+							const optionContainer = this.element.appendChild($('div.suggest-option-selection'));
+
+							optionContainer.appendChild($('span.suggest-option-text', undefined, option.label));
+
+							const actionBar = optionContainer.appendChild($('div.suggest-option-action-bar'));
+							const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
+							toolbar.push([toAction({
+								id: `workbench.action.selectProviderOption.${option.id}`,
+								label: currentValue.label,
+								tooltip: localize('selectOption', "Select {0}", option.label),
+								run: async () => {
+									await this.showProviderOptionPicker(provider, option);
+								}
+							})], { icon: false, label: true });
+						}
+					}
 				}
 			}
 		}
@@ -747,6 +775,30 @@ export class ChatStatusDashboard extends DomWidget {
 
 		if (selected && selected.id && selected.id !== modelInfo.currentModelId) {
 			await provider.setModelId(selected.id);
+		}
+
+		this.hoverService.hideHover(true);
+	}
+
+	private async showProviderOptionPicker(provider: languages.InlineCompletionsProvider, option: languages.IInlineCompletionProviderOption): Promise<void> {
+		if (!provider.setProviderOption) {
+			return;
+		}
+
+		const items: IQuickPickItem[] = option.values.map(value => ({
+			id: value.id,
+			label: value.label,
+			description: value.id === option.currentValueId ? localize('currentOption.description', "Currently selected") : undefined,
+			picked: value.id === option.currentValueId,
+		}));
+
+		const selected = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectProviderOptionFor', "Select {0}", option.label),
+			canPickMany: false
+		});
+
+		if (selected && selected.id && selected.id !== option.currentValueId) {
+			await provider.setProviderOption(option.id, selected.id);
 		}
 
 		this.hoverService.hideHover(true);

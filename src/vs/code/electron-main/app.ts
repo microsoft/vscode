@@ -7,6 +7,7 @@ import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Sessio
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
+import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
@@ -110,6 +111,7 @@ import { ExtensionsScannerService } from '../../platform/extensionManagement/nod
 import { UserDataProfilesHandler } from '../../platform/userDataProfile/electron-main/userDataProfilesHandler.js';
 import { ProfileStorageChangesListenerChannel } from '../../platform/userDataProfile/electron-main/userDataProfileStorageIpc.js';
 import { Promises, RunOnceScheduler, runWhenGlobalIdle } from '../../base/common/async.js';
+import { CancellationToken } from '../../base/common/cancellation.js';
 import { resolveMachineId, resolveSqmId, resolveDevDeviceId, validateDevDeviceId } from '../../platform/telemetry/electron-main/telemetryUtils.js';
 import { ExtensionsProfileScannerService } from '../../platform/extensionManagement/node/extensionsProfileScannerService.js';
 import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
@@ -927,6 +929,15 @@ export class CodeApplication extends Disposable {
 			this.environmentMainService.continueOn = continueOn ?? undefined;
 		}
 
+		// Extract session parameter to open a specific chat session in the target window
+		const session = params.get('session');
+		if (session !== null) {
+			this.logService.trace(`app#handleProtocolUrl() found 'session' as parameter:`, uri.toString(true));
+
+			params.delete('session');
+			uri = uri.with({ query: params.toString() });
+		}
+
 		// Check if the protocol URL is a window openable to open...
 		const windowOpenableFromProtocolUrl = this.getWindowOpenableFromProtocolUrl(uri);
 		if (windowOpenableFromProtocolUrl) {
@@ -947,6 +958,11 @@ export class CodeApplication extends Disposable {
 				})).at(0);
 
 				window?.focus(); // this should help ensuring that the right window gets focus when multiple are opened
+
+				// Open chat session in the target window if requested
+				if (window && session) {
+					window.sendWhenReady('vscode:openChatSession', CancellationToken.None, session);
+				}
 
 				return true;
 			}
@@ -1415,6 +1431,11 @@ export class CodeApplication extends Disposable {
 	}
 
 	private afterWindowOpen(instantiationService: IInstantiationService): void {
+
+		// Accurate Windows version info
+		if (isWindows) {
+			initWindowsVersionInfo();
+		}
 
 		// Windows: mutex
 		this.installMutex();

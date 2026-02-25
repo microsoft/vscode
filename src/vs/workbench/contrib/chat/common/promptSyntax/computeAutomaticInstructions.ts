@@ -22,7 +22,6 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
-import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
 import { AgentFileType, ICustomAgent, IPromptPath, IPromptsService } from './service/promptsService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -64,6 +63,7 @@ export class ComputeAutomaticInstructions {
 		private readonly _modeKind: ChatModeKind,
 		private readonly _enabledTools: UserSelectedTools | undefined,
 		private readonly _enabledSubagents: (readonly string[]) | undefined,
+		private readonly _sessionId: string | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -93,7 +93,7 @@ export class ComputeAutomaticInstructions {
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
 
-		const instructionFiles = await this._promptsService.listPromptFiles(PromptsType.instructions, token);
+		const instructionFiles = await this._promptsService.getInstructionFiles(token, this._sessionId);
 
 		this._logService.trace(`[InstructionsContextComputer] ${instructionFiles.length} instruction files available.`);
 
@@ -354,7 +354,7 @@ export class ComputeAutomaticInstructions {
 				entries.push('</instructions>', '', ''); // add trailing newline
 			}
 
-			const agentSkills = await this._promptsService.findAgentSkills(token);
+			const agentSkills = await this._promptsService.findAgentSkills(token, this._sessionId);
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
 			const modelInvocableSkills = agentSkills?.filter(skill => !skill.disableModelInvocation);
 			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
@@ -400,7 +400,7 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name);
 				}
 			})();
-			const agents = await this._promptsService.getCustomAgents(token);
+			const agents = await this._promptsService.getCustomAgents(token, this._sessionId);
 			if (agents.length > 0) {
 				entries.push('<agents>');
 				entries.push('Here is a list of agents that can be used when running a subagent.');

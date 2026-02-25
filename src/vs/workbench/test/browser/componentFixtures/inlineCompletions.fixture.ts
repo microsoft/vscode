@@ -33,7 +33,7 @@ interface InlineEditOptions extends ComponentFixtureContext {
 	editorOptions?: IEditorOptions;
 }
 
-function renderInlineEdit(options: InlineEditOptions): HTMLElement {
+function renderInlineEdit(options: InlineEditOptions): void {
 	const { container, disposableStore, theme } = options;
 	container.style.width = options.width ?? '500px';
 	container.style.height = options.height ?? '170px';
@@ -100,8 +100,6 @@ function renderInlineEdit(options: InlineEditOptions): HTMLElement {
 	// Trigger inline completions
 	const controller = InlineCompletionsController.get(editor);
 	controller?.model?.get();
-
-	return container;
 }
 
 

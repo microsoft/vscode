@@ -12,7 +12,7 @@ import { ActionListItemKind, IActionListItem } from '../../../../../../../platfo
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
-import { buildModelPickerItems } from '../../../../browser/widget/input/chatModelPicker.js';
+import { buildModelPickerItems, getModelPickerAccessibilityProvider } from '../../../../browser/widget/input/chatModelPicker.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IModelControlEntry } from '../../../../common/languageModels.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
@@ -94,6 +94,7 @@ function callBuild(
 		opts.updateStateType ?? StateType.Idle,
 		onSelect,
 		opts.manageSettingsUrl,
+		true,
 		stubCommandService,
 		entitlementService,
 	);
@@ -102,6 +103,13 @@ function callBuild(
 suite('buildModelPickerItems', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('accessibility provider uses radio semantics for model items', () => {
+		const provider = getModelPickerAccessibilityProvider();
+		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Action } as IActionListItem<IActionWidgetDropdownAction>), 'menuitemradio');
+		assert.strictEqual(provider.getRole({ kind: ActionListItemKind.Separator } as IActionListItem<IActionWidgetDropdownAction>), 'separator');
+		assert.strictEqual(provider.getWidgetRole(), 'menu');
+	});
 
 	test('auto model always appears first', () => {
 		const auto = createAutoModel();
@@ -373,6 +381,22 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(gptItem.disabled, true);
 	});
 
+	test('Other Models places unavailable models after available models', () => {
+		const auto = createAutoModel();
+		const availableModel = createModel('zeta', 'Zeta');
+		const unavailableModel = createModel('alpha', 'Alpha');
+		const items = callBuild([auto, availableModel, unavailableModel], {
+			controlModels: {
+				'alpha': { label: 'Alpha', minVSCodeVersion: '2.0.0', exists: true },
+			},
+			currentVSCodeVersion: '1.90.0',
+		});
+		const actions = getActionItems(items);
+		const otherModelLabels = actions.slice(2).map(a => a.label!).filter(l => !l.includes('Manage Models'));
+		assert.deepStrictEqual(otherModelLabels, ['Zeta', 'Alpha']);
+		assert.strictEqual(actions.find(a => a.label === 'Alpha')?.disabled, true);
+	});
+
 	test('no duplicate models across sections', () => {
 		const auto = createAutoModel();
 		const modelA = createModel('gpt-4o', 'GPT-4o');
@@ -445,6 +469,7 @@ suite('buildModelPickerItems', () => {
 			StateType.Idle,
 			onSelect,
 			undefined,
+			true,
 			stubCommandService,
 			stubChatEntitlementService,
 		);
@@ -526,6 +551,7 @@ suite('buildModelPickerItems', () => {
 			StateType.Idle,
 			() => { },
 			'https://aka.ms/github-copilot-settings',
+			true,
 			stubCommandService,
 			stubChatEntitlementService,
 		);
@@ -606,6 +632,7 @@ suite('buildModelPickerItems', () => {
 			StateType.Idle,
 			onSelect,
 			undefined,
+			true,
 			stubCommandService,
 			anonymousEntitlementService,
 		);

@@ -191,6 +191,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly focusedFileTreesByResponseId = new Map<string, number>();
 
 	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
+	private readonly responseTemplateDataByRequestId = new Map<string, IChatListItemTemplate>();
 
 	/** Track pending question carousels by session resource for auto-skip on chat submission */
 	private readonly pendingQuestionCarousels = new ResourceMap<Set<ChatQuestionCarouselPart>>();
@@ -323,6 +324,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	private fireItemHeightChange(template: IChatListItemTemplate, measuredHeight?: number): void {
+		if (!template.currentElement || !template.rowContainer.isConnected) {
+			return;
+		}
+
+		const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
+		if (height === 0 || !height) {
+			return;
+		}
+
+		const normalizedHeight = Math.ceil(height);
+		template.currentElement.currentRenderedHeight = normalizedHeight;
+		if (template.currentElement !== this._elementBeingRendered) {
+			this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
+		}
+	}
+
 	/**
 	 * Compute a rate to render at in words/s.
 	 */
@@ -364,6 +382,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.codeBlocksByResponseId.clear();
 		this.fileTreesByResponseId.clear();
 		this.focusedFileTreesByResponseId.clear();
+		this.responseTemplateDataByRequestId.clear();
 		this._editorPool.clear();
 		this._toolEditorPool.clear();
 		this._diffEditorPool.clear();
@@ -608,23 +627,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 
 		const resizeObserver = templateDisposables.add(new dom.DisposableResizeObserver((entries) => {
-			if (!template.currentElement) {
-				return;
-			}
-
 			const entry = entries[0];
 			if (entry) {
-				const height = entry.borderBoxSize.at(0)?.blockSize;
-				if (height === 0 || !height || !template.rowContainer.isConnected) {
-					// Don't fire for changes that happen from the row being removed from the DOM
-					return;
-				}
-
-				const normalizedHeight = Math.ceil(height);
-				template.currentElement.currentRenderedHeight = normalizedHeight;
-				if (template.currentElement !== this._elementBeingRendered) {
-					this._onDidChangeItemHeight.fire({ element: template.currentElement, height: normalizedHeight });
-				}
+				this.fireItemHeightChange(template, entry.borderBoxSize.at(0)?.blockSize);
 			}
 		}));
 		templateDisposables.add(resizeObserver.observe(rowContainer));
@@ -750,6 +755,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || isPendingRequest || !(checkpointEnabled));
 
+		// Track response template data by request ID for cross-row hover effects
+		if (isResponseVM(element)) {
+			this.responseTemplateDataByRequestId.set(element.requestId, templateData);
+			templateData.elementDisposables.add(toDisposable(() => this.responseTemplateDataByRequestId.delete(element.requestId)));
+		}
+
+		// unified hovering
+		if (!isPendingRequest) {
+			const setGroupHover = (hovered: boolean) => {
+				const requestId = isRequestVM(element) ? element.id : isResponseVM(element) ? element.requestId : undefined;
+				if (!requestId) {
+					return;
+				}
+				const reqData = this.templateDataByRequestId.get(requestId);
+				const resData = this.responseTemplateDataByRequestId.get(requestId);
+				reqData?.checkpointContainer.classList.toggle('group-hovered', hovered);
+				resData?.rowContainer.classList.toggle('group-hovered', hovered);
+			};
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_ENTER, () => setGroupHover(true)));
+			templateData.elementDisposables.add(dom.addDisposableListener(templateData.rowContainer, dom.EventType.MOUSE_LEAVE, () => setGroupHover(false)));
+			templateData.elementDisposables.add(toDisposable(() => setGroupHover(false)));
+		}
+
 		// Only show restore container when we have a checkpoint and not editing, and not a pending request
 		const shouldShowRestore = this.viewModel?.model.checkpoint && !this.viewModel?.editing && (index === this.delegate.getListLength() - 1) && !isPendingRequest;
 		templateData.checkpointRestoreContainer.classList.toggle('hidden', !(shouldShowRestore && checkpointEnabled));
@@ -779,7 +807,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Overlay click listener removed: overlay is non-interactive in cancel-on-any-row mode.
 
 		// hack @joaomoreno
-		templateData.rowContainer.parentElement?.parentElement?.parentElement?.classList.toggle('request', isRequestVM(element));
+		const rowRoot = templateData.rowContainer.parentElement?.parentElement?.parentElement;
+		rowRoot?.classList.toggle('request', isRequestVM(element));
+		rowRoot?.classList.toggle('response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle(mostRecentResponseClassName, index === this.delegate.getListLength() - 1);
 		templateData.rowContainer.classList.toggle('confirmation-message', isRequestVM(element) && !!element.confirmation);
 
@@ -1376,9 +1406,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowFileChangesSummary(element: IChatResponseViewModel): boolean {
+		if (!element.isComplete) {
+			return false;
+		}
+		if (this.environmentService.isSessionsWindow) {
+			return true; // show changes per turn in sessions window to make it clear which changes belong to which turn
+		}
 		// Only show file changes summary for local sessions - background sessions already have their own file changes part
 		const isLocalSession = getChatSessionType(element.sessionResource) === localChatSessionType;
-		return element.isComplete && isLocalSession && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
+		return isLocalSession && this.configService.getValue<boolean>('chat.checkpoints.showFileChanges');
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
@@ -2351,6 +2387,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth.get(), this.codeBlockModelCollection, {});
+		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;
 			if (this.configService.getValue<string>('chat.editRequests') === 'inline' && this.rendererOptions.editable) {

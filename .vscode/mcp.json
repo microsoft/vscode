@@ -3,9 +3,25 @@
 		"vscode-automation-mcp": {
 			"type": "stdio",
 			"command": "npm",
-			// Look at the [README](../test/mcp/README.md) to see what arguments are supported
-			"args": ["run", "start-stdio"],
+			"args": [
+				"run",
+				"start-stdio"
+			],
 			"cwd": "${workspaceFolder}/test/mcp"
+		},
+		"component-explorer": {
+			"type": "stdio",
+			"command": "npx",
+			"cwd": "${workspaceFolder}",
+			"args": [
+				"component-explorer",
+				"mcp",
+				"-c",
+				"./test/componentFixtures/component-explorer.json",
+				"--no-daemon-autostart",
+				"--no-daemon-hint",
+				"Start the daemon by running the 'Launch Component Explorer' VS Code task (use the run_task tool). When you start the task, try up to 4 times to give the daemon enough time to start."
+			]
 		}
 	},
 	"inputs": []

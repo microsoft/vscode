@@ -89,7 +89,12 @@ import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
-import { registerChatCustomizationDiagnosticsAction } from './actions/chatCustomizationDiagnosticsAction.js';
+import { registerChatOpenAgentDebugPanelAction } from './actions/chatOpenAgentDebugPanelAction.js';
+import { IChatDebugService } from '../common/chatDebugService.js';
+import { ChatDebugServiceImpl } from '../common/chatDebugServiceImpl.js';
+import { ChatDebugEditor } from './chatDebug/chatDebugEditor.js';
+import { PromptsDebugContribution } from './promptsDebugContribution.js';
+import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
 import './agentSessions/agentSessions.contribution.js';
 import { backgroundAgentDisplayName } from './agentSessions/agentSessions.js';
 
@@ -136,7 +141,12 @@ import './widget/input/editor/chatInputEditorHover.js';
 import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
 import { AgentPluginService, ConfiguredAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
+import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
+import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { AgentPluginsViewsContribution } from './agentPluginsView.js';
+import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js';
+import { PluginInstallService } from './pluginInstallService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { ChatSlashCommandsContribution } from './chatSlashCommands.js';
@@ -214,8 +224,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.agentsControl.clickBehavior.cycle', "Clicking chat icon cycles through: show chat, maximize chat, hide chat. This requires chat to be contained in the secondary sidebar."),
 			],
 			markdownDescription: nls.localize('chat.agentsControl.clickBehavior', "Controls the behavior when clicking on the chat icon in the command center."),
-			default: product.quality !== 'stable' ? AgentsControlClickBehavior.Cycle : AgentsControlClickBehavior.Default,
-			tags: ['experimental']
+			default: AgentsControlClickBehavior.Default, // TODO@bpasero figure out the default
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
@@ -637,6 +650,12 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
+		[ChatConfiguration.PluginsEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.plugins.enabled', "Enable agent plugin integration in chat."),
+			default: true,
+			tags: ['preview'],
+		},
 		[ChatConfiguration.PluginPaths]: {
 			type: 'object',
 			additionalProperties: { type: 'boolean' },
@@ -651,7 +670,7 @@ configurationRegistry.registerConfiguration({
 			items: {
 				type: 'string',
 			},
-			markdownDescription: nls.localize('chat.plugins.marketplaces', "GitHub repositories to use as plugin marketplaces. Each entry should be in `owner/repo` format."),
+			markdownDescription: nls.localize('chat.plugins.marketplaces', "Plugin marketplaces to query. Entries may be GitHub shorthand (`owner/repo`), direct Git repository URIs (`https://...git`, `ssh://...git`, or `git@host:path.git`), or local repository URIs (`file:///...`). Equivalent GitHub shorthand and URI entries are deduplicated."),
 			default: ['github/copilot-plugins', 'github/awesome-copilot'],
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
@@ -704,15 +723,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.editMode.hidden', "When enabled, hides the Edit mode from the chat mode picker."),
 			default: true,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
-		[ChatConfiguration.AlternativeToolAction]: {
-			type: 'boolean',
-			description: nls.localize('chat.alternativeToolAction', "When enabled, shows the Configure Tools action in the mode picker dropdown on hover instead of in the chat input."),
-			default: false,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -1125,6 +1135,12 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('chat.agent.thinking.terminalTools', "When enabled, terminal tool calls are displayed inside the thinking dropdown with a simplified view."),
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.SimpleTerminalCollapsible]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			markdownDescription: nls.localize('chat.tools.terminal.simpleCollapsible', "When enabled, terminal tool calls are always displayed in a collapsible container with a simplified view."),
+			tags: ['experimental'],
+		},
 		'chat.tools.usagesTool.enabled': {
 			type: 'boolean',
 			default: true,
@@ -1219,11 +1235,15 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.SubagentToolCustomAgents]: {
 			type: 'boolean',
 			description: nls.localize('chat.subagentTool.customAgents', "Whether the runSubagent tool is able to use custom agents. When enabled, the tool can take the name of a custom agent, but it must be given the exact name of the agent."),
-			default: false,
-			tags: ['experimental'],
+			default: true,
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		[ChatConfiguration.ChatCustomizationMenuEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customization Menu is shown in the Manage menu and Command Palette. When disabled, the Chat Customizations editor and related commands are hidden."),
+			default: true,
 		}
 	}
 });
@@ -1235,6 +1255,16 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(ChatEditorInput)
+	]
+);
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		ChatDebugEditor,
+		ChatDebugEditorInput.ID,
+		nls.localize('chatDebug', "Debug View")
+	),
+	[
+		new SyncDescriptor(ChatDebugEditorInput)
 	]
 );
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
@@ -1336,6 +1366,36 @@ class ChatResolverContribution extends Disposable {
 				}
 			}
 		));
+	}
+}
+
+class ChatDebugResolverContribution implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatDebugResolver';
+
+	constructor(
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+	) {
+		editorResolverService.registerEditor(
+			`${ChatDebugEditorInput.RESOURCE.scheme}:**/**`,
+			{
+				id: ChatDebugEditorInput.ID,
+				label: nls.localize('chatDebug', "Debug View"),
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				singlePerResource: true,
+				canSupportResource: resource => resource.scheme === ChatDebugEditorInput.RESOURCE.scheme
+			},
+			{
+				createEditorInput: () => {
+					return {
+						editor: ChatDebugEditorInput.instance,
+						options: { pinned: true }
+					};
+				}
+			}
+		);
 	}
 }
 
@@ -1523,8 +1583,11 @@ AccessibleViewRegistry.register(new AgentChatAccessibilityHelp());
 
 registerEditorFeature(ChatInputBoxContentProvider);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatDebugEditorInput.ID, ChatDebugEditorInputSerializer);
 
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(ChatDebugResolverContribution.ID, ChatDebugResolverContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(PromptsDebugContribution.ID, PromptsDebugContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatLanguageModelsDataContribution.ID, ChatLanguageModelsDataContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSlashCommandsContribution.ID, ChatSlashCommandsContribution, WorkbenchPhase.Eventually);
 
@@ -1560,11 +1623,12 @@ registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContrib
 registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(AgentPluginsViewsContribution.ID, AgentPluginsViewsContribution, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatAccessibilityActions();
 registerChatCopyActions();
-registerChatCustomizationDiagnosticsAction();
+registerChatOpenAgentDebugPanelAction();
 registerChatCodeBlockActions();
 registerChatCodeCompareBlockActions();
 registerChatFileTreeActions();
@@ -1604,6 +1668,8 @@ registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
 registerSingleton(IAgentPluginService, AgentPluginService, InstantiationType.Delayed);
 registerSingleton(IPluginMarketplaceService, PluginMarketplaceService, InstantiationType.Delayed);
+registerSingleton(IAgentPluginRepositoryService, AgentPluginRepositoryService, InstantiationType.Delayed);
+registerSingleton(IPluginInstallService, PluginInstallService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConfirmationService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
@@ -1621,5 +1687,6 @@ registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.D
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
 registerSingleton(IChatTipService, ChatTipService, InstantiationType.Delayed);
+registerSingleton(IChatDebugService, ChatDebugServiceImpl, InstantiationType.Delayed);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

@@ -165,9 +165,7 @@
 				}
 			}
 
-			.agent-session-diff-container,
-			.agent-session-badge {
-				font-weight: 500;
+			.agent-session-diff-container {
 				font-variant-numeric: tabular-nums;
 				overflow: hidden;
 			}
@@ -223,6 +221,7 @@
 			flex: 1;
 			overflow: hidden;
 			white-space: nowrap;
+			text-overflow: ellipsis;
 		}
 
 		.agent-session-title {

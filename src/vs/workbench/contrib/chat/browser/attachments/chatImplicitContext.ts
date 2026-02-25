@@ -268,7 +268,13 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
 			if ((setting === 'always' || setting === 'first' && isFirstInteraction) && !isPromptFile) { // disable implicit context for prompt files
-				widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
+				// When there's a non-code active editor (e.g. Settings is open), preserve
+				// existing values so the attachment bar stays visible.
+				// But when there's no active editor at all, clear the values.
+				const hasActiveEditor = !!this.editorService.activeEditor;
+				if (newValue !== undefined || !widget.input.implicitContext.hasValue || !hasActiveEditor) {
+					widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
+				}
 			} else {
 				widget.input.implicitContext.setValues([]);
 			}

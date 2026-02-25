@@ -266,7 +266,7 @@ export class GitBlameController {
 			arguments: ['git.blame']
 		}] satisfies Command[]);
 
-		return getCommitHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
+		return getCommitHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands, commitInformation?.coAuthors);
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {

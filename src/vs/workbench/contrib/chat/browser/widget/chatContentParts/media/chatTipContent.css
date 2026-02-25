@@ -67,7 +67,6 @@
 	background-color: var(--vscode-editorWidget-background);
 	border-radius: var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small) 0 0;
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-input-border, transparent));
-	border-bottom: none;
 	font-size: var(--vscode-chat-font-size-body-s);
 	font-family: var(--vscode-chat-font-family, inherit);
 	color: var(--vscode-descriptionForeground);
@@ -81,11 +80,6 @@
 .chat-getting-started-tip-container .chat-tip-widget a:hover,
 .chat-getting-started-tip-container .chat-tip-widget a:active {
 	color: var(--vscode-textLink-activeForeground);
-}
-
-.chat-getting-started-tip-container .chat-tip-widget .codicon-lightbulb {
-	font-size: 12px;
-	color: var(--vscode-notificationsWarningIcon-foreground);
 }
 
 .chat-getting-started-tip-container .chat-tip-widget .rendered-markdown p {

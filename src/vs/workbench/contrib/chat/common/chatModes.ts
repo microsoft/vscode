@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { URI } from '../../../../base/common/uri.js';
+import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -23,6 +23,7 @@ import { IHandOff, isTarget } from './promptSyntax/promptFileParser.js';
 import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage, Target } from './promptSyntax/service/promptsService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { hash } from '../../../../base/common/hash.js';
 import { isString } from '../../../../base/common/types.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
@@ -449,15 +450,19 @@ export class CustomChatMode implements IChatMode {
 
 type IChatModeSourceData =
 	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: ExtensionAgentSourceType }
-	| { readonly storage: PromptsStorage.local | PromptsStorage.user };
+	| { readonly storage: PromptsStorage.local | PromptsStorage.user }
+	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (typeof value !== 'object' || value === null) {
 		return false;
 	}
-	const data = value as { storage?: unknown; extensionId?: unknown };
+	const data = value as { storage?: unknown; extensionId?: unknown; pluginUri?: unknown };
 	if (data.storage === PromptsStorage.extension) {
 		return typeof data.extensionId === 'string';
+	}
+	if (data.storage === PromptsStorage.plugin) {
+		return isUriComponents(data.pluginUri);
 	}
 	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user;
 }
@@ -469,6 +474,9 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 	if (source.storage === PromptsStorage.extension) {
 		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, type: source.type };
 	}
+	if (source.storage === PromptsStorage.plugin) {
+		return { storage: PromptsStorage.plugin, pluginUri: source.pluginUri };
+	}
 	return { storage: source.storage };
 }
 
@@ -478,6 +486,9 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 	}
 	if (data.storage === PromptsStorage.extension) {
 		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), type: data.type ?? ExtensionAgentSourceType.contribution };
+	}
+	if (data.storage === PromptsStorage.plugin) {
+		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };
 	}
 	return { storage: data.storage };
 }
@@ -534,4 +545,16 @@ export function isBuiltinChatMode(mode: IChatMode): boolean {
 	return mode.id === ChatMode.Ask.id ||
 		mode.id === ChatMode.Edit.id ||
 		mode.id === ChatMode.Agent.id;
+}
+
+/**
+ * Returns a telemetry-safe mode name. User/local mode names are hashed
+ * to avoid leaking PII; builtin and extension mode names are returned as-is.
+ */
+export function getModeNameForTelemetry(mode: IChatMode): string {
+	const modeStorage = mode.source?.storage;
+	if (modeStorage === PromptsStorage.local || modeStorage === PromptsStorage.user) {
+		return String(hash(mode.name.get()));
+	}
+	return mode.name.get();
 }

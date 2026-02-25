@@ -141,7 +141,12 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 				result = err instanceof Error ? err.message : String(err);
 			}
 
-			const summary = await this._pages.getSummary(pageId);
+			let summary;
+			try {
+				summary = await this._pages.getSummary(pageId);
+			} catch (err: unknown) {
+				summary = err instanceof Error ? err.message : String(err);
+			}
 			return { result, summary };
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
@@ -232,6 +237,7 @@ class PlaywrightPageManager extends Disposable {
 	private readonly _initStore = this._register(new DisposableStore());
 	private _group: IBrowserViewGroup | undefined;
 	private _browser: Browser | undefined;
+	private _openContext: BrowserContext | undefined = undefined;
 
 	constructor(
 		private readonly logService: ILogService,
@@ -286,13 +292,18 @@ class PlaywrightPageManager extends Disposable {
 			throw new Error('PlaywrightPageManager has not been initialized');
 		}
 
-		const page = await this._browser.newPage();
+		if (!this._openContext) {
+			this._openContext = await this._browser.newContext();
+			this.onContextAdded(this._openContext);
+		}
+
+		const page = await this._openContext.newPage();
 		const viewId = await this.onPageAdded(page);
 
 		this._trackedPages.add(viewId);
 		this._fireTrackedPagesChanged();
 
-		await page.goto(url, { waitUntil: 'domcontentloaded' });
+		await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
 		return viewId;
 	}
@@ -434,12 +445,7 @@ class PlaywrightPageManager extends Disposable {
 			return queued.page.p;
 		}
 
-		if (this._trackedPages.has(viewId) && this._group) {
-			await this._addPageToGroup(viewId);
-			return this.getPage(viewId);
-		}
-
-		throw new Error(`Page "${viewId}" has not been added to the Playwright service`);
+		throw new Error(`Page "${viewId}" not found`);
 	}
 
 	/**
@@ -481,6 +487,8 @@ class PlaywrightPageManager extends Disposable {
 			this._pageToViewId.delete(page);
 		}
 		this._viewIdToPage.delete(viewId);
+		this._trackedPages.delete(viewId);
+		this._fireTrackedPagesChanged();
 	}
 
 	private onPageAdded(page: Page, timeoutMs = 10000): Promise<string> {
@@ -516,6 +524,8 @@ class PlaywrightPageManager extends Disposable {
 		const viewId = this._pageToViewId.get(page);
 		if (viewId) {
 			this._viewIdToPage.delete(viewId);
+			this._trackedPages.delete(viewId);
+			this._fireTrackedPagesChanged();
 		}
 		this._pageToViewId.delete(page);
 	}

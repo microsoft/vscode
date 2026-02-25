@@ -158,6 +158,8 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private modalEditorPart: IModalEditorPart | undefined;
 	get activeModalEditorPart(): IModalEditorPart | undefined { return this.modalEditorPart; }
 
+	private modalEditorMaximized = false;
+
 	async createModalEditorPart(options?: IModalEditorPartOptions): Promise<IModalEditorPart> {
 
 		// Reuse existing modal editor part if it exists
@@ -167,7 +169,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return this.modalEditorPart;
 		}
 
-		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create(options);
+		const { part, instantiationService, disposables } = await this.instantiationService.createInstance(ModalEditorPart, this).create({ ...options, maximized: options?.maximized ?? this.modalEditorMaximized });
 
 		// Keep instantiation service and reference to reuse
 		this.modalEditorPart = part;
@@ -175,6 +177,11 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		disposables.add(toDisposable(() => {
 			this.modalPartInstantiationService = undefined;
 			this.modalEditorPart = undefined;
+		}));
+
+		// Track maximized state in memory
+		disposables.add(part.onDidChangeMaximized(maximized => {
+			this.modalEditorMaximized = maximized;
 		}));
 
 		// Events

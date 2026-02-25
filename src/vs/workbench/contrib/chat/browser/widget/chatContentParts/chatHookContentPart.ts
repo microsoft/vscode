@@ -7,6 +7,7 @@ import { $ } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { localize } from '../../../../../../nls.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IChatHookPart } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
 import { HookType, HOOK_TYPES, HookTypeValue } from '../../../common/promptSyntax/hookSchema.js';
@@ -25,6 +26,7 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 		private readonly hookPart: IChatHookPart,
 		context: IChatContentPartRenderContext,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		const hookTypeLabel = getHookTypeLabel(hookPart.hookType);
 		const isStopped = !!hookPart.stopReason;
@@ -38,7 +40,7 @@ export class ChatHookContentPart extends ChatCollapsibleContentPart implements I
 				? localize('hook.title.warningWithTool', "Warning for {0} - {1} hook", toolName, hookTypeLabel)
 				: localize('hook.title.warning', "Warning from {0} hook", hookTypeLabel));
 
-		super(title, context, undefined, hoverService);
+		super(title, context, undefined, hoverService, configurationService);
 
 		this.icon = isStopped ? Codicon.error : isWarning ? Codicon.warning : Codicon.check;
 

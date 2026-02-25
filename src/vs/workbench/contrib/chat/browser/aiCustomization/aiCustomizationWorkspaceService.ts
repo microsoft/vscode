@@ -49,6 +49,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.Instructions,
 		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
+		AICustomizationManagementSection.McpServers,
 	];
 
 	readonly preferManualCreation = false;

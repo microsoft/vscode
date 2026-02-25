@@ -3614,6 +3614,22 @@
           "default": false,
           "description": "%config.alwaysSignOff%"
         },
+        "git.addAICoAuthor": {
+          "type": "string",
+          "enum": [
+            "off",
+            "chatAndAgent",
+            "all"
+          ],
+          "enumDescriptions": [
+            "%config.addAICoAuthor.off%",
+            "%config.addAICoAuthor.chatAndAgent%",
+            "%config.addAICoAuthor.all%"
+          ],
+          "scope": "resource",
+          "default": "off",
+          "description": "%config.addAICoAuthor%"
+        },
         "git.ignoreSubmodules": {
           "type": "boolean",
           "scope": "resource",

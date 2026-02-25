@@ -37,6 +37,10 @@
 			display: none;
 		}
 
+		.show-checkmarks & .codicon.codicon-check {
+			display: inline-flex;
+		}
+
 		.status-label {
 			color: var(--vscode-descriptionForeground);
 			white-space: nowrap;

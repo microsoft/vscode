@@ -89,6 +89,7 @@ export namespace PromptHeaderAttributes {
 
 export namespace GithubPromptHeaderAttributes {
 	export const mcpServers = 'mcp-servers';
+	export const github = 'github';
 }
 
 export namespace ClaudeHeaderAttributes {

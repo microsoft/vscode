@@ -26,12 +26,14 @@ import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDom
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logBrowserOpen } from './browserViewTelemetry.js';
+import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
-// Register actions
+// Register actions and browser tools
 import './browserViewActions.js';
+import './tools/browserTools.contribution.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -155,6 +157,28 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				{ comment: ['This is the description for a setting.'], key: 'browser.openLocalhostLinks' },
 				'When enabled, localhost links from the terminal, chat, and other sources will open in the Integrated Browser instead of the system browser.'
 			)
+		},
+		'workbench.browser.enableChatTools': {
+			type: 'boolean',
+			default: false,
+			experiment: { mode: 'startup' },
+			tags: ['experimental'],
+			markdownDescription: localize(
+				{ comment: ['This is the description for a setting.'], key: 'browser.enableChatTools' },
+				'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.'
+			),
+			policy: {
+				name: 'BrowserChatTools',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.110',
+				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'browser.enableChatTools',
+						value: localize('browser.enableChatTools', 'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.')
+					}
+				},
+			}
 		},
 		'workbench.browser.dataStorage': {
 			type: 'string',

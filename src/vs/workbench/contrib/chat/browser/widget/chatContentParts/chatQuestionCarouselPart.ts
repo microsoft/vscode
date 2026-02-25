@@ -492,7 +492,32 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Render question title (short header) in the header bar as plain text
 		if (question.title) {
 			const title = dom.$('.chat-question-title');
-			title.textContent = question.title;
+			const questionText = question.title;
+			const messageContent = this.getQuestionText(questionText);
+
+			title.setAttribute('aria-label', messageContent);
+
+			if (question.message !== undefined) {
+				const messageMd = isMarkdownString(questionText) ? MarkdownString.lift(questionText) : new MarkdownString(questionText);
+				const renderedTitle = questionRenderStore.add(this._markdownRendererService.render(messageMd));
+				title.appendChild(renderedTitle.element);
+			} else {
+				// Check for subtitle in parentheses at the end
+				const parenMatch = messageContent.match(/^(.+?)\s*(\([^)]+\))\s*$/);
+				if (parenMatch) {
+					// Main title (bold)
+					const mainTitle = dom.$('span.chat-question-title-main');
+					mainTitle.textContent = parenMatch[1];
+					title.appendChild(mainTitle);
+
+					// Subtitle in parentheses (normal weight)
+					const subtitle = dom.$('span.chat-question-title-subtitle');
+					subtitle.textContent = ' ' + parenMatch[2];
+					title.appendChild(subtitle);
+				} else {
+					title.textContent = messageContent;
+				}
+			}
 			headerRow.appendChild(title);
 		}
 
@@ -1211,11 +1236,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private getQuestionText(questionText: string | IMarkdownString): string {
-		if (typeof questionText === 'string') {
-			return questionText;
-		}
-
-		return renderAsPlaintext(questionText);
+		const md = typeof questionText === 'string' ? new MarkdownString(questionText) : questionText;
+		return renderAsPlaintext(md);
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
