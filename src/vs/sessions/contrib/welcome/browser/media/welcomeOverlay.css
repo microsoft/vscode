@@ -25,17 +25,16 @@
 /* ---- Card ---- */
 
 .sessions-welcome-card {
-	width: 520px;
+	width: 380px;
 	max-width: 90vw;
-	padding: 40px;
+	padding: 24px 28px;
 	border-radius: 8px;
 	background: var(--vscode-sideBar-background);
 	border: 1px solid var(--vscode-focusBorder);
-	box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 24px;
+	gap: 16px;
 	text-align: center;
 }
 
@@ -45,12 +44,12 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 16px;
+	gap: 10px;
 }
 
 .sessions-welcome-header .sessions-welcome-icon {
-	font-size: 64px;
-	color: var(--vscode-foreground);
+	font-size: 48px;
+	color: var(--vscode-descriptionForeground);
 }
 
 .sessions-welcome-header h2 {
@@ -66,13 +65,12 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 12px;
+	gap: 10px;
 	width: 100%;
 }
 
 .sessions-welcome-action-area .monaco-button {
 	width: 100%;
-	padding: 8px 16px;
 }
 
 /* ---- Spinner ---- */
