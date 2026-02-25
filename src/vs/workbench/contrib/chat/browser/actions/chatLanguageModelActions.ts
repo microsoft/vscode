@@ -248,7 +248,27 @@ class ConfigureLanguageModelsGroupAction extends Action2 {
 	}
 }
 
+class MigrateLanguageModelsGroupAction extends Action2 {
+	constructor() {
+		super({
+			id: 'lm.migrateLanguageModelsProviderGroup',
+			title: localize('lm.migrateGroup', 'Migrate Language Models Group'),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void> {
+		const languageModelsService = accessor.get(ILanguageModelsService);
+
+		if (!languageModelsProviderGroup) {
+			throw new Error('Language model group is required');
+		}
+
+		await languageModelsService.migrateLanguageModelsProviderGroup(languageModelsProviderGroup);
+	}
+}
+
 export function registerLanguageModelActions() {
 	registerAction2(ManageLanguageModelAuthenticationAction);
 	registerAction2(ConfigureLanguageModelsGroupAction);
+	registerAction2(MigrateLanguageModelsGroupAction);
 }

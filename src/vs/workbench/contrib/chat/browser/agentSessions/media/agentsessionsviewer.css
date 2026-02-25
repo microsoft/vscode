@@ -9,6 +9,14 @@
 	height: 100%;
 	min-height: 0;
 
+	.pane-body & .monaco-scrollable-element {
+		padding: 0 6px;
+	}
+
+	.monaco-list-row {
+		border-radius: 6px;
+	}
+
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
 	}
@@ -21,56 +29,56 @@
 				color: unset;
 			}
 		}
+	}
 
+	.monaco-list:focus .monaco-list-row.selected .agent-session-details-row {
 		.agent-session-diff-container {
-			background-color: unset;
-			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
-
-			.agent-session-diff-files,
 			.agent-session-diff-added,
 			.agent-session-diff-removed {
-				color: unset;
+					color: unset;
 			}
-		}
-
-		.agent-session-badge {
-			background-color: unset;
-			outline: 1px solid var(--vscode-agentSessionSelectedBadge-border);
 		}
 	}
 
-	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-diff-container,
-	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row .agent-session-badge {
-		outline: 1px solid var(--vscode-agentSessionSelectedUnfocusedBadge-border);
+	.monaco-list-row.selected .agent-session-title {
+		color: unset;
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-details-row {
+		color: var(--vscode-descriptionForeground);
 	}
 
 	.monaco-list-row .agent-session-title-toolbar {
 		/* for the absolute positioning of the toolbar below */
 		position: relative;
+		height: 16px;
+		display: none;
 
 		.monaco-toolbar {
 			/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
-			position: absolute;
+			position: relative;
 			right: 0;
 			top: 0;
-			display: none;
 		}
 	}
 
-	.monaco-list-row:hover .agent-session-title-toolbar,
-	.monaco-list-row.focused .agent-session-title-toolbar {
-		width: 22px;
+	/* On hover or keyboard focus: show toolbar */
+	.monaco-list-row:hover,
+	.monaco-list-row.focused {
 
-		.monaco-toolbar {
+		.agent-session-title-toolbar {
 			display: block;
+		}
+
+		.agent-session-title {
+			margin-right: 8px;
 		}
 	}
 
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		/* to offset from possible scrollbar */
-		padding: 8px 12px 8px 8px;
+		padding: 8px 6px;
 
 		&.archived {
 			color: var(--vscode-descriptionForeground);
@@ -86,10 +94,16 @@
 		.agent-session-icon-col {
 			display: flex;
 			align-items: flex-start;
+			line-height: 17px;
 
 			.agent-session-icon {
 				flex-shrink: 0;
-				font-size: 16px;
+				font-size: 12px;
+				width: 14px;
+				height: 14px;
+				display: flex;
+				align-items: center;
+				justify-content: center;
 
 				&.codicon.codicon-session-in-progress {
 					color: var(--vscode-textLink-foreground);
@@ -114,23 +128,25 @@
 		}
 
 		.agent-session-main-col {
-			padding-left: 8px;
+			padding-left: 6px;
 		}
 
 		.agent-session-title-row,
 		.agent-session-details-row {
 			display: flex;
 			align-items: center;
-			line-height: 16px;
 		}
 
 		.agent-session-title-row {
-			padding-bottom: 4px;
+			line-height: 17px;
+			padding-bottom: 6px;
 		}
 
 		.agent-session-details-row {
 			gap: 4px;
 			font-size: 12px;
+			line-height: 15px;
+			max-height: 15px;
 			color: var(--vscode-descriptionForeground);
 
 			.rendered-markdown {
@@ -149,13 +165,8 @@
 				}
 			}
 
-			.agent-session-diff-container,
-			.agent-session-badge {
-				background-color: var(--vscode-toolbar-hoverBackground);
-				font-weight: 500;
-				padding: 0 4px;
+			.agent-session-diff-container {
 				font-variant-numeric: tabular-nums;
-				border-radius: 5px;
 				overflow: hidden;
 			}
 
@@ -167,16 +178,24 @@
 					display: none;
 				}
 
-				.agent-session-diff-files {
-					color: var(--vscode-descriptionForeground);
-				}
-
 				.agent-session-diff-added {
 					color: var(--vscode-chat-linesAddedForeground);
 				}
 
 				.agent-session-diff-removed {
 					color: var(--vscode-chat-linesRemovedForeground);
+				}
+			}
+
+			.agent-session-separator {
+				display: none;
+
+				&.has-separator {
+					display: inline;
+
+					&::before {
+						content: '\00B7';
+					}
 				}
 			}
 
@@ -191,7 +210,7 @@
 				}
 
 				.codicon {
-					font-size: 12px;
+					font-size: 11px;
 				}
 			}
 		}
@@ -200,17 +219,32 @@
 		.agent-session-description {
 			/* push other items to the end */
 			flex: 1;
-			text-overflow: ellipsis;
 			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+
+		.agent-session-title {
+			font-size: 13px;
+		}
+
+		.agent-session-details-right {
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			margin-left: auto;
+			white-space: nowrap;
+			flex-shrink: 0;
 		}
 
 		.agent-session-status {
 			display: flex;
 			align-items: center;
 			font-variant-numeric: tabular-nums;
+			white-space: nowrap;
 
 			.agent-session-status-provider-icon {
-				font-size: 12px;
+				font-size: 11px;
 				margin-right: 4px;
 
 				&.hidden {
@@ -224,11 +258,10 @@
 		display: flex;
 		align-items: center;
 		font-size: 11px;
+		font-weight: 500;
 		color: var(--vscode-descriptionForeground);
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
 		/* align with session item padding */
-		padding: 0 12px 0 8px;
+		padding: 0 6px;
 
 		.agent-session-section-label {
 			flex: 1;

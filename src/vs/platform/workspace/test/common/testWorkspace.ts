@@ -21,6 +21,6 @@ export class Workspace extends BaseWorkspace {
 const wsUri = URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace');
 export const TestWorkspace = testWorkspace(wsUri);
 
-export function testWorkspace(resource: URI): Workspace {
-	return new Workspace(resource.toString(), [toWorkspaceFolder(resource)]);
+export function testWorkspace(...resource: URI[]): Workspace {
+	return new Workspace('test-workspace', resource.map(toWorkspaceFolder));
 }

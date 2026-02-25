@@ -73,7 +73,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		this.render({
 			allowActionId: AcceptToolConfirmationActionId,
 			skipActionId: SkipToolConfirmationActionId,
-			allowLabel: state.confirmationMessages.confirmResults ? localize('allowReview', "Allow and Review") : localize('allow', "Allow"),
+			allowLabel: state.confirmationMessages.confirmResults ? localize('allowReview', "Allow and Review Once") : localize('allow', "Allow Once"),
 			skipLabel: localize('skip.detail', 'Proceed without running this tool'),
 			partType: 'chatToolConfirmation',
 			subtitle: typeof toolInvocation.originMessage === 'string' ? toolInvocation.originMessage : toolInvocation.originMessage?.value,
@@ -93,7 +93,8 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			const confirmActions = this.confirmationService.getPreConfirmActions({
 				toolId: this.toolInvocation.toolId,
 				source: this.toolInvocation.source,
-				parameters: state.parameters
+				parameters: state.parameters,
+				chatSessionResource: this.context.element.sessionResource
 			});
 
 			for (const action of confirmActions) {
@@ -103,6 +104,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				actions.push({
 					label: action.label,
 					tooltip: action.detail,
+					scope: action.scope,
 					data: async () => {
 						const shouldConfirm = await action.select();
 						if (shouldConfirm) {
@@ -247,10 +249,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 					uriPromise: Promise.resolve(model.uri),
 					chatSessionResource: this.context.element.sessionResource
 				});
-				this._register(editor.object.onDidChangeContentHeight(() => {
-					editor.object.layout(this.currentWidthDelegate());
-					this._onDidChangeHeight.fire();
-				}));
 				this._register(model.onDidChangeContent(e => {
 					try {
 						inputData.rawInput = JSON.parse(model.getValue());
@@ -286,13 +284,11 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				const show = messageSeeMoreObserver.getHeight() > SHOW_MORE_MESSAGE_HEIGHT_TRIGGER;
 				if (elements.messageContainer.classList.contains('can-see-more') !== show) {
 					elements.messageContainer.classList.toggle('can-see-more', show);
-					this._onDidChangeHeight.fire();
 				}
 			};
 
 			this._register(dom.addDisposableListener(elements.showMore, 'click', () => {
 				elements.messageContainer.classList.toggle('can-see-more', false);
-				this._onDidChangeHeight.fire();
 				messageSeeMoreObserver.dispose();
 			}));
 
@@ -340,8 +336,6 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		));
 		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 		container.append(part.domNode);
-
-		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		return part;
 	}

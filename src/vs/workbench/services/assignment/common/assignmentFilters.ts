@@ -11,6 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
+import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 
 export enum ExtensionsFilter {
 
@@ -38,6 +39,11 @@ export enum ExtensionsFilter {
 	 * The internal org of the user.
 	 */
 	MicrosoftInternalOrg = 'X-Microsoft-Internal-Org',
+
+	/**
+	 * The tracking ID of the user from Copilot entitlement API.
+	 */
+	CopilotTrackingId = 'X-Copilot-Tracking-Id',
 }
 
 enum StorageVersionKeys {
@@ -46,6 +52,7 @@ enum StorageVersionKeys {
 	CompletionsVersion = 'extensionsAssignmentFilterProvider.copilotCompletionsVersion',
 	CopilotSku = 'extensionsAssignmentFilterProvider.copilotSku',
 	CopilotInternalOrg = 'extensionsAssignmentFilterProvider.copilotInternalOrg',
+	CopilotTrackingId = 'extensionsAssignmentFilterProvider.copilotTrackingId',
 }
 
 export class CopilotAssignmentFilterProvider extends Disposable implements IExperimentationFilterProvider {
@@ -56,6 +63,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 	private copilotInternalOrg: string | undefined;
 	private copilotSku: string | undefined;
+	private copilotTrackingId: string | undefined;
 
 	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
 	readonly onDidChangeFilters = this._onDidChangeFilters.event;
@@ -73,6 +81,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		this.copilotCompletionsVersion = this._storageService.get(StorageVersionKeys.CompletionsVersion, StorageScope.PROFILE);
 		this.copilotSku = this._storageService.get(StorageVersionKeys.CopilotSku, StorageScope.PROFILE);
 		this.copilotInternalOrg = this._storageService.get(StorageVersionKeys.CopilotInternalOrg, StorageScope.PROFILE);
+		this.copilotTrackingId = this._storageService.get(StorageVersionKeys.CopilotTrackingId, StorageScope.PROFILE);
 
 		this._register(this._extensionService.onDidChangeExtensionsStatus(extensionIdentifiers => {
 			if (extensionIdentifiers.some(identifier => ExtensionIdentifier.equals(identifier, 'github.copilot') || ExtensionIdentifier.equals(identifier, 'github.copilot-chat'))) {
@@ -126,19 +135,20 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 	private updateCopilotEntitlementInfo() {
 		const newSku = this._chatEntitlementService.sku;
-		const newIsGitHubInternal = this._chatEntitlementService.organisations?.includes('github');
-		const newIsMicrosoftInternal = this._chatEntitlementService.organisations?.includes('microsoft') || this._chatEntitlementService.organisations?.includes('ms-copilot') || this._chatEntitlementService.organisations?.includes('MicrosoftCopilot');
-		const newInternalOrg = newIsGitHubInternal ? 'github' : newIsMicrosoftInternal ? 'microsoft' : undefined;
+		const newTrackingId = this._chatEntitlementService.copilotTrackingId;
+		const newInternalOrg = getInternalOrg(this._chatEntitlementService.organisations);
 
-		if (this.copilotSku === newSku && this.copilotInternalOrg === newInternalOrg) {
+		if (this.copilotSku === newSku && this.copilotInternalOrg === newInternalOrg && this.copilotTrackingId === newTrackingId) {
 			return;
 		}
 
 		this.copilotSku = newSku;
 		this.copilotInternalOrg = newInternalOrg;
+		this.copilotTrackingId = newTrackingId;
 
 		this._storageService.store(StorageVersionKeys.CopilotSku, this.copilotSku, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._storageService.store(StorageVersionKeys.CopilotInternalOrg, this.copilotInternalOrg, StorageScope.PROFILE, StorageTarget.MACHINE);
+		this._storageService.store(StorageVersionKeys.CopilotTrackingId, this.copilotTrackingId, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		// Notify that the filters have changed.
 		this._onDidChangeFilters.fire();
@@ -170,6 +180,8 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 				return this.copilotSku ?? null;
 			case ExtensionsFilter.MicrosoftInternalOrg:
 				return this.copilotInternalOrg ?? null;
+			case ExtensionsFilter.CopilotTrackingId:
+				return this.copilotTrackingId ?? null;
 			default:
 				return null;
 		}

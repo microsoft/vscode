@@ -29,5 +29,13 @@ export function writeISODate(outDir: string) {
 
 export function readISODate(outDir: string): string {
 	const outDirectory = path.join(root, outDir);
-	return fs.readFileSync(path.join(outDirectory, 'date'), 'utf8');
+	try {
+		return fs.readFileSync(path.join(outDirectory, 'date'), 'utf8');
+	} catch {
+		// Fallback to out-build (old build writes date there, esbuild writes to bundle output dir)
+		if (outDir !== 'out-build') {
+			return fs.readFileSync(path.join(root, 'out-build', 'date'), 'utf8');
+		}
+		throw new Error(`Could not find date file in ${outDir}`);
+	}
 }

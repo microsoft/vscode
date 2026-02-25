@@ -49,9 +49,9 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 	get shellType(): TerminalShellType | undefined { return this._shellType; }
 	private _shellTitle: string = '';
 	get shellTitle(): string { return this._shellTitle; }
-	private readonly _onShellNameChanged = new Emitter<string>();
+	private readonly _onShellNameChanged = this._register(new Emitter<string>());
 	get onShellNameChanged(): Event<string> { return this._onShellNameChanged.event; }
-	private readonly _onShellTypeChanged = new Emitter<TerminalShellType | undefined>();
+	private readonly _onShellTypeChanged = this._register(new Emitter<TerminalShellType | undefined>());
 	get onShellTypeChanged(): Event<TerminalShellType | undefined> { return this._onShellTypeChanged.event; }
 
 	constructor(

@@ -6,12 +6,13 @@
 import { assertNever } from '../../../../../base/common/assert.js';
 import { isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
-import { isEqual as urisEqual } from '../../../../../base/common/resources.js';
+import { isEqual as _urisEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
-import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IChatMarkdownContent, ResponseModelState } from '../chatService/chatService.js';
+import { ModifiedFileEntryState } from '../editing/chatEditingService.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, SerializedChatResponsePart } from './chatModel.js';
+import { IChatAgentEditedFileEvent, IChatDataSerializerLog, IChatModel, IChatPendingRequest, IChatProgressResponseContent, IChatRequestModel, IChatRequestVariableData, ISerializableChatData, ISerializableChatModelInputState, ISerializableChatRequestData, ISerializablePendingRequestData, SerializedChatResponsePart, serializeSendOptions } from './chatModel.js';
 import * as Adapt from './objectMutationLog.js';
 
 /**
@@ -68,15 +69,19 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'command':
 				case 'confirmation':
 				case 'extensions':
+				case 'hook':
 				case 'inlineReference':
 				case 'markdownVuln':
 				case 'notebookEditGroup':
 				case 'progressMessage':
 				case 'pullRequest':
+				case 'questionCarousel':
 				case 'thinking':
 				case 'undoStop':
 				case 'warning':
 				case 'treeData':
+				case 'workspaceEdit':
+				case 'disabledClaudeHooks':
 					return a.kind === b.kind;
 
 				default: {
@@ -93,6 +98,10 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 		return false;
 	}
 );
+
+const urisEqual = (a: UriComponents, b: UriComponents): boolean => {
+	return _urisEqual(URI.from(a), URI.from(b));
+};
 
 const messageSchema = Adapt.object<IParsedChatRequest, IParsedChatRequest>({
 	text: Adapt.v(m => m.text),
@@ -152,6 +161,13 @@ const inputStateSchema = Adapt.object<ISerializableChatModelInputState, ISeriali
 	contrib: Adapt.v(i => i.contrib, objectsEqual),
 });
 
+const pendingRequestSchema = Adapt.object<IChatPendingRequest, ISerializablePendingRequestData>({
+	id: Adapt.t(p => p.request.id, Adapt.key()),
+	request: Adapt.t(p => p.request, requestSchema),
+	kind: Adapt.v(p => p.kind),
+	sendOptions: Adapt.v(p => serializeSendOptions(p.sendOptions), objectsEqual),
+});
+
 export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	version: Adapt.v(() => 3),
 	creationDate: Adapt.v(m => m.timestamp),
@@ -163,6 +179,7 @@ export const storageSchema = Adapt.object<IChatModel, ISerializableChatData>({
 	requests: Adapt.t(m => m.getRequests(), Adapt.array(requestSchema)),
 	hasPendingEdits: Adapt.v(m => m.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
 	repoData: Adapt.v(m => m.repoData, objectsEqual),
+	pendingRequests: Adapt.t(m => m.getPendingRequests(), Adapt.array(pendingRequestSchema)),
 });
 
 export class ChatSessionOperationLog extends Adapt.ObjectMutationLog<IChatModel, ISerializableChatData> implements IChatDataSerializerLog {

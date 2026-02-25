@@ -13,7 +13,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
+import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { isNumber, isString } from '../../../../../base/common/types.js';
 
 const enum StorageKeys {
@@ -33,8 +33,12 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _chatSessionResourceByTerminalInstance = new Map<ITerminalInstance, URI>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
-	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
+
+	private readonly _onDidContinueInBackground = this._register(new Emitter<string>());
+	readonly onDidContinueInBackground: Event<string> = this._onDidContinueInBackground.event;
+	private readonly _onDidRegisterTerminalInstanceForToolSession = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
+
 	private readonly _activeProgressParts = new Set<IChatTerminalToolProgressPart>();
 	private _focusedProgressPart: IChatTerminalToolProgressPart | undefined;
 	private _mostRecentProgressPart: IChatTerminalToolProgressPart | undefined;
@@ -174,11 +178,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined {
 		return this._chatSessionResourceByTerminalInstance.get(instance);
-	}
-
-	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined {
-		const resource = this._chatSessionResourceByTerminalInstance.get(instance);
-		return resource ? chatSessionResourceToId(resource) : undefined;
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {
@@ -344,5 +343,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getSessionAutoApproveRules(chatSessionResource: URI): Readonly<Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>> {
 		return this._sessionAutoApproveRules.get(chatSessionResource) ?? {};
+	}
+
+	continueInBackground(terminalToolSessionId: string): void {
+		this._onDidContinueInBackground.fire(terminalToolSessionId);
 	}
 }

@@ -2,7 +2,7 @@
   "name": "mermaid-chat-features",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "repository": {
@@ -24,25 +24,64 @@
   },
   "main": "./out/extension",
   "browser": "./dist/browser/extension",
-  "activationEvents": [],
+  "activationEvents": [
+    "onWebviewPanel:vscode.chat-mermaid-features.preview"
+  ],
   "contributes": {
+    "commands": [
+      {
+        "command": "_mermaid-chat.resetPanZoom",
+        "title": "Reset Pan and Zoom"
+      },
+      {
+        "command": "_mermaid-chat.openInEditor",
+        "title": "Open Diagram in Editor"
+      },
+      {
+        "command": "_mermaid-chat.copySource",
+        "title": "Copy Diagram Source"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "_mermaid-chat.resetPanZoom",
+          "when": "false"
+        },
+        {
+          "command": "_mermaid-chat.openInEditor",
+          "when": "false"
+        },
+        {
+          "command": "_mermaid-chat.copySource",
+          "when": "false"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "_mermaid-chat.resetPanZoom",
+          "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem'"
+        },
+        {
+          "command": "_mermaid-chat.copySource",
+          "when": "webviewId == 'vscode.chat-mermaid-features.chatOutputItem' || webviewId == 'vscode.chat-mermaid-features.preview'"
+        }
+      ]
+    },
     "configuration": {
       "title": "Mermaid Chat Features",
       "properties": {
         "mermaid-chat.enabled": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%config.enabled.description%",
-          "scope": "application",
-          "tags": [
-            "experimental"
-          ]
+          "scope": "application"
         }
       }
     },
     "chatOutputRenderers": [
       {
-        "viewType": "vscode.chatMermaidDiagram",
+        "viewType": "vscode.chat-mermaid-features.chatOutputItem",
         "mimeTypes": [
           "text/vnd.mermaid"
         ]
@@ -63,6 +102,10 @@
             "markup": {
               "type": "string",
               "description": "The mermaid diagram markup to render as a Mermaid diagram. This should only be the markup of the diagram. Do not include a wrapping code block."
+            },
+            "title": {
+              "type": "string",
+              "description": "A short title that describes the diagram."
             }
           }
         }
@@ -74,15 +117,20 @@
     "watch": "npm run build-chat-webview && gulp watch-extension:mermaid-chat-features",
     "vscode:prepublish": "npm run build-ext && npm run build-chat-webview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:mermaid-chat-features",
-    "build-chat-webview": "node ./esbuild-chat-webview.mjs",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+    "build-chat-webview": "node ./esbuild.webview.mts",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "devDependencies": {
-    "@types/node": "^22.18.10"
+    "@types/node": "^22.18.10",
+    "@vscode/codicons": "^0.0.36"
   },
   "dependencies": {
     "dompurify": "^3.2.7",
-    "mermaid": "^11.11.0"
+    "mermaid": "^11.12.3"
   }
 }

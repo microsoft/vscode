@@ -9,20 +9,30 @@ import { Action2, registerAction2, MenuId } from '../../../../platform/actions/c
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_HAS_ERROR, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_STORAGE_SCOPE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_FOCUSED, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
 
 const BrowserCategory = localize2('browserCategory', "Browser");
+const ActionGroupTabs = '1_tabs';
+const ActionGroupPage = '2_page';
+const ActionGroupSettings = '3_settings';
+
+interface IOpenBrowserOptions {
+	url?: string;
+	openToSide?: boolean;
+}
 
 class OpenIntegratedBrowserAction extends Action2 {
 	constructor() {
@@ -34,9 +44,53 @@ class OpenIntegratedBrowserAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, url?: string): Promise<void> {
+	async run(accessor: ServicesAccessor, urlOrOptions?: string | IOpenBrowserOptions): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const resource = BrowserViewUri.forUrl(url);
+		const telemetryService = accessor.get(ITelemetryService);
+
+		// Parse arguments
+		const options = typeof urlOrOptions === 'string' ? { url: urlOrOptions } : (urlOrOptions ?? {});
+		const resource = BrowserViewUri.forUrl(options.url);
+		const group = options.openToSide ? SIDE_GROUP : ACTIVE_GROUP;
+
+		logBrowserOpen(telemetryService, options.url ? 'commandWithUrl' : 'commandWithoutUrl');
+
+		const editorPane = await editorService.openEditor({ resource }, group);
+
+		// Lock the group when opening to the side
+		if (options.openToSide && editorPane?.group) {
+			editorPane.group.lock(true);
+		}
+	}
+}
+
+class NewTabAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.browser.newTab',
+			title: localize2('browser.newTabAction', "New Tab"),
+			category: BrowserCategory,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupTabs,
+				order: 1,
+			},
+			// When already in a browser, Ctrl/Cmd + T opens a new tab
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over search actions
+				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, _browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const telemetryService = accessor.get(ITelemetryService);
+		const resource = BrowserViewUri.forUrl(undefined);
+
+		logBrowserOpen(telemetryService, 'newTabCommand');
 
 		await editorService.openEditor({ resource });
 	}
@@ -51,19 +105,18 @@ class GoBackAction extends Action2 {
 			title: localize2('browser.goBackAction', 'Go Back'),
 			category: BrowserCategory,
 			icon: Codicon.arrowLeft,
-			f1: false,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_BACK),
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
 				order: 1,
 			},
-			precondition: CONTEXT_BROWSER_CAN_GO_BACK,
 			keybinding: {
-				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.LeftArrow,
 				secondary: [KeyCode.BrowserBack],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.BracketLeft, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyCode.LeftArrow] }
 			}
 		});
 	}
@@ -84,20 +137,18 @@ class GoForwardAction extends Action2 {
 			title: localize2('browser.goForwardAction', 'Go Forward'),
 			category: BrowserCategory,
 			icon: Codicon.arrowRight,
-			f1: false,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD),
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
 				order: 2,
-				when: CONTEXT_BROWSER_CAN_GO_FORWARD
 			},
-			precondition: CONTEXT_BROWSER_CAN_GO_FORWARD,
 			keybinding: {
-				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over editor navigation
 				primary: KeyMod.Alt | KeyCode.RightArrow,
 				secondary: [KeyCode.BrowserForward],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward] }
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.BracketRight, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.RightArrow] }
 			}
 		});
 	}
@@ -118,7 +169,8 @@ class ReloadAction extends Action2 {
 			title: localize2('browser.reloadAction', 'Reload'),
 			category: BrowserCategory,
 			icon: Codicon.refresh,
-			f1: false,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -126,10 +178,10 @@ class ReloadAction extends Action2 {
 			},
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
-				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
-				primary: KeyCode.F5,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KeyR],
-				mac: { primary: KeyCode.F5, secondary: [KeyMod.CtrlCmd | KeyCode.KeyR] }
+				weight: KeybindingWeight.WorkbenchContrib + 75, // Priority over debug and reload workbench
+				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
+				secondary: [KeyCode.F5],
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyR, secondary: [] }
 			}
 		});
 	}
@@ -141,29 +193,54 @@ class ReloadAction extends Action2 {
 	}
 }
 
+class FocusUrlInputAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.focusUrlInput';
+
+	constructor() {
+		super({
+			id: FocusUrlInputAction.ID,
+			title: localize2('browser.focusUrlInputAction', 'Focus URL Input'),
+			category: BrowserCategory,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyL,
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.focusUrlInput();
+		}
+	}
+}
+
 class AddElementToChatAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.addElementToChat';
 
 	constructor() {
+		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
 		super({
 			id: AddElementToChatAction.ID,
 			title: localize2('browser.addElementToChatAction', 'Add Element to Chat'),
+			category: BrowserCategory,
 			icon: Codicon.inspect,
 			f1: true,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), enabled),
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
 				order: 1,
-				when: ChatContextKeys.enabled
+				when: enabled
 			},
 			keybinding: [{
-				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
 			}, {
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE),
+				when: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.Escape
 			}]
@@ -177,6 +254,34 @@ class AddElementToChatAction extends Action2 {
 	}
 }
 
+class AddConsoleLogsToChatAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.addConsoleLogsToChat';
+
+	constructor() {
+		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
+		super({
+			id: AddConsoleLogsToChatAction.ID,
+			title: localize2('browser.addConsoleLogsToChatAction', 'Add Console Logs to Chat'),
+			category: BrowserCategory,
+			icon: Codicon.output,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), enabled),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: 'actions',
+				order: 2,
+				when: enabled
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.addConsoleLogsToChat();
+		}
+	}
+}
+
 class ToggleDevToolsAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.toggleDevTools';
 
@@ -185,16 +290,16 @@ class ToggleDevToolsAction extends Action2 {
 			id: ToggleDevToolsAction.ID,
 			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
 			category: BrowserCategory,
-			icon: Codicon.console,
-			f1: false,
+			icon: Codicon.terminal,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '1_developer',
-				order: 1,
+				group: 'actions',
+				order: 3,
 			},
 			keybinding: {
-				when: BROWSER_EDITOR_ACTIVE,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.F12
 			}
@@ -217,11 +322,13 @@ class OpenInExternalBrowserAction extends Action2 {
 			title: localize2('browser.openExternalAction', 'Open in External Browser'),
 			category: BrowserCategory,
 			icon: Codicon.linkExternal,
-			f1: false,
+			f1: true,
+			// Note: We do allow opening in an external browser even if there is an error page shown
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '2_export',
-				order: 1
+				group: ActionGroupPage,
+				order: 10
 			}
 		});
 	}
@@ -249,7 +356,7 @@ class ClearGlobalBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
+				group: ActionGroupSettings,
 				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
 			}
@@ -274,8 +381,8 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 			f1: true,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
-				order: 2,
+				group: ActionGroupSettings,
+				order: 1,
 				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
 			}
 		});
@@ -284,6 +391,33 @@ class ClearWorkspaceBrowserStorageAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
 		await browserViewWorkbenchService.clearWorkspaceStorage();
+	}
+}
+
+class ClearEphemeralBrowserStorageAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.clearEphemeralStorage';
+
+	constructor() {
+		super({
+			id: ClearEphemeralBrowserStorageAction.ID,
+			title: localize2('browser.clearEphemeralStorageAction', 'Clear Storage (Ephemeral)'),
+			category: BrowserCategory,
+			icon: Codicon.clearAll,
+			f1: true,
+			precondition: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: '3_settings',
+				order: 1,
+				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Ephemeral)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.clearStorage();
+		}
 	}
 }
 
@@ -299,8 +433,8 @@ class OpenBrowserSettingsAction extends Action2 {
 			f1: false,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
-				group: '3_settings',
-				order: 3
+				group: ActionGroupSettings,
+				order: 2
 			}
 		});
 	}
@@ -311,14 +445,140 @@ class OpenBrowserSettingsAction extends Action2 {
 	}
 }
 
+// Find actions
+
+class ShowBrowserFindAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.showFind';
+
+	constructor() {
+		super({
+			id: ShowBrowserFindAction.ID,
+			title: localize2('browser.showFindAction', 'Find in Page'),
+			category: BrowserCategory,
+			f1: true,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: ActionGroupPage,
+				order: 1,
+			},
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyF
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): void {
+		if (browserEditor instanceof BrowserEditor) {
+			browserEditor.showFind();
+		}
+	}
+}
+
+class HideBrowserFindAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.hideFind';
+
+	constructor() {
+		super({
+			id: HideBrowserFindAction.ID,
+			title: localize2('browser.hideFindAction', 'Close Find Widget'),
+			category: BrowserCategory,
+			f1: false,
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_FIND_WIDGET_VISIBLE),
+			keybinding: {
+				weight: KeybindingWeight.EditorContrib + 5,
+				primary: KeyCode.Escape
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			browserEditor.hideFind();
+		}
+	}
+}
+
+class BrowserFindNextAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.findNext';
+
+	constructor() {
+		super({
+			id: BrowserFindNextAction.ID,
+			title: localize2('browser.findNextAction', 'Find Next'),
+			category: BrowserCategory,
+			f1: false,
+			precondition: BROWSER_EDITOR_ACTIVE,
+			keybinding: [{
+				when: CONTEXT_BROWSER_FIND_WIDGET_FOCUSED,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyCode.Enter
+			}, {
+				when: CONTEXT_BROWSER_FIND_WIDGET_VISIBLE,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyCode.F3,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG }
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			browserEditor.findNext();
+		}
+	}
+}
+
+class BrowserFindPreviousAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.findPrevious';
+
+	constructor() {
+		super({
+			id: BrowserFindPreviousAction.ID,
+			title: localize2('browser.findPreviousAction', 'Find Previous'),
+			category: BrowserCategory,
+			f1: false,
+			precondition: BROWSER_EDITOR_ACTIVE,
+			keybinding: [{
+				when: CONTEXT_BROWSER_FIND_WIDGET_FOCUSED,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Shift | KeyCode.Enter
+			}, {
+				when: CONTEXT_BROWSER_FIND_WIDGET_VISIBLE,
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyMod.Shift | KeyCode.F3,
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG }
+			}]
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const browserEditor = accessor.get(IEditorService).activeEditorPane;
+		if (browserEditor instanceof BrowserEditor) {
+			browserEditor.findPrevious();
+		}
+	}
+}
+
 // Register actions
 registerAction2(OpenIntegratedBrowserAction);
+registerAction2(NewTabAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
+registerAction2(FocusUrlInputAction);
 registerAction2(AddElementToChatAction);
+registerAction2(AddConsoleLogsToChatAction);
 registerAction2(ToggleDevToolsAction);
 registerAction2(OpenInExternalBrowserAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);
+registerAction2(ClearEphemeralBrowserStorageAction);
 registerAction2(OpenBrowserSettingsAction);
+registerAction2(ShowBrowserFindAction);
+registerAction2(HideBrowserFindAction);
+registerAction2(BrowserFindNextAction);
+registerAction2(BrowserFindPreviousAction);

@@ -1,0 +1,5 @@
+CUSTOMIZATION.md
+node_modules/**
+.vscode/**
+.gitignore
+**/*.map

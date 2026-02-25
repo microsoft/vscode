@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
 import { Range } from '../../../common/core/range.js';
-import { InternalModelContentChangeEvent, LineInjectedText, ModelRawChange, RawContentChangedType } from '../../../common/textModelEvents.js';
+import { InternalModelContentChangeEvent, LineInjectedText, ModelInjectedTextChangedEvent, ModelRawChange, RawContentChangedType } from '../../../common/textModelEvents.js';
+import { IViewModel } from '../../../common/viewModel.js';
 import { createTextModel } from '../testTextModel.js';
 
 suite('Editor Model - Injected Text Events', () => {
@@ -18,12 +20,16 @@ suite('Editor Model - Injected Text Events', () => {
 
 		const recordedChanges = new Array<unknown>();
 
-		store.add(thisModel.onDidChangeContentOrInjectedText((e) => {
-			const changes = (e instanceof InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
-			for (const change of changes) {
-				recordedChanges.push(mapChange(change));
+		const spyViewModel = new class extends mock<IViewModel>() {
+			override onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent) {
+				const changes = (e instanceof InternalModelContentChangeEvent ? e.rawContentChangedEvent.changes : e.changes);
+				for (const change of changes) {
+					recordedChanges.push(mapChange(change));
+				}
 			}
-		}));
+			override emitContentChangeEvent(_e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void { }
+		};
+		thisModel.registerViewModel(spyViewModel);
 
 		// Initial decoration
 		let decorations = thisModel.deltaDecorations([], [{
@@ -158,6 +164,8 @@ suite('Editor Model - Injected Text Events', () => {
 				kind: 'linesDeleted',
 			}
 		]);
+
+		thisModel.unregisterViewModel(spyViewModel);
 	});
 });
 

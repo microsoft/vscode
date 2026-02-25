@@ -16,6 +16,7 @@
 	border: 1px solid var(--vscode-button-border, transparent);
 	line-height: 16px;
 	font-size: 12px;
+	overflow-wrap: normal;
 }
 
 .monaco-text-button.small {

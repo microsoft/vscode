@@ -1,0 +1,266 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-chat-widget {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+}
+
+/* Welcome container fills available space and centers content */
+.sessions-chat-widget .agent-chat-welcome-container {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+/* Input area */
+.sessions-chat-input-area {
+	position: relative;
+	width: 100%;
+	max-width: 800px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	border-radius: 8px;
+	background-color: var(--vscode-input-background);
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.sessions-chat-input-area:focus-within {
+	border-color: var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+}
+
+/* Editor */
+/* Height constraints are driven by MIN_EDITOR_HEIGHT / MAX_EDITOR_HEIGHT in newChatViewPane.ts */
+.sessions-chat-editor {
+	padding: 0 6px 6px 6px;
+	flex-shrink: 1;
+}
+
+.sessions-chat-editor .monaco-editor,
+.sessions-chat-editor .monaco-editor .overflow-guard,
+.sessions-chat-editor .monaco-editor-background {
+	background-color: var(--vscode-input-background) !important;
+	border-radius: 8px 8px 0 0;
+}
+
+/* Toolbar */
+.sessions-chat-toolbar {
+	display: flex;
+	align-items: center;
+	padding: 0 6px 6px 6px;
+	gap: 4px;
+	color: var(--vscode-icon-foreground);
+}
+
+.sessions-chat-toolbar-spacer {
+	flex: 1;
+}
+
+.sessions-chat-toolbar-pickers {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+/* Model picker - uses workbench ModelPickerActionItem */
+.sessions-chat-model-picker {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-model-picker .action-label {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 16px;
+	padding: 3px 6px;
+	border-radius: 4px;
+	font-size: 12px;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+}
+
+.sessions-chat-model-picker .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-model-picker .action-label .codicon {
+	font-size: 12px;
+}
+
+/* Send button - wraps a Button widget */
+.sessions-chat-send-button {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-chat-send-button .monaco-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	min-width: 22px;
+	padding: 0;
+	border-radius: 4px;
+	color: var(--vscode-icon-foreground);
+	background: transparent !important;
+	border: none !important;
+}
+
+.sessions-chat-send-button .monaco-button:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+.sessions-chat-send-button .monaco-button .codicon {
+	font-size: 16px;
+}
+
+/* Loading spinner in toolbar */
+.sessions-chat-loading-spinner {
+	display: none;
+	width: 12px;
+	height: 12px;
+	margin-right: 4px;
+	border: 1.5px solid var(--vscode-icon-foreground);
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: sessions-chat-spin 0.8s linear infinite;
+	opacity: 0.6;
+	flex-shrink: 0;
+}
+
+.sessions-chat-loading-spinner.visible {
+	display: block;
+}
+
+@keyframes sessions-chat-spin {
+	to { transform: rotate(360deg); }
+}
+
+/* Attach row (pills only, above editor, inside input area) */
+.sessions-chat-attach-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 6px 0 6px;
+}
+
+.sessions-chat-attach-row:has(.sessions-chat-attached-context:empty) {
+	display: none;
+}
+
+/* Attach context button */
+.sessions-chat-attach-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 22px;
+	height: 22px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	outline: none;
+}
+
+.sessions-chat-attach-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-attach-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.sessions-chat-attach-button .codicon {
+	font-size: 16px;
+}
+
+/* Attached context container */
+.sessions-chat-attached-context {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	align-items: center;
+}
+
+.sessions-chat-attached-context:empty,
+.sessions-chat-attached-context[style*="display: none"] {
+	display: none !important;
+}
+
+/* Attachment pills */
+.sessions-chat-attachment-pill {
+	display: inline-flex;
+	align-items: center;
+	overflow: hidden;
+	font-size: 11px;
+	padding: 0 4px 0 0;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: 4px;
+	height: 18px;
+	max-width: 200px;
+	width: fit-content;
+}
+
+.sessions-chat-attachment-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sessions-chat-attachment-pill .codicon {
+	font-size: 14px;
+	flex-shrink: 0;
+	padding: 0 3px;
+}
+
+.sessions-chat-attachment-remove {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	flex-shrink: 0;
+	color: var(--vscode-descriptionForeground);
+	margin-left: 4px;
+}
+
+.sessions-chat-attachment-pill:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sessions-chat-attachment-remove .codicon {
+	font-size: 12px;
+	padding: 0;
+}
+
+.sessions-chat-attachment-remove:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Drag and drop */
+.sessions-chat-drop-overlay {
+	display: none;
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 10;
+}
+
+.sessions-chat-input-area.sessions-chat-drop-active {
+	border-color: var(--vscode-focusBorder);
+	background-color: var(--vscode-list-dropBackground);
+}

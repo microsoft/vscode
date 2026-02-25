@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from '../../../../base/common/arrays.js';
-import { findLastIdx } from '../../../../base/common/arraysFind.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer, decodeBase64, encodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -1542,7 +1541,7 @@ export class DebugModel extends Disposable implements IDebugModel {
 		let index = -1;
 		if (session.parentSession) {
 			// Make sure that child sessions are placed after the parent session
-			index = findLastIdx(this.sessions, s => s.parentSession === session.parentSession || s === session.parentSession);
+			index = this.sessions.findLastIndex(s => s.parentSession === session.parentSession || s === session.parentSession);
 		}
 		if (index >= 0) {
 			this.sessions.splice(index + 1, 0, session);

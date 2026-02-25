@@ -9,10 +9,11 @@ import { Schemas, matchesScheme } from '../../../../base/common/network.js';
 import { extname, isEqual } from '../../../../base/common/resources.js';
 import { isNumber, isObject, isString, isUndefined } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandHandler, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -26,12 +27,13 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from './editorQuickAccess.js';
 import { SideBySideEditor } from './sideBySideEditor.js';
 import { TextDiffEditor } from './textDiffEditor.js';
-import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
+import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, IsSessionsWindowContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from '../../../common/contextkeys.js';
 import { CloseDirection, EditorInputCapabilities, EditorsOrder, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isEditorInputWithOptionsAndGroup } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { EditorGroupColumn, columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorReplacement, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupsOrder, IEditorGroup, IEditorGroupsService, IEditorReplacement, IModalEditorPart, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
@@ -102,6 +104,13 @@ export const MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID = 'workbench.action.mo
 export const COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID = 'workbench.action.copyEditorGroupToNewWindow';
 
 export const NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID = 'workbench.action.newEmptyEditorWindow';
+
+export const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
+export const MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID = 'workbench.action.moveModalEditorToMain';
+export const MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID = 'workbench.action.moveModalEditorToWindow';
+export const TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID = 'workbench.action.toggleModalEditorMaximized';
+export const NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID = 'workbench.action.navigateModalEditorPrevious';
+export const NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID = 'workbench.action.navigateModalEditorNext';
 
 export const API_OPEN_EDITOR_COMMAND_ID = '_workbench.open';
 export const API_OPEN_DIFF_EDITOR_COMMAND_ID = '_workbench.diff';
@@ -1400,6 +1409,210 @@ function registerOtherEditorCommands(): void {
 	});
 }
 
+function registerModalEditorCommands(): void {
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
+				title: localize2('moveToMainWindow', 'Open Modal Editor in Main Window'),
+				category: Categories.View,
+				f1: true,
+				icon: Codicon.openInProduct,
+				precondition: EditorPartModalContext,
+				menu: {
+					id: MenuId.ModalEditorTitle,
+					group: 'navigation',
+					order: 0,
+					when: IsSessionsWindowContext.negate()
+				}
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					part.close({ mergeAllEditorsToMainPart: true });
+					break;
+				}
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID,
+				title: localize2('moveModalEditorToWindow', 'Open Modal Editor in New Window'),
+				category: Categories.View,
+				f1: true,
+				icon: Codicon.emptyWindow,
+				precondition: EditorPartModalContext,
+				menu: {
+					id: MenuId.ModalEditorTitle,
+					group: 'navigation',
+					order: 0,
+					when: IsSessionsWindowContext
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
+
+					for (const group of part.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+						group.moveEditors(group.editors.map(editor => ({ editor, options: { preserveFocus: true } })), auxiliaryEditorPart.activeGroup);
+					}
+
+					auxiliaryEditorPart.activeGroup.focus();
+					part.close();
+					break;
+				}
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID,
+				title: localize2('toggleModalEditorMaximized', 'Maximize Modal Editor'),
+				category: Categories.View,
+				f1: true,
+				precondition: EditorPartModalContext,
+				icon: Codicon.screenFull,
+				toggled: {
+					condition: EditorPartModalMaximizedContext,
+					title: localize('restoreModalEditorSize', "Restore Modal Editor")
+				},
+				menu: {
+					id: MenuId.ModalEditorTitle,
+					group: 'navigation',
+					order: 1
+				}
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					part.toggleMaximized();
+					break;
+				}
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: CLOSE_MODAL_EDITOR_COMMAND_ID,
+				title: localize2('closeModalEditor', 'Close Modal Editor'),
+				category: Categories.View,
+				f1: true,
+				icon: Codicon.close,
+				precondition: EditorPartModalContext,
+				keybinding: {
+					primary: KeyCode.Escape,
+					weight: KeybindingWeight.WorkbenchContrib + 10,
+					when: EditorPartModalContext
+				},
+				menu: {
+					id: MenuId.ModalEditorTitle,
+					group: 'navigation',
+					order: 2
+				}
+			});
+		}
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					part.close();
+					break;
+				}
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID,
+				title: localize2('navigateModalEditorPrevious', 'Navigate to Previous Item in Modal Editor'),
+				category: Categories.View,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalNavigationContext),
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.UpArrow,
+					weight: KeybindingWeight.WorkbenchContrib + 10,
+					when: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalNavigationContext)
+				}
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					const nav = part.navigation;
+					if (nav && nav.current > 0) {
+						nav.navigate(nav.current - 1);
+					}
+					break;
+				}
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID,
+				title: localize2('navigateModalEditorNext', 'Navigate to Next Item in Modal Editor'),
+				category: Categories.View,
+				precondition: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalNavigationContext),
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.DownArrow,
+					weight: KeybindingWeight.WorkbenchContrib + 10,
+					when: ContextKeyExpr.and(EditorPartModalContext, EditorPartModalNavigationContext)
+				}
+			});
+		}
+		run(accessor: ServicesAccessor): void {
+			const editorGroupsService = accessor.get(IEditorGroupsService);
+
+			for (const part of editorGroupsService.parts) {
+				if (isModalEditorPart(part)) {
+					const nav = part.navigation;
+					if (nav && nav.current < nav.total - 1) {
+						nav.navigate(nav.current + 1);
+					}
+					break;
+				}
+			}
+		}
+	});
+}
+
+function isModalEditorPart(obj: unknown): obj is IModalEditorPart {
+	const part = obj as IModalEditorPart | undefined;
+
+	return !!part
+		&& typeof part.close === 'function'
+		&& typeof part.onWillClose === 'function'
+		&& typeof part.toggleMaximized === 'function'
+		&& typeof part.maximized === 'boolean'
+		&& typeof part.updateOptions === 'function'
+		&& !!part.modalElement
+		&& part.windowId === mainWindow.vscodeWindowId;
+}
+
 export function setup(): void {
 	registerEditorMoveCopyCommand();
 	registerEditorGroupsLayoutCommands();
@@ -1413,4 +1626,5 @@ export function setup(): void {
 	registerFocusEditorGroupAtIndexCommands();
 	registerSplitEditorCommands();
 	registerFocusEditorGroupWihoutWrapCommands();
+	registerModalEditorCommands();
 }

@@ -13,7 +13,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IChatMode } from '../../../common/chatModes.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
+import { getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../agentSessions/agentSessions.js';
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;
@@ -104,6 +104,14 @@ export class ChatSuggestNextWidget extends Disposable {
 	private createPromptButton(handoff: IHandOff): HTMLElement {
 		const disposables = new DisposableStore();
 
+		// Capture the label to look up the current handoff at click time
+		// This ensures we get the latest handoff data (e.g., updated model from settings)
+		const handoffLabel = handoff.label;
+		const getCurrentHandoff = (): IHandOff | undefined => {
+			const currentHandoffs = this._currentMode?.handOffs?.get();
+			return currentHandoffs?.find(h => h.label === handoffLabel) ?? handoff;
+		};
+
 		const button = dom.$('.chat-welcome-view-suggested-prompt');
 		button.setAttribute('tabindex', '0');
 		button.setAttribute('role', 'button');
@@ -116,8 +124,16 @@ export class ChatSuggestNextWidget extends Disposable {
 		const showContinueOn = handoff.showContinueOn ?? true;
 
 		// Get chat session contributions to show in chevron dropdown
+		// Filter to only first-party providers that support "continue in".
+		// TODO: Expand later to any agent with `canDelegate` === true.
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
-		const availableContributions = contributions.filter(c => c.canDelegate);
+		const availableContributions = contributions.filter(c => {
+			if (!c.canDelegate) {
+				return false;
+			}
+			const provider = getAgentSessionProvider(c.type);
+			return provider !== undefined && getAgentCanContinueIn(provider);
+		});
 
 		if (showContinueOn && availableContributions.length > 0) {
 			button.classList.add('chat-suggest-next-has-dropdown');
@@ -138,7 +154,7 @@ export class ChatSuggestNextWidget extends Disposable {
 				e.stopPropagation();
 
 				const actions = availableContributions.map(contrib => {
-					const provider = contrib.type === AgentSessionProviders.Background ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
+					const provider = getAgentSessionProvider(contrib.type)!;
 					const icon = getAgentSessionProviderIcon(provider);
 					const name = getAgentSessionProviderName(provider);
 					return new Action(
@@ -147,7 +163,10 @@ export class ChatSuggestNextWidget extends Disposable {
 						ThemeIcon.isThemeIcon(icon) ? ThemeIcon.asClassName(icon) : undefined,
 						true,
 						() => {
-							this._onDidSelectPrompt.fire({ handoff, agentId: contrib.name });
+							const currentHandoff = getCurrentHandoff();
+							if (currentHandoff) {
+								this._onDidSelectPrompt.fire({ handoff: currentHandoff, agentId: contrib.name });
+							}
 						}
 					);
 				});
@@ -172,18 +191,27 @@ export class ChatSuggestNextWidget extends Disposable {
 				if (dom.isHTMLElement(e.target) && e.target.closest('.chat-suggest-next-dropdown')) {
 					return;
 				}
-				this._onDidSelectPrompt.fire({ handoff });
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff });
+				}
 			}));
 		} else {
 			disposables.add(dom.addDisposableListener(button, 'click', () => {
-				this._onDidSelectPrompt.fire({ handoff });
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff });
+				}
 			}));
 		}
 
 		disposables.add(dom.addDisposableListener(button, 'keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
-				this._onDidSelectPrompt.fire({ handoff });
+				const currentHandoff = getCurrentHandoff();
+				if (currentHandoff) {
+					this._onDidSelectPrompt.fire({ handoff: currentHandoff });
+				}
 			}
 		}));
 

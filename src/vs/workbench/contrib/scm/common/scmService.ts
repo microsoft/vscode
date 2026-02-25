@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -27,7 +27,7 @@ class SCMInput extends Disposable implements ISCMInput {
 		return this._value;
 	}
 
-	private readonly _onDidChange = new Emitter<ISCMInputChangeEvent>();
+	private readonly _onDidChange = this._register(new Emitter<ISCMInputChangeEvent>());
 	readonly onDidChange: Event<ISCMInputChangeEvent> = this._onDidChange.event;
 
 	private _placeholder = '';
@@ -41,7 +41,7 @@ class SCMInput extends Disposable implements ISCMInput {
 		this._onDidChangePlaceholder.fire(placeholder);
 	}
 
-	private readonly _onDidChangePlaceholder = new Emitter<string>();
+	private readonly _onDidChangePlaceholder = this._register(new Emitter<string>());
 	readonly onDidChangePlaceholder: Event<string> = this._onDidChangePlaceholder.event;
 
 	private _enabled = true;
@@ -55,7 +55,7 @@ class SCMInput extends Disposable implements ISCMInput {
 		this._onDidChangeEnablement.fire(enabled);
 	}
 
-	private readonly _onDidChangeEnablement = new Emitter<boolean>();
+	private readonly _onDidChangeEnablement = this._register(new Emitter<boolean>());
 	readonly onDidChangeEnablement: Event<boolean> = this._onDidChangeEnablement.event;
 
 	private _visible = true;
@@ -69,28 +69,28 @@ class SCMInput extends Disposable implements ISCMInput {
 		this._onDidChangeVisibility.fire(visible);
 	}
 
-	private readonly _onDidChangeVisibility = new Emitter<boolean>();
+	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	setFocus(): void {
 		this._onDidChangeFocus.fire();
 	}
 
-	private readonly _onDidChangeFocus = new Emitter<void>();
+	private readonly _onDidChangeFocus = this._register(new Emitter<void>());
 	readonly onDidChangeFocus: Event<void> = this._onDidChangeFocus.event;
 
 	showValidationMessage(message: string | IMarkdownString, type: InputValidationType): void {
 		this._onDidChangeValidationMessage.fire({ message: message, type: type });
 	}
 
-	private readonly _onDidChangeValidationMessage = new Emitter<IInputValidation>();
+	private readonly _onDidChangeValidationMessage = this._register(new Emitter<IInputValidation>());
 	readonly onDidChangeValidationMessage: Event<IInputValidation> = this._onDidChangeValidationMessage.event;
 
 	clearValidation(): void {
 		this._onDidClearValidation.fire();
 	}
 
-	private readonly _onDidClearValidation = new Emitter<void>();
+	private readonly _onDidClearValidation = this._register(new Emitter<void>());
 	readonly onDidClearValidation: Event<void> = this._onDidClearValidation.event;
 
 	private _validateInput: IInputValidator = () => Promise.resolve(undefined);
@@ -104,7 +104,7 @@ class SCMInput extends Disposable implements ISCMInput {
 		this._onDidChangeValidateInput.fire();
 	}
 
-	private readonly _onDidChangeValidateInput = new Emitter<void>();
+	private readonly _onDidChangeValidateInput = this._register(new Emitter<void>());
 	readonly onDidChangeValidateInput: Event<void> = this._onDidChangeValidateInput.event;
 
 	private readonly historyNavigator: HistoryNavigator2<string>;
@@ -191,7 +191,7 @@ class SCMRepository implements ISCMRepository {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
-	readonly input: ISCMInput;
+	readonly input: ISCMInput & IDisposable;
 
 	constructor(
 		public readonly id: string,
@@ -213,6 +213,8 @@ class SCMRepository implements ISCMRepository {
 
 	dispose(): void {
 		this.disposables.dispose();
+		this._onDidChangeSelection.dispose();
+		this.input.dispose();
 		this.provider.dispose();
 	}
 }

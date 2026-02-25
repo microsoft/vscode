@@ -3,7 +3,7 @@
 	"displayName": "%displayName%",
 	"description": "%description%",
 	"publisher": "vscode",
-	"version": "1.0.0",
+	"version": "10.0.0",
 	"license": "MIT",
 	"icon": "media/icon.png",
 	"engines": {
@@ -44,7 +44,7 @@
 	"scripts": {
 		"compile": "npx gulp compile-extension:notebook-renderers && npm run build-notebook",
 		"watch": "npx gulp compile-watch:notebook-renderers",
-		"build-notebook": "node ./esbuild.mjs"
+		"build-notebook": "node ./esbuild.notebook.mts"
 	},
 	"devDependencies": {
 		"@types/jsdom": "^21.1.0",

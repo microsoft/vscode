@@ -44,8 +44,10 @@
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon-debug-start {
 	width: 18px;
 	height: 22px;
-	padding-left: 3px;
-	padding-right: 1px
+	padding-left: 2px;
+	padding-right: 1px;
+	margin-left: 1px;
+	border-radius: var(--vscode-cornerRadius-small) 0 0 var(--vscode-cornerRadius-small);
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
@@ -306,8 +308,27 @@
 	margin-left: 0;
 }
 
-.debug-pane .debug-breakpoints .breakpoint input {
+.debug-pane .debug-breakpoints .breakpoint .monaco-custom-toggle {
 	flex-shrink: 0;
+	margin-left: 0;
+	margin-right: 4px;
+}
+
+.debug-pane .debug-breakpoints .breakpoint .monaco-custom-toggle.monaco-checkbox {
+	width: 18px;
+	min-width: 18px;
+	max-width: 18px;
+	height: 18px;
+	padding: 0;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.debug-pane .debug-breakpoints .breakpoint .monaco-custom-toggle.monaco-checkbox::before {
+	margin: 0;
 }
 
 .debug-pane .debug-breakpoints .breakpoint > .codicon {

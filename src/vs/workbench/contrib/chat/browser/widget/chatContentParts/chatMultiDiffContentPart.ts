@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { autorun, constObservable, IObservable, isObservable } from '../../../../../../base/common/observable.js';
@@ -47,9 +47,6 @@ const MAX_ITEMS_SHOWN = 6;
 
 export class ChatMultiDiffContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-
-	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private list!: WorkbenchList<IChatMultiDiffItem>;
 	private isCollapsed: boolean = false;
@@ -93,7 +90,6 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		const setExpansionState = () => {
 			viewListButton.icon = this.isCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			this.domNode.classList.toggle('chat-file-changes-collapsed', this.isCollapsed);
-			this._onDidChangeHeight.fire();
 		};
 		setExpansionState();
 
@@ -150,7 +146,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			$mid: MarshalledId.Uri
 		};
 
-		const toolbar = disposables.add(nestedInsta.createInstance(
+		disposables.add(nestedInsta.createInstance(
 			MenuWorkbenchToolBar,
 			buttonsContainer,
 			MenuId.ChatMultiDiffContext,
@@ -164,8 +160,6 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				},
 			}
 		));
-
-		disposables.add(toolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 
 		return disposables;
 	}
@@ -231,7 +225,6 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			const height = Math.min(items.length, MAX_ITEMS_SHOWN) * ELEMENT_HEIGHT;
 			this.list.layout(height);
 			listContainer.style.height = `${height}px`;
-			this._onDidChangeHeight.fire();
 		}));
 
 

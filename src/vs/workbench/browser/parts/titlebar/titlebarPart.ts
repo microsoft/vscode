@@ -30,7 +30,6 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IHostService } from '../../../services/host/browser/host.js';
 import { WindowTitle } from './windowTitle.js';
 import { CommandCenterControl } from './commandCenterControl.js';
-import { CommandCenterControlRegistry } from './commandCenterControlRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../../common/activity.js';
@@ -329,14 +328,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorGroupsContainer.onDidChangeEditorPartOptions(e => this.onEditorPartConfigurationChange(e)));
-
-		// Re-create title when any registered command center control's context key changes
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			const registeredContextKeys = new Set(CommandCenterControlRegistry.getRegistrations().map(r => r.contextKey));
-			if (registeredContextKeys.size > 0 && e.affectsSome(registeredContextKeys)) {
-				this.createTitle();
-			}
-		}));
 	}
 
 	private onBlur(): void {
@@ -585,24 +576,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Menu Title
 		else {
-			// Check if any registered command center control should be shown
-			let customControlShown = false;
-			for (const registration of CommandCenterControlRegistry.getRegistrations()) {
-				if (this.contextKeyService.getContextKeyValue<boolean>(registration.contextKey)) {
-					const control = registration.create(this.instantiationService);
-					reset(this.title, control.element);
-					this.titleDisposables.add(control);
-					customControlShown = true;
-					break;
-				}
-			}
-
-			if (!customControlShown) {
-				// Normal mode - show regular command center
-				const commandCenter = this.instantiationService.createInstance(CommandCenterControl, this.windowTitle, this.hoverDelegate);
-				reset(this.title, commandCenter.element);
-				this.titleDisposables.add(commandCenter);
-			}
+			const commandCenter = this.instantiationService.createInstance(CommandCenterControl, this.windowTitle, this.hoverDelegate);
+			reset(this.title, commandCenter.element);
+			this.titleDisposables.add(commandCenter);
 		}
 	}
 
@@ -686,20 +662,20 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				}
 			}
 
-			// --- Global Actions
-			if (this.globalToolbarMenu) {
-				fillInActionBarActions(
-					this.globalToolbarMenu.getActions(),
-					actions
-				);
-			}
-
 			// --- Layout Actions
 			if (this.layoutToolbarMenu) {
 				fillInActionBarActions(
 					this.layoutToolbarMenu.getActions(),
 					actions,
 					() => !this.editorActionsEnabled || this.isCompact // layout actions move to "..." if editor actions are enabled unless compact
+				);
+			}
+
+			// --- Global Actions (after layout so e.g. notification bell appears to the right of layout controls)
+			if (this.globalToolbarMenu) {
+				fillInActionBarActions(
+					this.globalToolbarMenu.getActions(),
+					actions
 				);
 			}
 

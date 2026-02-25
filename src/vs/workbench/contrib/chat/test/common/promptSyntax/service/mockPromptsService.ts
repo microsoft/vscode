@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../../../common/promptSyntax/promptFileParser.js';
-import { IAgentSkill, ICustomAgent, IPromptFileContext, IPromptFileResource, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSkill, ICustomAgent, IPromptFileContext, IPromptFileResource, IPromptPath, IPromptsService, IResolvedAgentFile, PromptsStorage, IPromptDiscoveryLogEntry } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 
 export class MockPromptsService implements IPromptsService {
@@ -21,6 +21,9 @@ export class MockPromptsService implements IPromptsService {
 	private readonly _onDidChangeCustomChatModes = new Emitter<void>();
 	readonly onDidChangeCustomAgents = this._onDidChangeCustomChatModes.event;
 
+	private readonly _onDidLogDiscovery = new Emitter<IPromptDiscoveryLogEntry>();
+	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry> = this._onDidLogDiscovery.event;
+
 	private _customModes: ICustomAgent[] = [];
 
 	setCustomModes(modes: ICustomAgent[]): void {
@@ -28,7 +31,7 @@ export class MockPromptsService implements IPromptsService {
 		this._onDidChangeCustomChatModes.fire();
 	}
 
-	async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
+	async getCustomAgents(token: CancellationToken, sessionId?: string): Promise<readonly ICustomAgent[]> {
 		return this._customModes;
 	}
 
@@ -40,27 +43,33 @@ export class MockPromptsService implements IPromptsService {
 	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getSourceFolders(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	getResolvedSourceFolders(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
 	isValidSlashCommandName(_command: string): boolean { return false; }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	resolvePromptSlashCommand(command: string, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	get onDidChangeSlashCommands(): Event<void> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getPromptSlashCommands(_token: CancellationToken): Promise<any[]> { throw new Error('Not implemented'); }
+	getPromptSlashCommands(_token: CancellationToken, _sessionId?: string): Promise<any[]> { throw new Error('Not implemented'); }
 	getPromptSlashCommandName(uri: URI, _token: CancellationToken): Promise<string> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parse(_uri: URI, _type: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parseNew(_uri: URI, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile { throw new Error('Not implemented'); }
-	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined): IDisposable { throw new Error('Not implemented'); }
+	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined, when?: string): IDisposable { throw new Error('Not implemented'); }
 	getPromptLocationLabel(promptPath: IPromptPath): string { throw new Error('Not implemented'); }
-	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
-	listAgentMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
-	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
+	listNestedAgentMDs(token: CancellationToken): Promise<IResolvedAgentFile[]> { throw new Error('Not implemented'); }
+	listAgentInstructions(token: CancellationToken): Promise<IResolvedAgentFile[]> { throw new Error('Not implemented'); }
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined { throw new Error('Not implemented'); }
 	getDisabledPromptFiles(type: PromptsType): ResourceSet { throw new Error('Method not implemented.'); }
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void { throw new Error('Method not implemented.'); }
 	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: { providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined> }): IDisposable { throw new Error('Method not implemented.'); }
-	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
+	findAgentSkills(token: CancellationToken, sessionId?: string): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	getPromptDiscoveryInfo(_type: any, _token: CancellationToken, _sessionId?: string): Promise<any> { throw new Error('Method not implemented.'); }
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	getHooks(_token: CancellationToken): Promise<any> { throw new Error('Method not implemented.'); }
+	getInstructionFiles(_token: CancellationToken, _sessionId?: string): Promise<readonly IPromptPath[]> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
 }

@@ -16,7 +16,7 @@ const $ = DOM.$;
 
 export class ChatUsageWidget extends Disposable {
 
-	private readonly _onDidChangeContentHeight = new Emitter<number>();
+	private readonly _onDidChangeContentHeight = this._register(new Emitter<number>());
 	readonly onDidChangeContentHeight = this._onDidChangeContentHeight.event;
 
 	readonly element: HTMLElement;

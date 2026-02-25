@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
+import { stripIcons } from '../../../../../../../base/common/iconLabels.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -33,6 +35,15 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 		super(toolInvocation);
 
 		this.domNode = this.createProgressPart();
+
+		// Toggle show-checkmarks class for the accessibility setting
+		const updateCheckmarks = () => this.domNode.classList.toggle('show-checkmarks', !!this.configurationService.getValue<boolean>(AccessibilityWorkbenchSettingId.ShowChatCheckmarks));
+		updateCheckmarks();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityWorkbenchSettingId.ShowChatCheckmarks)) {
+				updateCheckmarks();
+			}
+		}));
 	}
 
 	private createProgressPart(): HTMLElement {
@@ -51,11 +62,26 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			return part.domNode;
 		} else {
 			const container = document.createElement('div');
-			const progressObservable = this.toolInvocation.kind === 'toolInvocation' ? this.toolInvocation.state.map((s, r) => s.type === IChatToolInvocation.StateKind.Executing ? s.progress.read(r) : undefined) : undefined;
 			this._register(autorun(reader => {
-				const progress = progressObservable?.read(reader);
+				let progressContent: IMarkdownString | string | undefined;
 				const key = this.getAnnouncementKey('progress');
-				const progressContent = progress?.message ?? this.toolInvocation.invocationMessage;
+
+				if (this.toolInvocation.kind === 'toolInvocation') {
+					const state = this.toolInvocation.state.read(reader);
+
+					// Handle cancelled state with reason message
+					if (state.type === IChatToolInvocation.StateKind.Cancelled && state.reasonMessage) {
+						progressContent = state.reasonMessage;
+					} else if (state.type === IChatToolInvocation.StateKind.Executing) {
+						const progress = state.progress.read(reader);
+						progressContent = progress?.message ?? this.toolInvocation.invocationMessage;
+					} else {
+						progressContent = this.toolInvocation.invocationMessage;
+					}
+				} else {
+					progressContent = this.toolInvocation.invocationMessage;
+				}
+
 				// Don't render anything if there's no meaningful content
 				if (!this.hasMeaningfulContent(progressContent)) {
 					dom.clearNode(container);
@@ -88,7 +114,8 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 			this.provideScreenReaderStatus(content);
 		}
 
-		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation);
+		const isAskQuestionsTool = this.toolInvocation.toolId === 'copilot_askQuestions' || this.toolInvocation.toolId === 'vscode_askQuestions';
+		return this.instantiationService.createInstance(ChatProgressContentPart, progressMessage, this.renderer, this.context, undefined, true, this.getIcon(), this.toolInvocation, isAskQuestionsTool ? undefined : false);
 	}
 
 	private getAnnouncementKey(kind: 'progress' | 'complete'): string {
@@ -110,7 +137,7 @@ export class ChatToolProgressSubPart extends BaseChatToolInvocationSubPart {
 	}
 
 	private provideScreenReaderStatus(content: IMarkdownString | string): void {
-		const message = typeof content === 'string' ? content : content.value;
+		const message = typeof content === 'string' ? content : stripIcons(renderAsPlaintext(content, { useLinkFormatter: true }));
 		status(message);
 	}
 

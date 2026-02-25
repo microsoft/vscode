@@ -323,6 +323,10 @@ export class ViewLine implements IVisibleLine {
 		}
 		return this._renderedViewLine.getColumnOfNodeOffset(spanNode, offset);
 	}
+
+	public resetCachedWidth(): void {
+		this._renderedViewLine?.resetCachedWidth();
+	}
 }
 
 interface IRenderedViewLine {
@@ -330,6 +334,7 @@ interface IRenderedViewLine {
 	readonly input: RenderLineInput;
 	getWidth(context: DomReadingContext | null): number;
 	getWidthIsFast(): boolean;
+	resetCachedWidth(): void;
 	getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null;
 	getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number;
 }
@@ -389,6 +394,10 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 	public getWidthIsFast(): boolean {
 		return (this.input.lineContent.length < Constants.MaxMonospaceDistance) || this._cachedWidth !== -1;
+	}
+
+	public resetCachedWidth(): void {
+		this._cachedWidth = -1;
 	}
 
 	public monospaceAssumptionsAreValid(): boolean {
@@ -526,6 +535,15 @@ class RenderedViewLine implements IRenderedViewLine {
 			return false;
 		}
 		return true;
+	}
+
+	public resetCachedWidth(): void {
+		this._cachedWidth = -1;
+		if (this._pixelOffsetCache !== null) {
+			for (let column = 0, len = this._pixelOffsetCache.length; column < len; column++) {
+				this._pixelOffsetCache[column] = -1;
+			}
+		}
 	}
 
 	/**

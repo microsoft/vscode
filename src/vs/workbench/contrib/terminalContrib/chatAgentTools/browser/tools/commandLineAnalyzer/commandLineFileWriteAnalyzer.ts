@@ -47,13 +47,22 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<FileWrite[]> {
 		let fileWrites: FileWrite[] = [];
+
+		// Get file writes from redirections (via tree-sitter grammar)
 		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
 			.map(this._mapNullDevice.bind(this, options));
-		if (capturedFileWrites.length) {
+
+		// Get file writes from command-specific parsers (e.g., sed -i in-place editing)
+		const commandFileWrites = (await this._treeSitterCommandParser.getCommandFileWrites(options.treeSitterLanguage, options.commandLine))
+			.map(this._mapNullDevice.bind(this, options));
+
+		const allCapturedFileWrites = [...capturedFileWrites, ...commandFileWrites];
+
+		if (allCapturedFileWrites.length) {
 			const cwd = options.cwd;
 			if (cwd) {
 				this._log('Detected cwd', cwd.toString());
-				fileWrites = capturedFileWrites.map(e => {
+				fileWrites = allCapturedFileWrites.map(e => {
 					if (e === nullDevice) {
 						return e;
 					}
@@ -79,7 +88,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 				});
 			} else {
 				this._log('Cwd could not be detected');
-				fileWrites = capturedFileWrites;
+				fileWrites = allCapturedFileWrites;
 			}
 		}
 		this._log('File writes detected', fileWrites.map(e => e.toString()));

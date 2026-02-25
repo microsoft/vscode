@@ -310,6 +310,11 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 	}
 
 	const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
+	// Match VS Code extension paths:
+	// 1. User extensions: .vscode/extensions/, .vscode-insiders/extensions/, .vscode-server/extensions/, .vscode-server-insiders/extensions/, etc.
+	// 2. Built-in extensions: resources/app/extensions/
+	// Capture everything from the vscode folder or resources/app/extensions onwards
+	const vscodeExtensionsPathRegex = /^(.*?)((?:\.vscode(?:-[a-z]+)*|resources[\\\/]app)[\\\/]extensions[\\\/].*)$/i;
 	const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
 	let lastIndex = 0;
 	updatedStack = '';
@@ -325,7 +330,14 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 
 		// anoynimize user file paths that do not need to be retained or cleaned up.
 		if (!nodeModulesRegex.test(result[0]) && !overlappingRange) {
-			updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+			// Check if this is a VS Code extension path - if so, preserve the .vscode*/extensions/... portion
+			const vscodeExtMatch = vscodeExtensionsPathRegex.exec(result[0]);
+			if (vscodeExtMatch) {
+				// Keep ".vscode[-variant]/extensions/extension-name/..." but redact the parent folder
+				updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>/' + vscodeExtMatch[2];
+			} else {
+				updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+			}
 			lastIndex = fileRegex.lastIndex;
 		}
 	}

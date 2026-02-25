@@ -144,26 +144,28 @@ export class TextSearchManager {
 					if (result.uri === undefined) {
 						throw Error('Text search result URI is undefined. Please check provider implementation.');
 					}
-					const folderQuery = folderMappings.findQueryFragmentAwareSubstr(result.uri)!;
-					const hasSibling = folderQuery.folder.scheme === Schemas.file ?
-						hasSiblingPromiseFn(() => {
-							return this.fileUtils.readdir(resources.dirname(result.uri));
-						}) :
-						undefined;
+					const folderQuery = folderMappings.findQueryFragmentAwareSubstr(result.uri);
+					if (folderQuery?.folder?.scheme) {
+						const hasSibling = folderQuery.folder.scheme === Schemas.file ?
+							hasSiblingPromiseFn(() => {
+								return this.fileUtils.readdir(resources.dirname(result.uri));
+							}) :
+							undefined;
 
-					const relativePath = resources.relativePath(folderQuery.folder, result.uri);
-					if (relativePath) {
-						// This method is only async when the exclude contains sibling clauses
-						const included = folderQuery.queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
-						if (isThenable(included)) {
-							testingPs.push(
-								included.then(isIncluded => {
-									if (isIncluded) {
-										onResult(result, folderQuery.folderIdx);
-									}
-								}));
-						} else if (included) {
-							onResult(result, folderQuery.folderIdx);
+						const relativePath = resources.relativePath(folderQuery.folder, result.uri);
+						if (relativePath) {
+							// This method is only async when the exclude contains sibling clauses
+							const included = folderQuery.queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
+							if (isThenable(included)) {
+								testingPs.push(
+									included.then(isIncluded => {
+										if (isIncluded) {
+											onResult(result, folderQuery.folderIdx);
+										}
+									}));
+							} else if (included) {
+								onResult(result, folderQuery.folderIdx);
+							}
 						}
 					}
 				}

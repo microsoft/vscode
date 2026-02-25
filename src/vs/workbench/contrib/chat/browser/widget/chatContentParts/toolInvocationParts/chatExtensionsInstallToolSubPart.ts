@@ -52,7 +52,6 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 		const extensionsContent = toolInvocation.toolSpecificData;
 		this.domNode = dom.$('');
 		const chatExtensionsContentPart = this._register(instantiationService.createInstance(ChatExtensionsContentPart, extensionsContent));
-		this._register(chatExtensionsContentPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		dom.append(this.domNode, chatExtensionsContentPart.domNode);
 
 		const state = toolInvocation.state.get();
@@ -90,7 +89,6 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				}
 			));
 			this._confirmWidget = confirmWidget;
-			this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			dom.append(this.domNode, confirmWidget.domNode);
 			this._register(confirmWidget.onDidClick(button => {
 				IChatToolInvocation.confirmWith(toolInvocation, button.data);

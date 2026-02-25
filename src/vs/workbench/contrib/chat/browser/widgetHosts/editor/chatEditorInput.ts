@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { revive } from '../../../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { truncate } from '../../../../../../base/common/strings.js';
@@ -210,16 +211,16 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const inputType = chatSessionType ?? this.resource.authority;
 
 		if (this._sessionResource) {
-			this.modelRef.value = await this.chatService.loadSessionForResource(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			this.modelRef.value = await this.chatService.acquireOrLoadSession(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 
 			// For local session only, if we find no existing session, create a new one
 			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
-				this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, { canUseTools: true });
+				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: true });
 			}
 		} else if (!this.options.target) {
-			this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, { canUseTools: !inputType });
+			this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType });
 		} else if (this.options.target.data) {
-			this.modelRef.value = this.chatService.loadSessionFromContent(this.options.target.data);
+			this.modelRef.value = this.chatService.loadSessionFromData(this.options.target.data);
 		}
 
 		if (!this.model || this.isDisposed()) {
@@ -335,7 +336,8 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 	deserialize(instantiationService: IInstantiationService, serializedEditor: string): EditorInput | undefined {
 		try {
 			// Old inputs have a session id for local session
-			const parsed: ISerializedChatEditorInput & { readonly sessionId: string | undefined } = JSON.parse(serializedEditor);
+			// Use revive to properly restore URIs and other special objects in options.target.data
+			const parsed = revive(JSON.parse(serializedEditor));
 
 			// First if we have a modern session resource, use that
 			if (parsed.sessionResource) {

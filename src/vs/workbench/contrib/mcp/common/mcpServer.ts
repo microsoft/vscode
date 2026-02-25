@@ -30,6 +30,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IOutputService } from '../../../services/output/common/output.js';
+import { chatSessionResourceToId } from '../../chat/common/model/chatUri.js';
 import { ToolProgress } from '../../chat/common/tools/languageModelToolsService.js';
 import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
@@ -296,7 +297,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	 * Helper function to call the function on the handler once it's online. The
 	 * connection started if it is not already.
 	 */
-	public static async callOn<R>(server: IMcpServer, fn: (handler: McpServerRequestHandler) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
+	public static async callOn<R>(server: IMcpServer, fn: (handler: McpServerRequestHandler, connection: IMcpServerConnection) => Promise<R>, token: CancellationToken = CancellationToken.None): Promise<R> {
 		await server.start({ promptType: 'all-untrusted' }); // idempotent
 
 		let ranOnce = false;
@@ -325,7 +326,7 @@ export class McpServer extends Disposable implements IMcpServer {
 					}
 				}
 
-				resolve(fn(handler));
+				resolve(fn(handler, connection));
 				ranOnce = true; // aggressive prevent multiple racey calls, don't dispose because autorun is sync
 			});
 		});
@@ -1069,8 +1070,8 @@ export class McpTool implements IMcpTool {
 			}
 
 			const meta: Record<string, unknown> = { progressToken };
-			if (context?.chatSessionId) {
-				meta['vscode.conversationId'] = context.chatSessionId;
+			if (context?.chatSessionResource) {
+				meta['vscode.conversationId'] = chatSessionResourceToId(context.chatSessionResource);
 			}
 			if (context?.chatRequestId) {
 				meta['vscode.requestId'] = context.chatRequestId;

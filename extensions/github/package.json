@@ -29,6 +29,7 @@
   },
   "enabledApiProposals": [
     "canonicalUriProvider",
+    "chatSessionsProvider",
     "contribEditSessions",
     "contribShareMenu",
     "contribSourceControlHistoryItemMenu",
@@ -68,6 +69,11 @@
         "command": "github.timeline.openOnGitHub",
         "title": "%command.openOnGitHub%",
         "icon": "$(github)"
+      },
+      {
+        "command": "github.createPullRequest",
+        "title": "%command.createPullRequest%",
+        "icon": "$(git-pull-request)"
       }
     ],
     "continueEditSession": [
@@ -84,6 +90,10 @@
         {
           "command": "github.publish",
           "when": "git-base.gitEnabled && workspaceFolderCount != 0 && remoteName != 'codespaces'"
+        },
+        {
+          "command": "github.createPullRequest",
+          "when": "false"
         },
         {
           "command": "github.graph.openOnGitHub",
@@ -162,6 +172,14 @@
           "command": "github.timeline.openOnGitHub",
           "group": "1_actions@3",
           "when": "github.hasGitHubRepo && timelineItem =~ /git:file:commit\\b/"
+        }
+      ],
+      "chat/input/editing/sessionToolbar": [
+        {
+          "command": "github.createPullRequest",
+          "group": "navigation",
+          "order": 1,
+          "when": "isSessionsWindow && agentSessionHasChanges && chatSessionType == copilotcli"
         }
       ]
     },

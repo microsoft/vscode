@@ -850,6 +850,92 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 }
 
 /**
+ * A set that manages the lifecycle of the values that it stores.
+ */
+export class DisposableSet<V extends IDisposable = IDisposable> implements IDisposable {
+
+	private readonly _store: Set<V>;
+	private _isDisposed = false;
+
+	constructor(store: Set<V> = new Set<V>()) {
+		this._store = store;
+		trackDisposable(this);
+	}
+
+	/**
+	 * Disposes of all stored values and mark this object as disposed.
+	 *
+	 * Trying to use this object after it has been disposed of is an error.
+	 */
+	dispose(): void {
+		markAsDisposed(this);
+		this._isDisposed = true;
+		this.clearAndDisposeAll();
+	}
+
+	/**
+	 * Disposes of all stored values and clear the set, but DO NOT mark this object as disposed.
+	 */
+	clearAndDisposeAll(): void {
+		if (!this._store.size) {
+			return;
+		}
+
+		try {
+			dispose(this._store.values());
+		} finally {
+			this._store.clear();
+		}
+	}
+
+	has(value: V): boolean {
+		return this._store.has(value);
+	}
+
+	get size(): number {
+		return this._store.size;
+	}
+
+	add(value: V): void {
+		if (this._isDisposed) {
+			console.warn(new Error('Trying to add a disposable to a DisposableSet that has already been disposed of. The added object will be leaked!').stack);
+		}
+
+		this._store.add(value);
+		setParentOfDisposable(value, this);
+	}
+
+	/**
+	 * Delete the value from this set and also dispose of it.
+	 */
+	deleteAndDispose(value: V): void {
+		if (this._store.delete(value)) {
+			value.dispose();
+		}
+	}
+
+	/**
+	 * Delete the value from this set but return it. The caller is
+	 * responsible for disposing of the value.
+	 */
+	deleteAndLeak(value: V): V | undefined {
+		if (this._store.delete(value)) {
+			setParentOfDisposable(value, null);
+			return value;
+		}
+		return undefined;
+	}
+
+	values(): IterableIterator<V> {
+		return this._store.values();
+	}
+
+	[Symbol.iterator](): IterableIterator<V> {
+		return this._store[Symbol.iterator]();
+	}
+}
+
+/**
  * Call `then` on a Promise, unless the returned disposable is disposed.
  */
 export function thenIfNotDisposed<T>(promise: Promise<T>, then: (result: T) => void): IDisposable {

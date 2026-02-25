@@ -96,12 +96,18 @@
 .monaco-workbench .zone-widget.inline-chat-widget.inline-chat-2 {
 
 	.inline-chat .chat-widget .interactive-session .interactive-input-part {
-		padding: 8px 0 0 0;
+		padding: 8px 0 4px 0;
 	}
 
+	.interactive-session .chat-input-container.focused,
 	.interactive-session .chat-input-container {
-		border-color: transparent;
+		border-color: var(--vscode-inlineChat-background);
+		background-color: var(--vscode-inlineChat-background);
 		padding-left: 0;
+	}
+
+	.chat-attachments-container {
+		margin-right: 0;
 	}
 
 	.chat-attachments-container > .chat-input-toolbar {
@@ -112,6 +118,10 @@
 	/* TODO@jrieken this isn't the nicest selector... */
 	.request-in-progress .monaco-editor [class^="ced-chat-session-detail"]::after {
 		animation: pulse-opacity 2.5s ease-in-out infinite;
+	}
+
+	.chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+		background-color: var(--vscode-inlineChat-background);
 	}
 }
 

@@ -104,6 +104,114 @@ suite('vscode API - tree', () => {
 		}
 	});
 
+	test('TreeView - element already registered after rapid root refresh', async function () {
+		this.timeout(60_000);
+
+		// This test reproduces a race condition where rapid concurrent getChildren calls
+		// return different element object instances that have the same ID in their TreeItem,
+		// causing "Element with id ... is already registered" error.
+		//
+		// The bug: When _addChildrenToClear(undefined) is called, it clears _childrenFetchTokens.
+		// If two fetches are pending, both may reset the requestId counter to 1, so both think
+		// they are the current request. When both try to register elements with the same ID
+		// but different object instances, the error is thrown.
+
+		type TreeElement = { readonly kind: 'leaf'; readonly instance: number };
+
+		class RapidRefreshTreeDataProvider implements vscode.TreeDataProvider<TreeElement> {
+			private readonly changeEmitter = new vscode.EventEmitter<TreeElement | undefined>();
+			private readonly requestEmitter = new vscode.EventEmitter<number>();
+			private readonly pendingRequests: DeferredPromise<TreeElement[]>[] = [];
+			// Return different element instance each time
+			private element1: TreeElement = { kind: 'leaf', instance: 1 };
+			private element2: TreeElement = { kind: 'leaf', instance: 2 };
+
+			readonly onDidChangeTreeData = this.changeEmitter.event;
+
+			getChildren(element?: TreeElement): Thenable<TreeElement[]> {
+				if (!element) {
+					const deferred = new DeferredPromise<TreeElement[]>();
+					this.pendingRequests.push(deferred);
+					this.requestEmitter.fire(this.pendingRequests.length);
+					return deferred.p;
+				}
+				return Promise.resolve([]);
+			}
+
+			getTreeItem(): vscode.TreeItem {
+				// Both element instances return the same id
+				const item = new vscode.TreeItem('test element', vscode.TreeItemCollapsibleState.None);
+				item.id = 'same-id-each-time';
+				return item;
+			}
+
+			getParent(): TreeElement | undefined {
+				return undefined;
+			}
+
+			getElement1(): TreeElement {
+				return this.element1;
+			}
+
+			getElement2(): TreeElement {
+				return this.element2;
+			}
+
+			async waitForRequestCount(count: number): Promise<void> {
+				while (this.pendingRequests.length < count) {
+					await asPromise(this.requestEmitter.event);
+				}
+			}
+
+			resolveRequestWithElement(index: number, element: TreeElement): void {
+				const request = this.pendingRequests[index];
+				if (request) {
+					request.complete([element]);
+				}
+			}
+
+			dispose(): void {
+				this.changeEmitter.dispose();
+				this.requestEmitter.dispose();
+				while (this.pendingRequests.length) {
+					this.pendingRequests.shift()!.complete([]);
+				}
+			}
+		}
+
+		const provider = new RapidRefreshTreeDataProvider();
+		disposables.push(provider);
+
+		const treeView = vscode.window.createTreeView('test.treeRapidRefresh', { treeDataProvider: provider });
+		disposables.push(treeView);
+
+		// Start two concurrent reveal operations - this should trigger two getChildren calls
+		// Similar to the first test
+		const firstReveal = (treeView.reveal(provider.getElement1(), { expand: true })
+			.then(() => ({ error: undefined as Error | undefined })) as Promise<{ error: Error | undefined }>)
+			.catch(error => ({ error }));
+
+		const secondReveal = (treeView.reveal(provider.getElement2(), { expand: true })
+			.then(() => ({ error: undefined as Error | undefined })) as Promise<{ error: Error | undefined }>)
+			.catch(error => ({ error }));
+
+		// Wait for both getChildren calls to be pending
+		await provider.waitForRequestCount(2);
+
+		// Resolve requests returning DIFFERENT element instances with SAME id
+		// First request returns element1, second returns element2
+		// Both elements have the same id 'same-id-each-time' in getTreeItem
+		provider.resolveRequestWithElement(0, provider.getElement1());
+		await delay(0);
+		provider.resolveRequestWithElement(1, provider.getElement2());
+
+		const [firstResult, secondResult] = await Promise.all([firstReveal, secondReveal]);
+		const error = firstResult.error ?? secondResult.error;
+		if (error && /Element with id .+ is already registered/.test(error.message)) {
+			assert.fail(error.message);
+		}
+	});
+
 	test('TreeView - element already registered after refresh', async function () {
 		this.timeout(60_000);
 

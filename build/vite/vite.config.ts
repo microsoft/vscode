@@ -5,9 +5,10 @@
 
 import { createLogger, defineConfig, Plugin } from 'vite';
 import path, { join } from 'path';
-import { urlToEsmPlugin } from './rollup-url-to-module-plugin/index.mjs';
+import { componentExplorer } from '@vscode/component-explorer-vite-plugin';
 import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
+import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
 
 function injectBuiltinExtensionsPlugin(): Plugin {
 	let builtinExtensionsCache: unknown[] | null = null;
@@ -51,7 +52,7 @@ function injectBuiltinExtensionsPlugin(): Plugin {
 	const prebuiltExtensionsLocation = '.build/builtInExtensions';
 	async function getScannedBuiltinExtensions(vsCodeDevLocation: string) {
 		// use the build utility as to not duplicate the code
-		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.js')).toString());
+		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.ts')).toString());
 		const localExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, 'extensions'));
 		const prebuiltExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, prebuiltExtensionsLocation));
 		for (const ext of localExtensions) {
@@ -163,12 +164,23 @@ logger.warn = (msg, options) => {
 };
 
 export default defineConfig({
+	base: './',
 	plugins: [
-		urlToEsmPlugin(),
+		rollupEsmUrlPlugin({}),
 		injectBuiltinExtensionsPlugin(),
-		createHotClassSupport()
+		createHotClassSupport(),
+		componentExplorer({
+			logLevel: 'verbose',
+			include: join(__dirname, '../../src/**/*.fixture.ts'),
+			build: 'all',
+		}),
 	],
 	customLogger: logger,
+	resolve: {
+		alias: {
+			'~@vscode/codicons': join(__dirname, '../../node_modules/@vscode/codicons'),
+		}
+	},
 	esbuild: {
 		tsconfigRaw: {
 			compilerOptions: {
@@ -177,10 +189,18 @@ export default defineConfig({
 		}
 	},
 	root: '../..', // To support /out/... paths
+	build: {
+		outDir: join(__dirname, 'dist'),
+		rollupOptions: {
+			input: {
+				//index: path.resolve(__dirname, 'index.html'),
+				workbench: path.resolve(__dirname, 'workbench-vite.html'),
+			}
+		}
+	},
 	server: {
 		cors: true,
 		port: 5199,
-		origin: 'http://localhost:5199',
 		fs: {
 			allow: [
 				// To allow loading from sources, not needed when loading monaco-editor from npm package

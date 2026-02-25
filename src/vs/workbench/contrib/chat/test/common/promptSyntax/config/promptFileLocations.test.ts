@@ -38,6 +38,11 @@ suite('promptFileLocations', function () {
 			assert.strictEqual(getPromptFileType(uri), PromptsType.agent);
 		});
 
+		test('README.md in .github/agents/ should NOT be recognized as agent file', () => {
+			const uri = URI.file('/workspace/.github/agents/README.md');
+			assert.strictEqual(getPromptFileType(uri), undefined);
+		});
+
 		test('.md files in .github/agents/ subfolder should NOT be recognized as agent files', () => {
 			const uri = URI.file('/workspace/.github/agents/subfolder/test.md');
 			assert.strictEqual(getPromptFileType(uri), undefined);
@@ -77,6 +82,26 @@ suite('promptFileLocations', function () {
 			const uri = URI.file('/workspace/.github/skills/test/Skill.md');
 			assert.strictEqual(getPromptFileType(uri), PromptsType.skill);
 		});
+
+		// Note: getPromptFileType assumes the URI is from a valid prompt source folder.
+		// Any .json file returns PromptsType.hook - the caller filters by folder.
+		test('any .json file should be recognized as hook', () => {
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.github/hooks/hooks.json')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.github/hooks/custom-hooks.json')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.claude/settings.json')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.claude/settings.local.json')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/any/path/config.json')), PromptsType.hook);
+		});
+
+		test('.json files are case insensitive', () => {
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.github/hooks/HOOKS.JSON')), PromptsType.hook);
+			assert.strictEqual(getPromptFileType(URI.file('/workspace/.claude/SETTINGS.JSON')), PromptsType.hook);
+		});
+
+		test('non-json file in .github/hooks folder should NOT be recognized as hook', () => {
+			const uri = URI.file('/workspace/.github/hooks/readme.md');
+			assert.strictEqual(getPromptFileType(uri), undefined);
+		});
 	});
 
 	suite('getCleanPromptName', () => {
@@ -103,6 +128,11 @@ suite('promptFileLocations', function () {
 		test('removes .md extension for files in .github/agents/', () => {
 			const uri = URI.file('/workspace/.github/agents/demonstrate.md');
 			assert.strictEqual(getCleanPromptName(uri), 'demonstrate');
+		});
+
+		test('README.md in .github/agents/ should keep .md extension', () => {
+			const uri = URI.file('/workspace/.github/agents/README.md');
+			assert.strictEqual(getCleanPromptName(uri), 'README.md');
 		});
 
 		test('removes .md extension for copilot-instructions.md', () => {
@@ -151,6 +181,15 @@ suite('promptFileLocations', function () {
 
 		test('regular .md files should return false', () => {
 			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/SKILL2.md')), false);
+		});
+
+		// Note: Any .json file returns true because getPromptFileType returns hook for all JSON.
+		// The caller is responsible for only passing URIs from valid prompt source folders.
+		test('any .json file should return true', () => {
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/.github/hooks/custom-hooks.json')), true);
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/.claude/settings.json')), true);
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/.claude/settings.local.json')), true);
+			assert.strictEqual(isPromptOrInstructionsFile(URI.file('/workspace/settings.json')), true);
 		});
 	});
 });

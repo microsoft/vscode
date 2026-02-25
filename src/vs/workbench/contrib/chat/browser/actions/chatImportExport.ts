@@ -19,6 +19,7 @@ import { isExportableSessionData } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { revive } from '../../../../../base/common/marshalling.js';
+import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
@@ -118,20 +119,17 @@ export function registerChatExportActions() {
 				}
 
 				let sessionResource: URI;
-				let resolvedTarget: typeof ChatViewPaneTarget | undefined;
+				let resolvedTarget: typeof ChatViewPaneTarget | PreferredGroup;
 				let options: IChatEditorOptions;
 
 				if (opts?.target === 'chatViewPane') {
-					const modelRef = chatService.loadSessionFromContent(data);
-					if (!modelRef) {
-						return;
-					}
+					const modelRef = chatService.loadSessionFromData(data);
 					sessionResource = modelRef.object.sessionResource;
 					resolvedTarget = ChatViewPaneTarget;
 					options = { pinned: true };
 				} else {
 					sessionResource = ChatEditorInput.getNewEditorUri();
-					resolvedTarget = undefined;
+					resolvedTarget = ACTIVE_GROUP;
 					options = { target: { data }, pinned: true };
 				}
 

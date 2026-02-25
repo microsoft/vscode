@@ -10,7 +10,7 @@
 
 .chat-terminal-content-part .chat-terminal-content-title {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	padding: 0px 9px 0px 5px;
 	max-width: 100%;
 	box-sizing: border-box;
@@ -107,7 +107,12 @@
 	display: flex;
 	gap: 4px;
 	margin-left: auto;
-	align-self: flex-start;
+	align-self: center;
+}
+
+/* Reset margin for action bar icons - they should have similar spacing to other action bars */
+.chat-terminal-content-part .chat-terminal-action-bar .monaco-action-bar .codicon {
+	margin: 0;
 }
 
 .chat-terminal-content-part .chat-terminal-content-message {
@@ -130,8 +135,8 @@
 .chat-terminal-output-container.collapsed { display: none; }
 .chat-terminal-output-container {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
+	border-bottom-left-radius: var(--vscode-cornerRadius-medium);
+	border-bottom-right-radius: var(--vscode-cornerRadius-medium);
 	max-height: 300px;
 	box-sizing: border-box;
 	overflow: hidden;
@@ -182,11 +187,9 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 .chat-terminal-output-terminal .xterm-viewport {
 	background: inherit !important;
 }
+
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
-}
-.chat-terminal-output-terminal.chat-terminal-output-terminal-clipped {
-	overflow: hidden;
 }
 .chat-terminal-output {
 	margin: 0;
@@ -205,8 +208,17 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	display: block;
 }
 
-.chat-terminal-output-container .xterm-scrollable-element .scrollbar {
+.chat-terminal-output-container .xterm-scrollable-element .xterm-scrollbar {
 	display: none;
+}
+
+/* Allow clicks to pass through scrollbar track to reach inline links, but keep slider draggable */
+.chat-terminal-output-container > .monaco-scrollable-element > .scrollbar.horizontal {
+	pointer-events: none;
+}
+
+.chat-terminal-output-container > .monaco-scrollable-element > .scrollbar.horizontal .slider {
+	pointer-events: auto;
 }
 
 .chat-terminal-output div,

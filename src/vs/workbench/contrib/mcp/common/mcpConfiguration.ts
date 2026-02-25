@@ -136,6 +136,11 @@ export const mcpStdioServerSchema: IJSONSchema = {
 			enum: ['stdio'],
 			description: localize('app.mcp.json.type', "The type of the server.")
 		},
+		sandboxEnabled: {
+			type: 'boolean',
+			default: false,
+			description: localize('app.mcp.json.sandboxEnabled', "Whether to run the server in a sandboxed environment.")
+		},
 		command: {
 			type: 'string',
 			description: localize('app.mcp.json.command', "The command to run the server.")
@@ -179,6 +184,50 @@ export const mcpServerSchema: IJSONSchema = {
 	allowComments: true,
 	additionalProperties: false,
 	properties: {
+		sandbox: {
+			description: localize('app.mcp.json.sandbox', "Default sandbox settings for running servers."),
+			type: 'object',
+			additionalProperties: false,
+			properties: {
+				network: {
+					type: 'object',
+					additionalProperties: false,
+					properties: {
+						allowedDomains: {
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						},
+						deniedDomains: {
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						}
+					}
+				},
+				filesystem: {
+					type: 'object',
+					additionalProperties: false,
+					properties: {
+						denyRead: {
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						},
+						allowWrite: {
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						},
+						denyWrite: {
+							type: 'array',
+							items: { type: 'string' },
+							default: []
+						}
+					}
+				}
+			}
+		},
 		servers: {
 			examples: [
 				mcpSchemaExampleServers,

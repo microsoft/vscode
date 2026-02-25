@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { upcast } from '../../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -16,6 +17,8 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogger, ILoggerService, ILogService, NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
@@ -27,6 +30,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
+import { IMcpSandboxService } from '../../common/mcpSandboxService.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
 import { McpTaskManager } from '../../common/mcpTaskManager.js';
 import { LazyCollectionState, McpCollectionDefinition, McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType, McpServerTrust, McpStartServerInteraction } from '../../common/mcpTypes.js';
@@ -134,6 +138,31 @@ class TestMcpRegistry extends McpRegistry {
 	}
 }
 
+class TestMcpSandboxService implements IMcpSandboxService {
+	declare readonly _serviceBrand: undefined;
+	public callCount = 0;
+	public enabled = false;
+	public lastLaunchCallArgs: { serverDef: McpServerDefinition; launch: McpServerLaunch; remoteAuthority: string | undefined; configTarget: ConfigurationTarget } | undefined;
+
+	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch> {
+		this.callCount++;
+		this.lastLaunchCallArgs = { serverDef, launch, remoteAuthority, configTarget };
+
+		if (this.enabled && launch.type === McpServerTransportType.Stdio) {
+			return Promise.resolve({
+				...launch,
+				command: 'sandboxed-command',
+			});
+		}
+
+		return Promise.resolve(launch);
+	}
+
+	isEnabled(serverDef: McpServerDefinition): Promise<boolean> {
+		return Promise.resolve(this.enabled);
+	}
+}
+
 suite('Workbench - MCP - Registry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -147,6 +176,7 @@ suite('Workbench - MCP - Registry', () => {
 	let logger: ILogger;
 	let trustNonceBearer: { trustedAtNonce: string | undefined };
 	let taskManager: McpTaskManager;
+	let testMcpSandboxService: TestMcpSandboxService;
 
 	setup(() => {
 		testConfigResolverService = new TestConfigurationResolverService();
@@ -154,6 +184,7 @@ suite('Workbench - MCP - Registry', () => {
 		testDialogService = new TestDialogService();
 		configurationService = new TestConfigurationService({ [mcpAccessConfig]: McpAccessValue.All });
 		trustNonceBearer = { trustedAtNonce: undefined };
+		testMcpSandboxService = new TestMcpSandboxService();
 
 		const services = new ServiceCollection(
 			[IConfigurationService, configurationService],
@@ -162,8 +193,10 @@ suite('Workbench - MCP - Registry', () => {
 			[ISecretStorageService, new TestSecretStorageService()],
 			[ILoggerService, store.add(new TestLoggerService())],
 			[ILogService, store.add(new NullLogService())],
+			[INotificationService, new TestNotificationService()],
 			[IOutputService, upcast({ showChannel: () => { } })],
 			[IDialogService, testDialogService],
+			[IMcpSandboxService, testMcpSandboxService],
 			[IProductService, {}],
 		);
 
@@ -336,6 +369,52 @@ suite('Workbench - MCP - Registry', () => {
 		connection.dispose();
 	});
 
+	test('resolveConnection calls launchInSandboxIfEnabled with expected arguments when sandboxing is enabled', async () => {
+		testMcpSandboxService.enabled = true;
+
+		const sandboxCollection: McpCollectionDefinition & { serverDefinitions: ISettableObservable<McpServerDefinition[]> } = {
+			...testCollection,
+			id: 'sandbox-collection',
+			remoteAuthority: 'ssh-remote+test',
+		};
+
+		const definition: McpServerDefinition = {
+			...baseDefinition,
+			id: 'sandbox-server',
+			launch: {
+				type: McpServerTransportType.Stdio,
+				command: 'test-command',
+				args: ['--flag'],
+				env: {},
+				envFile: undefined,
+				cwd: '/test',
+			},
+		};
+
+		const delegate = new TestMcpHostDelegate();
+		store.add(registry.registerDelegate(delegate));
+		sandboxCollection.serverDefinitions.set([definition], undefined);
+		store.add(registry.registerCollection(sandboxCollection));
+
+		const connection = await registry.resolveConnection({
+			collectionRef: sandboxCollection,
+			definitionRef: definition,
+			logger,
+			trustNonceBearer,
+			taskManager,
+		}) as McpServerConnection;
+
+		assert.ok(connection);
+		assert.strictEqual(testMcpSandboxService.callCount, 1);
+		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.serverDef, definition);
+		assert.deepStrictEqual(testMcpSandboxService.lastLaunchCallArgs?.launch, definition.launch);
+		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.remoteAuthority, 'ssh-remote+test');
+		assert.strictEqual(testMcpSandboxService.lastLaunchCallArgs?.configTarget, ConfigurationTarget.USER);
+		assert.strictEqual((connection.launchDefinition as McpServerTransportStdio).command, 'sandboxed-command');
+
+		connection.dispose();
+	});
+
 	suite('Lazy Collections', () => {
 		let lazyCollection: McpCollectionDefinition;
 		let normalCollection: McpCollectionDefinition;
@@ -431,6 +510,174 @@ suite('Workbench - MCP - Registry', () => {
 			store.add(registry.registerCollection(uncachedLazy));
 
 			assert.strictEqual(registry.lazyCollectionState.get().state, LazyCollectionState.HasUnknown);
+		});
+	});
+
+	suite('Duplicate Collection Prevention', () => {
+		test('prevents duplicate non-lazy collections with same ID', () => {
+			const collection1 = {
+				...testCollection,
+				id: 'duplicate-test',
+				label: 'Collection 1',
+			};
+			const collection2 = {
+				...testCollection,
+				id: 'duplicate-test',
+				label: 'Collection 2',
+			};
+
+			store.add(registry.registerCollection(collection1));
+			const disposable2 = registry.registerCollection(collection2);
+
+			// Second registration should return Disposable.None and not add duplicate
+			assert.strictEqual(disposable2, Disposable.None);
+			assert.strictEqual(registry.collections.get().length, 1);
+			assert.strictEqual(registry.collections.get()[0], collection1);
+			assert.strictEqual(registry.collections.get()[0].label, 'Collection 1');
+		});
+
+		test('allows lazy collection to be replaced by non-lazy with same ID', () => {
+			const lazyCollection = {
+				...testCollection,
+				id: 'replaceable-test',
+				label: 'Lazy Collection',
+				lazy: {
+					isCached: false,
+					load: () => Promise.resolve(),
+				}
+			};
+			const nonLazyCollection = {
+				...testCollection,
+				id: 'replaceable-test',
+				label: 'Non-Lazy Collection',
+			};
+
+			store.add(registry.registerCollection(lazyCollection));
+			const disposable2 = store.add(registry.registerCollection(nonLazyCollection));
+
+			// Should replace lazy with non-lazy
+			assert.notStrictEqual(disposable2, Disposable.None);
+			assert.strictEqual(registry.collections.get().length, 1);
+			assert.strictEqual(registry.collections.get()[0], nonLazyCollection);
+			assert.strictEqual(registry.collections.get()[0].label, 'Non-Lazy Collection');
+			assert.strictEqual(registry.collections.get()[0].lazy, undefined);
+		});
+
+		test('prevents lazy collection from duplicating existing non-lazy collection', () => {
+			const nonLazyCollection = {
+				...testCollection,
+				id: 'protected-test',
+				label: 'Non-Lazy Collection',
+			};
+			const lazyCollection = {
+				...testCollection,
+				id: 'protected-test',
+				label: 'Lazy Collection',
+				lazy: {
+					isCached: false,
+					load: () => Promise.resolve(),
+				}
+			};
+
+			store.add(registry.registerCollection(nonLazyCollection));
+			const disposable2 = registry.registerCollection(lazyCollection);
+
+			// Lazy collection should not replace or duplicate non-lazy
+			assert.strictEqual(disposable2, Disposable.None);
+			assert.strictEqual(registry.collections.get().length, 1);
+			assert.strictEqual(registry.collections.get()[0], nonLazyCollection);
+			assert.strictEqual(registry.collections.get()[0].label, 'Non-Lazy Collection');
+		});
+
+		test('allows different collection IDs to coexist', () => {
+			const collection1 = {
+				...testCollection,
+				id: 'collection-1',
+				label: 'Collection 1',
+			};
+			const collection2 = {
+				...testCollection,
+				id: 'collection-2',
+				label: 'Collection 2',
+			};
+
+			store.add(registry.registerCollection(collection1));
+			store.add(registry.registerCollection(collection2));
+
+			// Both should be registered since they have different IDs
+			assert.strictEqual(registry.collections.get().length, 2);
+			assert.ok(registry.collections.get().some(c => c.id === 'collection-1'));
+			assert.ok(registry.collections.get().some(c => c.id === 'collection-2'));
+		});
+
+		test('disposal of duplicate-preventing registration does not affect original', () => {
+			const collection1 = {
+				...testCollection,
+				id: 'disposal-test',
+				label: 'Original Collection',
+			};
+			const collection2 = {
+				...testCollection,
+				id: 'disposal-test',
+				label: 'Duplicate Attempt',
+			};
+
+			const disposable1 = store.add(registry.registerCollection(collection1));
+			const disposable2 = registry.registerCollection(collection2);
+
+			assert.strictEqual(disposable2, Disposable.None);
+
+			// Disposing the Disposable.None should do nothing
+			disposable2.dispose();
+			assert.strictEqual(registry.collections.get().length, 1);
+			assert.strictEqual(registry.collections.get()[0], collection1);
+
+			// Disposing the original should remove it
+			disposable1.dispose();
+			assert.strictEqual(registry.collections.get().length, 0);
+		});
+
+		test('simulates extension host restart scenario with when clause', async () => {
+			// Simulates the bug: ExtensionMcpDiscovery registers lazy collection,
+			// then MainThreadMcp tries to register non-lazy version on ext host restart
+
+			// Step 1: ExtensionMcpDiscovery registers cached lazy collection
+			const lazyCollection = {
+				...testCollection,
+				id: 'ext-restart-test',
+				label: 'Cached Lazy Collection',
+				lazy: {
+					isCached: true,
+					load: () => Promise.resolve(),
+				}
+			};
+			store.add(registry.registerCollection(lazyCollection));
+			assert.strictEqual(registry.collections.get().length, 1);
+
+			// Step 2: Extension activates, MainThreadMcp.$upsertMcpCollection called
+			// This replaces lazy with non-lazy (normal flow)
+			const nonLazyFromExtension = {
+				...testCollection,
+				id: 'ext-restart-test',
+				label: 'Extension-Provided Collection',
+			};
+			store.add(registry.registerCollection(nonLazyFromExtension));
+			assert.strictEqual(registry.collections.get().length, 1);
+			assert.strictEqual(registry.collections.get()[0].lazy, undefined);
+
+			// Step 3: Extension host restarts, MainThreadMcp disposed
+			// ExtensionMcpDiscovery's context listener fires again and tries to re-register
+			// This should NOT create a duplicate
+			const duplicateAttempt = {
+				...testCollection,
+				id: 'ext-restart-test',
+				label: 'Should Not Duplicate',
+			};
+			const disposable = registry.registerCollection(duplicateAttempt);
+
+			assert.strictEqual(disposable, Disposable.None);
+			assert.strictEqual(registry.collections.get().length, 1);
+			assert.strictEqual(registry.collections.get()[0], nonLazyFromExtension);
 		});
 	});
 

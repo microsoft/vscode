@@ -748,6 +748,11 @@ export interface CommitShortStat {
 	readonly deletions: number;
 }
 
+export interface CoAuthor {
+	readonly name: string;
+	readonly email: string;
+}
+
 export interface Commit {
 	hash: string;
 	message: string;
@@ -758,6 +763,7 @@ export interface Commit {
 	commitDate?: Date;
 	refNames: string[];
 	shortStat?: CommitShortStat;
+	coAuthors?: CoAuthor[];
 }
 
 export interface RefQuery extends ApiRefQuery {
@@ -951,11 +957,30 @@ export function parseGitCommits(data: string): Commit[] {
 			authorEmail: ` ${authorEmail}`.substr(1),
 			commitDate: new Date(Number(commitDate) * 1000),
 			refNames: refNames.split(',').map(s => s.trim()),
-			shortStat: shortStat ? parseGitDiffShortStat(shortStat) : undefined
+			shortStat: shortStat ? parseGitDiffShortStat(shortStat) : undefined,
+			coAuthors: parseCoAuthors(message)
 		});
 	} while (true);
 
 	return commits;
+}
+
+const coAuthorRegex = /^Co-authored-by:\s*(.+?)\s*<([^>]+)>\s*$/gim;
+
+export function parseCoAuthors(message: string): CoAuthor[] {
+	const coAuthors: CoAuthor[] = [];
+	let match;
+
+	coAuthorRegex.lastIndex = 0;
+	while ((match = coAuthorRegex.exec(message)) !== null) {
+		const name = match[1].trim();
+		const email = match[2].trim();
+		if (name && email) {
+			coAuthors.push({ name, email });
+		}
+	}
+
+	return coAuthors;
 }
 
 const diffShortStatRegex = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
@@ -1679,11 +1704,19 @@ export class Repository {
 		}
 	}
 
-	async apply(patch: string, reverse?: boolean): Promise<void> {
+	async apply(patch: string, options?: { reverse?: boolean; threeWay?: boolean; allowEmpty?: boolean }): Promise<void> {
 		const args = ['apply', patch];
 
-		if (reverse) {
-			args.push('-R');
+		if (options?.allowEmpty) {
+			args.push('--allow-empty');
+		}
+
+		if (options?.reverse) {
+			args.push('--reverse');
+		}
+
+		if (options?.threeWay) {
+			args.push('--3way');
 		}
 
 		try {
@@ -2065,8 +2098,12 @@ export class Repository {
 			args.push('--signoff');
 		}
 
-		if (opts.signCommit) {
-			args.push('-S');
+		if (opts.signCommit !== undefined) {
+			if (opts.signCommit) {
+				args.push('-S');
+			} else {
+				args.push('--no-gpg-sign');
+			}
 		}
 
 		if (opts.empty) {
@@ -2958,13 +2995,10 @@ export class Repository {
 	}
 
 	private async getWorktreesFS(): Promise<Worktree[]> {
-		try {
-			// List all worktree folder names
-			const mainRepositoryPath = this.dotGit.commonPath ?? this.dotGit.path;
-			const worktreesPath = path.join(mainRepositoryPath, 'worktrees');
-			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
-			const result: Worktree[] = [];
+		const result: Worktree[] = [];
+		const mainRepositoryPath = this.dotGit.commonPath ?? this.dotGit.path;
 
+		try {
 			if (!this.dotGit.isBare) {
 				// Add main worktree for a non-bare repository
 				const headPath = path.join(mainRepositoryPath, 'HEAD');
@@ -2980,6 +3014,10 @@ export class Repository {
 					main: true
 				} satisfies Worktree);
 			}
+
+			// List all worktree folder names
+			const worktreesPath = path.join(mainRepositoryPath, 'worktrees');
+			const dirents = await fs.readdir(worktreesPath, { withFileTypes: true });
 
 			for (const dirent of dirents) {
 				if (!dirent.isDirectory()) {
@@ -3016,7 +3054,7 @@ export class Repository {
 		}
 		catch (err) {
 			if (/ENOENT/.test(err.message) || /ENOTDIR/.test(err.message)) {
-				return [];
+				return result;
 			}
 
 			throw err;

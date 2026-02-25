@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 3
+
 declare module 'vscode' {
 
 	export interface ChatParticipant {
@@ -65,12 +67,137 @@ declare module 'vscode' {
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}
 
+	/**
+	 * Represents a file-level edit (creation, deletion, or rename).
+	 */
+	export interface ChatWorkspaceFileEdit {
+		/**
+		 * The original file URI (undefined for new files).
+		 */
+		oldResource?: Uri;
+
+		/**
+		 * The new file URI (undefined for deleted files).
+		 */
+		newResource?: Uri;
+	}
+
+	/**
+	 * Represents a workspace edit containing file-level operations.
+	 */
+	export class ChatResponseWorkspaceEditPart {
+		edits: ChatWorkspaceFileEdit[];
+		constructor(edits: ChatWorkspaceFileEdit[]);
+	}
+
 	export class ChatResponseConfirmationPart {
 		title: string;
 		message: string | MarkdownString;
 		data: any;
 		buttons?: string[];
 		constructor(title: string, message: string | MarkdownString, data: any, buttons?: string[]);
+	}
+
+	/**
+	 * An option for a question in a carousel.
+	 */
+	export interface ChatQuestionOption {
+		/**
+		 * Unique identifier for the option.
+		 */
+		id: string;
+		/**
+		 * The display label for the option.
+		 */
+		label: string;
+		/**
+		 * The value returned when this option is selected.
+		 */
+		value: unknown;
+	}
+
+	/**
+	 * The type of question for a chat question carousel.
+	 */
+	export enum ChatQuestionType {
+		/**
+		 * A free-form text input question.
+		 */
+		Text = 1,
+		/**
+		 * A single-select question with radio buttons.
+		 */
+		SingleSelect = 2,
+		/**
+		 * A multi-select question with checkboxes.
+		 */
+		MultiSelect = 3
+	}
+
+	/**
+	 * A question to be displayed in a question carousel.
+	 */
+	export class ChatQuestion {
+		/**
+		 * Unique identifier for the question.
+		 */
+		id: string;
+		/**
+		 * The type of question: Text for free-form input, SingleSelect for radio buttons, MultiSelect for checkboxes.
+		 */
+		type: ChatQuestionType;
+		/**
+		 * The title/header of the question.
+		 */
+		title: string;
+		/**
+		 * Optional detailed message or description for the question.
+		 */
+		message?: string | MarkdownString;
+		/**
+		 * Options for singleSelect or multiSelect questions.
+		 */
+		options?: ChatQuestionOption[];
+		/**
+		 * The id(s) of the default selected option(s).
+		 * For SingleSelect, this should be a single option id.
+		 * For MultiSelect, this can be an array of option ids.
+		 */
+		defaultValue?: string | string[];
+		/**
+		 * Whether to allow free-form text input in addition to predefined options.
+		 * When true, users can provide their own text answer even for SingleSelect or MultiSelect questions.
+		 */
+		allowFreeformInput?: boolean;
+
+		constructor(
+			id: string,
+			type: ChatQuestionType,
+			title: string,
+			options?: {
+				message?: string | MarkdownString;
+				options?: ChatQuestionOption[];
+				defaultValue?: string | string[];
+				allowFreeformInput?: boolean;
+			}
+		);
+	}
+
+	/**
+	 * A carousel view for presenting multiple questions inline in the chat.
+	 * The UI is displayed but does not block the chat input.
+	 */
+	export class ChatResponseQuestionCarouselPart {
+		/**
+		 * The questions to display in the carousel.
+		 */
+		questions: ChatQuestion[];
+		/**
+		 * Whether users can skip answering the questions.
+		 */
+		allowSkip: boolean;
+
+		constructor(questions: ChatQuestion[], allowSkip?: boolean);
 	}
 
 	export class ChatResponseCodeCitationPart {
@@ -95,6 +222,118 @@ declare module 'vscode' {
 			toolEdited?: string;
 		};
 		language: string;
+
+		/**
+		 * Overrides for how the command is presented in the UI.
+		 * For example, when a `cd <dir> && <command>` prefix is detected,
+		 * the presentation can show only the actual command.
+		 */
+		presentationOverrides?: {
+			commandLine: string;
+			language?: string;
+		};
+
+		/**
+		 * Terminal command output. Displayed when the terminal is no longer available.
+		 */
+		output?: {
+			/** The raw output text, may include ANSI escape codes. */
+			text: string;
+		};
+
+		/**
+		 * Command execution state.
+		 */
+		state?: {
+			/** Exit code of the command. */
+			exitCode?: number;
+			/** Duration of execution in milliseconds. */
+			duration?: number;
+		};
+	}
+
+	export class McpToolInvocationContentData {
+		/**
+		 * The mime type which determines how the data property is interpreted.
+		 */
+		mimeType: string;
+
+		/**
+		 * The byte data for this part.
+		 */
+		data: Uint8Array;
+
+		/**
+		 * Construct a generic data part with the given content.
+		 * @param data The byte data for this part.
+		 * @param mimeType The mime type of the data.
+		 */
+		constructor(data: Uint8Array, mimeType: string);
+	}
+
+	export interface ChatMcpToolInvocationData {
+		input: string;
+		output: McpToolInvocationContentData[];
+	}
+
+	export enum ChatTodoStatus {
+		NotStarted = 1,
+		InProgress = 2,
+		Completed = 3
+	}
+
+	export interface ChatTodoToolInvocationData {
+		todoList: Array<{
+			id: number;
+			title: string;
+			status: ChatTodoStatus;
+		}>;
+	}
+
+	/**
+	 * Generic tool result data that displays input and output in collapsible sections.
+	 */
+	export interface ChatSimpleToolResultData {
+		/**
+		 * The input to display.
+		 */
+		input: string;
+		/**
+		 * The output to display.
+		 */
+		output: string;
+	}
+
+
+	export interface ChatToolResourcesInvocationData {
+		/**
+		 * Array of file URIs or locations to display as a collapsible list
+		 */
+		values: Array<Uri | Location>;
+	}
+
+	export class ChatSubagentToolInvocationData {
+		/**
+		 * A description of the subagent's purpose or task.
+		 */
+		description?: string;
+
+		/**
+		 * The name of the subagent being invoked.
+		 */
+		agentName?: string;
+
+		/**
+		 * The prompt given to the subagent.
+		 */
+		prompt?: string;
+
+		/**
+		 * The result text from the subagent after completion.
+		 */
+		result?: string;
+
+		constructor(description?: string, agentName?: string, prompt?: string, result?: string);
 	}
 
 	export class ChatToolInvocationPart {
@@ -106,11 +345,16 @@ declare module 'vscode' {
 		pastTenseMessage?: string | MarkdownString;
 		isConfirmed?: boolean;
 		isComplete?: boolean;
-		toolSpecificData?: ChatTerminalToolInvocationData;
+		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData | ChatTodoToolInvocationData | ChatSimpleToolResultData | ChatToolResourcesInvocationData | ChatSubagentToolInvocationData;
 		subAgentInvocationId?: string;
 		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
-		constructor(toolName: string, toolCallId: string, isError?: boolean);
+		/**
+		 * If this flag is set, this will be treated as an update to any previous tool call with the same id.
+		 */
+		enablePartialUpdate?: boolean;
+
+		constructor(toolName: string, toolCallId: string, errorMessage?: string);
 	}
 
 	/**
@@ -179,7 +423,31 @@ declare module 'vscode' {
 		constructor(uris: Uri[], callback: () => Thenable<unknown>);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart | ChatResponseExternalEditPart;
+	/**
+	 * Internal type that lists all the proposed chat response parts. This is used to generate `ExtendedChatResponsePart`
+	 * which is the actual type used in this API. This is done so that other proposals can easily add their own response parts
+	 * without having to modify this file.
+	 */
+	export interface ExtendedChatResponseParts {
+		ChatResponsePart: ChatResponsePart;
+		ChatResponseTextEditPart: ChatResponseTextEditPart;
+		ChatResponseNotebookEditPart: ChatResponseNotebookEditPart;
+		ChatResponseWorkspaceEditPart: ChatResponseWorkspaceEditPart;
+		ChatResponseConfirmationPart: ChatResponseConfirmationPart;
+		ChatResponseCodeCitationPart: ChatResponseCodeCitationPart;
+		ChatResponseReferencePart2: ChatResponseReferencePart2;
+		ChatResponseMovePart: ChatResponseMovePart;
+		ChatResponseExtensionsPart: ChatResponseExtensionsPart;
+		ChatResponsePullRequestPart: ChatResponsePullRequestPart;
+		ChatToolInvocationPart: ChatToolInvocationPart;
+		ChatResponseMultiDiffPart: ChatResponseMultiDiffPart;
+		ChatResponseThinkingProgressPart: ChatResponseThinkingProgressPart;
+		ChatResponseExternalEditPart: ChatResponseExternalEditPart;
+		ChatResponseQuestionCarouselPart: ChatResponseQuestionCarouselPart;
+	}
+
+	export type ExtendedChatResponsePart = ExtendedChatResponseParts[keyof ExtendedChatResponseParts];
+
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -283,12 +551,16 @@ declare module 'vscode' {
 	}
 
 	export class ChatResponsePullRequestPart {
-		readonly uri: Uri;
+		/**
+		 * @deprecated use `command` instead
+		 */
+		readonly uri?: Uri;
+		readonly command: Command;
 		readonly linkTag: string;
 		readonly title: string;
 		readonly description: string;
 		readonly author: string;
-		constructor(uri: Uri, title: string, description: string, author: string, linkTag: string);
+		constructor(uriOrCommand: Uri | Command, title: string, description: string, author: string, linkTag: string);
 	}
 
 	export interface ChatResponseStream {
@@ -314,6 +586,12 @@ declare module 'vscode' {
 		notebookEdit(target: Uri, isDone: true): void;
 
 		/**
+		 * Push a workspace edit containing file-level operations (create, delete, rename).
+		 * @param edits Array of file-level edits to apply
+		 */
+		workspaceEdit(edits: ChatWorkspaceFileEdit[]): void;
+
+		/**
 		 * Makes an external edit to one or more resources. Changes to the
 		 * resources made within the `callback` and before it resolves will be
 		 * tracked as agent edits. This can be used to track edits made from
@@ -336,6 +614,15 @@ declare module 'vscode' {
 		 * TODO@API should actually be a more generic function that takes an array of buttons
 		 */
 		confirmation(title: string, message: string | MarkdownString, data: any, buttons?: string[]): void;
+
+		/**
+		 * Show an inline carousel of questions to gather information from the user.
+		 * This is a blocking call that waits for the user to submit or skip the questions.
+		 * @param questions Array of questions to display to the user
+		 * @param allowSkip Whether the user can skip questions without answering
+		 * @returns A promise that resolves with the user's answers, or undefined if skipped
+		 */
+		questionCarousel(questions: ChatQuestion[], allowSkip?: boolean): Thenable<Record<string, unknown> | undefined>;
 
 		/**
 		 * Push a warning to this stream. Short-hand for
@@ -371,6 +658,13 @@ declare module 'vscode' {
 		push(part: ExtendedChatResponsePart): void;
 
 		clearToPreviousToolInvocation(reason: ChatResponseClearToPreviousToolInvocationReason): void;
+
+		/**
+		 * Report token usage information for this request.
+		 * This is typically called when the underlying language model provides usage statistics.
+		 * @param usage Token usage information including prompt and completion tokens
+		 */
+		usage(usage: ChatResultUsage): void;
 	}
 
 	export enum ChatResponseReferencePartStatusKind {
@@ -421,7 +715,7 @@ declare module 'vscode' {
 		/**
 		 * A map of all tools that should (`true`) and should not (`false`) be used in this request.
 		 */
-		readonly tools: Map<string, boolean>;
+		readonly tools: Map<LanguageModelToolInformation, boolean>;
 	}
 
 	export namespace lm {
@@ -510,6 +804,47 @@ declare module 'vscode' {
 	}
 
 	export type ChatExtendedRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
+
+	/**
+	 * Details about the prompt token usage by category and label.
+	 */
+	export interface ChatResultPromptTokenDetail {
+		/**
+		 * The category this token usage belongs to (e.g., "System", "Context", "Conversation").
+		 */
+		readonly category: string;
+
+		/**
+		 * The label for this specific token usage (e.g., "System prompt", "Attached files").
+		 */
+		readonly label: string;
+
+		/**
+		 * The percentage of the total prompt tokens this represents (0-100).
+		 */
+		readonly percentageOfPrompt: number;
+	}
+
+	/**
+	 * Token usage information for a chat request.
+	 */
+	export interface ChatResultUsage {
+		/**
+		 * The number of prompt tokens used in this request.
+		 */
+		readonly promptTokens: number;
+
+		/**
+		 * The number of completion tokens generated in this response.
+		 */
+		readonly completionTokens: number;
+
+		/**
+		 * Optional breakdown of prompt token usage by category and label.
+		 * If the percentages do not sum to 100%, the remaining will be shown as "Uncategorized".
+		 */
+		readonly promptTokenDetails?: readonly ChatResultPromptTokenDetail[];
+	}
 
 	export interface ChatResult {
 		nextQuestion?: {
@@ -695,7 +1030,7 @@ declare module 'vscode' {
 		readonly rawInput?: unknown;
 
 		readonly chatRequestId?: string;
-		readonly chatSessionId?: string;
+		readonly chatSessionResource?: Uri;
 		readonly chatInteractionId?: string;
 	}
 

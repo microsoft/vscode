@@ -35,7 +35,7 @@ export interface INormalizedVersion {
 }
 
 const VERSION_REGEXP = /^(\^|>=)?((\d+)|x)\.((\d+)|x)\.((\d+)|x)(\-.*)?$/;
-const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})$/;
+const NOT_BEFORE_REGEXP = /^-(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?$/;
 
 export function isValidVersionStr(version: string): boolean {
 	version = version.trim();
@@ -105,8 +105,8 @@ export function normalizeVersion(version: IParsedVersion | null): INormalizedVer
 	if (version.preRelease) {
 		const match = NOT_BEFORE_REGEXP.exec(version.preRelease);
 		if (match) {
-			const [, year, month, day] = match;
-			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day));
+			const [, year, month, day, hours, minutes] = match;
+			notBefore = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hours) || 0, Number(minutes) || 0);
 		}
 	}
 
@@ -265,6 +265,12 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 	if (typeof extensionManifest.extensionDependencies !== 'undefined') {
 		if (!isStringArray(extensionManifest.extensionDependencies)) {
 			validations.push([Severity.Error, nls.localize('extensionDescription.extensionDependencies', "property `{0}` can be omitted or must be of type `string[]`", 'extensionDependencies')]);
+			return validations;
+		}
+	}
+	if (typeof extensionManifest.extensionAffinity !== 'undefined') {
+		if (!isStringArray(extensionManifest.extensionAffinity)) {
+			validations.push([Severity.Error, nls.localize('extensionDescription.extensionAffinity', "property `{0}` can be omitted or must be of type `string[]`", 'extensionAffinity')]);
 			return validations;
 		}
 	}
