@@ -20,6 +20,7 @@ suite('ChatDebugServiceImpl', () => {
 	const sessionA = URI.parse('vscode-chat-session://local/a');
 	const sessionB = URI.parse('vscode-chat-session://local/b');
 	const sessionGeneric = URI.parse('vscode-chat-session://local/session');
+	const nonLocalSession = URI.parse('vscode-chat-session://remote-provider/session-1');
 
 	setup(() => {
 		service = disposables.add(new ChatDebugServiceImpl());
@@ -144,6 +145,16 @@ suite('ChatDebugServiceImpl', () => {
 			assert.strictEqual(event.id, 'my-id');
 			assert.strictEqual(event.category, 'testing');
 			assert.strictEqual(event.parentEventId, 'parent-1');
+		});
+
+		test('should not log events for non-local sessions', () => {
+			const firedEvents: IChatDebugEvent[] = [];
+			disposables.add(service.onDidAddEvent(e => firedEvents.push(e)));
+
+			service.log(nonLocalSession, 'should-be-skipped', 'details');
+
+			assert.strictEqual(firedEvents.length, 0);
+			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
 		});
 	});
 
@@ -317,6 +328,29 @@ suite('ChatDebugServiceImpl', () => {
 
 			const tokenA = tokens.get(sessionA.toString())!;
 			assert.strictEqual(tokenA.isCancellationRequested, false, 'session-a token should not be cancelled');
+		});
+
+		test('should not invoke providers for non-local sessions', async () => {
+			let providerCalled = false;
+
+			const provider: IChatDebugLogProvider = {
+				provideChatDebugLog: async () => {
+					providerCalled = true;
+					return [{
+						kind: 'generic',
+						sessionResource: nonLocalSession,
+						created: new Date(),
+						name: 'should-not-appear',
+						level: ChatDebugLogLevel.Info,
+					}];
+				},
+			};
+
+			disposables.add(service.registerProvider(provider));
+			await service.invokeProviders(nonLocalSession);
+
+			assert.strictEqual(providerCalled, false);
+			assert.strictEqual(service.getEvents(nonLocalSession).length, 0);
 		});
 
 		test('newly registered provider should be invoked for active sessions', async () => {
