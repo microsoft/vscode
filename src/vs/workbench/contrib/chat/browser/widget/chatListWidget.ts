@@ -521,12 +521,6 @@ export class ChatListWidget extends Disposable {
 			return;
 		}
 
-		// Skip refresh when the container is disconnected from the DOM to avoid
-		// caching incorrect measurements (e.g. 0 heights) for tree elements.
-		if (!this._container.isConnected) {
-			return;
-		}
-
 		const items = this._viewModel.getItems();
 		this._lastItem = items.at(-1);
 		this._lastItemIdContextKey.set(this._lastItem ? [this._lastItem.id] : []);
@@ -553,9 +547,6 @@ export class ChatListWidget extends Disposable {
 							// If a response is in the process of progressive rendering, we need to ensure that it will
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
 							`${isResponseVM(element) && element.renderData ? `_${this._visibleChangeCount}` : ''}` +
-							// Re-render when new content parts are added to the response (e.g. question carousels
-							// arriving after progressive rendering caught up and stopped its timer).
-							(isResponseVM(element) ? `_parts${element.response.value.length}` : '') +
 							// Re-render once content references are loaded
 							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
 							// Re-render if element becomes hidden due to undo/redo
