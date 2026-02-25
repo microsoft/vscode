@@ -42,15 +42,21 @@
 }
 
 .sessions-welcome-header .sessions-welcome-icon .codicon {
-	font-size: 64px;
+	font-size: 96px;
 	color: var(--vscode-descriptionForeground);
 }
 
 .sessions-welcome-header h2 {
 	margin: 0;
-	font-size: 20px;
+	font-size: 22px;
 	font-weight: 600;
 	color: var(--vscode-foreground);
+}
+
+.sessions-welcome-header .sessions-welcome-subtitle {
+	margin: 0;
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
 }
 
 /* ---- Action Area ---- */
@@ -60,11 +66,13 @@
 	flex-direction: column;
 	align-items: center;
 	gap: 10px;
-	width: 280px;
+	width: 320px;
 }
 
 .sessions-welcome-action-area .monaco-button {
 	width: 100%;
+	padding: 10px 16px;
+	font-size: 14px;
 }
 
 /* ---- Spinner ---- */
