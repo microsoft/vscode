@@ -110,7 +110,7 @@ export class ChatDebugLogsView extends Disposable {
 
 		// View mode toggle
 		this.viewModeToggle = this._register(new Button(this.headerContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.toggleViewMode', "Toggle between list and tree view") }));
-		this.viewModeToggle.element.classList.add('chat-debug-view-mode-toggle');
+		this.viewModeToggle.element.classList.add('chat-debug-view-mode-toggle', 'monaco-text-button');
 		this.updateViewModeToggle();
 		this._register(this.viewModeToggle.onDidClick(() => {
 			this.toggleViewMode();

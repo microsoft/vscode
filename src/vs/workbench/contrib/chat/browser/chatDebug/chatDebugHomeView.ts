@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -26,7 +25,6 @@ export class ChatDebugHomeView extends Disposable {
 
 	readonly container: HTMLElement;
 	private readonly scrollContent: HTMLElement;
-	private readonly scrollable: DomScrollableElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -37,9 +35,7 @@ export class ChatDebugHomeView extends Disposable {
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-home'));
-		this.scrollContent = $('div.chat-debug-home-content');
-		this.scrollable = this._register(new DomScrollableElement(this.scrollContent, {}));
-		DOM.append(this.container, this.scrollable.getDomNode());
+		this.scrollContent = DOM.append(this.container, $('div.chat-debug-home-content'));
 	}
 
 	show(): void {
@@ -159,7 +155,5 @@ export class ChatDebugHomeView extends Disposable {
 				}
 			}));
 		}
-
-		this.scrollable.scanDomNode();
 	}
 }
