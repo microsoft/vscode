@@ -126,13 +126,6 @@ export class SlashCommandHandler extends Disposable {
 			executeImmediately: true,
 			execute: openSection(AICustomizationManagementSection.McpServers),
 		});
-		this._slashCommands.push({
-			command: 'models',
-			detail: localize('slashCommand.models', "View and manage models"),
-			sortText: 'z3_models',
-			executeImmediately: true,
-			execute: openSection(AICustomizationManagementSection.Models),
-		});
 	}
 
 	private _registerDecorations(): void {

@@ -21,7 +21,7 @@ import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyn
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, workspaceIcon, userIcon, extensionIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, workspaceIcon, userIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -32,6 +32,7 @@ import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getPromptSourceCounts, getSkillSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 interface ICustomizationItemConfig {
 	readonly id: string;
@@ -85,13 +86,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		section: AICustomizationManagementSection.McpServers,
 		getCount: (_lm, mcp) => Promise.resolve(mcp.servers.get().length),
 	},
-	{
-		id: 'sessions.customization.models',
-		label: localize('models', "Models"),
-		icon: Codicon.vm,
-		section: AICustomizationManagementSection.Models,
-		getCount: (lm) => Promise.resolve(lm.getLanguageModelIds().length),
-	},
 ];
 
 /**
@@ -113,6 +107,7 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly _activeSessionService: ISessionsManagementService,
+		@IAICustomizationWorkspaceService private readonly _workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(undefined, action, { ...options, icon: false, label: false });
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -182,7 +177,7 @@ class CustomizationLinkViewItem extends ActionViewItem {
 
 	private _renderSourceCounts(container: HTMLElement, counts: ISourceCounts): void {
 		container.textContent = '';
-		const total = getSourceCountsTotal(counts);
+		const total = getSourceCountsTotal(counts, this._workspaceService);
 		container.classList.toggle('hidden', total === 0);
 		if (total === 0) {
 			return;
@@ -191,7 +186,6 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		const sources: { count: number; icon: ThemeIcon; title: string }[] = [
 			{ count: counts.workspace, icon: workspaceIcon, title: localize('workspaceCount', "{0} from workspace", counts.workspace) },
 			{ count: counts.user, icon: userIcon, title: localize('userCount', "{0} from user", counts.user) },
-			{ count: counts.extension, icon: extensionIcon, title: localize('extensionCount', "{0} from extensions", counts.extension) },
 		];
 
 		for (const source of sources) {
