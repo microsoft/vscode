@@ -164,6 +164,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 		const enableAutoApprove = async (): Promise<boolean> => {
 			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
 			if (inspection.policyValue !== undefined) {
+				if (inspection.policyValue === true) {
+					// Global auto-approve is already enabled by policy; nothing more to do.
+					return true;
+				}
 				notificationService.warn(nls.localize('autoApprove.policyManaged', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
 				return false;
 			}
