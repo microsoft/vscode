@@ -573,15 +573,7 @@ class NewChatWidget extends Disposable {
 	}
 
 	private _initDefaultModel(): void {
-		const currentModel = this._currentLanguageModel.get();
 		const models = this._getAvailableModels();
-
-		// If current model is still available, keep it
-		if (currentModel && models.some(m => m.identifier === currentModel.identifier)) {
-			return;
-		}
-
-		// Try to restore from storage, otherwise pick the first available
 		const lastModelId = this.storageService.get(STORAGE_KEY_LAST_MODEL, StorageScope.PROFILE);
 		const lastModel = lastModelId ? models.find(m => m.identifier === lastModelId) : undefined;
 		if (lastModel) {
