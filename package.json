@@ -154,7 +154,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260130",
     "@vscode/component-explorer": "^0.1.1-12",
     "@vscode/component-explorer-cli": "^0.1.1-8",
-    "@vscode/gulp-electron": "https://github.com/microsoft/vscode-gulp-electron.git#580228be384d7942b39aca6466b5a5050e4744a2",
+    "@vscode/gulp-electron": "1.40.0",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.6",
