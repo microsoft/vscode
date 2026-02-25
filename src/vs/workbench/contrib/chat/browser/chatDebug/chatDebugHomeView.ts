@@ -98,7 +98,11 @@ export class ChatDebugHomeView extends Disposable {
 				DOM.append(item, $(`span${ThemeIcon.asCSSSelector(Codicon.comment)}`));
 
 				const titleSpan = DOM.append(item, $('span.chat-debug-home-session-item-title'));
-				const isShimmering = isUUID(sessionTitle);
+				// Only show shimmer when the title is a UUID AND the model is not
+				// yet loaded. A live session with no requests yet has an empty title but its model exists — show a
+				// placeholder instead of an indefinite spinner.
+				const hasLiveModel = !!this.chatService.getSession(sessionResource);
+				const isShimmering = isUUID(sessionTitle) && !hasLiveModel;
 				if (isShimmering) {
 					titleSpan.classList.add('chat-debug-home-session-item-shimmer');
 					item.disabled = true;
