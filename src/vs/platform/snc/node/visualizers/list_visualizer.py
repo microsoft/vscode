@@ -3,9 +3,9 @@
 import html
 import random
 from math import sqrt
-from typing import Any, Callable, List, Tuple
+from typing import Any, List, Tuple
 
-from visualizer_utils import ChildEvent, wrap_child_html, wrap_child_html_parts, route_child_event, aggregate_handled_keys
+from visualizer_utils import wrap_child_html, route_child_event, aggregate_handled_keys, wrap_child_prefix, wrap_child_suffix
 
 # VS Code theme colors
 BLUE = "#569cd6"
@@ -134,9 +134,14 @@ def _visualize_table(lst, model, get_visualizer, max_width=None, max_height=None
                 if cell_model is None:
                     cell_model = cell_vis.init_model(cell_value, get_visualizer)
                 child_small = (composite_key != focused_child)
-                cell_html = cell_vis.visualize(cell_value, cell_model, get_visualizer, max_width=max_column_width, max_height=80, small=child_small)
+                if hasattr(cell_vis, 'visualize_els'):
+                    cell_htmls = cell_vis.visualize_els(cell_value, cell_model, get_visualizer, max_width=max_column_width, max_height=80, small=child_small)
+                else:
+                    cell_htmls = [cell_vis.visualize(cell_value, cell_model, get_visualizer, max_width=max_column_width, max_height=80, small=child_small)]
                 strs.append('<td style="padding:0 8px;">')
-                strs.extend(wrap_child_html_parts(cell_html, composite_key))
+                strs.append(wrap_child_prefix(composite_key))
+                strs.extend(cell_htmls)
+                strs.append(wrap_child_suffix)
                 strs.append('</td>')
             else:
                 strs.append('<td style="padding:0 8px;"></td>')

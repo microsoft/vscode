@@ -519,6 +519,9 @@ def _repetition_dropdown_html(rep_str: str, segment_index: int, seg_type: str, c
 HTML_ESCAPE_CHARS = '<>&\'"'
 
 def char_span(string, index, is_special, highlight=None, model=None):
+    return ''.join(char_span_els(string, index, is_special, highlight, model))
+
+def char_span_els(string, index, is_special, highlight=None, model=None) -> List[str]:
     """Render a character span with optional selection highlighting.
 
     Args:
@@ -593,7 +596,16 @@ def char_span(string, index, is_special, highlight=None, model=None):
 
     # snc-mouse="5" is shorthand for snc-mouse-move="MouseMove(5)" snc-mouse-down="MouseDown(5)" snc-mouse-up="MouseUp(5)"
     # (this abbreviation speeds up the string visualization quite a bit)
-    return f'{pat_html}<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
+    if styles or pat_html or repetition_html: # yes this branching speeds it up slightly
+        # return f'{pat_html}<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
+        return [pat_html, '<span snc-mouse="', str(index), '" style="padding-right:1px;', styles, '">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span>', repetition_html]
+    else:
+        # Yes, keep {styles} bc string interning, I think
+        # return f'<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>'
+        return ['<span snc-mouse="', str(index), '" style="padding-right:1px;', '">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span>']
+
+
+    # return f'{pat_html}<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
     # index_str = str(index)
     # return f'{pat_html}<span snc-mouse-move="MouseMove({index_str})" snc-mouse-down="MouseDown({index_str})" snc-mouse-up="MouseUp({index_str})" style="color:{GRAY if is_special else STRING};padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
 
@@ -2085,6 +2097,19 @@ def generate_regex_delete_from_pattern(source_code: str, line_number: int, selec
     return '\n'.join(lines)
 
 
+def vis_char_with_index_els(char, i, highlight_by_index, model=None) -> Tuple[List[str], int]:
+    if char == '\n':
+        return ([
+            *char_span_els('$', i, True, highlight_by_index.get(i), model),
+            *char_span_els('\\n', i+1, True, highlight_by_index.get(i+1), model),
+            '\n  ',
+            *char_span_els('^', i+2, True, highlight_by_index.get(i+2), model)
+        ], i + 3)
+    elif char == '\t':
+        return (char_span_els('\\t', i, True, highlight_by_index.get(i), model), i + 1)
+
+    return (char_span_els(char, i, False, highlight_by_index.get(i), model), i + 1)
+
 def vis_char_with_index(char, i, highlight_by_index, model=None):
     """Visualize a character with optional highlighting.
 
@@ -2245,6 +2270,9 @@ def build_preview_regex(model, string_value: str) -> str | None:
 
 
 def visualize(value, model, get_visualizer, max_width=None, max_height=None, small=False) -> str:
+    return ''.join(visualize_els(value, model, get_visualizer, max_width, max_height, small))
+
+def visualize_els(value, model, get_visualizer, max_width=None, max_height=None, small=False) -> List[str]:
 
     # Build highlight_by_index from highlights (uses preview regex to include in-progress selection)
     preview_regex = build_preview_regex(model, value)
@@ -2256,24 +2284,24 @@ def visualize(value, model, get_visualizer, max_width=None, max_height=None, sma
             highlight_by_index[i] = highlight
 
     # Build character sequence with highlighting
-    char_elements = []
+    char_els = []
 
     # Prefix markers are selectable with internal indices 0 (\A) and 1 (^)
-    char_elements.append(char_span('\\A', 0, True, highlight_by_index.get(0), model))
-    char_elements.append(char_span('^', 1, True, highlight_by_index.get(1), model))
+    char_els.append(char_span('\\A', 0, True, highlight_by_index.get(0), model))
+    char_els.append(char_span('^', 1, True, highlight_by_index.get(1), model))
 
     index = 2
     for char in value:
-        char_html, index = vis_char_with_index(char, index, highlight_by_index, model)
-        char_elements.append(char_html)
+        char_htmls, index = vis_char_with_index_els(char, index, highlight_by_index, model)
+        char_els.extend(char_htmls)
 
     # (must match internal index scheme for 1:1 correspondence with extract_by_internal_indices)
-    char_elements.append(char_span('$', index, True, highlight_by_index.get(index), model))
+    char_els.append(char_span('$', index, True, highlight_by_index.get(index), model))
     index += 1
-    char_elements.append(char_span('\\Z', index, True, highlight_by_index.get(index), model))
+    char_els.append(char_span('\\Z', index, True, highlight_by_index.get(index), model))
     index += 1
 
-    # chars_html = ''.join(char_elements)
+    # chars_html = ''.join(char_els)
 
     # Build the search box at the bottom (hidden when small)
     if small:
@@ -2318,11 +2346,11 @@ def visualize(value, model, get_visualizer, max_width=None, max_height=None, sma
 
     # Add tabindex to make div focusable for keyboard events, and snc-key-down handler
     # doing it like this to try to make less string garbage
-    return ''.join([
+    return [
         f'''<div tabindex="0" snc-key-down="{html.escape(repr(KeyDown()))}" style="color: {STRING}; white-space: pre; user-select: none; outline: none;"><div style="{string_div_style}">''',
-        *char_elements,
+        *char_els,
         f'''</div>{search_box_html}</div>''',
-    ])
+    ]
 
 def init_model(value, get_visualizer=None):
     """

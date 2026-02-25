@@ -11,15 +11,10 @@ class ChildEvent:
     child_key: str
     py_ev_str: str
 
+def wrap_child_prefix(child_key: str) -> str:
+    return f'<span snc-child-key="{html.escape(repr(child_key))}">'
 
-def wrap_child_html_parts(child_html: str, child_key: str) -> list:
-    """Like wrap_child_html but returns a list of string fragments.
-
-    Callers building HTML via a single-join pattern can extend their list
-    with these parts instead of concatenating an intermediate string.
-    """
-    return ['<span snc-child-key="', html.escape(repr(child_key)), '">', child_html, '</span>']
-
+wrap_child_suffix = '</span>'
 
 def wrap_child_html(child_html: str, child_key: str) -> str:
     """Wrap child HTML in a span whose snc-child-key attribute holds repr(child_key).
@@ -27,7 +22,7 @@ def wrap_child_html(child_html: str, child_key: str) -> str:
     The TypeScript frontend reads this attribute at event-dispatch time and
     wraps the pythonEventStr in a envelope: ChildEvent(child_key, pythonEventStr).
     """
-    return ''.join(wrap_child_html_parts(child_html, child_key))
+    return f"{wrap_child_prefix(child_key)}{child_html}{wrap_child_suffix}"
 
 
 def route_child_event(
