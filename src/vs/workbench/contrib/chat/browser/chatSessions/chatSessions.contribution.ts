@@ -1038,8 +1038,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		let session: IChatSession;
-		if (sessionResource.path.startsWith('/untitled')) {
-			const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
+		const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
+		if (sessionResource.path.startsWith('/untitled') && newSessionOptions) {
 			session = {
 				sessionResource: sessionResource,
 				onWillDispose: Event.None,
