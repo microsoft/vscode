@@ -309,7 +309,7 @@
 				"--disable-extension=vscode.vscode-api-tests",
 				"--sessions"
 			],
-			"userDataDir": "${userHome}/.vscode-oss-dev",
+			"userDataDir": "${userHome}/.vscode-oss-sessions-dev",
 			"webRoot": "${workspaceFolder}",
 			"cascadeTerminateToConfigurations": [
 				"Attach to Extension Host"
