@@ -12,6 +12,14 @@ import { safeIntl } from '../../../../../base/common/date.js';
 
 const $ = DOM.$;
 
+/** Coerce a value to a string, returning a fallback for null/undefined/non-strings. */
+function safeStr(value: string | undefined | null, fallback: string = ''): string {
+	if (value === null || value === undefined || typeof value !== 'string') {
+		return fallback;
+	}
+	return value;
+}
+
 const dateFormatter = safeIntl.DateTimeFormat(undefined, {
 	month: 'short',
 	day: 'numeric',
@@ -32,30 +40,30 @@ function renderEventToTemplate(element: IChatDebugEvent, templateData: IChatDebu
 
 	switch (element.kind) {
 		case 'toolCall':
-			templateData.name.textContent = element.toolName;
-			templateData.details.textContent = element.result ?? '';
+			templateData.name.textContent = safeStr(element.toolName, localize('chatDebug.unknownEvent', "(unknown)"));
+			templateData.details.textContent = safeStr(element.result);
 			break;
 		case 'modelTurn':
-			templateData.name.textContent = element.model ?? localize('chatDebug.modelTurn', "Model Turn");
+			templateData.name.textContent = safeStr(element.model) || localize('chatDebug.modelTurn', "Model Turn");
 			templateData.details.textContent = element.totalTokens !== undefined
 				? localize('chatDebug.tokens', "{0} tokens", element.totalTokens)
 				: '';
 			break;
 		case 'generic':
-			templateData.name.textContent = element.name;
-			templateData.details.textContent = element.details ?? '';
+			templateData.name.textContent = safeStr(element.name, localize('chatDebug.unknownEvent', "(unknown)"));
+			templateData.details.textContent = safeStr(element.details);
 			break;
 		case 'subagentInvocation':
-			templateData.name.textContent = element.agentName;
-			templateData.details.textContent = element.description ?? (element.status ?? '');
+			templateData.name.textContent = safeStr(element.agentName, localize('chatDebug.unknownEvent', "(unknown)"));
+			templateData.details.textContent = safeStr(element.description) || safeStr(element.status);
 			break;
 		case 'userMessage':
 			templateData.name.textContent = localize('chatDebug.userMessage', "User Message");
-			templateData.details.textContent = element.message;
+			templateData.details.textContent = safeStr(element.message);
 			break;
 		case 'agentResponse':
 			templateData.name.textContent = localize('chatDebug.agentResponse', "Agent Response");
-			templateData.details.textContent = element.message;
+			templateData.details.textContent = safeStr(element.message);
 			break;
 	}
 

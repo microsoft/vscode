@@ -627,14 +627,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!confirmationPrompt?.options.length) {
 			return undefined;
 		}
-		const model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
-		if (!model) {
-			return undefined;
+		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts);
+		let model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
+		if (model) {
+			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
+			model = models[0];
 		}
-
-		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: model.replaceAll('copilot/', '') });
-		if (!models.length) {
-			return undefined;
+		if (!model) {
+			model = await this._getLanguageModel();
 		}
 		const prompt = confirmationPrompt.prompt;
 		const options = confirmationPrompt.options;
@@ -648,13 +648,22 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		this._lastPromptMarker = currentMarker;
 		this._lastPrompt = prompt;
 
-		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
-		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
-		], {}, token);
+		let suggestedOption = '';
+		if (model) {
+			try {
+				const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
+				const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [
+					{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
+				], {}, token);
 
-		const suggestedOption = (await getTextResponseFromStream(response)).trim();
-		const autoReply = this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts);
+				suggestedOption = (await getTextResponseFromStream(response)).trim();
+			} catch (err) {
+				this._logService.trace('OutputMonitor: Failed to get suggested option from model', err);
+			}
+		} else if (!autoReply) {
+			return undefined;
+		}
+
 		let validOption: string;
 		let index: number;
 

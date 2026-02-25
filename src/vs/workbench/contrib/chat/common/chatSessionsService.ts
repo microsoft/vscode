@@ -287,6 +287,9 @@ export interface IChatSessionsService {
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
+
+	getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined;
+	setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void;
 	/**
 	 * Event fired when session options change and need to be sent to the extension.
 	 * MainThreadChatSessions subscribes to this to forward changes to the extension host.

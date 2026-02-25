@@ -6,6 +6,7 @@
 import { derived, IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
@@ -43,7 +44,11 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
-		AICustomizationManagementSection.Models,
+	];
+
+	readonly visibleStorageSources: readonly PromptsStorage[] = [
+		PromptsStorage.local,
+		PromptsStorage.user,
 	];
 
 	readonly preferManualCreation = true;

@@ -3716,6 +3716,40 @@ export class ChatDebugEventMessageContent {
 	}
 }
 
+export class ChatDebugEventToolCallContent {
+	readonly _kind = 'toolCallContent';
+	toolName: string;
+	result?: ChatDebugToolCallResult;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+
+	constructor(toolName: string) {
+		this.toolName = toolName;
+	}
+}
+
+export class ChatDebugEventModelTurnContent {
+	readonly _kind = 'modelTurnContent';
+	requestName: string;
+	model?: string;
+	status?: string;
+	durationInMillis?: number;
+	timeToFirstTokenInMillis?: number;
+	maxInputTokens?: number;
+	maxOutputTokens?: number;
+	inputTokens?: number;
+	outputTokens?: number;
+	cachedTokens?: number;
+	totalTokens?: number;
+	errorMessage?: string;
+	sections?: ChatDebugMessageSection[];
+
+	constructor(requestName: string) {
+		this.requestName = requestName;
+	}
+}
+
 export class ChatSessionChangedFile {
 	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
 }

@@ -43,6 +43,7 @@ export namespace ChatContextKeys {
 	export const inChatEditor = new RawContextKey<boolean>('inChatEditor', false, { type: 'boolean', description: localize('inChatEditor', "Whether focus is in a chat editor.") });
 	export const inChatTodoList = new RawContextKey<boolean>('inChatTodoList', false, { type: 'boolean', description: localize('inChatTodoList', "True when focus is in the chat todo list.") });
 	export const inChatTip = new RawContextKey<boolean>('inChatTip', false, { type: 'boolean', description: localize('inChatTip', "True when focus is in a chat tip.") });
+	export const multipleChatTips = new RawContextKey<boolean>('multipleChatTips', false, { type: 'boolean', description: localize('multipleChatTips', "True when there are multiple chat tips available.") });
 	export const inChatTerminalToolOutput = new RawContextKey<boolean>('inChatTerminalToolOutput', false, { type: 'boolean', description: localize('inChatTerminalToolOutput', "True when focus is in the chat terminal output region.") });
 	export const chatModeKind = new RawContextKey<ChatModeKind>('chatAgentKind', ChatModeKind.Ask, { type: 'string', description: localize('agentKind', "The 'kind' of the current agent.") });
 	export const chatModeName = new RawContextKey<string>('chatModeName', '', { type: 'string', description: localize('chatModeName', "The name of the current chat mode (e.g. 'Plan' for custom modes).") });

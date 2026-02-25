@@ -8,14 +8,29 @@ import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyn
 import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+
 export interface ISourceCounts {
 	readonly workspace: number;
 	readonly user: number;
 	readonly extension: number;
 }
 
-export function getSourceCountsTotal(counts: ISourceCounts): number {
-	return counts.workspace + counts.user + counts.extension;
+const storageToCountKey: Partial<Record<PromptsStorage, keyof ISourceCounts>> = {
+	[PromptsStorage.local]: 'workspace',
+	[PromptsStorage.user]: 'user',
+	[PromptsStorage.extension]: 'extension',
+};
+
+export function getSourceCountsTotal(counts: ISourceCounts, workspaceService: IAICustomizationWorkspaceService): number {
+	let total = 0;
+	for (const storage of workspaceService.visibleStorageSources) {
+		const key = storageToCountKey[storage];
+		if (key) {
+			total += counts[key];
+		}
+	}
+	return total;
 }
 
 export async function getPromptSourceCounts(promptsService: IPromptsService, promptType: PromptsType): Promise<ISourceCounts> {
@@ -43,7 +58,7 @@ export async function getSkillSourceCounts(promptsService: IPromptsService): Pro
 	};
 }
 
-export async function getCustomizationTotalCount(promptsService: IPromptsService, mcpService: IMcpService): Promise<number> {
+export async function getCustomizationTotalCount(promptsService: IPromptsService, mcpService: IMcpService, workspaceService: IAICustomizationWorkspaceService): Promise<number> {
 	const [agentCounts, skillCounts, instructionCounts, promptCounts, hookCounts] = await Promise.all([
 		getPromptSourceCounts(promptsService, PromptsType.agent),
 		getSkillSourceCounts(promptsService),
@@ -52,10 +67,10 @@ export async function getCustomizationTotalCount(promptsService: IPromptsService
 		getPromptSourceCounts(promptsService, PromptsType.hook),
 	]);
 
-	return getSourceCountsTotal(agentCounts)
-		+ getSourceCountsTotal(skillCounts)
-		+ getSourceCountsTotal(instructionCounts)
-		+ getSourceCountsTotal(promptCounts)
-		+ getSourceCountsTotal(hookCounts)
+	return getSourceCountsTotal(agentCounts, workspaceService)
+		+ getSourceCountsTotal(skillCounts, workspaceService)
+		+ getSourceCountsTotal(instructionCounts, workspaceService)
+		+ getSourceCountsTotal(promptCounts, workspaceService)
+		+ getSourceCountsTotal(hookCounts, workspaceService)
 		+ mcpService.servers.get().length;
 }

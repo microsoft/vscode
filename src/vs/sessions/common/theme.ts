@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../nls.js';
-import { registerColor } from '../../platform/theme/common/colorUtils.js';
-import { contrastBorder } from '../../platform/theme/common/colorRegistry.js';
+import { registerColor, transparent } from '../../platform/theme/common/colorUtils.js';
+import { contrastBorder, iconForeground } from '../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../base/common/color.js';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../workbench/common/theme.js';
 
@@ -47,4 +47,11 @@ export const chatBarTitleForeground = registerColor(
 	'chatBarTitle.foreground',
 	SIDE_BAR_FOREGROUND,
 	localize('chatBarTitle.foreground', 'Foreground color of the chat bar title area in the agent sessions window.')
+);
+
+// Agent feedback input widget border color
+export const agentFeedbackInputWidgetBorder = registerColor(
+	'agentFeedbackInputWidget.border',
+	{ dark: transparent(iconForeground, 0.8), light: transparent(iconForeground, 0.8), hcDark: contrastBorder, hcLight: contrastBorder },
+	localize('agentFeedbackInputWidget.border', 'Border color of the agent feedback input widget shown in the editor.')
 );

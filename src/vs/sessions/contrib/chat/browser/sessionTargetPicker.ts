@@ -5,40 +5,16 @@
 
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { Radio } from '../../../../base/browser/ui/radio/radio.js';
-import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
 import { INewSession } from './newSession.js';
-
-/**
- * A dropdown menu action item that shows an icon, a text label, and a chevron.
- */
-class LabeledDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
-	protected override renderLabel(element: HTMLElement): null {
-		const classNames = typeof this.options.classNames === 'string'
-			? this.options.classNames.split(/\s+/g).filter(s => !!s)
-			: (this.options.classNames ?? []);
-		if (classNames.length > 0) {
-			const icon = dom.append(element, dom.$('span'));
-			icon.classList.add('codicon', ...classNames);
-		}
-
-		const label = dom.append(element, dom.$('span.sessions-chat-dropdown-label'));
-		label.textContent = this._action.label;
-
-		dom.append(element, renderIcon(Codicon.chevronDown));
-
-		return null;
-	}
-}
 
 // #region --- Session Target Picker ---
 
@@ -168,15 +144,15 @@ export class IsolationModePicker extends Disposable {
 	readonly onDidChange: Event<IsolationMode> = this._onDidChange.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
-	private _container: HTMLElement | undefined;
-	private _dropdownContainer: HTMLElement | undefined;
+	private _slotElement: HTMLElement | undefined;
+	private _triggerElement: HTMLElement | undefined;
 
 	get isolationMode(): IsolationMode {
 		return this._isolationMode;
 	}
 
 	constructor(
-		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 	) {
 		super();
 	}
@@ -199,66 +175,89 @@ export class IsolationModePicker extends Disposable {
 		} else if (this._isolationMode === 'worktree') {
 			this._setMode('workspace');
 		}
-		this._renderDropdown();
+		this._updateTriggerLabel();
 	}
 
 	/**
-	 * Renders the isolation mode dropdown into the given container.
+	 * Renders the isolation mode picker into the given container.
 	 */
 	render(container: HTMLElement): void {
-		this._container = container;
-		this._dropdownContainer = dom.append(container, dom.$('.sessions-chat-local-mode-left'));
-		this._renderDropdown();
+		this._renderDisposables.clear();
+
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		this._slotElement = slot;
+		this._renderDisposables.add({ dispose: () => slot.remove() });
+
+		const trigger = dom.append(slot, dom.$('a.action-label'));
+		trigger.tabIndex = 0;
+		trigger.role = 'button';
+		this._triggerElement = trigger;
+		this._updateTriggerLabel();
+
+		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
+			dom.EventHelper.stop(e, true);
+			this._showPicker();
+		}));
+
+		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				dom.EventHelper.stop(e, true);
+				this._showPicker();
+			}
+		}));
 	}
 
 	/**
 	 * Shows or hides the picker.
 	 */
 	setVisible(visible: boolean): void {
-		if (this._container) {
-			this._container.style.visibility = visible ? '' : 'hidden';
+		if (this._slotElement) {
+			this._slotElement.style.display = visible ? '' : 'none';
 		}
 	}
 
-	private _renderDropdown(): void {
-		if (!this._dropdownContainer) {
+	private _showPicker(): void {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || !this._repository) {
 			return;
 		}
 
-		this._renderDisposables.clear();
-		dom.clearNode(this._dropdownContainer);
-
-		const modeLabel = this._isolationMode === 'worktree'
-			? localize('isolationMode.worktree', "Worktree")
-			: localize('isolationMode.folder', "Folder");
-		const modeIcon = this._isolationMode === 'worktree' ? Codicon.worktree : Codicon.folder;
-		const isDisabled = !this._repository;
-
-		const modeAction = toAction({ id: 'isolationMode', label: modeLabel, run: () => { } });
-		const modeDropdown = this._renderDisposables.add(new LabeledDropdownMenuActionViewItem(
-			modeAction,
+		const items: IActionListItem<IsolationMode>[] = [
 			{
-				getActions: () => isDisabled ? [] : [
-					toAction({
-						id: 'isolationMode.worktree',
-						label: localize('isolationMode.worktree', "Worktree"),
-						checked: this._isolationMode === 'worktree',
-						run: () => this._setMode('worktree'),
-					}),
-					toAction({
-						id: 'isolationMode.folder',
-						label: localize('isolationMode.folder', "Folder"),
-						checked: this._isolationMode === 'workspace',
-						run: () => this._setMode('workspace'),
-					}),
-				],
+				kind: ActionListItemKind.Action,
+				label: localize('isolationMode.folder', "Folder"),
+				group: { title: '', icon: Codicon.folder },
+				item: 'workspace',
 			},
-			this.contextMenuService,
-			{ classNames: [...ThemeIcon.asClassNameArray(modeIcon)] }
-		));
-		const modeSlot = dom.append(this._dropdownContainer, dom.$('.sessions-chat-picker-slot'));
-		modeDropdown.render(modeSlot);
-		modeSlot.classList.toggle('disabled', isDisabled);
+			{
+				kind: ActionListItemKind.Action,
+				label: localize('isolationMode.worktree', "Worktree"),
+				group: { title: '', icon: Codicon.worktree },
+				item: 'worktree',
+			},
+		];
+
+		const triggerElement = this._triggerElement;
+		const delegate: IActionListDelegate<IsolationMode> = {
+			onSelect: (mode) => {
+				this.actionWidgetService.hide();
+				this._setMode(mode);
+			},
+			onHide: () => { triggerElement.focus(); },
+		};
+
+		this.actionWidgetService.show<IsolationMode>(
+			'isolationModePicker',
+			false,
+			items,
+			delegate,
+			this._triggerElement,
+			undefined,
+			[],
+			{
+				getAriaLabel: (item) => item.label ?? '',
+				getWidgetAriaLabel: () => localize('isolationModePicker.ariaLabel', "Isolation Mode"),
+			},
+		);
 	}
 
 	private _setMode(mode: IsolationMode): void {
@@ -266,8 +265,28 @@ export class IsolationModePicker extends Disposable {
 			this._isolationMode = mode;
 			this._newSession?.setIsolationMode(mode);
 			this._onDidChange.fire(mode);
-			this._renderDropdown();
+			this._updateTriggerLabel();
 		}
+	}
+
+	private _updateTriggerLabel(): void {
+		if (!this._triggerElement) {
+			return;
+		}
+
+		dom.clearNode(this._triggerElement);
+		const isDisabled = !this._repository;
+		const modeIcon = this._isolationMode === 'worktree' ? Codicon.worktree : Codicon.folder;
+		const modeLabel = this._isolationMode === 'worktree'
+			? localize('isolationMode.worktree', "Worktree")
+			: localize('isolationMode.folder', "Folder");
+
+		dom.append(this._triggerElement, renderIcon(modeIcon));
+		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
+		labelSpan.textContent = modeLabel;
+		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		this._slotElement?.classList.toggle('disabled', isDisabled);
 	}
 }
 

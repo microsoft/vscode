@@ -42,7 +42,6 @@ export class PlaywrightTab {
 		page.on('console', event => this._handleConsoleMessage(event))
 			.on('pageerror', error => this._handlePageError(error))
 			.on('requestfailed', request => this._handleRequestFailed(request))
-			.on('filechooser', chooser => this._handleFileChooser(chooser))
 			.on('dialog', dialog => this._handleDialog(dialog))
 			.on('download', download => this._handleDownload(download));
 
@@ -70,7 +69,7 @@ export class PlaywrightTab {
 
 	async replyToDialog(accept?: boolean, promptText?: string) {
 		if (!this._dialog) {
-			throw new Error('No active dialog to respond to');
+			throw new Error('No active modal dialog to respond to');
 		}
 		const dialog = this._dialog;
 		this._dialog = undefined;
@@ -90,7 +89,7 @@ export class PlaywrightTab {
 
 	async replyToFileChooser(files: string[]) {
 		if (!this._fileChooser) {
-			throw new Error('No active file chooser to respond to');
+			throw new Error('No active file chooser dialog to respond to');
 		}
 		const chooser = this._fileChooser;
 		this._fileChooser = undefined;
@@ -118,8 +117,12 @@ export class PlaywrightTab {
 
 	/**
 	 * Run a callback against the page and wait for it to complete.
+	 *
 	 * Because dialogs pause the page, execution races against any dialog that opens -- if a dialog
 	 * appears before the callback finishes, the method throws so the caller can surface it to the agent.
+	 *
+	 * Also allows for interactions to be handled differently when triggered by agents.
+	 * E.g. file dialogs should appear when the user triggers one, but not when the agent does.
 	 */
 	async safeRunAgainstPage<T>(action: (page: playwright.Page, token: CancellationToken) => Promise<T>): Promise<T> {
 		if (this._dialog) {
@@ -130,8 +133,20 @@ export class PlaywrightTab {
 		let result: T | void;
 		const dialogOpened = Event.toPromise(this._onDialogStateChanged.event);
 		const actionCompleted = createCancelablePromise(async (token) => {
-			result = await this.runAndWaitForCompletion((token) => action(this.page, token), token);
-			actionDidComplete = true;
+
+			// Whenever the page has a `filechooser` handler, the default file chooser is disabled.
+			// We don't want this during normal user interactions, but we do for agentic interactions.
+			// So we add a handler just during the action, and remove it afterwards.
+			// This isn't perfect (e.g. the user could trigger it while an action is running), but it's a best effort.
+			const handleFileChooser = (chooser: playwright.FileChooser) => this._handleFileChooser(chooser);
+			this.page.on('filechooser', handleFileChooser);
+
+			try {
+				result = await this.runAndWaitForCompletion((token) => action(this.page, token), token);
+				actionDidComplete = true;
+			} finally {
+				this.page.off('filechooser', handleFileChooser);
+			}
 		});
 
 		return raceCancellablePromises([dialogOpened, actionCompleted]).then(() => {

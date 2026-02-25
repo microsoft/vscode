@@ -3,32 +3,123 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import './media/welcomeOverlay.css';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { $, append } from '../../../../base/browser/dom.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Button } from '../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { ISessionsWelcomeService } from '../common/sessionsWelcomeService.js';
-import { SessionsWelcomeService } from './sessionsWelcomeService.js';
-import { SessionsWelcomeOverlay } from './sessionsWelcomeOverlay.js';
-import { CopilotChatInstallStep } from './steps/copilotChatInstallStep.js';
-import { GitHubSignInStep } from './steps/gitHubSignInStep.js';
-import { SessionsWelcomeCompleteContext } from '../../../common/contextkeys.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
-// Register the service
-registerSingleton(ISessionsWelcomeService, SessionsWelcomeService, InstantiationType.Eager);
+class SessionsWelcomeOverlay extends Disposable {
+
+	private readonly overlay: HTMLElement;
+
+	constructor(
+		container: HTMLElement,
+		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+
+		this.overlay = append(container, $('.sessions-welcome-overlay'));
+		this.overlay.setAttribute('role', 'dialog');
+		this.overlay.setAttribute('aria-modal', 'true');
+		this.overlay.setAttribute('aria-label', localize('welcomeOverlay.aria', "Sign in to use Sessions"));
+		this._register(toDisposable(() => this.overlay.remove()));
+
+		const card = append(this.overlay, $('.sessions-welcome-card'));
+
+		// Header — large icon + title, centered
+		const header = append(card, $('.sessions-welcome-header'));
+		const iconEl = append(header, $('span.sessions-welcome-icon'));
+		iconEl.appendChild(renderIcon(Codicon.agent));
+		append(header, $('h2', undefined, localize('welcomeTitle', "Sign in to use Sessions")));
+		append(header, $('p.sessions-welcome-subtitle', undefined, localize('welcomeSubtitle', "Agent-powered development")));
+
+		// Action area
+		const actionArea = append(card, $('.sessions-welcome-action-area'));
+		const actionButton = this._register(new Button(actionArea, { ...defaultButtonStyles }));
+		actionButton.label = localize('sessions.getStarted', "Get Started");
+
+		const spinnerContainer = append(actionArea, $('.sessions-welcome-spinner'));
+		spinnerContainer.style.display = 'none';
+
+		const errorContainer = append(actionArea, $('p.sessions-welcome-error'));
+		errorContainer.style.display = 'none';
+
+		this._register(actionButton.onDidClick(() => this._runSetup(actionButton, spinnerContainer, errorContainer)));
+
+		// Focus the button so the overlay traps keyboard input
+		actionButton.focus();
+	}
+
+	private async _runSetup(button: Button, spinner: HTMLElement, error: HTMLElement): Promise<void> {
+		button.enabled = false;
+		error.style.display = 'none';
+
+		spinner.textContent = '';
+		spinner.appendChild(renderIcon(Codicon.loading));
+		append(spinner, $('span', undefined, localize('sessions.settingUp', "Setting up…")));
+		spinner.style.display = '';
+
+		try {
+			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
+				dialogIcon: Codicon.agent,
+				dialogTitle: this.chatEntitlementService.anonymous ?
+					localize('sessions.startUsingSessions', "Start using Sessions") :
+					localize('sessions.signinRequired', "Sign in to use Sessions")
+			});
+
+			if (success) {
+				spinner.textContent = '';
+				spinner.appendChild(renderIcon(Codicon.loading));
+				append(spinner, $('span', undefined, localize('sessions.restarting', "Completing setup…")));
+
+				this.logService.info('[sessions welcome] Restarting extension host after setup completion');
+				const stopped = await this.extensionService.stopExtensionHosts(
+					localize('sessionsWelcome.restart', "Completing sessions setup")
+				);
+				if (stopped) {
+					await this.extensionService.startExtensionHosts();
+				}
+			} else {
+				button.enabled = true;
+				spinner.style.display = 'none';
+			}
+		} catch (err) {
+			this.logService.error('[sessions welcome] Setup failed:', err);
+			error.textContent = localize('sessions.setupError', "Something went wrong. Please try again.");
+			error.style.display = '';
+			button.enabled = true;
+			spinner.style.display = 'none';
+		}
+	}
+
+	dismiss(): void {
+		this.overlay.classList.add('sessions-welcome-overlay-dismissed');
+		const handle = setTimeout(() => this.dispose(), 200);
+		this._register(toDisposable(() => clearTimeout(handle)));
+	}
+}
 
 class SessionsWelcomeContribution extends Disposable implements IWorkbenchContribution {
 
@@ -38,92 +129,71 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 	private readonly watcherRef = this._register(new MutableDisposable());
 
 	constructor(
-		@ISessionsWelcomeService private readonly welcomeService: ISessionsWelcomeService,
+		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
-		// Bind context key to the observable
-		this._register(bindContextKey(
-			SessionsWelcomeCompleteContext,
-			this.contextKeyService,
-			reader => this.welcomeService.isComplete.read(reader),
-		));
-
-		// Only proceed if the product is configured with a default chat agent
 		if (!this.productService.defaultChatAgent?.chatExtensionId) {
 			return;
 		}
 
 		const isFirstLaunch = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
-
-		this.registerSteps();
-		this.welcomeService.initialize();
-
 		if (isFirstLaunch) {
-			// First launch: show the welcome overlay immediately
 			this.showOverlay();
 		} else {
-			// Returning user: only show if Copilot Chat is not installed
-			this.showOverlayIfNeededAfterInit();
+			this.showOverlayIfNeeded();
 		}
 	}
 
-	private registerSteps(): void {
-		const stepStore = this._register(new DisposableStore());
-
-		// Step 1: Install Copilot Chat extension
-		const copilotStep = this.instantiationService.createInstance(CopilotChatInstallStep);
-		stepStore.add(this.welcomeService.registerStep(copilotStep));
-
-		// Step 2: Sign in with GitHub
-		const signInStep = this.instantiationService.createInstance(GitHubSignInStep);
-		stepStore.add(signInStep);
-		stepStore.add(this.welcomeService.registerStep(signInStep));
-	}
-
-	private async showOverlayIfNeededAfterInit(): Promise<void> {
-		// Wait for extension host to know what's installed
-		await this.welcomeService.whenInitialized;
-
-		// For returning users, only the Copilot Chat install state is a
-		// reliable trigger. Auth session restore races at startup, so we
-		// don't re-show the overlay just because sign-in hasn't resolved.
-		// If everything is already satisfied, skip.
-		if (this.welcomeService.isComplete.get()) {
-			this.watchForSignOutOrTokenExpiry();
-			return;
+	private showOverlayIfNeeded(): void {
+		if (this._needsChatSetup()) {
+			this.showOverlay();
+		} else {
+			this.watchForRegressions();
 		}
-
-		this.showOverlay();
 	}
 
-	/**
-	 * After the welcome flow has been completed once, watch for sign-out
-	 * or token expiry and re-show the overlay when that happens.
-	 */
-	private watchForSignOutOrTokenExpiry(): void {
-		let wasComplete = this.welcomeService.isComplete.get();
+	private watchForRegressions(): void {
+		let wasComplete = !this._needsChatSetup();
 		this.watcherRef.value = autorun(reader => {
-			const isComplete = this.welcomeService.isComplete.read(reader);
-			if (wasComplete && !isComplete) {
+			this.chatEntitlementService.sentimentObs.read(reader);
+			this.chatEntitlementService.entitlementObs.read(reader);
+
+			const needsSetup = this._needsChatSetup();
+			if (wasComplete && needsSetup) {
 				this.showOverlay();
 			}
-			wasComplete = isComplete;
+			wasComplete = !needsSetup;
 		});
+	}
+
+	private _needsChatSetup(): boolean {
+		const { sentiment, entitlement } = this.chatEntitlementService;
+		if (
+			!sentiment?.installed ||						// Extension not installed: run setup to install
+			sentiment?.disabled ||							// Extension disabled: run setup to enable
+			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
+			(
+				entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
+				!this.chatEntitlementService.anonymous		// unless anonymous access is enabled
+			)
+		) {
+			return true;
+		}
+
+		return false;
 	}
 
 	private showOverlay(): void {
 		if (this.overlayRef.value) {
-			return; // overlay already shown
+			return;
 		}
 
+		this.watcherRef.clear();
 		this.overlayRef.value = new DisposableStore();
 
 		const overlay = this.overlayRef.value.add(this.instantiationService.createInstance(
@@ -131,45 +201,23 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 			this.layoutService.mainContainer,
 		));
 
-		// When all steps are satisfied, restart the extension host (so the
-		// chat extension picks up the auth session cleanly) then dismiss.
-		this.overlayRef.value.add(overlay.onDidDismiss(() => {
-			this.overlayRef.clear();
-			this.watchForSignOutOrTokenExpiry();
-		}));
-
+		// When setup completes (observables flip), dismiss and watch again
 		this.overlayRef.value.add(autorun(reader => {
-			const isComplete = this.welcomeService.isComplete.read(reader);
-			if (!isComplete) {
-				return;
+			this.chatEntitlementService.sentimentObs.read(reader);
+			this.chatEntitlementService.entitlementObs.read(reader);
+
+			if (!this._needsChatSetup()) {
+				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				overlay.dismiss();
+				this.overlayRef.clear();
+				this.watchForRegressions();
 			}
-
-			this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this.restartExtensionHostThenDismiss(overlay);
 		}));
-	}
-
-	/**
-	 * After the welcome flow completes (extension installed + user signed in),
-	 * restart the extension host so the chat extension picks up the new auth
-	 * session cleanly, then dismiss the overlay. The overlay stays visible
-	 * during the restart so the user doesn't see a broken intermediate state.
-	 */
-	private async restartExtensionHostThenDismiss(overlay: SessionsWelcomeOverlay): Promise<void> {
-		this.logService.info('[sessions welcome] Restarting extension host after welcome completion');
-		const stopped = await this.extensionService.stopExtensionHosts(
-			localize('sessionsWelcome.restart', "Completing sessions setup")
-		);
-		if (stopped) {
-			await this.extensionService.startExtensionHosts();
-		}
-		overlay.dismiss();
 	}
 }
 
 registerWorkbenchContribution2(SessionsWelcomeContribution.ID, SessionsWelcomeContribution, WorkbenchPhase.BlockRestore);
 
-// Debug command to reset welcome state so the overlay shows again on next launch
 registerAction2(class extends Action2 {
 	constructor() {
 		super({

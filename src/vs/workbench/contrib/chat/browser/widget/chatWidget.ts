@@ -2076,6 +2076,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.chatSuggestNextWidget.hide();
 		this.chatTipService.resetSession();
 
+		// Switching sessions resets tip service state; clear any rendered tip so
+		// empty-state rendering picks a fresh, context-appropriate tip.
+		this._gettingStartedTipPartRef = undefined;
+		this._gettingStartedTipPart.clear();
+		const tipContainer = this.inputPart.gettingStartedTipContainerElement;
+		dom.clearNode(tipContainer);
+		dom.setVisibility(false, tipContainer);
+
 		this._codeBlockModelCollection.clear();
 
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection, undefined);

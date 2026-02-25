@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import {
@@ -50,6 +51,13 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
+	];
+
+	readonly visibleStorageSources: readonly PromptsStorage[] = [
+		PromptsStorage.local,
+		PromptsStorage.user,
+		PromptsStorage.extension,
+		PromptsStorage.plugin,
 	];
 
 	readonly preferManualCreation = false;

@@ -162,6 +162,15 @@ export class ChatSlashCommandsContribution extends Disposable {
 			}
 		}));
 		const enableAutoApprove = async (): Promise<boolean> => {
+			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
+			if (inspection.policyValue !== undefined) {
+				if (inspection.policyValue === true) {
+					// Global auto-approve is already enabled by policy; nothing more to do.
+					return true;
+				}
+				notificationService.warn(nls.localize('autoApprove.policyManaged', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
+				return false;
+			}
 			const alreadyOptedIn = storageService.getBoolean('chat.tools.global.autoApprove.optIn', StorageScope.APPLICATION, false);
 			if (!alreadyOptedIn) {
 				const result = await dialogService.prompt({
@@ -172,8 +181,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 						{ label: nls.localize('autoApprove.cancel.button', 'Cancel'), run: () => false },
 					],
 					custom: {
-						disableCloseAction: true,
-						markdownDetails: [{ markdown: new MarkdownString(globalAutoApproveDescription.value) }],
+						markdownDetails: [{ markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }) }],
 					}
 				});
 				if (result.result !== true) {
@@ -193,11 +201,22 @@ export class ChatSlashCommandsContribution extends Disposable {
 					if (widget) {
 						widget.acceptInput(trimmed);
 					}
+				} else {
+					// Restore the prompt so the user doesn't lose their input
+					const widget = chatWidgetService.getWidgetBySessionResource(sessionResource);
+					if (widget) {
+						widget.setInput(trimmed);
+					}
 				}
 			} else {
 				// /autoApprove — toggle
 				const isEnabled = configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove);
 				if (isEnabled) {
+					const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
+					if (inspection.policyValue !== undefined) {
+						notificationService.warn(nls.localize('autoApprove.policyManaged', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
+						return;
+					}
 					await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
 					notificationService.info(nls.localize('autoApprove.disabled', "Global auto-approve disabled — tools will require approval"));
 				} else {
@@ -207,7 +226,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		};
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'autoApprove',
-			detail: nls.localize('autoApprove', "Toggle global auto-approval of all tool calls"),
+			detail: nls.localize('autoApprove', "Toggle global auto-approval of all tool calls (alias: /yolo)"),
 			sortText: 'z1_autoApprove',
 			executeImmediately: false,
 			silent: true,
@@ -215,7 +234,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		}, handleAutoApprove));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'yolo',
-			detail: nls.localize('yolo', "Toggle global auto-approval of all tool calls"),
+			detail: nls.localize('yolo', "Toggle global auto-approval of all tool calls (alias: /autoApprove)"),
 			sortText: 'z1_yolo',
 			executeImmediately: false,
 			silent: true,

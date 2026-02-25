@@ -24,7 +24,7 @@ export const HoverElementToolData: IToolData = {
 		properties: {
 			pageId: {
 				type: 'string',
-				description: `The browser page ID, acquired from context or ${OpenPageToolId}.`
+				description: `The browser page ID, acquired from context or the open tool.`
 			},
 			selector: {
 				type: 'string',
