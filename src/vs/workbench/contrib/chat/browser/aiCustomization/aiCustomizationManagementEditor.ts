@@ -7,6 +7,7 @@ import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Delayer } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { Orientation, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
@@ -53,13 +54,13 @@ import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
+import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
@@ -140,7 +141,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private modelsContentContainer: HTMLElement | undefined;
 	private modelsFooterElement: HTMLElement | undefined;
 
-	// Embedded editor state (sessions only — preferManualCreation)
+	// Embedded editor state
 	private editorContentContainer: HTMLElement | undefined;
 	private embeddedEditor: CodeEditorWidget | undefined;
 	private editorItemNameElement!: HTMLElement;
@@ -176,31 +177,29 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@ITextFileService private readonly textFileService: ITextFileService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
 		this.inEditorContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR.bindTo(contextKeyService);
 		this.sectionContextKey = CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION.bindTo(contextKeyService);
 
-		// Track workspace changes for embedded editor (sessions only)
-		if (this.workspaceService.preferManualCreation) {
-			this._register(autorun(reader => {
-				this.workspaceService.activeProjectRoot.read(reader);
-				if (this.viewMode === 'editor') {
-					this.currentEditingProjectRoot = this.workspaceService.getActiveProjectRoot();
-				}
-			}));
-			this._register(toDisposable(() => {
-				this.currentModelRef?.dispose();
-				this.currentModelRef = undefined;
-			}));
-		}
+		// Track workspace changes for embedded editor
+		this._register(autorun(reader => {
+			this.workspaceService.activeProjectRoot.read(reader);
+			if (this.viewMode === 'editor') {
+				this.currentEditingProjectRoot = this.workspaceService.getActiveProjectRoot();
+			}
+		}));
+		this._register(toDisposable(() => {
+			this.currentModelRef?.dispose();
+			this.currentModelRef = undefined;
+		}));
 
 		// Build sections from the workspace service configuration
 		const sectionInfo: Record<string, { label: string; icon: ThemeIcon }> = {
@@ -359,13 +358,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		// Handle item selection
 		this.editorDisposables.add(this.listWidget.onDidSelectItem(item => {
-			if (this.workspaceService.preferManualCreation) {
-				const isWorkspaceFile = item.storage === PromptsStorage.local;
-				const isReadOnly = item.storage === PromptsStorage.extension || item.storage === PromptsStorage.plugin;
-				this.showEmbeddedEditor(item.uri, item.name, isWorkspaceFile, isReadOnly);
-			} else {
-				this.editorService.openEditor({ resource: item.uri });
-			}
+			const isWorkspaceFile = item.storage === PromptsStorage.local;
+			const isReadOnly = item.storage === PromptsStorage.extension || item.storage === PromptsStorage.plugin;
+			this.showEmbeddedEditor(item.uri, item.name, isWorkspaceFile, isReadOnly);
 		}));
 
 		// Handle create actions - AI-guided creation
@@ -412,11 +407,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		}
 
-		// Embedded editor container (sessions only)
-		if (this.workspaceService.preferManualCreation) {
-			this.editorContentContainer = DOM.append(contentInner, $('.editor-content-container'));
-			this.createEmbeddedEditor();
-		}
+		// Embedded editor container
+		this.editorContentContainer = DOM.append(contentInner, $('.editor-content-container'));
+		this.createEmbeddedEditor();
 
 		// Set initial visibility based on selected section
 		this.updateContentVisibility();
@@ -496,27 +489,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 * Creates a new customization using the AI-guided flow.
 	 */
 	private async createNewItemWithAI(type: PromptsType): Promise<void> {
-		this.close();
+		if (this.input) {
+			this.group.closeEditor(this.input);
+		}
 		await this.workspaceService.generateCustomization(type);
 	}
 
 	/**
-	 * Creates a new prompt file and opens it.
-	 * In sessions (preferManualCreation), uses the embedded editor with commit-on-close.
-	 * In core, opens in a regular editor tab.
+	 * Creates a new prompt file and opens it in the embedded editor.
 	 */
 	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user'): Promise<void> {
-		const useEmbeddedEditor = this.workspaceService.preferManualCreation;
 
 		if (type === PromptsType.hook) {
 			const isWorkspace = target === 'workspace';
 			await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
 				openEditor: async (resource) => {
-					if (useEmbeddedEditor) {
-						await this.showEmbeddedEditor(resource, basename(resource), isWorkspace);
-					} else {
-						await this.editorService.openEditor({ resource });
-					}
+					await this.showEmbeddedEditor(resource, basename(resource), isWorkspace);
 					return;
 				},
 			});
@@ -531,14 +519,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			targetFolder: targetDir,
 			targetStorage: target === 'user' ? PromptsStorage.user : PromptsStorage.local,
 			openFile: async (uri) => {
-				if (useEmbeddedEditor) {
-					const isWorkspace = target === 'workspace';
-					await this.showEmbeddedEditor(uri, basename(uri), isWorkspace);
-					return this.embeddedEditor;
-				} else {
-					await this.editorService.openEditor({ resource: uri });
-					return undefined;
-				}
+				const isWorkspace = target === 'workspace';
+				await this.showEmbeddedEditor(uri, basename(uri), isWorkspace);
+				return this.embeddedEditor;
 			},
 		};
 
@@ -626,13 +609,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		void this.listWidget.refresh();
 	}
 
-	private close(): void {
-		if (!this.workspaceService.preferManualCreation && this.input) {
-			this.group.closeEditor(this.input);
-		}
-	}
-
-	//#region Embedded Editor (sessions only)
+	//#region Embedded Editor
 
 	private createEmbeddedEditor(): void {
 		if (!this.editorContentContainer) {
@@ -701,10 +678,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.embeddedEditor!.focus();
 
 			this.editorModelChangeDisposables.clear();
+			const saveDelayer = this.editorModelChangeDisposables.add(new Delayer<void>(500));
 			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
 				this.editorSaveIndicator.className = 'editor-save-indicator visible';
 				this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 				this.editorSaveIndicator.title = localize('saving', "Saving...");
+				saveDelayer.trigger(async () => { await this.textFileService.save(uri); });
 			}));
 			this.editorModelChangeDisposables.add(this.workingCopyService.onDidSave(e => {
 				if (isEqual(e.workingCopy.resource, uri)) {

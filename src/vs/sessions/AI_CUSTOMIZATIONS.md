@@ -56,7 +56,7 @@ The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 |----------|-------------|----------|
 | `managementSections` | All sections except Models | Same |
 | `visibleStorageSources` | workspace, user, extension, plugin | workspace, user only |
-| `preferManualCreation` | `false` (opens file externally) | `true` (embedded editor) |
+| `preferManualCreation` | `false` (AI generation primary) | `true` (file creation primary) |
 | `activeProjectRoot` | First workspace folder | Active session worktree |
 
 ## Key Services
@@ -71,3 +71,11 @@ Browser compatibility is required — no Node.js APIs.
 ## Feature Gating
 
 All commands and UI respect `ChatContextKeys.enabled` and the `chat.customizationsMenu.enabled` setting.
+
+## Settings
+
+Settings use the `chat.customizationsMenu.` namespace:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `chat.customizationsMenu.enabled` | `true` | Show the Chat Customizations editor in the Command Palette |
