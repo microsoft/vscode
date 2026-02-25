@@ -414,7 +414,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		editorInfo.render(data, currentWidth).then(() => {
 			// There is a scenario where we set the model on the editor in a request and the ResizeObserver is not triggered.
-			// Work around it with this targetted onDidHeightChange. But this pattern generally shouldn't be necessary and
+			// Work around it with this targeted onDidHeightChange. But this pattern generally shouldn't be necessary and
 			// shouldn't be copied elsewhere.
 			if (!this._store.isDisposed && isRequestVM(data.element)) {
 				this._onDidChangeHeight.fire();
