@@ -66,6 +66,8 @@ import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
 
 const STORAGE_KEY_LAST_MODEL = 'sessions.selectedModel';
+const MIN_EDITOR_HEIGHT = 50;
+const MAX_EDITOR_HEIGHT = 200;
 
 // #region --- Chat Welcome Widget ---
 
@@ -376,6 +378,7 @@ class NewChatWidget extends Disposable {
 
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
+		editorContainer.style.height = `${MIN_EDITOR_HEIGHT}px`;
 
 		const uri = URI.from({ scheme: 'sessions-chat', path: `input-${Date.now()}` });
 		const textModel = this._register(this.modelService.createModel('', null, uri, true));
@@ -436,9 +439,17 @@ class NewChatWidget extends Disposable {
 			}
 		}));
 
-		this._register(this._editor.onDidContentSizeChange(() => {
+		let previousHeight = -1;
+		this._register(this._editor.onDidContentSizeChange(e => {
+			if (!e.contentHeightChanged) {
+				return;
+			}
 			const contentHeight = this._editor.getContentHeight();
-			const clampedHeight = Math.min(200, Math.max(50, contentHeight));
+			const clampedHeight = Math.min(MAX_EDITOR_HEIGHT, Math.max(MIN_EDITOR_HEIGHT, contentHeight));
+			if (clampedHeight === previousHeight) {
+				return;
+			}
+			previousHeight = clampedHeight;
 			this._editorContainer.style.height = `${clampedHeight}px`;
 			this._editor.layout();
 		}));
