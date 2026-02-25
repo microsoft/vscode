@@ -247,9 +247,22 @@ export interface IChatDebugEventMessageContent {
 }
 
 /**
+ * Structured tool call content for a resolved debug event.
+ * Contains the tool name, status, arguments, and output for rich rendering.
+ */
+export interface IChatDebugEventToolCallContent {
+	readonly kind: 'toolCall';
+	readonly toolName: string;
+	readonly result?: 'success' | 'error';
+	readonly durationInMillis?: number;
+	readonly input?: string;
+	readonly output?: string;
+}
+
+/**
  * Union of all resolved event content types.
  */
-export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent;
+export type IChatDebugResolvedEventContent = IChatDebugEventTextContent | IChatDebugEventFileListContent | IChatDebugEventMessageContent | IChatDebugEventToolCallContent;
 
 /**
  * Provider interface for debug events.

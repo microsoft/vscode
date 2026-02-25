@@ -22,6 +22,7 @@ import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugServic
 import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
 import { renderFileListContent, fileListToPlainText } from './chatDebugFileListRenderer.js';
 import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
+import { renderToolCallContent, toolCallContentToPlainText } from './chatDebugToolCallContentRenderer.js';
 
 const $ = DOM.$;
 
@@ -114,6 +115,17 @@ export class ChatDebugDetailPanel extends Disposable {
 			const { element: contentEl, disposables: contentDisposables } = this.instantiationService.invokeFunction(accessor =>
 				renderFileListContent(resolved, this.openerService, accessor.get(IModelService), accessor.get(ILanguageService), this.hoverService, accessor.get(ILabelService))
 			);
+			this.detailDisposables.add(contentDisposables);
+			this.element.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'toolCall') {
+			this.currentDetailText = toolCallContentToPlainText(resolved);
+			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
+			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, languageService);
+			if (this.currentDetailEventId !== event.id) {
+				// Another event was selected while we were rendering
+				contentDisposables.dispose();
+				return;
+			}
 			this.detailDisposables.add(contentDisposables);
 			this.element.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'message') {

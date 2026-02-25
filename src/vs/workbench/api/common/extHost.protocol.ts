@@ -1470,7 +1470,16 @@ export interface IChatDebugEventMessageContentDto {
 	readonly sections: readonly IChatDebugMessageSectionDto[];
 }
 
-export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | IChatDebugEventMessageContentDto;
+export interface IChatDebugEventToolCallContentDto {
+	readonly kind: 'toolCall';
+	readonly toolName: string;
+	readonly result?: 'success' | 'error';
+	readonly durationInMillis?: number;
+	readonly input?: string;
+	readonly output?: string;
+}
+
+export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | IChatDebugEventMessageContentDto | IChatDebugEventToolCallContentDto;
 
 export interface ExtHostChatDebugShape {
 	$provideChatDebugLog(handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<IChatDebugEventDto[] | undefined>;

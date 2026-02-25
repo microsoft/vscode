@@ -448,12 +448,49 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Structured tool call content for a resolved chat debug event,
+	 * containing the tool name, status, arguments, and output for rich rendering.
+	 */
+	export class ChatDebugEventToolCallContent {
+		/**
+		 * The name of the tool that was called.
+		 */
+		toolName: string;
+
+		/**
+		 * The outcome of the tool call (e.g., "success" or "error").
+		 */
+		result?: ChatDebugToolCallResult;
+
+		/**
+		 * How long the tool call took to complete, in milliseconds.
+		 */
+		durationInMillis?: number;
+
+		/**
+		 * The serialized input (arguments) passed to the tool.
+		 */
+		input?: string;
+
+		/**
+		 * The serialized output (result) returned by the tool.
+		 */
+		output?: string;
+
+		/**
+		 * Create a new ChatDebugEventToolCallContent.
+		 * @param toolName The name of the tool that was called.
+		 */
+		constructor(toolName: string);
+	}
+
+	/**
 	 * Union of all resolved event content types.
 	 * Extensions may also return {@link ChatDebugUserMessageEvent} or
 	 * {@link ChatDebugAgentResponseEvent} from resolve, which will be
 	 * automatically converted to structured message content.
 	 */
-	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
+	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugEventToolCallContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
 
 	/**
 	 * Union of all chat debug event types. Each type is a class,

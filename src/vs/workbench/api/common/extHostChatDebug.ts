@@ -252,6 +252,19 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					sections: msg.sections.map(s => ({ name: s.name, content: s.content })),
 				};
 			}
+			case 'toolCallContent': {
+				const tc = result as vscode.ChatDebugEventToolCallContent;
+				return {
+					kind: 'toolCall',
+					toolName: tc.toolName,
+					result: tc.result === ChatDebugToolCallResult.Success ? 'success'
+						: tc.result === ChatDebugToolCallResult.Error ? 'error'
+							: undefined,
+					durationInMillis: tc.durationInMillis,
+					input: tc.input,
+					output: tc.output,
+				};
+			}
 			default:
 				return undefined;
 		}
