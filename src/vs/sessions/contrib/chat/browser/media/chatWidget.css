@@ -38,11 +38,9 @@
 }
 
 /* Editor */
+/* Height constraints are driven by MIN_EDITOR_HEIGHT / MAX_EDITOR_HEIGHT in newChatViewPane.ts */
 .sessions-chat-editor {
 	padding: 0 6px 6px 6px;
-	height: 50px;
-	min-height: 36px;
-	max-height: 200px;
 	flex-shrink: 1;
 }
 
@@ -64,6 +62,12 @@
 
 .sessions-chat-toolbar-spacer {
 	flex: 1;
+}
+
+.sessions-chat-toolbar-pickers {
+	display: flex;
+	align-items: center;
+	gap: 4px;
 }
 
 /* Model picker - uses workbench ModelPickerActionItem */

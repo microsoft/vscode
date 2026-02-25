@@ -6,15 +6,23 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IsolationMode } from './sessionTargetPicker.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
 export type NewSessionChangeType = 'repoUri' | 'isolationMode' | 'branch' | 'options' | 'disabled';
+
+/**
+ * Represents a resolved option group with its current selected value.
+ */
+export interface ISessionOptionGroup {
+	readonly group: IChatSessionProviderOptionGroup;
+	readonly value: IChatSessionProviderOptionItem | undefined;
+}
 
 /**
  * A new session represents a session being configured before the first
@@ -85,8 +93,8 @@ export class LocalNewSession extends Disposable implements INewSession {
 	constructor(
 		readonly resource: URI,
 		defaultRepoUri: URI | undefined,
-		private readonly chatSessionsService: IChatSessionsService,
-		private readonly logService: ILogService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		if (defaultRepoUri) {
@@ -149,13 +157,12 @@ export class LocalNewSession extends Disposable implements INewSession {
 
 /**
  * Remote new session for Cloud agent sessions.
- * Fires `onDidChange` and notifies the extension service when `repoUri` changes.
- * Ignores `isolationMode` (not relevant for cloud).
+ * Manages extension-driven option groups (models, etc.) and their values.
+ * Fires events for option group changes.
  */
 export class RemoteNewSession extends Disposable implements INewSession {
 
 	private _repoUri: URI | undefined;
-	private _isolationMode: IsolationMode = 'worktree';
 	private _modelId: string | undefined;
 	private _query: string | undefined;
 	private _attachedContext: IChatRequestVariableEntry[] | undefined;
@@ -163,33 +170,42 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	private readonly _onDidChange = this._register(new Emitter<NewSessionChangeType>());
 	readonly onDidChange: Event<NewSessionChangeType> = this._onDidChange.event;
 
+	private readonly _onDidChangeOptionGroups = this._register(new Emitter<void>());
+	readonly onDidChangeOptionGroups: Event<void> = this._onDidChangeOptionGroups.event;
+
 	readonly selectedOptions = new Map<string, IChatSessionProviderOptionItem>();
 
 	get repoUri(): URI | undefined { return this._repoUri; }
-	get isolationMode(): IsolationMode { return this._isolationMode; }
+	get isolationMode(): IsolationMode { return 'worktree'; }
 	get branch(): string | undefined { return undefined; }
 	get modelId(): string | undefined { return this._modelId; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 	get disabled(): boolean {
-		return !this._repoUri && !this._hasRepositoryOption();
+		return !this._repoUri && !this.selectedOptions.has('repositories');
 	}
+
+	private readonly _whenClauseKeys = new Set<string>();
 
 	constructor(
 		readonly resource: URI,
 		readonly target: AgentSessionProviders,
-		private readonly chatSessionsService: IChatSessionsService,
-		private readonly logService: ILogService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
-		// Listen for extension-driven option group and session option changes
+		this._updateWhenClauseKeys();
+
 		this._register(this.chatSessionsService.onDidChangeOptionGroups(() => {
+			this._updateWhenClauseKeys();
+			this._onDidChangeOptionGroups.fire();
 			this._onDidChange.fire('options');
 		}));
-		this._register(this.chatSessionsService.onDidChangeSessionOptions((e: URI | undefined) => {
-			if (isEqual(this.resource, e)) {
-				this._onDidChange.fire('options');
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (this._whenClauseKeys.size > 0 && e.affectsSome(this._whenClauseKeys)) {
+				this._onDidChangeOptionGroups.fire();
 			}
 		}));
 	}
@@ -202,11 +218,11 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	}
 
 	setIsolationMode(_mode: IsolationMode): void {
-		// No-op for remote sessions — isolation mode is not relevant
+		// No-op for remote sessions
 	}
 
 	setBranch(_branch: string | undefined): void {
-		// No-op for remote sessions — branch is not relevant
+		// No-op for remote sessions
 	}
 
 	setModelId(modelId: string | undefined): void {
@@ -233,7 +249,99 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		).catch((err) => this.logService.error(`Failed to notify extension of ${optionId} change:`, err));
 	}
 
-	private _hasRepositoryOption(): boolean {
-		return this.selectedOptions.has('repositories');
+	// --- Option group accessors ---
+
+	getModelOptionGroup(): ISessionOptionGroup | undefined {
+		const groups = this._getOptionGroups();
+		if (!groups) {
+			return undefined;
+		}
+		const group = groups.find(g => isModelOptionGroup(g));
+		if (!group) {
+			return undefined;
+		}
+		return { group, value: this._getValueForGroup(group) };
 	}
+
+	getOtherOptionGroups(): ISessionOptionGroup[] {
+		const groups = this._getOptionGroups();
+		if (!groups) {
+			return [];
+		}
+		return groups
+			.filter(g => !isModelOptionGroup(g) && !isRepositoriesOptionGroup(g) && this._isOptionGroupVisible(g))
+			.map(g => ({ group: g, value: this._getValueForGroup(g) }));
+	}
+
+	getOptionValue(groupId: string): IChatSessionProviderOptionItem | undefined {
+		return this.selectedOptions.get(groupId);
+	}
+
+	setOptionValue(groupId: string, value: IChatSessionProviderOptionItem): void {
+		this.setOption(groupId, value);
+	}
+
+	// --- Internals ---
+
+	private _getOptionGroups(): IChatSessionProviderOptionGroup[] | undefined {
+		return this.chatSessionsService.getOptionGroupsForSessionType(this.target);
+	}
+
+	private _isOptionGroupVisible(group: IChatSessionProviderOptionGroup): boolean {
+		if (!group.when) {
+			return true;
+		}
+		const expr = ContextKeyExpr.deserialize(group.when);
+		return !expr || this.contextKeyService.contextMatchesRules(expr);
+	}
+
+	private _updateWhenClauseKeys(): void {
+		this._whenClauseKeys.clear();
+		const groups = this._getOptionGroups();
+		if (!groups) {
+			return;
+		}
+		for (const group of groups) {
+			if (group.when) {
+				const expr = ContextKeyExpr.deserialize(group.when);
+				if (expr) {
+					for (const key of expr.keys()) {
+						this._whenClauseKeys.add(key);
+					}
+				}
+			}
+		}
+	}
+
+	private _getValueForGroup(group: IChatSessionProviderOptionGroup): IChatSessionProviderOptionItem | undefined {
+		const selected = this.selectedOptions.get(group.id);
+		if (selected) {
+			return selected;
+		}
+		// Check for extension-set session option
+		const sessionOption = this.chatSessionsService.getSessionOption(this.resource, group.id);
+		if (sessionOption && typeof sessionOption !== 'string') {
+			return sessionOption;
+		}
+		if (typeof sessionOption === 'string') {
+			const item = group.items.find(i => i.id === sessionOption.trim());
+			if (item) {
+				return item;
+			}
+		}
+		// Default to first item marked as default, or first item
+		return group.items.find(i => i.default === true) ?? group.items[0];
+	}
+}
+
+function isModelOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
+	if (group.id === 'models') {
+		return true;
+	}
+	const nameLower = group.name.toLowerCase();
+	return nameLower === 'model' || nameLower === 'models';
+}
+
+function isRepositoriesOptionGroup(group: IChatSessionProviderOptionGroup): boolean {
+	return group.id === 'repositories';
 }

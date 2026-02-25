@@ -294,7 +294,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	private readonly _onDidChangeNavigation = this._register(new Emitter<IModalEditorNavigation | undefined>());
 	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
 
-	private _maximized = false;
+	private _maximized: boolean;
 	get maximized(): boolean { return this._maximized; }
 
 	private _navigation: IModalEditorNavigation | undefined;
@@ -320,6 +320,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		const id = ModalEditorPartImpl.COUNTER++;
 		super(editorPartsView, `workbench.parts.modalEditor.${id}`, localize('modalEditorPart', "Modal Editor Area"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 
+		this._maximized = options?.maximized ?? false;
 		this._navigation = options?.navigation;
 
 		this.enforceModalPartOptions();
@@ -350,6 +351,10 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	}
 
 	updateOptions(options?: IModalEditorPartOptions): void {
+		if (typeof options?.maximized === 'boolean' && options.maximized !== this._maximized) {
+			this.toggleMaximized();
+		}
+
 		this._navigation = options?.navigation;
 
 		this._onDidChangeNavigation.fire(options?.navigation);

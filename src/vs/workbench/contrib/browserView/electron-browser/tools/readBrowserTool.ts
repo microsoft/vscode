@@ -26,7 +26,7 @@ export const ReadBrowserToolData: IToolData = {
 		properties: {
 			pageId: {
 				type: 'string',
-				description: `The browser page ID to read, acquired from context or ${OpenPageToolId}.`
+				description: `The browser page ID to read, acquired from context or the open tool.`
 			},
 		},
 		required: ['pageId'],

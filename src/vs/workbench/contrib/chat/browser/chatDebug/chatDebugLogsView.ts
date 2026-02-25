@@ -21,7 +21,7 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
-import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
+import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer } from './chatDebugEventList.js';
@@ -110,7 +110,7 @@ export class ChatDebugLogsView extends Disposable {
 
 		// View mode toggle
 		this.viewModeToggle = this._register(new Button(this.headerContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.toggleViewMode', "Toggle between list and tree view") }));
-		this.viewModeToggle.element.classList.add('chat-debug-view-mode-toggle');
+		this.viewModeToggle.element.classList.add('chat-debug-view-mode-toggle', 'monaco-text-button');
 		this.updateViewModeToggle();
 		this._register(this.viewModeToggle.onDidClick(() => {
 			this.toggleViewMode();
@@ -265,7 +265,7 @@ export class ChatDebugLogsView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Chat Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
 			new TextBreadcrumbItem(sessionTitle, true),
 			new TextBreadcrumbItem(localize('chatDebug.logs', "Logs")),
 		]);
@@ -290,23 +290,11 @@ export class ChatDebugLogsView extends Disposable {
 	refreshList(): void {
 		let filtered = this.events;
 
-		// Filter by kind toggles
-		filtered = filtered.filter(e => this.filterState.isKindVisible(e.kind));
-
-		// Filter by level toggles
+		// Filter by kind toggles (pass category for generic events so only
+		// discovery-category events are affected by the Prompt Discovery toggle)
 		filtered = filtered.filter(e => {
-			if (e.kind === 'generic') {
-				switch (e.level) {
-					case ChatDebugLogLevel.Trace: return this.filterState.filterLevelTrace;
-					case ChatDebugLogLevel.Info: return this.filterState.filterLevelInfo;
-					case ChatDebugLogLevel.Warning: return this.filterState.filterLevelWarning;
-					case ChatDebugLogLevel.Error: return this.filterState.filterLevelError;
-				}
-			}
-			if (e.kind === 'toolCall' && e.result === 'error') {
-				return this.filterState.filterLevelError;
-			}
-			return true;
+			const category = e.kind === 'generic' ? e.category : undefined;
+			return this.filterState.isKindVisible(e.kind, category);
 		});
 
 		// Filter by text search

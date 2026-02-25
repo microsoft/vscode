@@ -22,7 +22,7 @@
 	.chat-welcome-view .chat-welcome-view-message,
 	.chat-welcome-view .chat-welcome-view-disclaimer,
 	.chat-welcome-view .chat-welcome-view-tips {
-		visibility: hidden;
+		display: none;
 	}
 }
 

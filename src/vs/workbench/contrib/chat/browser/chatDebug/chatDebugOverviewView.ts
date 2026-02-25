@@ -6,7 +6,6 @@
 import * as DOM from '../../../../../base/browser/dom.js';
 import { BreadcrumbsWidget } from '../../../../../base/browser/ui/breadcrumbs/breadcrumbsWidget.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -37,7 +36,6 @@ export class ChatDebugOverviewView extends Disposable {
 
 	readonly container: HTMLElement;
 	private readonly content: HTMLElement;
-	private readonly scrollable: DomScrollableElement;
 	private readonly breadcrumbWidget: BreadcrumbsWidget;
 	private readonly loadDisposables = this._register(new DisposableStore());
 
@@ -71,12 +69,7 @@ export class ChatDebugOverviewView extends Disposable {
 			}
 		}));
 
-		this.content = $('.chat-debug-overview-content');
-		this.scrollable = this._register(new DomScrollableElement(this.content, {}));
-		const scrollDom = this.scrollable.getDomNode();
-		scrollDom.style.flex = '1';
-		scrollDom.style.minHeight = '0';
-		DOM.append(this.container, scrollDom);
+		this.content = DOM.append(this.container, $('.chat-debug-overview-content'));
 	}
 
 	setSession(sessionResource: URI): void {
@@ -113,7 +106,7 @@ export class ChatDebugOverviewView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Chat Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
 			new TextBreadcrumbItem(sessionTitle),
 		]);
 	}
@@ -152,7 +145,6 @@ export class ChatDebugOverviewView extends Disposable {
 		const events = this.chatDebugService.getEvents(this.currentSessionResource);
 		this.renderDerivedOverview(events, this.isFirstLoad);
 		this.isFirstLoad = false;
-		this.scrollable.scanDomNode();
 	}
 
 	private renderSessionDetails(sessionUri: URI): void {
