@@ -25,7 +25,7 @@ function getHookTypeToCopilotCliNameMap(): Map<HookType, string> {
  * Resolves a Copilot CLI hook type name to our abstract HookType.
  */
 export function resolveCopilotCliHookType(name: string): HookType | undefined {
-	return COPILOT_CLI_HOOK_TYPE_MAP[name];
+	return (COPILOT_CLI_HOOK_TYPE_MAP as Record<string, HookType>)[name];
 }
 
 /**
