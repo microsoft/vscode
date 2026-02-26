@@ -57,7 +57,6 @@ import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWo
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
@@ -181,7 +180,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILayoutService private readonly layoutService: ILayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IPathService private readonly pathService: IPathService,
@@ -634,7 +632,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorSaveIndicator = DOM.append(editorHeader, $('.editor-save-indicator'));
 
 		const embeddedEditorContainer = DOM.append(this.editorContentContainer, $('.embedded-editor-container'));
-		const overflowWidgetsDomNode = this.layoutService.getContainer(DOM.getWindow(embeddedEditorContainer)).appendChild($('.embedded-editor-overflow-widgets.monaco-editor'));
+		const overflowWidgetsDomNode = DOM.append(this.editorContentContainer, $('.embedded-editor-overflow-widgets.monaco-editor'));
 		this.editorDisposables.add(toDisposable(() => overflowWidgetsDomNode.remove()));
 
 		this.embeddedEditor = this.editorDisposables.add(this.instantiationService.createInstance(
