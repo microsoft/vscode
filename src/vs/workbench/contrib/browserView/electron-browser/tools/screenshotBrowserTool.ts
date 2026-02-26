@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
@@ -54,7 +54,7 @@ interface IScreenshotBrowserToolParams {
 
 export class ScreenshotBrowserTool implements IToolImpl {
 	constructor(
-		@IBrowserViewWorkbenchService private readonly browserViewMainService: IBrowserViewWorkbenchService,
+		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 	) { }
 
@@ -79,7 +79,7 @@ export class ScreenshotBrowserTool implements IToolImpl {
 
 		// Note that we don't use Playwright's screenshot methods because they cause brief flashing on the page,
 		// and also doesn't handle zooming well.
-		const browserViewModel = await this.browserViewMainService.getBrowserViewModel(params.pageId); // Throws if the given pageId doesn't exist
+		const browserViewModel = await this.browserViewWorkbenchService.getBrowserViewModel(params.pageId); // Throws if the given pageId doesn't exist
 		const bounds = selector && await playwrightInvokeRaw(this.playwrightService, params.pageId, async (page, selector, scrollIntoViewIfNeeded) => {
 			const locator = page.locator(selector);
 			if (scrollIntoViewIfNeeded) {
