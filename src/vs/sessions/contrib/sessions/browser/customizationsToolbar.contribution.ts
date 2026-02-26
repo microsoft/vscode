@@ -5,7 +5,6 @@
 
 import '../../../browser/media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -21,7 +20,7 @@ import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyn
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, workspaceIcon, userIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, skillIcon, hookIcon, workspaceIcon, userIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -68,26 +67,13 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.instructions, ex),
 	},
 	{
-		id: 'sessions.customization.prompts',
-		label: localize('prompts', "Prompts"),
-		icon: promptIcon,
-		section: AICustomizationManagementSection.Prompts,
-		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.prompt, ex),
-	},
-	{
 		id: 'sessions.customization.hooks',
 		label: localize('hooks', "Hooks"),
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.hook, ex),
 	},
-	{
-		id: 'sessions.customization.mcpServers',
-		label: localize('mcpServers', "MCP Servers"),
-		icon: Codicon.server,
-		section: AICustomizationManagementSection.McpServers,
-		getCount: (_lm, mcp) => Promise.resolve(mcp.servers.get().length),
-	},
+	// TODO: Re-enable MCP Servers once CLI MCP configuration is unified with VS Code
 ];
 
 /**
