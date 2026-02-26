@@ -31,7 +31,7 @@ export class MockPromptsService implements IPromptsService {
 		this._onDidChangeCustomChatModes.fire();
 	}
 
-	async getCustomAgents(token: CancellationToken, sessionId?: string): Promise<readonly ICustomAgent[]> {
+	async getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]> {
 		return this._customModes;
 	}
 
@@ -50,7 +50,7 @@ export class MockPromptsService implements IPromptsService {
 	resolvePromptSlashCommand(command: string, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	get onDidChangeSlashCommands(): Event<void> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getPromptSlashCommands(_token: CancellationToken, _sessionId?: string): Promise<any[]> { throw new Error('Not implemented'); }
+	getPromptSlashCommands(_token: CancellationToken, _sessionResource?: URI): Promise<any[]> { throw new Error('Not implemented'); }
 	getPromptSlashCommandName(uri: URI, _token: CancellationToken): Promise<string> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parse(_uri: URI, _type: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
@@ -65,11 +65,11 @@ export class MockPromptsService implements IPromptsService {
 	getDisabledPromptFiles(type: PromptsType): ResourceSet { throw new Error('Method not implemented.'); }
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void { throw new Error('Method not implemented.'); }
 	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: { providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined> }): IDisposable { throw new Error('Method not implemented.'); }
-	findAgentSkills(token: CancellationToken, sessionId?: string): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
+	findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getPromptDiscoveryInfo(_type: any, _token: CancellationToken, _sessionId?: string): Promise<any> { throw new Error('Method not implemented.'); }
+	getPromptDiscoveryInfo(_type: any, _token: CancellationToken, _sessionResource?: URI): Promise<any> { throw new Error('Method not implemented.'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getHooks(_token: CancellationToken): Promise<any> { throw new Error('Method not implemented.'); }
-	getInstructionFiles(_token: CancellationToken, _sessionId?: string): Promise<readonly IPromptPath[]> { throw new Error('Method not implemented.'); }
+	getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<any> { throw new Error('Method not implemented.'); }
+	getInstructionFiles(_token: CancellationToken, _sessionResource?: URI): Promise<readonly IPromptPath[]> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
 }

@@ -22,7 +22,7 @@ import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
  * A debug bridge (e.g. contribution) can listen and forward these to IChatDebugService.
  */
 export interface IPromptDiscoveryLogEntry {
-	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly name: string;
 	readonly details?: string;
 	readonly category?: string;
@@ -72,7 +72,8 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
-	extension = 'extension'
+	extension = 'extension',
+	plugin = 'plugin',
 }
 
 /**
@@ -87,7 +88,7 @@ export enum ExtensionAgentSourceType {
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath;
 
 
 export interface IPromptPathBase {
@@ -131,12 +132,20 @@ export interface IUserPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.user;
 }
 
+export interface IPluginPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.plugin;
+	readonly pluginUri: URI;
+}
+
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
 	readonly type: ExtensionAgentSourceType;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
+} | {
+	readonly storage: PromptsStorage.plugin;
+	readonly pluginUri: URI;
 };
 
 /**
@@ -401,9 +410,9 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Returns a prompt command if the command name is valid.
-	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getPromptSlashCommands(token: CancellationToken, sessionId?: string): Promise<readonly IChatPromptSlashCommand[]>;
+	getPromptSlashCommands(token: CancellationToken, sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]>;
 
 	/**
 	 * Returns the prompt command name for the given URI.
@@ -417,9 +426,9 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Finds all available custom agents
-	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getCustomAgents(token: CancellationToken, sessionId?: string): Promise<readonly ICustomAgent[]>;
+	getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]>;
 
 	/**
 	 * Parses the provided URI
@@ -477,30 +486,30 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Gets list of agent skills files.
-	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	findAgentSkills(token: CancellationToken, sessionId?: string): Promise<IAgentSkill[] | undefined>;
+	findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined>;
 
 	/**
 	 * Gets detailed discovery information for a prompt type.
 	 * This includes all files found and their load/skip status with reasons.
 	 * Used for diagnostics and config-info displays.
-	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken, sessionId?: string): Promise<IPromptDiscoveryInfo>;
+	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken, sessionResource?: URI): Promise<IPromptDiscoveryInfo>;
 
 	/**
 	 * Gets all hooks collected from hooks.json files.
 	 * The result is cached and invalidated when hook files change.
-	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getHooks(token: CancellationToken, sessionId?: string): Promise<IConfiguredHooksInfo | undefined>;
+	getHooks(token: CancellationToken, sessionResource?: URI): Promise<IConfiguredHooksInfo | undefined>;
 
 	/**
 	 * Gets all instruction files, logging discovery info to the debug log.
-	 * @param sessionId Optional session ID to scope debug logging to a specific session.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getInstructionFiles(token: CancellationToken, sessionId?: string): Promise<readonly IPromptPath[]>;
+	getInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Fired when a discovery-related log entry is produced.

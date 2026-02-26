@@ -1415,6 +1415,7 @@ export interface IChatDebugToolCallEventDto extends IChatDebugEventCommonDto {
 export interface IChatDebugModelTurnEventDto extends IChatDebugEventCommonDto {
 	readonly kind: 'modelTurn';
 	readonly model?: string;
+	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly totalTokens?: number;
@@ -1470,7 +1471,33 @@ export interface IChatDebugEventMessageContentDto {
 	readonly sections: readonly IChatDebugMessageSectionDto[];
 }
 
-export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | IChatDebugEventMessageContentDto;
+export interface IChatDebugEventToolCallContentDto {
+	readonly kind: 'toolCall';
+	readonly toolName: string;
+	readonly result?: 'success' | 'error';
+	readonly durationInMillis?: number;
+	readonly input?: string;
+	readonly output?: string;
+}
+
+export interface IChatDebugEventModelTurnContentDto {
+	readonly kind: 'modelTurn';
+	readonly requestName: string;
+	readonly model?: string;
+	readonly status?: string;
+	readonly durationInMillis?: number;
+	readonly timeToFirstTokenInMillis?: number;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
+	readonly totalTokens?: number;
+	readonly errorMessage?: string;
+	readonly sections?: readonly IChatDebugMessageSectionDto[];
+}
+
+export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | IChatDebugEventMessageContentDto | IChatDebugEventToolCallContentDto | IChatDebugEventModelTurnContentDto;
 
 export interface ExtHostChatDebugShape {
 	$provideChatDebugLog(handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<IChatDebugEventDto[] | undefined>;
@@ -3525,7 +3552,8 @@ export interface ChatSessionDto {
 }
 
 export interface IChatSessionProviderOptions {
-	optionGroups?: IChatSessionProviderOptionGroup[];
+	optionGroups?: readonly IChatSessionProviderOptionGroup[];
+	newSessionOptions?: Record<string, string | IChatSessionProviderOptionItem>;
 }
 
 export interface IChatSessionItemsChange {

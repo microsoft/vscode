@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -26,7 +25,6 @@ export class ChatDebugHomeView extends Disposable {
 
 	readonly container: HTMLElement;
 	private readonly scrollContent: HTMLElement;
-	private readonly scrollable: DomScrollableElement;
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -37,9 +35,7 @@ export class ChatDebugHomeView extends Disposable {
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-home'));
-		this.scrollContent = $('div.chat-debug-home-content');
-		this.scrollable = this._register(new DomScrollableElement(this.scrollContent, {}));
-		DOM.append(this.container, this.scrollable.getDomNode());
+		this.scrollContent = DOM.append(this.container, $('div.chat-debug-home-content'));
 	}
 
 	show(): void {
@@ -55,7 +51,7 @@ export class ChatDebugHomeView extends Disposable {
 		DOM.clearNode(this.scrollContent);
 		this.renderDisposables.clear();
 
-		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Chat Debug Panel")));
+		DOM.append(this.scrollContent, $('h2.chat-debug-home-title', undefined, localize('chatDebug.title', "Agent Debug Panel")));
 
 		// Determine the active session resource
 		const activeWidget = this.chatWidgetService.lastFocusedWidget;
@@ -102,7 +98,11 @@ export class ChatDebugHomeView extends Disposable {
 				DOM.append(item, $(`span${ThemeIcon.asCSSSelector(Codicon.comment)}`));
 
 				const titleSpan = DOM.append(item, $('span.chat-debug-home-session-item-title'));
-				const isShimmering = isUUID(sessionTitle);
+				// Only show shimmer when the title is a UUID AND the model is not
+				// yet loaded. A live session with no requests yet has an empty title but its model exists — show a
+				// placeholder instead of an indefinite spinner.
+				const hasLiveModel = !!this.chatService.getSession(sessionResource);
+				const isShimmering = isUUID(sessionTitle) && !hasLiveModel;
 				if (isShimmering) {
 					titleSpan.classList.add('chat-debug-home-session-item-shimmer');
 					item.disabled = true;
@@ -159,7 +159,5 @@ export class ChatDebugHomeView extends Disposable {
 				}
 			}));
 		}
-
-		this.scrollable.scanDomNode();
 	}
 }

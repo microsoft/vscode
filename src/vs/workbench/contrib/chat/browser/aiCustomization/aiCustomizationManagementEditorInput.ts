@@ -22,8 +22,6 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 
 	private static _instance: AICustomizationManagementEditorInput | undefined;
 
-	private _sectionLabel: string | undefined;
-
 	/**
 	 * Gets or creates the singleton instance of this input.
 	 */
@@ -47,20 +45,7 @@ export class AICustomizationManagementEditorInput extends EditorInput {
 	}
 
 	override getName(): string {
-		if (this._sectionLabel) {
-			return localize('aiCustomizationManagementEditorNameWithSection', "Customizations: {0}", this._sectionLabel);
-		}
-		return localize('aiCustomizationManagementEditorName', "Customizations");
-	}
-
-	/**
-	 * Updates the section label shown in the editor tab title.
-	 */
-	setSectionLabel(label: string): void {
-		if (this._sectionLabel !== label) {
-			this._sectionLabel = label;
-			this._onDidChangeLabel.fire();
-		}
+		return localize('aiCustomizationManagementEditorName', "Chat Customizations");
 	}
 
 	override getIcon(): ThemeIcon {

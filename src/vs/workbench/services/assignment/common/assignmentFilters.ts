@@ -11,6 +11,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
+import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 
 export enum ExtensionsFilter {
 
@@ -135,10 +136,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 	private updateCopilotEntitlementInfo() {
 		const newSku = this._chatEntitlementService.sku;
 		const newTrackingId = this._chatEntitlementService.copilotTrackingId;
-		const newIsGitHubInternal = this._chatEntitlementService.organisations?.includes('github');
-		const newIsMicrosoftInternal = this._chatEntitlementService.organisations?.includes('microsoft') || this._chatEntitlementService.organisations?.includes('ms-copilot') || this._chatEntitlementService.organisations?.includes('MicrosoftCopilot');
-		const newIsVSCodeInternal = this._chatEntitlementService.organisations?.includes('Visual-Studio-Code');
-		const newInternalOrg = newIsVSCodeInternal ? 'vscode' : newIsGitHubInternal ? 'github' : newIsMicrosoftInternal ? 'microsoft' : undefined;
+		const newInternalOrg = getInternalOrg(this._chatEntitlementService.organisations);
 
 		if (this.copilotSku === newSku && this.copilotInternalOrg === newInternalOrg && this.copilotTrackingId === newTrackingId) {
 			return;

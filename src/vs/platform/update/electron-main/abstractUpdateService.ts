@@ -20,6 +20,7 @@ import { AvailableForDownload, DisablementReason, IUpdateService, State, StateTy
 
 export interface IUpdateURLOptions {
 	readonly background?: boolean;
+	readonly internalOrg?: string;
 }
 
 export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string {
@@ -28,6 +29,8 @@ export function createUpdateURL(baseUpdateUrl: string, platform: string, quality
 	if (options?.background) {
 		url.searchParams.set('bg', 'true');
 	}
+
+	url.searchParams.set('u', options?.internalOrg ?? 'none');
 
 	return url.toString();
 }
@@ -77,7 +80,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	protected _overwrite: boolean = false;
 	private _hasCheckedForOverwriteOnQuit: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
-	private _disableProgressiveReleases: boolean = false;
+	private _internalOrg: string | undefined = undefined;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
@@ -342,13 +345,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	async disableProgressiveReleases(): Promise<void> {
-		this.logService.info('update#disableProgressiveReleases');
-		this._disableProgressiveReleases = true;
+	async setInternalOrg(internalOrg: string | undefined): Promise<void> {
+		if (this._internalOrg === internalOrg) {
+			return;
+		}
+
+		this.logService.info('update#setInternalOrg', internalOrg);
+		this._internalOrg = internalOrg;
 	}
 
-	protected shouldDisableProgressiveReleases(): boolean {
-		return this._disableProgressiveReleases;
+	protected getInternalOrg(): string | undefined {
+		return this._internalOrg;
 	}
 
 	protected getUpdateType(): UpdateType {

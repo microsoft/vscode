@@ -151,6 +151,10 @@ export class ChatProgressSubPart extends Disposable {
 				content: tooltip,
 				style: HoverStyle.Pointer,
 			}));
+			this._register(hoverService.setupDelayedHover(messageElement, {
+				content: tooltip,
+				style: HoverStyle.Pointer,
+			}));
 		}
 		append(this.domNode, iconElement);
 

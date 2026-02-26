@@ -111,7 +111,10 @@ export interface IUpdateService {
 	applyUpdate(): Promise<void>;
 	quitAndInstall(): Promise<void>;
 
+	/**
+	 * @deprecated This method should not be used any more. It will be removed in a future release.
+	*/
 	isLatestVersion(): Promise<boolean | undefined>;
 	_applySpecificUpdate(packagePath: string): Promise<void>;
-	disableProgressiveReleases(): Promise<void>;
+	setInternalOrg(internalOrg: string | undefined): Promise<void>;
 }

@@ -10,6 +10,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
+	PluginsEnabled = 'chat.plugins.enabled',
 	PluginPaths = 'chat.plugins.paths',
 	PluginMarketplaces = 'chat.plugins.marketplaces',
 	AgentEnabled = 'chat.agent.enabled',
@@ -55,6 +56,7 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
+	ChatCustomizationUserStoragePath = 'chat.customizationsMenu.userStoragePath',
 }
 
 /**
