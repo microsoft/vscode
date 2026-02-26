@@ -63,6 +63,7 @@ import { ITextFileService } from '../../../../services/textfile/common/textfiles
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { COPILOT_CLI_HOOK_TYPE_MAP } from '../../common/promptSyntax/hookSchema.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
@@ -503,7 +504,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user'): Promise<void> {
 
 		if (type === PromptsType.hook) {
-			if (this.workspaceService.preferManualCreation) {
+			if (this.workspaceService.isSessionsWindow) {
 				// Sessions: directly create a Copilot CLI format hooks file
 				await this.createCopilotCliHookFile();
 			} else {
@@ -561,22 +562,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		try {
 			await this.fileService.stat(hookFileUri);
 		} catch {
-			const hooksContent = {
-				hooks: {
-					sessionStart: [
-						{ type: 'command', command: '' }
-					],
-					userPromptSubmitted: [
-						{ type: 'command', command: '' }
-					],
-					preToolUse: [
-						{ type: 'command', command: '' }
-					],
-					postToolUse: [
-						{ type: 'command', command: '' }
-					],
-				}
-			};
+			// Derive hook event names from the schema so new events are automatically included
+			const hooks: Record<string, { type: string; bash: string }[]> = {};
+			for (const eventName of Object.keys(COPILOT_CLI_HOOK_TYPE_MAP)) {
+				hooks[eventName] = [{ type: 'command', bash: '' }];
+			}
+			const hooksContent = { version: 1, hooks };
 			const jsonContent = JSON.stringify(hooksContent, null, '\t');
 			await this.fileService.writeFile(hookFileUri, VSBuffer.fromString(jsonContent));
 		}
@@ -654,6 +645,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	public refreshList(): void {
 		void this.listWidget.refresh();
+	}
+
+	/**
+	 * Generates a debug report for the current section.
+	 */
+	public async generateDebugReport(): Promise<string> {
+		return this.listWidget.generateDebugReport();
 	}
 
 	//#region Embedded Editor
