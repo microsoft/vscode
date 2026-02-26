@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugLogProvider, IChatDebugModelTurnEvent, IChatDebugResolvedEventContent, IChatDebugToolCallEvent } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 
 suite('ChatDebugServiceImpl', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -17,8 +18,8 @@ suite('ChatDebugServiceImpl', () => {
 
 	const session1 = URI.parse('vscode-chat-session://local/session-1');
 	const session2 = URI.parse('vscode-chat-session://local/session-2');
-	const sessionA = URI.parse('vscode-chat-session://local/a');
-	const sessionB = URI.parse('vscode-chat-session://local/b');
+	const sessionA = LocalChatSessionUri.forSession('a');
+	const sessionB = LocalChatSessionUri.forSession('b');
 	const sessionGeneric = URI.parse('vscode-chat-session://local/session');
 	const nonLocalSession = URI.parse('vscode-chat-session://remote-provider/session-1');
 
