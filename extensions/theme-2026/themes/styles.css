@@ -607,7 +607,6 @@
 	background-color: var(--vscode-editorWidget-background) !important;
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
-	border-radius: var(--radius-md);
 	box-shadow: var(--shadow-sm);
 }
 

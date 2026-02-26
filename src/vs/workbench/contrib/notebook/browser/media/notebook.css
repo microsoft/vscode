@@ -381,6 +381,10 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+.notebookOverlay .monaco-list-row .cell-title-toolbar {
+	border-radius: var(--vscode-cornerRadius-medium);
+}
+
 .notebookOverlay .monaco-list-row .cell-title-toolbar,
 .notebookOverlay .monaco-list-row.cell-drag-image,
 .notebookOverlay .cell-bottom-toolbar-container .action-item,
