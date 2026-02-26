@@ -140,6 +140,8 @@ export namespace ChatContextKeys {
 	export const hasUsedCreateSlashCommands = new RawContextKey<boolean>('chatHasUsedCreateSlashCommands', false, { type: 'boolean', description: localize('chatHasUsedCreateSlashCommands', "True when the user has used any of the /create-* slash commands.") });
 
 	export const contextUsageHasBeenOpened = new RawContextKey<boolean>('chatContextUsageHasBeenOpened', false, { type: 'boolean', description: localize('chatContextUsageHasBeenOpened', "True when the user has opened the context window usage details.") });
+
+	export const newChatButtonExperimentIcon = new RawContextKey<string>('chatNewChatButtonExperimentIcon', '', { type: 'string', description: localize('chatNewChatButtonExperimentIcon', "The icon variant for the new chat button, controlled by experiment. Values: 'copilot', 'sparkle', or empty for default.") });
 }
 
 export namespace ChatContextKeyExprs {

@@ -16,6 +16,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig, mcpAppsEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -97,6 +98,7 @@ import { PromptsDebugContribution } from './promptsDebugContribution.js';
 import { ChatDebugEditorInput, ChatDebugEditorInputSerializer } from './chatDebug/chatDebugEditorInput.js';
 import './agentSessions/agentSessions.contribution.js';
 import { backgroundAgentDisplayName } from './agentSessions/agentSessions.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './accessibility/chatAccessibilityService.js';
@@ -1413,10 +1415,12 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 	constructor(
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.registerMaxRequestsSetting();
 		this.registerBackgroundAgentDisplayName();
+		this.registerNewChatButtonIcon();
 	}
 
 
@@ -1452,6 +1456,14 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		this.experimentService.getTreatment<string>('backgroundAgentDisplayName').then((value) => {
 			if (value) {
 				backgroundAgentDisplayName.set(value, undefined);
+			}
+		});
+	}
+
+	private registerNewChatButtonIcon(): void {
+		this.experimentService.getTreatment<string>('chatNewButtonIcon').then((value) => {
+			if (value === 'copilot' || value === 'sparkle') {
+				this.contextKeyService.createKey(ChatContextKeys.newChatButtonExperimentIcon.key, value);
 			}
 		});
 	}
