@@ -124,10 +124,13 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 	private async _listTools(): Promise<readonly MCP.Tool[]> {
 		const mcpTools: MCP.Tool[] = [];
 		const servers = this._mcpService.servers.get();
-		await Promise.all(servers.map(server => this._ensureServerReady(server)));
 
 		for (const server of servers) {
 			const cacheState = server.cacheState.get();
+			if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
+				// Avoid blocking the tool list on slow server startup; refresh in the background.
+				void this._ensureServerReady(server);
+			}
 			if (cacheState !== McpServerCacheState.Live && cacheState !== McpServerCacheState.Cached && cacheState !== McpServerCacheState.RefreshingFromCached) {
 				continue;
 			}
@@ -163,7 +166,14 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		const results: IGatewayServerResources[] = [];
 		const servers = this._mcpService.servers.get();
 		await Promise.all(servers.map(async server => {
-			await this._ensureServerReady(server);
+			const cacheState = server.cacheState.get();
+			if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
+				// Avoid blocking on slow server startup; refresh in the background.
+				void this._ensureServerReady(server);
+			}
+			if (cacheState !== McpServerCacheState.Live && cacheState !== McpServerCacheState.Cached && cacheState !== McpServerCacheState.RefreshingFromCached) {
+				return;
+			}
 
 			const capabilities = server.capabilities.get();
 			if (!capabilities || !(capabilities & McpCapability.Resources)) {
@@ -195,7 +205,14 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 		const servers = this._mcpService.servers.get();
 
 		await Promise.all(servers.map(async server => {
-			await this._ensureServerReady(server);
+			const cacheState = server.cacheState.get();
+			if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
+				// Avoid blocking on slow server startup; refresh in the background.
+				void this._ensureServerReady(server);
+			}
+			if (cacheState !== McpServerCacheState.Live && cacheState !== McpServerCacheState.Cached && cacheState !== McpServerCacheState.RefreshingFromCached) {
+				return;
+			}
 
 			const capabilities = server.capabilities.get();
 			if (!capabilities || !(capabilities & McpCapability.Resources)) {
