@@ -139,11 +139,11 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		let chatViewContainer = viewContainerRegistry.get(ChatViewContainerId);
 		if (chatViewContainer) {
-			viewContainerRegistry.deregisterViewContainer(chatViewContainer);
 			const view = viewsRegistry.getView(ChatViewId);
 			if (view) {
 				viewsRegistry.deregisterViews([view], chatViewContainer);
 			}
+			viewContainerRegistry.deregisterViewContainer(chatViewContainer);
 		}
 
 		chatViewContainer = viewContainerRegistry.registerViewContainer({
