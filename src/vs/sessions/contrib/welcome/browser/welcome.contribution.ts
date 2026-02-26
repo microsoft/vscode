@@ -202,7 +202,7 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 		// Mark the welcome overlay as visible for titlebar disabling
 		const welcomeVisibleKey = SessionsWelcomeVisibleContext.bindTo(this.contextKeyService);
 		welcomeVisibleKey.set(true);
-		this.overlayRef.value.add(toDisposable(() => welcomeVisibleKey.set(false)));
+		this.overlayRef.value.add(toDisposable(() => welcomeVisibleKey.reset()));
 
 		const overlay = this.overlayRef.value.add(this.instantiationService.createInstance(
 			SessionsWelcomeOverlay,
