@@ -1411,7 +1411,7 @@ class ChatDebugResolverContribution implements IWorkbenchContribution {
 class ChatAgentSettingContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatAgentSetting';
-	private readonly newChatButtonExperimentIcon = ChatContextKeys.newChatButtonExperimentIcon.bindTo(this.contextKeyService);
+	private readonly newChatButtonExperimentIcon;
 
 	constructor(
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
@@ -1419,6 +1419,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
+		this.newChatButtonExperimentIcon = ChatContextKeys.newChatButtonExperimentIcon.bindTo(this.contextKeyService);
 		this.registerMaxRequestsSetting();
 		this.registerBackgroundAgentDisplayName();
 		this.registerNewChatButtonIcon();
