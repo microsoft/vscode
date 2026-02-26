@@ -288,12 +288,22 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		if (cached) {
 			try {
 				const parsed = JSON.parse(cached);
+
+				// TODO: Remove old format migration after August 2026.
+				// Previously, the cache stored a flat IAccountPolicyData shape
+				// (e.g. { accountId, policyData, ... }). We now wrap it inside
+				// ICachedAccountData ({ accountPolicyData, copilotTokenInfo }).
+				// This branch migrates the old flat format to the new shape and
+				// re-stores it so subsequent reads use the new format directly.
 				const { accountId, policyData, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt, copilotTokenInfo } = parsed;
 				if (accountId && policyData) {
-					this.logService.debug('[DefaultAccount] Initializing with cached policy data');
-					return { accountPolicyData: { accountId, policyData, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt }, copilotTokenInfo };
+					this.logService.debug('[DefaultAccount] Initializing with cached policy data (migrating old format)');
+					const result: ICachedAccountData = { accountPolicyData: { accountId, policyData, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt }, copilotTokenInfo };
+					this.storageService.store(CACHED_POLICY_DATA_KEY, JSON.stringify(result), StorageScope.APPLICATION, StorageTarget.MACHINE);
+					return result;
 				}
 
+				// New format
 				const { accountPolicyData, copilotTokenInfo: wrappedCopilotTokenInfo } = parsed;
 				if (accountPolicyData?.accountId && accountPolicyData?.policyData) {
 					this.logService.debug('[DefaultAccount] Initializing with cached policy data');
