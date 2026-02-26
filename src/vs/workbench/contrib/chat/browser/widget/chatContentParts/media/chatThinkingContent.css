@@ -18,6 +18,8 @@
 	}
 
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
+		display: flex;
+		align-items: center;
 		line-height: 1.5em;
 		font-size: 13px;
 
