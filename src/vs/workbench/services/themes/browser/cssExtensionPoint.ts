@@ -157,6 +157,10 @@ export class CSSExtensionPoint {
 				// Check if this extension's theme is currently active
 				if (this.isExtensionThemeActive(extensionId)) {
 					this.activateExtensionCSS(extension);
+				} else if (this.stylesheetsByExtension.has(extensionId)) {
+					// Theme is no longer active but cached CSS is still loaded — remove it
+					this.removeStylesheets(extensionId);
+					this.clearCacheForExtension(extensionId);
 				}
 			}
 		});
@@ -173,14 +177,17 @@ export class CSSExtensionPoint {
 	}
 
 	private onThemeChange(): void {
-		// Check all pending extensions and activate/deactivate as needed
+		// Activate pending extensions whose theme just became active
 		for (const [extensionId, extension] of this.pendingExtensions) {
-			const isActive = this.stylesheetsByExtension.has(extensionId);
-			const shouldBeActive = this.isExtensionThemeActive(extensionId);
-
-			if (shouldBeActive && !isActive) {
+			if (!this.stylesheetsByExtension.has(extensionId) && this.isExtensionThemeActive(extensionId)) {
 				this.activateExtensionCSS(extension);
-			} else if (!shouldBeActive && isActive) {
+			}
+		}
+
+		// Deactivate all extensions whose theme is no longer active,
+		// including cached CSS that may not yet be in pendingExtensions
+		for (const extensionId of [...this.stylesheetsByExtension.keys()]) {
+			if (!this.isExtensionThemeActive(extensionId)) {
 				this.removeStylesheets(extensionId);
 				this.clearCacheForExtension(extensionId);
 			}
