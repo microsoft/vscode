@@ -60,7 +60,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFileLocations.js';
@@ -185,7 +184,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IPathService private readonly pathService: IPathService,
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
@@ -522,7 +520,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const targetDir = target === 'workspace'
 			? resolveWorkspaceTargetDirectory(this.workspaceService, type)
-			: await resolveUserTargetDirectory(this.promptsService, type, this.configurationService, this.pathService);
+			: await resolveUserTargetDirectory(this.promptsService, type);
 
 		const options: INewPromptOptions = {
 			targetFolder: targetDir,

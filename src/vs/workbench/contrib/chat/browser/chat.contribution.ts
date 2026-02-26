@@ -1248,12 +1248,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is available in the Command Palette. When disabled, the Chat Customizations editor and related commands are hidden."),
 			default: true,
 		},
-		[ChatConfiguration.ChatCustomizationUserStoragePath]: {
-			type: 'string',
-			tags: ['experimental'],
-			description: nls.localize('chat.customizationsMenu.userStoragePath', "Experimental: This setting is temporary and should not be relied on. Override the base directory for user-level customization files. When set, new user customizations are created here instead of the VS Code profile folder."),
-			default: '',
-		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

@@ -34,7 +34,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -882,15 +882,11 @@ export class AICustomizationListWidget extends Disposable {
 			items.push(...pluginItems.map(mapToListItem));
 		}
 
-		// Filter out files under excluded user roots
-		const excludedRoots = this.workspaceService.excludedUserFileRoots;
-		if (excludedRoots.length > 0) {
-			for (let i = items.length - 1; i >= 0; i--) {
-				if (items[i].storage === PromptsStorage.user && excludedRoots.some(root => isEqualOrParent(items[i].uri, root))) {
-					items.splice(i, 1);
-				}
-			}
-		}
+		// Apply storage source filter (removes items not in visible sources or excluded user roots)
+		const filter = this.workspaceService.getStorageSourceFilter(promptType);
+		const filteredItems = applyStorageSourceFilter(items, filter);
+		items.length = 0;
+		items.push(...filteredItems);
 
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
@@ -978,7 +974,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Group items by storage
 		const promptType = sectionToPromptType(this.currentSection);
-		const visibleSources = new Set(this.workspaceService.getVisibleStorageSources(promptType));
+		const visibleSources = new Set(this.workspaceService.getStorageSourceFilter(promptType).sources);
 		const groups: { storage: PromptsStorage; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
 			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
 			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },

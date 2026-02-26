@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { URI } from '../../../../base/common/uri.js';
-import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 
-import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 export interface ISourceCounts {
 	readonly workspace: number;
@@ -24,9 +22,9 @@ const storageToCountKey: Partial<Record<PromptsStorage, keyof ISourceCounts>> = 
 	[PromptsStorage.extension]: 'extension',
 };
 
-export function getSourceCountsTotal(counts: ISourceCounts, workspaceService: IAICustomizationWorkspaceService, type: PromptsType): number {
+export function getSourceCountsTotal(counts: ISourceCounts, filter: IStorageSourceFilter): number {
 	let total = 0;
-	for (const storage of workspaceService.getVisibleStorageSources(type)) {
+	for (const storage of filter.sources) {
 		const key = storageToCountKey[storage];
 		if (key) {
 			total += counts[key];
@@ -35,22 +33,13 @@ export function getSourceCountsTotal(counts: ISourceCounts, workspaceService: IA
 	return total;
 }
 
-/**
- * Returns true if the URI should be excluded based on excluded user file roots.
- */
-function isExcludedUserFile(uri: URI, excludedRoots: readonly URI[]): boolean {
-	return excludedRoots.some(root => isEqualOrParent(uri, root));
-}
-
-export async function getPromptSourceCounts(promptsService: IPromptsService, promptType: PromptsType, excludedUserFileRoots: readonly URI[] = []): Promise<ISourceCounts> {
+export async function getPromptSourceCounts(promptsService: IPromptsService, promptType: PromptsType, filter: IStorageSourceFilter): Promise<ISourceCounts> {
 	const [workspaceItems, userItems, extensionItems] = await Promise.all([
 		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.local, CancellationToken.None),
 		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.user, CancellationToken.None),
 		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.extension, CancellationToken.None),
 	]);
-	const filteredUserItems = excludedUserFileRoots.length > 0
-		? userItems.filter(item => !isExcludedUserFile(item.uri, excludedUserFileRoots))
-		: userItems;
+	const filteredUserItems = applyStorageSourceFilter(userItems, filter);
 	return {
 		workspace: workspaceItems.length,
 		user: filteredUserItems.length,
@@ -58,36 +47,38 @@ export async function getPromptSourceCounts(promptsService: IPromptsService, pro
 	};
 }
 
-export async function getSkillSourceCounts(promptsService: IPromptsService, excludedUserFileRoots: readonly URI[] = []): Promise<ISourceCounts> {
+export async function getSkillSourceCounts(promptsService: IPromptsService, filter: IStorageSourceFilter): Promise<ISourceCounts> {
 	const skills = await promptsService.findAgentSkills(CancellationToken.None);
 	if (!skills || skills.length === 0) {
 		return { workspace: 0, user: 0, extension: 0 };
 	}
-	const userSkills = skills.filter(s => s.storage === PromptsStorage.user);
-	const filteredUserSkills = excludedUserFileRoots.length > 0
-		? userSkills.filter(s => !isExcludedUserFile(s.uri, excludedUserFileRoots))
-		: userSkills;
+	const filteredSkills = applyStorageSourceFilter(skills, filter);
 	return {
-		workspace: skills.filter(s => s.storage === PromptsStorage.local).length,
-		user: filteredUserSkills.length,
-		extension: skills.filter(s => s.storage === PromptsStorage.extension).length,
+		workspace: filteredSkills.filter(s => s.storage === PromptsStorage.local).length,
+		user: filteredSkills.filter(s => s.storage === PromptsStorage.user).length,
+		extension: filteredSkills.filter(s => s.storage === PromptsStorage.extension).length,
 	};
 }
 
 export async function getCustomizationTotalCount(promptsService: IPromptsService, mcpService: IMcpService, workspaceService: IAICustomizationWorkspaceService): Promise<number> {
-	const excluded = workspaceService.excludedUserFileRoots;
+	const agentFilter = workspaceService.getStorageSourceFilter(PromptsType.agent);
+	const skillFilter = workspaceService.getStorageSourceFilter(PromptsType.skill);
+	const instructionFilter = workspaceService.getStorageSourceFilter(PromptsType.instructions);
+	const promptFilter = workspaceService.getStorageSourceFilter(PromptsType.prompt);
+	const hookFilter = workspaceService.getStorageSourceFilter(PromptsType.hook);
+
 	const [agentCounts, skillCounts, instructionCounts, promptCounts, hookCounts] = await Promise.all([
-		getPromptSourceCounts(promptsService, PromptsType.agent, excluded),
-		getSkillSourceCounts(promptsService, excluded),
-		getPromptSourceCounts(promptsService, PromptsType.instructions, excluded),
-		getPromptSourceCounts(promptsService, PromptsType.prompt, excluded),
-		getPromptSourceCounts(promptsService, PromptsType.hook, excluded),
+		getPromptSourceCounts(promptsService, PromptsType.agent, agentFilter),
+		getSkillSourceCounts(promptsService, skillFilter),
+		getPromptSourceCounts(promptsService, PromptsType.instructions, instructionFilter),
+		getPromptSourceCounts(promptsService, PromptsType.prompt, promptFilter),
+		getPromptSourceCounts(promptsService, PromptsType.hook, hookFilter),
 	]);
 
-	return getSourceCountsTotal(agentCounts, workspaceService, PromptsType.agent)
-		+ getSourceCountsTotal(skillCounts, workspaceService, PromptsType.skill)
-		+ getSourceCountsTotal(instructionCounts, workspaceService, PromptsType.instructions)
-		+ getSourceCountsTotal(promptCounts, workspaceService, PromptsType.prompt)
-		+ getSourceCountsTotal(hookCounts, workspaceService, PromptsType.hook)
+	return getSourceCountsTotal(agentCounts, agentFilter)
+		+ getSourceCountsTotal(skillCounts, skillFilter)
+		+ getSourceCountsTotal(instructionCounts, instructionFilter)
+		+ getSourceCountsTotal(promptCounts, promptFilter)
+		+ getSourceCountsTotal(hookCounts, hookFilter)
 		+ mcpService.servers.get().length;
 }
