@@ -2393,7 +2393,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.chatService.removePendingRequest(this.viewModel.sessionResource, editingRequestId);
 				options.queue ??= editingPendingRequest;
 			} else {
-				this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource);
+				this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-editing');
 				options.queue = undefined;
 			}
 
@@ -2413,7 +2413,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (model.requestNeedsInput.get() && !model.getPendingRequests().length) {
-			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource);
+			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionResource, 'acceptInput-needsInput');
 			options.queue ??= ChatRequestQueueKind.Queued;
 		}
 		if (requestInProgress) {
