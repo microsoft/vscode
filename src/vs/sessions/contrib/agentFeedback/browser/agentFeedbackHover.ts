@@ -230,7 +230,8 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 			const snippet = model.getValueInRange(element.range);
 			if (snippet) {
 				const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(element.resourceUri);
-				markdown.appendMarkdown(`\n\n\`\`\`${languageId ?? ''}\n${snippet}\n\`\`\``);
+				markdown.appendMarkdown('\n\n');
+				markdown.appendCodeblock(languageId ?? '', snippet);
 			}
 		}
 
