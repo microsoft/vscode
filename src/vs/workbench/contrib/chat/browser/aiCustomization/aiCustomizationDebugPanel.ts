@@ -9,14 +9,33 @@ import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promp
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { sectionToPromptType, IAICustomizationListItem } from './aiCustomizationListWidget.js';
+
+/**
+ * Maps section ID to prompt type. Duplicated from aiCustomizationListWidget
+ * to avoid a circular dependency.
+ */
+function sectionToPromptType(section: AICustomizationManagementSection): PromptsType {
+	switch (section) {
+		case AICustomizationManagementSection.Agents:
+			return PromptsType.agent;
+		case AICustomizationManagementSection.Skills:
+			return PromptsType.skill;
+		case AICustomizationManagementSection.Instructions:
+			return PromptsType.instructions;
+		case AICustomizationManagementSection.Hooks:
+			return PromptsType.hook;
+		case AICustomizationManagementSection.Prompts:
+		default:
+			return PromptsType.prompt;
+	}
+}
 
 /**
  * Snapshot of the list widget's internal state, passed in to avoid coupling.
  */
 export interface IDebugWidgetState {
-	readonly allItems: readonly IAICustomizationListItem[];
-	readonly displayEntries: readonly { type: string; item?: IAICustomizationListItem; label?: string; count?: number; collapsed?: boolean }[];
+	readonly allItems: readonly { readonly storage: PromptsStorage }[];
+	readonly displayEntries: readonly { type: string; label?: string; count?: number; collapsed?: boolean }[];
 }
 
 /**

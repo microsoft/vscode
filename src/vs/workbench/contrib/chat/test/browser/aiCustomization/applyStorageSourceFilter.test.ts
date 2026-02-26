@@ -41,7 +41,7 @@ suite('applyStorageSourceFilter', () => {
 			};
 			const result = applyStorageSourceFilter(items, filter);
 			assert.strictEqual(result.length, 1);
-			assert.strictEqual(result[0].uri.fsPath, '/w/a.md');
+			assert.strictEqual(result[0].uri.toString(), URI.file('/w/a.md').toString());
 		});
 
 		test('empty sources removes everything', () => {
@@ -87,8 +87,8 @@ suite('applyStorageSourceFilter', () => {
 			};
 			const result = applyStorageSourceFilter(items, filter);
 			assert.strictEqual(result.length, 2);
-			assert.strictEqual(result[0].uri.fsPath, '/home/.copilot/instructions/a.md');
-			assert.strictEqual(result[1].uri.fsPath, '/home/.claude/rules/c.md');
+			assert.strictEqual(result[0].uri.toString(), URI.file('/home/.copilot/instructions/a.md').toString());
+			assert.strictEqual(result[1].uri.toString(), URI.file('/home/.claude/rules/c.md').toString());
 		});
 
 		test('includedUserFileRoots does not affect non-user items', () => {
