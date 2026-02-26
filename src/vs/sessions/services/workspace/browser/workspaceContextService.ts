@@ -45,7 +45,7 @@ export class SessionsWorkspaceContextService implements IWorkspaceContextService
 	}
 
 	getWorkbenchState(): WorkbenchState {
-		return WorkbenchState.EMPTY;
+		return WorkbenchState.WORKSPACE;
 	}
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
