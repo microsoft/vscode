@@ -788,7 +788,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		// SetUp list mouse controller - control navigation, disabled items, focus
 		this._register(dom.addDisposableListener(this.selectList.getHTMLElement(), dom.EventType.POINTER_UP, e => this.onPointerUp(e)));
 
-		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && this.selectList.setFocus([e.index])));
+		this._register(this.selectList.onMouseOver(e => typeof e.index !== 'undefined' && !this.options[e.index]?.isDisabled && this.selectList.setFocus([e.index])));
 		this._register(this.selectList.onDidChangeFocus(e => this.onListFocus(e)));
 
 		this._register(dom.addDisposableListener(this.selectDropDownContainer, dom.EventType.FOCUS_OUT, e => {
@@ -948,6 +948,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
+		// Ignore if current selection is disabled (e.g. separator)
+		if (this.options[this.selected]?.isDisabled) {
+			this.hideSelectDropDown(true);
+			return;
+		}
+
 		// Only fire if selection change
 		if (this.selected !== this._currentSelection) {
 			this._currentSelection = this.selected;
@@ -1019,9 +1025,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		setTimeout(() => {
 			let candidate = this.selectList.getFocus()[0];
 
-			// Shift selection down if we land on a disabled option
-			while (candidate < this.options.length - 1 && this.options[candidate].isDisabled) {
-				candidate++;
+			// Shift selection up if we land on a disabled option
+			while (candidate > 0 && this.options[candidate].isDisabled) {
+				candidate--;
 			}
 			if (this.options[candidate].isDisabled) {
 				return;
@@ -1042,9 +1048,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		setTimeout(() => {
 			let candidate = this.selectList.getFocus()[0];
 
-			// Shift selection up if we land on a disabled option
-			while (candidate > 0 && this.options[candidate].isDisabled) {
-				candidate--;
+			// Shift selection down if we land on a disabled option
+			while (candidate < this.options.length - 1 && this.options[candidate].isDisabled) {
+				candidate++;
 			}
 			if (this.options[candidate].isDisabled) {
 				return;
