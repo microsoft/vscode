@@ -371,9 +371,6 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		this.projectedModelLineLineCounts.insertValues(fromLineNumber - 1, insertPrefixSumValues);
 
-		console.log('onModelLinesInserted, fromLineNumber: ', fromLineNumber, 'lineBreaks.length: ', lineBreaks.length);
-		console.log('this.modelLineProjections.length : ', this.modelLineProjections.length);
-
 		return new viewEvents.ViewLinesInsertedEvent(outputFromLineNumber, outputFromLineNumber + totalOutputLineCount - 1);
 	}
 

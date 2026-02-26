@@ -119,7 +119,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	}
 
 	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, filterFontDecorations?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
-		console.log('range : ', range);
 		const startOffsetOfRange = this.textModel.getOffsetAt(range.getStartPosition());
 		const endOffsetOfRange = this.textModel.getOffsetAt(range.getEndPosition());
 		const annotations = this._fontAnnotatedString.getAnnotationsIntersecting(new OffsetRange(startOffsetOfRange, endOffsetOfRange));
@@ -131,9 +130,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			if (!(affectsFont && filterFontDecorations)) {
 				const annotationStartPosition = this.textModel.getPositionAt(annotation.range.start);
 				const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
-				console.log('annotationStartPosition : ', annotationStartPosition);
-				console.log('annotationEndPosition : ', annotationEndPosition);
-				console.log('this.textModel.getLineContent() : ', this.textModel.getTextBuffer().getLinesContent().join('\n'));
 				const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
 				const anno = annotation.annotation;
 				const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSizeMultiplier ?? 0);
