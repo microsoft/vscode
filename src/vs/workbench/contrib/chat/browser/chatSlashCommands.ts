@@ -197,6 +197,26 @@ export class ChatSlashCommandsContribution extends Disposable {
 		};
 		const handleDisableAutoApprove = async () => {
 			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
+
+			// If managed by policy, respect it and provide accurate feedback.
+			if (inspection.policyValue !== undefined) {
+				if (inspection.policyValue === false) {
+					// Already disabled by organization policy; nothing to change.
+					notificationService.info(nls.localize('autoApprove.alreadyDisabled', "Global auto-approve is already disabled."));
+					return;
+				}
+
+				// Managed (and effectively enabled) by policy; user cannot disable it here.
+				notificationService.warn(nls.localize('autoApprove.policyManaged', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
+				return;
+			}
+
+			// No policy: check current effective value to avoid misleading feedback.
+			if (inspection.value === false || inspection.value === undefined) {
+				notificationService.info(nls.localize('autoApprove.alreadyDisabled', "Global auto-approve is already disabled."));
+				return;
+			}
+			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
 			if (inspection.policyValue !== undefined) {
 				if (inspection.policyValue === false) {
 					// Global auto-approve is already disabled by policy; nothing more to do.
