@@ -266,6 +266,13 @@ export class SNCProcessService extends Disposable implements ISNCProcessService 
 						worker.checkpoint = 2;
 						this.resolveNextWaiter(worker);
 					}
+				} else if (msg.type === 'warning' && msg.warning) {
+					const runId = msg.run_id;
+					if (runId) {
+						this._onStream.fire({ runId, type: 'warning', warning: msg.warning });
+					} else {
+						console.warn('[SNC] Visualizer load warning (no active run):', msg.warning);
+					}
 				} else if (msg.type === 'item' || msg.type === 'command' || msg.type === 'end') {
 					const runId = msg.run_id || (msg.item && msg.item.runId);
 					if (runId) {

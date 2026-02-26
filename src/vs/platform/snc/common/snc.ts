@@ -57,7 +57,8 @@ export type SNCStreamMessage =
 	| { runId: string; type: 'command'; command: SNCCommand }
 	| { runId: string; type: 'end'; result: IProcessResult; timing?: SNCTimingData }
 	| { runId: string; type: 'spawn'; timing: SNCTimingData }
-	| { runId: string; type: 'error'; error: string };
+	| { runId: string; type: 'error'; error: string }
+	| { runId: string; type: 'warning'; warning: string };
 
 export const ISNCProcessService = createDecorator<ISNCProcessService>('sncProcessService');
 

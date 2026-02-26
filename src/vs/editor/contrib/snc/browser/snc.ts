@@ -1458,6 +1458,8 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 					this.currentRunId = null;
 					this.eventsBeingHandledCurrentRun = [];
+				} else if (msg.type === 'warning') {
+					console.warn('SNC warning:', msg.warning);
 				} else if (msg.type === 'error') {
 					console.error('SNC streaming error:', msg.error);
 					// Cleanup timing tracking on error

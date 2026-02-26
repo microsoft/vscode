@@ -2272,7 +2272,6 @@ def build_preview_regex(model, string_value: str) -> str | None:
         else:
             return append_segment_to_regex(current_regex, 'literal', selected_text)
 
-
 def visualize(value, model, get_visualizer, max_width=None, max_height=None, small=False) -> str:
     return ''.join(visualize_els(value, model, get_visualizer, max_width, max_height, small))
 

@@ -30,6 +30,18 @@ from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 from typing import List, Dict, Any, Optional, Callable, Protocol, TextIO, Tuple, cast
 
+# This is the only way to make a Module type in Python
+class StaticVisualizer(Protocol):
+    can_visualize: Callable[[Any], bool]
+    visualize: Callable[[Any], str]  # takes value
+
+class Visualizer(Protocol):
+    can_visualize: Callable[[Any], bool]
+    visualize: Callable[[Any, Any, Callable[[Any], Any]], str]  # takes value, model, get_visualizer; optional max_width, max_height kwargs
+    init_model: Callable[[Any, Callable[[Any], Any]], Any]  # takes value, get_visualizer
+    update: Callable[[Any, Any, Any, Any, Any, Callable[[Any], Any]], Any]  # takes ui_event, source code, source line, model, value, get_visualizer; returns (new model, commands)
+
+
 # Global state for logging - shared between the logging functions and main execution
 # These variables accumulate data as the transformed code executes
 execution_step = 0  # Incremental counter for each logged event
@@ -37,7 +49,7 @@ line_emit_counter: Dict[int, int] = {}  # Per-line item index during a run
 _current_run_id: str = ""  # Run ID for preload mode, included in item/command messages
 
 # Each entry is (filepath, mtime, visualizer_module)
-_loaded_visualizers: List[tuple[str, float, Any]] = []
+_loaded_visualizers: List[tuple[str, float, Visualizer]] = []
 
 # Source code context for visualizers (set before execution)
 _source_code: str = ""
@@ -78,17 +90,6 @@ search_paths = [
     os.path.expanduser('~/.snc_visualizers'),
     os.path.join(os.path.dirname(os.path.abspath(__file__)), 'visualizers')
 ]
-
-# This is the only way to make a Module type in Python
-class StaticVisualizer(Protocol):
-    can_visualize: Callable[[Any], bool]
-    visualize: Callable[[Any], str]  # takes value
-
-class Visualizer(Protocol):
-    can_visualize: Callable[[Any], bool]
-    visualize: Callable[[Any, Any, Callable[[Any], Any]], str]  # takes value, model, get_visualizer; optional max_width, max_height kwargs
-    init_model: Callable[[Any, Callable[[Any], Any]], Any]  # takes value, get_visualizer
-    update: Callable[[Any, Any, Any, Any, Any, Callable[[Any], Any]], Any]  # takes ui_event, source code, source line, model, value, get_visualizer; returns (new model, commands)
 
 
 # Final fallback if there are no visualizers.
@@ -228,7 +229,7 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
         assert isinstance(html_content, str)
 
     except Exception as vis_err:
-        html_content = html.escape(f"[Error visualizing value: {type(vis_err).__name__}: {vis_err}; visualizer: {vis}]")
+        html_content = f'<div style="white-space: pre-wrap;">{html.escape(type(vis_err).__name__)} during visualization. {html.escape(traceback.format_exc())}</div>'
 
     # Add to the global visualization data that will be output as JSON
     item = {
@@ -291,6 +292,16 @@ def log_and_return(line: int, value: Any, last_line_in_containing_loop: int | No
     # Return the value unchanged so it can be used inline
     return value
 
+def _emit_vis_load_warning(warning_msg: str) -> None:
+    try:
+        msg: Dict[str, Any] = {"type": "warning", "warning": warning_msg}
+        if _current_run_id:
+            msg["run_id"] = _current_run_id
+        _stream_out.write(json.dumps(msg, ensure_ascii=False) + "\n")
+        _stream_out.flush()
+    except Exception:
+        pass
+
 def _visualizer_from_file(filepath: str) -> Optional[Visualizer]:
     """Load a visualizer module from a Python file."""
     try:
@@ -306,15 +317,17 @@ def _visualizer_from_file(filepath: str) -> Optional[Visualizer]:
         spec.loader.exec_module(module)
 
     except Exception:
+        _emit_vis_load_warning(f"Failed to load visualizer {filepath}:\n{traceback.format_exc()}")
         return None
 
     if not callable(getattr(module, 'can_visualize', None)) or not callable(getattr(module, 'visualize', None)):
+        _emit_vis_load_warning(f"Visualizer {filepath} is missing can_visualize() or visualize()")
         return None
 
     if not callable(getattr(module, 'init_model', None)) or not callable(getattr(module, 'update', None)):
         # It's a static visualizer that only has can_visualize() and visualize()
         # Give it dummy init_model() and update()
-        return VisualizerOfStaticVisualizer(cast(StaticVisualizer, module))
+        return cast(Visualizer, VisualizerOfStaticVisualizer(cast(StaticVisualizer, module)))
 
     # At runtime we validated presence and callability; inform type checker
     return cast(Visualizer, module)
@@ -332,17 +345,9 @@ def _visualizers() -> List[Visualizer]:
         List of loaded visualizer modules, in priority order (first found wins). Last visualizer is a generic catchall, so that next(vis for vis in _visualizers() if vis.can_visualize(v)) always returns something
     """
     if len(_loaded_visualizers) == 0:
-        for dir_path in search_paths:
-            if not os.path.isdir(dir_path):
-                continue
+        _reload_stale_visualizers()
 
-            for filepath in sorted(glob.glob(os.path.join(dir_path, '*_visualizer.py'))):
-                visualizer = _visualizer_from_file(filepath)
-                if visualizer is not None:
-                    mtime = os.path.getmtime(filepath)
-                    _loaded_visualizers.append((filepath, mtime, visualizer))
-
-    return [vis for _, _, vis in _loaded_visualizers] + [GenericVisualizer]
+    return [vis for _, _, vis in _loaded_visualizers] + [cast(Visualizer, GenericVisualizer)]
 
 
 def _reload_stale_visualizers() -> None:
@@ -350,50 +355,22 @@ def _reload_stale_visualizers() -> None:
     Check loaded visualizers against their files' mtimes and reload any that changed.
     Also picks up new visualizer files and drops deleted ones.
     """
-    if not _loaded_visualizers:
-        # Nothing cached yet; _visualizers() will do a full load.
-        return
+    loaded_by_path: Dict[str, Tuple[str, float, Visualizer]] = {fp_mtime_vis[0]: fp_mtime_vis for fp_mtime_vis in _loaded_visualizers}
 
-    # Build set of currently known paths for quick lookup
-    known_paths = {fp for fp, _, _ in _loaded_visualizers}
-
-    # Collect all visualizer file paths that exist now
-    current_files: Dict[str, float] = {}
+    _loaded_visualizers.clear()
     for dir_path in search_paths:
         if not os.path.isdir(dir_path):
             continue
-        for filepath in sorted(glob.glob(os.path.join(dir_path, '*_visualizer.py'))):
-            try:
-                current_files[filepath] = os.path.getmtime(filepath)
-            except OSError:
-                pass
-
-    # Reload stale entries in-place, drop deleted ones
-    i = 0
-    while i < len(_loaded_visualizers):
-        fp, cached_mtime, _ = _loaded_visualizers[i]
-        if fp not in current_files:
-            # File was deleted
-            _loaded_visualizers.pop(i)
-            continue
-        disk_mtime = current_files[fp]
-        if disk_mtime != cached_mtime:
-            # File changed — reload
-            new_vis = _visualizer_from_file(fp)
-            if new_vis is not None:
-                _loaded_visualizers[i] = (fp, disk_mtime, new_vis)
+        for fp in sorted(glob.glob(os.path.join(dir_path, '*_visualizer.py'))):
+            fp_mtime_vis = loaded_by_path.get(fp)
+            now_mtime = os.path.getmtime(fp)
+            # use cached if mtime same
+            if fp_mtime_vis is not None and now_mtime == fp_mtime_vis[1]:
+                _loaded_visualizers.append(fp_mtime_vis)
             else:
-                # Reload failed (e.g. syntax error); drop it
-                _loaded_visualizers.pop(i)
-                continue
-        i += 1
-
-    # Pick up brand-new files
-    for filepath, mtime in current_files.items():
-        if filepath not in known_paths:
-            vis = _visualizer_from_file(filepath)
-            if vis is not None:
-                _loaded_visualizers.append((filepath, mtime, vis))
+                vis = _visualizer_from_file(fp)
+                if vis is not None:
+                    _loaded_visualizers.append((fp, now_mtime, vis))
 
 
 # ============================================================================
@@ -1399,7 +1376,7 @@ def run_with_visualization(code: str) -> Dict[str, Any]:
         }
 
     # Optional: write transformed code for debugging (enable by setting SNC_WRITE_TRANSFORMED=1)
-    if os.environ.get('SNC_WRITE_TRANSFORMED'):
+    if True or os.environ.get('SNC_WRITE_TRANSFORMED'):
         with open('transformed.py', 'w') as f:
             try:
                 transformed_code = ast.unparse(transformed_ast)
@@ -1533,7 +1510,7 @@ def run_pool_worker_mode(working_directory: str) -> None:
         pre-loaded import globals, emit results, and exit.  (Checkpoint 2 path —
         used when code is unchanged and imports are already loaded.)
     """
-    global models_and_events, _source_code, execution_step, line_emit_counter
+    global models_and_events, _source_code, execution_step, line_emit_counter, _current_run_id
 
     emit_meta('pool-worker-start')
 
@@ -1601,6 +1578,7 @@ def run_pool_worker_mode(working_directory: str) -> None:
         run_id = cmd.get('run_id', '')
         m_and_e_json = cmd.get('models_and_events', '')
         _source_code = code
+        _current_run_id = run_id
         _reload_stale_visualizers()
 
         emit_meta(f'checkpoint2-run-{run_id}')
@@ -1617,6 +1595,7 @@ def run_pool_worker_mode(working_directory: str) -> None:
         run_id = cmd.get('run_id', '')
         m_and_e_json = cmd.get('models_and_events', '')
         _source_code = code
+        _current_run_id = run_id
         _reload_stale_visualizers()
 
         emit_meta(f'checkpoint1-run-{run_id}')
