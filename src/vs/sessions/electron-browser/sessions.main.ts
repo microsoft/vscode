@@ -300,7 +300,7 @@ export class SessionsMain extends Disposable {
 			this.createConfigurationService(userDataProfileService, fileService, logService, policyService).then(service => {
 
 				// Configuration
-				serviceCollection.set(IWorkbenchConfigurationService, service as unknown as IWorkbenchConfigurationService);
+				serviceCollection.set(IWorkbenchConfigurationService, service);
 
 				return service;
 			}),

@@ -458,7 +458,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
-		const activeSessionRepo = activeSessionItem?.worktree ?? activeSessionItem?.repository;
+		const activeSessionRepo = activeSessionItem?.providerType === AgentSessionProviders.Background ? activeSessionItem?.worktree ?? activeSessionItem?.repository : undefined;
 		if (activeSessionRepo) {
 			if (currentRepo) {
 				if (!this.uriIdentityService.extUri.isEqual(currentRepo, activeSessionRepo)) {
