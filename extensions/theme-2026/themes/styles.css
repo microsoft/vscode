@@ -611,10 +611,6 @@
 	box-shadow: var(--shadow-sm);
 }
 
-.notebookOverlay .cell-bottom-toolbar-container .action-item {
-	border-radius: var(--radius-sm);
-}
-
 /* Inline Chat */
 .monaco-workbench .monaco-editor .inline-chat {
 	box-shadow: var(--shadow-lg);

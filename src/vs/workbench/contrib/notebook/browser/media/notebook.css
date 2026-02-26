@@ -376,6 +376,11 @@
 .notebookOverlay .cell-drag-image .cell-editor-container > div {
 	background: var(--vscode-editor-background) !important;
 }
+
+.notebookOverlay .cell-bottom-toolbar-container .action-item {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
 .notebookOverlay .monaco-list-row .cell-title-toolbar,
 .notebookOverlay .monaco-list-row.cell-drag-image,
 .notebookOverlay .cell-bottom-toolbar-container .action-item,
