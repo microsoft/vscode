@@ -83,6 +83,7 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 					...base,
 					kind: 'modelTurn',
 					model: dto.model,
+					requestName: dto.requestName,
 					inputTokens: dto.inputTokens,
 					outputTokens: dto.outputTokens,
 					totalTokens: dto.totalTokens,

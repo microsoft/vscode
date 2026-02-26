@@ -145,6 +145,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					...base,
 					kind: 'modelTurn',
 					model: e.model,
+					requestName: e.requestName,
 					inputTokens: e.inputTokens,
 					outputTokens: e.outputTokens,
 					totalTokens: e.totalTokens,

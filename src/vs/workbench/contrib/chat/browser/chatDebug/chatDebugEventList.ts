@@ -45,9 +45,10 @@ function renderEventToTemplate(element: IChatDebugEvent, templateData: IChatDebu
 			break;
 		case 'modelTurn':
 			templateData.name.textContent = safeStr(element.model) || localize('chatDebug.modelTurn', "Model Turn");
-			templateData.details.textContent = element.totalTokens !== undefined
-				? localize('chatDebug.tokens', "{0} tokens", element.totalTokens)
-				: '';
+			templateData.details.textContent = [
+				safeStr(element.requestName),
+				element.totalTokens !== undefined ? localize('chatDebug.tokens', "{0} tokens", element.totalTokens) : '',
+			].filter(Boolean).join(' \u00b7 ');
 			break;
 		case 'generic':
 			templateData.name.textContent = safeStr(element.name, localize('chatDebug.unknownEvent', "(unknown)"));
