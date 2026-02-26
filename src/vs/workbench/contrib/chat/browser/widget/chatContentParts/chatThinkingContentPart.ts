@@ -66,7 +66,8 @@ export function getToolInvocationIcon(toolId: string): ThemeIcon {
 
 	if (
 		lowerToolId.includes('edit') ||
-		lowerToolId.includes('create')
+		lowerToolId.includes('create') ||
+		lowerToolId.includes('replace')
 	) {
 		return Codicon.pencil;
 	}
