@@ -156,7 +156,6 @@ function getUserStorageSubfolder(type: PromptsType): string | undefined {
 	switch (type) {
 		case PromptsType.instructions: return 'instructions';
 		case PromptsType.skill: return 'skills';
-		case PromptsType.prompt: return 'prompts';
 		default: return undefined;
 	}
 }

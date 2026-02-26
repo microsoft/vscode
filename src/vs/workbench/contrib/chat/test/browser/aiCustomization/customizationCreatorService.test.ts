@@ -72,14 +72,16 @@ suite('customizationCreatorService', () => {
 			assert.strictEqual(result?.path, '/home/user/.copilot/skills');
 		});
 
-		test('with override path and tilde for prompts', async () => {
+		test('override path is ignored for prompts (no CLI discovery path)', async () => {
+			const fallbackUri = URI.file('/home/user/.vscode/prompts');
 			const result = await resolveUserTargetDirectory(
-				createMockPromptsService() as IPromptsService,
+				createMockPromptsService(fallbackUri) as IPromptsService,
 				PromptsType.prompt,
 				createMockConfigService('~/.copilot') as IConfigurationService,
 				createMockPathService() as IPathService,
 			);
-			assert.strictEqual(result?.path, '/home/user/.copilot/prompts');
+			// Should fall through to getSourceFolders, not use the override
+			assert.strictEqual(result?.path, '/home/user/.vscode/prompts');
 		});
 
 		test('override path is ignored for agents (no CLI convention)', async () => {
