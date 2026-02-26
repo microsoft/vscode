@@ -59,6 +59,7 @@ import { FolderPicker } from './folderPicker.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
+import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
@@ -92,6 +93,7 @@ class NewChatWidget extends Disposable {
 	private readonly _targetPicker: SessionTargetPicker;
 	private readonly _isolationModePicker: IsolationModePicker;
 	private readonly _branchPicker: BranchPicker;
+	private readonly _syncIndicator: SyncIndicator;
 	private readonly _options: INewChatWidgetOptions;
 
 	// Input
@@ -163,6 +165,7 @@ class NewChatWidget extends Disposable {
 		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, options.defaultTarget));
 		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
+		this._syncIndicator = this._register(this.instantiationService.createInstance(SyncIndicator));
 		this._options = options;
 
 		// When target changes, create new session
@@ -171,6 +174,7 @@ class NewChatWidget extends Disposable {
 			const isLocal = target === AgentSessionProviders.Background;
 			this._isolationModePicker.setVisible(isLocal);
 			this._branchPicker.setVisible(isLocal);
+			this._syncIndicator.setVisible(isLocal);
 			this._focusEditor();
 		}));
 
@@ -179,7 +183,8 @@ class NewChatWidget extends Disposable {
 			this._updateInputLoadingState();
 		}));
 
-		this._register(this._branchPicker.onDidChange(() => {
+		this._register(this._branchPicker.onDidChange((branch) => {
+			this._syncIndicator.setBranch(branch);
 			this._focusEditor();
 		}));
 
@@ -239,11 +244,13 @@ class NewChatWidget extends Disposable {
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
 		this._branchPicker.render(branchContainer);
+		this._syncIndicator.render(branchContainer);
 
 		// Set initial visibility based on default target
 		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
 		this._isolationModePicker.setVisible(isLocal);
 		this._branchPicker.setVisible(isLocal);
+		this._syncIndicator.setVisible(isLocal);
 
 		// Render target buttons & extension pickers
 		this._renderOptionGroupPickers();
@@ -335,6 +342,7 @@ class NewChatWidget extends Disposable {
 		this._updateInputLoadingState();
 		this._branchPicker.setRepository(undefined);
 		this._isolationModePicker.setRepository(undefined);
+		this._syncIndicator.setRepository(undefined);
 
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
@@ -344,6 +352,7 @@ class NewChatWidget extends Disposable {
 			this._updateInputLoadingState();
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
+			this._syncIndicator.setRepository(repository);
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -353,6 +362,7 @@ class NewChatWidget extends Disposable {
 			this._updateInputLoadingState();
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
+			this._syncIndicator.setRepository(undefined);
 		});
 	}
 
