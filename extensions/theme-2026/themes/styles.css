@@ -600,6 +600,7 @@
 
 .monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {
 	border-radius: var(--radius-md);
+	box-shadow: inset var(--shadow-sm);
 }
 
 .notebookOverlay .monaco-list-row .cell-title-toolbar {

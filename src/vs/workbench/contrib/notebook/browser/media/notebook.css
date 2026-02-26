@@ -294,6 +294,7 @@
 	left: 0px;
 	top: 0px;
 	bottom: 0px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	outline-offset: -1px;
 	display: block;
 	position: absolute;
