@@ -619,6 +619,7 @@
 /* Command Center */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
 	border-radius: var(--radius-lg) !important;
+	box-shadow: inset var(--shadow-sm) !important;
 	background: color-mix(in srgb, var(--vscode-commandCenter-background) 60%, transparent) !important;
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 	backdrop-filter: var(--backdrop-blur-md);
