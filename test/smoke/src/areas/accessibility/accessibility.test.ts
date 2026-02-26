@@ -154,8 +154,24 @@ export function setup(logger: Logger, opts: { web?: boolean }, quality: Quality)
 					await app.workbench.chat.sendMessage('Run ls in the terminal');
 
 					// Wait for the response to complete - skip test if AI service is unavailable
+					const waitForChatResponseWithDeadline = (retries: number, deadlineMs: number): Promise<void> => {
+						return new Promise<void>((resolve, reject) => {
+							const timer = setTimeout(() => {
+								reject(new Error('waitForResponse deadline exceeded'));
+							}, deadlineMs);
+
+							app.workbench.chat.waitForResponse(retries).then(() => {
+								clearTimeout(timer);
+								resolve();
+							}, error => {
+								clearTimeout(timer);
+								reject(error);
+							});
+						});
+					};
+
 					try {
-						await app.workbench.chat.waitForResponse(1500);
+						await waitForChatResponseWithDeadline(1500, 150 * 1000);
 					} catch {
 						this.skip();
 					}
