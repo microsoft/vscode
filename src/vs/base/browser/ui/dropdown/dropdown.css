@@ -20,6 +20,10 @@
 	cursor: default;
 }
 
+.monaco-dropdown .dropdown-menu {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
 .monaco-dropdown-with-primary {
 	display: flex !important;
 	flex-direction: row;
@@ -44,3 +48,5 @@
 	background-position: center center;
 	background-repeat: no-repeat;
 }
+
+

@@ -491,7 +491,6 @@
 /* Dropdowns */
 .monaco-workbench .monaco-dropdown .dropdown-menu {
 	box-shadow: var(--shadow-lg);
-	border-radius: var(--radius-lg);
 }
 
 /* SCM */
@@ -503,7 +502,6 @@
 /* Debug Toolbar */
 .monaco-workbench .debug-toolbar {
 	box-shadow: var(--shadow-lg);
-	border-radius: var(--radius-lg);
 	backdrop-filter: var(--backdrop-blur-lg) !important;
 	-webkit-backdrop-filter: var(--backdrop-blur-lg) !important;
 }
