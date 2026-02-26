@@ -338,7 +338,6 @@
 /* Dialog */
 .monaco-workbench .monaco-dialog-box {
 	box-shadow: var(--shadow-xl);
-	border-radius: var(--radius-lg);
 	backdrop-filter: var(--backdrop-blur-lg);
 	-webkit-backdrop-filter: var(--backdrop-blur-lg);
 	background: color-mix(in srgb, var(--vscode-editor-background) 60%, transparent) !important;
