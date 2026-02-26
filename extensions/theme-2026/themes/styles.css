@@ -614,7 +614,6 @@
 .monaco-workbench .monaco-editor .inline-chat {
 	box-shadow: var(--shadow-lg);
 	border: none;
-	border-radius: var(--radius-lg);
 }
 
 /* Command Center */
