@@ -120,9 +120,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
 			const changes = this._getChanges();
+			const description = this._getActiveSessionDescription();
 
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${changes?.insertions ?? ''}|${changes?.deletions ?? ''}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${changes?.insertions ?? ''}|${changes?.deletions ?? ''}|${description ?? ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -204,11 +205,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			this._container.appendChild(centerGroup);
 
-			// Hover
+			// Hover: show label and description (if available)
+			const hoverContent = description ? `${label}\n${description}` : label;
 			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
 				getDefaultHoverDelegate('mouse'),
 				this._container,
-				label
+				hoverContent
 			));
 
 			// Click handler - show sessions picker
@@ -278,6 +280,25 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		}
 
 		return localize('agentSessions.newSession', "New Session");
+	}
+
+	/**
+	 * Get the description of the active chat session, if available.
+	 * Returns the string value from the agent session model's description field.
+	 */
+	private _getActiveSessionDescription(): string | undefined {
+		const activeSession = this.activeSessionService.getActiveSession();
+		if (!activeSession) {
+			return undefined;
+		}
+
+		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+		const description = agentSession?.description;
+		if (!description) {
+			return undefined;
+		}
+
+		return typeof description === 'string' ? description : description.value;
 	}
 
 	/**
