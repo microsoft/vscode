@@ -65,6 +65,7 @@ import { CloudModelPicker } from './modelPicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
@@ -984,7 +985,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const draft = this._getDraftState();
 		if (draft) {
 			this._editor?.getModel()?.setValue(draft.inputText);
-			this._contextAttachments.setAttachments(draft.attachments);
+			if (draft.attachments?.length) {
+				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
+			}
 			if (draft.selectedModel) {
 				const models = this._getAvailableModels();
 				const model = models.find(m => m.identifier === draft.selectedModel?.identifier);
@@ -1012,8 +1015,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	}
 
 	saveState(): void {
+		const inputState = this._getInputState();
 		const state = {
-			...this._getInputState(),
+			...inputState,
+			attachments: inputState.attachments.map(IChatRequestVariableEntry.toExport),
 			target: this._targetPicker.selectedTarget,
 		};
 		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
