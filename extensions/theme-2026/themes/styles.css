@@ -526,7 +526,6 @@
 /* Parameter Hints */
 .monaco-workbench .monaco-editor .parameter-hints-widget {
 	box-shadow: var(--shadow-lg);
-	border-radius: var(--radius-lg);
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 }
