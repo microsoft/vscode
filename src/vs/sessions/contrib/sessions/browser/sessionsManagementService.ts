@@ -39,6 +39,7 @@ const repositoryOptionId = 'repository';
  */
 export interface IActiveSessionItem {
 	readonly resource: URI;
+	readonly isUntitled: boolean;
 	readonly label: string | undefined;
 	readonly repository: URI | undefined;
 	readonly worktree: URI | undefined;
@@ -151,10 +152,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const agentSession = this.agentSessionsService.model.getSession(currentActive.resource);
 		if (!agentSession) {
-			// Only switch sessions if the active session was a known agent session
-			// that got deleted. New session resources that aren't yet in the model
-			// should not trigger a switch.
-			if (isAgentSession(currentActive)) {
+			if (currentActive.isUntitled) {
+				// The untitled session was committed by the extension via
+				// onDidCommitChatSessionItem, which replaces the untitled
+				// resource with a new committed resource. The commit handler
+				// already swapped the ChatViewPane widget to the new resource,
+				// so find it by checking the widget's current session resource.
+				const chatViewWidgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
+				const committedResource = chatViewWidgets[0]?.viewModel?.sessionResource;
+				const committedSession = committedResource ? this.agentSessionsService.model.getSession(committedResource) : undefined;
+				if (committedSession) {
+					this.setActiveSession(committedSession);
+				}
+			} else {
 				this.showNextSession();
 			}
 			return;
@@ -397,6 +407,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this.lastSelectedSession = session.resource;
 				const [repository, worktree] = this.getRepositoryFromMetadata(session.metadata);
 				activeSessionItem = {
+					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
 					label: session.label,
 					resource: session.resource,
 					repository,
@@ -404,6 +415,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				};
 			} else {
 				activeSessionItem = {
+					isUntitled: true,
 					label: undefined,
 					resource: session.resource,
 					repository: session.repoUri,
@@ -412,6 +424,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				this._activeSessionDisposables.add(session.onDidChange(e => {
 					if (e === 'repoUri') {
 						this._activeSession.set({
+							isUntitled: true,
 							label: undefined,
 							resource: session.resource,
 							repository: session.repoUri,
