@@ -543,9 +543,9 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 								}
 							}
 
-							// Get the page URL
+							// Get the page URL (origin + pathname only, to avoid leaking sensitive query/fragment data)
 							const { result: pageUrlResult } = await debuggers.sendCommand('Runtime.evaluate', {
-								expression: 'document.location.href',
+								expression: '(function() { try { return document.location.origin + document.location.pathname; } catch (e) { return undefined; } })()',
 								returnByValue: true,
 							}, sessionId);
 							if (typeof pageUrlResult?.value === 'string') {
