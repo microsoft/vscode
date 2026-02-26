@@ -292,7 +292,7 @@ export class SessionsMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Workspace
-		const workspaceContextService = new SessionsWorkspaceContextService(environmentService, uriIdentityService);
+		const workspaceContextService = new SessionsWorkspaceContextService(uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(userDataProfilesService.profilesHome), 'agent-sessions.code-workspace'), uriIdentityService);
 		serviceCollection.set(IWorkspaceContextService, workspaceContextService);
 		serviceCollection.set(IWorkspaceEditingService, workspaceContextService);
 

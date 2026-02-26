@@ -245,7 +245,6 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly disableTelemetry: boolean = false;
 	readonly serviceMachineIdResource: URI = URI.from({ scheme: 'monaco', authority: 'serviceMachineIdResource' });
 	readonly policyFile?: URI | undefined = undefined;
-	readonly agentSessionsWorkspace: URI = URI.from({ scheme: 'monaco', authority: 'agentSessionsWorkspace' });
 }
 
 class StandaloneDialogService implements IDialogService {

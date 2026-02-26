@@ -6,7 +6,6 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { removeTrailingPathSeparator } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
@@ -30,10 +29,10 @@ export class SessionsWorkspaceContextService implements IWorkspaceContextService
 	private workspace: Workspace;
 
 	constructor(
-		environmentService: IEnvironmentService,
+		sessionsWorkspaceUri: URI,
 		private readonly uriIdentityService: IUriIdentityService
 	) {
-		const workspaceIdentifier = getWorkspaceIdentifier(environmentService.agentSessionsWorkspace);
+		const workspaceIdentifier = getWorkspaceIdentifier(sessionsWorkspaceUri);
 		this.workspace = new Workspace(workspaceIdentifier.id, [], false, workspaceIdentifier.configPath, uri => uriIdentityService.extUri.ignorePathCasing(uri));
 	}
 
