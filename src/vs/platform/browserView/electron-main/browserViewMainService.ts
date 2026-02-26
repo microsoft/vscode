@@ -330,10 +330,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).dispatchKeyEvent(keyEvent);
 	}
 
-	async setZoomFactor(id: string, zoomFactor: number): Promise<void> {
-		return this._getBrowserView(id).setZoomFactor(zoomFactor);
-	}
-
 	async focus(id: string): Promise<void> {
 		return this._getBrowserView(id).focus();
 	}

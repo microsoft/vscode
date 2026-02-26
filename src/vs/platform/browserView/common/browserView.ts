@@ -34,6 +34,7 @@ export interface IBrowserViewState {
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	storageScope: BrowserViewStorageScope;
+	zoomFactor: number;
 }
 
 export interface IBrowserViewNavigationEvent {

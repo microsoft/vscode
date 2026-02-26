@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
-import { errorResult } from './browserToolHelpers.js';
+import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { errorResult, playwrightInvokeRaw } from './browserToolHelpers.js';
 import { OpenPageToolId } from './openBrowserTool.js';
 import { ReadBrowserToolData } from './readBrowserTool.js';
 
@@ -29,16 +30,16 @@ export const ScreenshotBrowserToolData: IToolData = {
 			},
 			selector: {
 				type: 'string',
-				description: 'Playwright selector of an element to capture. If omitted, captures the whole page.'
+				description: 'Playwright selector of an element to capture. If omitted, captures the whole viewport.'
 			},
 			ref: {
 				type: 'string',
-				description: 'Element reference to capture. If omitted, captures the whole page.'
+				description: 'Element reference to capture. If omitted, captures the whole viewport.'
 			},
-			fullPage: {
+			scrollIntoViewIfNeeded: {
 				type: 'boolean',
-				description: 'Set to true to capture the full scrollable page instead of just the viewport. Incompatible with selector/ref.'
-			},
+				description: 'Whether to scroll the element into view before capturing. Defaults to false.',
+			}
 		},
 		required: ['pageId'],
 	},
@@ -49,10 +50,12 @@ interface IScreenshotBrowserToolParams {
 	selector?: string;
 	ref?: string;
 	fullPage?: boolean;
+	scrollIntoViewIfNeeded?: boolean;
 }
 
 export class ScreenshotBrowserTool implements IToolImpl {
 	constructor(
+		@IBrowserViewWorkbenchService private readonly browserViewMainService: IBrowserViewWorkbenchService,
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 	) { }
 
@@ -75,7 +78,24 @@ export class ScreenshotBrowserTool implements IToolImpl {
 			selector = `aria-ref=${params.ref}`;
 		}
 
-		const screenshot = await this.playwrightService.captureScreenshot(params.pageId, selector, params.fullPage);
+		// Note that we don't use Playwright's screenshot methods because they cause brief flashing on the page,
+		// and also doesn't handle zooming well.
+		const browserViewModel = await this.browserViewMainService.getBrowserViewModel(params.pageId);
+		const bounds = selector && await playwrightInvokeRaw(this.playwrightService, params.pageId, async (page, selector, scrollIntoViewIfNeeded) => {
+			const locator = page.locator(selector);
+			if (scrollIntoViewIfNeeded) {
+				await locator.scrollIntoViewIfNeeded();
+			}
+			return locator.boundingBox();
+		}, selector, params.scrollIntoViewIfNeeded) || undefined;
+		const zoomFactor = browserViewModel.zoomFactor;
+		if (bounds) {
+			bounds.x *= zoomFactor;
+			bounds.y *= zoomFactor;
+			bounds.width *= zoomFactor;
+			bounds.height *= zoomFactor;
+		}
+		const screenshot = await browserViewModel.captureScreenshot({ rect: bounds });
 
 		return {
 			content: [

@@ -46,6 +46,14 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 		return model;
 	}
 
+	getBrowserViewModel(id: string): IBrowserViewModel {
+		const model = this._models.get(id);
+		if (!model) {
+			throw new Error(`Browser view id ${id} not found`);
+		}
+		return model;
+	}
+
 	async clearGlobalStorage(): Promise<void> {
 		return this._browserViewService.clearGlobalStorage();
 	}
