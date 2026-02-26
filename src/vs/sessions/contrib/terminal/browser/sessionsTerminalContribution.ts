@@ -20,6 +20,8 @@ import { IPathService } from '../../../../workbench/services/path/common/pathSer
 import { Menus } from '../../../browser/menus.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 
 /**
  * Returns the cwd URI for the given session: worktree for non-cloud agent
@@ -147,7 +149,7 @@ class OpenSessionInTerminalAction extends Action2 {
 				id: Menus.TitleBarRight,
 				group: 'navigation',
 				order: 9,
-				when: IsAuxiliaryWindowContext.toNegated()
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 			}]
 		});
 	}

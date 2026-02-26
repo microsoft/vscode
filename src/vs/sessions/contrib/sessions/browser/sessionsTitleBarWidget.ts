@@ -13,6 +13,7 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -31,6 +32,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ViewAllSessionChangesAction } from '../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -375,7 +377,7 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 			submenu: Menus.TitleBarControlMenu,
 			title: localize('agentSessionsControl', "Agent Sessions"),
 			order: 101,
-			when: IsAuxiliaryWindowContext.negate()
+			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
 		}));
 
 		// Register a placeholder action so the submenu appears

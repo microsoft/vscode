@@ -37,6 +37,8 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -50,7 +52,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 				id: Menus.TitleBarRight,
 				group: 'navigation',
 				order: 10,
-				when: IsAuxiliaryWindowContext.toNegated()
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 			}]
 		});
 	}

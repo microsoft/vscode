@@ -17,6 +17,7 @@ import { Menus } from '../../../browser/menus.js';
 import { ISessionsConfigurationService, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 
 
 
@@ -291,5 +292,5 @@ MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 8,
-	when: IsAuxiliaryWindowContext.toNegated()
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 });
