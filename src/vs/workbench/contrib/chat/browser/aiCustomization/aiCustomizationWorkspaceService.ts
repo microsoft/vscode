@@ -60,6 +60,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		PromptsStorage.plugin,
 	];
 
+	getVisibleStorageSources(_type: PromptsType): readonly PromptsStorage[] {
+		return this.visibleStorageSources;
+	}
+
 	readonly preferManualCreation = false;
 
 	readonly excludedUserFileRoots: readonly URI[] = [];

@@ -964,7 +964,8 @@ export class AICustomizationListWidget extends Disposable {
 		this.logService.info(`[AICustomizationListWidget] filterItems: allItems=${this.allItems.length}, matched=${totalBeforeFilter}`);
 
 		// Group items by storage
-		const visibleSources = new Set(this.workspaceService.visibleStorageSources);
+		const promptType = sectionToPromptType(this.currentSection);
+		const visibleSources = new Set(this.workspaceService.getVisibleStorageSources(promptType));
 		const groups: { storage: PromptsStorage; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
 			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
 			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },

@@ -57,6 +57,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		PromptsStorage.user,
 	];
 
+	getVisibleStorageSources(type: PromptsType): readonly PromptsStorage[] {
+		if (type === PromptsType.hook) {
+			return [PromptsStorage.local];
+		}
+		return this.visibleStorageSources;
+	}
+
 	readonly preferManualCreation = true;
 
 	async commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void> {

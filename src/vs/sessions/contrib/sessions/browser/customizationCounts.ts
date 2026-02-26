@@ -24,9 +24,9 @@ const storageToCountKey: Partial<Record<PromptsStorage, keyof ISourceCounts>> = 
 	[PromptsStorage.extension]: 'extension',
 };
 
-export function getSourceCountsTotal(counts: ISourceCounts, workspaceService: IAICustomizationWorkspaceService): number {
+export function getSourceCountsTotal(counts: ISourceCounts, workspaceService: IAICustomizationWorkspaceService, type: PromptsType): number {
 	let total = 0;
-	for (const storage of workspaceService.visibleStorageSources) {
+	for (const storage of workspaceService.getVisibleStorageSources(type)) {
 		const key = storageToCountKey[storage];
 		if (key) {
 			total += counts[key];
@@ -84,10 +84,10 @@ export async function getCustomizationTotalCount(promptsService: IPromptsService
 		getPromptSourceCounts(promptsService, PromptsType.hook, excluded),
 	]);
 
-	return getSourceCountsTotal(agentCounts, workspaceService)
-		+ getSourceCountsTotal(skillCounts, workspaceService)
-		+ getSourceCountsTotal(instructionCounts, workspaceService)
-		+ getSourceCountsTotal(promptCounts, workspaceService)
-		+ getSourceCountsTotal(hookCounts, workspaceService)
+	return getSourceCountsTotal(agentCounts, workspaceService, PromptsType.agent)
+		+ getSourceCountsTotal(skillCounts, workspaceService, PromptsType.skill)
+		+ getSourceCountsTotal(instructionCounts, workspaceService, PromptsType.instructions)
+		+ getSourceCountsTotal(promptCounts, workspaceService, PromptsType.prompt)
+		+ getSourceCountsTotal(hookCounts, workspaceService, PromptsType.hook)
 		+ mcpService.servers.get().length;
 }
