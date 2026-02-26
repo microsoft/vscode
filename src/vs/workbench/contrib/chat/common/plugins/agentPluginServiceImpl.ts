@@ -546,9 +546,7 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 				continue;
 			}
 
-			const manifestRecord = manifest as Record<string, unknown>;
-			const mcpServers = manifestRecord['mcpServers'];
-			const definitions = this._parseMcpServerDefinitionMap(mcpServers);
+			const definitions = this._parseMcpServerDefinitionMap(manifest);
 			if (definitions.length > 0) {
 				return definitions;
 			}
