@@ -11,11 +11,14 @@ import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -133,8 +136,10 @@ class FeedbackFileRenderer implements ITreeRenderer<IFeedbackFileElement, void, 
 
 interface IFeedbackCommentTemplate {
 	readonly textElement: HTMLElement;
+	readonly row: HTMLElement;
 	readonly actionBar: ActionBar;
 	readonly templateDisposables: DisposableStore;
+	readonly hoverDisposable: MutableDisposable<IDisposable>;
 	element: IFeedbackCommentElement | undefined;
 }
 
@@ -145,6 +150,9 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 	constructor(
 		private readonly _agentFeedbackService: IAgentFeedbackService | undefined,
 		private readonly _sessionResource: URI,
+		private readonly _hoverService: IHoverService,
+		private readonly _modelService: IModelService,
+		private readonly _languageService: ILanguageService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IFeedbackCommentTemplate {
@@ -157,7 +165,9 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 		const actionBarContainer = dom.append(row, $('div.agent-feedback-hover-action-bar'));
 		const actionBar = templateDisposables.add(new ActionBar(actionBarContainer));
 
-		const templateData: IFeedbackCommentTemplate = { textElement, actionBar, templateDisposables, element: undefined };
+		const hoverDisposable = templateDisposables.add(new MutableDisposable());
+
+		const templateData: IFeedbackCommentTemplate = { textElement, row, actionBar, templateDisposables, hoverDisposable, element: undefined };
 
 		if (this._agentFeedbackService) {
 			const service = this._agentFeedbackService;
@@ -170,9 +180,6 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 					service.revealFeedback(sessionResource, data.id);
 				}
 			}));
-		} else {
-			// When there's no service (read-only mode), set title on render
-			// (textElement may be truncated, so show full text on hover)
 		}
 
 		return templateData;
@@ -184,9 +191,13 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 		templateData.textElement.textContent = element.text;
 		templateData.element = element;
 
-		// Set title for truncated text in read-only mode
+		// In read-only mode, set up a rich markdown hover with comment + code snippet
 		if (!this._agentFeedbackService) {
-			templateData.textElement.title = element.text;
+			templateData.hoverDisposable.value = this._hoverService.setupDelayedHover(
+				templateData.row,
+				() => this._buildCommentHover(element),
+				{ groupId: 'agent-feedback-comment' }
+			);
 		}
 
 		templateData.actionBar.clear();
@@ -208,6 +219,29 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 	disposeTemplate(templateData: IFeedbackCommentTemplate): void {
 		templateData.templateDisposables.dispose();
 	}
+
+	private _buildCommentHover(element: IFeedbackCommentElement): IDelayedHoverOptions {
+		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+		markdown.appendText(element.text);
+
+		// Try to get the code snippet synchronously from already-loaded models
+		const model = this._modelService.getModel(element.resourceUri);
+		if (model) {
+			const snippet = model.getValueInRange(element.range);
+			if (snippet) {
+				const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(element.resourceUri);
+				markdown.appendMarkdown(`\n\n\`\`\`${languageId ?? ''}\n${snippet}\n\`\`\``);
+			}
+		}
+
+		return {
+			content: markdown,
+			style: HoverStyle.Pointer,
+			position: {
+				hoverPosition: HoverPosition.RIGHT,
+			},
+		};
+	}
 }
 
 // --- Hover ---
@@ -226,6 +260,8 @@ export class AgentFeedbackHover extends Disposable {
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
 
@@ -274,7 +310,7 @@ export class AgentFeedbackHover extends Disposable {
 			new FeedbackTreeDelegate(),
 			[
 				new FeedbackFileRenderer(resourceLabels, this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource),
-				new FeedbackCommentRenderer(this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource),
+				new FeedbackCommentRenderer(this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource, this._hoverService, this._modelService, this._languageService),
 			],
 			{
 				defaultIndent: 0,
