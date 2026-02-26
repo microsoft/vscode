@@ -205,6 +205,10 @@ export class ChatDebugFlowChartView extends Disposable {
 	}
 
 	private load(): void {
+		// Check whether the chart content currently has focus before clearing it,
+		// so we only restore focus if it was taken away by the re-render.
+		const hadFocus = DOM.isAncestorOfActiveElement(this.content);
+
 		DOM.clearNode(this.content);
 		this.loadDisposables.clear();
 		this.updateBreadcrumb();
@@ -271,9 +275,11 @@ export class ChatDebugFlowChartView extends Disposable {
 			this.applyTransform();
 		}
 
-		// Restore focus after re-render (e.g. after collapse toggle),
-		// but not when the filter header has focus (user is typing or using filter menu).
-		if (this.focusedElementId && !DOM.isAncestorOfActiveElement(this.headerContainer)) {
+		// Restore focus after re-render only when the chart itself had focus
+		// before clearNode removed it (e.g. after collapse toggle). Skip when
+		// focus was elsewhere (detail panel, filter, or outside the chart)
+		// so that new events arriving don't steal focus.
+		if (this.focusedElementId && hadFocus && !DOM.isAncestorOfActiveElement(this.headerContainer)) {
 			this.restoreFocus(this.focusedElementId);
 		}
 	}
