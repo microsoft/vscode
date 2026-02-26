@@ -26,7 +26,7 @@ import { IListVirtualDelegate, IListRenderer } from '../../../../../base/browser
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
@@ -62,6 +62,9 @@ import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditor
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
@@ -185,6 +188,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IPathService private readonly pathService: IPathService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -503,13 +507,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user'): Promise<void> {
 
 		if (type === PromptsType.hook) {
-			const isWorkspace = target === 'workspace';
-			await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
-				openEditor: async (resource) => {
-					await this.showEmbeddedEditor(resource, basename(resource), isWorkspace);
-					return;
-				},
-			});
+			if (this.workspaceService.preferManualCreation) {
+				// Sessions: directly create a Copilot CLI format hooks file
+				await this.createCopilotCliHookFile();
+			} else {
+				// Core: show the configure hooks quick pick
+				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
+					openEditor: async (resource) => {
+						await this.showEmbeddedEditor(resource, basename(resource), true);
+						return;
+					},
+				});
+			}
 			return;
 		}
 
@@ -537,6 +546,40 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		await this.commandService.executeCommand(commandId, options);
+		void this.listWidget.refresh();
+	}
+
+	/**
+	 * Ensures a Copilot CLI format hooks file exists (.github/hooks/hooks.json),
+	 * then opens the configure hooks quick pick.
+	 */
+	private async createCopilotCliHookFile(): Promise<void> {
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		if (!projectRoot) {
+			return;
+		}
+
+		const hookFileUri = joinPath(projectRoot, HOOKS_SOURCE_FOLDER, 'hooks.json');
+
+		// Create the file if it doesn't exist yet
+		try {
+			await this.fileService.stat(hookFileUri);
+		} catch {
+			const hooksContent = { hooks: {} };
+			const jsonContent = JSON.stringify(hooksContent, null, '\t');
+			await this.fileService.writeFile(hookFileUri, VSBuffer.fromString(jsonContent));
+		}
+
+		// Launch the configure hooks quick pick
+		await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
+			openEditor: async (resource) => {
+				await this.showEmbeddedEditor(resource, basename(resource), true);
+				return;
+			},
+			onHookFileCreated: () => {
+				void this.listWidget.refresh();
+			},
+		});
 		void this.listWidget.refresh();
 	}
 

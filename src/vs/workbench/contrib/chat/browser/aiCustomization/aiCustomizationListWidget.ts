@@ -28,17 +28,12 @@ import { IContextMenuService, IContextViewService } from '../../../../../platfor
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { matchesContiguousSubString, IMatch } from '../../../../../base/common/filters.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
+import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { parseAllHookFiles } from '../promptSyntax/hookUtils.js';
-import { OS } from '../../../../../base/common/platform.js';
-import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
@@ -327,7 +322,9 @@ export class AICustomizationListWidget extends Disposable {
 	private searchAndButtonContainer!: HTMLElement;
 	private searchContainer!: HTMLElement;
 	private searchInput!: InputBox;
+	private addButtonContainer!: HTMLElement;
 	private addButton!: ButtonWithDropdown;
+	private addButtonSimple!: Button;
 	private listContainer!: HTMLElement;
 	private list!: WorkbenchList<IListEntry>;
 	private emptyStateContainer!: HTMLElement;
@@ -364,11 +361,8 @@ export class AICustomizationListWidget extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IPathService private readonly pathService: IPathService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@ILogService private readonly logService: ILogService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
@@ -416,9 +410,19 @@ export class AICustomizationListWidget extends Disposable {
 			this.delayedFilter.trigger(() => this.filterItems());
 		}));
 
-		// Add button with dropdown next to search
-		const addButtonContainer = DOM.append(this.searchAndButtonContainer, $('.list-add-button-container'));
-		this.addButton = this._register(new ButtonWithDropdown(addButtonContainer, {
+		// Add button container next to search
+		this.addButtonContainer = DOM.append(this.searchAndButtonContainer, $('.list-add-button-container'));
+
+		// Simple button (for single-action case, no dropdown)
+		this.addButtonSimple = this._register(new Button(this.addButtonContainer, {
+			...defaultButtonStyles,
+			supportIcons: true,
+		}));
+		this.addButtonSimple.element.classList.add('list-add-button');
+		this._register(this.addButtonSimple.onDidClick(() => this.executePrimaryCreateAction()));
+
+		// Button with dropdown (for multi-action case)
+		this.addButton = this._register(new ButtonWithDropdown(this.addButtonContainer, {
 			...defaultButtonStyles,
 			supportIcons: true,
 			contextMenuProvider: this.contextMenuService,
@@ -610,22 +614,50 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private updateAddButton(): void {
 		const typeLabel = this.getTypeLabel();
-		this.addButton.primaryButton.setTitle('');
-		this.addButton.dropdownButton.setTitle('');
-		this.addButton.enabled = true;
+		const dropdownActions = this.getDropdownActions();
+		const hasDropdown = dropdownActions.length > 0;
+
+		// Toggle which button is visible
+		this.addButton.element.style.display = hasDropdown ? '' : 'none';
+		this.addButtonSimple.element.style.display = hasDropdown ? 'none' : '';
+
 		if (this.workspaceService.preferManualCreation) {
 			// Sessions: primary is workspace creation
 			const hasWorkspace = this.hasActiveWorkspace();
-			this.addButton.label = `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`;
-			this.addButton.enabled = hasWorkspace;
-			if (!hasWorkspace) {
-				const disabledTitle = localize('createDisabled', "Open a workspace folder to create customizations.");
-				this.addButton.primaryButton.setTitle(disabledTitle);
-				this.addButton.dropdownButton.setTitle(disabledTitle);
+			const label = `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`;
+
+			if (hasDropdown) {
+				this.addButton.label = label;
+				this.addButton.enabled = hasWorkspace;
+				this.addButton.primaryButton.setTitle('');
+				this.addButton.dropdownButton.setTitle('');
+				if (!hasWorkspace) {
+					const disabledTitle = localize('createDisabled', "Open a workspace folder to create customizations.");
+					this.addButton.primaryButton.setTitle(disabledTitle);
+					this.addButton.dropdownButton.setTitle(disabledTitle);
+				}
+			} else {
+				this.addButtonSimple.label = label;
+				this.addButtonSimple.enabled = hasWorkspace;
+				if (!hasWorkspace) {
+					this.addButtonSimple.setTitle(localize('createDisabled', "Open a workspace folder to create customizations."));
+				} else {
+					this.addButtonSimple.setTitle('');
+				}
 			}
 		} else {
 			// Core: primary is AI generation
-			this.addButton.label = `$(${Codicon.sparkle.id}) Generate ${typeLabel}`;
+			const label = `$(${Codicon.sparkle.id}) Generate ${typeLabel}`;
+			if (hasDropdown) {
+				this.addButton.label = label;
+				this.addButton.enabled = true;
+				this.addButton.primaryButton.setTitle('');
+				this.addButton.dropdownButton.setTitle('');
+			} else {
+				this.addButtonSimple.label = label;
+				this.addButtonSimple.enabled = true;
+				this.addButtonSimple.setTitle('');
+			}
 		}
 	}
 
@@ -787,35 +819,16 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else if (promptType === PromptsType.hook) {
-			// Parse hook files and display individual hooks
-			const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
-			const workspaceRootUri = workspaceFolder?.uri;
-			const userHomeUri = await this.pathService.userHome();
-			const userHome = userHomeUri.fsPath ?? userHomeUri.path;
-			const remoteEnv = await this.remoteAgentService.getEnvironment();
-			const targetOS = remoteEnv?.os ?? OS;
-
-			const parsedHooks = await parseAllHookFiles(
-				this.promptsService,
-				this.fileService,
-				this.labelService,
-				workspaceRootUri,
-				userHome,
-				targetOS,
-				CancellationToken.None
-			);
-
-			for (const hook of parsedHooks) {
-				// Determine storage from the file path
-				const storage = hook.filePath.startsWith('~') ? PromptsStorage.user : PromptsStorage.local;
-
+			// Show hook files (not individual hooks) so users can open and edit them
+			const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
+			for (const hookFile of hookFiles) {
+				const filename = basename(hookFile.uri);
 				items.push({
-					id: `${hook.fileUri.toString()}#${hook.hookType}-${hook.index}`,
-					uri: hook.fileUri,
-					name: `${hook.hookTypeLabel}: ${hook.commandLabel}`,
-					filename: basename(hook.fileUri),
-					description: hook.filePath,
-					storage,
+					id: hookFile.uri.toString(),
+					uri: hookFile.uri,
+					name: this.getFriendlyName(filename),
+					filename,
+					storage: hookFile.storage,
 					promptType,
 				});
 			}
