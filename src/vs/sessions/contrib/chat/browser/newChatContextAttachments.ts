@@ -54,6 +54,13 @@ export class NewChatContextAttachments extends Disposable {
 		return this._attachedContext;
 	}
 
+	setAttachments(entries: readonly IChatRequestVariableEntry[]): void {
+		this._attachedContext.length = 0;
+		this._attachedContext.push(...entries);
+		this._updateRendering();
+		this._onDidChangeContext.fire();
+	}
+
 	constructor(
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ITextModelService private readonly textModelService: ITextModelService,
