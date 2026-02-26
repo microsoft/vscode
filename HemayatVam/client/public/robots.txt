@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://hemayatvam.ir/sitemap.xml

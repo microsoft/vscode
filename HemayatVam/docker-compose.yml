@@ -1,0 +1,26 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    env_file: .env
+    depends_on: [mongo, redis]
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+  mongo:
+    image: mongo:7
+    volumes: ["mongo_data:/data/db"]
+  redis:
+    image: redis:7
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/nginx/reverse-proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    ports: ["80:80", "443:443"]
+    depends_on: [app, client]
+  certbot:
+    image: certbot/certbot
+volumes:
+  mongo_data:
