@@ -281,7 +281,7 @@ const copilotCliHookArraySchema: IJSONSchema = {
 
 /**
  * Hook properties for the Copilot CLI / camelCase format.
- * Maps from the Copilot CLI hook type names in hookCopilotCliCompat.ts.
+ * Maps from the Copilot CLI hook type names defined in COPILOT_CLI_HOOK_TYPE_MAP.
  */
 const copilotCliHookProperties: { [key in keyof typeof COPILOT_CLI_HOOK_TYPE_MAP]: IJSONSchema } = {
 	sessionStart: {
