@@ -289,6 +289,10 @@
 	border-radius: var(--radius-lg);
 }
 
+.monaco-workbench .monaco-select-box-dropdown-container {
+	box-shadow: var(--shadow-lg);
+}
+
 .monaco-workbench .monaco-menu-container > .monaco-scrollable-element {
 	border-radius: var(--radius-lg) !important;
 	box-shadow: var(--shadow-lg) !important;
@@ -588,11 +592,16 @@
 	border-bottom: none !important;
 }
 
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-line-numbers,
+.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines-scrollable {
+	background: var(--vscode-editor-background) !important;
+}
+
 .monaco-editor .sticky-widget .sticky-line-content {
-	backdrop-filter: var(--backdrop-blur-md) !important;
-	-webkit-backdrop-filter: var(--backdrop-blur-md) !important;
-	background: color-mix(in srgb, var(--vscode-editor-background) 40%, transparent) !important;
+	background: var(--vscode-editor-background) !important;
+}
+
+.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-line-numbers {
+	background: var(--vscode-editor-background) !important;
 }
 
 .monaco-workbench .monaco-editor .sticky-widget .sticky-line-content:hover {
