@@ -240,11 +240,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	public onFlushed(lineCount: number, customLineHeightData: CustomLineHeightData[]): void {
 		this._linesLayout.onFlushed(lineCount, customLineHeightData);
 	}
-	public onLinesDeleted(fromLineNumber: number, toLineNumber: number, lineHeightsRemoved: CustomLineHeightData[]): void {
-		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber, lineHeightsRemoved);
+	public onLinesDeleted(fromLineNumber: number, toLineNumber: number): void {
+		this._linesLayout.onLinesDeleted(fromLineNumber, toLineNumber);
 	}
-	public onLinesInserted(fromLineNumber: number, toLineNumber: number, lineHeightsAdded: CustomLineHeightData[]): void {
-		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber, lineHeightsAdded);
+	public onLinesInserted(fromLineNumber: number, toLineNumber: number): void {
+		this._linesLayout.onLinesInserted(fromLineNumber, toLineNumber);
 	}
 
 	// ---- end view event handlers
