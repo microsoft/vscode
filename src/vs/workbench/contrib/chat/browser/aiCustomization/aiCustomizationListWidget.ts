@@ -35,7 +35,6 @@ import { getFlatContextMenuActions } from '../../../../../platform/actions/brows
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ISCMService } from '../../../scm/common/scm.js';
@@ -365,7 +364,6 @@ export class AICustomizationListWidget extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
-		@ILogService private readonly logService: ILogService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -764,10 +762,6 @@ export class AICustomizationListWidget extends Disposable {
 		const promptType = sectionToPromptType(this.currentSection);
 		const items: IAICustomizationListItem[] = [];
 
-		const folders = this.workspaceContextService.getWorkspace().folders;
-		const activeRepo = this.workspaceService.getActiveProjectRoot();
-		this.logService.info(`[AICustomizationListWidget] loadItems: section=${this.currentSection}, promptType=${promptType}, workspaceFolders=[${folders.map(f => f.uri.toString()).join(', ')}], activeRepo=${activeRepo?.toString() ?? 'none'}`);
-
 
 		if (promptType === PromptsType.agent) {
 			// Use getCustomAgents which has parsed name/description from frontmatter
@@ -895,8 +889,6 @@ export class AICustomizationListWidget extends Disposable {
 		// Set git status for workspace (local) items
 		this.updateGitStatus(items);
 
-		this.logService.info(`[AICustomizationListWidget] loadItems complete: ${items.length} items loaded [${items.map(i => `${i.name}(${i.storage}:${i.uri.toString()})`).join(', ')}]`);
-
 		this.allItems = items;
 		this.filterItems();
 		this._onDidChangeItemCount.fire(items.length);
@@ -970,9 +962,6 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
-		const totalBeforeFilter = matchedItems.length;
-		this.logService.info(`[AICustomizationListWidget] filterItems: allItems=${this.allItems.length}, matched=${totalBeforeFilter}`);
-
 		// Group items by storage
 		const promptType = sectionToPromptType(this.currentSection);
 		const visibleSources = new Set(this.workspaceService.getStorageSourceFilter(promptType).sources);
@@ -1026,7 +1015,6 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		this.list.splice(0, this.list.length, this.displayEntries);
-		this.logService.info(`[AICustomizationListWidget] filterItems complete: ${this.displayEntries.length} display entries spliced into list`);
 		this.updateEmptyState();
 	}
 
