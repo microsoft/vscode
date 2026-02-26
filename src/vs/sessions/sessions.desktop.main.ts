@@ -47,7 +47,6 @@ import '../platform/meteredConnection/electron-browser/meteredConnectionService.
 import '../workbench/services/request/electron-browser/requestService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
 import '../workbench/services/contextmenu/electron-browser/contextmenuService.js';
-import '../workbench/services/workspaces/electron-browser/workspaceEditingService.js';
 import '../workbench/services/configurationResolver/electron-browser/configurationResolverService.js';
 import '../workbench/services/accessibility/electron-browser/accessibilityService.js';
 import '../workbench/services/keybinding/electron-browser/nativeKeyboardLayout.js';
