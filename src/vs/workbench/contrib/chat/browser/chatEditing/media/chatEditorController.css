@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-diff-change-content-widget {
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+	display: flex;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.chat-diff-change-content-widget.hover {
+	opacity: 1;
+}
+
+.chat-diff-change-content-widget .monaco-action-bar {
+	padding: 4px 4px;
+	border-radius: 6px;
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+	border: 1px solid var(--vscode-contrastBorder);
+	overflow: hidden;
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .action-item .action-label {
+	border-radius: 4px;
+	font-size: 11px;
+	line-height: 14px;
+	padding: 4px 6px;
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .action-item.primary .action-label {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.monaco-workbench .chat-diff-change-content-widget .monaco-action-bar .action-item.primary .action-label:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon:not(.separator) {
+	width: 22px; /* align with default icon button dimensions */
+	height: 22px;
+	padding: 0;
+	font-size: 16px;
+	line-height: 22px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon[class*='codicon-'] {
+	font-size: 16px;
+}

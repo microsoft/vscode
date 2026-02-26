@@ -61,7 +61,7 @@ export class Delayer<T> {
 	}
 }
 
-export function setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable {
+export function setImmediate(callback: (...args: unknown[]) => void, ...args: unknown[]): Disposable {
 	if (global.setImmediate) {
 		const handle = global.setImmediate(callback, ...args);
 		return { dispose: () => global.clearImmediate(handle) };

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { env, ExtensionKind, extensions, UIKind, Uri } from 'vscode';
-import { assertNoRpc } from '../utils';
+import { assertNoRpc, Mutable } from '../utils';
 
 suite('vscode API - env', () => {
 
@@ -21,12 +21,12 @@ suite('vscode API - env', () => {
 	});
 
 	test('env is readonly', function () {
-		assert.throws(() => (env as any).language = '234');
-		assert.throws(() => (env as any).appRoot = '234');
-		assert.throws(() => (env as any).appName = '234');
-		assert.throws(() => (env as any).machineId = '234');
-		assert.throws(() => (env as any).sessionId = '234');
-		assert.throws(() => (env as any).shell = '234');
+		assert.throws(() => (env as Mutable<typeof env>).language = '234');
+		assert.throws(() => (env as Mutable<typeof env>).appRoot = '234');
+		assert.throws(() => (env as Mutable<typeof env>).appName = '234');
+		assert.throws(() => (env as Mutable<typeof env>).machineId = '234');
+		assert.throws(() => (env as Mutable<typeof env>).sessionId = '234');
+		assert.throws(() => (env as Mutable<typeof env>).shell = '234');
 	});
 
 	test('env.remoteName', function () {

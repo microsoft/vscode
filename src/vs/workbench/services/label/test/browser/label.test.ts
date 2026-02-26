@@ -222,7 +222,7 @@ suite('URI Label', () => {
 		}
 		assert.deepStrictEqual(m, { formatters: expected });
 
-		delete (m as any).formatters;
+		delete (m as { formatters: unknown }).formatters;
 	});
 });
 

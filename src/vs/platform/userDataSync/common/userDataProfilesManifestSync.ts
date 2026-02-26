@@ -15,7 +15,7 @@ import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview } from './abstractSynchronizer.js';
 import { merge } from './userDataProfilesManifestMerge.js';
-import { Change, IRemoteUserData, IUserDataSyncLocalStoreService, IUserDataSynchroniser, IUserDataSyncLogService, IUserDataSyncEnablementService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, ISyncUserDataProfile, ISyncData, IUserDataResourceManifest, UserDataSyncError, UserDataSyncErrorCode } from './userDataSync.js';
+import { Change, IRemoteUserData, ISyncData, ISyncUserDataProfile, IUserData, IUserDataSyncEnablementService, IUserDataSynchroniser, IUserDataSyncLocalStoreService, IUserDataSyncLogService, IUserDataSyncStoreService, SyncResource, USER_DATA_SYNC_SCHEME, UserDataSyncError, UserDataSyncErrorCode } from './userDataSync.js';
 
 interface IUserDataProfileManifestResourceMergeResult extends IAcceptResult {
 	readonly local: { added: ISyncUserDataProfile[]; removed: IUserDataProfile[]; updated: ISyncUserDataProfile[] };
@@ -60,9 +60,9 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 		return lastSyncUserData?.syncData ? parseUserDataProfilesManifest(lastSyncUserData.syncData) : null;
 	}
 
-	async getRemoteSyncedProfiles(manifest: IUserDataResourceManifest | null): Promise<ISyncUserDataProfile[] | null> {
+	async getRemoteSyncedProfiles(refOrLatestData: string | IUserData | null): Promise<ISyncUserDataProfile[] | null> {
 		const lastSyncUserData = await this.getLastSyncUserData();
-		const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
+		const remoteUserData = await this.getLatestRemoteUserData(refOrLatestData, lastSyncUserData);
 		return remoteUserData?.syncData ? parseUserDataProfilesManifest(remoteUserData.syncData) : null;
 	}
 
@@ -213,6 +213,7 @@ export class UserDataProfilesManifestSynchroniser extends AbstractSynchroniser i
 			if (canAddRemoteProfiles) {
 				for (const profile of remote?.added || []) {
 					const collection = await this.userDataSyncStoreService.createCollection(this.syncHeaders);
+					this.logService.trace(`${this.syncResourceLogLabel}: Created collection "${collection}" for "${profile.name}".`);
 					addedCollections.push(collection);
 					remoteProfiles.push({ id: profile.id, name: profile.name, collection, icon: profile.icon, useDefaultFlags: profile.useDefaultFlags });
 				}

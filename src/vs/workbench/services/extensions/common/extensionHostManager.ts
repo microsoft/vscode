@@ -27,7 +27,7 @@ import { IExtensionHostManager } from './extensionHostManagers.js';
 import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
 import { IExtensionHostProxy, IResolveAuthorityResult } from './extensionHostProxy.js';
 import { ExtensionRunningLocation } from './extensionRunningLocation.js';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from './extensions.js';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo, IInternalExtensionService } from './extensions.js';
 import { Proxied, ProxyIdentifier } from './proxyIdentifier.js';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from './rpcProtocol.js';
 
@@ -71,7 +71,6 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 	private readonly _customers: IDisposable[];
 	private readonly _extensionHost: IExtensionHost;
 	private _proxy: Promise<IExtensionHostProxy | null> | null;
-	private _hasStarted = false;
 
 	public get pid(): number | null {
 		return this._extensionHost.pid;
@@ -116,7 +115,6 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 
 		this._proxy = this._extensionHost.start().then(
 			(protocol) => {
-				this._hasStarted = true;
 
 				// Track healthy extension host startup
 				const successTelemetryEvent: ExtensionHostStartupEvent = {
@@ -321,10 +319,6 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 	}
 
 	public activateByEvent(activationEvent: string, activationKind: ActivationKind): Promise<void> {
-		if (activationKind === ActivationKind.Immediate && !this._hasStarted) {
-			return Promise.resolve();
-		}
-
 		if (!this._cachedActivationEvents.has(activationEvent)) {
 			this._cachedActivationEvents.set(activationEvent, this._activateByEvent(activationEvent, activationKind));
 		}
@@ -355,7 +349,7 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 		this._resolvedActivationEvents.add(activationEvent);
 	}
 
-	public async getInspectPort(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined> {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<IExtensionInspectInfo | undefined> {
 		if (this._extensionHost) {
 			if (tryEnableInspector) {
 				await this._extensionHost.enableInspectPort();

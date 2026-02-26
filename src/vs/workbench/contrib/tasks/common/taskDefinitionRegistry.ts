@@ -83,10 +83,10 @@ namespace Configuration {
 
 const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Configuration.ITaskDefinition[]>({
 	extensionPoint: 'taskDefinitions',
-	activationEventsGenerator: (contributions: Configuration.ITaskDefinition[], result: { push(item: string): void }) => {
+	activationEventsGenerator: function* (contributions: readonly Configuration.ITaskDefinition[]) {
 		for (const task of contributions) {
 			if (task.type) {
-				result.push(`onTaskType:${task.type}`);
+				yield `onTaskType:${task.type}`;
 			}
 		}
 	},
@@ -103,7 +103,7 @@ export interface ITaskDefinitionRegistry {
 	get(key: string): Tasks.ITaskDefinition;
 	all(): Tasks.ITaskDefinition[];
 	getJsonSchema(): IJSONSchema;
-	onDefinitionsChanged: Event<void>;
+	readonly onDefinitionsChanged: Event<void>;
 }
 
 class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {

@@ -1,0 +1,58 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Hide traffic light spacer in fullscreen (traffic lights are not shown) */
+.monaco-workbench.fullscreen .part.sidebar .window-controls-container {
+	display: none;
+}
+
+/* Make the sidebar title area draggable to move the window */
+.agent-sessions-workbench .part.sidebar > .composite.title {
+	position: relative;
+}
+
+.agent-sessions-workbench .part.sidebar > .composite.title > .titlebar-drag-region {
+	top: 0;
+	left: 0;
+	display: block;
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	-webkit-app-region: drag;
+}
+
+/* Interactive elements in the title area must not be draggable */
+.agent-sessions-workbench .part.sidebar > .composite.title .action-item {
+	-webkit-app-region: no-drag;
+}
+
+/* Sidebar Footer Container */
+.monaco-workbench .part.sidebar > .sidebar-footer {
+	display: flex;
+	align-items: stretch;
+	gap: 4px;
+	padding: 6px;
+	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+	flex-shrink: 0;
+}
+
+/* Make the toolbar fill the footer width and stack actions vertically */
+.monaco-workbench .part.sidebar > .sidebar-footer .monaco-toolbar,
+.monaco-workbench .part.sidebar > .sidebar-footer .monaco-action-bar,
+
+.monaco-workbench .part.sidebar > .sidebar-footer .actions-container {
+	width: 100%;
+	max-width: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	cursor: default;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .action-item {
+	width: 100%;
+	max-width: 100%;
+	cursor: default;
+}

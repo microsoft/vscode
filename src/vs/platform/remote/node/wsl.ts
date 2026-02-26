@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as os from 'os';
 import * as cp from 'child_process';
-import * as path from 'path';
+import { join } from '../../../base/common/path.js';
+import { getWindowsBuildNumberAsync } from '../../../base/node/windowsVersion.js';
 
 let hasWSLFeaturePromise: Promise<boolean> | undefined;
 
@@ -18,8 +18,8 @@ export async function hasWSLFeatureInstalled(refresh = false): Promise<boolean> 
 }
 
 async function testWSLFeatureInstalled(): Promise<boolean> {
-	const windowsBuildNumber = getWindowsBuildNumber();
-	if (windowsBuildNumber === undefined) {
+	const windowsBuildNumber = await getWindowsBuildNumberAsync();
+	if (windowsBuildNumber === 0) {
 		return false;
 	}
 	if (windowsBuildNumber >= 22000) {
@@ -47,19 +47,11 @@ async function testWSLFeatureInstalled(): Promise<boolean> {
 	return false;
 }
 
-function getWindowsBuildNumber(): number | undefined {
-	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
-	if (osVersion) {
-		return parseInt(osVersion[3]);
-	}
-	return undefined;
-}
-
 function getSystem32Path(subPath: string): string | undefined {
 	const systemRoot = process.env['SystemRoot'];
 	if (systemRoot) {
 		const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-		return path.join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', subPath);
+		return join(systemRoot, is32ProcessOn64Windows ? 'Sysnative' : 'System32', subPath);
 	}
 	return undefined;
 }

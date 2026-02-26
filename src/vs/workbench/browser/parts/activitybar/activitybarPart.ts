@@ -16,10 +16,10 @@ import { IThemeService, IColorTheme, registerThemingParticipant } from '../../..
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER } from '../../../common/theme.js';
 import { activeContrastBorder, contrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { addDisposableListener, append, EventType, isAncestor, $, clearNode } from '../../../../base/browser/dom.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { CustomMenubarControl } from '../titlebar/menubarControl.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { getMenuBarVisibility } from '../../../../platform/window/common/window.js';
+import { getMenuBarVisibility, MenuSettings } from '../../../../platform/window/common/window.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -42,6 +42,13 @@ import { SwitchCompositeViewAction } from '../compositeBarActions.js';
 export class ActivitybarPart extends Part {
 
 	static readonly ACTION_HEIGHT = 48;
+	static readonly COMPACT_ACTION_HEIGHT = 32;
+
+	static readonly ACTIVITYBAR_WIDTH = 48;
+	static readonly COMPACT_ACTIVITYBAR_WIDTH = 36;
+
+	static readonly ICON_SIZE = 24;
+	static readonly COMPACT_ICON_SIZE = 16;
 
 	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
@@ -49,8 +56,8 @@ export class ActivitybarPart extends Part {
 
 	//#region IView
 
-	readonly minimumWidth: number = 48;
-	readonly maximumWidth: number = 48;
+	get minimumWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
+	get maximumWidth(): number { return this._isCompact ? ActivitybarPart.COMPACT_ACTIVITYBAR_WIDTH : ActivitybarPart.ACTIVITYBAR_WIDTH; }
 	readonly minimumHeight: number = 0;
 	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
@@ -58,26 +65,67 @@ export class ActivitybarPart extends Part {
 
 	private readonly compositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private content: HTMLElement | undefined;
+	private _isCompact: boolean;
 
 	constructor(
+		private readonly location: ViewContainerLocation,
 		private readonly paneCompositePart: IPaneCompositePart,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+
+		this._isCompact = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_COMPACT) ?? false;
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_COMPACT)) {
+				this._isCompact = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_COMPACT) ?? false;
+				this.updateCompactStyle();
+				this.recreateCompositeBar();
+				this._onDidChange.fire(undefined); // Signal grid that size constraints changed
+			}
+		}));
+	}
+
+	private updateCompactStyle(): void {
+		if (this.element) {
+			this.element.classList.toggle('compact', this._isCompact);
+			this.element.style.setProperty('--activity-bar-width', `${this.minimumWidth}px`);
+			this.element.style.setProperty('--activity-bar-action-height', `${this._isCompact ? ActivitybarPart.COMPACT_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT}px`);
+			this.element.style.setProperty('--activity-bar-icon-size', `${this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE}px`);
+		}
+	}
+
+	private recreateCompositeBar(): void {
+		if (!this.content || !this.compositeBar.value) {
+			return;
+		}
+
+		this.compositeBar.clear();
+		clearNode(this.content);
+		this.compositeBar.value = this.createCompositeBar();
+		this.compositeBar.value.create(this.content);
+
+		if (this.dimension) {
+			this.layout(this.dimension.width, this.dimension.height);
+		}
 	}
 
 	private createCompositeBar(): PaneCompositeBar {
-		return this.instantiationService.createInstance(ActivityBarCompositeBar, {
+		const actionHeight = this._isCompact ? ActivitybarPart.COMPACT_ACTION_HEIGHT : ActivitybarPart.ACTION_HEIGHT;
+		const iconSize = this._isCompact ? ActivitybarPart.COMPACT_ICON_SIZE : ActivitybarPart.ICON_SIZE;
+
+		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.location, {
 			partContainerClass: 'activitybar',
 			pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
 			placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
 			viewContainersWorkspaceStateKey: ActivitybarPart.viewContainersWorkspaceStateKey,
 			orientation: ActionsOrientation.VERTICAL,
 			icon: true,
-			iconSize: 24,
+			iconSize,
 			activityHoverOptions: {
 				position: () => this.layoutService.getSideBarPosition() === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT,
 			},
@@ -95,13 +143,15 @@ export class ActivitybarPart extends Part {
 				dragAndDropBorder: theme.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BORDER),
 				activeBackgroundColor: undefined, inactiveBackgroundColor: undefined, activeBorderBottomColor: undefined,
 			}),
-			overflowActionSize: ActivitybarPart.ACTION_HEIGHT,
+			overflowActionSize: actionHeight,
 		}, Parts.ACTIVITYBAR_PART, this.paneCompositePart, true);
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.content = append(this.element, $('.content'));
+
+		this.updateCompactStyle();
 
 		if (this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 			this.show();
@@ -129,7 +179,7 @@ export class ActivitybarPart extends Part {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		const container = assertIsDefined(this.getContainer());
+		const container = assertReturnsDefined(this.getContainer());
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND) || '';
 		container.style.backgroundColor = background;
 
@@ -194,7 +244,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 	private element: HTMLElement | undefined;
 
-	private menuBar: CustomMenubarControl | undefined;
+	private readonly menuBar = this._register(new MutableDisposable<CustomMenubarControl>());
 	private menuBarContainer: HTMLElement | undefined;
 	private compositeBarContainer: HTMLElement | undefined;
 	private readonly globalCompositeBar: GlobalCompositeBar | undefined;
@@ -202,6 +252,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	private readonly keyboardNavigationDisposables = this._register(new DisposableStore());
 
 	constructor(
+		location: ViewContainerLocation,
 		options: IPaneCompositeBarOptions,
 		part: Parts,
 		paneCompositePart: IPaneCompositePart,
@@ -217,13 +268,14 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		@IMenuService private readonly menuService: IMenuService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
-		super({
-			...options,
-			fillExtraContextMenuActions: (actions, e) => {
-				options.fillExtraContextMenuActions(actions, e);
-				this.fillContextMenuActions(actions, e);
-			}
-		}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
+		super(location,
+			{
+				...options,
+				fillExtraContextMenuActions: (actions, e) => {
+					options.fillExtraContextMenuActions(actions, e);
+					this.fillContextMenuActions(actions, e);
+				}
+			}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, viewService, contextKeyService, environmentService, layoutService);
 
 		if (showGlobalActivities) {
 			this.globalCompositeBar = this._register(instantiationService.createInstance(GlobalCompositeBar, () => this.getContextMenuActions(), (theme: IColorTheme) => this.options.colors(theme), this.options.activityHoverOptions));
@@ -231,7 +283,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 
 		// Register for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('window.menuBarVisibility')) {
+			if (e.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 				if (getMenuBarVisibility(this.configurationService) === 'compact') {
 					this.installMenubar();
 				} else {
@@ -245,12 +297,12 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		// Menu
 		const menuBarVisibility = getMenuBarVisibility(this.configurationService);
 		if (menuBarVisibility === 'compact' || menuBarVisibility === 'hidden' || menuBarVisibility === 'toggle') {
-			actions.unshift(...[toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue('window.menuBarVisibility', menuBarVisibility === 'compact' ? 'toggle' : 'compact') }), new Separator()]);
+			actions.unshift(...[toAction({ id: 'toggleMenuVisibility', label: localize('menu', "Menu"), checked: menuBarVisibility === 'compact', run: () => this.configurationService.updateValue(MenuSettings.MenuBarVisibility, menuBarVisibility === 'compact' ? 'toggle' : 'compact') }), new Separator()]);
 		}
 
 		if (menuBarVisibility === 'compact' && this.menuBarContainer && e?.target) {
 			if (isAncestor(e.target as Node, this.menuBarContainer)) {
-				actions.unshift(...[toAction({ id: 'hideCompactMenu', label: localize('hideMenu', "Hide Menu"), run: () => this.configurationService.updateValue('window.menuBarVisibility', 'toggle') }), new Separator()]);
+				actions.unshift(...[toAction({ id: 'hideCompactMenu', label: localize('hideMenu', "Hide Menu"), run: () => this.configurationService.updateValue(MenuSettings.MenuBarVisibility, 'toggle') }), new Separator()]);
 			}
 		}
 
@@ -264,9 +316,8 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	}
 
 	private uninstallMenubar() {
-		if (this.menuBar) {
-			this.menuBar.dispose();
-			this.menuBar = undefined;
+		if (this.menuBar.value) {
+			this.menuBar.value = undefined;
 		}
 
 		if (this.menuBarContainer) {
@@ -276,18 +327,18 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	}
 
 	private installMenubar() {
-		if (this.menuBar) {
+		if (this.menuBar.value) {
 			return; // prevent menu bar from installing twice #110720
 		}
 
 		this.menuBarContainer = $('.menubar');
 
-		const content = assertIsDefined(this.element);
+		const content = assertReturnsDefined(this.element);
 		content.prepend(this.menuBarContainer);
 
 		// Menubar: install a custom menu bar depending on configuration
-		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
-		this.menuBar.create(this.menuBarContainer);
+		this.menuBar.value = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.menuBar.value.create(this.menuBarContainer);
 
 	}
 
@@ -311,7 +362,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 				if (kbEvent.equals(KeyCode.DownArrow) || kbEvent.equals(KeyCode.RightArrow)) {
 					this.globalCompositeBar?.focus();
 				} else if (kbEvent.equals(KeyCode.UpArrow) || kbEvent.equals(KeyCode.LeftArrow)) {
-					this.menuBar?.toggleFocus();
+					this.menuBar.value?.toggleFocus();
 				}
 			}));
 		}
@@ -359,7 +410,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		}
 		if (this.globalCompositeBar) {
 			if (this.options.orientation === ActionsOrientation.VERTICAL) {
-				height -= (this.globalCompositeBar.size() * ActivitybarPart.ACTION_HEIGHT);
+				height -= (this.globalCompositeBar.size() * this.options.overflowActionSize);
 			} else {
 				width -= this.globalCompositeBar.element.clientWidth;
 			}
@@ -370,10 +421,22 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 	getActivityBarContextMenuActions(): IAction[] {
 		const activityBarPositionMenu = this.menuService.getMenuActions(MenuId.ActivityBarPositionMenu, this.contextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
 		const positionActions = getContextMenuActions(activityBarPositionMenu).secondary;
-		const actions = [
-			new SubmenuAction('workbench.action.panel.position', localize('activity bar position', "Activity Bar Position"), positionActions),
-			toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }),
+		const actions: IAction[] = [
+			new SubmenuAction('workbench.action.activityBar.position', localize('activity bar position', "Activity Bar Position"), positionActions),
 		];
+
+		// Show size submenu only when activity bar is in default position
+		const activityBarPosition = this.configurationService.getValue<string>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		if (activityBarPosition === ActivityBarPosition.DEFAULT) {
+			const isCompact = this.configurationService.getValue<boolean>(LayoutSettings.ACTIVITY_BAR_COMPACT) ?? false;
+			const sizeActions = [
+				toAction({ id: 'workbench.action.activityBar.size.default', label: localize('activityBarSizeDefault', "Default"), checked: !isCompact, run: () => this.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_COMPACT, false) }),
+				toAction({ id: 'workbench.action.activityBar.size.compact', label: localize('activityBarSizeCompact', "Compact"), checked: isCompact, run: () => this.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_COMPACT, true) }),
+			];
+			actions.push(new SubmenuAction('workbench.action.activityBar.size', localize('activity bar size', "Activity Bar Size"), sizeActions));
+		}
+
+		actions.push(toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }));
 
 		if (this.part === Parts.SIDEBAR_PART) {
 			actions.push(toAction({ id: ToggleSidebarVisibilityAction.ID, label: ToggleSidebarVisibilityAction.LABEL, run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarVisibilityAction().run(accessor)) }));

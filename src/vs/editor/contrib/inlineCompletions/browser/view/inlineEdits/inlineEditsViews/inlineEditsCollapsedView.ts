@@ -3,25 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../../../base/common/observable.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
 import { singleTextRemoveCommonPrefix } from '../../../model/singleTextEditHelpers.js';
 import { IInlineEditsView } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
 import { inlineEditIndicatorPrimaryBorder } from '../theme.js';
-import { PathBuilder } from '../utils/utils.js';
+import { getEditorValidOverlayRect, PathBuilder, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsCollapsedView extends Disposable implements IInlineEditsView {
 
-	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
-	readonly onDidClick = this._onDidClick.event;
+	readonly onDidClick = Event.None;
 
 	private readonly _editorObs: ObservableCodeEditor;
 	private readonly _iconRef = n.ref<SVGElement>();
@@ -37,7 +35,7 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		const firstEdit = this._edit.map(inlineEdit => inlineEdit?.edit.edits[0] ?? null);
+		const firstEdit = this._edit.map(inlineEdit => inlineEdit?.edit?.replacements[0] ?? null);
 
 		const startPosition = firstEdit.map(edit => edit ? singleTextRemoveCommonPrefix(edit, this._editor.getModel()!).range.getStartPosition() : null);
 		const observedStartPoint = this._editorObs.observePosition(startPosition, this._store);
@@ -102,10 +100,7 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 			ref: this._iconRef,
 			style: {
 				position: 'absolute',
-				top: 0,
-				left: contentLeft,
-				width: this._editorObs.contentWidth,
-				height: this._editorObs.editor.getContentHeight(),
+				...rectToProps((r) => getEditorValidOverlayRect(this._editorObs).read(r)),
 				overflow: 'hidden',
 				pointerEvents: 'none',
 			}

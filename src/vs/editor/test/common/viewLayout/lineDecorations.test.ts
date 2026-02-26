@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Range } from '../../../common/core/range.js';
 import { DecorationSegment, LineDecoration, LineDecorationsNormalizer } from '../../../common/viewLayout/lineDecorations.js';
-import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel.js';
+import { InlineDecoration, InlineDecorationType } from '../../../common/viewModel/inlineDecorations.js';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
 

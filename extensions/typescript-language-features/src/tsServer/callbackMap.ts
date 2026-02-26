@@ -12,6 +12,7 @@ export interface CallbackItem<R> {
 	readonly queuingStartTime: number;
 	readonly isAsync: boolean;
 	readonly traceId?: string | undefined;
+	readonly command?: string;
 }
 
 export class CallbackMap<R extends Proto.Response> {

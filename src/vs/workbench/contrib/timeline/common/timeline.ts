@@ -96,7 +96,7 @@ export interface Timeline {
 }
 
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
-	onDidChange?: Event<TimelineChangeEvent>;
+	readonly onDidChange?: Event<TimelineChangeEvent>;
 
 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken): Promise<Timeline | undefined>;
 }
@@ -140,9 +140,9 @@ export interface TimelineRequest {
 export interface ITimelineService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
-	onDidChangeTimeline: Event<TimelineChangeEvent>;
-	onDidChangeUri: Event<URI>;
+	readonly onDidChangeProviders: Event<TimelineProvidersChangeEvent>;
+	readonly onDidChangeTimeline: Event<TimelineChangeEvent>;
+	readonly onDidChangeUri: Event<URI>;
 
 	registerTimelineProvider(provider: TimelineProvider): IDisposable;
 	unregisterTimelineProvider(id: string): void;

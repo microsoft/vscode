@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IChatStatusItemService } from '../../contrib/chat/browser/chatStatusItemService.js';
+import { IChatStatusItemService } from '../../contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { ChatStatusItemDto, MainContext, MainThreadChatStatusShape } from '../common/extHost.protocol.js';
 

@@ -20,10 +20,14 @@ import { PickerEditorState } from '../../browser/quickaccess.js';
 import { EditorsOrder } from '../../common/editor.js';
 import { Range } from '../../../editor/common/core/range.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { IContextKeyService, ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('QuickAccess', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -50,12 +54,14 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			providerDefaultCalled = true;
-			token.onCancellationRequested(() => providerDefaultCanceled = true);
+			const store = new DisposableStore();
+			store.add(toDisposable(() => providerDefaultDisposed = true));
+			store.add(token.onCancellationRequested(() => providerDefaultCanceled = true));
 
 			// bring up provider #3
 			setTimeout(() => this.quickInputService.quickAccess.show(providerDescriptor3.prefix));
 
-			return toDisposable(() => providerDefaultDisposed = true);
+			return store;
 		}
 	}
 
@@ -63,9 +69,11 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider1Called = true;
-			token.onCancellationRequested(() => provider1Canceled = true);
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => provider1Canceled = true));
 
-			return toDisposable(() => provider1Disposed = true);
+			store.add(toDisposable(() => provider1Disposed = true));
+			return store;
 		}
 	}
 
@@ -73,9 +81,11 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider2Called = true;
-			token.onCancellationRequested(() => provider2Canceled = true);
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => provider2Canceled = true));
 
-			return toDisposable(() => provider2Disposed = true);
+			store.add(toDisposable(() => provider2Disposed = true));
+			return store;
 		}
 	}
 
@@ -83,12 +93,14 @@ suite('QuickAccess', () => {
 		provide(picker: IQuickPick<IQuickPickItem, { useSeparators: true }>, token: CancellationToken): IDisposable {
 			assert.ok(picker);
 			provider3Called = true;
-			token.onCancellationRequested(() => provider3Canceled = true);
+			const store = new DisposableStore();
+			store.add(token.onCancellationRequested(() => provider3Canceled = true));
 
 			// hide without picking
 			setTimeout(() => picker.hide());
 
-			return toDisposable(() => provider3Disposed = true);
+			store.add(toDisposable(() => provider3Disposed = true));
+			return store;
 		}
 	}
 
@@ -98,38 +110,88 @@ suite('QuickAccess', () => {
 	const providerDescriptor3 = { ctor: TestProvider3, prefix: 'changed', helpEntries: [] };
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('registry', () => {
 		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
 		const restore = (registry as QuickAccessRegistry).clear();
+		const contextKeyService = instantiationService.get(IContextKeyService);
 
-		assert.ok(!registry.getQuickAccessProvider('test'));
+		assert.ok(!registry.getQuickAccessProvider('test', contextKeyService));
 
 		const disposables = new DisposableStore();
 
 		disposables.add(registry.registerQuickAccessProvider(providerDescriptorDefault));
-		assert(registry.getQuickAccessProvider('') === providerDescriptorDefault);
-		assert(registry.getQuickAccessProvider('test') === providerDescriptorDefault);
+		assert(registry.getQuickAccessProvider('', contextKeyService) === providerDescriptorDefault);
+		assert(registry.getQuickAccessProvider('test', contextKeyService) === providerDescriptorDefault);
 
 		const disposable = disposables.add(registry.registerQuickAccessProvider(providerDescriptor1));
-		assert(registry.getQuickAccessProvider('test') === providerDescriptor1);
+		assert(registry.getQuickAccessProvider('test', contextKeyService) === providerDescriptor1);
 
-		const providers = registry.getQuickAccessProviders();
+		const providers = registry.getQuickAccessProviders(contextKeyService);
 		assert(providers.some(provider => provider.prefix === 'test'));
 
 		disposable.dispose();
-		assert(registry.getQuickAccessProvider('test') === providerDescriptorDefault);
+		assert(registry.getQuickAccessProvider('test', contextKeyService) === providerDescriptorDefault);
 
 		disposables.dispose();
-		assert.ok(!registry.getQuickAccessProvider('test'));
+		assert.ok(!registry.getQuickAccessProvider('test', contextKeyService));
+
+		restore();
+	});
+
+	test('registry - when condition', () => {
+		const registry = (Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess));
+		const restore = (registry as QuickAccessRegistry).clear();
+
+		// Use real ContextKeyService that properly evaluates rules
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const localDisposables = new DisposableStore();
+
+		// Create a context key that starts as undefined (falsy)
+		const contextKey = contextKeyService.createKey<boolean | undefined>('testQuickAccessContextKey', undefined);
+
+		// Register a provider with a when condition that requires testQuickAccessContextKey to be truthy
+		const providerWithWhen = {
+			ctor: TestProvider1,
+			prefix: 'whentest',
+			helpEntries: [],
+			when: ContextKeyExpr.has('testQuickAccessContextKey')
+		};
+		localDisposables.add(registry.registerQuickAccessProvider(providerWithWhen));
+
+		// Verify the expression works with the context key service
+		assert.strictEqual(contextKeyService.contextMatchesRules(providerWithWhen.when), false);
+
+		// Provider with false when condition should not be found
+		assert.strictEqual(registry.getQuickAccessProvider('whentest', contextKeyService), undefined);
+
+		// Should not appear in the list of providers
+		let providers = registry.getQuickAccessProviders(contextKeyService);
+		assert.ok(!providers.some(p => p.prefix === 'whentest'));
+
+		// Set the context key to true
+		contextKey.set(true);
+
+		// Verify the expression now matches
+		assert.strictEqual(contextKeyService.contextMatchesRules(providerWithWhen.when), true);
+
+		// Now the provider should be found
+		assert.strictEqual(registry.getQuickAccessProvider('whentest', contextKeyService), providerWithWhen);
+
+		// Should appear in the list of providers
+		providers = registry.getQuickAccessProviders(contextKeyService);
+		assert.ok(providers.some(p => p.prefix === 'whentest'));
+
+		// Set context key back to undefined (falsy)
+		contextKey.set(undefined);
+
+		// Provider should not be found again
+		assert.strictEqual(registry.getQuickAccessProvider('whentest', contextKeyService), undefined);
+
+		localDisposables.dispose();
 
 		restore();
 	});
@@ -344,7 +406,7 @@ suite('QuickAccess', () => {
 
 	test('PickerEditorState can properly restore editors', async () => {
 
-		const part = await createEditorPart(instantiationService, disposables);
+		const part = await createEditorPart(instantiationService, disposables.add(new DisposableStore()));
 		instantiationService.stub(IEditorGroupsService, part);
 
 		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));

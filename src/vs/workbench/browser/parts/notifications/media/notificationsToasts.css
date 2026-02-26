@@ -16,6 +16,20 @@
 	bottom: 3px;
 }
 
+.monaco-workbench > .notifications-toasts.bottom-left {
+	right: auto;
+	left: 3px;
+}
+
+.monaco-workbench > .notifications-toasts.top-right {
+	bottom: auto;
+	top: 3px;
+}
+
+.monaco-workbench > .notifications-toasts.top-right .notification-toast-container > .notification-toast {
+	transform: translate3d(100%, 0px, 0px); /* slide in from right */
+}
+
 .monaco-workbench > .notifications-toasts.visible {
 	display: flex;
 	flex-direction: column;
@@ -40,8 +54,8 @@
 	border-radius: 4px;
 }
 
-.monaco-workbench.reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast {
-	transition:	transform 0ms ease-out, opacity 0ms ease-out;
+.monaco-workbench.monaco-reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast {
+	transition: transform 0ms ease-out, opacity 0ms ease-out;
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in {
@@ -52,7 +66,7 @@
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in-done {
 	opacity: 1;
 	transform: none;
-	transition:	none;
+	transition: none;
 }
 
 /* Icons */

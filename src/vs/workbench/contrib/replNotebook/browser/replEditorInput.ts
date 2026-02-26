@@ -26,6 +26,8 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 
 const replTabIcon = registerIcon('repl-editor-label-icon', Codicon.debugLineByLine, localize('replEditorLabelIcon', 'Icon of the REPL editor label.'));
 
@@ -52,9 +54,11 @@ export class ReplEditorInput extends NotebookEditorInput implements ICompositeNo
 		@ICustomEditorLabelService customEditorLabelService: ICustomEditorLabelService,
 		@IInteractiveHistoryService public readonly historyService: IInteractiveHistoryService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IPathService pathService: IPathService
 	) {
-		super(resource, undefined, 'jupyter-notebook', {}, _notebookService, _notebookModelResolverService, _fileDialogService, labelService, fileService, filesConfigurationService, extensionService, editorService, textResourceConfigurationService, customEditorLabelService);
+		super(resource, undefined, 'jupyter-notebook', {}, _notebookService, _notebookModelResolverService, _fileDialogService, labelService, fileService, filesConfigurationService, extensionService, editorService, textResourceConfigurationService, customEditorLabelService, environmentService, pathService);
 		this.isScratchpad = resource.scheme === 'untitled' && configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 		this.label = label ?? this.createEditorLabel(resource);
 	}

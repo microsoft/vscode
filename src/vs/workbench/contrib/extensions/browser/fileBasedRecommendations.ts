@@ -28,10 +28,14 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { isEmptyObject } from '../../../../base/common/types.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 
 const promptedRecommendationsStorageKey = 'fileBasedRecommendations/promptedRecommendations';
 const recommendationsStorageKey = 'extensionsAssistant/recommendations';
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
+
+// Minimum length of untitled file to allow triggering extension recommendations for auto-detected language.
+const untitledFileRecommendationsMinLength = 1000;
 
 export class FileBasedRecommendations extends ExtensionRecommendations {
 
@@ -83,6 +87,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IExtensionIgnoredRecommendationsService private readonly extensionIgnoredRecommendationsService: IExtensionIgnoredRecommendationsService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
 	) {
 		super();
 		this.fileOpenRecommendations = {};
@@ -155,6 +160,13 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		let listenOnLanguageChange = false;
 		const languageId = model.getLanguageId();
 
+		// Allow language-specific recommendations for untitled files when language is auto-detected only when the file is large.
+		const untitledModel = this.untitledTextEditorService.get(uri);
+		const allowLanguageMatch =
+			!untitledModel ||
+			untitledModel.hasLanguageSetExplicitly ||
+			model.getValueLength() > untitledFileRecommendationsMinLength;
+
 		for (const [extensionId, conditions] of extensionRecommendationEntries) {
 			const conditionsByPattern: IFileOpenCondition[] = [];
 			const matchedConditions: IFileOpenCondition[] = [];
@@ -169,15 +181,15 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 					conditionsByPattern.push(condition);
 				}
 
-				if (isLanguageCondition) {
+				if (isLanguageCondition && allowLanguageMatch) {
 					if ((<IFileLanguageCondition>condition).languages.includes(languageId)) {
 						languageMatched = true;
 					}
 				}
 
-				if ((<IFilePathCondition>condition).pathGlob) {
-					const pathGlob = (<IFilePathCondition>condition).pathGlob;
-					if (processedPathGlobs.get(pathGlob) ?? match((<IFilePathCondition>condition).pathGlob, uri.with({ fragment: '' }).toString())) {
+				const pathGlob = (<IFilePathCondition>condition).pathGlob;
+				if (pathGlob) {
+					if (processedPathGlobs.get(pathGlob) ?? match(pathGlob, uri.with({ fragment: '' }).toString(), { ignoreCase: true })) {
 						pathGlobMatched = true;
 					}
 					processedPathGlobs.set(pathGlob, pathGlobMatched);

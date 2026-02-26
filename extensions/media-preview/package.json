@@ -6,7 +6,7 @@
     "ui",
     "workspace"
   ],
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "icon": "icon.png",
   "license": "MIT",
@@ -155,13 +155,20 @@
     "compile": "gulp compile-extension:media-preview",
     "watch": "npm run build-preview && gulp watch-extension:media-preview",
     "vscode:prepublish": "npm run build-ext",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:media-preview ./tsconfig.json",
-    "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:media-preview ./tsconfig.json",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
     "vscode-uri": "^3.0.6"
+  },
+  "devDependencies": {
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",

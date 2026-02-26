@@ -1,0 +1,139 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
+  - name: VSCODE_QUALITY
+    type: string
+
+jobs:
+  - job: LinuxCLI_${{ parameters.VSCODE_ARCH }}
+    displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }})
+    timeoutInMinutes: 60
+    pool:
+      name: 1es-ubuntu-22.04-x64
+      os: linux
+    variables:
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+    templateContext:
+      outputs:
+        - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+          - output: pipelineArtifact
+            targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_linux_$(VSCODE_ARCH)_cli.tar.gz
+            artifactName: vscode_cli_linux_$(VSCODE_ARCH)_cli
+            displayName: Publish vscode_cli_linux_$(VSCODE_ARCH)_cli artifact
+            sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
+            sbomPackageName: "VS Code Linux $(VSCODE_ARCH) CLI"
+            sbomPackageVersion: $(Build.SourceVersion)
+    steps:
+      - template: ../common/checkout.yml@self
+
+      - task: NodeTool@0
+        inputs:
+          versionSource: fromFile
+          versionFilePath: .nvmrc
+
+      - template: ../cli/cli-apply-patches.yml@self
+
+      - task: Npm@1
+        displayName: Download openssl prebuilt
+        inputs:
+          command: custom
+          customCommand: pack @vscode-internal/openssl-prebuilt@0.0.11
+          customRegistry: useFeed
+          customFeed: "Monaco/openssl-prebuilt"
+          workingDir: $(Build.ArtifactStagingDirectory)
+
+      - script: |
+          set -e
+          mkdir $(Build.ArtifactStagingDirectory)/openssl
+          tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+        displayName: Extract openssl prebuilt
+
+      - script: node build/setup-npm-registry.ts $NPM_REGISTRY build
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM Registry
+
+      - script: |
+          set -e
+          # Set the private NPM registry to the global npmrc file
+          # so that authentication works for subfolders like build/, remote/, extensions/ etc
+          # which does not have their own .npmrc file
+          npm config set registry "$NPM_REGISTRY"
+          echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(NPMRC_PATH)
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM Authentication
+
+      - script: |
+          set -e
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        workingDirectory: build
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Install build dependencies
+
+      - script: |
+          set -e
+          mkdir -p $(Build.SourcesDirectory)/.build
+        displayName: Create .build folder for misc dependencies
+
+      - template: ../cli/install-rust-posix.yml@self
+        parameters:
+          targets:
+            - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+              - x86_64-unknown-linux-gnu
+            - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+              - aarch64-unknown-linux-gnu
+            - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+              - armv7-unknown-linux-gnueabihf
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+        - template: ../cli/cli-compile.yml@self
+          parameters:
+            VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+            VSCODE_CLI_TARGET: x86_64-unknown-linux-gnu
+            VSCODE_CLI_ARTIFACT: vscode_cli_linux_x64_cli
+            VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+            VSCODE_CLI_ENV:
+              OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/lib
+              OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-linux/include
+              SYSROOT_ARCH: amd64
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+        - template: ../cli/cli-compile.yml@self
+          parameters:
+            VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+            VSCODE_CLI_TARGET: aarch64-unknown-linux-gnu
+            VSCODE_CLI_ARTIFACT: vscode_cli_linux_arm64_cli
+            VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+            VSCODE_CLI_ENV:
+              OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/lib
+              OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux/include
+              SYSROOT_ARCH: arm64
+
+      - ${{ if eq(parameters.VSCODE_ARCH, 'armhf') }}:
+        - template: ../cli/cli-compile.yml@self
+          parameters:
+            VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+            VSCODE_CLI_TARGET: armv7-unknown-linux-gnueabihf
+            VSCODE_CLI_ARTIFACT: vscode_cli_linux_armhf_cli
+            VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+            VSCODE_CLI_ENV:
+              OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/lib
+              OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm-linux/include
+              SYSROOT_ARCH: armhf

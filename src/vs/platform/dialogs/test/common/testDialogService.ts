@@ -16,7 +16,7 @@ export class TestDialogService implements IDialogService {
 
 	constructor(
 		private defaultConfirmResult: IConfirmationResult | undefined = undefined,
-		private defaultPromptResult: IPromptResult<any> | undefined = undefined
+		private defaultPromptResult: IPromptResult<unknown> | undefined = undefined
 	) { }
 
 	private confirmResult: IConfirmationResult | undefined = undefined;
@@ -40,7 +40,7 @@ export class TestDialogService implements IDialogService {
 	prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>>;
 	async prompt<T>(prompt: IPrompt<T> | IPromptWithCustomCancel<T>): Promise<IPromptResult<T> | IPromptResultWithCancel<T>> {
 		if (this.defaultPromptResult) {
-			return this.defaultPromptResult;
+			return this.defaultPromptResult as IPromptResult<T>;
 		}
 		const promptButtons: IPromptBaseButton<T>[] = [...(prompt.buttons ?? [])];
 		if (prompt.cancelButton && typeof prompt.cancelButton !== 'string' && typeof prompt.cancelButton !== 'boolean') {

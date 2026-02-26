@@ -16,7 +16,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { isEmptyObject } from '../../../../base/common/types.js';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from './editor.js';
-import { MementoObject } from '../../../common/memento.js';
 import { joinPath, IExtUri, isEqual } from '../../../../base/common/resources.js';
 import { indexOfPath } from '../../../../base/common/extpath.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -47,7 +46,7 @@ import { getWindowById } from '../../../../base/browser/dom.js';
  *
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class EditorPane extends Composite implements IEditorPane {
+export abstract class EditorPane<MementoType extends object = object> extends Composite<MementoType> implements IEditorPane {
 
 	//#region Events
 
@@ -58,7 +57,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 
 	//#endregion
 
-	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
+	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 
 	get minimumWidth() { return DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
 	get maximumWidth() { return DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
@@ -175,7 +174,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 			EditorPane.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
-		return editorMemento;
+		return editorMemento as IEditorMemento<T>;
 	}
 
 	getViewState(): object | undefined {
@@ -220,7 +219,7 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 	constructor(
 		readonly id: string,
 		private readonly key: string,
-		private readonly memento: MementoObject,
+		private readonly memento: T,
 		private readonly limit: number,
 		private readonly editorGroupService: IEditorGroupsService,
 		private readonly configurationService: ITextResourceConfigurationService
@@ -387,7 +386,7 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 			this.cache = new LRUCache<string, MapGroupToMemento<T>>(this.limit);
 
 			// Restore from serialized map state
-			const rawEditorMemento = this.memento[this.key];
+			const rawEditorMemento = this.memento[this.key as keyof T];
 			if (Array.isArray(rawEditorMemento)) {
 				this.cache.fromJSON(rawEditorMemento);
 			}
@@ -405,7 +404,7 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 			this.cleanedUp = true;
 		}
 
-		this.memento[this.key] = cache.toJSON();
+		(this.memento as Record<string, unknown>)[this.key] = cache.toJSON();
 	}
 
 	private cleanUp(): void {

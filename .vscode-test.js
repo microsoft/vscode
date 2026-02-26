@@ -79,12 +79,16 @@ const extensions = [
 		workspaceFolder: `extensions/vscode-api-tests/testworkspace.code-workspace`,
 		mocha: { timeout: 60_000 },
 		files: 'extensions/vscode-api-tests/out/workspace-tests/**/*.test.js',
+	},
+	{
+		label: 'git-base',
+		mocha: { timeout: 60_000 }
 	}
 ];
 
 
 const defaultLaunchArgs = process.env.API_TESTS_EXTRA_ARGS?.split(' ') || [
-	'--disable-telemetry', '--skip-welcome', '--skip-release-notes', `--crash-reporter-directory=${__dirname}/.build/crashes`, `--logsPath=${__dirname}/.build/logs/integration-tests`, '--no-cached-data', '--disable-updates', '--use-inmemory-secretstorage', '--disable-extensions', '--disable-workspace-trust'
+	'--disable-telemetry', '--disable-experiments', '--skip-welcome', '--skip-release-notes', `--crash-reporter-directory=${__dirname}/.build/crashes`, `--logsPath=${__dirname}/.build/logs/integration-tests`, '--no-cached-data', '--disable-updates', '--use-inmemory-secretstorage', '--disable-extensions', '--disable-workspace-trust'
 ];
 
 const config = defineConfig(extensions.map(extension => {
@@ -97,7 +101,7 @@ const config = defineConfig(extensions.map(extension => {
 	};
 
 	config.mocha ??= {};
-	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
 		let suite = '';
 		if (process.env.VSCODE_BROWSER) {
 			suite = `${process.env.VSCODE_BROWSER} Browser Integration ${config.label} tests`;
@@ -112,7 +116,10 @@ const config = defineConfig(extensions.map(extension => {
 			reporterEnabled: 'spec, mocha-junit-reporter',
 			mochaJunitReporterReporterOptions: {
 				testsuitesTitle: `${suite} ${process.platform}`,
-				mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
+				mochaFile: path.join(
+					process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE || __dirname,
+					`test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`
+				)
 			}
 		};
 	}

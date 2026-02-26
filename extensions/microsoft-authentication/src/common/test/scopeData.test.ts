@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { ScopeData } from '../scopeData';
+import { Uri } from 'vscode';
 
 suite('ScopeData', () => {
 	test('should include default scopes if not present', () => {
@@ -72,5 +73,39 @@ suite('ScopeData', () => {
 	test('should have tenantId be the value of VSCODE_TENANT scope if set to a specific value', () => {
 		const scopeData = new ScopeData(['custom_scope', 'VSCODE_TENANT:some_guid']);
 		assert.strictEqual(scopeData.tenantId, 'some_guid');
+	});
+
+	test('should not return claims', () => {
+		const scopeData = new ScopeData(['custom_scope']);
+		assert.strictEqual(scopeData.claims, undefined);
+	});
+
+	test('should return claims', () => {
+		const scopeData = new ScopeData(['custom_scope'], 'test');
+		assert.strictEqual(scopeData.claims, 'test');
+	});
+
+	test('should extract tenant from authorization server URL path', () => {
+		const authorizationServer = Uri.parse('https://login.microsoftonline.com/tenant123/oauth2/v2.0');
+		const scopeData = new ScopeData(['custom_scope'], undefined, authorizationServer);
+		assert.strictEqual(scopeData.tenant, 'tenant123');
+	});
+
+	test('should fallback to default tenant if authorization server URL has no path segments', () => {
+		const authorizationServer = Uri.parse('https://login.microsoftonline.com');
+		const scopeData = new ScopeData(['custom_scope'], undefined, authorizationServer);
+		assert.strictEqual(scopeData.tenant, 'organizations');
+	});
+
+	test('should prioritize authorization server URL over VSCODE_TENANT scope', () => {
+		const authorizationServer = Uri.parse('https://login.microsoftonline.com/url_tenant/oauth2/v2.0');
+		const scopeData = new ScopeData(['custom_scope', 'VSCODE_TENANT:scope_tenant'], undefined, authorizationServer);
+		assert.strictEqual(scopeData.tenant, 'url_tenant');
+	});
+
+	test('should extract tenant from v1.0 authorization server URL path', () => {
+		const authorizationServer = Uri.parse('https://login.microsoftonline.com/tenant123');
+		const scopeData = new ScopeData(['custom_scope'], undefined, authorizationServer);
+		assert.strictEqual(scopeData.tenant, 'tenant123');
 	});
 });

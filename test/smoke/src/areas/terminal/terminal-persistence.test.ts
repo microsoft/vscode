@@ -16,7 +16,10 @@ export function setup(options?: { skipSuite: boolean }) {
 			const app = this.app as Application;
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
-			await setTerminalTestSettings(app);
+			await setTerminalTestSettings(app, [
+				// Use ${process} for terminal title to ensure stable names for detach/attach
+				['terminal.integrated.tabs.title', '"${process}"']
+			]);
 		});
 
 		after(async function () {

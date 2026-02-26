@@ -190,6 +190,40 @@ suite('FindSectionHeaders', () => {
 		assert.strictEqual(headers[1].range.endLineNumber, 103);
 	});
 
+	test('handles empty regex gracefully without infinite loop', () => {
+		const model = new TestSectionHeaderFinderTarget([
+			'line 1',
+			'line 2',
+			'line 3'
+		]);
+
+		const options: FindSectionHeaderOptions = {
+			findRegionSectionHeaders: false,
+			findMarkSectionHeaders: true,
+			markSectionHeaderRegex: '' // Empty string that would cause infinite loop
+		};
+
+		const headers = findSectionHeaders(model, options);
+		assert.strictEqual(headers.length, 0, 'Should return no headers for empty regex');
+	});
+
+	test('handles whitespace-only regex gracefully without infinite loop', () => {
+		const model = new TestSectionHeaderFinderTarget([
+			'line 1',
+			'line 2',
+			'line 3'
+		]);
+
+		const options: FindSectionHeaderOptions = {
+			findRegionSectionHeaders: false,
+			findMarkSectionHeaders: true,
+			markSectionHeaderRegex: '   ' // Whitespace that would cause infinite loop
+		};
+
+		const headers = findSectionHeaders(model, options);
+		assert.strictEqual(headers.length, 0, 'Should return no headers for whitespace-only regex');
+	});
+
 	test('correctly advances past matches without infinite loop', () => {
 		const model = new TestSectionHeaderFinderTarget([
 			'// ==========',

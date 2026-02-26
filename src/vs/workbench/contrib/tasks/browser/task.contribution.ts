@@ -20,7 +20,7 @@ import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatus
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from '../../../services/output/common/output.js';
 
-import { ITaskEvent, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE, TASK_TERMINAL_ACTIVE, TaskEventKind } from '../common/tasks.js';
+import { ITaskEvent, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE, TASK_TERMINAL_ACTIVE, TaskEventKind, rerunTaskIcon, RerunForActiveTerminalCommandId, RerunAllRunningTasksCommandId } from '../common/tasks.js';
 import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from '../common/taskService.js';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
@@ -31,7 +31,7 @@ import schemaVersion1 from '../common/jsonSchema_v1.js';
 import schemaVersion2, { updateProblemMatchers, updateTaskDefinitions } from '../common/jsonSchema_v2.js';
 import { AbstractTaskService, ConfigureTaskAction } from './abstractTaskService.js';
 import { tasksSchemaId } from '../../../services/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { WorkbenchStateContext } from '../../../common/contextkeys.js';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { TasksQuickAccessProvider } from './tasksQuickAccess.js';
@@ -40,8 +40,6 @@ import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry.js';
 import { TerminalMenuBarGroup } from '../../terminal/browser/terminalMenus.js';
 import { isString } from '../../../../base/common/types.js';
 import { promiseWithResolvers } from '../../../../base/common/async.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 import { TerminalContextKeys } from '../../terminal/common/terminalContextKey.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
@@ -284,6 +282,14 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: 'workbench.action.tasks.restartTask',
 		title: nls.localize2('RestartTaskAction.label', "Restart Running Task"),
+		category: TASKS_CATEGORY
+	},
+	when: TaskExecutionSupportedContext
+});
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: RerunAllRunningTasksCommandId,
+		title: nls.localize2('RerunAllRunningTasksAction.label', "Rerun All Running Tasks"),
 		category: TASKS_CATEGORY
 	},
 	when: TaskExecutionSupportedContext
@@ -536,7 +542,8 @@ configurationRegistry.registerConfiguration({
 				nls.localize('task.allowAutomaticTasks.off', "Never"),
 			],
 			description: nls.localize('task.allowAutomaticTasks', "Enable automatic tasks - note that tasks won't run in an untrusted workspace."),
-			default: 'on',
+			default: 'off',
+			scope: ConfigurationScope.APPLICATION,
 			restricted: true
 		},
 		[TaskSettingId.Reconnection]: {
@@ -558,6 +565,12 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'always',
 		},
+		[TaskSettingId.NotifyWindowOnTaskCompletion]: {
+			type: 'integer',
+			markdownDescription: nls.localize('task.NotifyWindowOnTaskCompletion', 'Controls the minimum task runtime in milliseconds before showing an OS notification when the task finishes while the window is not in focus. Set to -1 to disable notifications. Set to 0 to always show notifications. This includes a window badge as well as notification toast.'),
+			default: 60000,
+			minimum: -1
+		},
 		[TaskSettingId.VerboseLogging]: {
 			type: 'boolean',
 			description: nls.localize('task.verboseLogging', "Enable verbose logging for tasks."),
@@ -566,8 +579,6 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-export const rerunTaskIcon = registerIcon('rerun-task', Codicon.refresh, nls.localize('rerunTaskIcon', 'View icon of the rerun task.'));
-export const RerunForActiveTerminalCommandId = 'workbench.action.tasks.rerunForActiveTerminal';
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -586,7 +597,7 @@ registerAction2(class extends Action2 {
 			}
 		});
 	}
-	async run(accessor: ServicesAccessor, args: any): Promise<void> {
+	async run(accessor: ServicesAccessor, args: unknown): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const taskSystem = accessor.get(ITaskService);
 		const instance = args as ITerminalInstance ?? terminalService.activeInstance;

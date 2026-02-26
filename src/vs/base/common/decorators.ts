@@ -54,6 +54,7 @@ export function memoize(_target: Object, key: string, descriptor: PropertyDescri
 				value: fn.apply(this, args)
 			});
 		}
+		// eslint-disable-next-line local/code-no-any-casts
 		return (this as any)[memoizeKey];
 	};
 }

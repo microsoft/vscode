@@ -107,7 +107,7 @@ suite('linked editing', () => {
 						if (handlerId === Handler.Type || handlerId === Handler.Paste) {
 							editor.trigger(source, handlerId, payload);
 						} else if (handlerId === 'deleteLeft') {
-							CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, payload);
+							editor.runCommand(CoreEditingCommands.DeleteLeft, payload);
 						} else if (handlerId === 'deleteWordLeft') {
 							instantiationService.invokeFunction((accessor) => (new DeleteWordLeft()).runEditorCommand(accessor, editor, payload));
 						} else if (handlerId === 'deleteAllLeft') {
@@ -118,10 +118,10 @@ suite('linked editing', () => {
 						return linkedEditingContribution.currentSyncTriggerPromise;
 					},
 					undo() {
-						CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+						editor.runCommand(CoreEditingCommands.Undo, null);
 					},
 					redo() {
-						CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
+						editor.runCommand(CoreEditingCommands.Redo, null);
 					}
 				};
 

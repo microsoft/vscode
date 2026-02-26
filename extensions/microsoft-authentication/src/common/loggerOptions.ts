@@ -19,13 +19,7 @@ export class MsalLoggerOptions {
 		return this._toMsalLogLevel(env.logLevel);
 	}
 
-	loggerCallback(level: MsalLogLevel, message: string, containsPii: boolean): void {
-		if (containsPii) {
-			// TODO: Should we still log the message if it contains PII? It's just going to
-			// an output channel that doesn't leave the machine.
-			this._output.debug('Skipped logging message because it may contain PII');
-			return;
-		}
+	loggerCallback(level: MsalLogLevel, message: string, _containsPii: boolean): void {
 
 		// Log to output channel one level lower than the MSAL log level
 		switch (level) {

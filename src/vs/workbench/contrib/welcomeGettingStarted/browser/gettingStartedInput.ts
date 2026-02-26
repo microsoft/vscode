@@ -20,6 +20,8 @@ export interface GettingStartedEditorOptions extends IEditorOptions {
 	showWelcome?: boolean;
 	walkthroughPageTitle?: string;
 	showNewExperience?: boolean;
+	/** Command to execute when pressing "Go Back" instead of showing the categories slide */
+	returnToCommand?: string;
 }
 
 export class GettingStartedInput extends EditorInput {
@@ -30,7 +32,7 @@ export class GettingStartedInput extends EditorInput {
 	private _selectedStep: string | undefined;
 	private _showTelemetryNotice: boolean;
 	private _showWelcome: boolean;
-	private _showNewExperience: boolean;
+	private _returnToCommand: string | undefined;
 
 	private _walkthroughPageTitle: string | undefined;
 
@@ -61,10 +63,7 @@ export class GettingStartedInput extends EditorInput {
 			return true;
 		}
 
-		if (other instanceof GettingStartedInput) {
-			return other.selectedCategory === this.selectedCategory;
-		}
-		return false;
+		return other instanceof GettingStartedInput;
 	}
 
 	constructor(
@@ -75,7 +74,7 @@ export class GettingStartedInput extends EditorInput {
 		this._showTelemetryNotice = !!options.showTelemetryNotice;
 		this._showWelcome = options.showWelcome ?? true;
 		this._walkthroughPageTitle = options.walkthroughPageTitle;
-		this._showNewExperience = options.showNewExperience ?? false;
+		this._returnToCommand = options.returnToCommand;
 	}
 
 	override getName() {
@@ -123,11 +122,11 @@ export class GettingStartedInput extends EditorInput {
 		this._walkthroughPageTitle = value;
 	}
 
-	get showNewExperience(): boolean {
-		return this._showNewExperience;
+	get returnToCommand(): string | undefined {
+		return this._returnToCommand;
 	}
 
-	set showNewExperience(value: boolean) {
-		this._showNewExperience = value;
+	set returnToCommand(value: string | undefined) {
+		this._returnToCommand = value;
 	}
 }

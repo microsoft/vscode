@@ -12,7 +12,7 @@ import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, Sou
 import * as typeConverter from './extHostTypeConverters.js';
 import { Disposable, WorkspaceEdit } from './extHostTypes.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { FileChangeFilter, FileOperation, IGlobPatterns } from '../../../platform/files/common/files.js';
+import { FileChangeFilter, FileOperation, FileSystemProviderCapabilities, IGlobPatterns } from '../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
@@ -20,6 +20,8 @@ import { Lazy } from '../../../base/common/lazy.js';
 import { ExtHostConfigProvider } from './extHostConfiguration.js';
 import { rtrim } from '../../../base/common/strings.js';
 import { normalizeWatcherPattern } from '../../../platform/files/common/watcher.js';
+import { ExtHostFileSystemInfo } from './extHostFileSystemInfo.js';
+import { Schemas } from '../../../base/common/network.js';
 
 export interface FileSystemWatcherCreateOptions {
 	readonly ignoreCreateEvents?: boolean;
@@ -50,7 +52,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		return Boolean(this._config & 0b100);
 	}
 
-	constructor(mainContext: IMainContext, configuration: ExtHostConfigProvider, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions) {
+	constructor(mainContext: IMainContext, configuration: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions) {
 		this._config = 0;
 		if (options.ignoreCreateEvents) {
 			this._config += 0b001;
@@ -62,9 +64,13 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			this._config += 0b100;
 		}
 
-		const parsedPattern = parse(globPattern);
+		const ignoreCase = typeof globPattern === 'string' ?
+			!((fileSystemInfo.getCapabilities(Schemas.file) ?? 0) & FileSystemProviderCapabilities.PathCaseSensitive) :
+			fileSystemInfo.extUri.ignorePathCasing(URI.revive(globPattern.baseUri));
 
-		// 1.64.x behaviour change: given the new support to watch any folder
+		const parsedPattern = parse(globPattern, { ignoreCase });
+
+		// 1.64.x behavior change: given the new support to watch any folder
 		// we start to ignore events outside the workspace when only a string
 		// pattern is provided to avoid sending events to extensions that are
 		// unexpected.
@@ -284,8 +290,8 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	//--- file events
 
-	createFileSystemWatcher(workspace: IExtHostWorkspace, configProvider: ExtHostConfigProvider, extension: IExtensionDescription, globPattern: vscode.GlobPattern, options: FileSystemWatcherCreateOptions): vscode.FileSystemWatcher {
-		return new FileSystemWatcher(this._mainContext, configProvider, workspace, extension, this._onFileSystemEvent.event, typeConverter.GlobPattern.from(globPattern), options);
+	createFileSystemWatcher(workspace: IExtHostWorkspace, configProvider: ExtHostConfigProvider, fileSystemInfo: ExtHostFileSystemInfo, extension: IExtensionDescription, globPattern: vscode.GlobPattern, options: FileSystemWatcherCreateOptions): vscode.FileSystemWatcher {
+		return new FileSystemWatcher(this._mainContext, configProvider, fileSystemInfo, workspace, extension, this._onFileSystemEvent.event, typeConverter.GlobPattern.from(globPattern), options);
 	}
 
 	$onFileEvent(events: FileSystemEvents) {

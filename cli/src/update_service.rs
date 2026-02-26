@@ -56,8 +56,15 @@ fn quality_download_segment(quality: options::Quality) -> &'static str {
 	}
 }
 
-fn get_update_endpoint() -> Result<&'static str, CodeError> {
-	VSCODE_CLI_UPDATE_ENDPOINT.ok_or_else(|| CodeError::UpdatesNotConfigured("no service url"))
+fn get_update_endpoint() -> Result<String, CodeError> {
+	if let Ok(url) = std::env::var("VSCODE_CLI_UPDATE_URL") {
+		if !url.is_empty() {
+			return Ok(url);
+		}
+	}
+	VSCODE_CLI_UPDATE_ENDPOINT
+		.map(|s| s.to_string())
+		.ok_or_else(|| CodeError::UpdatesNotConfigured("no service url"))
 }
 
 impl UpdateService {
@@ -78,7 +85,7 @@ impl UpdateService {
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/versions/{}/{}/{}",
-			update_endpoint,
+			&update_endpoint,
 			version,
 			download_segment,
 			quality_download_segment(quality),
@@ -119,7 +126,7 @@ impl UpdateService {
 			.ok_or_else(|| CodeError::UnsupportedPlatform(platform.to_string()))?;
 		let download_url = format!(
 			"{}/api/latest/{}/{}",
-			update_endpoint,
+			&update_endpoint,
 			download_segment,
 			quality_download_segment(quality),
 		);
@@ -156,7 +163,7 @@ impl UpdateService {
 
 		let download_url = format!(
 			"{}/commit:{}/{}/{}",
-			update_endpoint,
+			&update_endpoint,
 			release.commit,
 			download_segment,
 			quality_download_segment(release.quality),

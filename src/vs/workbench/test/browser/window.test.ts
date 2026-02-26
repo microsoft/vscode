@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { BaseWindow } from '../../browser/window.js';
-import { TestEnvironmentService, TestHostService } from './workbenchTestServices.js';
+import { TestContextMenuService, TestEnvironmentService, TestHostService, TestLayoutService } from './workbenchTestServices.js';
 
 suite('Window', () => {
 
@@ -19,7 +19,7 @@ suite('Window', () => {
 	class TestWindow extends BaseWindow {
 
 		constructor(window: CodeWindow, dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }) {
-			super(window, dom, new TestHostService(), TestEnvironmentService);
+			super(window, dom, new TestHostService(), TestEnvironmentService, new TestContextMenuService(), new TestLayoutService());
 		}
 
 		protected override enableWindowFocusOnElementFocus(): void { }
@@ -39,6 +39,7 @@ suite('Window', () => {
 			const clearTimeoutCalls: number[] = [];
 
 			function createWindow(id: number, slow?: boolean) {
+				// eslint-disable-next-line local/code-no-any-casts
 				const res = {
 					setTimeout: function (callback: Function, delay: number, ...args: any[]): number {
 						setTimeoutCalls.push(id);

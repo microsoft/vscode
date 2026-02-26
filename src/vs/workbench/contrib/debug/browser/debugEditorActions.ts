@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
-import { Action } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { EditorAction, IActionOptions, registerEditorAction } from '../../../../editor/browser/editorExtensions.js';
@@ -23,7 +23,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { PanelFocusContext } from '../../../common/contextkeys.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { openBreakpointSource } from './breakpointsView.js';
 import { DisassemblyView, IDisassembledInstructionEntry } from './disassemblyView.js';
 import { Repl } from './repl.js';
@@ -39,9 +39,10 @@ class ToggleBreakpointAction extends Action2 {
 		super({
 			id: TOGGLE_BREAKPOINT_ID,
 			title: {
-				...nls.localize2('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
+				...nls.localize2('toggleBreakpointAction', "Toggle Breakpoint"),
 				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint"),
 			},
+			category: nls.localize2('debugCategory', "Debug"),
 			f1: true,
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
 			keybinding: {
@@ -49,12 +50,12 @@ class ToggleBreakpointAction extends Action2 {
 				primary: KeyCode.F9,
 				weight: KeybindingWeight.EditorContrib
 			},
-			menu: {
+			menu: [{
 				id: MenuId.MenubarDebugMenu,
 				when: CONTEXT_DEBUGGERS_AVAILABLE,
 				group: '4_new_breakpoint',
 				order: 1
-			}
+			}]
 		});
 	}
 
@@ -285,7 +286,7 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: unknown[]): void {
 		const configService = accessor.get(IConfigurationService);
 		if (configService) {
 			const value = configService.getValue<IDebugConfiguration>('debug').disassemblyView.showSourceCode;
@@ -542,7 +543,7 @@ class StepIntoTargetsAction extends EditorAction {
 		contextMenuService.showContextMenu({
 			getAnchor: () => ({ x, y }),
 			getActions: () => {
-				return targets.map(t => new Action(`stepIntoTarget:${t.id}`, t.label, undefined, true, () => session.stepIn(frame.thread.threadId, t.id)));
+				return targets.map(t => toAction({ id: `stepIntoTarget:${t.id}`, label: t.label, enabled: true, run: () => session.stepIn(frame.thread.threadId, t.id) }));
 			}
 		});
 	}

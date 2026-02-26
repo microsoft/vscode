@@ -6,11 +6,11 @@
 import { range } from '../../../common/arrays.js';
 import { CancellationTokenSource } from '../../../common/cancellation.js';
 import { Event } from '../../../common/event.js';
-import { Disposable, IDisposable } from '../../../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../common/lifecycle.js';
 import { IPagedModel } from '../../../common/paging.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
 import './list.css';
-import { IListContextMenuEvent, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from './list.js';
+import { IListContextMenuEvent, IListElementRenderDetails, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from './list.js';
 import { IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, List, TypeNavigationMode } from './listWidget.js';
 import { isActiveElement } from '../../dom.js';
 
@@ -37,7 +37,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		return { data, disposable: Disposable.None };
 	}
 
-	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>, height: number | undefined): void {
+	renderElement(index: number, _: number, data: ITemplateData<TTemplateData>, details?: IListElementRenderDetails): void {
 		data.disposable?.dispose();
 
 		if (!data.data) {
@@ -47,7 +47,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		const model = this.modelProvider();
 
 		if (model.isResolved(index)) {
-			return this.renderer.renderElement(model.get(index), index, data.data, height);
+			return this.renderer.renderElement(model.get(index), index, data.data, details);
 		}
 
 		const cts = new CancellationTokenSource();
@@ -55,7 +55,7 @@ class PagedRenderer<TElement, TTemplateData> implements IListRenderer<number, IT
 		data.disposable = { dispose: () => cts.cancel() };
 
 		this.renderer.renderPlaceholder(index, data.data);
-		promise.then(entry => this.renderer.renderElement(entry, index, data.data!, height));
+		promise.then(entry => this.renderer.renderElement(entry, index, data.data!, details));
 	}
 
 	disposeTemplate(data: ITemplateData<TTemplateData>): void {
@@ -77,7 +77,7 @@ class PagedAccessibilityProvider<T> implements IListAccessibilityProvider<number
 		private accessibilityProvider: IListAccessibilityProvider<T>
 	) { }
 
-	getWidgetAriaLabel(): string {
+	getWidgetAriaLabel() {
 		return this.accessibilityProvider.getWidgetAriaLabel();
 	}
 
@@ -122,8 +122,9 @@ function fromPagedListOptions<T>(modelProvider: () => IPagedModel<T>, options: I
 
 export class PagedList<T> implements IDisposable {
 
-	private list: List<number>;
+	private readonly list: List<number>;
 	private _model!: IPagedModel<T>;
+	private readonly modelDisposables = new DisposableStore();
 
 	constructor(
 		user: string,
@@ -202,8 +203,10 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	set model(model: IPagedModel<T>) {
+		this.modelDisposables.clear();
 		this._model = model;
 		this.list.splice(0, this.list.length, range(model.length));
+		this.modelDisposables.add(model.onDidIncrementLength(newLength => this.list.splice(this.list.length, 0, range(this.list.length, newLength))));
 	}
 
 	get length(): number {
@@ -296,5 +299,6 @@ export class PagedList<T> implements IDisposable {
 
 	dispose(): void {
 		this.list.dispose();
+		this.modelDisposables.dispose();
 	}
 }

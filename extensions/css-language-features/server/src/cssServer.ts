@@ -7,7 +7,7 @@ import {
 	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType, Disposable, TextDocumentIdentifier, Range, FormattingOptions, TextEdit, Diagnostic
 } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
-import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position } from 'vscode-css-languageservice';
+import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position, CodeActionKind } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 import { runSafeAsync } from './utils/runner';
 import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnosticsPushSupport } from './utils/validation';
@@ -68,14 +68,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// in the passed params the rootPath of the workspace plus the client capabilities.
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
 
-		const initializationOptions = params.initializationOptions as any || {};
+		const initializationOptions = params.initializationOptions || {};
 
-		workspaceFolders = (<any>params).workspaceFolders;
-		if (!Array.isArray(workspaceFolders)) {
+		if (!Array.isArray(params.workspaceFolders)) {
 			workspaceFolders = [];
 			if (params.rootPath) {
 				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString(true) });
 			}
+		} else {
+			workspaceFolders = params.workspaceFolders;
 		}
 
 		requestService = getRequestService(initializationOptions?.handledSchemas || ['file'], connection, runtime);
@@ -119,7 +120,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			documentLinkProvider: {
 				resolveProvider: false
 			},
-			codeActionProvider: true,
+			codeActionProvider: {
+				codeActionKinds: [CodeActionKind.QuickFix]
+			},
 			renameProvider: true,
 			colorProvider: {},
 			foldingRangeProvider: true,
@@ -164,10 +167,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration(change => {
-		updateConfiguration(change.settings as any);
+		updateConfiguration(change.settings as { [languageId: string]: LanguageSettings });
 	});
 
-	function updateConfiguration(settings: any) {
+	function updateConfiguration(settings: { [languageId: string]: LanguageSettings }) {
 		for (const languageId in languageServices) {
 			languageServices[languageId].configure(settings[languageId]);
 		}
@@ -286,7 +289,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			if (document) {
 				await dataProvidersReady;
 				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).doCodeActions(document, codeActionParams.range, codeActionParams.context, stylesheet);
+				return getLanguageService(document).doCodeActions2(document, codeActionParams.range, codeActionParams.context, stylesheet);
 			}
 			return [];
 		}, [], `Error while computing code actions for ${codeActionParams.textDocument.uri}`, token);

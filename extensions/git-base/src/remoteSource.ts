@@ -123,6 +123,7 @@ export async function getRemoteSourceActions(model: Model, url: string): Promise
 	return remoteSourceActions;
 }
 
+export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions): Promise<string | PickRemoteSourceResult | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch?: false | undefined }): Promise<string | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions & { branch: true }): Promise<PickRemoteSourceResult | undefined>;
 export async function pickRemoteSource(model: Model, options: PickRemoteSourceOptions = {}): Promise<string | PickRemoteSourceResult | undefined> {

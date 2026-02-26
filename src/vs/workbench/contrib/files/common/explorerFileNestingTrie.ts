@@ -110,8 +110,6 @@ export class PreTrie {
 
 	private map: Map<string, PreTrie> = new Map();
 
-	constructor() { }
-
 	add(key: string, value: string) {
 		if (key === '') {
 			this.value.add(key, value);
@@ -160,8 +158,6 @@ export class SufTrie {
 
 	private map: Map<string, SufTrie> = new Map();
 	hasItems: boolean = false;
-
-	constructor() { }
 
 	add(key: string, value: string) {
 		this.hasItems = true;

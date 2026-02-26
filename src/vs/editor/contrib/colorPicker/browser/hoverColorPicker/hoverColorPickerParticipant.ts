@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { Range } from '../../../../common/core/range.js';
@@ -65,8 +65,8 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		return [];
 	}
 
-	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableObject<ColorHover> {
-		return AsyncIterableObject.fromPromise(this._computeAsync(anchor, lineDecorations, source));
+	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterableProducer<ColorHover> {
+		return AsyncIterableProducer.fromPromise(this._computeAsync(anchor, lineDecorations, source));
 	}
 
 	private async _computeAsync(_anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource): Promise<ColorHover[]> {
@@ -153,6 +153,10 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 	}
 
 	public handleResize(): void {
+		this._colorPicker?.layout();
+	}
+
+	public handleContentsChanged(): void {
 		this._colorPicker?.layout();
 	}
 

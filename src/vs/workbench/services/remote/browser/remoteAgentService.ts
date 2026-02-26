@@ -51,7 +51,7 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 			});
 	}
 
-	private async _presentConnectionError(err: any): Promise<void> {
+	private async _presentConnectionError(err: Error): Promise<void> {
 		await this._dialogService.prompt({
 			type: Severity.Error,
 			message: nls.localize('connectionError', "An unexpected error occurred that requires a reload of this page."),

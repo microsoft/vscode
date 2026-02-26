@@ -20,7 +20,7 @@ export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestH
  * @internal
  */
 export class LanguageDetectionWorker implements ILanguageDetectionWorker {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	private static readonly expectedRelativeConfidence = 0.2;
 	private static readonly positiveConfidenceCorrectionBucket1 = 0.05;

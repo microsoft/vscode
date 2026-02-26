@@ -17,7 +17,7 @@ import { ResourceMap } from '../util/resourceMap';
  */
 export class VsCodeMdWorkspace extends Disposable {
 
-	private _watcher: vscode.FileSystemWatcher | undefined;
+	private readonly _watcher: vscode.FileSystemWatcher | undefined;
 
 	private readonly _documentCache = new ResourceMap<ITextDocument>();
 

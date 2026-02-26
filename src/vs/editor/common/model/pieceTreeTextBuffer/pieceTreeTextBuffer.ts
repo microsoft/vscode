@@ -9,7 +9,7 @@ import { Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';
 import { ApplyEditsResult, EndOfLinePreference, FindMatch, IInternalModelContentChange, ISingleEditOperationIdentifier, ITextBuffer, ITextSnapshot, ValidAnnotatedEditOperation, IValidEditOperation, SearchData } from '../../model.js';
 import { PieceTreeBase, StringBuffer } from './pieceTreeBase.js';
-import { countEOL, StringEOL } from '../../core/eolCounter.js';
+import { countEOL, StringEOL } from '../../core/misc/eolCounter.js';
 import { TextChange } from '../../core/textChange.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 
@@ -39,7 +39,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	private _mightContainNonBasicASCII: boolean;
 
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	public get onDidChangeContent(): Event<void> { return this._onDidChangeContent.event; }
 
 	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, containsUnusualLineTerminators: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
 		super();

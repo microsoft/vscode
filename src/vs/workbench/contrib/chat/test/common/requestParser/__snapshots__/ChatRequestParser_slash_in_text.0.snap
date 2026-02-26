@@ -1,0 +1,19 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 65
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 66
+      },
+      text: "can we add a new file for an Express router to handle the / route",
+      kind: "text"
+    }
+  ],
+  text: "can we add a new file for an Express router to handle the / route"
+}

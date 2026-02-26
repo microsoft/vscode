@@ -291,7 +291,7 @@ export class FastDomNode<T extends HTMLElement> {
 			return;
 		}
 		this._contain = contain;
-		(<any>this.domNode.style).contain = this._contain;
+		this.domNode.style.contain = this._contain;
 	}
 
 	public setAttribute(name: string, value: string): void {

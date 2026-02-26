@@ -7,6 +7,7 @@ import { equals } from '../../../base/common/arrays.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IRectangle } from '../../window/common/window.js';
 
 export interface IResolvableEditorModel extends IDisposable {
 
@@ -300,12 +301,65 @@ export interface IEditorOptions {
 	transient?: boolean;
 
 	/**
-	 * A hint that the editor should have compact chrome when showing if possible.
-	 *
-	 * Note: this currently is only working if AUX_GROUP is specified as target to
-	 * open the editor in a floating window.
+	 * Options that only apply when `AUX_WINDOW_GROUP` is used for opening.
 	 */
-	compact?: boolean;
+	auxiliary?: {
+
+		/**
+		 * Define the bounds of the editor window.
+		 */
+		bounds?: Partial<IRectangle>;
+
+		/**
+		 * Show editor compact, hiding unnecessary elements.
+		 */
+		compact?: boolean;
+
+		/**
+		 * Show the editor always on top of other windows.
+		 */
+		alwaysOnTop?: boolean;
+	};
+
+	/**
+	 * Options that only apply when `MODAL_GROUP` is used for opening.
+	 */
+	modal?: IModalEditorPartOptions;
+}
+
+export interface IModalEditorPartOptions {
+
+	/**
+	 * Whether the modal editor should be maximized.
+	 */
+	readonly maximized?: boolean;
+
+	/**
+	 * The navigation context for navigating between items
+	 * within this modal editor. Pass `undefined` to clear.
+	 */
+	readonly navigation?: IModalEditorNavigation;
+}
+
+/**
+ * Context for navigating between items within a modal editor.
+ */
+export interface IModalEditorNavigation {
+
+	/**
+	 * Total number of items in the navigation list.
+	 */
+	readonly total: number;
+
+	/**
+	 * Current 0-based index in the navigation list.
+	 */
+	readonly current: number;
+
+	/**
+	 * Navigate to the item at the given 0-based index.
+	 */
+	readonly navigate: (index: number) => void;
 }
 
 export interface ITextEditorSelection {

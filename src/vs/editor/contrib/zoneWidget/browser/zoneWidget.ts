@@ -370,7 +370,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 
 		if (this.options.showFrame) {
-			const frameThickness = Math.round(lineHeight / 9);
+			const frameThickness = this.options.frameWidth ?? Math.round(lineHeight / 9);
 			result += 2 * frameThickness;
 		}
 
