@@ -558,12 +558,12 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 	}
 
 	private _parseMcpServerDefinitionMap(raw: unknown): IAgentPluginMcpServerDefinition[] {
-		if (!raw || typeof raw !== 'object') {
+		if (!raw || typeof raw !== 'object' || !raw.hasOwnProperty('mcpServers')) {
 			return [];
 		}
 
 		const definitions: IAgentPluginMcpServerDefinition[] = [];
-		for (const [name, configValue] of Object.entries(raw as Record<string, unknown>)) {
+		for (const [name, configValue] of Object.entries((raw as { mcpServers: Record<string, unknown> }).mcpServers)) {
 			const configuration = this._normalizeMcpServerConfiguration(configValue);
 			if (!configuration) {
 				continue;

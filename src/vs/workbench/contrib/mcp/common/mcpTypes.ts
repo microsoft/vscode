@@ -91,6 +91,7 @@ export const enum McpCollectionSortOrder {
 	Workspace = 100,
 	User = 200,
 	Extension = 300,
+	Plugin = 350,
 	Filesystem = 400,
 
 	RemoteBoost = -50,
