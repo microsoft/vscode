@@ -1411,6 +1411,7 @@ class ChatDebugResolverContribution implements IWorkbenchContribution {
 class ChatAgentSettingContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatAgentSetting';
+	private readonly newChatButtonExperimentIcon = ChatContextKeys.newChatButtonExperimentIcon.bindTo(this.contextKeyService);
 
 	constructor(
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
@@ -1463,7 +1464,9 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 	private registerNewChatButtonIcon(): void {
 		this.experimentService.getTreatment<string>('chatNewButtonIcon').then((value) => {
 			if (value === 'copilot' || value === 'sparkle') {
-				this.contextKeyService.createKey(ChatContextKeys.newChatButtonExperimentIcon.key, value);
+				this.newChatButtonExperimentIcon.set(value);
+			} else {
+				this.newChatButtonExperimentIcon.reset();
 			}
 		});
 	}
