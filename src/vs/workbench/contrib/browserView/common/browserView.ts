@@ -77,14 +77,6 @@ export interface IBrowserViewWorkbenchService {
 	getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel>;
 
 	/**
-	 * Get an existing browser view model by ID, or throw if it doesn't exist
-	 * @param id The browser view identifier
-	 * @return The browser view model for the given ID
-	 * @throws If no browser view model exists for the given ID
-	 */
-	getBrowserViewModel(id: string): IBrowserViewModel;
-
-	/**
 	 * Clear all storage data for the global browser session
 	 */
 	clearGlobalStorage(): Promise<void>;
