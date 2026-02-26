@@ -72,7 +72,7 @@ import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeA
 import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { handleModeSwitch } from '../actions/chatActions.js';
+import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
@@ -1077,12 +1077,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return new MarkdownString('');
 		} else if (this._instructionFilesExist === false) {
 			// Show generate instructions message if no files exist
-			const generateInstructionsCommand = 'workbench.action.chat.generateInstructions';
 			return new MarkdownString(localize(
 				'chatWidget.instructions',
 				"[Generate Agent Instructions]({0}) to onboard AI onto your codebase.",
-				`command:${generateInstructionsCommand}`
-			), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
+				`command:${GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID}`
+			), { isTrusted: { enabledCommands: [GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID] } });
 		}
 
 		// While checking, don't show the generate instructions message

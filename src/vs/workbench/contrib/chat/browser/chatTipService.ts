@@ -26,6 +26,7 @@ import { CreateSlashCommandsUsageTracker } from './createSlashCommandsUsageTrack
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
+import { GENERATE_AGENT_COMMAND_ID, GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID, GENERATE_SKILL_COMMAND_ID } from './actions/chatActions.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -41,11 +42,11 @@ type ChatTipClassification = {
 	comment: 'Tracks user interactions with chat tips to understand which tips resonate and which are dismissed.';
 };
 
-const ATTACH_FILES_REFERENCE_TRACKING_COMMAND = 'chat.tips.attachFiles.referenceUsed';
-const CREATE_INSTRUCTION_TRACKING_COMMAND = 'chat.tips.createInstruction.commandUsed';
-const CREATE_PROMPT_TRACKING_COMMAND = 'chat.tips.createPrompt.commandUsed';
-const CREATE_AGENT_TRACKING_COMMAND = 'chat.tips.createAgent.commandUsed';
-const CREATE_SKILL_TRACKING_COMMAND = 'chat.tips.createSkill.commandUsed';
+export const ATTACH_FILES_REFERENCE_TRACKING_COMMAND = 'chat.tips.attachFiles.referenceUsed';
+export const CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND = 'chat.tips.createAgentInstructions.commandUsed';
+export const CREATE_PROMPT_TRACKING_COMMAND = 'chat.tips.createPrompt.commandUsed';
+export const CREATE_AGENT_TRACKING_COMMAND = 'chat.tips.createAgent.commandUsed';
+export const CREATE_SKILL_TRACKING_COMMAND = 'chat.tips.createSkill.commandUsed';
 
 export const IChatTipService = createDecorator<IChatTipService>('chatTipService');
 
@@ -197,25 +198,27 @@ const TIP_CATALOG: ITipDefinition[] = [
 		id: 'tip.createInstruction',
 		message: localize(
 			'tip.createInstruction',
-			"Tip: Use [/create-instruction](command:workbench.action.chat.generateInstruction) to generate an on-demand instruction file with the agent."
+			"Tip: Use [/create-instructions](command:{0}) to generate an on-demand instructions file with the agent.",
+			GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID
 		),
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-		enabledCommands: ['workbench.action.chat.generateInstruction'],
+		enabledCommands: [GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID],
 		excludeWhenCommandsExecuted: [
-			'workbench.action.chat.generateInstruction',
-			CREATE_INSTRUCTION_TRACKING_COMMAND,
+			GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
+			CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND,
 		],
 	},
 	{
 		id: 'tip.createPrompt',
 		message: localize(
 			'tip.createPrompt',
-			"Tip: Use [/create-prompt](command:workbench.action.chat.generatePrompt) to generate a reusable prompt file with the agent."
+			"Tip: Use [/create-prompt](command:{0}) to generate a reusable prompt file with the agent.",
+			GENERATE_PROMPT_COMMAND_ID
 		),
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-		enabledCommands: ['workbench.action.chat.generatePrompt'],
+		enabledCommands: [GENERATE_PROMPT_COMMAND_ID],
 		excludeWhenCommandsExecuted: [
-			'workbench.action.chat.generatePrompt',
+			GENERATE_PROMPT_COMMAND_ID,
 			CREATE_PROMPT_TRACKING_COMMAND,
 		],
 	},
@@ -223,12 +226,13 @@ const TIP_CATALOG: ITipDefinition[] = [
 		id: 'tip.createAgent',
 		message: localize(
 			'tip.createAgent',
-			"Tip: Use [/create-agent](command:workbench.action.chat.generateAgent) to scaffold a custom agent for your workflow."
+			"Tip: Use [/create-agent](command:{0}) to scaffold a custom agent for your workflow.",
+			GENERATE_AGENT_COMMAND_ID
 		),
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-		enabledCommands: ['workbench.action.chat.generateAgent'],
+		enabledCommands: [GENERATE_AGENT_COMMAND_ID],
 		excludeWhenCommandsExecuted: [
-			'workbench.action.chat.generateAgent',
+			GENERATE_AGENT_COMMAND_ID,
 			CREATE_AGENT_TRACKING_COMMAND,
 		],
 	},
@@ -236,12 +240,13 @@ const TIP_CATALOG: ITipDefinition[] = [
 		id: 'tip.createSkill',
 		message: localize(
 			'tip.createSkill',
-			"Tip: Use [/create-skill](command:workbench.action.chat.generateSkill) to create a skill the agent can load when relevant."
+			"Tip: Use [/create-skill](command:{0}) to create a skill the agent can load when relevant.",
+			GENERATE_SKILL_COMMAND_ID
 		),
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-		enabledCommands: ['workbench.action.chat.generateSkill'],
+		enabledCommands: [GENERATE_SKILL_COMMAND_ID],
 		excludeWhenCommandsExecuted: [
-			'workbench.action.chat.generateSkill',
+			GENERATE_SKILL_COMMAND_ID,
 			CREATE_SKILL_TRACKING_COMMAND,
 		],
 	},
@@ -759,14 +764,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		const trimmed = message.text.trimStart();
-		const match = /^\/(create-(?:instruction|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
+		const match = /^\/(create-(?:instructions|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
 		return match ? this._toCreateSlashCommandTrackingId(match[1]) : undefined;
 	}
 
 	private _toCreateSlashCommandTrackingId(command: string): string | undefined {
 		switch (command) {
-			case 'create-instruction':
-				return CREATE_INSTRUCTION_TRACKING_COMMAND;
+			case 'create-instructions':
+				return CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND;
 			case 'create-prompt':
 				return CREATE_PROMPT_TRACKING_COMMAND;
 			case 'create-agent':

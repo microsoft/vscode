@@ -15,7 +15,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ChatTipService, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
+import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
 import { AgentFileType, IPromptPath, IPromptsService, IResolvedAgentFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -34,6 +34,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID } from '../../browser/actions/chatActions.js';
 
 class MockContextKeyServiceWithRulesMatching extends MockContextKeyService {
 	override contextMatchesRules(rules: ContextKeyExpression): boolean {
@@ -167,10 +168,10 @@ suite('ChatTipService', () => {
 		});
 
 		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
-		assert.ok(executedCommands.includes('chat.tips.createPrompt.commandUsed'));
-		assert.ok(!executedCommands.includes('chat.tips.createInstruction.commandUsed'));
-		assert.ok(!executedCommands.includes('chat.tips.createAgent.commandUsed'));
-		assert.ok(!executedCommands.includes('chat.tips.createSkill.commandUsed'));
+		assert.ok(executedCommands.includes(CREATE_PROMPT_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_AGENT_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_SKILL_TRACKING_COMMAND));
 	});
 
 	test('returns Auto switch tip when current model is gpt-4.1', () => {
@@ -606,7 +607,7 @@ suite('ChatTipService', () => {
 		const tip: ITipDefinition = {
 			id: 'tip.customInstructions',
 			message: 'test',
-			excludeWhenCommandsExecuted: ['workbench.action.chat.generateInstructions'],
+			excludeWhenCommandsExecuted: [GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID],
 		};
 
 		const tracker = testDisposables.add(new TipEligibilityTracker(
@@ -620,7 +621,7 @@ suite('ChatTipService', () => {
 
 		assert.strictEqual(tracker.isExcluded(tip), false, 'Should not be excluded before command is executed');
 
-		commandExecutedEmitter.fire({ commandId: 'workbench.action.chat.generateInstructions', args: [] });
+		commandExecutedEmitter.fire({ commandId: GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, args: [] });
 
 		assert.strictEqual(tracker.isExcluded(tip), true, 'Should be excluded after generate instructions command is executed');
 	});
@@ -941,7 +942,7 @@ suite('ChatTipService', () => {
 	});
 
 	test('does not show create prompt tip when create prompt was already used', () => {
-		storageService.store('chat.tips.executedCommands', JSON.stringify(['chat.tips.createPrompt.commandUsed']), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		storageService.store('chat.tips.executedCommands', JSON.stringify([CREATE_PROMPT_TRACKING_COMMAND]), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
 
@@ -1376,7 +1377,7 @@ suite('CreateSlashCommandsUsageTracker', () => {
 		assert.strictEqual(value, true, 'Context key should be true when create commands have been used');
 	});
 
-	test('detects create-instruction slash command via text fallback', () => {
+	test('detects create-instructions slash command via text fallback', () => {
 		const sessionResource = URI.parse('chat:session1');
 		const tracker = createTracker();
 		tracker.syncContextKey(contextKeyService);
@@ -1384,7 +1385,7 @@ suite('CreateSlashCommandsUsageTracker', () => {
 		sessions.set(sessionResource.toString(), {
 			lastRequest: {
 				message: {
-					text: '/create-instruction test',
+					text: '/create-instructions test',
 					parts: [],
 				},
 			},
@@ -1393,7 +1394,7 @@ suite('CreateSlashCommandsUsageTracker', () => {
 		submitRequestEmitter.fire({ chatSessionResource: sessionResource });
 
 		const value = contextKeyService.getContextKeyValue(ChatContextKeys.hasUsedCreateSlashCommands.key);
-		assert.strictEqual(value, true, 'Context key should be true after /create-instruction is used');
+		assert.strictEqual(value, true, 'Context key should be true after /create-instructions is used');
 		assert.strictEqual(
 			storageService.getBoolean('chat.tips.usedCreateSlashCommands', StorageScope.APPLICATION, false),
 			true,

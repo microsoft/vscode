@@ -14,7 +14,7 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_HOOK_COMMAND_ID,
-	GENERATE_INSTRUCTION_COMMAND_ID,
+	GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
 } from '../actions/chatActions.js';
@@ -76,7 +76,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		const commandIds: Partial<Record<PromptsType, string>> = {
 			[PromptsType.agent]: GENERATE_AGENT_COMMAND_ID,
 			[PromptsType.skill]: GENERATE_SKILL_COMMAND_ID,
-			[PromptsType.instructions]: GENERATE_INSTRUCTION_COMMAND_ID,
+			[PromptsType.instructions]: GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
 			[PromptsType.prompt]: GENERATE_PROMPT_COMMAND_ID,
 			[PromptsType.hook]: GENERATE_HOOK_COMMAND_ID,
 		};
