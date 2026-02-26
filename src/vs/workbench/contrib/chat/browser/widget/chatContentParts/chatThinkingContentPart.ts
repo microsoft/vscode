@@ -865,6 +865,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			OUTPUT FORMAT:
 			- MUST be a single sentence
 			- MUST be under 10 words
+			- The FIRST word MUST be a past tense verb (e.g. "Updated", "Reviewed", "Created", "Searched", "Analyzed")
 			- No quotes, no trailing punctuation
 
 			GENERAL:
