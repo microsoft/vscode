@@ -954,7 +954,7 @@ export class ChatService extends Disposable implements IChatService {
 			let collectedHooks: IChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
 			try {
-				const hooksInfo = await this.promptsService.getHooks(token, model.sessionId);
+				const hooksInfo = await this.promptsService.getHooks(token, model.sessionResource);
 				if (hooksInfo) {
 					collectedHooks = hooksInfo.hooks;
 					hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
