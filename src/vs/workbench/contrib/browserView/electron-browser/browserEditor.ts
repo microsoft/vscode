@@ -804,7 +804,8 @@ export class BrowserEditor extends EditorPane {
 			// Prepare HTML/CSS context
 			const displayName = getDisplayNameFromOuterHTML(elementData.outerHTML);
 			const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
-			const value = this.createElementContextValue(elementData, displayName, attachCss);
+			const attachUrl = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachURL');
+			const value = this.createElementContextValue(elementData, displayName, attachCss, attachUrl);
 
 			toAttach.push({
 				id: 'element-' + Date.now(),
@@ -821,6 +822,7 @@ export class BrowserEditor extends EditorPane {
 				computedStyles: attachCss ? elementData.computedStyles : undefined,
 				dimensions: elementData.dimensions,
 				innerText: elementData.innerText,
+				pageUrl: attachUrl ? elementData.pageUrl : undefined,
 			});
 
 			// Attach screenshot if enabled
@@ -944,10 +946,14 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	private createElementContextValue(elementData: IElementData, displayName: string, attachCss: boolean): string {
+	private createElementContextValue(elementData: IElementData, displayName: string, attachCss: boolean, attachUrl: boolean): string {
 		const sections: string[] = [];
 		sections.push('Attached Element Context from Integrated Browser');
 		sections.push(`Element: ${displayName}`);
+
+		if (attachUrl && elementData.pageUrl) {
+			sections.push(`Page URL: ${elementData.pageUrl}`);
+		}
 
 		const htmlPath = this.formatElementPath(elementData.ancestors);
 		if (htmlPath) {

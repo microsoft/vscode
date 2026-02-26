@@ -286,7 +286,12 @@ class SimpleBrowserOverlayWidget {
 
 		const widget = await this._chatWidgetService.revealWidget() ?? this._chatWidgetService.lastFocusedWidget;
 		const attachCss = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachCSS');
-		let value = (attachCss ? 'Attached HTML and CSS Context' : 'Attached HTML Context') + '\n\n' + elementData.outerHTML;
+		const attachUrl = this.configurationService.getValue<boolean>('chat.sendElementsToChat.attachURL');
+		let value = (attachCss ? 'Attached HTML and CSS Context' : 'Attached HTML Context') + '\n\n';
+		if (attachUrl && elementData.pageUrl) {
+			value += `Page URL: ${elementData.pageUrl}\n\n`;
+		}
+		value += elementData.outerHTML;
 		if (attachCss) {
 			value += '\n\n' + elementData.computedStyle;
 		}
@@ -303,6 +308,7 @@ class SimpleBrowserOverlayWidget {
 			computedStyles: attachCss ? elementData.computedStyles : undefined,
 			dimensions: elementData.dimensions,
 			innerText: elementData.innerText,
+			pageUrl: attachUrl ? elementData.pageUrl : undefined,
 		});
 
 		if (this.configurationService.getValue('chat.sendElementsToChat.attachImages')) {
