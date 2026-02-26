@@ -238,7 +238,7 @@ class SlashCommandCompletions extends Disposable {
 				// Filter out commands that are not user-invocable (hidden from / menu)
 				const userInvocableCommands = promptCommands
 					.filter(c => {
-						// Exclude non-user defined prompt files for locked agents.
+						// Exclude extension-provided prompt files for locked agents.
 						if (widget.lockedAgentId && c.promptPath.extension) {
 							return false;
 						}
