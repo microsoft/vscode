@@ -341,7 +341,7 @@ class OpenInExternalBrowserAction extends Action2 {
 				await openerService.open(url, {
 					// ensures that VS Code itself doesn't try to open the URL, even for non-"http(s):" scheme URLs.
 					openExternal: true,
-					// ensures that the link isn't opened in Integrated Browser or other contributed external openers.
+					// ensures that the link isn't opened in Integrated Browser or other contributed external openers. False it the default but just being explicit here.
 					allowContributedOpeners: false
 				});
 			}
