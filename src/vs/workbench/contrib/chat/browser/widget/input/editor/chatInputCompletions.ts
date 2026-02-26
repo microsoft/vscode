@@ -129,13 +129,14 @@ class SlashCommandCompletions extends Disposable {
 				return {
 					suggestions: slashCommands
 						.filter(c => {
-							if (widget.lockedAgentId) {
-								if (c.modes && !c.modes.includes(ChatModeKind.Agent)) {
-									return false;
-								}
-								if (c.target && customAgentTarget && c.target !== customAgentTarget) {
-									return false;
-								}
+							if (!widget.lockedAgentId) {
+								return true;
+							}
+							if (c.modes && !c.modes.includes(ChatModeKind.Agent)) {
+								return false;
+							}
+							if (c.target && customAgentTarget && c.target !== customAgentTarget) {
+								return false;
 							}
 							return true;
 						})
@@ -237,11 +238,9 @@ class SlashCommandCompletions extends Disposable {
 				// Filter out commands that are not user-invocable (hidden from / menu)
 				const userInvocableCommands = promptCommands
 					.filter(c => {
-						if (widget.lockedAgentId) {
-							// Exclude non-user defined prompt files.
-							if (c.promptPath.extension) {
-								return false;
-							}
+						// Exclude non-user defined prompt files for locked agents.
+						if (widget.lockedAgentId && c.promptPath.extension) {
+							return false;
 						}
 						return true;
 					})
