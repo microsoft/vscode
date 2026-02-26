@@ -521,7 +521,6 @@
 /* Action Widget */
 .monaco-workbench .action-widget {
 	box-shadow: var(--shadow-lg) !important;
-	border-radius: var(--radius-lg);
 }
 
 /* Parameter Hints */
