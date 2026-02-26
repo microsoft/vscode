@@ -114,10 +114,19 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
 			this._register(watcher.onDidChange(uri => {
 				if (this.isPreviewOf(uri)) {
-					// Always refresh on file system changes, including external modifications
-					// (e.g. AI agents, scripts, git sync). The throttle in refresh() prevents
-					// performance issues from duplicate events with onDidChangeTextDocument.
-					this.refresh(true);
+					// Only skip the file-system event when the document has unsaved
+					// edits in the editor.  A dirty document means the preview is
+					// already kept up-to-date via onDidChangeTextDocument.
+					// For non-dirty or closed documents we must refresh from disk
+					// because onDidChangeTextDocument may not fire reliably — the
+					// underlying TextFileEditorModel (and its file watcher) is
+					// disposed when the editor tab is closed, even though the
+					// TextDocument can linger in textDocuments for up to 5 minutes.
+					const doc = vscode.workspace.textDocuments.find(
+						d => d.uri.toString() === uri.toString());
+					if (!doc || !doc.isDirty) {
+						this.refresh(true);
+					}
 				}
 			}));
 		}
