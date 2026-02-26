@@ -100,7 +100,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		return this._cliUserRoots;
 	}
 
-	readonly preferManualCreation = true;
+	readonly isSessionsWindow = true;
 
 	async commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.getActiveSession();

@@ -29,9 +29,9 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getPromptSourceCounts, getSkillSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
+import { getSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 interface ICustomizationItemConfig {
 	readonly id: string;
@@ -39,7 +39,7 @@ interface ICustomizationItemConfig {
 	readonly icon: ThemeIcon;
 	readonly section: AICustomizationManagementSection;
 	readonly promptType?: PromptsType;
-	readonly getSourceCounts?: (promptsService: IPromptsService, filter: IStorageSourceFilter) => Promise<ISourceCounts>;
+	readonly hasSourceCounts?: boolean;
 	readonly getCount?: (languageModelsService: ILanguageModelsService, mcpService: IMcpService) => Promise<number>;
 }
 
@@ -50,7 +50,7 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: agentIcon,
 		section: AICustomizationManagementSection.Agents,
 		promptType: PromptsType.agent,
-		getSourceCounts: (ps, f) => getPromptSourceCounts(ps, PromptsType.agent, f),
+		hasSourceCounts: true,
 	},
 	{
 		id: 'sessions.customization.skills',
@@ -58,7 +58,7 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: skillIcon,
 		section: AICustomizationManagementSection.Skills,
 		promptType: PromptsType.skill,
-		getSourceCounts: (ps, f) => getSkillSourceCounts(ps, f),
+		hasSourceCounts: true,
 	},
 	{
 		id: 'sessions.customization.instructions',
@@ -66,7 +66,7 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
 		promptType: PromptsType.instructions,
-		getSourceCounts: (ps, f) => getPromptSourceCounts(ps, PromptsType.instructions, f),
+		hasSourceCounts: true,
 	},
 	{
 		id: 'sessions.customization.prompts',
@@ -74,7 +74,7 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: promptIcon,
 		section: AICustomizationManagementSection.Prompts,
 		promptType: PromptsType.prompt,
-		getSourceCounts: (ps, f) => getPromptSourceCounts(ps, PromptsType.prompt, f),
+		hasSourceCounts: true,
 	},
 	{
 		id: 'sessions.customization.hooks',
@@ -82,7 +82,7 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		promptType: PromptsType.hook,
-		getSourceCounts: (ps, f) => getPromptSourceCounts(ps, PromptsType.hook, f),
+		hasSourceCounts: true,
 	},
 	// TODO: Re-enable MCP Servers once CLI MCP configuration is unified with VS Code
 ];
@@ -165,10 +165,10 @@ class CustomizationLinkViewItem extends ActionViewItem {
 			return;
 		}
 
-		if (this._config.getSourceCounts) {
+		if (this._config.hasSourceCounts && this._config.promptType) {
 			const type = this._config.promptType;
-			const filter = type ? this._workspaceService.getStorageSourceFilter(type) : this._workspaceService.getStorageSourceFilter(PromptsType.prompt);
-			const counts = await this._config.getSourceCounts(this._promptsService, filter);
+			const filter = this._workspaceService.getStorageSourceFilter(type);
+			const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService);
 			this._renderSourceCounts(this._countContainer, counts);
 		} else if (this._config.getCount) {
 			const count = await this._config.getCount(this._languageModelsService, this._mcpService);

@@ -92,7 +92,7 @@ export interface IAICustomizationWorkspaceService {
 	/**
 	 * Whether the primary creation action should create a file directly
 	 */
-	readonly preferManualCreation: boolean;
+	readonly isSessionsWindow: boolean;
 
 	/**
 	 * Commits files in the active project.

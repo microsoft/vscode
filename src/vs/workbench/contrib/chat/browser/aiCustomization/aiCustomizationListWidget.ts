@@ -40,6 +40,7 @@ import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
 
 const $ = DOM.$;
 
@@ -621,7 +622,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.addButton.element.style.display = hasDropdown ? '' : 'none';
 		this.addButtonSimple.element.style.display = hasDropdown ? 'none' : '';
 
-		if (this.workspaceService.preferManualCreation) {
+		if (this.workspaceService.isSessionsWindow) {
 			// Sessions: primary is workspace creation
 			const hasWorkspace = this.hasActiveWorkspace();
 			const label = `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`;
@@ -672,7 +673,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Hooks: no user-scoped creation
 		if (promptType === PromptsType.hook) {
-			if (this.workspaceService.preferManualCreation) {
+			if (this.workspaceService.isSessionsWindow) {
 				// Sessions: no dropdown for hooks
 			} else {
 				// Core: primary is generate, dropdown has configure quick pick
@@ -685,7 +686,7 @@ export class AICustomizationListWidget extends Disposable {
 			return actions;
 		}
 
-		if (this.workspaceService.preferManualCreation) {
+		if (this.workspaceService.isSessionsWindow) {
 			// Sessions: primary is workspace, dropdown has user
 			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
 				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
@@ -717,7 +718,7 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private executePrimaryCreateAction(): void {
 		const promptType = sectionToPromptType(this.currentSection);
-		if (this.workspaceService.preferManualCreation) {
+		if (this.workspaceService.isSessionsWindow) {
 			// Sessions: primary creates in workspace
 			if (!this.hasActiveWorkspace()) {
 				return;
@@ -1165,5 +1166,17 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	get itemCount(): number {
 		return this.allItems.length;
+	}
+
+	/**
+	 * Generates a debug report for the current section.
+	 */
+	async generateDebugReport(): Promise<string> {
+		return generateCustomizationDebugReport(
+			this.currentSection,
+			this.promptsService,
+			this.workspaceService,
+			{ allItems: this.allItems, displayEntries: this.displayEntries },
+		);
 	}
 }

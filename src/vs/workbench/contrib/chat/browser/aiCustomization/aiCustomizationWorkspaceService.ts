@@ -61,7 +61,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		return AICustomizationWorkspaceService._defaultFilter;
 	}
 
-	readonly preferManualCreation = false;
+	readonly isSessionsWindow = false;
 
 	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
 		// No-op in core VS Code.

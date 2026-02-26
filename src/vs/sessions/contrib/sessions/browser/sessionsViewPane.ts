@@ -233,7 +233,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		let updateCountRequestId = 0;
 		const updateHeaderTotalCount = async () => {
 			const requestId = ++updateCountRequestId;
-			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService);
+			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService);
 			if (requestId !== updateCountRequestId) {
 				return;
 			}
