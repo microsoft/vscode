@@ -78,7 +78,7 @@ class FeedbackFileRenderer implements ITreeRenderer<IFeedbackFileElement, void, 
 
 	constructor(
 		private readonly _labels: ResourceLabels,
-		private readonly _agentFeedbackService: IAgentFeedbackService,
+		private readonly _agentFeedbackService: IAgentFeedbackService | undefined,
 		private readonly _sessionResource: URI,
 	) { }
 
@@ -107,17 +107,21 @@ class FeedbackFileRenderer implements ITreeRenderer<IFeedbackFileElement, void, 
 		);
 
 		templateData.actionBar.clear();
-		templateData.actionBar.push(new Action(
-			'agentFeedback.removeFileComments',
-			localize('agentFeedbackHover.removeAll', "Remove All"),
-			ThemeIcon.asClassName(Codicon.close),
-			true,
-			() => {
-				for (const item of element.items) {
-					this._agentFeedbackService.removeFeedback(this._sessionResource, item.id);
+		if (this._agentFeedbackService) {
+			const service = this._agentFeedbackService;
+			const sessionResource = this._sessionResource;
+			templateData.actionBar.push(new Action(
+				'agentFeedback.removeFileComments',
+				localize('agentFeedbackHover.removeAll', "Remove All"),
+				ThemeIcon.asClassName(Codicon.close),
+				true,
+				() => {
+					for (const item of element.items) {
+						service.removeFeedback(sessionResource, item.id);
+					}
 				}
-			}
-		), { icon: true, label: false });
+			), { icon: true, label: false });
+		}
 	}
 
 	disposeTemplate(templateData: IFeedbackFileTemplate): void {
@@ -139,7 +143,7 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 	readonly templateId = FeedbackCommentRenderer.TEMPLATE_ID;
 
 	constructor(
-		private readonly _agentFeedbackService: IAgentFeedbackService,
+		private readonly _agentFeedbackService: IAgentFeedbackService | undefined,
 		private readonly _sessionResource: URI,
 	) { }
 
@@ -155,14 +159,18 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 
 		const templateData: IFeedbackCommentTemplate = { textElement, actionBar, templateDisposables, element: undefined };
 
-		templateDisposables.add(dom.addDisposableListener(row, dom.EventType.CLICK, (e) => {
-			const data = templateData.element;
-			if (data) {
-				e.preventDefault();
-				e.stopPropagation();
-				this._agentFeedbackService.revealFeedback(this._sessionResource, data.id);
-			}
-		}));
+		if (this._agentFeedbackService) {
+			const service = this._agentFeedbackService;
+			const sessionResource = this._sessionResource;
+			templateDisposables.add(dom.addDisposableListener(row, dom.EventType.CLICK, (e) => {
+				const data = templateData.element;
+				if (data) {
+					e.preventDefault();
+					e.stopPropagation();
+					service.revealFeedback(sessionResource, data.id);
+				}
+			}));
+		}
 
 		return templateData;
 	}
@@ -174,15 +182,19 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 		templateData.element = element;
 
 		templateData.actionBar.clear();
-		templateData.actionBar.push(new Action(
-			'agentFeedback.removeComment',
-			localize('agentFeedbackHover.remove', "Remove"),
-			ThemeIcon.asClassName(Codicon.close),
-			true,
-			() => {
-				this._agentFeedbackService.removeFeedback(this._sessionResource, element.id);
-			}
-		), { icon: true, label: false });
+		if (this._agentFeedbackService) {
+			const service = this._agentFeedbackService;
+			const sessionResource = this._sessionResource;
+			templateData.actionBar.push(new Action(
+				'agentFeedback.removeComment',
+				localize('agentFeedbackHover.remove', "Remove"),
+				ThemeIcon.asClassName(Codicon.close),
+				true,
+				() => {
+					service.removeFeedback(sessionResource, element.id);
+				}
+			), { icon: true, label: false });
+		}
 	}
 
 	disposeTemplate(templateData: IFeedbackCommentTemplate): void {
@@ -202,6 +214,7 @@ export class AgentFeedbackHover extends Disposable {
 	constructor(
 		private readonly _element: HTMLElement,
 		private readonly _attachment: IAgentFeedbackVariableEntry,
+		private readonly _canDelete: boolean,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
@@ -252,8 +265,8 @@ export class AgentFeedbackHover extends Disposable {
 			treeContainer,
 			new FeedbackTreeDelegate(),
 			[
-				new FeedbackFileRenderer(resourceLabels, this._agentFeedbackService, this._attachment.sessionResource),
-				new FeedbackCommentRenderer(this._agentFeedbackService, this._attachment.sessionResource),
+				new FeedbackFileRenderer(resourceLabels, this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource),
+				new FeedbackCommentRenderer(this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource),
 			],
 			{
 				defaultIndent: 0,
