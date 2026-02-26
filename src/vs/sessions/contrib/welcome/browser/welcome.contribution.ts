@@ -88,7 +88,8 @@ class SessionsWelcomeOverlay extends Disposable {
 				dialogIcon: Codicon.agent,
 				dialogTitle: this.chatEntitlementService.anonymous ?
 					localize('sessions.startUsingSessions', "Start using Sessions") :
-					localize('sessions.signinRequired', "Sign in to use Sessions")
+					localize('sessions.signinRequired', "Sign in to use Sessions"),
+				dialogHideSkip: true
 			});
 
 			if (success) {

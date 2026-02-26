@@ -41,7 +41,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
-		'workbench.editor.labelFormat': 'short',
 		'workbench.panel.showLabels': false,
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',

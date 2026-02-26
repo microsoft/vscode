@@ -24,6 +24,8 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -43,6 +45,7 @@ export interface IActiveSessionItem {
 	readonly label: string | undefined;
 	readonly repository: URI | undefined;
 	readonly worktree: URI | undefined;
+	readonly providerType: string;
 }
 
 export interface ISessionsManagementService {
@@ -117,6 +120,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -396,7 +401,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return;
 		}
 		this.isNewChatSessionContext.set(true);
-		this._activeSession.set(undefined, undefined);
+		this.setActiveSession(undefined);
 	}
 
 	private setActiveSession(session: IAgentSession | INewSession | undefined): void {
@@ -412,6 +417,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					resource: session.resource,
 					repository,
 					worktree,
+					providerType: session.providerType,
 				};
 			} else {
 				activeSessionItem = {
@@ -420,21 +426,27 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					resource: session.resource,
 					repository: session.repoUri,
 					worktree: undefined,
+					providerType: session.target,
 				};
 				this._activeSessionDisposables.add(session.onDidChange(e => {
 					if (e === 'repoUri') {
-						this._activeSession.set({
+						this.doSetActiveSession({
 							isUntitled: true,
 							label: undefined,
 							resource: session.resource,
 							repository: session.repoUri,
 							worktree: undefined,
-						}, undefined);
+							providerType: session.target,
+						});
 					}
 				}));
 			}
 		}
 
+		this.doSetActiveSession(activeSessionItem);
+	}
+
+	private doSetActiveSession(activeSessionItem: IActiveSessionItem | undefined): void {
 		if (equals(this._activeSession.get(), activeSessionItem)) {
 			return;
 		}
@@ -443,6 +455,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}, repository: ${activeSessionItem.repository?.toString() ?? 'none'}`);
 		} else {
 			this.logService.trace('[ActiveSessionService] Active session cleared');
+		}
+
+		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		const activeSessionRepo = activeSessionItem?.providerType === AgentSessionProviders.Background ? activeSessionItem?.worktree ?? activeSessionItem?.repository : undefined;
+		if (activeSessionRepo) {
+			if (currentRepo) {
+				if (!this.uriIdentityService.extUri.isEqual(currentRepo, activeSessionRepo)) {
+					this.workspaceEditingService.updateFolders(0, 1, [{ uri: activeSessionRepo }], true);
+				}
+			} else {
+				this.workspaceEditingService.addFolders([{ uri: activeSessionRepo }], true);
+			}
+		} else {
+			this.workspaceEditingService.removeFolders([currentRepo], true);
 		}
 		this._activeSession.set(activeSessionItem, undefined);
 	}

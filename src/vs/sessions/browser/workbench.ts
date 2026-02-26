@@ -398,15 +398,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Wrap up
 		instantiationService.invokeFunction(accessor => {
 			const lifecycleService = accessor.get(ILifecycleService);
-
-			// TODO@Sandeep debt around cyclic dependencies
-			const configurationService = accessor.get(IConfigurationService);
-			// eslint-disable-next-line local/code-no-in-operator
-			if (configurationService && 'acquireInstantiationService' in configurationService) {
-				(configurationService as { acquireInstantiationService: (instantiationService: unknown) => void }).acquireInstantiationService(instantiationService);
-			}
-
-			// Signal to lifecycle that services are set
 			lifecycleService.phase = LifecyclePhase.Ready;
 		});
 

@@ -285,7 +285,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
 			),
 		),
-		excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint', 'workbench.action.chat.restoreLastCheckpoint'],
 	},
 	{
 		id: 'tip.messageQueueing',

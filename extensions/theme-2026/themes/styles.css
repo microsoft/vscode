@@ -236,24 +236,33 @@
 
 /* Notifications */
 
-.monaco-workbench .notifications-toasts {
-	box-shadow: var(--shadow-lg);
-	border-radius: var(--radius-sm);
+.monaco-workbench .notifications-toasts,
+.monaco-workbench > .notifications-toasts .notification-toast-container {
+	overflow: visible;
 }
 
 .monaco-workbench .notification-toast {
 	box-shadow: none !important;
-	margin: 0 !important;
 }
 
-.monaco-workbench .notification-toast-container {
+.monaco-workbench .notifications-list-container {
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 	background: color-mix(in srgb, var(--vscode-notifications-background) 60%, transparent) !important;
+	box-shadow: var(--shadow-lg) !important;
 }
 
-.monaco-workbench.vs-dark .notification-toast-container {
+.monaco-workbench .notifications-center .notifications-list-container {
+	box-shadow: none !important;
+}
+
+.monaco-workbench .notification-list-item,
+.monaco-workbench .notifications-center-header {
 	background: color-mix(in srgb, var(--vscode-notifications-background) 60%, transparent) !important;
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
+	opacity: 1;
 }
 
 .monaco-workbench .notification-toast-container .notification-toast {
@@ -272,8 +281,8 @@
 	background: color-mix(in srgb, var(--vscode-notifications-background) 60%, transparent) !important;
 }
 
-.monaco-workbench .notifications-list-container,
-.monaco-workbench > .notifications-center > .notifications-center-header,
+/* .monaco-workbench .notifications-list-container,
+.monaco-workbench > .notifications-center > .notifications-center-header, */
 .monaco-workbench .notifications-list-container .monaco-list-rows {
 	background: transparent !important;
 }
