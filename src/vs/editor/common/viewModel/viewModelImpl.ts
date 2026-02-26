@@ -358,7 +358,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			// Collect model line ranges that need custom line height computation.
 			// We defer this until after the loop because the coordinatesConverter
 			// relies on projections that may not yet reflect all changes in the batch.
-			const deferredCustomLineHeightRanges: { fromLineNumber: number; toLineNumber: number }[] = [];
+			const customLineHeightRangesToInsert: { fromLineNumber: number; toLineNumber: number }[] = [];
 
 			for (const change of changes) {
 				switch (change.changeType) {
@@ -375,7 +375,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						if (linesDeletedEvent !== null) {
 							eventsCollector.emitViewEvent(linesDeletedEvent);
 							this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
-							deferredCustomLineHeightRanges.push({ fromLineNumber: change.lastUntouchedLinePostEdit, toLineNumber: change.lastUntouchedLinePostEdit });
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lastUntouchedLinePostEdit, toLineNumber: change.lastUntouchedLinePostEdit });
 						}
 						hadOtherModelChange = true;
 						break;
@@ -386,7 +386,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						if (linesInsertedEvent !== null) {
 							eventsCollector.emitViewEvent(linesInsertedEvent);
 							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
-							deferredCustomLineHeightRanges.push({ fromLineNumber: change.fromLineNumberPostEdit, toLineNumber: change.toLineNumberPostEdit });
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.fromLineNumberPostEdit, toLineNumber: change.toLineNumberPostEdit });
 						}
 						hadOtherModelChange = true;
 						break;
@@ -402,12 +402,12 @@ export class ViewModel extends Disposable implements IViewModel {
 						if (linesInsertedEvent) {
 							eventsCollector.emitViewEvent(linesInsertedEvent);
 							this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
-							deferredCustomLineHeightRanges.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
 						}
 						if (linesDeletedEvent) {
 							eventsCollector.emitViewEvent(linesDeletedEvent);
 							this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
-							deferredCustomLineHeightRanges.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
+							customLineHeightRangesToInsert.push({ fromLineNumber: change.lineNumberPostEdit, toLineNumber: change.lineNumberPostEdit });
 						}
 						break;
 					}
@@ -423,9 +423,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 
 			// Apply deferred custom line heights now that projections are stable
-			if (deferredCustomLineHeightRanges.length > 0) {
+			if (customLineHeightRangesToInsert.length > 0) {
 				this.viewLayout.changeSpecialLineHeights((accessor: ILineHeightChangeAccessor) => {
-					for (const range of deferredCustomLineHeightRanges) {
+					for (const range of customLineHeightRangesToInsert) {
 						const customLineHeights = this._getCustomLineHeightsForLines(range.fromLineNumber, range.toLineNumber);
 						for (const data of customLineHeights) {
 							accessor.insertOrChangeCustomLineHeight(data.decorationId, data.startLineNumber, data.endLineNumber, data.lineHeight);
