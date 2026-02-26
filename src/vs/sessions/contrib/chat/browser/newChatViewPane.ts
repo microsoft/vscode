@@ -811,7 +811,8 @@ class NewChatWidget extends Disposable {
 				dialogIcon: Codicon.agent,
 				dialogTitle: this.chatEntitlementService.anonymous ?
 					localize('sessions.startUsingSessions', "Start using Sessions") :
-					localize('sessions.signinRequired', "Sign in to use Sessions")
+					localize('sessions.signinRequired', "Sign in to use Sessions"),
+				hideSkipButton: true
 			});
 			if (success) {
 				return await this._send({ ...options, skipSetup: true });
