@@ -325,14 +325,20 @@ export class ChatDebugFlowChartView extends Disposable {
 					if (subgraphId) {
 						e.preventDefault();
 						e.stopPropagation();
+						this.detailPanel.hide();
 						this.toggleSubgraph(subgraphId);
 					} else {
 						const nodeId = target.getAttribute?.('data-node-id');
 						if (nodeId) {
 							e.preventDefault();
-							const event = this.eventById.get(nodeId);
-							if (event) {
-								this.detailPanel.show(event);
+							if (target.getAttribute?.('data-is-toggle')) {
+								this.detailPanel.hide();
+								this.toggleMergedDiscovery(nodeId);
+							} else {
+								const event = this.eventById.get(nodeId);
+								if (event) {
+									this.detailPanel.show(event);
+								}
 							}
 						}
 					}
@@ -506,20 +512,27 @@ export class ChatDebugFlowChartView extends Disposable {
 			// Merged-discovery expand toggle
 			const mergedId = target.getAttribute?.('data-merged-id');
 			if (mergedId) {
+				this.detailPanel.hide();
 				this.toggleMergedDiscovery(mergedId);
 				return;
 			}
 			const subgraphId = target.getAttribute?.('data-subgraph-id');
 			if (subgraphId) {
+				this.detailPanel.hide();
 				this.toggleSubgraph(subgraphId);
 				return;
 			}
 			const nodeId = target.getAttribute?.('data-node-id');
 			if (nodeId) {
-				(target as HTMLElement).focus();
-				const event = this.eventById.get(nodeId);
-				if (event) {
-					this.detailPanel.show(event);
+				if (target.getAttribute?.('data-is-toggle')) {
+					this.detailPanel.hide();
+					this.toggleMergedDiscovery(nodeId);
+				} else {
+					(target as HTMLElement).focus();
+					const event = this.eventById.get(nodeId);
+					if (event) {
+						this.detailPanel.show(event);
+					}
 				}
 				return;
 			}
