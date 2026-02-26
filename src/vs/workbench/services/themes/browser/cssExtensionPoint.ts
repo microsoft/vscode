@@ -186,7 +186,7 @@ export class CSSExtensionPoint {
 
 		// Deactivate all extensions whose theme is no longer active,
 		// including cached CSS that may not yet be in pendingExtensions
-		for (const extensionId of [...this.stylesheetsByExtension.keys()]) {
+		for (const extensionId of this.stylesheetsByExtension.keys()) {
 			if (!this.isExtensionThemeActive(extensionId)) {
 				this.removeStylesheets(extensionId);
 				this.clearCacheForExtension(extensionId);
