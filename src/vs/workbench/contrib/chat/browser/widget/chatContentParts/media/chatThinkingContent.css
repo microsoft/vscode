@@ -35,9 +35,12 @@
 
 		.rendered-markdown.chat-thinking-title-detail {
 			display: inline;
+			font-size: inherit;
+			line-height: inherit;
 
 			> p {
 				display: inline;
+				margin: 0;
 			}
 		}
 
@@ -165,7 +168,6 @@
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
 
-			/* Remove the default top list margin so the first bullet aligns with other content. */
 			.rendered-markdown > ul:first-child,
 			.rendered-markdown > ol:first-child {
 				margin-top: 0;
