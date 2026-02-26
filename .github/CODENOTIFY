@@ -138,3 +138,8 @@ src/vs/workbench/contrib/inlineChat/** @jrieken
 
 # Testing
 test/sanity/** @dmitrivMS
+
+# Integrated Browser
+src/vs/platform/browserView/** @kycutler @jruales
+src/vs/workbench/contrib/browserView/** @kycutler @jruales
+src/vs/workbench/services/browserView/** @kycutler @jruales
