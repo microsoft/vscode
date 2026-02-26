@@ -61,6 +61,7 @@ import { ILayoutService } from '../../../../../platform/layout/browser/layoutSer
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
@@ -183,6 +184,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -513,7 +515,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const targetDir = target === 'workspace'
 			? resolveWorkspaceTargetDirectory(this.workspaceService, type)
-			: await resolveUserTargetDirectory(this.promptsService, type);
+			: await resolveUserTargetDirectory(this.promptsService, type, this.configurationService, this.pathService);
 
 		const options: INewPromptOptions = {
 			targetFolder: targetDir,

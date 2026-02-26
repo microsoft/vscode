@@ -30,6 +30,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'github.copilot.chat.languageContext.typescript.enabled': true,
 		'github.copilot.chat.cli.mcp.enabled': true,
 
+		'chat.customizationsMenu.userStoragePath': '~/.copilot',
+
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',
 
