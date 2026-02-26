@@ -7,6 +7,7 @@ import './media/chatDebug.css';
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -14,7 +15,10 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { IEditorOpenContext } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
@@ -283,6 +287,13 @@ export class ChatDebugEditor extends EditorPane {
 		}
 	}
 
+	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		await super.setInput(input, options, context, token);
+		if (options) {
+			this._applyNavigationOptions(options as IChatDebugEditorOptions);
+		}
+	}
+
 	override setOptions(options: IChatDebugEditorOptions | undefined): void {
 		super.setOptions(options);
 		if (options) {
@@ -294,11 +305,14 @@ export class ChatDebugEditor extends EditorPane {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
-			const options = this.options as IChatDebugEditorOptions | undefined;
-			if (options) {
-				this._applyNavigationOptions(options);
-			} else if (this.viewState === ViewState.Home) {
-				// Restore the saved session resource if the editor was temporarily hidden
+			// Note: do NOT read this.options here. When the editor becomes
+			// visible via openEditor(), setEditorVisible fires before
+			// setOptions, so this.options still contains stale values from
+			// the previous openEditor() call. Navigation from new options
+			// is handled entirely by setOptions → _applyNavigationOptions.
+			// Here we only restore the previous state when the editor is
+			// re-shown without a new openEditor() call (e.g., tab switch).
+			if (this.viewState === ViewState.Home) {
 				const sessionResource = this.chatDebugService.activeSessionResource ?? this.savedSessionResource;
 				this.savedSessionResource = undefined;
 				if (sessionResource) {
