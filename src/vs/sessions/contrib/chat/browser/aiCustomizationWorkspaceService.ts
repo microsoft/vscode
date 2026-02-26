@@ -9,6 +9,7 @@ import { IAICustomizationWorkspaceService, AICustomizationManagementSection } fr
 import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 
@@ -22,10 +23,14 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
 
+	readonly excludedUserFileRoots: readonly URI[];
+
 	constructor(
 		@ISessionsManagementService private readonly sessionsService: ISessionsManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 	) {
+		this.excludedUserFileRoots = [userDataProfilesService.defaultProfile.promptsHome];
 		this.activeProjectRoot = derived(reader => {
 			const session = this.sessionsService.activeSession.read(reader);
 			return session?.worktree ?? session?.repository;
@@ -41,7 +46,6 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Agents,
 		AICustomizationManagementSection.Skills,
 		AICustomizationManagementSection.Instructions,
-		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
 		AICustomizationManagementSection.McpServers,
 	];

@@ -62,6 +62,8 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 
 	readonly preferManualCreation = false;
 
+	readonly excludedUserFileRoots: readonly URI[] = [];
+
 	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
 		// No-op in core VS Code.
 	}

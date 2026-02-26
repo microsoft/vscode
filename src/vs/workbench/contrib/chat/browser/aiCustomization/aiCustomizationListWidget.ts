@@ -9,7 +9,7 @@ import { Disposable, DisposableStore } from '../../../../../base/common/lifecycl
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -820,8 +820,29 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else {
-			// For instructions, fetch once and group by storage
-			const allItems = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
+			// For instructions, fetch prompt files and group by storage
+			const promptFiles = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
+			const allItems: IPromptPath[] = [...promptFiles];
+
+			// Also include agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md)
+			if (promptType === PromptsType.instructions) {
+				const agentInstructions = await this.promptsService.listAgentInstructions(CancellationToken.None, undefined);
+				const workspaceFolderUris = this.workspaceContextService.getWorkspace().folders.map(f => f.uri);
+				const activeRoot = this.workspaceService.getActiveProjectRoot();
+				if (activeRoot) {
+					workspaceFolderUris.push(activeRoot);
+				}
+				for (const file of agentInstructions) {
+					const isWorkspaceFile = workspaceFolderUris.some(root => isEqualOrParent(file.uri, root));
+					allItems.push({
+						uri: file.uri,
+						storage: isWorkspaceFile ? PromptsStorage.local : PromptsStorage.user,
+						type: PromptsType.instructions,
+						name: basename(file.uri),
+					});
+				}
+			}
+
 			const workspaceItems = allItems.filter(item => item.storage === PromptsStorage.local);
 			const userItems = allItems.filter(item => item.storage === PromptsStorage.user);
 			const extensionItems = allItems.filter(item => item.storage === PromptsStorage.extension);
@@ -846,6 +867,16 @@ export class AICustomizationListWidget extends Disposable {
 			items.push(...userItems.map(mapToListItem));
 			items.push(...extensionItems.map(mapToListItem));
 			items.push(...pluginItems.map(mapToListItem));
+		}
+
+		// Filter out files under excluded user roots
+		const excludedRoots = this.workspaceService.excludedUserFileRoots;
+		if (excludedRoots.length > 0) {
+			for (let i = items.length - 1; i >= 0; i--) {
+				if (items[i].storage === PromptsStorage.user && excludedRoots.some(root => isEqualOrParent(items[i].uri, root))) {
+					items.splice(i, 1);
+				}
+			}
 		}
 
 		// Sort items by name
