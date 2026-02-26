@@ -508,7 +508,6 @@
 
 .monaco-workbench .debug-hover-widget {
 	box-shadow: var(--shadow-lg);
-	border-radius: var(--radius-lg);
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 	color: var(--vscode-editor-foreground) !important;
