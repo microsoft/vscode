@@ -238,3 +238,7 @@
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-dropdown-button {
 	padding: 0 4px;
 }
+
+.monaco-dialog-modal-block .dialog-shadow {
+	border-radius: var(--vscode-cornerRadius-large);
+}

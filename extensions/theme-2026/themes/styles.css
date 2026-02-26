@@ -647,10 +647,6 @@
 	background-color: var(--vscode-commandCenter-activeBackground);
 }
 
-.monaco-dialog-modal-block .dialog-shadow {
-	border-radius: var(--radius-lg);
-}
-
 .monaco-workbench .unified-quick-access-tabs {
 	background: transparent;
 }
