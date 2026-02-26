@@ -69,7 +69,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { ISharedWebContentExtractorService } from '../../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { IUserInteractionService } from '../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IWorkbenchLayoutService, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../../common/views.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
@@ -342,7 +341,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
-	private inputCtrlCmdPressed: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
 	private currentlyEditingInputKey!: IContextKey<boolean>;
@@ -511,7 +509,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IUserInteractionService private readonly userInteractionService: IUserInteractionService,
 		@IChatAttachmentWidgetRegistry private readonly _chatAttachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
 	) {
 		super();
@@ -565,7 +562,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
-		this.inputCtrlCmdPressed = ChatContextKeys.inputCtrlCmdPressed.bindTo(contextKeyService);
 		this.chatCursorAtTop = ChatContextKeys.inputCursorAtTop.bindTo(contextKeyService);
 		this.inputEditorHasFocus = ChatContextKeys.inputHasFocus.bindTo(contextKeyService);
 		this._hasQuestionCarouselContextKey = ChatContextKeys.Editing.hasQuestionCarousel.bindTo(contextKeyService);
@@ -2096,16 +2092,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}
 			}
 		}));
-		const inputHasFocusObs = this.userInteractionService.createFocusTracker(this._inputEditorElement, this._store);
-		this._register(autorun(reader => {
-			if (!inputHasFocusObs.read(reader)) {
-				this.inputCtrlCmdPressed.set(false);
-				return;
-			}
-
-			const modifierKeyStatus = this.userInteractionService.readModifierKeyStatus(this._inputEditorElement, reader);
-			this.inputCtrlCmdPressed.set(modifierKeyStatus.ctrlKey || modifierKeyStatus.metaKey);
-		}));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
@@ -2140,7 +2126,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this._register(this._inputEditor.onDidBlurEditorText(() => {
 			this.inputEditorHasFocus.set(false);
-			this.inputCtrlCmdPressed.set(false);
 			inputContainer.classList.toggle('focused', false);
 
 			this._onDidBlur.fire();

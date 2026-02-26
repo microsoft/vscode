@@ -155,11 +155,6 @@ abstract class SubmitAction extends Action2 {
 		} else if (widget?.viewModel?.model.checkpoint) {
 			widget.viewModel.model.setCheckpoint(undefined);
 		}
-		if (widget?.viewModel?.model.requestInProgress.get()) {
-			const chatService = accessor.get(IChatService);
-			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource, 'submitAction');
-		}
-
 		widget?.acceptInput(context?.inputValue);
 	}
 
@@ -190,11 +185,6 @@ const requestInProgressOrPendingToolCall = ContextKeyExpr.or(
 	ChatContextKeys.Editing.hasToolConfirmation,
 	ChatContextKeys.Editing.hasQuestionCarousel,
 );
-const showSubmitWithCtrlCmdDuringProgress = ContextKeyExpr.and(
-	requestInProgressOrPendingToolCall,
-	ChatContextKeys.inputHasText,
-	ChatContextKeys.inputCtrlCmdPressed,
-);
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
 
 export class ChatSubmitAction extends SubmitAction {
@@ -202,13 +192,9 @@ export class ChatSubmitAction extends SubmitAction {
 
 	constructor() {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
-		const submitVisibleCondition = ContextKeyExpr.or(
-			whenNotInProgress,
-			showSubmitWithCtrlCmdDuringProgress,
-		);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
-			submitVisibleCondition,
+			whenNotInProgress,
 			ChatContextKeys.chatSessionOptionsValid,
 		);
 
@@ -237,7 +223,7 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						submitVisibleCondition,
+						whenNotInProgress,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
 					),
@@ -853,10 +839,7 @@ export class CancelAction extends Action2 {
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
 					requestInProgressOrPendingToolCall,
-					ContextKeyExpr.or(
-						ChatContextKeys.inputHasText.negate(),
-						ChatContextKeys.inputCtrlCmdPressed,
-					),
+					ChatContextKeys.inputHasText.negate(),
 					ChatContextKeys.remoteJobCreating.negate(),
 					ChatContextKeys.currentlyEditing.negate(),
 				),

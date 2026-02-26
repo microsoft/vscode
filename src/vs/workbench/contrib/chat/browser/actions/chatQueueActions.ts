@@ -283,7 +283,6 @@ export function registerChatQueueActions(): void {
 		when: ContextKeyExpr.and(
 			queuingActionsPresent,
 			ChatContextKeys.inputHasText,
-			ChatContextKeys.inputCtrlCmdPressed.negate(),
 		),
 		group: 'navigation',
 		order: 4,
