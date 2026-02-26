@@ -6,7 +6,6 @@
 import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -22,7 +21,6 @@ import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
-import { IChatWidgetService } from './chat.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
 import { showConfigureHooksQuickPick } from './promptSyntax/hookActions.js';
 import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
@@ -38,7 +36,6 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
 		@ICommandService commandService: ICommandService,
 		@IChatAgentService chatAgentService: IChatAgentService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IChatService chatService: IChatService,
@@ -161,15 +158,19 @@ export class ChatSlashCommandsContribution extends Disposable {
 				chatService.setChatSessionTitle(sessionResource, title);
 			}
 		}));
-		const enableAutoApprove = async (): Promise<boolean> => {
+		const handleEnableAutoApprove = async () => {
 			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
 			if (inspection.policyValue !== undefined) {
 				if (inspection.policyValue === true) {
-					// Global auto-approve is already enabled by policy; nothing more to do.
-					return true;
+					notificationService.info(nls.localize('autoApprove.alreadyEnabled', "Global auto-approve is already enabled."));
+					return;
 				}
-				notificationService.warn(nls.localize('autoApprove.policyManaged', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
-				return false;
+				notificationService.warn(nls.localize('autoApprove.policyBlocked', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
+				return;
+			}
+			if (configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
+				notificationService.info(nls.localize('autoApprove.alreadyEnabled', "Global auto-approve is already enabled."));
+				return;
 			}
 			const alreadyOptedIn = storageService.getBoolean('chat.tools.global.autoApprove.optIn', StorageScope.APPLICATION, false);
 			if (!alreadyOptedIn) {
@@ -185,44 +186,25 @@ export class ChatSlashCommandsContribution extends Disposable {
 					}
 				});
 				if (result.result !== true) {
-					return false;
+					return;
 				}
 				storageService.store('chat.tools.global.autoApprove.optIn', true, StorageScope.APPLICATION, StorageTarget.USER);
 			}
 			await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, true);
-			return true;
-		};
-		const handleEnableAutoApprove = async () => {
-			await enableAutoApprove();
+			notificationService.info(nls.localize('autoApprove.enabled', "Global auto-approve enabled — all tool calls will be approved automatically"));
 		};
 		const handleDisableAutoApprove = async () => {
 			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-
-			// If managed by policy, respect it and provide accurate feedback.
 			if (inspection.policyValue !== undefined) {
 				if (inspection.policyValue === false) {
-					// Already disabled by organization policy; nothing to change.
 					notificationService.info(nls.localize('autoApprove.alreadyDisabled', "Global auto-approve is already disabled."));
 					return;
 				}
-
-				// Managed (and effectively enabled) by policy; user cannot disable it here.
-				notificationService.warn(nls.localize('autoApprove.policyManaged', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
+				notificationService.warn(nls.localize('autoApprove.policyBlocked', "Global auto-approve is managed by your organization policy. Contact your administrator to change this setting."));
 				return;
 			}
-
-			// No policy: check current effective value to avoid misleading feedback.
-			if (inspection.value === false || inspection.value === undefined) {
+			if (!configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
 				notificationService.info(nls.localize('autoApprove.alreadyDisabled', "Global auto-approve is already disabled."));
-				return;
-			}
-			const inspection = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
-			if (inspection.policyValue !== undefined) {
-				if (inspection.policyValue === false) {
-					// Global auto-approve is already disabled by policy; nothing more to do.
-					return;
-				}
-				notificationService.warn(nls.localize('autoApprove.disable.policyManaged', "Global auto-approve is managed by your organization policy and cannot be disabled. Contact your administrator to change this setting."));
 				return;
 			}
 			await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
