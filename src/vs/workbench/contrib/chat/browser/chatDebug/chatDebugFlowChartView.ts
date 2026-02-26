@@ -269,8 +269,9 @@ export class ChatDebugFlowChartView extends Disposable {
 			this.applyTransform();
 		}
 
-		// Restore focus after re-render (e.g. after collapse toggle)
-		if (this.focusedElementId) {
+		// Restore focus after re-render (e.g. after collapse toggle),
+		// but not when the filter widget has focus (user is typing a filter).
+		if (this.focusedElementId && !this.filterWidget.hasFocus()) {
 			this.restoreFocus(this.focusedElementId);
 		}
 	}
