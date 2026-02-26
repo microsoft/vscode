@@ -22,12 +22,14 @@
 .chat-hook-reason {
 	font-size: var(--vscode-chat-font-size-body-s);
 	padding: 4px 10px;
+	white-space: pre-wrap;
 }
 
 .chat-hook-message {
 	font-size: var(--vscode-chat-font-size-body-s);
 	padding: 4px 10px;
 	color: var(--vscode-descriptionForeground);
+	white-space: pre-wrap;
 }
 
 /* When both reason and message are shown, add a subtle separator */
