@@ -561,25 +561,31 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const hookFileUri = joinPath(projectRoot, HOOKS_SOURCE_FOLDER, 'hooks.json');
 
-		// Create the file if it doesn't exist yet
+		// Create the file with all hook events if it doesn't exist
 		try {
 			await this.fileService.stat(hookFileUri);
 		} catch {
-			const hooksContent = { hooks: {} };
+			const hooksContent = {
+				hooks: {
+					sessionStart: [
+						{ type: 'command', command: '' }
+					],
+					userPromptSubmitted: [
+						{ type: 'command', command: '' }
+					],
+					preToolUse: [
+						{ type: 'command', command: '' }
+					],
+					postToolUse: [
+						{ type: 'command', command: '' }
+					],
+				}
+			};
 			const jsonContent = JSON.stringify(hooksContent, null, '\t');
 			await this.fileService.writeFile(hookFileUri, VSBuffer.fromString(jsonContent));
 		}
 
-		// Launch the configure hooks quick pick
-		await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
-			openEditor: async (resource) => {
-				await this.showEmbeddedEditor(resource, basename(resource), true);
-				return;
-			},
-			onHookFileCreated: () => {
-				void this.listWidget.refresh();
-			},
-		});
+		await this.showEmbeddedEditor(hookFileUri, basename(hookFileUri), true);
 		void this.listWidget.refresh();
 	}
 
