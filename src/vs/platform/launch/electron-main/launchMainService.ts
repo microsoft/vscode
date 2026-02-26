@@ -114,12 +114,6 @@ export class LaunchMainService implements ILaunchMainService {
 	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		const context = isLaunchedFromCli(userEnv) ? OpenContext.CLI : OpenContext.DESKTOP;
 
-		// Sessions window
-		if (args['sessions'] && this.productService.quality !== 'stable') {
-			await this.windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
-			return;
-		}
-
 		let usedWindows: ICodeWindow[] = [];
 
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
@@ -149,6 +143,11 @@ export class LaunchMainService implements ILaunchMainService {
 		// Special case extension development
 		if (args.extensionDevelopmentPath) {
 			await this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
+		}
+
+		// Sessions window
+		else if (args['sessions'] && this.productService.quality !== 'stable') {
+			usedWindows = await this.windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
 		}
 
 		// Start without file/folder arguments
