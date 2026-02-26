@@ -245,17 +245,13 @@ const copilotCliHookCommandSchema: IJSONSchema = {
 			enum: ['command'],
 			description: nls.localize('hook.type', 'Must be "command".')
 		},
-		command: {
-			type: 'string',
-			description: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.')
-		},
 		bash: {
 			type: 'string',
-			description: nls.localize('hook.bash', 'Bash command for Linux and macOS. If specified, overrides "command" on these platforms.')
+			description: nls.localize('hook.bash', 'Bash command for Linux and macOS.')
 		},
 		powershell: {
 			type: 'string',
-			description: nls.localize('hook.powershell', 'PowerShell command for Windows. If specified, overrides "command" on Windows.')
+			description: nls.localize('hook.powershell', 'PowerShell command for Windows.')
 		},
 		cwd: {
 			type: 'string',
