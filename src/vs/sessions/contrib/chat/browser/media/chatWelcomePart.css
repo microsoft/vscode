@@ -11,8 +11,9 @@
 	width: 100%;
 	height: 100%;
 	box-sizing: border-box;
-	overflow-x: hidden;
-	padding-bottom: 10%;
+	overflow: hidden;
+	padding: 0 12px 10% 12px;
+	container-type: size;
 }
 
 .chat-full-welcome.revealed {
@@ -52,6 +53,12 @@
 
 .hc-black .chat-full-welcome-letterpress {
 	background-image: url('../../../../../workbench/browser/parts/editor/media/letterpress-hcDark.svg');
+}
+
+@container (max-height: 350px) {
+	.chat-full-welcome-letterpress {
+		display: none;
+	}
 }
 
 /* Input slot */

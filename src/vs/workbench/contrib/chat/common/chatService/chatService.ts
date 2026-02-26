@@ -1345,7 +1345,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
+	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
@@ -1409,7 +1409,7 @@ export interface IChatService {
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
-	cancelCurrentRequestForSession(sessionResource: URI): void;
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void;
 	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */
@@ -1485,7 +1485,7 @@ export interface IChatSessionStartOptions {
 export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';
 
 export type ChatStopCancellationNoopEvent = {
-	source: 'cancelAction' | 'chatService';
+	source: string;
 	reason: 'noWidget' | 'noViewModel' | 'noPendingRequest' | 'requestAlreadyCanceled' | 'requestIdUnavailable';
 	requestInProgress: 'true' | 'false' | 'unknown';
 	pendingRequests: number;
@@ -1504,7 +1504,7 @@ export const ChatPendingRequestChangeEventName = 'chat.pendingRequestChange';
 
 export type ChatPendingRequestChangeEvent = {
 	action: 'add' | 'remove' | 'notCancelable';
-	source: 'sendRequest' | 'sendRequestComplete' | 'removeRequest' | 'cancelRequest' | 'adoptRequest' | 'remoteSession';
+	source: string;
 };
 
 export type ChatPendingRequestChangeClassification = {

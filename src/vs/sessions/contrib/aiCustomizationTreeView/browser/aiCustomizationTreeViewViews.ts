@@ -27,7 +27,7 @@ import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { agentIcon, extensionIcon, instructionsIcon, promptIcon, skillIcon, userIcon, workspaceIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, extensionIcon, instructionsIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
@@ -387,18 +387,21 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 			[PromptsStorage.local]: localize('workspaceWithCount', "Workspace ({0})", count),
 			[PromptsStorage.user]: localize('userWithCount', "User ({0})", count),
 			[PromptsStorage.extension]: localize('extensionsWithCount', "Extensions ({0})", count),
+			[PromptsStorage.plugin]: localize('pluginsWithCount', "Plugins ({0})", count),
 		};
 
 		const storageIcons: Record<PromptsStorage, ThemeIcon> = {
 			[PromptsStorage.local]: workspaceIcon,
 			[PromptsStorage.user]: userIcon,
 			[PromptsStorage.extension]: extensionIcon,
+			[PromptsStorage.plugin]: pluginIcon,
 		};
 
 		const storageSuffixes: Record<PromptsStorage, string> = {
 			[PromptsStorage.local]: 'workspace',
 			[PromptsStorage.user]: 'user',
 			[PromptsStorage.extension]: 'extensions',
+			[PromptsStorage.plugin]: 'plugins',
 		};
 
 		return {

@@ -145,6 +145,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					...base,
 					kind: 'modelTurn',
 					model: e.model,
+					requestName: e.requestName,
 					inputTokens: e.inputTokens,
 					outputTokens: e.outputTokens,
 					totalTokens: e.totalTokens,
@@ -197,13 +198,14 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 				};
 			}
 			default: {
-				// Final fallback: treat as generic
 				const generic = event as vscode.ChatDebugGenericEvent;
+				const rawName = generic.name;
+				const rawDetails = generic.details;
 				return {
 					...base,
 					kind: 'generic',
-					name: generic.name ?? '',
-					details: generic.details,
+					name: typeof rawName === 'string' ? rawName : '',
+					details: typeof rawDetails === 'string' ? rawDetails : undefined,
 					level: generic.level ?? 1,
 					category: generic.category,
 				};
@@ -250,6 +252,38 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					type: 'agent',
 					message: msg.message,
 					sections: msg.sections.map(s => ({ name: s.name, content: s.content })),
+				};
+			}
+			case 'toolCallContent': {
+				const tc = result as vscode.ChatDebugEventToolCallContent;
+				return {
+					kind: 'toolCall',
+					toolName: tc.toolName,
+					result: tc.result === ChatDebugToolCallResult.Success ? 'success'
+						: tc.result === ChatDebugToolCallResult.Error ? 'error'
+							: undefined,
+					durationInMillis: tc.durationInMillis,
+					input: tc.input,
+					output: tc.output,
+				};
+			}
+			case 'modelTurnContent': {
+				const mt = result as vscode.ChatDebugEventModelTurnContent;
+				return {
+					kind: 'modelTurn',
+					requestName: mt.requestName,
+					model: mt.model,
+					status: mt.status,
+					durationInMillis: mt.durationInMillis,
+					timeToFirstTokenInMillis: mt.timeToFirstTokenInMillis,
+					maxInputTokens: mt.maxInputTokens,
+					maxOutputTokens: mt.maxOutputTokens,
+					inputTokens: mt.inputTokens,
+					outputTokens: mt.outputTokens,
+					cachedTokens: mt.cachedTokens,
+					totalTokens: mt.totalTokens,
+					errorMessage: mt.errorMessage,
+					sections: mt.sections?.map(s => ({ name: s.name, content: s.content })),
 				};
 			}
 			default:

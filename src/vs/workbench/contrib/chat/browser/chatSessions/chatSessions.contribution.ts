@@ -292,6 +292,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
+	private readonly _sessionTypeNewSessionOptions: Map<string, Record<string, string | IChatSessionProviderOptionItem>> = new Map();
 	private readonly _sessionTypeIcons: Map<string, ThemeIcon | { light: URI; dark: URI }> = new Map();
 	private readonly _sessionTypeWelcomeTitles: Map<string, string> = new Map();
 	private readonly _sessionTypeWelcomeMessages: Map<string, string> = new Map();
@@ -1036,7 +1037,23 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 
-		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		let session: IChatSession;
+		const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
+		if (sessionResource.path.startsWith('/untitled') && newSessionOptions) {
+			session = {
+				sessionResource: sessionResource,
+				onWillDispose: Event.None,
+				history: [],
+				options: newSessionOptions ?? {},
+				dispose: () => { }
+			};
+
+			for (const [optionId, value] of Object.entries(newSessionOptions ?? {})) {
+				this.setSessionOption(sessionResource, optionId, value);
+			}
+		} else {
+			session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		}
 
 		// Make sure another session wasn't created while we were awaiting the provider
 		{
@@ -1092,6 +1109,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined {
 		return this._sessionTypeOptions.get(chatSessionType);
+	}
+
+	public getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined {
+		return this._sessionTypeNewSessionOptions.get(chatSessionType);
+	}
+
+	public setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void {
+		this._sessionTypeNewSessionOptions.set(chatSessionType, options);
 	}
 
 	/**
@@ -1234,6 +1259,7 @@ export enum ChatSessionPosition {
 type NewChatSessionSendOptions = {
 	readonly prompt: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 };
 
 export type NewChatSessionOpenOptions = {
@@ -1297,6 +1323,17 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 	// Send initial prompt if provided
 	if (chatSendOptions) {
 		try {
+			// Set initial session options on the model before sending the request,
+			// so that the contributed session provider can read them.
+			if (chatSendOptions.initialSessionOptions) {
+				const model = chatService.getSession(resource);
+				if (model?.contributedChatSession) {
+					model.setContributedChatSession({
+						...model.contributedChatSession,
+						initialSessionOptions: chatSendOptions.initialSessionOptions,
+					});
+				}
+			}
 			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext: chatSendOptions.attachedContext });
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);

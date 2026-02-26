@@ -37,8 +37,6 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
-import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -119,56 +117,6 @@ class NewChatInSessionsWindowAction extends Action2 {
 }
 
 registerAction2(NewChatInSessionsWindowAction);
-
-export class OpenSessionInTerminalAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'agentSession.openInTerminal',
-			title: localize2('openInTerminal', "Open Terminal"),
-			icon: Codicon.terminal,
-			menu: [{
-				id: Menus.TitleBarRight,
-				group: 'navigation',
-				order: 9,
-				when: IsAuxiliaryWindowContext.toNegated()
-			}]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor,): Promise<void> {
-		const terminalService = accessor.get(ITerminalService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const pathService = accessor.get(IPathService);
-
-		const activeSession = sessionsManagementService.activeSession.get();
-		const cwd = (isAgentSession(activeSession) && activeSession.providerType !== AgentSessionProviders.Cloud
-			? activeSession.worktree
-			: undefined) ?? await pathService.userHome();
-
-		// Try to reuse an existing idle terminal with the same cwd
-		const cwdPath = cwd.fsPath;
-		let reusable: ITerminalInstance | undefined;
-		for (const instance of terminalService.instances) {
-			if (instance.cwd && instance.cwd.toLowerCase() === cwdPath.toLowerCase() && !instance.hasChildProcesses) {
-				reusable = instance;
-				break;
-			}
-		}
-
-		if (reusable) {
-			terminalService.setActiveInstance(reusable);
-		} else {
-			const instance = await terminalService.createTerminal({ config: { cwd } });
-			if (instance) {
-				terminalService.setActiveInstance(instance);
-			}
-		}
-		await terminalService.focusActiveInstance();
-	}
-}
-
-registerAction2(OpenSessionInTerminalAction);
 
 
 

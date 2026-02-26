@@ -213,7 +213,7 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 		];
 
 		chatService.setPendingRequests(context.sessionResource, reordered);
-		chatService.cancelCurrentRequestForSession(context.sessionResource);
+		chatService.cancelCurrentRequestForSession(context.sessionResource, 'queueRunNext');
 		chatService.processPendingRequests(context.sessionResource);
 	}
 }

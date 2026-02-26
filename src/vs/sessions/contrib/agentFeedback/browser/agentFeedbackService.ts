@@ -14,6 +14,8 @@ import { IChatEditingService } from '../../../../workbench/contrib/chat/common/e
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -84,6 +86,12 @@ export interface IAgentFeedbackService {
 	 * Clear all feedback items for a session (e.g., after sending).
 	 */
 	clearFeedback(sessionResource: URI): void;
+
+	/**
+	 * Add a feedback item and then submit the feedback. Waits for the
+	 * attachment to be updated in the chat widget before submitting.
+	 */
+	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string): Promise<void>;
 }
 
 // --- Implementation -----------------------------------------------------------
@@ -107,6 +115,8 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 	}
@@ -303,5 +313,27 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._navigationAnchorBySession.delete(key);
 		this._onDidChangeNavigation.fire(sessionResource);
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems: [] });
+	}
+
+	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string): Promise<void> {
+		this.addFeedback(sessionResource, resourceUri, range, text);
+
+		// Wait for the attachment contribution to update the chat widget's attachment model
+		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
+		if (widget) {
+			const attachmentId = 'agentFeedback:' + sessionResource.toString();
+			const hasAttachment = () => widget.attachmentModel.attachments.some(a => a.id === attachmentId);
+
+			if (!hasAttachment()) {
+				await Event.toPromise(
+					Event.filter(widget.attachmentModel.onDidChange, () => hasAttachment())
+				);
+			}
+		} else {
+			// This should not normally happen, but if the widget isn't found, wait a bit to give it a chance to initialize before submitting.
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+
+		await this._commandService.executeCommand('agentFeedbackEditor.action.submit');
 	}
 }

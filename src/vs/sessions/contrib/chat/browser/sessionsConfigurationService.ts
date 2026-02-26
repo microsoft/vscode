@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
-import { joinPath, dirname } from '../../../../base/common/resources.js';
+import { joinPath, dirname, isEqual } from '../../../../base/common/resources.js';
 import { parse } from '../../../../base/common/jsonc.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,6 +17,7 @@ import { IJSONEditingService } from '../../../../workbench/services/configuratio
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
+import { CommandString } from '../../../../workbench/contrib/tasks/common/taskConfiguration.js';
 
 export type TaskStorageTarget = 'user' | 'workspace';
 
@@ -25,6 +26,8 @@ export type TaskStorageTarget = 'user' | 'workspace';
  */
 export interface ITaskEntry {
 	readonly label: string;
+	readonly task?: CommandString;
+	readonly script?: string;
 	readonly type?: string;
 	readonly command?: string;
 	readonly inSessions?: boolean;
@@ -64,7 +67,7 @@ export interface ISessionsConfigurationService {
 	 * Creates a new shell task with `inSessions: true` and writes it to
 	 * the appropriate tasks.json (user or workspace).
 	 */
-	createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void>;
+	createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<ITaskEntry | undefined>;
 
 	/**
 	 * Runs a task entry in a terminal, resolving the correct platform
@@ -85,6 +88,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly _LAST_RUN_TASK_LABELS_KEY = 'agentSessions.lastRunTaskLabels';
+	private static readonly _SUPPORTED_TASK_TYPES = new Set(['shell', 'npm']);
 
 	private readonly _sessionTasks = observableValue<readonly ITaskEntry[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
@@ -94,6 +98,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	private readonly _lastRunTaskObservables = new Map<string, ReturnType<typeof observableValue<string | undefined>>>();
 
 	private _watchedResource: URI | undefined;
+	private _lastRefreshedFolder: URI | undefined;
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
@@ -108,12 +113,15 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	}
 
 	getSessionTasks(session: IActiveSessionItem): IObservable<readonly ITaskEntry[]> {
-		const worktree = session.worktree;
-		if (worktree) {
-			this._ensureFileWatch(worktree);
+		const folder = session.worktree ?? session.repository;
+		if (folder) {
+			this._ensureFileWatch(folder);
 		}
-		// Trigger initial read
-		this._refreshSessionTasks(worktree);
+		// Trigger initial read only when the folder changes; the file watcher handles subsequent updates
+		if (!isEqual(this._lastRefreshedFolder, folder)) {
+			this._lastRefreshedFolder = folder;
+			this._refreshSessionTasks(folder);
+		}
 		return this._sessionTasks;
 	}
 
@@ -144,10 +152,10 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 	}
 
-	async createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void> {
+	async createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<ITaskEntry | undefined> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
-			return;
+			return undefined;
 		}
 
 		const tasksJson = await this._readTasksJson(tasksJsonUri);
@@ -167,6 +175,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (target === 'workspace') {
 			await this._commitTasksFile(session);
 		}
+
+		return newTask;
 	}
 
 	async runTask(task: ITaskEntry, session: IActiveSessionItem): Promise<void> {
@@ -235,8 +245,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 	private _getTasksJsonUri(session: IActiveSessionItem, target: TaskStorageTarget): URI | undefined {
 		if (target === 'workspace') {
-			const worktree = session.worktree;
-			return worktree ? joinPath(worktree, '.vscode', 'tasks.json') : undefined;
+			const folder = session.worktree ?? session.repository;
+			return folder ? joinPath(folder, '.vscode', 'tasks.json') : undefined;
 		}
 		return joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
 	}
@@ -258,7 +268,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (workspaceUri) {
 			const workspaceJson = await this._readTasksJson(workspaceUri);
 			if (workspaceJson.tasks) {
-				result.push(...workspaceJson.tasks);
+				result.push(...workspaceJson.tasks.filter(t => this._isSupportedTask(t)));
 			}
 		}
 
@@ -267,14 +277,27 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (userUri) {
 			const userJson = await this._readTasksJson(userUri);
 			if (userJson.tasks) {
-				result.push(...userJson.tasks);
+				result.push(...userJson.tasks.filter(t => this._isSupportedTask(t)));
 			}
 		}
 
 		return result;
 	}
 
+	private _isSupportedTask(task: ITaskEntry): boolean {
+		return !!task.type && SessionsConfigurationService._SUPPORTED_TASK_TYPES.has(task.type);
+	}
+
 	private _resolveCommand(task: ITaskEntry): string | undefined {
+		if (task.type === 'npm') {
+			if (!task.script) {
+				return undefined;
+			}
+			if (task.path) {
+				return `npm --prefix ${task.path} run ${task.script}`;
+			}
+			return `npm run ${task.script}`;
+		}
 		if (isWindows && task.windows?.command) {
 			return task.windows.command;
 		}
@@ -287,8 +310,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		return task.command;
 	}
 
-	private _ensureFileWatch(worktree: URI): void {
-		const tasksUri = joinPath(worktree, '.vscode', 'tasks.json');
+	private _ensureFileWatch(folder: URI): void {
+		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
 		if (this._watchedResource && this._watchedResource.toString() === tasksUri.toString()) {
 			return;
 		}
@@ -299,33 +322,33 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		disposables.add(this._fileService.watch(tasksUri));
 		disposables.add(this._fileService.onDidFilesChange(e => {
 			if (e.affects(tasksUri)) {
-				this._refreshSessionTasks(worktree);
+				this._refreshSessionTasks(folder);
 			}
 		}));
 
 		this._fileWatcher.value = disposables;
 	}
 
-	private async _refreshSessionTasks(worktree: URI | undefined): Promise<void> {
-		if (!worktree) {
+	private async _refreshSessionTasks(folder: URI | undefined): Promise<void> {
+		if (!folder) {
 			transaction(tx => this._sessionTasks.set([], tx));
 			return;
 		}
 
-		const tasksUri = joinPath(worktree, '.vscode', 'tasks.json');
+		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
 		const tasksJson = await this._readTasksJson(tasksUri);
-		const sessionTasks = (tasksJson.tasks ?? []).filter(t => t.inSessions);
+		const sessionTasks = (tasksJson.tasks ?? []).filter(t => t.inSessions && this._isSupportedTask(t));
 
 		// Also include user-level session tasks
 		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
 		const userJson = await this._readTasksJson(userUri);
-		const userSessionTasks = (userJson.tasks ?? []).filter(t => t.inSessions);
+		const userSessionTasks = (userJson.tasks ?? []).filter(t => t.inSessions && this._isSupportedTask(t));
 
 		transaction(tx => this._sessionTasks.set([...sessionTasks, ...userSessionTasks], tx));
 	}
 
 	private async _commitTasksFile(session: IActiveSessionItem): Promise<void> {
-		const worktree = session.worktree;
+		const worktree = session.worktree; // Only commit if there's a worktree. The local scenario does not need it
 		if (!worktree) {
 			return;
 		}

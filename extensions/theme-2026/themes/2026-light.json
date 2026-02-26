@@ -93,7 +93,7 @@
 		"sideBarSectionHeader.foreground": "#202020",
 		"sideBarSectionHeader.border": "#F2F3F4FF",
 		"titleBar.activeBackground": "#FAFAFD",
-		"titleBar.activeForeground": "#424242",
+		"titleBar.activeForeground": "#606060",
 		"titleBar.inactiveBackground": "#FAFAFD",
 		"titleBar.inactiveForeground": "#606060",
 		"titleBar.border": "#F2F3F4FF",

@@ -26,6 +26,7 @@ import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDom
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { PolicyCategory } from '../../../../base/common/policy.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
@@ -165,7 +166,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize(
 				{ comment: ['This is the description for a setting.'], key: 'browser.enableChatTools' },
 				'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.'
-			)
+			),
+			policy: {
+				name: 'BrowserChatTools',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.110',
+				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
+				localization: {
+					description: {
+						key: 'browser.enableChatTools',
+						value: localize('browser.enableChatTools', 'When enabled, chat agents can use browser tools to open and interact with pages in the Integrated Browser.')
+					}
+				},
+			}
 		},
 		'workbench.browser.dataStorage': {
 			type: 'string',

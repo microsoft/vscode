@@ -8,6 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import {
@@ -52,7 +53,20 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.McpServers,
 	];
 
+	readonly visibleStorageSources: readonly PromptsStorage[] = [
+		PromptsStorage.local,
+		PromptsStorage.user,
+		PromptsStorage.extension,
+		PromptsStorage.plugin,
+	];
+
+	getVisibleStorageSources(_type: PromptsType): readonly PromptsStorage[] {
+		return this.visibleStorageSources;
+	}
+
 	readonly preferManualCreation = false;
+
+	readonly excludedUserFileRoots: readonly URI[] = [];
 
 	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
 		// No-op in core VS Code.

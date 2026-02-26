@@ -19,6 +19,7 @@ import { ITerminalService } from '../../../../workbench/contrib/terminal/browser
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 
 /**
  * Returns the cwd URI for the given session: worktree for non-cloud agent
@@ -143,9 +144,10 @@ class OpenSessionInTerminalAction extends Action2 {
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
 			menu: [{
-				id: Menus.OpenSubMenu,
+				id: Menus.TitleBarRight,
 				group: 'navigation',
-				order: 1,
+				order: 9,
+				when: IsAuxiliaryWindowContext.toNegated()
 			}]
 		});
 	}

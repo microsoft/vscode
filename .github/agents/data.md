@@ -42,3 +42,7 @@ Your response should include:
 - Interpretation and analysis of the results
 - References to specific documentation files when applicable
 - Additional context or insights from the telemetry data
+
+# Troubleshooting
+
+If the connection to the Kusto cluster is timing out consistently, stop and ask the user to check whether they are connected to Azure VPN.

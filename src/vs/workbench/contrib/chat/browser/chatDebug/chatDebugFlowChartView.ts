@@ -21,7 +21,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
-import { buildFlowGraph, filterFlowNodes, sliceFlowNodes, layoutFlowGraph, renderFlowChartSVG, FlowChartRenderResult } from './chatDebugFlowChart.js';
+import { buildFlowGraph, filterFlowNodes, sliceFlowNodes, mergeDiscoveryNodes, mergeToolCallNodes, layoutFlowGraph, renderFlowChartSVG, FlowChartRenderResult } from './chatDebugFlowChart.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
 
 const $ = DOM.$;
@@ -75,6 +75,9 @@ export class ChatDebugFlowChartView extends Disposable {
 
 	// Collapse state — persists across refreshes, resets on session change
 	private readonly collapsedNodeIds = new Set<string>();
+
+	// Expanded merged-discovery nodes — persists across refreshes, resets on session change
+	private readonly expandedMergedIds = new Set<string>();
 
 	// Pagination state
 	private visibleLimit: number = PAGE_SIZE;
@@ -165,6 +168,7 @@ export class ChatDebugFlowChartView extends Disposable {
 			this.hasUserPanned = false;
 			this.focusedElementId = undefined;
 			this.collapsedNodeIds.clear();
+			this.expandedMergedIds.clear();
 			this.visibleLimit = PAGE_SIZE;
 			this.detailPanel.hide();
 		}
@@ -192,7 +196,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		}
 		const sessionTitle = this.chatService.getSessionTitle(this.currentSessionResource) || LocalChatSessionUri.parseLocalSessionId(this.currentSessionResource) || this.currentSessionResource.toString();
 		this.breadcrumbWidget.setItems([
-			new TextBreadcrumbItem(localize('chatDebug.title', "Chat Debug Panel"), true),
+			new TextBreadcrumbItem(localize('chatDebug.title', "Agent Debug Panel"), true),
 			new TextBreadcrumbItem(sessionTitle, true),
 			new TextBreadcrumbItem(localize('chatDebug.flowChart', "Agent Flow Chart")),
 		]);
@@ -224,7 +228,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		// Build, filter, slice, and render the flow chart
 		const flowNodes = buildFlowGraph(events);
 		const filtered = filterFlowNodes(flowNodes, {
-			isKindVisible: kind => this.filterState.isKindVisible(kind),
+			isKindVisible: (kind, category) => this.filterState.isKindVisible(kind, category),
 			textFilter: this.filterState.textFilter,
 		});
 
@@ -235,7 +239,8 @@ export class ChatDebugFlowChartView extends Disposable {
 		}
 
 		const slice = sliceFlowNodes(filtered, this.visibleLimit);
-		const layout = layoutFlowGraph(slice.nodes, { collapsedIds: this.collapsedNodeIds });
+		const merged = mergeToolCallNodes(mergeDiscoveryNodes(slice.nodes));
+		const layout = layoutFlowGraph(merged, { collapsedIds: this.collapsedNodeIds, expandedMergedIds: this.expandedMergedIds });
 		this.renderResult = renderFlowChartSVG(layout);
 
 		this.svgWrapper = DOM.append(this.content, $('.chat-debug-flowchart-svg-wrapper'));
@@ -385,6 +390,15 @@ export class ChatDebugFlowChartView extends Disposable {
 		this.load();
 	}
 
+	private toggleMergedDiscovery(mergedId: string): void {
+		if (this.expandedMergedIds.has(mergedId)) {
+			this.expandedMergedIds.delete(mergedId);
+		} else {
+			this.expandedMergedIds.add(mergedId);
+		}
+		this.load();
+	}
+
 	private focusFirstElement(): void {
 		if (!this.renderResult) {
 			return;
@@ -489,6 +503,12 @@ export class ChatDebugFlowChartView extends Disposable {
 		// Walk up from the click target to find a focusable element
 		let target = e.target as Element | null;
 		while (target && target !== this.content) {
+			// Merged-discovery expand toggle
+			const mergedId = target.getAttribute?.('data-merged-id');
+			if (mergedId) {
+				this.toggleMergedDiscovery(mergedId);
+				return;
+			}
 			const subgraphId = target.getAttribute?.('data-subgraph-id');
 			if (subgraphId) {
 				this.toggleSubgraph(subgraphId);
@@ -541,9 +561,17 @@ export class ChatDebugFlowChartView extends Disposable {
 		}
 		const svgWidth = parseFloat(this.svgElement.getAttribute('width') || '0');
 		const svgHeight = parseFloat(this.svgElement.getAttribute('height') || '0');
+		if (svgWidth <= 0 || svgHeight <= 0) {
+			return;
+		}
 
-		this.translateX = (containerRect.width - svgWidth) / 2;
-		this.translateY = Math.max(20, (containerRect.height - svgHeight) / 2);
+		const PADDING = 20;
+		// Pin the top of the diagram near the top of the viewport so the start
+		// of the flow is immediately visible. Center horizontally when the
+		// diagram fits; otherwise align to the left edge with padding so
+		// nothing is clipped behind overflow:hidden.
+		this.translateX = Math.max(PADDING, (containerRect.width - svgWidth) / 2);
+		this.translateY = PADDING;
 		this.applyTransform();
 	}
 }
