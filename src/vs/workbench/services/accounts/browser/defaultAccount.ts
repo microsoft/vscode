@@ -3,35 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from '../../../../base/common/arrays.js';
+import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
-import { asJson, IRequestService, isClientError, isSuccess } from '../../../../platform/request/common/request.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IExtensionService } from '../../extensions/common/extensions.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
-import { Barrier, RunOnceScheduler, ThrottledDelayer, timeout } from '../../../../base/common/async.js';
-import { IHostService } from '../../host/browser/host.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { getErrorMessage } from '../../../../base/common/errors.js';
-import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IEntitlementsData, IPolicyData } from '../../../../base/common/defaultAccount.js';
-import { isString, isUndefined, Mutable } from '../../../../base/common/types.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { isWeb } from '../../../../base/common/platform.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { distinct } from '../../../../base/common/arrays.js';
 import { equals } from '../../../../base/common/objects.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { IDefaultChatAgent } from '../../../../base/common/product.js';
+import { isString, isUndefined, Mutable } from '../../../../base/common/types.js';
 import { IRequestContext } from '../../../../base/parts/request/common/request.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { asJson, IRequestService, isClientError, isSuccess } from '../../../../platform/request/common/request.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { IExtensionService } from '../../extensions/common/extensions.js';
+import { IHostService } from '../../host/browser/host.js';
 
 interface IDefaultAccountConfig {
 	readonly preferredExtensions: string[];
@@ -115,6 +115,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 	private defaultAccount: IDefaultAccount | null = null;
 	get policyData(): IPolicyData | null { return this.defaultAccountProvider?.policyData ?? null; }
+	get copilotTokenInfo(): ICopilotTokenInfo | null { return this.defaultAccountProvider?.copilotTokenInfo ?? null; }
 
 	private readonly initBarrier = new Barrier();
 
@@ -123,6 +124,9 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 	private readonly _onDidChangePolicyData = this._register(new Emitter<IPolicyData | null>());
 	readonly onDidChangePolicyData = this._onDidChangePolicyData.event;
+
+	private readonly _onDidChangeCopilotTokenInfo = this._register(new Emitter<ICopilotTokenInfo | null>());
+	readonly onDidChangeCopilotTokenInfo = this._onDidChangeCopilotTokenInfo.event;
 
 	private readonly defaultAccountConfig: IDefaultAccountConfig;
 	private defaultAccountProvider: IDefaultAccountProvider | null = null;
@@ -164,6 +168,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 			this.initBarrier.open();
 			this._register(provider.onDidChangeDefaultAccount(account => this.setDefaultAccount(account)));
 			this._register(provider.onDidChangePolicyData(policyData => this._onDidChangePolicyData.fire(policyData)));
+			this._register(provider.onDidChangeCopilotTokenInfo(tokenInfo => this._onDidChangeCopilotTokenInfo.fire(tokenInfo)));
 		});
 	}
 
@@ -201,10 +206,16 @@ interface IAccountPolicyData {
 	readonly mcpRegistryDataFetchedAt?: number;
 }
 
+interface ICachedAccountData {
+	readonly accountPolicyData: IAccountPolicyData;
+	readonly copilotTokenInfo?: ICopilotTokenInfo;
+}
+
 interface IDefaultAccountData {
 	accountId: string;
 	defaultAccount: IDefaultAccount;
 	policyData: IAccountPolicyData | null;
+	copilotTokenInfo: ICopilotTokenInfo | null;
 }
 
 type DefaultAccountStatusTelemetry = {
@@ -227,11 +238,17 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	private _policyData: IAccountPolicyData | null = null;
 	get policyData(): IPolicyData | null { return this._policyData?.policyData ?? null; }
 
+	private _copilotTokenInfo: ICopilotTokenInfo | null = null;
+	get copilotTokenInfo(): ICopilotTokenInfo | null { return this._copilotTokenInfo; }
+
 	private readonly _onDidChangeDefaultAccount = this._register(new Emitter<IDefaultAccount | null>());
 	readonly onDidChangeDefaultAccount = this._onDidChangeDefaultAccount.event;
 
 	private readonly _onDidChangePolicyData = this._register(new Emitter<IPolicyData | null>());
 	readonly onDidChangePolicyData = this._onDidChangePolicyData.event;
+
+	private readonly _onDidChangeCopilotTokenInfo = this._register(new Emitter<ICopilotTokenInfo | null>());
+	readonly onDidChangeCopilotTokenInfo = this._onDidChangeCopilotTokenInfo.event;
 
 	private readonly accountStatusContext: IContextKey<string>;
 	private initialized = false;
@@ -256,7 +273,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	) {
 		super();
 		this.accountStatusContext = CONTEXT_DEFAULT_ACCOUNT_STATE.bindTo(contextKeyService);
-		this._policyData = this.getCachedPolicyData();
+		const cachedAccountData = this.getCachedAccountData();
+		this._policyData = cachedAccountData?.accountPolicyData ?? null;
+		this._copilotTokenInfo = cachedAccountData?.copilotTokenInfo ?? null;
 		this.initPromise = this.init()
 			.finally(() => {
 				this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
@@ -264,14 +283,21 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			});
 	}
 
-	private getCachedPolicyData(): IAccountPolicyData | null {
+	private getCachedAccountData(): ICachedAccountData | null {
 		const cached = this.storageService.get(CACHED_POLICY_DATA_KEY, StorageScope.APPLICATION);
 		if (cached) {
 			try {
-				const { accountId, policyData } = JSON.parse(cached);
+				const parsed = JSON.parse(cached);
+				const { accountId, policyData, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt, copilotTokenInfo } = parsed;
 				if (accountId && policyData) {
 					this.logService.debug('[DefaultAccount] Initializing with cached policy data');
-					return { accountId, policyData };
+					return { accountPolicyData: { accountId, policyData, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt }, copilotTokenInfo };
+				}
+
+				const { accountPolicyData, copilotTokenInfo: wrappedCopilotTokenInfo } = parsed;
+				if (accountPolicyData?.accountId && accountPolicyData?.policyData) {
+					this.logService.debug('[DefaultAccount] Initializing with cached policy data');
+					return { accountPolicyData, copilotTokenInfo: wrappedCopilotTokenInfo };
 				}
 			} catch (error) {
 				this.logService.error('[DefaultAccount] Failed to parse cached policy data', getErrorMessage(error));
@@ -408,6 +434,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		this.logService.trace('[DefaultAccount] Updating default account:', account);
 		if (account) {
 			this._defaultAccount = account;
+			this.setCopilotTokenInfo(account.copilotTokenInfo);
 			this.setPolicyData(account.policyData);
 			this._onDidChangeDefaultAccount.fire(this._defaultAccount.defaultAccount);
 			this.accountStatusContext.set(DefaultAccountStatus.Available);
@@ -415,6 +442,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		} else {
 			this._defaultAccount = null;
 			this.setPolicyData(null);
+			this.setCopilotTokenInfo(null);
 			this._onDidChangeDefaultAccount.fire(null);
 			this.accountDataPollScheduler.cancel();
 			this.accountStatusContext.set(DefaultAccountStatus.Unavailable);
@@ -431,10 +459,22 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		this._onDidChangePolicyData.fire(this._policyData?.policyData ?? null);
 	}
 
+	private setCopilotTokenInfo(copilotTokenInfo: ICopilotTokenInfo | null): void {
+		if (equals(this._copilotTokenInfo, copilotTokenInfo)) {
+			return;
+		}
+		this._copilotTokenInfo = copilotTokenInfo;
+		this._onDidChangeCopilotTokenInfo.fire(this._copilotTokenInfo);
+	}
+
 	private cachePolicyData(accountPolicyData: IAccountPolicyData | null): void {
 		if (accountPolicyData) {
 			this.logService.debug('[DefaultAccount] Caching policy data for account:', accountPolicyData.accountId);
-			this.storageService.store(CACHED_POLICY_DATA_KEY, JSON.stringify(accountPolicyData), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			const cachedAccountData: ICachedAccountData = {
+				accountPolicyData,
+				copilotTokenInfo: this._copilotTokenInfo ?? undefined,
+			};
+			this.storageService.store(CACHED_POLICY_DATA_KEY, JSON.stringify(cachedAccountData), StorageScope.APPLICATION, StorageTarget.MACHINE);
 		} else {
 			this.logService.debug('[DefaultAccount] Removing cached policy data');
 			this.storageService.remove(CACHED_POLICY_DATA_KEY, StorageScope.APPLICATION);
@@ -495,9 +535,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				tokenEntitlementsFetchedAt = tokenEntitlementsResult.fetchedAt;
 				const tokenEntitlementsData = tokenEntitlementsResult.data;
 				policyData = policyData ?? {};
-				policyData.chat_agent_enabled = tokenEntitlementsData.chat_agent_enabled;
-				policyData.chat_preview_features_enabled = tokenEntitlementsData.chat_preview_features_enabled;
-				policyData.mcp = tokenEntitlementsData.mcp;
+				policyData.chat_agent_enabled = tokenEntitlementsData.policyData.chat_agent_enabled;
+				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
+				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
 					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData);
 					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
@@ -517,7 +557,12 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				entitlementsData,
 			};
 			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authenticationProvider.id);
-			return { defaultAccount, accountId, policyData: policyData ? { accountId, policyData, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt } : null };
+			return {
+				defaultAccount,
+				accountId,
+				policyData: policyData ? { accountId, policyData, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt } : null,
+				copilotTokenInfo: tokenEntitlementsResult?.data.copilotTokenInfo ?? null,
+			};
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authenticationProvider.id, getErrorMessage(error));
 			return null;
@@ -572,16 +617,16 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: Partial<IPolicyData>; fetchedAt: number } | undefined> {
+	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo }; fetchedAt: number } | undefined> {
 		if (accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched token entitlements data');
-			return { data: accountPolicyData.policyData, fetchedAt: accountPolicyData.tokenEntitlementsFetchedAt };
+			return { data: { policyData: accountPolicyData.policyData, copilotTokenInfo: this._copilotTokenInfo ?? {} }, fetchedAt: accountPolicyData.tokenEntitlementsFetchedAt };
 		}
 		const data = await this.requestTokenEntitlements(sessions);
 		return data ? { data, fetchedAt: Date.now() } : undefined;
 	}
 
-	private async requestTokenEntitlements(sessions: AuthenticationSession[]): Promise<Partial<IPolicyData> | undefined> {
+	private async requestTokenEntitlements(sessions: AuthenticationSession[]): Promise<{ policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined> {
 		const tokenEntitlementsUrl = this.getTokenEntitlementUrl();
 		if (!tokenEntitlementsUrl) {
 			this.logService.debug('[DefaultAccount] No token entitlements URL found');
@@ -604,11 +649,17 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			if (chatData) {
 				const tokenMap = this.extractFromToken(chatData.token);
 				return {
-					// Editor preview features are disabled if the flag is present and set to 0
-					chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
-					chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
-					// MCP is disabled if the flag is present and set to 0
-					mcp: tokenMap.get('mcp') !== '0',
+					policyData: {
+						// Editor preview features are disabled if the flag is present and set to 0
+						chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
+						chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
+						// MCP is disabled if the flag is present and set to 0
+						mcp: tokenMap.get('mcp') !== '0',
+					},
+					copilotTokenInfo: {
+						sn: tokenMap.get('sn'),
+						fcv1: tokenMap.get('fcv1'),
+					},
 				};
 			}
 			this.logService.error('Failed to fetch token entitlements', 'No data returned');
