@@ -169,13 +169,6 @@
 			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
-
-			.rendered-markdown > ul:first-child,
-			.rendered-markdown > ol:first-child {
-				margin-top: 0;
-				margin-block-start: 0;
-			}
-
 			.progress-container {
 				margin-bottom: 0px;
 				padding-top: 0px;
