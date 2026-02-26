@@ -91,15 +91,15 @@
 	justify-content: center;
 }
 
-.chat-diff-change-content-widget .monaco-action-bar .action-item.disabled,
-.chat-editor-overlay-widget .monaco-action-bar .action-item.disabled {
+.chat-diff-change-content-widget .monaco-action-bar .action-item.primary.disabled,
+.chat-editor-overlay-widget .monaco-action-bar .action-item.primary.disabled {
 
 	> .action-label.codicon::before,
 	> .action-label.codicon,
 	> .action-label,
 	> .action-label:hover {
-		color: var(--vscode-button-separator);
-		opacity: 1;
+		color: var(--vscode-button-foreground);
+		opacity: 0.6;
 	}
 }
 
