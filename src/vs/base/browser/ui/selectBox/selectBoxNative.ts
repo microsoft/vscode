@@ -183,10 +183,9 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 		const option = document.createElement('option');
 		option.value = value;
 		option.text = value;
-		option.disabled = !!disabled;
+		option.disabled = !!disabled || !!isSeparator;
 
 		if (isSeparator) {
-			option.disabled = true;
 			option.setAttribute('role', 'separator');
 		}
 

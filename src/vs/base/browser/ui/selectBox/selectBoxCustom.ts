@@ -1017,12 +1017,16 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Allow scrolling to settle
 		setTimeout(() => {
-			this.selected = this.selectList.getFocus()[0];
+			let candidate = this.selectList.getFocus()[0];
 
 			// Shift selection down if we land on a disabled option
-			while (this.selected < this.options.length - 1 && this.options[this.selected].isDisabled) {
-				this.selected++;
+			while (candidate < this.options.length - 1 && this.options[candidate].isDisabled) {
+				candidate++;
 			}
+			if (this.options[candidate].isDisabled) {
+				return;
+			}
+			this.selected = candidate;
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selected);
 			this.select(this.selected);
@@ -1036,12 +1040,16 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// Allow scrolling to settle
 		setTimeout(() => {
-			this.selected = this.selectList.getFocus()[0];
+			let candidate = this.selectList.getFocus()[0];
 
 			// Shift selection up if we land on a disabled option
-			while (this.selected > 0 && this.options[this.selected].isDisabled) {
-				this.selected--;
+			while (candidate > 0 && this.options[candidate].isDisabled) {
+				candidate--;
 			}
+			if (this.options[candidate].isDisabled) {
+				return;
+			}
+			this.selected = candidate;
 			this.selectList.setFocus([this.selected]);
 			this.selectList.reveal(this.selected);
 			this.select(this.selected);
@@ -1054,10 +1062,14 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (this.options.length < 2) {
 			return;
 		}
-		this.selected = 0;
-		while (this.selected < this.options.length - 1 && this.options[this.selected].isDisabled) {
-			this.selected++;
+		let candidate = 0;
+		while (candidate < this.options.length - 1 && this.options[candidate].isDisabled) {
+			candidate++;
 		}
+		if (this.options[candidate].isDisabled) {
+			return;
+		}
+		this.selected = candidate;
 		this.selectList.setFocus([this.selected]);
 		this.selectList.reveal(this.selected);
 		this.select(this.selected);
@@ -1069,10 +1081,14 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		if (this.options.length < 2) {
 			return;
 		}
-		this.selected = this.options.length - 1;
-		while (this.selected > 0 && this.options[this.selected].isDisabled) {
-			this.selected--;
+		let candidate = this.options.length - 1;
+		while (candidate > 0 && this.options[candidate].isDisabled) {
+			candidate--;
 		}
+		if (this.options[candidate].isDisabled) {
+			return;
+		}
+		this.selected = candidate;
 		this.selectList.setFocus([this.selected]);
 		this.selectList.reveal(this.selected);
 		this.select(this.selected);
