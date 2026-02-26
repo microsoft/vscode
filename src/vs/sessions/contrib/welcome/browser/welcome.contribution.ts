@@ -87,7 +87,7 @@ class SessionsWelcomeOverlay extends Disposable {
 				dialogTitle: this.chatEntitlementService.anonymous ?
 					localize('sessions.startUsingSessions', "Start using Sessions") :
 					localize('sessions.signinRequired', "Sign in to use Sessions"),
-				hideSkipButton: true
+				dialogHideSkip: true
 			});
 
 			if (success) {
