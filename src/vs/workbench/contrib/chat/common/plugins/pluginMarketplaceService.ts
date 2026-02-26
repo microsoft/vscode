@@ -336,7 +336,7 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 					}
 
 					const pluginSourceUri = normalizePath(joinPath(repoDir, source));
-					if (isEqualOrParent(pluginSourceUri, pluginUri)) {
+					if (isEqualOrParent(pluginUri, pluginSourceUri)) {
 						return {
 							name: p.name,
 							description: p.description ?? '',

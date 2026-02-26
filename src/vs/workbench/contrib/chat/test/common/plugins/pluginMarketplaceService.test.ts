@@ -302,4 +302,21 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		const result = await service.getMarketplacePluginMetadata(URI.file('/any/path'));
 		assert.strictEqual(result, undefined);
 	});
+
+	test('matches when pluginUri is a subdirectory inside a plugin source', async () => {
+		const files = new Map<string, string>();
+		files.set(
+			joinPath(repoDir, '.github/plugin/marketplace.json').path,
+			createMarketplaceJson([
+				{ name: 'my-plugin', version: '1.0.0', source: 'plugins/my-plugin' },
+			]),
+		);
+
+		const service = createService(files);
+		const nestedUri = joinPath(repoDir, 'plugins/my-plugin/src/tool.ts');
+
+		const result = await service.getMarketplacePluginMetadata(nestedUri);
+		assert.ok(result);
+		assert.strictEqual(result!.name, 'my-plugin');
+	});
 });
