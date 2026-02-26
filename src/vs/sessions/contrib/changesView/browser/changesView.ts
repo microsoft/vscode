@@ -565,6 +565,12 @@ export class ChangesViewPane extends ViewPane {
 							if (action.id === 'github.createPullRequest') {
 								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'flex-grow' };
 							}
+							if (action.id === 'chatEditing.applyToParentRepo') {
+								return { showIcon: true, showLabel: false, isSecondary: true };
+							}
+							if (action.id === 'chatEditing.synchronizeChanges') {
+								return { showIcon: true, showLabel: true, isSecondary: true };
+							}
 							return undefined;
 						}
 					}

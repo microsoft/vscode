@@ -16,15 +16,40 @@
 	padding: 0 10px;
 	height: 22px;
 	border-radius: 4px;
-	cursor: pointer;
 	-webkit-app-region: no-drag;
 	overflow: hidden;
 	color: var(--vscode-commandCenter-foreground);
 	gap: 6px;
+	cursor: default;
 }
 
-.command-center .agent-sessions-titlebar-container:hover {
+/* Session pill - clickable area for session picker */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+	border-radius: 4px;
+	min-width: 0;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Session title actions toolbar */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions .actions-container {
+	height: auto;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions .action-item {
+	display: flex;
+	align-items: center;
 }
 
 .command-center .agent-sessions-titlebar-container:focus {
@@ -32,13 +57,14 @@
 	outline-offset: -1px;
 }
 
-/* Center group: icon + label + folder + changes */
+/* Center group: icon + label + folder */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-center {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	overflow: hidden;
+	min-width: 0;
 	justify-content: center;
+	cursor: pointer;
 }
 
 /* Kind icon */
@@ -68,36 +94,4 @@
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
 	opacity: 0.5;
 	flex-shrink: 0;
-}
-
-/* Changes container */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes {
-	display: flex;
-	align-items: center;
-	gap: 3px;
-	cursor: pointer;
-	padding: 0 4px;
-	border-radius: 3px;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-/* Changes icon */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-changes-icon {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	font-size: 14px;
-}
-
-/* Insertions */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-added {
-	color: var(--vscode-gitDecoration-addedResourceForeground);
-}
-
-/* Deletions */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-removed {
-	color: var(--vscode-gitDecoration-deletedResourceForeground);
 }

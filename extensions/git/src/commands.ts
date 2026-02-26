@@ -1028,8 +1028,8 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
-		await this.cloneManager.clone(url, { parentPath, ...options });
+	async clone(url?: string, parentPath?: string, options?: { ref?: string; postCloneAction?: 'none' }): Promise<string | undefined> {
+		return this.cloneManager.clone(url, { parentPath, ...options });
 	}
 
 	@command('git.cloneRecursive')

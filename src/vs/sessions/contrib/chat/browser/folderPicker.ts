@@ -12,6 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -63,6 +64,7 @@ export class FolderPicker extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -131,6 +133,8 @@ export class FolderPicker extends Disposable {
 				this.actionWidgetService.hide();
 				if (item.uri.scheme === 'command' && item.uri.path === 'browse') {
 					this._browseForFolder();
+				} else if (item.uri.scheme === 'command' && item.uri.path === 'clone') {
+					this._cloneRepository();
 				} else {
 					this._selectFolder(item.uri);
 				}
@@ -196,6 +200,17 @@ export class FolderPicker extends Disposable {
 		}
 	}
 
+	private async _cloneRepository(): Promise<void> {
+		try {
+			const clonedPath: string | undefined = await this.commandService.executeCommand('git.clone', undefined, undefined, { postCloneAction: 'none' });
+			if (clonedPath) {
+				this._selectFolder(URI.file(clonedPath));
+			}
+		} catch {
+			// clone was cancelled or failed — nothing to do
+		}
+	}
+
 	private _addToRecentlyPickedFolders(folderUri: URI): void {
 		this._recentlyPickedFolders = [folderUri, ...this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri))].slice(0, MAX_RECENT_FOLDERS);
 		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -252,6 +267,12 @@ export class FolderPicker extends Disposable {
 			label: localize('browseFolder', "Browse..."),
 			group: { title: '', icon: Codicon.search },
 			item: { uri: URI.from({ scheme: 'command', path: 'browse' }), label: localize('browseFolder', "Browse...") },
+		});
+		items.push({
+			kind: ActionListItemKind.Action,
+			label: localize('cloneRepository', "Clone..."),
+			group: { title: '', icon: Codicon.repoClone },
+			item: { uri: URI.from({ scheme: 'command', path: 'clone' }), label: localize('cloneRepository', "Clone...") },
 		});
 
 		return items;

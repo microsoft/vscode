@@ -583,13 +583,41 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
+	private setFinalizedTitle(title: string): void {
+		if (!this._collapseButton) {
+			return;
+		}
+
+		const labelElement = this._collapseButton.labelElement;
+		labelElement.textContent = '';
+
+		const firstSpaceIndex = title.indexOf(' ');
+		if (firstSpaceIndex === -1) {
+			// Single word title, no need to split
+			labelElement.textContent = title;
+		} else {
+			const verb = title.substring(0, firstSpaceIndex);
+			const rest = title.substring(firstSpaceIndex);
+
+			const verbSpan = $('span');
+			verbSpan.textContent = verb;
+			labelElement.appendChild(verbSpan);
+
+			const restSpan = $('span.chat-thinking-title-detail-text');
+			restSpan.textContent = rest;
+			labelElement.appendChild(restSpan);
+		}
+
+		this._collapseButton.element.ariaLabel = title;
+	}
+
 	private setDropdownClickable(clickable: boolean): void {
 		if (this._collapseButton) {
 			this._collapseButton.element.style.pointerEvents = clickable ? 'auto' : 'none';
 		}
 
 		if (!clickable && this.streamingCompleted) {
-			super.setTitle(this.lastExtractedTitle ?? this.currentTitle);
+			this.setFinalizedTitle(this.lastExtractedTitle ?? this.currentTitle);
 		}
 	}
 
@@ -745,7 +773,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.content.generatedTitle) {
 			this.currentTitle = this.content.generatedTitle;
-			super.setTitle(this.content.generatedTitle);
+			this.setFinalizedTitle(this.content.generatedTitle);
 			return;
 		}
 
@@ -755,7 +783,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.currentTitle = existingTitle;
 			this.content.generatedTitle = existingTitle;
 			this.setGeneratedTitleOnAllParts(existingTitle);
-			super.setTitle(existingTitle);
+			this.setFinalizedTitle(existingTitle);
 			return;
 		}
 
@@ -787,7 +815,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.currentTitle = title;
 			this.content.generatedTitle = title;
 			this.setGeneratedTitleOnAllParts(title);
-			super.setTitle(title);
+			this.setFinalizedTitle(title);
 			return;
 		}
 
@@ -837,6 +865,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			OUTPUT FORMAT:
 			- MUST be a single sentence
 			- MUST be under 10 words
+			- The FIRST word MUST be a past tense verb (e.g. "Updated", "Reviewed", "Created", "Searched", "Analyzed")
 			- No quotes, no trailing punctuation
 
 			GENERAL:
@@ -962,9 +991,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 			if (generatedTitle && !this._store.isDisposed) {
 				this.currentTitle = generatedTitle;
-				if (this._collapseButton) {
-					this._collapseButton.label = generatedTitle;
-				}
+				this.setFinalizedTitle(generatedTitle);
 				this.content.generatedTitle = generatedTitle;
 				this.setGeneratedTitleOnAllParts(generatedTitle);
 				return;
@@ -1018,7 +1045,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
-			this._collapseButton.label = finalLabel;
+			this.setFinalizedTitle(finalLabel);
 		}
 
 		this.updateDropdownClickability();
