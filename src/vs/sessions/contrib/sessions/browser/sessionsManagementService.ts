@@ -24,8 +24,6 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -120,8 +118,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 
@@ -457,19 +453,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
 
-		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
-		const activeSessionRepo = activeSessionItem?.providerType === AgentSessionProviders.Background ? activeSessionItem?.worktree ?? activeSessionItem?.repository : undefined;
-		if (activeSessionRepo) {
-			if (currentRepo) {
-				if (!this.uriIdentityService.extUri.isEqual(currentRepo, activeSessionRepo)) {
-					this.workspaceEditingService.updateFolders(0, 1, [{ uri: activeSessionRepo }], true);
-				}
-			} else {
-				this.workspaceEditingService.addFolders([{ uri: activeSessionRepo }], true);
-			}
-		} else {
-			this.workspaceEditingService.removeFolders([currentRepo], true);
-		}
 		this._activeSession.set(activeSessionItem, undefined);
 	}
 
