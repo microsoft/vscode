@@ -136,9 +136,6 @@ class SlashCommandCompletions extends Disposable {
 								if (c.target && customAgentTarget && c.target !== customAgentTarget) {
 									return false;
 								}
-								if (c.target && customAgentTarget && c.target !== customAgentTarget) {
-									return false;
-								}
 							}
 							return true;
 						})
