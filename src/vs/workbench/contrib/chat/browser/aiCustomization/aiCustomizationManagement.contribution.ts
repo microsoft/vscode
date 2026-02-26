@@ -305,7 +305,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = editorService.activeEditorPane;
 				if (pane instanceof AICustomizationManagementEditor) {
 					const report = await (pane as AICustomizationManagementEditor).generateDebugReport();
-					await editorService.openEditor({ resource: undefined, contents: report }, { pinned: false, preview: true });
+					await editorService.openEditor({ resource: undefined, contents: report, options: { pinned: false } });
 				}
 			}
 		}));

@@ -93,13 +93,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	/**
 	 * Returns the CLI-accessible user directories (~/.copilot, ~/.claude, ~/.agents).
-	 * Used by AgenticPromptsService.getSourceFolders() to determine
-	 * where user-level customizations should be created.
 	 */
-	get cliUserRoots(): readonly URI[] {
-		return this._cliUserRoots;
-	}
-
 	readonly isSessionsWindow = true;
 
 	async commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void> {

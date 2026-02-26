@@ -22,8 +22,18 @@ import { IUserDataProfileService } from '../../../../workbench/services/userData
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
 export class AgenticPromptsService extends PromptsService {
+	private _copilotRoot: URI | undefined;
+
 	protected override createPromptFilesLocator(): PromptFilesLocator {
 		return this.instantiationService.createInstance(AgenticPromptFilesLocator);
+	}
+
+	private getCopilotRoot(): URI {
+		if (!this._copilotRoot) {
+			const pathService = this.instantiationService.invokeFunction(accessor => accessor.get(IPathService));
+			this._copilotRoot = joinPath(pathService.userHome({ preferLocal: true }), '.copilot');
+		}
+		return this._copilotRoot;
 	}
 
 	/**
@@ -32,8 +42,7 @@ export class AgenticPromptsService extends PromptsService {
 	 */
 	public override async getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]> {
 		const folders = await super.getSourceFolders(type);
-		const pathService = this.instantiationService.invokeFunction(accessor => accessor.get(IPathService));
-		const copilotRoot = joinPath(pathService.userHome({ preferLocal: true }), '.copilot');
+		const copilotRoot = this.getCopilotRoot();
 		// Replace any user-storage folders with the CLI-accessible ~/.copilot root
 		return folders.map(folder => {
 			if (folder.storage === PromptsStorage.user) {

@@ -90,7 +90,7 @@ export interface IAICustomizationWorkspaceService {
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
 
 	/**
-	 * Whether the primary creation action should create a file directly
+	 * Whether this is a sessions window (vs core VS Code).
 	 */
 	readonly isSessionsWindow: boolean;
 

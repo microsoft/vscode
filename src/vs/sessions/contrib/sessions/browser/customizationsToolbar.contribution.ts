@@ -39,7 +39,6 @@ interface ICustomizationItemConfig {
 	readonly icon: ThemeIcon;
 	readonly section: AICustomizationManagementSection;
 	readonly promptType?: PromptsType;
-	readonly hasSourceCounts?: boolean;
 	readonly getCount?: (languageModelsService: ILanguageModelsService, mcpService: IMcpService) => Promise<number>;
 }
 
@@ -50,7 +49,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: agentIcon,
 		section: AICustomizationManagementSection.Agents,
 		promptType: PromptsType.agent,
-		hasSourceCounts: true,
 	},
 	{
 		id: 'sessions.customization.skills',
@@ -58,7 +56,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: skillIcon,
 		section: AICustomizationManagementSection.Skills,
 		promptType: PromptsType.skill,
-		hasSourceCounts: true,
 	},
 	{
 		id: 'sessions.customization.instructions',
@@ -66,7 +63,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
 		promptType: PromptsType.instructions,
-		hasSourceCounts: true,
 	},
 	{
 		id: 'sessions.customization.prompts',
@@ -74,7 +70,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: promptIcon,
 		section: AICustomizationManagementSection.Prompts,
 		promptType: PromptsType.prompt,
-		hasSourceCounts: true,
 	},
 	{
 		id: 'sessions.customization.hooks',
@@ -82,7 +77,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		promptType: PromptsType.hook,
-		hasSourceCounts: true,
 	},
 	// TODO: Re-enable MCP Servers once CLI MCP configuration is unified with VS Code
 ];
@@ -165,7 +159,7 @@ class CustomizationLinkViewItem extends ActionViewItem {
 			return;
 		}
 
-		if (this._config.hasSourceCounts && this._config.promptType) {
+		if (this._config.promptType) {
 			const type = this._config.promptType;
 			const filter = this._workspaceService.getStorageSourceFilter(type);
 			const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService);
