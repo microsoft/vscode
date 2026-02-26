@@ -5,7 +5,6 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { equals } from '../../../../base/common/objects.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -443,17 +442,33 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private doSetActiveSession(activeSessionItem: IActiveSessionItem | undefined): void {
-		if (equals(this._activeSession.get(), activeSessionItem)) {
+		if (this.equalsSessionItem(this._activeSession.get(), activeSessionItem)) {
 			return;
 		}
 
 		if (activeSessionItem) {
-			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}, repository: ${activeSessionItem.repository?.toString() ?? 'none'}`);
+			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}`);
+			this.logService.trace(`[ActiveSessionService] Active session details: ${JSON.stringify(activeSessionItem)}`);
 		} else {
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
 
 		this._activeSession.set(activeSessionItem, undefined);
+	}
+
+	private equalsSessionItem(a: IActiveSessionItem | undefined, b: IActiveSessionItem | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return (
+			a.label === b.label &&
+			a.resource.toString() === b.resource.toString() &&
+			a.repository?.toString() === b.repository?.toString() &&
+			a.worktree?.toString() === b.worktree?.toString()
+		);
 	}
 
 	async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void> {
