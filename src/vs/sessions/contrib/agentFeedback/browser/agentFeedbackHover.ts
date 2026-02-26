@@ -170,6 +170,9 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 					service.revealFeedback(sessionResource, data.id);
 				}
 			}));
+		} else {
+			// When there's no service (read-only mode), set title on render
+			// (textElement may be truncated, so show full text on hover)
 		}
 
 		return templateData;
@@ -180,6 +183,11 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 
 		templateData.textElement.textContent = element.text;
 		templateData.element = element;
+
+		// Set title for truncated text in read-only mode
+		if (!this._agentFeedbackService) {
+			templateData.textElement.title = element.text;
+		}
 
 		templateData.actionBar.clear();
 		if (this._agentFeedbackService) {
@@ -224,7 +232,7 @@ export class AgentFeedbackHover extends Disposable {
 		// Show on hover (delayed)
 		this._store.add(this._hoverService.setupDelayedHover(
 			this._element,
-			() => this._store.add(this._buildHoverContent()), // needs a better disposable story
+			() => this._store.add(this._buildHoverContent()),
 			{ groupId: 'chat-attachments' }
 		));
 
@@ -326,6 +334,7 @@ export class AgentFeedbackHover extends Disposable {
 	private _buildTreeData(): { children: IObjectTreeElement<FeedbackTreeElement>[]; commentElements: IFeedbackCommentElement[] } {
 		// Group feedback items by file
 		const byFile = new Map<string, { uri: URI; comments: IFeedbackCommentElement[] }>();
+
 		for (const item of this._attachment.feedbackItems) {
 			const key = item.resourceUri.toString();
 			let group = byFile.get(key);
