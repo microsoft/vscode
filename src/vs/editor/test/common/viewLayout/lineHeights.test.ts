@@ -268,6 +268,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 
 		// Insert line 2 to line 2, with the same decoration ID 'decA' covering line 2
 		manager.onLinesInserted(2, 2);
+		manager.insertOrChangeCustomLineHeight('decA', 2, 2, 30);
 
 		// After insertion, the decoration 'decA' now covers line 2
 		// Since insertOrChangeCustomLineHeight removes the old decoration first,
@@ -528,6 +529,7 @@ suite('Editor ViewLayout - LineHeightsManager (auto-commit on read)', () => {
 		manager.insertOrChangeCustomLineHeight('dec1', 2, 2, 20);
 		assert.strictEqual(manager.heightForLineNumber(2), 20);
 		manager.onLinesDeleted(2, 2);
+		manager.insertOrChangeCustomLineHeight('dec1', 1, 1, 20);
 		assert.strictEqual(manager.heightForLineNumber(1), 20);
 	});
 });
