@@ -1,4 +1,4 @@
-name: Screenshot Tests
+name: Checking Component Screenshots
 
 on:
   push:
@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   screenshots:
+    name: Checking Component Screenshots
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -95,37 +96,40 @@ jobs:
           REPORT="test/componentFixtures/.screenshots/report/report.json"
           if [ -f "$REPORT" ]; then
             CHANGED=$(node -e "const r = require('./$REPORT'); console.log(r.summary.added + r.summary.removed + r.summary.changed)")
-            TITLE="${CHANGED} screenshots changed"
+            TITLE="📸 ${CHANGED} screenshots changed"
+            CONCLUSION="neutral"
           else
-            TITLE="Screenshots match"
+            TITLE="📸 Screenshots match"
+            CONCLUSION="success"
           fi
 
           SHA="${{ github.event.pull_request.head.sha || github.sha }}"
-          CHECK_RUN_ID=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs" \
-            --jq '.check_runs[] | select(.name == "screenshots") | .id')
-
           DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json"
+
+          EXPLORER_PUSHED=false
+          if gh api "repos/${{ github.repository }}/check-runs" \
+            --input - <<EOF; then
+          {"name":"Component Screenshots","head_sha":"$SHA","status":"completed","conclusion":"$CONCLUSION","details_url":"$DETAILS_URL","output":{"title":"$TITLE","summary":"$TITLE"}}
+          EOF
+            EXPLORER_PUSHED=true
+          else
+            echo "::warning::Could not create check run (expected for fork PRs)"
+          fi
+
+          CHECK_RUN_ID=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs" \
+            --jq '.check_runs[] | select(.name == "Checking Component Screenshots / screenshots") | .id')
+
+          if [ "$EXPLORER_PUSHED" = true ]; then
+            CHECK_TITLE="Screenshots"
+          else
+            CHECK_TITLE="$TITLE"
+          fi
 
           if [ -n "$CHECK_RUN_ID" ]; then
             gh api "repos/${{ github.repository }}/check-runs/$CHECK_RUN_ID" \
               -X PATCH --input - <<EOF || echo "::warning::Could not update check run (expected for fork PRs)"
-          {"details_url":"$DETAILS_URL","output":{"title":"$TITLE","summary":"$TITLE"}}
+          {"details_url":"$DETAILS_URL","output":{"title":"$CHECK_TITLE","summary":"$CHECK_TITLE"}}
           EOF
-          fi
-
-          DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json"
-          gh api "repos/${{ github.repository }}/statuses/$SHA" \
-            --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
-          {"state":"success","target_url":"$DETAILS_URL","description":"$TITLE","context":"screenshots / explorer"}
-          EOF
-
-      - name: Post summary
-        run: |
-          if [ -f test/componentFixtures/.screenshots/report/report.md ]; then
-            cat test/componentFixtures/.screenshots/report/report.md >> $GITHUB_STEP_SUMMARY
-          else
-            echo "## Screenshots ✅" >> $GITHUB_STEP_SUMMARY
-            echo "No visual changes detected." >> $GITHUB_STEP_SUMMARY
           fi
 
       # - name: Post PR comment
