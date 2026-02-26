@@ -20,7 +20,7 @@ import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyn
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { Menus } from '../../../browser/menus.js';
-import { agentIcon, instructionsIcon, skillIcon, hookIcon, workspaceIcon, userIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, workspaceIcon, userIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { ActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { $, append } from '../../../../base/browser/dom.js';
@@ -65,6 +65,13 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
 		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.instructions, ex),
+	},
+	{
+		id: 'sessions.customization.prompts',
+		label: localize('prompts', "Prompts"),
+		icon: promptIcon,
+		section: AICustomizationManagementSection.Prompts,
+		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.prompt, ex),
 	},
 	{
 		id: 'sessions.customization.hooks',
