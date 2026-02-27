@@ -160,9 +160,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
 
-			let allowedDomains: string[] = [];
+			let allowedDomains = networkSetting.allowedDomains ?? [];
 			if (networkSetting.allowTrustedDomains) {
-				allowedDomains = this._addTrustedDomainsToAllowedDomains(networkSetting.allowedDomains ?? []);
+				allowedDomains = this._addTrustedDomainsToAllowedDomains(allowedDomains);
 			}
 
 			const sandboxSettings = {
