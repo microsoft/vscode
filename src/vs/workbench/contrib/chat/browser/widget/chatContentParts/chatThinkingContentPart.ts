@@ -14,6 +14,7 @@ import { ChatConfiguration, ThinkingDisplayMode } from '../../../common/constant
 import { ChatTreeItem } from '../../chat.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -66,7 +67,8 @@ export function getToolInvocationIcon(toolId: string): ThemeIcon {
 
 	if (
 		lowerToolId.includes('edit') ||
-		lowerToolId.includes('create')
+		lowerToolId.includes('create') ||
+		lowerToolId.includes('replace')
 	) {
 		return Codicon.pencil;
 	}
@@ -260,7 +262,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		// Alert screen reader users that thinking has started
-		alert(localize('chat.thinking.started', 'Thinking'));
+		if (this.configurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates)) {
+			alert(localize('chat.thinking.started', 'Thinking'));
+		}
 
 		if (configuredMode === ThinkingDisplayMode.Collapsed) {
 			this.setExpanded(false);

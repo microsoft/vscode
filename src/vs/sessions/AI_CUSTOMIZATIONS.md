@@ -15,6 +15,7 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
 ├── aiCustomizationManagementEditor.ts          # SplitView list/editor
 ├── aiCustomizationManagementEditorInput.ts     # Singleton input
 ├── aiCustomizationListWidget.ts                # Search + grouped list
+├── aiCustomizationDebugPanel.ts                # Debug diagnostics panel
 ├── aiCustomizationWorkspaceService.ts          # Core VS Code workspace service impl
 ├── customizationCreatorService.ts              # AI-guided creation flow
 ├── mcpListWidget.ts                            # MCP servers section
@@ -23,7 +24,7 @@ src/vs/workbench/contrib/chat/browser/aiCustomization/
     └── aiCustomizationManagement.css
 
 src/vs/workbench/contrib/chat/common/
-└── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService interface
+└── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter
 ```
 
 The tree view and overview live in `vs/sessions` (sessions window only):
@@ -42,9 +43,10 @@ Sessions-specific overrides:
 
 ```
 src/vs/sessions/contrib/chat/browser/
-└── aiCustomizationWorkspaceService.ts          # Sessions workspace service override
+├── aiCustomizationWorkspaceService.ts          # Sessions workspace service override
+└── promptsService.ts                           # AgenticPromptsService (CLI user roots)
 src/vs/sessions/contrib/sessions/browser/
-├── customizationCounts.ts                      # Source count utilities
+├── customizationCounts.ts                      # Source count utilities (type-aware)
 └── customizationsToolbar.contribution.ts       # Sidebar customization links
 ```
 
@@ -52,12 +54,65 @@ src/vs/sessions/contrib/sessions/browser/
 
 The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 
-| Property | Core VS Code | Sessions Window |
+| Property / Method | Core VS Code | Sessions Window |
 |----------|-------------|----------|
-| `managementSections` | All sections except Models | Same |
-| `visibleStorageSources` | workspace, user, extension, plugin | workspace, user only |
-| `preferManualCreation` | `false` (AI generation primary) | `true` (file creation primary) |
+| `managementSections` | All sections except Models | Same minus MCP |
+| `getStorageSourceFilter(type)` | All sources, no user root filter | Per-type (see below) |
+| `isSessionsWindow` | `false` | `true` |
 | `activeProjectRoot` | First workspace folder | Active session worktree |
+
+### IStorageSourceFilter
+
+A unified per-type filter controlling which storage sources and user file roots are visible.
+Replaces the old `visibleStorageSources`, `getVisibleStorageSources(type)`, and `excludedUserFileRoots`.
+
+```typescript
+interface IStorageSourceFilter {
+  sources: readonly PromptsStorage[];         // Which storage groups to display
+  includedUserFileRoots?: readonly URI[];     // Allowlist for user roots (undefined = all)
+}
+```
+
+The shared `applyStorageSourceFilter()` helper applies this filter to any `{uri, storage}` array.
+
+**Sessions filter behavior by type:**
+
+| Type | sources | includedUserFileRoots |
+|------|---------|----------------------|
+| Hooks | `[local]` | N/A |
+| Prompts | `[local, user]` | `undefined` (all roots) |
+| Agents, Skills, Instructions | `[local, user]` | `[~/.copilot, ~/.claude, ~/.agents]` |
+
+**Core VS Code:** All types use `[local, user, extension, plugin]` with no user root filter.
+
+### AgenticPromptsService (Sessions)
+
+Sessions overrides `PromptsService` via `AgenticPromptsService` (in `promptsService.ts`):
+
+- **Discovery**: `AgenticPromptFilesLocator` scopes workspace folders to the active session's worktree
+- **Creation targets**: `getSourceFolders()` override replaces VS Code profile user roots with `~/.copilot/{subfolder}` for CLI compatibility
+- **Hook folders**: Falls back to `.github/hooks` in the active worktree
+
+### Count Consistency
+
+`customizationCounts.ts` uses the **same data sources** as the list widget's `loadItems()`:
+
+| Type | Data Source | Notes |
+|------|-------------|-------|
+| Agents | `getCustomAgents()` | Parsed agents, not raw files |
+| Skills | `findAgentSkills()` | Parsed skills with frontmatter |
+| Prompts | `getPromptSlashCommands()` | Filters out skill-type commands |
+| Instructions | `listPromptFiles()` + `listAgentInstructions()` | Includes AGENTS.md, CLAUDE.md etc. |
+| Hooks | `listPromptFiles()` | Raw hook files |
+
+### Debug Panel
+
+Toggle via Command Palette: "Toggle Customizations Debug Panel". Shows a 4-stage pipeline view:
+
+1. **Raw PromptsService data** — per-storage file lists + type-specific extras
+2. **After applyStorageSourceFilter** — what was removed and why
+3. **Widget state** — allItems vs displayEntries with group counts
+4. **Source/resolved folders** — creation targets and discovery order
 
 ## Key Services
 

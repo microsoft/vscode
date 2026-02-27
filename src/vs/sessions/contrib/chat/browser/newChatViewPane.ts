@@ -241,7 +241,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// Input area inside the input slot
 		const inputArea = dom.$('.sessions-chat-input-area');
-		this._contextAttachments.registerDropTarget(inputArea);
+		this._contextAttachments.registerDropTarget(wrapper);
 		this._contextAttachments.registerPasteHandler(inputArea);
 
 		// Attachments row (pills only) inside input area, above editor

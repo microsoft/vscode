@@ -16,7 +16,7 @@
 
 .interactive-session.chat-view-getting-started-disabled {
 
-	/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
+	/* hide most welcome pieces when we show recent sessions to make some space */
 	.chat-welcome-view .chat-welcome-view-icon,
 	.chat-welcome-view .chat-welcome-view-title,
 	.chat-welcome-view .chat-welcome-view-message,
@@ -224,16 +224,6 @@ div.chat-welcome-view {
 			font-size: 12px;
 			color: var(--vscode-editorWidget-foreground);
 			white-space: nowrap;
-		}
-
-		& > .chat-welcome-view-suggested-prompt-description {
-			font-size: 11px;
-			color: var(--vscode-descriptionForeground);
-			overflow: hidden;
-			text-overflow: ellipsis;
-			white-space: nowrap;
-			flex: 0 1 auto;
-			min-width: 0;
 		}
 	}
 
