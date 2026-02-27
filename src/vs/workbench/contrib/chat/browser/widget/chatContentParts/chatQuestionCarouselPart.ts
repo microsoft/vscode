@@ -489,11 +489,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Render question header row with title and close button
 		const headerRow = dom.$('.chat-question-header-row');
 
-		// Render question message with title styling (no progress prefix)
-		// Fall back to question.title if message is not provided
-		const questionText = question.message ?? question.title;
-		if (questionText) {
+		// Render question title (short header) in the header bar as plain text
+		if (question.title) {
 			const title = dom.$('.chat-question-title');
+			const questionText = question.title;
 			const messageContent = this.getQuestionText(questionText);
 
 			title.setAttribute('aria-label', messageContent);
@@ -528,6 +527,18 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		this._questionContainer.appendChild(headerRow);
+
+		// Render full question text below the header row (supports multi-line and markdown)
+		if (question.message) {
+			const messageEl = dom.$('.chat-question-message');
+			if (isMarkdownString(question.message)) {
+				const renderedMessage = questionRenderStore.add(this._markdownRendererService.render(MarkdownString.lift(question.message)));
+				messageEl.appendChild(renderedMessage.element);
+			} else {
+				messageEl.textContent = this.getQuestionText(question.message);
+			}
+			this._questionContainer.appendChild(messageEl);
+		}
 
 		const isSingleQuestion = this.carousel.questions.length === 1;
 		// Update step indicator in footer

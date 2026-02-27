@@ -34,7 +34,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 import { ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
@@ -45,9 +45,6 @@ import { bindContextKey } from '../../../../../platform/observable/common/platfo
 import product from '../../../../../platform/product/common/product.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
-import { EditorResourceAccessor } from '../../../../common/editor.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
@@ -69,7 +66,6 @@ import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelColl
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
@@ -82,7 +78,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './input/
 import { IChatListItemTemplate } from './chatListRenderer.js';
 import { ChatListWidget } from './chatListWidget.js';
 import { ChatEditorOptions } from './chatOptions.js';
-import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
+import { ChatViewWelcomePart, IChatViewWelcomeContent } from '../viewsWelcome/chatViewWelcomeController.js';
 import { IChatTipService } from '../chatTipService.js';
 import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
@@ -294,11 +290,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _sessionHasDebugDataContextKey: IContextKey<boolean>;
 	private _attachmentCapabilities: IChatAgentAttachmentCapabilities = supportsAllAttachments;
 
-	// Cache for prompt file descriptions to avoid async calls during rendering
-	private readonly promptDescriptionsCache = new Map<string, string>();
-	private readonly promptUriCache = new Map<string, URI>();
-	private _isLoadingPromptDescriptions = false;
-
 	private readonly viewModelDisposables = this._register(new DisposableStore());
 	private _viewModel: ChatViewModel | undefined;
 
@@ -378,7 +369,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -400,7 +390,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
@@ -533,7 +522,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderChatEditingSessionState();
 		}));
 
-		this._register(codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
+		this._register(this.codeEditorService.registerCodeEditorOpenHandler(async (input: ITextResourceEditorInput, _source: ICodeEditor | null, _sideBySide?: boolean): Promise<ICodeEditor | null> => {
 			const resource = input.resource;
 			if (resource.scheme !== Schemas.vscodeChatCodeBlock) {
 				return null;
@@ -1141,181 +1130,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			message: new MarkdownString(DISCLAIMER),
 			icon: Codicon.chatSparkle,
 			additionalMessage,
-			suggestedPrompts: this.getPromptFileSuggestions(),
 		};
-	}
-
-	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {
-
-		// Use predefined suggestions for new users
-		if (!this.chatEntitlementService.sentiment.installed) {
-			const isEmpty = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
-			if (isEmpty) {
-				return [
-					{
-						icon: Codicon.vscode,
-						label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @vscode"),
-						prompt: localize('chatWidget.suggestedPrompts.gettingStartedPrompt', "@vscode How do I change the theme to light mode?"),
-					},
-					{
-						icon: Codicon.newFolder,
-						label: localize('chatWidget.suggestedPrompts.newProject', "Create Project"),
-						prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
-					}
-				];
-			} else {
-				return [
-					{
-						icon: Codicon.debugAlt,
-						label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build Workspace"),
-						prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
-					},
-					{
-						icon: Codicon.gear,
-						label: localize('chatWidget.suggestedPrompts.findConfig', "Show Config"),
-						prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
-					}
-				];
-			}
-		}
-
-		// Get the current workspace folder context if available
-		const activeEditor = this.editorService.activeEditor;
-		const resource = activeEditor ? EditorResourceAccessor.getOriginalUri(activeEditor) : undefined;
-
-		// Get the prompt file suggestions configuration
-		const suggestions = PromptsConfig.getPromptFilesRecommendationsValue(this.configurationService, resource);
-		if (!suggestions) {
-			return [];
-		}
-
-		const result: IChatSuggestedPrompts[] = [];
-		const promptsToLoad: string[] = [];
-
-		// First, collect all prompts that need loading (regardless of shouldInclude)
-		for (const [promptName] of Object.entries(suggestions)) {
-			const description = this.promptDescriptionsCache.get(promptName);
-			if (description === undefined) {
-				promptsToLoad.push(promptName);
-			}
-		}
-
-		// If we have prompts to load, load them asynchronously and don't return anything yet
-		// But only if we're not already loading to prevent infinite loop
-		if (promptsToLoad.length > 0 && !this._isLoadingPromptDescriptions) {
-			this.loadPromptDescriptions(promptsToLoad);
-			return [];
-		}
-
-		// Now process the suggestions with loaded descriptions
-		const promptsWithScores: { promptName: string; condition: boolean | string; score: number }[] = [];
-
-		for (const [promptName, condition] of Object.entries(suggestions)) {
-			let score = 0;
-
-			// Handle boolean conditions
-			if (typeof condition === 'boolean') {
-				score = condition ? 1 : 0;
-			}
-			// Handle when clause conditions
-			else if (typeof condition === 'string') {
-				try {
-					const whenClause = ContextKeyExpr.deserialize(condition);
-					if (whenClause) {
-						// Test against all open code editors
-						const allEditors = this.codeEditorService.listCodeEditors();
-
-						if (allEditors.length > 0) {
-							// Count how many editors match the when clause
-							score = allEditors.reduce((count, editor) => {
-								try {
-									const editorContext = this.contextKeyService.getContext(editor.getDomNode());
-									return count + (whenClause.evaluate(editorContext) ? 1 : 0);
-								} catch (error) {
-									// Log error for this specific editor but continue with others
-									this.logService.warn('Failed to evaluate when clause for editor:', error);
-									return count;
-								}
-							}, 0);
-						} else {
-							// Fallback to global context if no editors are open
-							score = this.contextKeyService.contextMatchesRules(whenClause) ? 1 : 0;
-						}
-					} else {
-						score = 0;
-					}
-				} catch (error) {
-					// Log the error but don't fail completely
-					this.logService.warn('Failed to parse when clause for prompt file suggestion:', condition, error);
-					score = 0;
-				}
-			}
-
-			if (score > 0) {
-				promptsWithScores.push({ promptName, condition, score });
-			}
-		}
-
-		// Sort by score (descending) and take top 5
-		promptsWithScores.sort((a, b) => b.score - a.score);
-		const topPrompts = promptsWithScores.slice(0, 5);
-
-		// Build the final result array
-		for (const { promptName } of topPrompts) {
-			const description = this.promptDescriptionsCache.get(promptName);
-			const commandLabel = localize('chatWidget.promptFile.commandLabel', "{0}", promptName);
-			const uri = this.promptUriCache.get(promptName);
-			const descriptionText = description?.trim() ? description : undefined;
-			result.push({
-				icon: Codicon.run,
-				label: commandLabel,
-				description: descriptionText,
-				prompt: `/${promptName} `,
-				uri: uri
-			});
-		}
-
-		return result;
-	}
-
-	private async loadPromptDescriptions(promptNames: string[]): Promise<void> {
-		// Don't start loading if the widget is being disposed
-		if (this._store.isDisposed) {
-			return;
-		}
-
-		// Set loading guard to prevent infinite loop
-		this._isLoadingPromptDescriptions = true;
-		try {
-			// Get all available prompt files with their metadata
-			const promptCommands = await this.promptsService.getPromptSlashCommands(CancellationToken.None);
-
-			let cacheUpdated = false;
-			// Load descriptions only for the specified prompts
-			for (const promptCommand of promptCommands) {
-				if (promptNames.includes(promptCommand.name)) {
-					const description = promptCommand.description;
-					if (description) {
-						this.promptDescriptionsCache.set(promptCommand.name, description);
-						cacheUpdated = true;
-					} else {
-						// Set empty string to indicate we've checked this prompt
-						this.promptDescriptionsCache.set(promptCommand.name, '');
-						cacheUpdated = true;
-					}
-				}
-			}
-
-			// Fire event to trigger a re-render of the welcome view only if cache was updated
-			if (cacheUpdated) {
-				this.renderWelcomeViewContentIfNeeded();
-			}
-		} catch (error) {
-			this.logService.warn('Failed to load specific prompt descriptions:', error);
-		} finally {
-			// Always clear the loading guard, even on error
-			this._isLoadingPromptDescriptions = false;
-		}
 	}
 
 	private async renderChatEditingSessionState() {

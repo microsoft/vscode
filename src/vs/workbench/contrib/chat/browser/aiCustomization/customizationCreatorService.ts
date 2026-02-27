@@ -6,15 +6,13 @@
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { getPromptFileDefaultLocations } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
 import { localize } from '../../../../../nls.js';
 
 /**
@@ -34,8 +32,6 @@ export class CustomizationCreatorService {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IPathService private readonly pathService: IPathService,
 	) { }
 
 	async createWithAI(type: PromptsType): Promise<void> {
@@ -103,7 +99,7 @@ export class CustomizationCreatorService {
 	 * Resolves the user-level directory for a new customization file.
 	 */
 	async resolveUserDirectory(type: PromptsType): Promise<URI | undefined> {
-		return resolveUserTargetDirectory(this.promptsService, type, this.configurationService, this.pathService);
+		return resolveUserTargetDirectory(this.promptsService, type);
 	}
 }
 
@@ -125,39 +121,16 @@ export function resolveWorkspaceTargetDirectory(workspaceService: IAICustomizati
 
 /**
  * Resolves the user-level directory for a new customization file.
- * If chat.customizations.userStoragePath is set, uses that as the base
- * with a type-appropriate subfolder. Otherwise falls back to the default
- * source folders from IPromptsService.
+ * Delegates to IPromptsService.getSourceFolders() which returns the appropriate
+ * user root (VS Code profile in core, ~/.copilot in sessions).
  */
 export async function resolveUserTargetDirectory(
 	promptsService: IPromptsService,
 	type: PromptsType,
-	configurationService?: IConfigurationService,
-	pathService?: IPathService,
 ): Promise<URI | undefined> {
-	const overridePath = configurationService?.getValue<string>(ChatConfiguration.ChatCustomizationUserStoragePath);
-	const subfolder = getUserStorageSubfolder(type);
-	if (overridePath && pathService && subfolder) {
-		const userHome = await pathService.userHome();
-		const resolved = overridePath.startsWith('~/')
-			? URI.joinPath(userHome, overridePath.slice(2))
-			: URI.file(overridePath);
-		return URI.joinPath(resolved, subfolder);
-	}
 	const folders = await promptsService.getSourceFolders(type);
 	const userFolder = folders.find(f => f.storage === PromptsStorage.user);
 	return userFolder?.uri;
-}
-
-/**
- * Returns the subdirectory name for user-level storage of a given prompt type.
- */
-function getUserStorageSubfolder(type: PromptsType): string | undefined {
-	switch (type) {
-		case PromptsType.instructions: return 'instructions';
-		case PromptsType.skill: return 'skills';
-		default: return undefined;
-	}
 }
 
 //#region Agent Instructions

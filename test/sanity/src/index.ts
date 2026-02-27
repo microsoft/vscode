@@ -10,9 +10,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const options = minimist(process.argv.slice(2), {
-	string: ['fgrep', 'grep', 'test-results', 'timeout'],
+	string: ['fgrep', 'grep', 'test-results', 'timeout', 'screenshots-dir'],
 	boolean: ['help'],
-	alias: { fgrep: 'f', grep: 'g', help: 'h', 'test-results': 't' },
+	alias: { fgrep: 'f', grep: 'g', help: 'h', 'test-results': 't', 'screenshots-dir': 's' },
 });
 
 if (options.help) {
@@ -28,6 +28,7 @@ if (options.help) {
 	console.info('  --fgrep, -f <string>            Only run tests containing the given <string>');
 	console.info('  --test-results, -t <path>       Output test results in JUnit format to the specified path');
 	console.info('  --timeout <sec>                 Set the test-case timeout in seconds (default: 600 seconds)');
+	console.info('  --screenshots-dir, -s <path>    Save failure screenshots to the specified directory');
 	console.info('  --verbose, -v                   Enable verbose logging');
 	console.info('  --help, -h                      Show this help message');
 	process.exit(0);
