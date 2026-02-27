@@ -3452,6 +3452,7 @@ suite('PromptsService', () => {
 					uri: URI.file(path),
 					enabled,
 					setEnabled: () => { },
+					remove: () => { },
 					hooks,
 					commands,
 					skills,
