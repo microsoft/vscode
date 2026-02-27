@@ -85,10 +85,6 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			return;
 		}
 
-		if (!this.isUriTrusted(session.repository)) {
-			return;
-		}
-
 		if (!this.isUriTrusted(session.worktree)) {
 			await this.workspaceTrustManagementService.setUrisTrust([session.worktree], true);
 		}
