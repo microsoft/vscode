@@ -1489,6 +1489,8 @@ export type ChatStopCancellationNoopEvent = {
 	reason: 'noWidget' | 'noViewModel' | 'noPendingRequest' | 'requestAlreadyCanceled' | 'requestIdUnavailable';
 	requestInProgress: 'true' | 'false' | 'unknown';
 	pendingRequests: number;
+	sessionScheme?: string;
+	lastRequestId?: string;
 };
 
 export type ChatStopCancellationNoopClassification = {
@@ -1496,6 +1498,8 @@ export type ChatStopCancellationNoopClassification = {
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The no-op reason when stop cancellation did not dispatch fully.' };
 	requestInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether request-in-progress was true, false, or unknown at no-op time.' };
 	pendingRequests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of queued pending requests at no-op time when known.'; isMeasurement: true };
+	sessionScheme?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The URI scheme of the session resource (e.g. vscodeLocalChatSession vs remote).' };
+	lastRequestId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the last request in the session, for correlating with tool invocations.' };
 	owner: 'roblourens';
 	comment: 'Tracks possible no-op stop cancellation paths.';
 };

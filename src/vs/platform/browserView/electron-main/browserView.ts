@@ -359,7 +359,8 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			lastScreenshot: this._lastScreenshot,
 			lastFavicon: this._lastFavicon,
 			lastError: this._lastError,
-			storageScope: this.session.storageScope
+			storageScope: this.session.storageScope,
+			zoomFactor: webContents.getZoomFactor()
 		};
 	}
 
@@ -507,13 +508,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		} finally {
 			this._isSendingKeyEvent = false;
 		}
-	}
-
-	/**
-	 * Set the zoom factor of this view
-	 */
-	async setZoomFactor(zoomFactor: number): Promise<void> {
-		await this._view.webContents.setZoomFactor(zoomFactor);
 	}
 
 	/**

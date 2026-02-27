@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { DragAndDropObserver } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderIcon, renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { registerOpenEditorListeners } from '../../../../platform/editor/browser/editor.js';
@@ -29,7 +30,8 @@ import { IChatRequestVariableEntry, OmittedState } from '../../../../workbench/c
 import { isLocation } from '../../../../editor/common/languages.js';
 import { resizeImage } from '../../../../workbench/contrib/chat/browser/chatImageUtils.js';
 import { imageToHash, isImage } from '../../../../workbench/contrib/chat/browser/widget/input/editor/chatPasteProviders.js';
-import { getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
+import { CodeDataTransfers, containsDragType, extractEditorsDropData, getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
+import { DataTransfers } from '../../../../base/browser/dnd.js';
 import { getExcludes, ISearchConfiguration, ISearchService, QueryType } from '../../../../workbench/services/search/common/search.js';
 
 /**
@@ -101,7 +103,7 @@ export class NewChatContextAttachments extends Disposable {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
 			pill.tabIndex = 0;
 			pill.role = 'button';
-			const icon = entry.kind === 'image' ? Codicon.fileMedia : Codicon.file;
+			const icon = entry.kind === 'image' ? Codicon.fileMedia : entry.kind === 'directory' ? Codicon.folder : Codicon.file;
 			dom.append(pill, renderIcon(icon));
 			dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 
@@ -127,68 +129,85 @@ export class NewChatContextAttachments extends Disposable {
 
 	// --- Drag and drop ---
 
-	registerDropTarget(element: HTMLElement): void {
-		// Use a transparent overlay during drag to capture events over the Monaco editor
-		const overlay = dom.append(element, dom.$('.sessions-chat-drop-overlay'));
+	registerDropTarget(dndContainer: HTMLElement): void {
+		const overlay = dom.append(dndContainer, dom.$('.sessions-chat-dnd-overlay'));
+		let overlayText: HTMLElement | undefined;
 
-		// Use capture phase to intercept drag events before Monaco editor handles them
-		this._register(dom.addDisposableListener(element, dom.EventType.DRAG_ENTER, (e: DragEvent) => {
-			if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
-				e.preventDefault();
-				e.dataTransfer.dropEffect = 'copy';
-				overlay.style.display = 'block';
-				element.classList.add('sessions-chat-drop-active');
+		const isDropSupported = (e: DragEvent): boolean => {
+			return containsDragType(e, DataTransfers.FILES, CodeDataTransfers.EDITORS, CodeDataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.INTERNAL_URI_LIST);
+		};
+
+		const showOverlay = () => {
+			overlay.classList.add('visible');
+			if (!overlayText) {
+				const label = localize('attachAsContext', "Attach as Context");
+				const iconAndTextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${label}`);
+				const htmlElements = iconAndTextElements.map(element => {
+					if (typeof element === 'string') {
+						return dom.$('span.overlay-text', undefined, element);
+					}
+					return element;
+				});
+				overlayText = dom.$('span.attach-context-overlay-text', undefined, ...htmlElements);
+				overlay.appendChild(overlayText);
 			}
-		}, true));
+		};
 
-		this._register(dom.addDisposableListener(element, dom.EventType.DRAG_OVER, (e: DragEvent) => {
-			if (e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files')) {
-				e.preventDefault();
-				e.dataTransfer.dropEffect = 'copy';
-				if (overlay.style.display !== 'block') {
-					overlay.style.display = 'block';
-					element.classList.add('sessions-chat-drop-active');
+		const hideOverlay = () => {
+			overlay.classList.remove('visible');
+			overlayText?.remove();
+			overlayText = undefined;
+		};
+
+		this._register(new DragAndDropObserver(dndContainer, {
+			onDragOver: (e) => {
+				if (isDropSupported(e)) {
+					e.preventDefault();
+					e.stopPropagation();
+					if (e.dataTransfer) {
+						e.dataTransfer.dropEffect = 'copy';
+					}
+					showOverlay();
 				}
-			}
-		}, true));
+			},
+			onDragLeave: () => {
+				hideOverlay();
+			},
+			onDrop: async (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				hideOverlay();
 
-		this._register(dom.addDisposableListener(overlay, dom.EventType.DRAG_OVER, (e) => {
-			e.preventDefault();
-			e.dataTransfer!.dropEffect = 'copy';
-		}));
-
-		this._register(dom.addDisposableListener(overlay, dom.EventType.DRAG_LEAVE, (e) => {
-			if (e.relatedTarget && element.contains(e.relatedTarget as Node)) {
-				return;
-			}
-			overlay.style.display = 'none';
-			element.classList.remove('sessions-chat-drop-active');
-		}));
-
-		this._register(dom.addDisposableListener(overlay, dom.EventType.DROP, async (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-			overlay.style.display = 'none';
-			element.classList.remove('sessions-chat-drop-active');
-
-			// Try items first (for URI-based drops from VS Code tree views)
-			const items = e.dataTransfer?.items;
-			if (items) {
-				for (const item of Array.from(items)) {
-					if (item.kind === 'file') {
-						const file = item.getAsFile();
-						if (!file) {
-							continue;
+				// Extract editor data from VS Code internal drags (e.g., explorer view)
+				const editorDropData = extractEditorsDropData(e);
+				if (editorDropData.length > 0) {
+					for (const editor of editorDropData) {
+						if (editor.resource) {
+							await this._attachFileUri(editor.resource, basename(editor.resource));
 						}
-						const filePath = getPathForFile(file);
-						if (!filePath) {
-							continue;
+					}
+					return;
+				}
+
+				// Fallback: try native file items
+				const items = e.dataTransfer?.items;
+				if (items) {
+					for (const item of Array.from(items)) {
+						if (item.kind === 'file') {
+							const file = item.getAsFile();
+							if (!file) {
+								continue;
+							}
+							const filePath = getPathForFile(file);
+							if (!filePath) {
+								continue;
+							}
+							const uri = URI.file(filePath);
+							await this._attachFileUri(uri, file.name);
 						}
-						const uri = URI.file(filePath);
-						await this._attachFileUri(uri, file.name);
 					}
 				}
-			}
+			},
 		}));
 	}
 
@@ -446,6 +465,23 @@ export class NewChatContextAttachments extends Disposable {
 	}
 
 	private async _attachFileUri(uri: URI, name: string): Promise<void> {
+		let stat;
+		try {
+			stat = await this.fileService.stat(uri);
+		} catch {
+			return;
+		}
+
+		if (stat.isDirectory) {
+			this._addAttachments({
+				kind: 'directory',
+				id: uri.toString(),
+				value: uri,
+				name,
+			});
+			return;
+		}
+
 		if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(uri.path)) {
 			const readFile = await this.fileService.readFile(uri);
 			const resizedImage = await resizeImage(readFile.value.buffer);

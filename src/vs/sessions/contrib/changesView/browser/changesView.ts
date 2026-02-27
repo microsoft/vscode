@@ -54,6 +54,7 @@ import { createFileIconThemableTreeContainerScope } from '../../../../workbench/
 import { IActivityService, NumberBadge } from '../../../../workbench/services/activity/common/activity.js';
 import { IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 
@@ -236,6 +237,7 @@ export class ChangesViewPane extends ViewPane {
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -542,13 +544,24 @@ export class ChangesViewPane extends ViewPane {
 				return files > 0;
 			}));
 
+			// Check if a PR exists when the active session changes
+			this.renderDisposables.add(autorun(reader => {
+				const sessionResource = activeSessionResource.read(reader);
+				if (sessionResource) {
+					const metadata = this.agentSessionsService.getSession(sessionResource)?.metadata;
+					this.commandService.executeCommand('github.checkOpenPullRequest', sessionResource, metadata).catch(() => { /* ignore */ });
+				}
+			}));
+
 			this.renderDisposables.add(autorun(reader => {
 				const { isSessionMenu, added, removed } = topLevelStats.read(reader);
 				const sessionResource = activeSessionResource.read(reader);
+				const menuId = isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar;
+
 				reader.store.add(scopedInstantiationService.createInstance(
 					MenuWorkbenchButtonBar,
 					this.actionsContainer!,
-					isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar,
+					menuId,
 					{
 						telemetrySource: 'changesView',
 						menuOptions: isSessionMenu && sessionResource
@@ -562,7 +575,7 @@ export class ChangesViewPane extends ViewPane {
 								);
 								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'working-set-diff-stats', customLabel: diffStatsLabel };
 							}
-							if (action.id === 'github.createPullRequest') {
+							if (action.id === 'github.createPullRequest' || action.id === 'github.openPullRequest') {
 								return { showIcon: true, showLabel: true, isSecondary: true, customClass: 'flex-grow' };
 							}
 							if (action.id === 'chatEditing.applyToParentRepo') {

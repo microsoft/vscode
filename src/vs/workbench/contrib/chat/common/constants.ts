@@ -56,7 +56,6 @@ export enum ChatConfiguration {
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
-	ChatCustomizationUserStoragePath = 'chat.customizationsMenu.userStoragePath',
 }
 
 /**
