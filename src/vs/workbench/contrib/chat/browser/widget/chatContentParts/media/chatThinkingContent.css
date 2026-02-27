@@ -18,6 +18,8 @@
 	}
 
 	> .chat-used-context-label .monaco-button.monaco-icon-button {
+		display: flex;
+		align-items: center;
 		line-height: 1.5em;
 		font-size: 13px;
 
@@ -35,10 +37,17 @@
 
 		.rendered-markdown.chat-thinking-title-detail {
 			display: inline;
+			font-size: inherit;
+			line-height: inherit;
 
 			> p {
 				display: inline;
+				margin: 0;
 			}
+		}
+
+		.chat-thinking-title-detail-text {
+			opacity: 0.7;
 		}
 	}
 
@@ -160,7 +169,6 @@
 			padding: 6px 12px 6px 24px;
 			position: relative;
 			font-size: var(--vscode-chat-font-size-body-s);
-
 			.progress-container {
 				margin-bottom: 0px;
 				padding-top: 0px;

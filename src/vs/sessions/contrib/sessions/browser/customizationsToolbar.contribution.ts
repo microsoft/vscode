@@ -29,11 +29,9 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { getPromptSourceCounts, getSkillSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
+import { getSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-
-import { URI } from '../../../../base/common/uri.js';
 
 interface ICustomizationItemConfig {
 	readonly id: string;
@@ -41,7 +39,6 @@ interface ICustomizationItemConfig {
 	readonly icon: ThemeIcon;
 	readonly section: AICustomizationManagementSection;
 	readonly promptType?: PromptsType;
-	readonly getSourceCounts?: (promptsService: IPromptsService, excludedUserFileRoots: readonly URI[]) => Promise<ISourceCounts>;
 	readonly getCount?: (languageModelsService: ILanguageModelsService, mcpService: IMcpService) => Promise<number>;
 }
 
@@ -52,7 +49,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: agentIcon,
 		section: AICustomizationManagementSection.Agents,
 		promptType: PromptsType.agent,
-		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.agent, ex),
 	},
 	{
 		id: 'sessions.customization.skills',
@@ -60,7 +56,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: skillIcon,
 		section: AICustomizationManagementSection.Skills,
 		promptType: PromptsType.skill,
-		getSourceCounts: (ps, ex) => getSkillSourceCounts(ps, ex),
 	},
 	{
 		id: 'sessions.customization.instructions',
@@ -68,7 +63,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: instructionsIcon,
 		section: AICustomizationManagementSection.Instructions,
 		promptType: PromptsType.instructions,
-		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.instructions, ex),
 	},
 	{
 		id: 'sessions.customization.prompts',
@@ -76,7 +70,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: promptIcon,
 		section: AICustomizationManagementSection.Prompts,
 		promptType: PromptsType.prompt,
-		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.prompt, ex),
 	},
 	{
 		id: 'sessions.customization.hooks',
@@ -84,7 +77,6 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 		icon: hookIcon,
 		section: AICustomizationManagementSection.Hooks,
 		promptType: PromptsType.hook,
-		getSourceCounts: (ps, ex) => getPromptSourceCounts(ps, PromptsType.hook, ex),
 	},
 	// TODO: Re-enable MCP Servers once CLI MCP configuration is unified with VS Code
 ];
@@ -167,8 +159,10 @@ class CustomizationLinkViewItem extends ActionViewItem {
 			return;
 		}
 
-		if (this._config.getSourceCounts) {
-			const counts = await this._config.getSourceCounts(this._promptsService, this._workspaceService.excludedUserFileRoots);
+		if (this._config.promptType) {
+			const type = this._config.promptType;
+			const filter = this._workspaceService.getStorageSourceFilter(type);
+			const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService);
 			this._renderSourceCounts(this._countContainer, counts);
 		} else if (this._config.getCount) {
 			const count = await this._config.getCount(this._languageModelsService, this._mcpService);
@@ -179,14 +173,14 @@ class CustomizationLinkViewItem extends ActionViewItem {
 	private _renderSourceCounts(container: HTMLElement, counts: ISourceCounts): void {
 		container.textContent = '';
 		const type = this._config.promptType;
-		const visibleSources = type ? this._workspaceService.getVisibleStorageSources(type) : this._workspaceService.visibleStorageSources;
-		const total = getSourceCountsTotal(counts, this._workspaceService, type ?? PromptsType.prompt);
+		const filter = type ? this._workspaceService.getStorageSourceFilter(type) : this._workspaceService.getStorageSourceFilter(PromptsType.prompt);
+		const total = getSourceCountsTotal(counts, filter);
 		container.classList.toggle('hidden', total === 0);
 		if (total === 0) {
 			return;
 		}
 
-		const visibleSourcesSet = new Set(visibleSources);
+		const visibleSourcesSet = new Set(filter.sources);
 		const sources: { storage: PromptsStorage; count: number; icon: ThemeIcon; title: string }[] = [
 			{ storage: PromptsStorage.local, count: counts.workspace, icon: workspaceIcon, title: localize('workspaceCount', "{0} from workspace", counts.workspace) },
 			{ storage: PromptsStorage.user, count: counts.user, icon: userIcon, title: localize('userCount', "{0} from user", counts.user) },

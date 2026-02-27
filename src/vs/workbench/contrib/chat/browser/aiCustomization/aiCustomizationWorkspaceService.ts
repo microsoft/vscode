@@ -6,7 +6,7 @@
 import { derived, IObservable, observableFromEventOpts } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -53,20 +53,15 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.McpServers,
 	];
 
-	readonly visibleStorageSources: readonly PromptsStorage[] = [
-		PromptsStorage.local,
-		PromptsStorage.user,
-		PromptsStorage.extension,
-		PromptsStorage.plugin,
-	];
+	private static readonly _defaultFilter: IStorageSourceFilter = {
+		sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin],
+	};
 
-	getVisibleStorageSources(_type: PromptsType): readonly PromptsStorage[] {
-		return this.visibleStorageSources;
+	getStorageSourceFilter(_type: PromptsType): IStorageSourceFilter {
+		return AICustomizationWorkspaceService._defaultFilter;
 	}
 
-	readonly preferManualCreation = false;
-
-	readonly excludedUserFileRoots: readonly URI[] = [];
+	readonly isSessionsWindow = false;
 
 	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
 		// No-op in core VS Code.
