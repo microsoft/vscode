@@ -39,7 +39,11 @@ import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
+import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
+import { HOOK_TYPES } from '../../common/promptSyntax/hookSchema.js';
 
 const $ = DOM.$;
 
@@ -367,6 +371,8 @@ export class AICustomizationListWidget extends Disposable {
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -814,18 +820,53 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else if (promptType === PromptsType.hook) {
-			// Show hook files (not individual hooks) so users can open and edit them
+			// Try to parse individual hooks from each file; fall back to showing the file itself
 			const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
+			const activeRoot = this.workspaceService.getActiveProjectRoot();
+			const userHome = this.pathService.userHome({ preferLocal: true }).fsPath;
+
 			for (const hookFile of hookFiles) {
-				const filename = basename(hookFile.uri);
-				items.push({
-					id: hookFile.uri.toString(),
-					uri: hookFile.uri,
-					name: this.getFriendlyName(filename),
-					filename,
-					storage: hookFile.storage,
-					promptType,
-				});
+				let parsedHooks = false;
+				try {
+					const content = await this.fileService.readFile(hookFile.uri);
+					const json = JSON.parse(content.value.toString());
+					const { hooks } = parseHooksFromFile(hookFile.uri, json, activeRoot, userHome);
+
+					if (hooks.size > 0) {
+						parsedHooks = true;
+						for (const [hookType, entry] of hooks) {
+							const hookMeta = HOOK_TYPES.find(h => h.id === hookType);
+							for (let i = 0; i < entry.hooks.length; i++) {
+								const hook = entry.hooks[i];
+								const cmd = hook.command || hook.osx || hook.linux || hook.windows || '';
+								const truncatedCmd = cmd.length > 60 ? cmd.substring(0, 57) + '...' : cmd;
+								items.push({
+									id: `${hookFile.uri.toString()}#${entry.originalId}[${i}]`,
+									uri: hookFile.uri,
+									name: hookMeta?.label ?? entry.originalId,
+									filename: basename(hookFile.uri),
+									description: truncatedCmd || localize('hookUnset', "(unset)"),
+									storage: hookFile.storage,
+									promptType,
+								});
+							}
+						}
+					}
+				} catch {
+					// Parse failed — fall through to show raw file
+				}
+
+				if (!parsedHooks) {
+					const filename = basename(hookFile.uri);
+					items.push({
+						id: hookFile.uri.toString(),
+						uri: hookFile.uri,
+						name: this.getFriendlyName(filename),
+						filename,
+						storage: hookFile.storage,
+						promptType,
+					});
+				}
 			}
 		} else {
 			// For instructions, fetch prompt files and group by storage
