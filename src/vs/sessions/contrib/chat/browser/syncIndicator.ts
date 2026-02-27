@@ -81,6 +81,7 @@ export class SyncIndicator extends Disposable {
 
 		this._renderDisposables.add(dom.addDisposableListener(button, dom.EventType.CLICK, (e) => {
 			dom.EventHelper.stop(e, true);
+			console.log('[SyncIndicator] click, repository rootUri:', this._repository?.rootUri?.toString());
 			this.commandService.executeCommand(GIT_SYNC_COMMAND, this._repository?.rootUri);
 		}));
 

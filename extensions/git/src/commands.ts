@@ -5424,6 +5424,7 @@ export class CommandCenter {
 			} else {
 				// try to guess the repository based on the first argument
 				const repository = this.model.getRepository(args[0]);
+				console.log(`[git.createCommand] id=${id}, args[0]=${args[0]}, resolved repository=${repository?.root}, openRepos=${this.model.repositories.map(r => r.root).join(', ')}`);
 				let repositoryPromise: Promise<Repository | undefined>;
 
 				if (repository) {
