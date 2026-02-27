@@ -13,6 +13,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -34,10 +35,10 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 
 	private async updateWorkspaceFoldersForSession(session: IActiveSessionItem | undefined): Promise<void> {
 		await this.manageTrustWorkspaceForSession(session);
-		const activeSessionRepo = session?.providerType === AgentSessionProviders.Background ? session.worktree ?? session.repository : undefined;
+		const activeSessionFolderData = this.getActiveSessionFolderData(session);
 		const currentRepo = this.workspaceContextService.getWorkspace().folders[0]?.uri;
 
-		if (!activeSessionRepo) {
+		if (!activeSessionFolderData) {
 			if (currentRepo) {
 				await this.workspaceEditingService.removeFolders([currentRepo], true);
 			}
@@ -45,15 +46,34 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		}
 
 		if (!currentRepo) {
-			await this.workspaceEditingService.addFolders([{ uri: activeSessionRepo }], true);
+			await this.workspaceEditingService.addFolders([activeSessionFolderData], true);
 			return;
 		}
 
-		if (this.uriIdentityService.extUri.isEqual(currentRepo, activeSessionRepo)) {
+		if (this.uriIdentityService.extUri.isEqual(currentRepo, activeSessionFolderData.uri)) {
 			return;
 		}
 
-		await this.workspaceEditingService.updateFolders(0, 1, [{ uri: activeSessionRepo }], true);
+		await this.workspaceEditingService.updateFolders(0, 1, [activeSessionFolderData], true);
+	}
+
+	private getActiveSessionFolderData(session: IActiveSessionItem | undefined): IWorkspaceFolderCreationData | undefined {
+		if (session?.providerType !== AgentSessionProviders.Background) {
+			return undefined;
+		}
+
+		if (session.worktree) {
+			return {
+				uri: session.worktree,
+				name: session.repository ? `${this.uriIdentityService.extUri.basename(session.repository)} (worktree)` : undefined
+			};
+		}
+
+		if (session.repository) {
+			return { uri: session.repository };
+		}
+
+		return undefined;
 	}
 
 	private async manageTrustWorkspaceForSession(session: IActiveSessionItem | undefined): Promise<void> {
