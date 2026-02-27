@@ -113,10 +113,7 @@ function registerSyncAction(behind: number, ahead: number): IDisposable {
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
 			const sessionManagementService = accessor.get(ISessionsManagementService);
-			const activeSession = sessionManagementService.getActiveSession();
-			const worktreeUri = activeSession?.worktree;
-			console.log('[GitSync] activeSession:', activeSession);
-			console.log('[GitSync] worktreeUri:', worktreeUri?.toString());
+			const worktreeUri = sessionManagementService.getActiveSession()?.worktree;
 			await commandService.executeCommand('git.sync', worktreeUri);
 		}
 	}
