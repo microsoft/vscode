@@ -252,9 +252,6 @@ export function setup(context: TestContext) {
 		try {
 			const window = await context.getPage(app.firstWindow());
 			await test.run(window);
-		} catch (error) {
-			await context.captureScreenshot();
-			throw error;
 		} finally {
 			context.log('Closing the application');
 			await app.close();

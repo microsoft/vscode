@@ -38,7 +38,6 @@ export class TestContext {
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
 	private nextPort = 3010;
-	private currentPage: Page | undefined;
 	private currentTestName: string | undefined;
 
 	public constructor(public readonly options: Readonly<{
@@ -103,11 +102,9 @@ export class TestContext {
 
 			} catch (error) {
 				self.log(`Test failed with error: ${error instanceof Error ? error.message : String(error)}`);
-				await self.captureScreenshot();
 				throw error;
 
 			} finally {
-				self.currentPage = undefined;
 				self.currentTestName = undefined;
 
 				process.chdir(homeDir);
@@ -1075,15 +1072,14 @@ export class TestContext {
 	public async getPage(pagePromise: Promise<Page>): Promise<Page> {
 		const page = await pagePromise;
 		page.setDefaultTimeout(3 * 60 * 1000);
-		this.currentPage = page;
 		return page;
 	}
 
 	/**
 	 * Captures a screenshot of the current page if one is active.
 	 */
-	public async captureScreenshot(): Promise<void> {
-		if (!this.currentPage || !this.currentTestName) {
+	public async captureScreenshot(page: Page) {
+		if (!this.currentTestName) {
 			return;
 		}
 
@@ -1092,7 +1088,7 @@ export class TestContext {
 			fs.mkdirSync(screenshotDir, { recursive: true });
 			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
 			const screenshotPath = path.join(screenshotDir, `${sanitizedName}.png`);
-			await this.currentPage.screenshot({ path: screenshotPath, fullPage: true });
+			await page.screenshot({ path: screenshotPath, fullPage: true });
 			this.log(`Screenshot saved to: ${screenshotPath}`);
 		} catch (e) {
 			this.log(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);

@@ -52,9 +52,14 @@ export class UITest {
 	 * Run the UI test actions.
 	 */
 	public async run(page: Page) {
-		await this.dismissWorkspaceTrustDialog(page);
-		await this.createTextFile(page);
-		await this.installExtension(page);
+		try {
+			await this.dismissWorkspaceTrustDialog(page);
+			await this.createTextFile(page);
+			await this.installExtension(page);
+		} catch (error) {
+			await this.context.captureScreenshot(page);
+			throw error;
+		}
 	}
 
 	/**
