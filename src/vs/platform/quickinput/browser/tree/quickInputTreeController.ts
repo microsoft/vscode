@@ -62,7 +62,7 @@ export class QuickInputTreeController extends Disposable {
 	private readonly _onDidCheckedLeafItemsChange = this._register(new Emitter<ReadonlyArray<IQuickTreeItem>>());
 	readonly onDidChangeCheckedLeafItems = this._onDidCheckedLeafItemsChange.event;
 
-	private readonly _onLeave = new Emitter<void>();
+	private readonly _onLeave = this._register(new Emitter<void>());
 	/**
 	 * Event that is fired when the tree would no longer have focus.
 	*/

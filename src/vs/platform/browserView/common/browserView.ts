@@ -34,10 +34,12 @@ export interface IBrowserViewState {
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	storageScope: BrowserViewStorageScope;
+	zoomFactor: number;
 }
 
 export interface IBrowserViewNavigationEvent {
 	url: string;
+	title: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
 }
@@ -81,7 +83,7 @@ export interface IBrowserViewTitleChangeEvent {
 }
 
 export interface IBrowserViewFaviconChangeEvent {
-	favicon: string;
+	favicon: string | undefined;
 }
 
 export enum BrowserNewPageLocation {
@@ -151,6 +153,14 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Get the state of an existing browser view by ID, or throw if it doesn't exist
+	 * @param id The browser view identifier
+	 * @return The state of the browser view for the given ID
+	 * @throws If no browser view exists for the given ID
+	 */
+	getState(id: string): Promise<IBrowserViewState>;
 
 	/**
 	 * Update the bounds of a browser view

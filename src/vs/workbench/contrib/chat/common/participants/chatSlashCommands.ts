@@ -13,6 +13,7 @@ import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from 
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Target } from '../promptSyntax/service/promptsService.js';
 
 //#region slash service, commands etc
 
@@ -37,6 +38,7 @@ export interface IChatSlashData {
 
 	locations: ChatAgentLocation[];
 	modes?: ChatModeKind[];
+	target?: Target;
 }
 
 export interface IChatSlashFragment {

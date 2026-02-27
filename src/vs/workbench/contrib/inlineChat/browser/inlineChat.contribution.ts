@@ -29,6 +29,7 @@ registerEditorContribution(InlineChatController.ID, InlineChatController, Editor
 registerAction2(InlineChatActions.KeepSessionAction2);
 registerAction2(InlineChatActions.UndoSessionAction2);
 registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
+registerAction2(InlineChatActions.CancelSessionAction);
 
 // --- browser
 
@@ -84,10 +85,17 @@ const cancelActionMenuItem: IMenuItem = {
 
 MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, cancelActionMenuItem);
 
+
+
 // --- actions ---
 
 registerAction2(InlineChatActions.StartSessionAction);
+registerAction2(InlineChatActions.AskInChatAction);
 registerAction2(InlineChatActions.FocusInlineChat);
+registerAction2(InlineChatActions.SubmitInlineChatInputAction);
+registerAction2(InlineChatActions.QueueInChatAction);
+registerAction2(InlineChatActions.HideInlineChatInputAction);
+registerAction2(InlineChatActions.FixDiagnosticsAction);
 
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);

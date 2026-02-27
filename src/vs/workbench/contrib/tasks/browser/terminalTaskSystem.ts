@@ -232,7 +232,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._terminals = Object.create(null);
 		this._idleTaskTerminals = new LinkedMap<string, string>();
 		this._sameTaskTerminals = Object.create(null);
-		this._onDidStateChange = new Emitter();
+		this._onDidStateChange = this._register(new Emitter());
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = instantiationService.createInstance(TaskTerminalStatus));
 		this._register(this._taskProblemMonitor = instantiationService.createInstance(TaskProblemMonitor));
@@ -880,7 +880,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let promise: Promise<ITaskSummary> | undefined = undefined;
 		if (task.configurationProperties.isBackground) {
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-			const watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this._markerService, this._modelService, this._fileService);
+			const watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this._markerService, this._modelService, this._fileService, this._logService);
 			if ((problemMatchers.length > 0) && !watchingProblemMatcher.isWatching()) {
 				this._appendOutput(nls.localize('TerminalTaskSystem.nonWatchingMatcher', 'Task {0} is a background task but uses a problem matcher without a background pattern', task._label));
 				this._showOutput();
@@ -1047,7 +1047,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._fireTaskEvent(TaskEvent.general(TaskEventKind.Active, task, terminal.instanceId));
 
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
-			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService);
+			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService, this._logService);
 			this._terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
 			this._taskProblemMonitor.addTerminal(terminal, startStopProblemMatcher);
 			const problemMatcherListener = startStopProblemMatcher.onDidStateChange((event) => {
@@ -1710,11 +1710,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._collectMatcherVariables(variables, task.configurationProperties.problemMatchers);
 
 		if (task.command.runtime === RuntimeType.CustomExecution && (CustomTask.is(task) || ContributedTask.is(task))) {
-			let definition: any;
+			let definition: Record<string, unknown> | undefined;
 			if (CustomTask.is(task)) {
-				definition = task._source.config.element;
+				definition = task._source.config.element as Record<string, unknown>;
 			} else {
-				definition = Objects.deepClone(task.defines);
+				definition = Objects.deepClone(task.defines) as Record<string, unknown>;
 				delete definition._key;
 				delete definition.type;
 			}
@@ -1722,14 +1722,14 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 	}
 
-	private _collectDefinitionVariables(variables: Set<string>, definition: any): void {
+	private _collectDefinitionVariables(variables: Set<string>, definition: unknown): void {
 		if (Types.isString(definition)) {
 			this._collectVariables(variables, definition);
 		} else if (Array.isArray(definition)) {
-			definition.forEach((element: any) => this._collectDefinitionVariables(variables, element));
+			definition.forEach((element: unknown) => this._collectDefinitionVariables(variables, element));
 		} else if (Types.isObject(definition)) {
 			for (const key of Object.keys(definition)) {
-				this._collectDefinitionVariables(variables, definition[key]);
+				this._collectDefinitionVariables(variables, (definition as Record<string, unknown>)[key]);
 			}
 		}
 	}
@@ -1759,7 +1759,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const optionsEnv = options.env;
 			if (optionsEnv) {
 				Object.keys(optionsEnv).forEach((key) => {
-					const value: any = optionsEnv[key];
+					const value = optionsEnv[key];
 					if (Types.isString(value)) {
 						this._collectVariables(variables, value);
 					}
@@ -1912,11 +1912,11 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (options.env) {
 			result.env = Object.create(null);
 			for (const key of Object.keys(options.env)) {
-				const value: any = options.env[key];
+				const value = options.env[key];
 				if (Types.isString(value)) {
 					result.env![key] = await this._resolveVariable(resolver, value);
 				} else {
-					result.env![key] = value.toString();
+					result.env![key] = String(value);
 				}
 			}
 		}

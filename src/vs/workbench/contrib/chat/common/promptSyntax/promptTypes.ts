@@ -54,8 +54,8 @@ export function getLanguageIdForPromptsType(type: PromptsType): string {
 		case PromptsType.skill:
 			return SKILL_LANGUAGE_ID;
 		case PromptsType.hook:
-			// Hooks use JSON syntax with schema validation
-			return 'json';
+			// Hooks use JSONC syntax with schema validation
+			return 'jsonc';
 		default:
 			throw new Error(`Unknown prompt type: ${type}`);
 	}
@@ -71,7 +71,7 @@ export function getPromptsTypeForLanguageId(languageId: string): PromptsType | u
 			return PromptsType.agent;
 		case SKILL_LANGUAGE_ID:
 			return PromptsType.skill;
-		// Note: hook uses 'json' language ID which is shared, so we don't map it here
+		// Note: hook uses 'jsonc' language ID which is shared, so we don't map it here
 		default:
 			return undefined;
 	}

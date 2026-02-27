@@ -7,6 +7,10 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { localize } from '../../../../nls.js';
 import {
 	IBrowserViewBounds,
 	IBrowserViewNavigationEvent,
@@ -43,6 +47,19 @@ type IntegratedBrowserNavigationClassification = {
 	comment: 'Tracks navigation patterns in integrated browser';
 };
 
+
+type IntegratedBrowserShareWithAgentEvent = {
+	shared: boolean;
+	dontAskAgain: boolean;
+};
+
+type IntegratedBrowserShareWithAgentClassification = {
+	shared: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the content was shared with the agent' };
+	dontAskAgain: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user chose to not be asked again' };
+	owner: 'kycutler';
+	comment: 'Tracks user choices around sharing browser content with agents';
+};
+
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
 /**
@@ -58,6 +75,14 @@ export interface IBrowserViewWorkbenchService {
 	 * @returns A browser view model that proxies to the main process
 	 */
 	getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel>;
+
+	/**
+	 * Get an existing browser view model for the given ID
+	 * @param id The browser view identifier
+	 * @returns A browser view model that proxies to the main process
+	 * @throws If no browser view exists for the given ID
+	 */
+	getBrowserViewModel(id: string): Promise<IBrowserViewModel>;
 
 	/**
 	 * Clear all storage data for the global browser session
@@ -88,9 +113,11 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly isDevToolsOpen: boolean;
 	readonly canGoForward: boolean;
 	readonly error: IBrowserViewLoadError | undefined;
-
 	readonly storageScope: BrowserViewStorageScope;
+	readonly sharedWithAgent: boolean;
+	readonly zoomFactor: number;
 
+	readonly onDidChangeSharedWithAgent: Event<boolean>;
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent>;
@@ -104,7 +131,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidClose: Event<void>;
 	readonly onWillDispose: Event<void>;
 
-	initialize(): Promise<void>;
+	initialize(create: boolean): Promise<void>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
@@ -120,6 +147,7 @@ export interface IBrowserViewModel extends IDisposable {
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
+	setSharedWithAgent(shared: boolean): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -135,6 +163,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _canGoForward: boolean = false;
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
+	private _sharedWithAgent: boolean = false;
+	private _zoomFactor: number = 1;
+
+	private readonly _onDidChangeSharedWithAgent = this._register(new Emitter<boolean>());
+	readonly onDidChangeSharedWithAgent: Event<boolean> = this._onDidChangeSharedWithAgent.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
@@ -145,7 +178,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 	}
@@ -162,6 +198,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get screenshot(): VSBuffer | undefined { return this._screenshot; }
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
+	get sharedWithAgent(): boolean { return this._sharedWithAgent; }
+	get zoomFactor(): number { return this._zoomFactor; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -208,9 +246,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	/**
-	 * Initialize the model with the current state from the main process
+	 * Initialize the model with the current state from the main process.
+	 * @param create Whether to create the browser view if it doesn't already exist.
+	 * @throws If the browser view doesn't exist and `create` is false, or if initialization fails
 	 */
-	async initialize(): Promise<void> {
+	async initialize(create: boolean): Promise<void> {
 		const dataStorageSetting = this.configurationService.getValue<BrowserViewStorageScope>(
 			'workbench.browser.dataStorage'
 		) ?? BrowserViewStorageScope.Global;
@@ -225,7 +265,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		const dataStorage = isWorkspaceUntrusted ? BrowserViewStorageScope.Ephemeral : dataStorageSetting;
 
 		const workspaceId = this.workspaceContextService.getWorkspace().id;
-		const state = await this.browserViewService.getOrCreateBrowserView(this.id, dataStorage, workspaceId);
+		const state = create
+			? await this.browserViewService.getOrCreateBrowserView(this.id, dataStorage, workspaceId)
+			: await this.browserViewService.getState(this.id);
 
 		this._url = state.url;
 		this._title = state.title;
@@ -239,6 +281,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._favicon = state.lastFavicon;
 		this._error = state.lastError;
 		this._storageScope = state.storageScope;
+		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
+		this._zoomFactor = state.zoomFactor;
 
 		// Set up state synchronization
 
@@ -249,6 +293,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			}
 
 			this._url = e.url;
+			this._title = e.title;
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
 		}));
@@ -277,9 +322,14 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._register(this.onDidChangeVisibility(({ visible }) => {
 			this._visible = visible;
 		}));
+
+		this._register(this.playwrightService.onDidChangeTrackedPages(ids => {
+			this._setSharedWithAgent(ids.includes(this.id));
+		}));
 	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
+		this._zoomFactor = bounds.zoomFactor;
 		return this.browserViewService.layout(this.id, bounds);
 	}
 
@@ -343,6 +393,66 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async clearStorage(): Promise<void> {
 		return this.browserViewService.clearStorage(this.id);
+	}
+
+	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';
+
+	async setSharedWithAgent(shared: boolean): Promise<void> {
+		if (shared) {
+			const storedChoice = this.storageService.getBoolean(BrowserViewModel.SHARE_DONT_ASK_KEY, StorageScope.PROFILE);
+
+			if (!storedChoice) {
+				// First time (or no stored preference) -- ask.
+				const result = await this.dialogService.confirm({
+					type: 'question',
+					title: localize('browserView.shareWithAgent.title', 'Share with Agent?'),
+					message: localize('browserView.shareWithAgent.message', 'Share this browser page with the agent?'),
+					detail: localize(
+						'browserView.shareWithAgent.detail',
+						'The agent will be able to read and modify browser content and saved data, including cookies.'
+					),
+					primaryButton: localize('browserView.shareWithAgent.allow', '&&Allow'),
+					cancelButton: localize('browserView.shareWithAgent.deny', 'Deny'),
+					checkbox: { label: localize('browserView.shareWithAgent.dontAskAgain', "Don't ask again"), checked: false },
+				});
+
+				// Only persist "don't ask again" if user accepted sharing, so the button doesn't just do nothing.
+				if (result.confirmed && result.checkboxChecked) {
+					this.storageService.store(BrowserViewModel.SHARE_DONT_ASK_KEY, result.confirmed, StorageScope.PROFILE, StorageTarget.USER);
+				}
+
+				this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
+					'integratedBrowser.shareWithAgent',
+					{
+						shared: result.confirmed,
+						dontAskAgain: result.checkboxChecked ?? false
+					}
+				);
+
+				if (!result.confirmed) {
+					return;
+				}
+			} else {
+				this.telemetryService.publicLog2<IntegratedBrowserShareWithAgentEvent, IntegratedBrowserShareWithAgentClassification>(
+					'integratedBrowser.shareWithAgent',
+					{
+						shared: true,
+						dontAskAgain: true
+					}
+				);
+			}
+
+			await this.playwrightService.startTrackingPage(this.id);
+		} else {
+			await this.playwrightService.stopTrackingPage(this.id);
+		}
+	}
+
+	private _setSharedWithAgent(isShared: boolean): void {
+		if (isShared !== this._sharedWithAgent) {
+			this._sharedWithAgent = isShared;
+			this._onDidChangeSharedWithAgent.fire(isShared);
+		}
 	}
 
 	/**

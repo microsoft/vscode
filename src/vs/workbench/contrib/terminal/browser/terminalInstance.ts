@@ -150,7 +150,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _latestXtermParseData: number = 0;
 	private _isExiting: boolean;
 	private _hadFocusOnExit: boolean;
-	private _isVisible: boolean;
 	private _exitCode: number | undefined;
 	private _exitReason: TerminalExitReason | undefined;
 	private _skipTerminalCommands: string[];
@@ -217,6 +216,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	set waitOnExit(value: ITerminalInstance['waitOnExit']) {
 		this._shellLaunchConfig.waitOnExit = value;
 	}
+
+	private _isVisible: boolean;
+	get isVisible(): boolean { return this._isVisible; }
 
 	private _targetRef: ImmortalReference<TerminalLocation | undefined> = new ImmortalReference(undefined);
 	get targetRef(): IReference<TerminalLocation | undefined> { return this._targetRef; }
@@ -474,12 +476,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				case TerminalCapability.CommandDetection: {
 					e.capability.promptInputModel.setShellType(this.shellType);
-					capabilityListeners.set(e.id, Event.any(
+					// Use DisposableStore to track multiple listeners for this capability
+					const store = new DisposableStore();
+					store.add(Event.any(
 						e.capability.promptInputModel.onDidStartInput,
 						e.capability.promptInputModel.onDidChangeInput,
 						e.capability.promptInputModel.onDidFinishInput
 					)(refreshInfo));
-					this._register(e.capability.onCommandExecuted(async (command) => {
+					store.add(e.capability.onCommandExecuted(async (command) => {
 						// Only generate ID if command doesn't already have one (i.e., it's a manual command, not Copilot-initiated)
 						// The tool terminal sets the command ID before command start, so this won't override it
 						if (!command.id && command.command) {
@@ -488,6 +492,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							await this._processManager.setNextCommandId(command.command, commandId);
 						}
 					}));
+					capabilityListeners.set(e.id, store);
 					break;
 				}
 				case TerminalCapability.PromptTypeDetection: {
@@ -513,7 +518,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// When a custom pty is used set the name immediately so it gets passed over to the exthost
 		// and is available when Pseudoterminal.open fires.
-		if (this.shellLaunchConfig.customPtyImplementation) {
+		if (this.shellLaunchConfig.customPtyImplementation && !this._shellLaunchConfig.titleTemplate) {
 			this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 		}
 
@@ -1466,7 +1471,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					}
 				}));
 			}
-			if (this._shellLaunchConfig.name) {
+			if (this._shellLaunchConfig.name && !this._shellLaunchConfig.titleTemplate) {
 				this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
 			} else {
 				// Listen to xterm.js' sequence title change event, trigger this async to ensure
@@ -1478,7 +1483,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 						}
 					});
 				});
-				this._setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
+				// When a title template is provided, use the name as the initial process name
+				// so it can be referenced via ${process} in the template
+				if (this._shellLaunchConfig.titleTemplate && this._shellLaunchConfig.name) {
+					this._setTitle(this._shellLaunchConfig.name, TitleEventSource.Process);
+				} else {
+					this._setTitle(this._shellLaunchConfig.executable, TitleEventSource.Process);
+				}
 			}
 		}));
 		this._register(processManager.onProcessExit(exitCode => this._onProcessExit(exitCode)));
@@ -2001,7 +2012,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _updatePtyDimensions(rawXterm: XTermTerminal): Promise<void> {
-		await this._processManager.setDimensions(rawXterm.cols, rawXterm.rows);
+		const pixelWidth = rawXterm.dimensions?.css.canvas.width;
+		const pixelHeight = rawXterm.dimensions?.css.canvas.height;
+		const roundedPixelWidth = pixelWidth ? Math.round(pixelWidth) : undefined;
+		const roundedPixelHeight = pixelHeight ? Math.round(pixelHeight) : undefined;
+		await this._processManager.setDimensions(rawXterm.cols, rawXterm.rows, undefined, roundedPixelWidth, roundedPixelHeight);
 	}
 
 	setShellType(shellType: TerminalShellType | undefined) {
@@ -2624,7 +2639,8 @@ export class TerminalLabelComputer extends Disposable {
 	}
 
 	refreshLabel(instance: Pick<ITerminalInstance, 'shellLaunchConfig' | 'shellType' | 'cwd' | 'fixedCols' | 'fixedRows' | 'initialCwd' | 'processName' | 'sequence' | 'userHome' | 'workspaceFolder' | 'staticTitle' | 'capabilities' | 'title' | 'description'>, reset?: boolean): void {
-		this._title = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.title, TerminalLabelType.Title, reset);
+		const titleTemplate = instance.shellLaunchConfig.titleTemplate ?? this._terminalConfigurationService.config.tabs.title;
+		this._title = this.computeLabel(instance, titleTemplate, TerminalLabelType.Title, reset);
 		this._description = this.computeLabel(instance, this._terminalConfigurationService.config.tabs.description, TerminalLabelType.Description);
 		if (this._title !== instance.title || this._description !== instance.description || reset) {
 			this._onDidChangeLabel.fire({ title: this._title, description: this._description });

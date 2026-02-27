@@ -174,7 +174,6 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'chat',
 			label: localize('chat', "Chat"),
-			settings: ['chat.*'],
 			children: [
 				{
 					id: 'chat/agent',
@@ -187,7 +186,8 @@ export const tocData: ITOCEntry<string> = {
 						'chat.undoRequests.*',
 						'chat.customAgentInSubagent.*',
 						'chat.editing.autoAcceptDelay',
-						'chat.editing.confirmEditRequest*'
+						'chat.editing.confirmEditRequest*',
+						'chat.planAgent.defaultModel'
 					]
 				},
 				{
@@ -209,7 +209,9 @@ export const tocData: ITOCEntry<string> = {
 						'chat.notifyWindow*',
 						'chat.statusWidget.*',
 						'chat.tips.*',
-						'chat.unifiedAgentsBar.*'
+						'chat.unifiedAgentsBar.*',
+						'accessibility.signals.chatUserActionRequired',
+						'accessibility.signals.chatResponseReceived'
 					]
 				},
 				{
@@ -244,6 +246,7 @@ export const tocData: ITOCEntry<string> = {
 					label: localize('chatContext', "Context"),
 					settings: [
 						'chat.detectParticipant.*',
+						'chat.experimental.detectParticipant.*',
 						'chat.implicitContext.*',
 						'chat.promptFilesLocations',
 						'chat.instructionsFilesLocations',
@@ -256,10 +259,11 @@ export const tocData: ITOCEntry<string> = {
 						'chat.useNestedAgentsMdFiles',
 						'chat.useAgentSkills',
 						'chat.experimental.useSkillAdherencePrompt',
-						'chat.useChatHooks',
+						'chat.useHooks',
 						'chat.includeApplyingInstructions',
 						'chat.includeReferencedInstructions',
-						'chat.sendElementsToChat.*'
+						'chat.sendElementsToChat.*',
+						'chat.useClaudeMdFile'
 					]
 				},
 				{
@@ -402,6 +406,11 @@ export const tocData: ITOCEntry<string> = {
 					id: 'application/settingsSync',
 					label: localize('settingsSync', "Settings Sync"),
 					settings: ['settingsSync.*']
+				},
+				{
+					id: 'application/network',
+					label: localize('network', "Network"),
+					settings: ['network.*']
 				},
 				{
 					id: 'application/experimental',

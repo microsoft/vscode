@@ -2,7 +2,7 @@
   "name": "configuration-editing",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -22,7 +22,13 @@
   "browser": "./dist/browser/configurationEditingMain",
   "scripts": {
     "compile": "gulp compile-extension:configuration-editing",
-    "watch": "gulp watch-extension:configuration-editing"
+    "watch": "gulp watch-extension:configuration-editing",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
     "@octokit/rest": "^21.1.1",

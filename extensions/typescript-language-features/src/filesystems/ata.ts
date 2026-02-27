@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { conditionalRegistration, requireGlobalConfiguration } from '../languageFeatures/util/dependentRegistration';
+import { conditionalRegistration, requireGlobalUnifiedConfig } from '../languageFeatures/util/dependentRegistration';
 import { supportsReadableByteStreams } from '../utils/platform';
 import { AutoInstallerFs } from './autoInstallerFs';
 import { MemFs } from './memFs';
@@ -16,7 +16,7 @@ export function registerAtaSupport(logger: Logger): vscode.Disposable {
 	}
 
 	return conditionalRegistration([
-		requireGlobalConfiguration('typescript', 'tsserver.web.typeAcquisition.enabled'),
+		requireGlobalUnifiedConfig('tsserver.web.typeAcquisition.enabled', { fallbackSection: 'typescript' }),
 	], () => {
 		return vscode.Disposable.from(
 			// Ata

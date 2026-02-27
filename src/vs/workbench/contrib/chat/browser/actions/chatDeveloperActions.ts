@@ -12,6 +12,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatWidgetService } from '../chat.js';
 
 function uriReplacer(_key: string, value: unknown): unknown {
@@ -31,6 +32,7 @@ export function registerChatDeveloperActions() {
 	registerAction2(LogChatInputHistoryAction);
 	registerAction2(LogChatIndexAction);
 	registerAction2(InspectChatModelAction);
+	registerAction2(ClearRecentlyUsedLanguageModelsAction);
 }
 
 class LogChatInputHistoryAction extends Action2 {
@@ -124,5 +126,23 @@ class InspectChatModelAction extends Action2 {
 				pinned: true
 			}
 		});
+	}
+}
+
+class ClearRecentlyUsedLanguageModelsAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.clearRecentlyUsedLanguageModels';
+
+	constructor() {
+		super({
+			id: ClearRecentlyUsedLanguageModelsAction.ID,
+			title: localize2('workbench.action.chat.clearRecentlyUsedLanguageModels.label', "Clear Recently Used Language Models"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(ILanguageModelsService).clearRecentlyUsedList();
 	}
 }

@@ -10,6 +10,7 @@ import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Disposable } from '../utils/dispose';
+import { readUnifiedConfig } from '../utils/configuration';
 import { Condition, conditionalRegistration } from './util/dependentRegistration';
 
 class TagClosing extends Disposable {
@@ -149,7 +150,7 @@ function requireActiveDocumentSetting(
 				return false;
 			}
 
-			return !!vscode.workspace.getConfiguration(language.id, editor.document).get('autoClosingTags');
+			return !!readUnifiedConfig<boolean>('autoClosingTags.enabled', true, { scope: editor.document, fallbackSection: language.id, fallbackSubSectionNameOverride: 'autoClosingTags' });
 		},
 		handler => {
 			return vscode.Disposable.from(

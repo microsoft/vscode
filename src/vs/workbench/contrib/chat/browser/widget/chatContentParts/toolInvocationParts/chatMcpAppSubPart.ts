@@ -179,16 +179,16 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		errorMessage.appendText(localize('mcpAppError', 'Error loading MCP App: {0}', error.message || String(error)));
 
 		// Use ChatErrorWidget for consistent error styling
-		const errorWidget = new ChatErrorWidget(ChatErrorLevel.Error, errorMessage, this._markdownRendererService);
+		const errorWidget = this._register(new ChatErrorWidget(ChatErrorLevel.Error, errorMessage, this._markdownRendererService));
 		errorNode.appendChild(errorWidget.domNode);
 
 		// Add retry button
 		const buttonContainer = dom.append(errorNode, dom.$('.chat-buttons-container'));
-		const retryButton = new Button(buttonContainer, defaultButtonStyles);
+		const retryButton = this._register(new Button(buttonContainer, defaultButtonStyles));
 		retryButton.label = localize('retry', 'Retry');
-		retryButton.onDidClick(() => {
+		this._register(retryButton.onDidClick(() => {
 			this._model.retry();
-		});
+		}));
 
 		container.appendChild(errorNode);
 		this._errorNode = errorNode;

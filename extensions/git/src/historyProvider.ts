@@ -309,7 +309,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					processHoverRemoteCommands(remoteHoverCommands, commit.hash)
 				];
 
-				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, commands);
+				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, commands, commit.coAuthors);
 
 				historyItems.push({
 					id: commit.hash,

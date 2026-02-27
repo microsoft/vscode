@@ -974,7 +974,6 @@ async function main() {
 
 	if (
 		e('VSCODE_BUILD_STAGE_LINUX') === 'True' ||
-		e('VSCODE_BUILD_STAGE_ALPINE') === 'True' ||
 		e('VSCODE_BUILD_STAGE_MACOS') === 'True' ||
 		e('VSCODE_BUILD_STAGE_WINDOWS') === 'True'
 	) {

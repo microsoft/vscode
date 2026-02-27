@@ -75,6 +75,11 @@ import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, ILi
 
 const $ = DOM.$;
 
+const multiGroupTocSettings = new Set([
+	'accessibility.signals.chatUserActionRequired',
+	'accessibility.signals.chatResponseReceived'
+]);
+
 function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): IIncludeExcludeDataItem[] {
 	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
 		? element.defaultValue ?? {}
@@ -488,6 +493,7 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 	const processGroupEntry = async (group: ISettingsGroup) => {
 		const flatSettings = group.sections.map(section => section.settings).flat();
 		const settings = filter ? getMatchingSettings(new Set(flatSettings), filter) : flatSettings;
+		sortSettings(settings);
 
 		const extensionId = group.extensionInfo!.id;
 		const extension = await extensionService.getExtension(extensionId);
@@ -575,6 +581,7 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 			},
 			exclude: filter?.exclude ?? {}
 		});
+		sortSettings(settings);
 	}
 
 	if (!children && !settings) {
@@ -587,6 +594,36 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 		children,
 		settings
 	};
+}
+
+/**
+ * Sort settings so that preview and experimental settings are deprioritized.
+ * Within each tier, sort the settings by order, then alphabetically.
+ */
+function sortSettings(settings: ISetting[]): void {
+	const SETTING_STATUS_NORMAL = 0;
+	const SETTING_STATUS_PREVIEW = 1;
+	const SETTING_STATUS_EXPERIMENTAL = 2;
+
+	const getExperimentalStatus = (setting: ISetting) => {
+		if (setting.tags?.includes('experimental')) {
+			return SETTING_STATUS_EXPERIMENTAL;
+		} else if (setting.tags?.includes('preview')) {
+			return SETTING_STATUS_PREVIEW;
+		}
+		return SETTING_STATUS_NORMAL;
+	};
+
+	settings.sort((a, b) => {
+		const experimentalStatusA = getExperimentalStatus(a);
+		const experimentalStatusB = getExperimentalStatus(b);
+		if (experimentalStatusA !== experimentalStatusB) {
+			return experimentalStatusA - experimentalStatusB;
+		}
+
+		const orderComparison = compareTwoNullableNumbers(a.order, b.order);
+		return orderComparison !== 0 ? orderComparison : a.key.localeCompare(b.key);
+	});
 }
 
 function getMatchingSettings(allSettings: Set<ISetting>, filter: ITOCFilter): ISetting[] {
@@ -633,35 +670,13 @@ function getMatchingSettings(allSettings: Set<ISetting>, filter: ITOCFilter): IS
 		// Include if matches include filter and doesn't match exclude filter
 		if (shouldInclude && !shouldExclude) {
 			result.push(setting);
-			allSettings.delete(setting);
+			if (!multiGroupTocSettings.has(setting.key)) {
+				allSettings.delete(setting);
+			}
 		}
 	});
 
-	const SETTING_STATUS_NORMAL = 0;
-	const SETTING_STATUS_PREVIEW = 1;
-	const SETTING_STATUS_EXPERIMENTAL = 2;
-
-	const getExperimentalStatus = (setting: ISetting) => {
-		if (setting.tags?.includes('experimental')) {
-			return SETTING_STATUS_EXPERIMENTAL;
-		} else if (setting.tags?.includes('preview')) {
-			return SETTING_STATUS_PREVIEW;
-		}
-		return SETTING_STATUS_NORMAL;
-	};
-
-	// Sort settings so that preview and experimental settings are deprioritized.
-	// Within each tier, sort the settings by order, then alphabetically.
-	return result.sort((a, b) => {
-		const experimentalStatusA = getExperimentalStatus(a);
-		const experimentalStatusB = getExperimentalStatus(b);
-		if (experimentalStatusA !== experimentalStatusB) {
-			return experimentalStatusA - experimentalStatusB;
-		}
-
-		const orderComparison = compareTwoNullableNumbers(a.order, b.order);
-		return orderComparison !== 0 ? orderComparison : a.key.localeCompare(b.key);
-	});
+	return result;
 }
 
 const settingPatternCache = new Map<string, RegExp>();

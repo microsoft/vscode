@@ -32,16 +32,38 @@ export class ChatVariablesService implements IChatVariablesService {
 			return [];
 		}
 
+		// track for editing state
+		if (widget.viewModel.editing && model.variables.length > 0) {
+			return model.variables;
+		}
+
 		if (widget.input.attachmentModel.attachments.length > 0 && widget.viewModel.editing) {
 			const references: IDynamicVariable[] = [];
+			const editorModel = widget.inputEditor.getModel();
+			const modelTextLength = editorModel?.getValueLength() ?? 0;
 			for (const attachment of widget.input.attachmentModel.attachments) {
 				// If the attachment has a range, it is a dynamic variable
 				if (attachment.range) {
+					if (attachment.range.start >= attachment.range.endExclusive) {
+						continue;
+					}
+
+					if (attachment.range.start < 0 || attachment.range.endExclusive > modelTextLength) {
+						continue;
+					}
+
+					if (!editorModel) {
+						continue;
+					}
+
+					const startPos = editorModel.getPositionAt(attachment.range.start);
+					const endPos = editorModel.getPositionAt(attachment.range.endExclusive);
+
 					const referenceObj: IDynamicVariable = {
 						id: attachment.id,
 						fullName: attachment.name,
 						modelDescription: attachment.modelDescription,
-						range: new Range(1, attachment.range.start + 1, 1, attachment.range.endExclusive + 1),
+						range: new Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column),
 						icon: attachment.icon,
 						isFile: attachment.kind === 'file',
 						isDirectory: attachment.kind === 'directory',
@@ -51,7 +73,7 @@ export class ChatVariablesService implements IChatVariablesService {
 				}
 			}
 
-			return [...model.variables, ...references];
+			return references.length > 0 ? references : model.variables;
 		}
 
 		return model.variables;

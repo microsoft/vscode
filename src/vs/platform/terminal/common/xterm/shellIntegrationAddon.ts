@@ -21,20 +21,17 @@ import { removeAnsiEscapeCodesFromPrompt } from '../../../../base/common/strings
 import { ShellEnvDetectionCapability } from '../capabilities/shellEnvDetectionCapability.js';
 import { PromptTypeDetectionCapability } from '../capabilities/promptTypeDetectionCapability.js';
 
-
-/**
- * Shell integration is a feature that enhances the terminal's understanding of what's happening
- * in the shell by injecting special sequences into the shell's prompt using the "Set Text
- * Parameters" sequence (`OSC Ps ; Pt ST`).
- *
- * Definitions:
- * - OSC: `\x1b]`
- * - Ps:  A single (usually optional) numeric parameter, composed of one or more digits.
- * - Pt:  A text parameter composed of printable characters.
- * - ST: `\x7`
- *
- * This is inspired by a feature of the same name in the FinalTerm, iTerm2 and kitty terminals.
- */
+// Shell integration is a feature that enhances the terminal's understanding of what's happening
+// in the shell by injecting special sequences into the shell's prompt using the "Set Text
+// Parameters" sequence (`OSC Ps ; Pt ST`).
+//
+// Definitions:
+// - OSC: `\x1b]`
+// - Ps:  A single (usually optional) numeric parameter, composed of one or more digits.
+// - Pt:  A text parameter composed of printable characters.
+// - ST: `\x7`
+//
+// This is inspired by a feature of the same name in the FinalTerm, iTerm2 and kitty terminals.
 
 /**
  * The identifier for the first numeric parameter (`Ps`) for OSC commands used by shell integration.
@@ -174,12 +171,16 @@ const enum VSCodeOscPt {
 	/**
 	 * Similar to prompt start but for line continuations.
 	 *
+	 * Format: `OSC 633 ; F ST`
+	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	ContinuationStart = 'F',
 
 	/**
 	 * Similar to command start but for line continuations.
+	 *
+	 * Format: `OSC 633 ; G ST`
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -188,12 +189,16 @@ const enum VSCodeOscPt {
 	/**
 	 * The start of the right prompt.
 	 *
+	 * Format: `OSC 633 ; H ST`
+	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
 	RightPromptStart = 'H',
 
 	/**
 	 * The end of the right prompt.
+	 *
+	 * Format: `OSC 633 ; I ST`
 	 *
 	 * WARNING: This sequence is unfinalized, DO NOT use this in your shell integration script.
 	 */
@@ -224,7 +229,7 @@ const enum VSCodeOscPt {
 	/**
 	 * Sets a mark/point-of-interest in the buffer.
 	 *
-	 * Format: `OSC 633 ; SetMark [; Id=<string>] [; Hidden]`
+	 * Format: `OSC 633 ; SetMark [; Id=<string>] [; Hidden] ST`
 	 *
 	 * `Id` - The identifier of the mark that can be used to reference it
 	 * `Hidden` - When set, the mark will be available to reference internally but will not visible
@@ -236,7 +241,7 @@ const enum VSCodeOscPt {
 	/**
 	 * Sends the shell's complete environment in JSON format.
 	 *
-	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce>`
+	 * Format: `OSC 633 ; EnvJson ; <Environment> ; <Nonce> ST`
 	 *
 	 * - `Environment` - A stringified JSON object containing the shell's complete environment. The
 	 *    variables and values use the same encoding rules as the {@link CommandLine} sequence.
@@ -250,7 +255,7 @@ const enum VSCodeOscPt {
 	/**
 	 * Delete a single environment variable from cached environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 * Format: `OSC 633 ; EnvSingleDelete ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>] ST`
 	 *
 	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
 	 *   to enable some features. This helps ensure no malicious command injection has occurred.
@@ -262,7 +267,7 @@ const enum VSCodeOscPt {
 	/**
 	 * The start of the collecting user's environment variables individually.
 	 *
-	 * Format: `OSC 633 ; EnvSingleStart ; <Clear> [; <Nonce>]`
+	 * Format: `OSC 633 ; EnvSingleStart ; <Clear> [; <Nonce>] ST`
 	 *
 	 * - `Clear` - An _mandatory_ flag indicating any cached environment variables will be cleared.
 	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
@@ -275,7 +280,7 @@ const enum VSCodeOscPt {
 	/**
 	 * Sets an entry of single environment variable to transactional pending map of environment variables.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>]`
+	 * Format: `OSC 633 ; EnvSingleEntry ; <EnvironmentKey> ; <EnvironmentValue> [; <Nonce>] ST`
 	 *
 	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
 	 *   to enable some features. This helps ensure no malicious command injection has occurred.
@@ -288,7 +293,7 @@ const enum VSCodeOscPt {
 	 * The end of the collecting user's environment variables individually.
 	 * Clears any pending environment variables and fires an event that contains user's environment.
 	 *
-	 * Format: `OSC 633 ; EnvSingleEnd [; <Nonce>]`
+	 * Format: `OSC 633 ; EnvSingleEnd [; <Nonce>] ST`
 	 *
 	 * - `Nonce` - An optional nonce can be provided which may be required by the terminal in order
 	 *   to enable some features. This helps ensure no malicious command injection has occurred.
@@ -305,7 +310,7 @@ const enum ITermOscPt {
 	/**
 	 * Sets a mark/point-of-interest in the buffer.
 	 *
-	 * Format: `OSC 1337 ; SetMark`
+	 * Format: `OSC 1337 ; SetMark ST`
 	 */
 	SetMark = 'SetMark',
 
@@ -335,9 +340,9 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	private _status: ShellIntegrationStatus = ShellIntegrationStatus.Off;
 	get status(): ShellIntegrationStatus { return this._status; }
 
-	private readonly _onDidChangeStatus = new Emitter<ShellIntegrationStatus>();
+	private readonly _onDidChangeStatus = this._register(new Emitter<ShellIntegrationStatus>());
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
-	private readonly _onDidChangeSeenSequences = new Emitter<ReadonlySet<string>>();
+	private readonly _onDidChangeSeenSequences = this._register(new Emitter<ReadonlySet<string>>());
 	readonly onDidChangeSeenSequences = this._onDidChangeSeenSequences.event;
 
 	constructor(

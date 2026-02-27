@@ -140,6 +140,8 @@ export interface IChatEntitlementService {
 	readonly entitlement: ChatEntitlement;
 	readonly entitlementObs: IObservable<ChatEntitlement>;
 
+	readonly previewFeaturesDisabled: boolean;
+
 	readonly organisations: string[] | undefined;
 	readonly isInternal: boolean;
 	readonly sku: string | undefined;
@@ -161,6 +163,8 @@ export interface IChatEntitlementService {
 	readonly onDidChangeAnonymous: Event<void>;
 	readonly anonymous: boolean;
 	readonly anonymousObs: IObservable<boolean>;
+
+	markAnonymousRateLimited(): void;
 
 	update(token: CancellationToken): Promise<void>;
 }
@@ -373,6 +377,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		return this.context?.value.state.copilotTrackingId;
 	}
 
+	get previewFeaturesDisabled(): boolean {
+		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.previewFeaturesDisabled') === true;
+	}
+
 	//#endregion
 
 	//#region --- Quotas
@@ -504,6 +512,15 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	//#endregion
+
+	markAnonymousRateLimited(): void {
+		if (!this.anonymous) {
+			return;
+		}
+
+		this.chatQuotaExceededContextKey.set(true);
+		this._onDidChangeQuotaExceeded.fire();
+	}
 
 	async update(token: CancellationToken): Promise<void> {
 		await this.requests?.value.forceResolveEntitlement(token);

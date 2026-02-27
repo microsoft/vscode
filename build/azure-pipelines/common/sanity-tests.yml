@@ -17,9 +17,6 @@ parameters:
   - name: baseImage
     type: string
     default: ""
-  - name: pageSize
-    type: string
-    default: ""
   - name: args
     type: string
     default: ""
@@ -27,13 +24,24 @@ parameters:
 jobs:
   - job: ${{ parameters.name }}
     displayName: ${{ parameters.displayName }}
+    continueOnError: true
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
     timeoutInMinutes: 30
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(SCREENSHOTS_DIR)
+          artifactName: screenshots-${{ parameters.name }}
+          displayName: Publish Screenshots
+          condition: succeededOrFailed()
+          continueOnError: true
+          sbomEnabled: false
     variables:
       TEST_DIR: $(Build.SourcesDirectory)/test/sanity
       LOG_FILE: $(TEST_DIR)/results.xml
+      SCREENSHOTS_DIR: $(TEST_DIR)/screenshots
       DOCKER_CACHE_DIR: $(Pipeline.Workspace)/docker-cache
       DOCKER_CACHE_FILE: $(DOCKER_CACHE_DIR)/${{ parameters.container }}.tar
     steps:
@@ -43,11 +51,54 @@ jobs:
         sparseCheckoutDirectories: test/sanity .nvmrc
         displayName: Checkout test/sanity
 
-      - task: NodeTool@0
-        inputs:
-          versionSource: fromFile
-          versionFilePath: .nvmrc
-        displayName: Install Node.js
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: mkdir "$(SCREENSHOTS_DIR)"
+          displayName: Create Screenshots Directory
+
+      - ${{ else }}:
+        - bash: mkdir -p "$(SCREENSHOTS_DIR)"
+          displayName: Create Screenshots Directory
+
+      - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.arch, 'arm64')) }}:
+        - script: |
+            @echo off
+            setlocal enabledelayedexpansion
+
+            set "NODE_VERSION=v22.22.0"
+            set "EXPECTED_HASH=5b44fd410df7b4cd0a1891a05a7b606f8fb7d8786a94997b996a372e82478d7a"
+            set "NODE_ROOT=$(Agent.TempDirectory)\nodejs"
+            set "NODE_EXE=!NODE_ROOT!\node.exe"
+
+            if not exist "!NODE_EXE!" (
+              if exist "!NODE_ROOT!" rmdir /s /q "!NODE_ROOT!"
+
+              set "NODE_ZIP=$(Agent.TempDirectory)\node.zip"
+              curl.exe -fsSL "https://nodejs.org/dist/!NODE_VERSION!/node-!NODE_VERSION!-win-arm64.zip" -o "!NODE_ZIP!"
+
+              set "ACTUAL_HASH="
+              for /f "skip=1" %%A in ('certutil -hashfile "!NODE_ZIP!" SHA256') do if not defined ACTUAL_HASH set "ACTUAL_HASH=%%A"
+              if /I not "!ACTUAL_HASH!"=="!EXPECTED_HASH!" (
+                echo Hash mismatch for node.zip
+                echo   expected: !EXPECTED_HASH!
+                echo   actual:   !ACTUAL_HASH!
+                del "!NODE_ZIP!"
+                exit /b 1
+              )
+
+              tar -xf "!NODE_ZIP!" -C "$(Agent.TempDirectory)"
+              ren "$(Agent.TempDirectory)\node-!NODE_VERSION!-win-arm64" nodejs
+              del "!NODE_ZIP!"
+            )
+
+            echo ##vso[task.prependpath]%NODE_ROOT%
+          displayName: Install Node.js (Windows ARM64)
+
+      - ${{ else }}:
+        - task: NodeTool@0
+          inputs:
+            versionSource: fromFile
+            versionFilePath: .nvmrc
+          displayName: Install Node.js
 
       - script: npm config set registry "$(NPM_REGISTRY)" --location=project
         workingDirectory: $(TEST_DIR)
@@ -68,19 +119,19 @@ jobs:
 
       # Windows
       - ${{ if eq(parameters.os, 'windows') }}:
-        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+        - script: $(TEST_DIR)/scripts/run-win32.cmd -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:
-        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 
       # Native Linux host
       - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:
-        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -v ${{ parameters.args }}
+        - bash: $(TEST_DIR)/scripts/run-ubuntu.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -v ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
 
@@ -88,9 +139,9 @@ jobs:
       - ${{ if ne(parameters.container, '') }}:
         - task: Cache@2
           inputs:
-            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
+            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
             path: $(DOCKER_CACHE_DIR)
-            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "${{ parameters.pageSize }}" | "$(Agent.OS)"
+            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
             cacheHitVar: DOCKER_CACHE_HIT
           displayName: Download Docker Image
 
@@ -105,10 +156,10 @@ jobs:
               --container "${{ parameters.container }}" \
               --arch "${{ parameters.arch }}" \
               --base-image "${{ parameters.baseImage }}" \
-              --page-size "${{ parameters.pageSize }}" \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
+              --screenshots-dir "/root/screenshots" \
               --verbose \
               ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)

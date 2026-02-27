@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { randomBytes } from 'crypto';
-import * as http from 'http';
+import type * as http from 'http';
 import { URL } from 'url';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { DEFAULT_AUTH_FLOW_PORT } from '../../../base/common/oauth.js';
@@ -42,7 +42,7 @@ export interface ILoopbackServer {
 }
 
 export class LoopbackAuthServer implements ILoopbackServer {
-	private readonly _server: http.Server;
+	private readonly _server: Promise<http.Server>;
 	private readonly _resultPromise: Promise<IOAuthResult>;
 
 	private _state = randomBytes(16).toString('base64');
@@ -56,45 +56,49 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		const deferredPromise = new DeferredPromise<IOAuthResult>();
 		this._resultPromise = deferredPromise.p;
 
-		this._server = http.createServer((req, res) => {
-			const reqUrl = new URL(req.url!, `http://${req.headers.host}`);
-			switch (reqUrl.pathname) {
-				case '/': {
-					const code = reqUrl.searchParams.get('code') ?? undefined;
-					const state = reqUrl.searchParams.get('state') ?? undefined;
-					const error = reqUrl.searchParams.get('error') ?? undefined;
-					if (error) {
-						res.writeHead(302, { location: `/done?error=${reqUrl.searchParams.get('error_description') || error}` });
+		this._server = (async () => {
+			const http = await import('http');
+
+			return http.createServer((req, res) => {
+				const reqUrl = new URL(req.url!, `http://${req.headers.host}`);
+				switch (reqUrl.pathname) {
+					case '/': {
+						const code = reqUrl.searchParams.get('code') ?? undefined;
+						const state = reqUrl.searchParams.get('state') ?? undefined;
+						const error = reqUrl.searchParams.get('error') ?? undefined;
+						if (error) {
+							res.writeHead(302, { location: `/done?error=${reqUrl.searchParams.get('error_description') || error}` });
+							res.end();
+							deferredPromise.error(new Error(error));
+							break;
+						}
+						if (!code || !state) {
+							res.writeHead(400);
+							res.end();
+							break;
+						}
+						if (this.state !== state) {
+							res.writeHead(302, { location: `/done?error=${encodeURIComponent('State does not match.')}` });
+							res.end();
+							deferredPromise.error(new Error('State does not match.'));
+							break;
+						}
+						deferredPromise.complete({ code, state });
+						res.writeHead(302, { location: '/done' });
 						res.end();
-						deferredPromise.error(new Error(error));
 						break;
 					}
-					if (!code || !state) {
-						res.writeHead(400);
+					// Serve the static files
+					case '/done':
+						this._sendPage(res);
+						break;
+					default:
+						res.writeHead(404);
 						res.end();
 						break;
-					}
-					if (this.state !== state) {
-						res.writeHead(302, { location: `/done?error=${encodeURIComponent('State does not match.')}` });
-						res.end();
-						deferredPromise.error(new Error('State does not match.'));
-						break;
-					}
-					deferredPromise.complete({ code, state });
-					res.writeHead(302, { location: '/done' });
-					res.end();
-					break;
 				}
-				// Serve the static files
-				case '/done':
-					this._sendPage(res);
-					break;
-				default:
-					res.writeHead(404);
-					res.end();
-					break;
-			}
-		});
+			});
+		})();
 	}
 
 	get state(): string { return this._state; }
@@ -114,16 +118,17 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		res.end(html);
 	}
 
-	start(): Promise<void> {
+	async start(): Promise<void> {
+		const server = await this._server;
 		const deferredPromise = new DeferredPromise<void>();
-		if (this._server.listening) {
+		if (server.listening) {
 			throw new Error('Server is already started');
 		}
 		const portTimeout = setTimeout(() => {
 			deferredPromise.error(new Error('Timeout waiting for port'));
 		}, 5000);
-		this._server.on('listening', () => {
-			const address = this._server.address();
+		server.on('listening', () => {
+			const address = server.address();
 			if (typeof address === 'string') {
 				this._port = parseInt(address);
 			} else if (address instanceof Object) {
@@ -135,31 +140,32 @@ export class LoopbackAuthServer implements ILoopbackServer {
 			clearTimeout(portTimeout);
 			deferredPromise.complete();
 		});
-		this._server.on('error', err => {
+		server.on('error', err => {
 			if ('code' in err && err.code === 'EADDRINUSE') {
 				this._logger.error('Address in use, retrying with a different port...');
 				// Best effort to use a specific port, but fallback to a random one if it is in use
-				this._server.listen(0, '127.0.0.1');
+				server.listen(0, '127.0.0.1');
 				return;
 			}
 			clearTimeout(portTimeout);
 			deferredPromise.error(new Error(`Error listening to server: ${err}`));
 		});
-		this._server.on('close', () => {
+		server.on('close', () => {
 			deferredPromise.error(new Error('Closed'));
 		});
 		// Best effort to use a specific port, but fallback to a random one if it is in use
-		this._server.listen(DEFAULT_AUTH_FLOW_PORT, '127.0.0.1');
+		server.listen(DEFAULT_AUTH_FLOW_PORT, '127.0.0.1');
 		return deferredPromise.p;
 	}
 
-	stop(): Promise<void> {
+	async stop(): Promise<void> {
 		const deferredPromise = new DeferredPromise<void>();
-		if (!this._server.listening) {
+		const server = await this._server;
+		if (!server.listening) {
 			deferredPromise.complete();
 			return deferredPromise.p;
 		}
-		this._server.close((err) => {
+		server.close((err) => {
 			if (err) {
 				deferredPromise.error(err);
 			} else {

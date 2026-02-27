@@ -47,6 +47,7 @@ export interface IChatAttachmentResolveService {
 	resolveSymbolsAttachContext(symbols: DocumentSymbolTransferData[]): ISymbolVariableEntry[];
 	resolveNotebookOutputAttachContext(data: NotebookCellOutputTransferData): IChatRequestVariableEntry[];
 	resolveSourceControlHistoryItemAttachContext(data: SCMHistoryItemTransferData[]): ISCMHistoryItemVariableEntry[];
+	resolveDirectoryImages(directoryUri: URI): Promise<IChatRequestVariableEntry[]>;
 }
 
 export class ChatAttachmentResolveService implements IChatAttachmentResolveService {
@@ -275,6 +276,45 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		}
 
 		return [];
+	}
+
+	// --- DIRECTORIES ---
+
+	public async resolveDirectoryImages(directoryUri: URI): Promise<IChatRequestVariableEntry[]> {
+		const imageEntries: IChatRequestVariableEntry[] = [];
+		await this._collectDirectoryImages(directoryUri, imageEntries);
+		return imageEntries;
+	}
+
+	private async _collectDirectoryImages(directoryUri: URI, results: IChatRequestVariableEntry[]): Promise<void> {
+		let stat;
+		try {
+			stat = await this.fileService.resolve(directoryUri);
+		} catch {
+			return;
+		}
+
+		if (!stat.children) {
+			return;
+		}
+
+		const childPromises: Promise<void>[] = [];
+
+		for (const child of stat.children) {
+			if (child.isDirectory && !child.isSymbolicLink) {
+				childPromises.push(this._collectDirectoryImages(child.resource, results));
+			} else if (child.isFile && !child.isSymbolicLink && SUPPORTED_IMAGE_EXTENSIONS_REGEX.test(child.resource.path)) {
+				childPromises.push(
+					this.resolveImageEditorAttachContext(child.resource).then(entry => {
+						if (entry) {
+							results.push(entry);
+						}
+					}).catch(() => { /* skip unreadable images */ })
+				);
+			}
+		}
+
+		await Promise.all(childPromises);
 	}
 
 	// --- SOURCE CONTROL ---

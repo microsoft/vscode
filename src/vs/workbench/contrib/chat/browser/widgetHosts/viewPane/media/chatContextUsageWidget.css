@@ -8,6 +8,7 @@
 	align-items: center;
 	justify-content: center;
 	height: 22px;
+	width: 22px;
 	flex-shrink: 0;
 	cursor: pointer;
 	padding: 3px;
@@ -19,8 +20,8 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 16px;
-	height: 16px;
+	width: 14px;
+	height: 14px;
 	flex-shrink: 0;
 }
 
@@ -46,22 +47,26 @@
 }
 
 .chat-context-usage-widget .progress-bg {
-	fill: transparent;
-	stroke: var(--vscode-icon-foreground);
-	stroke-width: 2;
-	opacity: 0.4;
+	fill: none;
+	stroke: var(--vscode-disabledForeground);
+	stroke-width: 4;
+	opacity: 0.5;
 }
 
-.chat-context-usage-widget .progress-pie {
-	fill: var(--vscode-icon-foreground);
-	opacity: 0.8;
+.chat-context-usage-widget .progress-arc {
+	fill: none;
+	stroke: var(--vscode-descriptionForeground);
+	stroke-width: 4;
+	stroke-linecap: round;
+	transform: rotate(-90deg);
+	transform-origin: center;
 	pointer-events: none;
 }
 
-.chat-context-usage-widget.warning .progress-pie {
-	fill: var(--vscode-editorWarning-foreground);
+.chat-context-usage-widget.warning .progress-arc {
+	stroke: var(--vscode-editorWarning-foreground);
 }
 
-.chat-context-usage-widget.error .progress-pie {
-	fill: var(--vscode-editorError-foreground);
+.chat-context-usage-widget.error .progress-arc {
+	stroke: var(--vscode-editorError-foreground);
 }

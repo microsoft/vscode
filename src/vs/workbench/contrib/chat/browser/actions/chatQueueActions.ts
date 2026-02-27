@@ -13,13 +13,14 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatRequestQueueKind, IChatService } from '../../common/chatService/chatService.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
-const queueingEnabledCondition = ContextKeyExpr.equals(`config.${ChatConfiguration.RequestQueueingEnabled}`, true);
-const requestInProgressOrPendingToolCall = ContextKeyExpr.or(ChatContextKeys.requestInProgress, ChatContextKeys.Editing.hasToolConfirmation);
+const queuingActionsPresent = ContextKeyExpr.and(
+	ContextKeyExpr.or(ChatContextKeys.requestInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.QueueOrSteer)),
+	ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Sent),
+);
 
 export interface IChatRemovePendingRequestContext {
 	sessionResource: URI;
@@ -46,18 +47,17 @@ export class ChatQueueMessageAction extends Action2 {
 			icon: Codicon.add,
 			f1: false,
 			category: CHAT_CATEGORY,
+
 			precondition: ContextKeyExpr.and(
-				queueingEnabledCondition,
-				requestInProgressOrPendingToolCall,
-				ChatContextKeys.inputHasText
+				queuingActionsPresent,
+				ChatContextKeys.inputHasText,
 			),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					requestInProgressOrPendingToolCall,
-					queueingEnabledCondition
+					queuingActionsPresent,
 				),
-				primary: KeyCode.Enter,
+				primary: KeyMod.Alt | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib + 1
 			},
 		});
@@ -91,17 +91,15 @@ export class ChatSteerWithMessageAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
-				queueingEnabledCondition,
-				requestInProgressOrPendingToolCall,
-				ChatContextKeys.inputHasText
+				queuingActionsPresent,
+				ChatContextKeys.inputHasText,
 			),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					requestInProgressOrPendingToolCall,
-					queueingEnabledCondition
+					queuingActionsPresent,
 				),
-				primary: KeyMod.Alt | KeyCode.Enter,
+				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib + 1
 			},
 		});
@@ -138,7 +136,6 @@ export class ChatRemovePendingRequestAction extends Action2 {
 				group: 'navigation',
 				order: 4,
 				when: ContextKeyExpr.and(
-					queueingEnabledCondition,
 					ChatContextKeys.isRequest,
 					ChatContextKeys.isPendingRequest
 				)
@@ -178,7 +175,6 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 				group: 'navigation',
 				order: 3,
 				when: ContextKeyExpr.and(
-					queueingEnabledCondition,
 					ChatContextKeys.isRequest,
 					ChatContextKeys.isPendingRequest
 				)
@@ -217,7 +213,7 @@ export class ChatSendPendingImmediatelyAction extends Action2 {
 		];
 
 		chatService.setPendingRequests(context.sessionResource, reordered);
-		chatService.cancelCurrentRequestForSession(context.sessionResource);
+		chatService.cancelCurrentRequestForSession(context.sessionResource, 'queueRunNext');
 		chatService.processPendingRequests(context.sessionResource);
 	}
 }
@@ -236,11 +232,8 @@ export class ChatRemoveAllPendingRequestsAction extends Action2 {
 				id: MenuId.ChatContext,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(
-					queueingEnabledCondition,
-					ChatContextKeys.hasPendingRequests
-				)
-			}]
+				when: ChatContextKeys.hasPendingRequests,
+			}],
 		});
 	}
 
@@ -287,11 +280,7 @@ export function registerChatQueueActions(): void {
 		submenu: MenuId.ChatExecuteQueue,
 		title: localize2('chat.queueSubmenu', "Queue"),
 		icon: Codicon.listOrdered,
-		when: ContextKeyExpr.and(
-			queueingEnabledCondition,
-			requestInProgressOrPendingToolCall,
-			ChatContextKeys.inputHasText
-		),
+		when: queuingActionsPresent,
 		group: 'navigation',
 		order: 4,
 	});

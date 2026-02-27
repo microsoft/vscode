@@ -3,18 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HookType } from './hookSchema.js';
-
-/**
- * Maps Copilot CLI hook type names to our abstract HookType.
- * Copilot CLI uses camelCase names.
- */
-export const COPILOT_CLI_HOOK_TYPE_MAP: Record<string, HookType> = {
-	'sessionStart': HookType.SessionStart,
-	'userPromptSubmitted': HookType.UserPromptSubmit,
-	'preToolUse': HookType.PreToolUse,
-	'postToolUse': HookType.PostToolUse,
-};
+import { COPILOT_CLI_HOOK_TYPE_MAP, HookType } from './hookSchema.js';
 
 /**
  * Cached inverse mapping from HookType to Copilot CLI hook type name.
@@ -36,7 +25,7 @@ function getHookTypeToCopilotCliNameMap(): Map<HookType, string> {
  * Resolves a Copilot CLI hook type name to our abstract HookType.
  */
 export function resolveCopilotCliHookType(name: string): HookType | undefined {
-	return COPILOT_CLI_HOOK_TYPE_MAP[name];
+	return (COPILOT_CLI_HOOK_TYPE_MAP as Record<string, HookType>)[name];
 }
 
 /**

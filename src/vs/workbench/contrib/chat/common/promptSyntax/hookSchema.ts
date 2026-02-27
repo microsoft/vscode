@@ -9,19 +9,32 @@ import { URI } from '../../../../../base/common/uri.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { isAbsolute } from '../../../../../base/common/path.js';
 import { untildify } from '../../../../../base/common/labels.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 
 /**
- * Enum of available hook types that can be configured in hooks.json
+ * Enum of available hook types that can be configured in hooks .json
  */
 export enum HookType {
 	SessionStart = 'SessionStart',
 	UserPromptSubmit = 'UserPromptSubmit',
 	PreToolUse = 'PreToolUse',
 	PostToolUse = 'PostToolUse',
+	PreCompact = 'PreCompact',
 	SubagentStart = 'SubagentStart',
 	SubagentStop = 'SubagentStop',
 	Stop = 'Stop',
 }
+
+/**
+ * Maps Copilot CLI hook type names to our abstract HookType.
+ * Copilot CLI uses camelCase names.
+ */
+export const COPILOT_CLI_HOOK_TYPE_MAP = {
+	'sessionStart': HookType.SessionStart,
+	'userPromptSubmitted': HookType.UserPromptSubmit,
+	'preToolUse': HookType.PreToolUse,
+	'postToolUse': HookType.PostToolUse,
+} as const satisfies Record<string, HookType>;
 
 /**
  * String literal type derived from HookType enum values.
@@ -35,7 +48,7 @@ export const HOOK_TYPES = [
 	{
 		id: HookType.SessionStart,
 		label: nls.localize('hookType.sessionStart.label', "Session Start"),
-		description: nls.localize('hookType.sessionStart.description', "Executed when a new agent session begins or when resuming an existing session.")
+		description: nls.localize('hookType.sessionStart.description', "Executed when a new agent session begins.")
 	},
 	{
 		id: HookType.UserPromptSubmit,
@@ -51,6 +64,11 @@ export const HOOK_TYPES = [
 		id: HookType.PostToolUse,
 		label: nls.localize('hookType.postToolUse.label', "Post-Tool Use"),
 		description: nls.localize('hookType.postToolUse.description', "Executed after a tool completes execution successfully.")
+	},
+	{
+		id: HookType.PreCompact,
+		label: nls.localize('hookType.preCompact.label', "Pre-Compact"),
+		description: nls.localize('hookType.preCompact.description', "Executed before the agent compacts the conversation context.")
 	},
 	{
 		id: HookType.SubagentStart,
@@ -76,14 +94,22 @@ export interface IHookCommand {
 	readonly type: 'command';
 	/** Cross-platform command to execute. */
 	readonly command?: string;
-	/** Bash-specific command. */
-	readonly bash?: string;
-	/** PowerShell-specific command. */
-	readonly powershell?: string;
+	/** Windows-specific command override. */
+	readonly windows?: string;
+	/** Linux-specific command override. */
+	readonly linux?: string;
+	/** macOS-specific command override. */
+	readonly osx?: string;
 	/** Resolved working directory URI. */
 	readonly cwd?: URI;
 	readonly env?: Record<string, string>;
-	readonly timeoutSec?: number;
+	readonly timeout?: number;
+	/** Original JSON field name that provided the windows command. */
+	readonly windowsSource?: 'windows' | 'powershell';
+	/** Original JSON field name that provided the linux command. */
+	readonly linuxSource?: 'linux' | 'bash';
+	/** Original JSON field name that provided the osx command. */
+	readonly osxSource?: 'osx' | 'bash';
 }
 
 /**
@@ -95,6 +121,7 @@ export interface IChatRequestHooks {
 	readonly [HookType.UserPromptSubmit]?: readonly IHookCommand[];
 	readonly [HookType.PreToolUse]?: readonly IHookCommand[];
 	readonly [HookType.PostToolUse]?: readonly IHookCommand[];
+	readonly [HookType.PreCompact]?: readonly IHookCommand[];
 	readonly [HookType.SubagentStart]?: readonly IHookCommand[];
 	readonly [HookType.SubagentStop]?: readonly IHookCommand[];
 	readonly [HookType.Stop]?: readonly IHookCommand[];
@@ -106,14 +133,17 @@ export interface IChatRequestHooks {
  */
 const hookCommandSchema: IJSONSchema = {
 	type: 'object',
-	additionalProperties: false,
+	additionalProperties: true,
 	required: ['type'],
 	anyOf: [
 		{ required: ['command'] },
+		{ required: ['windows'] },
+		{ required: ['linux'] },
+		{ required: ['osx'] },
 		{ required: ['bash'] },
 		{ required: ['powershell'] }
 	],
-	errorMessage: nls.localize('hook.commandRequired', 'At least one of "command", "bash", or "powershell" must be specified.'),
+	errorMessage: nls.localize('hook.commandRequired', 'At least one of "command", "windows", "linux", or "osx" must be specified.'),
 	properties: {
 		type: {
 			type: 'string',
@@ -122,15 +152,106 @@ const hookCommandSchema: IJSONSchema = {
 		},
 		command: {
 			type: 'string',
-			description: nls.localize('hook.command', 'The command to execute. This is the recommended way to specify commands and works cross-platform.')
+			description: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.')
+		},
+		windows: {
+			type: 'string',
+			description: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.')
+		},
+		linux: {
+			type: 'string',
+			description: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.')
+		},
+		osx: {
+			type: 'string',
+			description: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.')
+		},
+		cwd: {
+			type: 'string',
+			description: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).')
+		},
+		env: {
+			type: 'object',
+			additionalProperties: { type: 'string' },
+			description: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.')
+		},
+		timeout: {
+			type: 'number',
+			default: 30,
+			description: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).')
+		}
+	}
+};
+
+const hookArraySchema: IJSONSchema = {
+	type: 'array',
+	items: hookCommandSchema
+};
+
+/**
+ * Hook properties for the VS Code / PascalCase format.
+ */
+const vscodeHookProperties: { [key in HookType]: IJSONSchema } = {
+	SessionStart: {
+		...hookArraySchema,
+		description: nls.localize('hookFile.sessionStart', 'Executed when a new agent session begins. Use to initialize environments, log session starts, validate project state, or set up temporary resources.')
+	},
+	UserPromptSubmit: {
+		...hookArraySchema,
+		description: nls.localize('hookFile.userPromptSubmit', 'Executed when the user submits a prompt to the agent. Use to log user requests for auditing and usage analysis.')
+	},
+	PreToolUse: {
+		...hookArraySchema,
+		description: nls.localize('hookFile.preToolUse', 'Executed before the agent uses any tool. This is the most powerful hook as it can approve or deny tool executions. Use to block dangerous commands, enforce security policies, require approval for sensitive operations, or log tool usage.')
+	},
+	PostToolUse: {
+		...hookArraySchema,
+		description: nls.localize('hookFile.postToolUse', 'Executed after a tool completes execution successfully. Use to log execution results, track usage statistics, generate audit trails, or monitor performance.')
+	},
+	PreCompact: {
+		...hookArraySchema,
+		description: nls.localize('hookFile.preCompact', 'Executed before the agent compacts the conversation context. Use to save conversation state, export important information, or prepare for context reduction.')
+	},
+	SubagentStart: {
+		...hookArraySchema,
+		description: nls.localize('hookFile.subagentStart', 'Executed when a subagent is started. Use to log subagent spawning, track nested agent usage, or initialize subagent-specific resources.')
+	},
+	SubagentStop: {
+		...hookArraySchema,
+		description: nls.localize('hookFile.subagentStop', 'Executed when a subagent stops. Use to log subagent completion, cleanup subagent resources, or aggregate subagent results.')
+	},
+	Stop: {
+		...hookArraySchema,
+		description: nls.localize('hookFile.stop', 'Executed when the agent session stops. Use to cleanup resources, generate final reports, or send completion notifications.')
+	}
+};
+
+/**
+ * Hook command schema for the Copilot CLI format.
+ * Adds `bash`, `powershell`, and `timeoutSec` fields alongside the standard ones.
+ */
+const copilotCliHookCommandSchema: IJSONSchema = {
+	type: 'object',
+	additionalProperties: true,
+	required: ['type'],
+	anyOf: [
+		{ required: ['bash'] },
+		{ required: ['powershell'] }
+	],
+	errorMessage: nls.localize('hook.cliCommandRequired', 'At least one of "bash" or "powershell" must be specified.'),
+	properties: {
+		type: {
+			type: 'string',
+			enum: ['command'],
+			description: nls.localize('hook.type', 'Must be "command".')
 		},
 		bash: {
 			type: 'string',
-			description: nls.localize('hook.bash', 'Path to a bash script or an inline bash command. Use for Unix-specific commands when cross-platform "command" is not sufficient.')
+			description: nls.localize('hook.bash', 'Bash command for Linux and macOS.')
 		},
 		powershell: {
 			type: 'string',
-			description: nls.localize('hook.powershell', 'Path to a PowerShell script or an inline PowerShell command. Use for Windows-specific commands when cross-platform "command" is not sufficient.')
+			description: nls.localize('hook.powershell', 'PowerShell command for Windows.')
 		},
 		cwd: {
 			type: 'string',
@@ -143,62 +264,78 @@ const hookCommandSchema: IJSONSchema = {
 		},
 		timeoutSec: {
 			type: 'number',
-			default: 30,
-			description: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 30).')
+			default: 10,
+			description: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 10).')
 		}
 	}
 };
 
-const hookArraySchema: IJSONSchema = {
+const copilotCliHookArraySchema: IJSONSchema = {
 	type: 'array',
-	items: hookCommandSchema
+	items: copilotCliHookCommandSchema
+};
+
+/**
+ * Hook properties for the Copilot CLI / camelCase format.
+ * Maps from the Copilot CLI hook type names defined in COPILOT_CLI_HOOK_TYPE_MAP.
+ */
+const copilotCliHookProperties: { [key in keyof typeof COPILOT_CLI_HOOK_TYPE_MAP]: IJSONSchema } = {
+	sessionStart: {
+		...copilotCliHookArraySchema,
+		description: nls.localize('hookFile.cli.sessionStart', 'Executed when a new agent session begins.')
+	},
+	userPromptSubmitted: {
+		...copilotCliHookArraySchema,
+		description: nls.localize('hookFile.cli.userPromptSubmitted', 'Executed when the user submits a prompt to the agent.')
+	},
+	preToolUse: {
+		...copilotCliHookArraySchema,
+		description: nls.localize('hookFile.cli.preToolUse', 'Executed before the agent uses any tool. Can approve or deny tool executions.')
+	},
+	postToolUse: {
+		...copilotCliHookArraySchema,
+		description: nls.localize('hookFile.cli.postToolUse', 'Executed after a tool completes execution successfully.')
+	},
 };
 
 export const hookFileSchema: IJSONSchema = {
 	$schema: 'http://json-schema.org/draft-07/schema#',
 	type: 'object',
 	description: nls.localize('hookFile.description', 'GitHub Copilot hook configuration file. Hooks enable executing custom shell commands at strategic points in an agent\'s workflow.'),
-	additionalProperties: false,
-	required: ['version', 'hooks'],
+	additionalProperties: true,
+	required: ['hooks'],
 	properties: {
-		version: {
-			type: 'number',
-			enum: [1],
-			description: nls.localize('hookFile.version', 'Schema version. Must be 1.')
-		},
 		hooks: {
 			type: 'object',
 			description: nls.localize('hookFile.hooks', 'Hook definitions organized by type.'),
 			additionalProperties: true,
-			properties: {
-				SessionStart: {
-					...hookArraySchema,
-					description: nls.localize('hookFile.sessionStart', 'Executed when a new agent session begins or when resuming an existing session. Use to initialize environments, log session starts, validate project state, or set up temporary resources.')
-				},
-				UserPromptSubmit: {
-					...hookArraySchema,
-					description: nls.localize('hookFile.userPromptSubmit', 'Executed when the user submits a prompt to the agent. Use to log user requests for auditing and usage analysis.')
-				},
-				PreToolUse: {
-					...hookArraySchema,
-					description: nls.localize('hookFile.preToolUse', 'Executed before the agent uses any tool. This is the most powerful hook as it can approve or deny tool executions. Use to block dangerous commands, enforce security policies, require approval for sensitive operations, or log tool usage.')
-				},
-				PostToolUse: {
-					...hookArraySchema,
-					description: nls.localize('hookFile.postToolUse', 'Executed after a tool completes execution successfully. Use to log execution results, track usage statistics, generate audit trails, or monitor performance.')
-				},
-				SubagentStart: {
-					...hookArraySchema,
-					description: nls.localize('hookFile.subagentStart', 'Executed when a subagent is started. Use to log subagent spawning, track nested agent usage, or initialize subagent-specific resources.')
-				},
-				SubagentStop: {
-					...hookArraySchema,
-					description: nls.localize('hookFile.subagentStop', 'Executed when a subagent stops. Use to log subagent completion, cleanup subagent resources, or aggregate subagent results.')
-				},
-				Stop: {
-					...hookArraySchema,
-					description: nls.localize('hookFile.stop', 'Executed when the agent session stops. Use to cleanup resources, generate final reports, or send completion notifications.')
-				}
+		}
+	},
+	// Conditionally apply PascalCase or camelCase hook properties based on
+	// whether the file uses the Copilot CLI format (detected by the "version" field).
+	if: {
+		required: ['version'],
+		properties: {
+			version: { type: 'number' }
+		}
+	},
+	then: {
+		// Copilot CLI format: camelCase hook names, bash/powershell/timeoutSec fields
+		properties: {
+			version: {
+				type: 'number',
+				description: nls.localize('hookFile.version', 'Hook configuration format version.'),
+			},
+			hooks: {
+				properties: copilotCliHookProperties
+			}
+		}
+	},
+	else: {
+		// VS Code / PascalCase format
+		properties: {
+			hooks: {
+				properties: vscodeHookProperties
 			}
 		}
 	},
@@ -207,19 +344,18 @@ export const hookFileSchema: IJSONSchema = {
 			label: nls.localize('hookFile.snippet.basic', 'Basic hook configuration'),
 			description: nls.localize('hookFile.snippet.basic.description', 'A basic hook configuration with common hooks'),
 			body: {
-				version: 1,
 				hooks: {
-					sessionStart: [
+					SessionStart: [
 						{
 							type: 'command',
-							command: '${1:echo "Session started"}'
+							command: '${1:echo "Session started" >> session.log}',
 						}
 					],
-					preToolUse: [
+					PreToolUse: [
 						{
 							type: 'command',
 							command: '${2:./scripts/validate.sh}',
-							timeoutSec: 15
+							timeout: 15
 						}
 					]
 				}
@@ -236,7 +372,7 @@ export const HOOK_SCHEMA_URI = 'vscode://schemas/hooks';
 /**
  * Glob pattern for hook files.
  */
-export const HOOK_FILE_GLOB = 'hooks/hooks.json';
+export const HOOK_FILE_GLOB = '.github/hooks/*.json';
 
 /**
  * Normalizes a raw hook type identifier to the canonical HookType enum value.
@@ -252,45 +388,142 @@ export function toHookType(rawHookTypeId: string): HookType | undefined {
 
 /**
  * Normalizes a raw hook command object, validating structure.
+ * Maps legacy bash/powershell fields to platform-specific overrides:
+ * - bash -> linux + osx
+ * - powershell -> windows
  * This is an internal helper - use resolveHookCommand for the full resolution.
  */
-function normalizeHookCommand(raw: Record<string, unknown>): { command?: string; bash?: string; powershell?: string; cwd?: string; env?: Record<string, string>; timeoutSec?: number } | undefined {
+function normalizeHookCommand(raw: Record<string, unknown>): { command?: string; windows?: string; linux?: string; osx?: string; windowsSource?: 'windows' | 'powershell'; linuxSource?: 'linux' | 'bash'; osxSource?: 'osx' | 'bash'; cwd?: string; env?: Record<string, string>; timeout?: number } | undefined {
 	if (raw.type !== 'command') {
 		return undefined;
 	}
 
 	const hasCommand = typeof raw.command === 'string' && raw.command.length > 0;
-	const hasBash = typeof raw.bash === 'string' && raw.bash.length > 0;
-	const hasPowerShell = typeof raw.powershell === 'string' && raw.powershell.length > 0;
+	const hasBash = typeof raw.bash === 'string' && (raw.bash as string).length > 0;
+	const hasPowerShell = typeof raw.powershell === 'string' && (raw.powershell as string).length > 0;
+
+	// Platform overrides can be strings directly
+	const hasWindows = typeof raw.windows === 'string' && (raw.windows as string).length > 0;
+	const hasLinux = typeof raw.linux === 'string' && (raw.linux as string).length > 0;
+	const hasOsx = typeof raw.osx === 'string' && (raw.osx as string).length > 0;
+
+	// Map bash -> linux + osx (if not already specified)
+	// Map powershell -> windows (if not already specified)
+	const windows = hasWindows ? raw.windows as string : (hasPowerShell ? raw.powershell as string : undefined);
+	const linux = hasLinux ? raw.linux as string : (hasBash ? raw.bash as string : undefined);
+	const osx = hasOsx ? raw.osx as string : (hasBash ? raw.bash as string : undefined);
+
+	// Track source field names for editor focus (which JSON field to highlight)
+	const windowsSource: 'windows' | 'powershell' | undefined = hasWindows ? 'windows' : (hasPowerShell ? 'powershell' : undefined);
+	const linuxSource: 'linux' | 'bash' | undefined = hasLinux ? 'linux' : (hasBash ? 'bash' : undefined);
+	const osxSource: 'osx' | 'bash' | undefined = hasOsx ? 'osx' : (hasBash ? 'bash' : undefined);
 
 	return {
 		...(hasCommand && { command: raw.command as string }),
-		...(hasBash && { bash: raw.bash as string }),
-		...(hasPowerShell && { powershell: raw.powershell as string }),
+		...(windows && { windows }),
+		...(linux && { linux }),
+		...(osx && { osx }),
+		...(windowsSource && { windowsSource }),
+		...(linuxSource && { linuxSource }),
+		...(osxSource && { osxSource }),
 		...(typeof raw.cwd === 'string' && { cwd: raw.cwd }),
 		...(typeof raw.env === 'object' && raw.env !== null && { env: raw.env as Record<string, string> }),
-		...(typeof raw.timeoutSec === 'number' && { timeoutSec: raw.timeoutSec }),
+		...(typeof raw.timeout !== 'number' && typeof raw.timeoutSec === 'number' && { timeout: raw.timeoutSec }),
+		...(typeof raw.timeout === 'number' && { timeout: raw.timeout }),
 	};
 }
 
 /**
- * Formats a hook command for display.
- * If `command` is present, returns just that value.
- * Otherwise, joins "bash: <value>" and "powershell: <value>" with " | ".
+ * Gets a label for the given platform.
  */
-export function formatHookCommandLabel(hook: IHookCommand): string {
-	if (hook.command) {
-		return hook.command;
+export function getPlatformLabel(os: OperatingSystem): string {
+	if (os === OperatingSystem.Windows) {
+		return 'Windows';
+	} else if (os === OperatingSystem.Macintosh) {
+		return 'macOS';
+	} else if (os === OperatingSystem.Linux) {
+		return 'Linux';
+	}
+	return '';
+}
+
+/**
+ * Resolves the effective command for the given platform.
+ * This applies OS-specific overrides (windows, linux, osx) to get the actual command that will be executed.
+ * Similar to how launch.json handles platform-specific configurations in debugAdapter.ts.
+ */
+export function resolveEffectiveCommand(hook: IHookCommand, os: OperatingSystem): string | undefined {
+	// Select the platform-specific override based on the OS
+	if (os === OperatingSystem.Windows && hook.windows) {
+		return hook.windows;
+	} else if (os === OperatingSystem.Macintosh && hook.osx) {
+		return hook.osx;
+	} else if (os === OperatingSystem.Linux && hook.linux) {
+		return hook.linux;
 	}
 
-	const parts: string[] = [];
-	if (hook.bash) {
-		parts.push(`bash: ${hook.bash}`);
+	// Fall back to the default command
+	return hook.command;
+}
+
+/**
+ * Checks if the hook is using a platform-specific command override.
+ */
+export function isUsingPlatformOverride(hook: IHookCommand, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows && hook.windows) {
+		return true;
+	} else if (os === OperatingSystem.Macintosh && hook.osx) {
+		return true;
+	} else if (os === OperatingSystem.Linux && hook.linux) {
+		return true;
 	}
-	if (hook.powershell) {
-		parts.push(`powershell: ${hook.powershell}`);
+	return false;
+}
+
+/**
+ * Gets the source shell type for the effective command on the given platform.
+ * Returns 'powershell' if the Windows command came from a powershell field,
+ * 'bash' if the Linux/macOS command came from a bash field,
+ * or undefined for default shell handling.
+ */
+export function getEffectiveCommandSource(hook: IHookCommand, os: OperatingSystem): 'powershell' | 'bash' | undefined {
+	if (os === OperatingSystem.Windows && hook.windows && hook.windowsSource === 'powershell') {
+		return 'powershell';
+	} else if (os === OperatingSystem.Macintosh && hook.osx && hook.osxSource === 'bash') {
+		return 'bash';
+	} else if (os === OperatingSystem.Linux && hook.linux && hook.linuxSource === 'bash') {
+		return 'bash';
 	}
-	return parts.join(' | ');
+	return undefined;
+}
+
+/**
+ * Gets the original JSON field key name for the given platform's command.
+ * Returns the actual field name from the JSON (e.g., 'bash' instead of 'osx' if bash was used).
+ * This is used for editor focus to highlight the correct field.
+ */
+export function getEffectiveCommandFieldKey(hook: IHookCommand, os: OperatingSystem): string {
+	if (os === OperatingSystem.Windows && hook.windows) {
+		return hook.windowsSource ?? 'windows';
+	} else if (os === OperatingSystem.Macintosh && hook.osx) {
+		return hook.osxSource ?? 'osx';
+	} else if (os === OperatingSystem.Linux && hook.linux) {
+		return hook.linuxSource ?? 'linux';
+	}
+	return 'command';
+}
+
+/**
+ * Formats a hook command for display.
+ * Resolves OS-specific overrides to show the effective command for the given platform.
+ * If using a platform-specific override, includes the platform as a prefix badge.
+ */
+export function formatHookCommandLabel(hook: IHookCommand, os: OperatingSystem): string {
+	const command = resolveEffectiveCommand(hook, os);
+	if (!command) {
+		return '';
+	}
+	return command;
 }
 
 /**
@@ -324,10 +557,14 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 	return {
 		type: 'command',
 		...(normalized.command && { command: normalized.command }),
-		...(normalized.bash && { bash: normalized.bash }),
-		...(normalized.powershell && { powershell: normalized.powershell }),
+		...(normalized.windows && { windows: normalized.windows }),
+		...(normalized.linux && { linux: normalized.linux }),
+		...(normalized.osx && { osx: normalized.osx }),
+		...(normalized.windowsSource && { windowsSource: normalized.windowsSource }),
+		...(normalized.linuxSource && { linuxSource: normalized.linuxSource }),
+		...(normalized.osxSource && { osxSource: normalized.osxSource }),
 		...(cwdUri && { cwd: cwdUri }),
 		...(normalized.env && { env: normalized.env }),
-		...(normalized.timeoutSec !== undefined && { timeoutSec: normalized.timeoutSec }),
+		...(normalized.timeout !== undefined && { timeout: normalized.timeout }),
 	};
 }

@@ -5,7 +5,7 @@
 	},
 	"features": {
 		"ghcr.io/devcontainers/features/desktop-lite:": {},
-		"ghcr.io/devcontainers/features/rust:1": {}
+		"ghcr.io/devcontainers/features/rust:": {}
 	},
 	"containerEnv": {
 		"DISPLAY": "" // Allow the Dev Containers extension to set DISPLAY, post-create.sh will add it back in ~/.bashrc and ~/.zshrc if not set.

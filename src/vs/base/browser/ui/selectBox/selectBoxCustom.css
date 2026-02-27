@@ -6,7 +6,7 @@
 .monaco-select-box-dropdown-container {
 	display: none;
 	box-sizing: border-box;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-small);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
@@ -53,7 +53,7 @@
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-text {
 	text-overflow: ellipsis;
 	overflow: hidden;
-	padding-left: 3.5px;
+	padding-left: 6px;
 	white-space: nowrap;
 	float: left;
 }
@@ -61,7 +61,7 @@
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-detail {
 	text-overflow: ellipsis;
 	overflow: hidden;
-	padding-left: 3.5px;
+	padding-left: 6px;
 	white-space: nowrap;
 	float: left;
 	opacity: 0.7;
@@ -100,7 +100,7 @@
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div > .option-text-width-control {
-	padding-left: 4px;
+	padding-left: 8px;
 	padding-right: 8px;
 	white-space: nowrap;
 }

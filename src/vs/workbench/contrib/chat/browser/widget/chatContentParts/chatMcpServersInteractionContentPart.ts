@@ -138,6 +138,7 @@ export class ChatMcpServersInteractionContentPart extends Disposable implements 
 				true, // forceShowMessage
 				undefined, // icon
 				undefined, // toolInvocation
+				false, // no shimmer for now
 			));
 			this.domNode.appendChild(this.workingProgressPart.domNode);
 		}

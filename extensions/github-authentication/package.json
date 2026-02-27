@@ -20,7 +20,7 @@
   "enabledApiProposals": [
     "authIssuers",
     "authProviderSpecific",
-    "envIsAppPortable"
+    "agentSessionsWorkspace"
   ],
   "activationEvents": [],
   "capabilities": {

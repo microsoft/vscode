@@ -19,7 +19,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
-import { ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ToolsScope } from '../widget/input/chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -114,7 +114,7 @@ class SkipToolConfirmation extends ToolConfirmationAction {
 	}
 }
 
-class ConfigureToolsAction extends Action2 {
+export class ConfigureToolsAction extends Action2 {
 	public static ID = 'workbench.action.chat.configureTools';
 
 	constructor() {
@@ -129,7 +129,6 @@ class ConfigureToolsAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 					ChatContextKeys.lockedToCodingAgent.negate(),
-					ContextKeyExpr.notEquals(`config.${ChatConfiguration.AlternativeToolAction}`, true)
 				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
