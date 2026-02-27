@@ -52,7 +52,7 @@ This tests the transition from the empty state to having an active workspace sel
 
 - On 'New Session' screen (Scenario 1 completed)
 - A git repository, cloned on the machine, is available to select
-	- For this test use `microsoft/vscode` cloned to a test folder
+  - For this test use `microsoft/vscode` cloned to a test folder
 
 #### Actions
 
