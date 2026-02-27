@@ -108,11 +108,36 @@ Navigation End -->
 suite('isInsidersReleaseNotes', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('returns true for Insiders heading', () => {
+	// --- front-matter based detection (canonical signal) ---
+
+	test('returns true when front-matter has ProductEdition: Insiders', () => {
+		const text = '---\nProductEdition: Insiders\nOrder: 1\n---\n\n# February 2026 (version 1.110)\n\nsome content';
+		assert.strictEqual(isInsidersReleaseNotes(text), true);
+	});
+
+	test('returns false when front-matter has ProductEdition: Stable', () => {
+		const text = '---\nProductEdition: Stable\nOrder: 1\n---\n\n# January 2026 (version 1.97)\n\nsome content';
+		assert.strictEqual(isInsidersReleaseNotes(text), false);
+	});
+
+	test('returns false when front-matter lacks ProductEdition field', () => {
+		const text = '---\nOrder: 1\n---\n\n# January 2026 (version 1.97)\n\nsome content';
+		assert.strictEqual(isInsidersReleaseNotes(text), false);
+	});
+
+	test('does not use heading when front-matter is present, even if heading contains Insiders', () => {
+		// Front-matter says Stable → heading should be ignored
+		const text = '---\nProductEdition: Stable\n---\n\n# February 2026 Insiders (version 1.110)\n\nsome content';
+		assert.strictEqual(isInsidersReleaseNotes(text), false);
+	});
+
+	// --- heading fallback (for endpoints that strip front-matter) ---
+
+	test('returns true for Insiders heading when no front-matter', () => {
 		assert.strictEqual(isInsidersReleaseNotes('# February 2026 Insiders (version 1.110)\n\nsome content'), true);
 	});
 
-	test('returns false for stable heading', () => {
+	test('returns false for stable heading when no front-matter', () => {
 		assert.strictEqual(isInsidersReleaseNotes('# January 2025 (version 1.97)\n\nsome content'), false);
 	});
 

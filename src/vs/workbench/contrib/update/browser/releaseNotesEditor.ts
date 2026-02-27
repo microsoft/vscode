@@ -784,11 +784,24 @@ export class ReleaseNotesManager extends Disposable {
 
 /**
  * Returns true if the release notes text is for an Insiders pre-release build.
- * The Insiders draft is published before stable release notes are ready, so a stable
- * build may temporarily receive this content. The heading of Insiders notes contains
+ *
+ * The canonical signal is the `ProductEdition: Insiders` YAML front-matter field.
+ * When front-matter is present (e.g. content fetched directly from the vscode-docs
+ * repository) that field is checked exclusively.
+ *
+ * Some endpoints (e.g. code.visualstudio.com/raw/) strip front-matter before serving
+ * the content. In that case we fall back to checking whether the first heading contains
  * the word "Insiders" (e.g. "# February 2026 Insiders (version 1.110)").
  */
 export function isInsidersReleaseNotes(text: string): boolean {
+	if (text.startsWith('---')) {
+		const end = text.indexOf('\n---', 3);
+		if (end !== -1) {
+			const frontmatter = text.substring(0, end + 4);
+			return /^ProductEdition:\s*Insiders\s*$/m.test(frontmatter);
+		}
+	}
+	// Fallback for endpoints that strip front-matter
 	return /^#[^\n]*\bInsiders\b/.test(text);
 }
 
