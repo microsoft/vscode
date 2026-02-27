@@ -41,11 +41,5 @@
     "vscode-textmate": "^9.3.2",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
-  },
-  "overrides": {
-    "node-gyp-build": "4.8.1",
-    "kerberos@2.1.1": {
-      "node-addon-api": "7.1.0"
-    }
   }
 }

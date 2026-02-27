@@ -37,10 +37,8 @@ interface IFetchOptions {
 }
 
 function getElectronVersion(): Record<string, string> {
-	const npmrc = fs.readFileSync(path.join(REPO_ROOT, '.npmrc'), 'utf8');
-	const electronVersion = /^target="(.*)"$/m.exec(npmrc)![1];
-	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
-	return { electronVersion, msBuildId };
+	const electronConfig = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'electron.config.json'), 'utf8'));
+	return { electronVersion: electronConfig.electronVersion, msBuildId: electronConfig.msBuildId };
 }
 
 function getSha(filename: fs.PathLike): string {

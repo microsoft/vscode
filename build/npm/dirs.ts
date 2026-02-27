@@ -6,7 +6,12 @@
 import { existsSync } from 'fs';
 
 /**
- * Complete list of directories where npm should be executed to install node modules
+ * Complete list of workspace directories.
+ *
+ * NOTE: With pnpm workspaces, dependency installation is handled by a single
+ * `pnpm install` at the repo root (driven by `pnpm-workspace.yaml`). This list
+ * is kept for build scripts that need to enumerate workspace directories
+ * (e.g., distro mixin, extension enumeration).
  */
 export const dirs = [
 	'',

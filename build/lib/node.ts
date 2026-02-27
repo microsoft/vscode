@@ -7,12 +7,11 @@ import path from 'path';
 import fs from 'fs';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
-const npmrcPath = path.join(root, 'remote', '.npmrc');
-const npmrc = fs.readFileSync(npmrcPath, 'utf8');
-const version = /^target="(.*)"$/m.exec(npmrc)?.[1];
+const electronConfig = JSON.parse(fs.readFileSync(path.join(root, 'electron.config.json'), 'utf8'));
+const version = electronConfig.remoteNodeVersion;
 
 if (!version) {
-	throw new Error('Failed to extract Node version from .npmrc');
+	throw new Error('Failed to extract Node version from electron.config.json');
 }
 
 const platform = process.platform;

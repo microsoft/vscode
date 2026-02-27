@@ -76,8 +76,8 @@ jobs:
       - script: |
           set -e
           mkdir -p .build/nodejs-musl
-          NODE_VERSION=$(grep '^target=' remote/.npmrc | cut -d '"' -f 2)
-          BUILD_ID=$(grep '^ms_build_id=' remote/.npmrc | cut -d '"' -f 2)
+          NODE_VERSION=$(node -e "console.log(require('./electron.config.json').remoteNodeVersion)")
+          BUILD_ID=$(node -e "console.log(require('./electron.config.json').remoteMsBuildId)")
           gh release download "v${NODE_VERSION}-${BUILD_ID}" -R microsoft/vscode-node -p "node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" --dir .build/nodejs-musl --clobber
           tar -xzf ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz" -C ".build/nodejs-musl" --strip-components=1
           rm ".build/nodejs-musl/node-v${NODE_VERSION}-linux-${VSCODE_ARCH}-musl.tar.gz"
@@ -90,7 +90,7 @@ jobs:
           set -e
 
           for i in {1..5}; do # try 5 times
-            npm ci && break
+            pnpm install --frozen-lockfile && break
             if [ $i -eq 5 ]; then
               echo "Npm install failed too many times" >&2
               exit 1

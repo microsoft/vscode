@@ -38,7 +38,7 @@ jobs:
 
     - script: |
         set -e
-        npm ci
+        pnpm install --frozen-lockfile
       workingDirectory: build
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"

@@ -22,7 +22,7 @@ jobs:
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password"
 
-      - script: npm ci
+      - script: pnpm install --frozen-lockfile
         workingDirectory: build
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"

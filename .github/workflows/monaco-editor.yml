@@ -59,7 +59,7 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: |
-          npm ci
+          pnpm install --frozen-lockfile
 
       - name: Download Playwright
         run: npm run playwright-install

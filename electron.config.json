@@ -1,0 +1,8 @@
+{
+	"electronVersion": "39.6.0",
+	"msBuildId": "13330601",
+	"electronDistUrl": "https://electronjs.org/headers",
+	"remoteNodeVersion": "22.22.0",
+	"remoteMsBuildId": "406245",
+	"remoteDistUrl": "https://nodejs.org/dist"
+}

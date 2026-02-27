@@ -27,7 +27,7 @@ jobs:
 
       - script: |
           set -e
-          echo "Checking if package.json or package-lock.json files were modified..."
+          echo "Checking if package.json or pnpm-lock.yaml files were modified..."
 
           # Get the list of changed files in the PR
           git fetch origin main
@@ -35,8 +35,8 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
-          # Check if package.json or package-lock.json are in the changed files
-          if echo "$CHANGED_FILES" | grep -E '(^|/)package(-lock)?\.json$'; then
+          # Check if package.json or pnpm-lock.yaml are in the changed files
+          if echo "$CHANGED_FILES" | grep -E '(^|/)(package\.json|pnpm-lock\.yaml)$'; then
             echo "##vso[task.setvariable variable=SHOULD_VALIDATE]true"
             echo "Package files were modified, proceeding with validation"
           else
@@ -81,20 +81,16 @@ jobs:
               sleep 1800
             fi
 
-            echo "Attempt $attempt: Running npm ci"
-            if npm i --ignore-scripts; then
-              if node build/npm/postinstall.ts; then
-                echo "npm i succeeded on attempt $attempt"
-                exit 0
-              else
-                echo "node build/npm/postinstall.ts failed on attempt $attempt"
-              fi
+            echo "Attempt $attempt: Running pnpm install --frozen-lockfile"
+            if pnpm install --frozen-lockfile; then
+              echo "pnpm install succeeded on attempt $attempt"
+              exit 0
             else
-              echo "npm i failed on attempt $attempt"
+              echo "pnpm install failed on attempt $attempt"
             fi
           done
 
-          echo "npm i failed after 12 attempts"
+          echo "pnpm install failed after 12 attempts"
           exit 1
         env:
           npm_command: 'install --ignore-scripts'
@@ -107,8 +103,8 @@ jobs:
 
       - script: |
           set -e
-          find . -name 'package-lock.json' -exec sed -i "s|$NPM_REGISTRY|https://registry.npmjs.org/|g" {} \;
-        displayName: Restore registry URLs in package-lock.json
+          sed -i "s|$NPM_REGISTRY|https://registry.npmjs.org/|g" pnpm-lock.yaml
+        displayName: Restore registry URLs in pnpm-lock.yaml
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
 
       - script: .github/workflows/check-clean-git-state.sh

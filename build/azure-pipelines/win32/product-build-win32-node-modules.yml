@@ -70,7 +70,7 @@ jobs:
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npm ci }
+          exec { pnpm install --frozen-lockfile }
         env:
           npm_config_arch: $(VSCODE_ARCH)
           npm_config_foreground_scripts: "true"

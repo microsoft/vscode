@@ -15,7 +15,7 @@ async function spawn(cmd: string, args: string[], opts?: Parameters<typeof _spaw
 }
 
 async function main() {
-	await spawn('npm', ['ci'], { cwd: 'extensions' });
+	await spawn('pnpm', ['install', '--frozen-lockfile'], { cwd: 'extensions' });
 
 	for (const extension of readdirSync('extensions')) {
 		try {
@@ -27,7 +27,7 @@ async function main() {
 			continue;
 		}
 
-		await spawn(`npm`, ['run', 'update-grammar'], { cwd: `extensions/${extension}` });
+		await spawn(`pnpm`, ['run', 'update-grammar'], { cwd: `extensions/${extension}` });
 	}
 
 	// run integration tests

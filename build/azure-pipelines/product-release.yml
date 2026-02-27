@@ -27,7 +27,7 @@ steps:
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
         Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
 
-  - script: npm ci
+  - script: pnpm install --frozen-lockfile
     workingDirectory: build
     displayName: Install build dependencies
 

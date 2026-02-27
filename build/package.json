@@ -66,18 +66,13 @@
   "type": "module",
   "scripts": {
     "copy-policy-dto": "node lib/policies/copyPolicyDto.ts",
-    "pretypecheck": "npm run copy-policy-dto",
+    "pretypecheck": "pnpm run copy-policy-dto",
     "typecheck": "cd .. && npx tsgo --project build/tsconfig.json",
-    "watch": "npm run typecheck -- --watch",
+    "watch": "pnpm run typecheck -- --watch",
     "test": "mocha --ui tdd '{lib,next}/**/*.test.ts'"
   },
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",
     "vscode-gulp-watch": "^5.0.3"
-  },
-  "overrides": {
-    "path-scurry": {
-      "lru-cache": "11.2.1"
-    }
   }
 }

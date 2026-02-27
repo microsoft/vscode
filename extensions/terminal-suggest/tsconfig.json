@@ -7,7 +7,7 @@
 			"node"
 		],
 		"typeRoots": [
-			"./node_modules/@types"
+			"./node_modules/@types",
 		],
 		"esModuleInterop": true,
 		// Needed to suppress warnings in upstream completions

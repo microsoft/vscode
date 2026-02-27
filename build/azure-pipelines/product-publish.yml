@@ -55,7 +55,7 @@ jobs:
         displayName: Add build tag
 
       - pwsh: |
-          npm ci
+          pnpm install --frozen-lockfile
         workingDirectory: build
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"

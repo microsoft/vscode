@@ -68,8 +68,9 @@ const out = args.build ? 'out-build' : 'out';
 const src = path.join(REPO_ROOT, out);
 const baseUrl = pathToFileURL(src);
 
+const electronConfig = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'electron.config.json'), 'utf8'));
 //@ts-ignore
-const requiredNodeVersion = semver.parse(/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]);
+const requiredNodeVersion = semver.parse(electronConfig.remoteNodeVersion);
 const currentNodeVersion = semver.parse(process.version);
 //@ts-ignore
 if (currentNodeVersion?.major < requiredNodeVersion?.major) {

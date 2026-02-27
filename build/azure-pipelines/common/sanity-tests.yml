@@ -91,7 +91,7 @@ jobs:
           workingFile: $(TEST_DIR)/.npmrc
         displayName: Authenticate with NPM Registry
 
-      - script: npm ci
+      - script: pnpm install --frozen-lockfile
         workingDirectory: $(TEST_DIR)
         displayName: Install NPM Dependencies
 

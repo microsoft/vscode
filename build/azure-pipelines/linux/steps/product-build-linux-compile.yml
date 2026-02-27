@@ -99,7 +99,7 @@ steps:
       set -e
 
       for i in {1..5}; do # try 5 times
-        npm ci && break
+        pnpm install --frozen-lockfile && break
         if [ $i -eq 5 ]; then
           echo "Npm install failed too many times" >&2
           exit 1
@@ -137,7 +137,7 @@ steps:
       node build/npm/preinstall.ts
 
       for i in {1..5}; do # try 5 times
-        npm ci && break
+        pnpm install --frozen-lockfile && break
         if [ $i -eq 5 ]; then
           echo "Npm install failed too many times" >&2
           exit 1

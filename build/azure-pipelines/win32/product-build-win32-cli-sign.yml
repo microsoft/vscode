@@ -67,7 +67,7 @@ jobs:
       - powershell: |
           . azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { npm ci }
+          exec { pnpm install --frozen-lockfile }
         workingDirectory: build
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"

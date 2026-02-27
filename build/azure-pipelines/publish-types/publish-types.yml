@@ -33,7 +33,7 @@ steps:
 
   - bash: |
       # Install build dependencies
-      (cd build && npm ci)
+      (cd build && pnpm install --frozen-lockfile)
       node build/azure-pipelines/publish-types/check-version.ts
     displayName: Check version
 

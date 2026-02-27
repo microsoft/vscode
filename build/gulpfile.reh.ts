@@ -143,9 +143,9 @@ const bootstrapEntryPoints = [
 ];
 
 function getNodeVersion() {
-	const npmrc = fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8');
-	const nodeVersion = /^target="(.*)"$/m.exec(npmrc)![1];
-	const internalNodeVersion = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
+	const electronConfig = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'electron.config.json'), 'utf8'));
+	const nodeVersion = electronConfig.remoteNodeVersion;
+	const internalNodeVersion = electronConfig.remoteMsBuildId;
 	return { nodeVersion, internalNodeVersion };
 }
 
