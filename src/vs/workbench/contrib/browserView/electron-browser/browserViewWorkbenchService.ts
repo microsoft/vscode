@@ -27,23 +27,11 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 	}
 
 	async getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel> {
-		let model = this._models.get(id);
-		if (model) {
-			return model;
-		}
+		return this._getBrowserViewModel(id, true);
+	}
 
-		model = this.instantiationService.createInstance(BrowserViewModel, id, this._browserViewService);
-		this._models.set(id, model);
-
-		// Initialize the model with current state
-		await model.initialize();
-
-		// Clean up model when disposed
-		Event.once(model.onWillDispose)(() => {
-			this._models.delete(id);
-		});
-
-		return model;
+	async getBrowserViewModel(id: string): Promise<IBrowserViewModel> {
+		return this._getBrowserViewModel(id, false);
 	}
 
 	async clearGlobalStorage(): Promise<void> {
@@ -53,5 +41,30 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 	async clearWorkspaceStorage(): Promise<void> {
 		const workspaceId = this.workspaceContextService.getWorkspace().id;
 		return this._browserViewService.clearWorkspaceStorage(workspaceId);
+	}
+
+	private async _getBrowserViewModel(id: string, create: boolean): Promise<IBrowserViewModel> {
+		let model = this._models.get(id);
+		if (model) {
+			return model;
+		}
+
+		model = this.instantiationService.createInstance(BrowserViewModel, id, this._browserViewService);
+		this._models.set(id, model);
+
+		// Initialize the model with current state
+		try {
+			await model.initialize(create);
+		} catch (e) {
+			this._models.delete(id);
+			throw e;
+		}
+
+		// Clean up model when disposed
+		Event.once(model.onWillDispose)(() => {
+			this._models.delete(id);
+		});
+
+		return model;
 	}
 }

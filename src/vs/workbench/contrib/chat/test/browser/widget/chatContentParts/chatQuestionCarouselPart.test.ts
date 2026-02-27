@@ -99,13 +99,15 @@ suite('ChatQuestionCarouselPart', () => {
 
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title, 'title element should exist');
-			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
-			assert.strictEqual(title?.textContent?.includes('**details**'), false, 'markdown syntax should not be shown as raw text');
-			const link = title?.querySelector('a') as HTMLAnchorElement | null;
+			const messageEl = widget.domNode.querySelector('.chat-question-message');
+			assert.ok(messageEl, 'message element should exist');
+			assert.ok(messageEl?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
+			assert.strictEqual(messageEl?.textContent?.includes('**details**'), false, 'markdown syntax should not be shown as raw text');
+			const link = messageEl?.querySelector('a') as HTMLAnchorElement | null;
 			assert.ok(link, 'markdown link should render as anchor');
 		});
 
-		test('renders markdown in plain string question message', () => {
+		test('renders plain string question message as text', () => {
 			const carousel = createMockCarousel([
 				{
 					id: 'q1',
@@ -116,12 +118,10 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			const title = widget.domNode.querySelector('.chat-question-title');
-			assert.ok(title, 'title element should exist');
-			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered for plain string messages');
-			assert.strictEqual(title?.textContent?.includes('**details**'), false, 'markdown syntax should not be shown as raw text');
-			const link = title?.querySelector('a') as HTMLAnchorElement | null;
-			assert.ok(link, 'markdown link should render as anchor');
+			const messageEl = widget.domNode.querySelector('.chat-question-message');
+			assert.ok(messageEl, 'message element should exist');
+			assert.ok(messageEl?.textContent?.includes('details'), 'plain text content should be rendered');
+			assert.strictEqual(messageEl?.querySelector('.rendered-markdown'), null, 'plain string message should not use markdown renderer');
 		});
 
 		test('renders progress indicator correctly', () => {

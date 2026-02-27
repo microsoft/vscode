@@ -461,7 +461,7 @@ suite('HookSchema', () => {
 			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), '');
 		});
 
-		test('applies platform override for display with platform badge', () => {
+		test('applies platform override for display', () => {
 			const hook: IHookCommand = {
 				type: 'command',
 				command: 'default-command',
@@ -469,10 +469,10 @@ suite('HookSchema', () => {
 				linux: 'linux-command',
 				osx: 'osx-command'
 			};
-			// Should include platform badge when using platform-specific override
-			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), '[Windows] win-command');
-			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Macintosh), '[macOS] osx-command');
-			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Linux), '[Linux] linux-command');
+			// Should resolve to platform-specific command
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Windows), 'win-command');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Macintosh), 'osx-command');
+			assert.strictEqual(formatHookCommandLabel(hook, OperatingSystem.Linux), 'linux-command');
 		});
 
 		test('no platform badge when falling back to default command', () => {

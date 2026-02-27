@@ -534,12 +534,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public async getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]> {
 		const result: IPromptPath[] = [];
 
-		if (type === PromptsType.agent) {
-			const folders = await this.fileLocator.getAgentSourceFolders();
-			for (const uri of folders) {
-				result.push({ uri, storage: PromptsStorage.local, type });
-			}
-		} else if (type === PromptsType.hook) {
+		if (type === PromptsType.hook) {
 			// For hooks, return the Copilot hooks folder for creating new hooks
 			// (Claude paths are read-only and not included here)
 			const hooksFolders = await this.fileLocator.getHookSourceFolders();

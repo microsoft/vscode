@@ -580,7 +580,7 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(unavailable.group?.icon?.id, Codicon.blank.id);
 	});
 
-	test('anonymous user sees upgrade description only on first unavailable model', () => {
+	test('anonymous user sees upgrade description on each unavailable model', () => {
 		const auto = createAutoModel();
 		const items = callBuild([auto], {
 			recentModelIds: ['model-a', 'model-b'],
@@ -596,10 +596,11 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(disabledItems.length, 2);
 		assert.ok(disabledItems[0].description instanceof MarkdownString);
 		assert.ok(disabledItems[0].description.value.includes('Upgrade'));
-		assert.strictEqual(disabledItems[1].description, undefined);
+		assert.ok(disabledItems[1].description instanceof MarkdownString);
+		assert.ok(disabledItems[1].description.value.includes('Upgrade'));
 	});
 
-	test('free user sees upgrade description only on first unavailable model', () => {
+	test('free user sees upgrade description on each unavailable model', () => {
 		const auto = createAutoModel();
 		const items = callBuild([auto], {
 			recentModelIds: ['model-a', 'model-b'],
@@ -614,7 +615,8 @@ suite('buildModelPickerItems', () => {
 		assert.strictEqual(disabledItems.length, 2);
 		assert.ok(disabledItems[0].description instanceof MarkdownString);
 		assert.ok(disabledItems[0].description.value.includes('Upgrade'));
-		assert.strictEqual(disabledItems[1].description, undefined);
+		assert.ok(disabledItems[1].description instanceof MarkdownString);
+		assert.ok(disabledItems[1].description.value.includes('Upgrade'));
 	});
 
 	test('anonymous user model selection triggers onSelect normally', () => {

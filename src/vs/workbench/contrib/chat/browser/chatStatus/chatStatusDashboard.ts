@@ -179,7 +179,8 @@ export class ChatStatusDashboard extends DomWidget {
 
 			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false) : undefined;
 			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
+			const premiumChatLabel = premiumChatQuota?.overageEnabled && !premiumChatQuota?.unlimited ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
+			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, premiumChatQuota, premiumChatLabel, true) : undefined;
 
 			if (resetDate) {
 				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", resetDateHasTime ? this.dateTimeFormatter.value.format(new Date(resetDate)) : this.dateFormatter.value.format(new Date(resetDate)))));
@@ -528,15 +529,22 @@ export class ChatStatusDashboard extends DomWidget {
 
 			quotaBit.style.width = `${usedPercentage}%`;
 
-			if (usedPercentage >= 90) {
+			const overageEnabled = supportsOverage && typeof quota !== 'string' && quota?.overageEnabled;
+			if (usedPercentage >= 90 && !overageEnabled) {
 				quotaIndicator.classList.add('error');
-			} else if (usedPercentage >= 75) {
+			} else if (usedPercentage >= 75 && !overageEnabled) {
 				quotaIndicator.classList.add('warning');
 			}
 
 			if (supportsOverage) {
-				if (typeof quota !== 'string' && quota?.overageEnabled) {
-					overageLabel.textContent = localize('additionalUsageEnabled', "Additional paid premium requests enabled.");
+				if (typeof quota !== 'string' && quota.unlimited) {
+					overageLabel.textContent = '';
+				} else if (typeof quota !== 'string' && quota?.overageEnabled) {
+					overageLabel.replaceChildren(
+						localize('additionalUsageApprovedLine1', "Additional premium requests approved."),
+						$('br'),
+						localize('additionalUsageApprovedLine2', "You can continue after the included premium requests limit reaches 100%.")
+					);
 				} else {
 					overageLabel.textContent = localize('additionalUsageDisabled', "Additional paid premium requests disabled.");
 				}

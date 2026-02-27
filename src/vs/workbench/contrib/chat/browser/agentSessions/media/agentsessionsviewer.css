@@ -99,8 +99,7 @@
 			.agent-session-icon {
 				flex-shrink: 0;
 				font-size: 12px;
-				width: 14px;
-				height: 14px;
+				height: 16px;
 				display: flex;
 				align-items: center;
 				justify-content: center;
