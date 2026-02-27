@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -270,8 +271,8 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			constructor() {
 				super({
 					id: AICustomizationManagementCommands.OpenEditor,
-					title: localize2('openAICustomizations', "Open Chat Customizations (Preview)"),
-					shortTitle: localize2('aiCustomizations', "Chat Customizations (Preview)"),
+					title: localize2('openAICustomizations', "Open Customizations (Preview)"),
+					shortTitle: localize2('aiCustomizations', "Customizations (Preview)"),
 					category: CHAT_CATEGORY,
 					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
 					f1: true,
@@ -284,6 +285,27 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
+				}
+			}
+		}));
+
+		// Toggle Debug Panel in AI Customizations Editor
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.ToggleDebug,
+					title: localize2('toggleDebugPanel', "Customizations Debug"),
+					category: Categories.Developer,
+					f1: true,
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const pane = editorService.activeEditorPane;
+				if (pane instanceof AICustomizationManagementEditor) {
+					const report = await (pane as AICustomizationManagementEditor).generateDebugReport();
+					await editorService.openEditor({ resource: undefined, contents: report, options: { pinned: false } });
 				}
 			}
 		}));

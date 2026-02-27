@@ -27,6 +27,7 @@ import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
 import { globalAutoApproveDescription } from './tools/languageModelToolsService.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
+import { Target } from '../common/promptSyntax/service/promptsService.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -81,7 +82,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_tools',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(ConfigureToolsAction.ID);
 		}));
@@ -91,7 +93,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_debug',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
 		}, async () => {
 			await commandService.executeCommand('github.copilot.debug.showChatLogView');
 		}));
@@ -141,7 +143,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z2_fork',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async (_prompt, _progress, _history, _location, sessionResource) => {
 			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
 		}));
@@ -151,7 +154,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z2_rename',
 			executeImmediately: false,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async (prompt, _progress, _history, _location, sessionResource) => {
 			const title = prompt.trim();
 			if (title) {
@@ -216,7 +220,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z1_autoApprove',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, handleEnableAutoApprove));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'disableAutoApprove',
@@ -224,7 +229,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z1_disableAutoApprove',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, handleDisableAutoApprove));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'yolo',
@@ -232,7 +238,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z1_yolo',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, handleEnableAutoApprove));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'disableYolo',
@@ -240,7 +247,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z1_disableYolo',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, handleDisableAutoApprove));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'help',
@@ -248,7 +256,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z1_help',
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat],
-			modes: [ChatModeKind.Ask]
+			modes: [ChatModeKind.Ask],
+			target: Target.VSCode
 		}, async (prompt, progress, _history, _location, sessionResource) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const agents = chatAgentService.getAgents();
