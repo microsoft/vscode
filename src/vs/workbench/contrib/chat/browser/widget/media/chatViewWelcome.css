@@ -157,7 +157,7 @@ div.chat-welcome-view {
 	}
 
 	& > .chat-welcome-view-disclaimer {
-		color: var(--vscode-input-placeholderForeground);
+		color: var(--vscode-descriptionForeground);
 		text-align: center;
 		margin: 0;
 		max-width: 256px;
