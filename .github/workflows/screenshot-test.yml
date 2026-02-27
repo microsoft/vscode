@@ -10,8 +10,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  checks: write
   statuses: write
 
 concurrency:
@@ -96,41 +94,18 @@ jobs:
           REPORT="test/componentFixtures/.screenshots/report/report.json"
           if [ -f "$REPORT" ]; then
             CHANGED=$(node -e "const r = require('./$REPORT'); console.log(r.summary.added + r.summary.removed + r.summary.changed)")
-            TITLE="📸 ${CHANGED} screenshots changed"
-            CONCLUSION="neutral"
+            TITLE="📸 ⚠️ ${CHANGED} screenshots changed"
           else
-            TITLE="📸 Screenshots match"
-            CONCLUSION="success"
+            TITLE="📸 ✅ Screenshots match"
           fi
 
           SHA="${{ github.event.pull_request.head.sha || github.sha }}"
           DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json"
 
-          EXPLORER_PUSHED=false
-          if gh api "repos/${{ github.repository }}/check-runs" \
-            --input - <<EOF; then
-          {"name":"Component Screenshots","head_sha":"$SHA","status":"completed","conclusion":"$CONCLUSION","details_url":"$DETAILS_URL","output":{"title":"$TITLE","summary":"$TITLE"}}
+          gh api "repos/${{ github.repository }}/statuses/$SHA" \
+            --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
+          {"state":"success","target_url":"$DETAILS_URL","description":"$TITLE","context":"Component Screenshots"}
           EOF
-            EXPLORER_PUSHED=true
-          else
-            echo "::warning::Could not create check run (expected for fork PRs)"
-          fi
-
-          CHECK_RUN_ID=$(gh api "repos/${{ github.repository }}/commits/$SHA/check-runs" \
-            --jq '.check_runs[] | select(.name == "Checking Component Screenshots / screenshots") | .id')
-
-          if [ "$EXPLORER_PUSHED" = true ]; then
-            CHECK_TITLE="Screenshots"
-          else
-            CHECK_TITLE="$TITLE"
-          fi
-
-          if [ -n "$CHECK_RUN_ID" ]; then
-            gh api "repos/${{ github.repository }}/check-runs/$CHECK_RUN_ID" \
-              -X PATCH --input - <<EOF || echo "::warning::Could not update check run (expected for fork PRs)"
-          {"details_url":"$DETAILS_URL","output":{"title":"$CHECK_TITLE","summary":"$CHECK_TITLE"}}
-          EOF
-          fi
 
       # - name: Post PR comment
       #   if: github.event_name == 'pull_request'
