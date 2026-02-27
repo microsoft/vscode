@@ -208,7 +208,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			}
 		};
 
-		return [queueAction, steerAction, sendAction];
+		return [sendAction, queueAction, steerAction];
 	}
 }
 
