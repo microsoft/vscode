@@ -7,7 +7,7 @@ import { URL } from 'url';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
-import { env } from 'vscode';
+import { env, workspace } from 'vscode';
 
 function sendFile(res: http.ServerResponse, filepath: string) {
 	const isSvg = filepath.endsWith('.svg');
@@ -99,6 +99,9 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		this._resultPromise = new Promise<IOAuthResult>((resolve, reject) => deferred = { resolve, reject });
 
 		const appNameQueryParam = `&app_name=${encodeURIComponent(env.appName)}`;
+		const appIconQueryParam = `&app_icon=${encodeURIComponent(
+			workspace.isAgentSessionsWorkspace ? 'sessions-icon.svg' : 'code-icon.svg'
+		)}`;
 		this._server = http.createServer((req, res) => {
 			const reqUrl = new URL(req.url!, `http://${req.headers.host}`);
 			switch (reqUrl.pathname) {
@@ -122,20 +125,20 @@ export class LoopbackAuthServer implements ILoopbackServer {
 						return;
 					}
 					if (this.state !== state) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('State does not match.')}${appNameQueryParam}` });
+						res.writeHead(302, { location: `/?error=${encodeURIComponent('State does not match.')}${appNameQueryParam}${appIconQueryParam}` });
 						res.end();
 						throw new Error('State does not match.');
 					}
 					if (this.nonce !== nonce) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}${appNameQueryParam}` });
+						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}${appNameQueryParam}${appIconQueryParam}` });
 						res.end();
 						throw new Error('Nonce does not match.');
 					}
 					deferred.resolve({ code, state });
 					if (isPortable) {
-						res.writeHead(302, { location: `/?app_name=${encodeURIComponent(env.appName)}` });
+						res.writeHead(302, { location: `/?app_name=${encodeURIComponent(env.appName)}${appIconQueryParam}` });
 					} else {
-						res.writeHead(302, { location: `/?redirect_uri=${encodeURIComponent(callbackUri)}${appNameQueryParam}` });
+						res.writeHead(302, { location: `/?redirect_uri=${encodeURIComponent(callbackUri)}${appNameQueryParam}${appIconQueryParam}` });
 					}
 					res.end();
 					break;
