@@ -37,7 +37,7 @@ class _GenericVis:
         return True
     def init_model(self, value, get_visualizer=None):
         return None
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+    def visualize(self, value, model, get_visualizer, eval_in_scope=None, max_width=None, max_height=None, small=False):
         return html_module.escape(repr(value))
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return (model, [])
@@ -48,8 +48,8 @@ class _ZObjectVisAdapter:
         return z_object_visualizer.can_visualize(value)
     def init_model(self, value, get_visualizer=None):
         return z_object_visualizer.init_model(value, get_visualizer)
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
-        return z_object_visualizer.visualize(value, model, get_visualizer, max_width=max_width, max_height=max_height, small=small)
+    def visualize(self, value, model, get_visualizer, eval_in_scope=None, max_width=None, max_height=None, small=False):
+        return z_object_visualizer.visualize(value, model, get_visualizer, eval_in_scope, max_width=max_width, max_height=max_height, small=small)
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return z_object_visualizer.update(event, source_code, source_line, model, value, get_visualizer)
 
@@ -211,17 +211,17 @@ class TestVisualize(unittest.TestCase):
 
     def test_visualize_primitives_unchanged(self):
         """None, int, float should still return repr."""
-        self.assertEqual(visualize(None, None, _get_visualizer), repr(None))
-        self.assertEqual(visualize(42, None, _get_visualizer), repr(42))
-        self.assertEqual(visualize(3.14, None, _get_visualizer), repr(3.14))
-        self.assertEqual(visualize(True, None, _get_visualizer), repr(True))
+        self.assertEqual(visualize(None, None, _get_visualizer, None), repr(None))
+        self.assertEqual(visualize(42, None, _get_visualizer, None), repr(42))
+        self.assertEqual(visualize(3.14, None, _get_visualizer, None), repr(3.14))
+        self.assertEqual(visualize(True, None, _get_visualizer, None), repr(True))
 
     def test_visualize_object_shows_field_table(self):
         """Object visualization should contain table with field names and values."""
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('.x', html_output)
         self.assertIn('.name', html_output)
@@ -233,7 +233,7 @@ class TestVisualize(unittest.TestCase):
         """HTML should contain a (+) button with snc-mouse-down for AddFieldClick."""
         obj = TestObj()
         model = init_model(obj)
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('snc-mouse-down', html_output)
         self.assertIn('AddFieldClick', html_output)
@@ -245,7 +245,7 @@ class TestVisualize(unittest.TestCase):
         model = init_model(obj)
         model['adding_field'] = True
         model['input_value'] = '.na'
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('<input', html_output)
         self.assertIn('snc-input', html_output)
@@ -258,7 +258,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.x', '.name']
         model['editing_index'] = 0
         model['input_value'] = '.x'
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('<input', html_output)
         self.assertIn('snc-input', html_output)
@@ -270,7 +270,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = []  # no existing fields
         model['adding_field'] = True
         model['input_value'] = '.x'
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         # Should show .x as a suggestion (since it starts with '.x')
         self.assertIn('FieldSelect', html_output)
@@ -282,7 +282,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = []
         model['adding_field'] = True
         model['input_value'] = '.na'
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         # Should have .name as suggestion
         self.assertIn('.name', html_output)
@@ -298,7 +298,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.name']
         model['adding_field'] = True
         model['input_value'] = '.'  # matches everything
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         # .name is already shown, so FieldSelect for .name should not be in autocomplete
         # But .x and .y should be
@@ -315,7 +315,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.x']
         model['adding_field'] = True
         model['input_value'] = '.name'
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         # .name evaluates to 'test', should be shown
         self.assertIn('test', html_output)
@@ -324,7 +324,7 @@ class TestVisualize(unittest.TestCase):
         """Should show the full class name in the header."""
         obj = TestObj()
         model = init_model(obj)
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         full_name = _get_full_class_name(obj)
         self.assertIn('TestObj', html_output)
@@ -334,7 +334,7 @@ class TestVisualize(unittest.TestCase):
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('FieldClick(index=0)', html_output)
         self.assertIn('FieldClick(index=1)', html_output)
@@ -344,7 +344,7 @@ class TestVisualize(unittest.TestCase):
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('RemoveFieldClick(index=0)', html_output)
         self.assertIn('RemoveFieldClick(index=1)', html_output)
@@ -358,7 +358,7 @@ class TestVisualize(unittest.TestCase):
         model = init_model(obj)
         model['adding_field'] = True
         model['input_value'] = ''
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('autofocus', html_output)
 
@@ -369,7 +369,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.x', '.name']
         model['editing_index'] = 0
         model['input_value'] = '.x'
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('autofocus', html_output)
 
@@ -380,7 +380,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = ['.x', '.name']
         model['editing_index'] = 0
         model['input_value'] = '.x'
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('snc-select-all', html_output)
 
@@ -390,7 +390,7 @@ class TestVisualize(unittest.TestCase):
         model = init_model(obj)
         model['adding_field'] = True
         model['input_value'] = ''
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertNotIn('snc-select-all', html_output)
 
@@ -402,7 +402,7 @@ class TestVisualize(unittest.TestCase):
         model['adding_field'] = True
         model['input_value'] = '.'
         model['selected_suggestion_index'] = 0
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         # The first suggestion should have the highlight color
         self.assertIn('#094771', html_output)
@@ -414,7 +414,7 @@ class TestVisualize(unittest.TestCase):
         model['fields'] = []
         model['adding_field'] = True
         model['input_value'] = '.'
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('snc-dropdown-trigger', html_output)
         self.assertIn('snc-dropdown-panel', html_output)
@@ -996,7 +996,7 @@ class TestDragReorder(unittest.TestCase):
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('DragStart(index=0)', html_output)
         self.assertIn('DragStart(index=1)', html_output)
@@ -1006,7 +1006,7 @@ class TestDragReorder(unittest.TestCase):
         obj = TestObj()
         model = init_model(obj)
         model['fields'] = ['.x', '.name']
-        html_output = visualize(obj, model, _get_visualizer)
+        html_output = visualize(obj, model, _get_visualizer, None)
 
         self.assertIn('DragOver(index=0)', html_output)
         self.assertIn('DragEnd(index=0)', html_output)
@@ -1122,7 +1122,7 @@ class MockInteractiveVis:
         return isinstance(value, str)
     def init_model(self, value, get_visualizer=None):
         return {'vis_type': 'mock_interactive', 'handledKeys': ['Escape']}
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+    def visualize(self, value, model, get_visualizer, eval_in_scope=None, max_width=None, max_height=None, small=False):
         return f'<span snc-mouse-down="MockClick()">{html_module.escape(repr(value))}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         model = dict(model)
@@ -1178,13 +1178,13 @@ class TestComposition(unittest.TestCase):
     def test_visualize_wraps_field_values_with_child_key(self):
         obj = CompositionTestObj()
         model = init_model(obj, _interactive_get_visualizer)
-        output = visualize(obj, model, _interactive_get_visualizer)
+        output = visualize(obj, model, _interactive_get_visualizer, None)
         self.assertIn('snc-child-key=', output)
 
     def test_visualize_child_key_has_accessor(self):
         obj = CompositionTestObj()
         model = init_model(obj, _interactive_get_visualizer)
-        output = visualize(obj, model, _interactive_get_visualizer)
+        output = visualize(obj, model, _interactive_get_visualizer, None)
         import re
         matches = re.findall(r'snc-child-key="([^"]*)"', output)
         found_accessor_key = False

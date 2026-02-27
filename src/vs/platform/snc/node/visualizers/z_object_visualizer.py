@@ -477,7 +477,7 @@ def update(event, source_code: str, source_line: int, model: dict, value, get_vi
     return (model, commands)
 
 
-def visualize(obj, model, get_visualizer, max_width=None, max_height=None, small=False):
+def visualize(obj, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False):
     """
     Render the object as HTML with configurable field inspection.
 
@@ -513,7 +513,7 @@ def visualize(obj, model, get_visualizer, max_width=None, max_height=None, small
                 if child_model is None:
                     child_model = child_vis.init_model(raw_value, get_visualizer)
                 child_small = (accessor_code != focused_child)
-                child_html = child_vis.visualize(raw_value, child_model, get_visualizer, max_width=500, small=child_small)
+                child_html = child_vis.visualize(raw_value, child_model, get_visualizer, eval_in_scope, max_width=500, small=child_small)
                 value_td = f'<td>{wrap_child_html(child_html, accessor_code)}</td>'
             else:
                 value_td = f'<td>{html.escape(val_str)}</td>'

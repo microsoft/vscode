@@ -33,7 +33,7 @@ class MockStringVisualizer:
         return None
     def init_model(self, value, get_visualizer=None):
         return {'selection': None, 'handledKeys': ['Escape', 'Enter']}
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+    def visualize(self, value, model, get_visualizer, eval_in_scope=None, max_width=None, max_height=None, small=False):
         return f'<span snc-mouse-down="MouseDown(index=0)">{html.escape(value)}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         model = dict(model)
@@ -51,7 +51,7 @@ class SmallTrackingVisualizer:
         return None
     def init_model(self, value, get_visualizer=None):
         return {'handledKeys': []}
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+    def visualize(self, value, model, get_visualizer, eval_in_scope=None, max_width=None, max_height=None, small=False):
         self.visualize_calls.append({'value': value, 'small': small})
         return f'<span>{html.escape(value)}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
@@ -64,7 +64,7 @@ class MockIntVisualizer:
         return isinstance(value, int)
     def init_model(self, value, get_visualizer=None):
         return None
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+    def visualize(self, value, model, get_visualizer, eval_in_scope=None, max_width=None, max_height=None, small=False):
         return f'<span>{value}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return (model, [])
@@ -80,7 +80,7 @@ class MockDictVisualizer:
         return value[eval(field)]
     def init_model(self, value, get_visualizer=None):
         return None
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+    def visualize(self, value, model, get_visualizer, eval_in_scope=None, max_width=None, max_height=None, small=False):
         return f'<span>{html.escape(repr(value))}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return (model, [])
@@ -102,7 +102,7 @@ class MockObjectVisualizer:
             return None
     def init_model(self, value, get_visualizer=None):
         return None
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
+    def visualize(self, value, model, get_visualizer, eval_in_scope=None, max_width=None, max_height=None, small=False):
         return f'<span>{html.escape(repr(value))}</span>'
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return (model, [])
@@ -118,8 +118,8 @@ class ListVisualizerAdapter:
         return list_visualizer.get_field_value(value, field)
     def init_model(self, value, get_visualizer=None):
         return list_visualizer.init_model(value, get_visualizer)
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False):
-        return list_visualizer.visualize(value, model, get_visualizer, max_width=max_width, max_height=max_height, small=small)
+    def visualize(self, value, model, get_visualizer, eval_in_scope=None, max_width=None, max_height=None, small=False):
+        return list_visualizer.visualize(value, model, get_visualizer, eval_in_scope, max_width=max_width, max_height=max_height, small=small)
     def update(self, event, source_code, source_line, model, value, get_visualizer=None):
         return list_visualizer.update(event, source_code, source_line, model, value, get_visualizer)
 
@@ -203,13 +203,13 @@ class TestVisualize(unittest.TestCase):
     def test_output_contains_wrapped_child_events(self):
         lst = ["hello"]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         self.assertIn('snc-child-key=', output)
 
     def test_child_html_is_wrapped_with_correct_key(self):
         lst = ["hello"]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         matches = re.findall(r'snc-child-key="([^"]*)"', output)
         self.assertTrue(len(matches) > 0)
         self.assertEqual(eval(html.unescape(matches[0])), '0')
@@ -217,7 +217,7 @@ class TestVisualize(unittest.TestCase):
     def test_multiple_items_have_different_keys(self):
         lst = ["a", "b"]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         matches = re.findall(r'snc-child-key="([^"]*)"', output)
         keys = {eval(html.unescape(m)) for m in matches}
         self.assertIn('0', keys)
@@ -226,20 +226,20 @@ class TestVisualize(unittest.TestCase):
     def test_contains_child_content(self):
         lst = ["hello"]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         self.assertIn('hello', output)
 
     def test_brackets_present(self):
         lst = [42]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         self.assertIn('[', output)
         self.assertIn(']', output)
 
     def test_empty_list(self):
         lst = []
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         self.assertIn('[', output)
         self.assertIn(']', output)
 
@@ -279,7 +279,7 @@ class TestUpdate(unittest.TestCase):
         class CmdVis:
             def can_visualize(self, v): return True
             def init_model(self, v, get_visualizer=None): return {}
-            def visualize(self, v, m, gv, max_width=None, max_height=None): return '<span snc-mouse-down="X">x</span>'
+            def visualize(self, v, m, gv, eval_in_scope=None, max_width=None, max_height=None): return '<span snc-mouse-down="X">x</span>'
             def update(self, event, sc, sl, model, value, gv=None):
                 return (model, ['test_command'])
 
@@ -402,14 +402,14 @@ class TestTableRendering(unittest.TestCase):
     def test_renders_table_element(self):
         lst = [{'name': 'Alice'}, {'name': 'Bob'}]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         self.assertIn('<table', output)
         self.assertIn('</table>', output)
 
     def test_renders_column_headers(self):
         lst = [{'name': 'Alice', 'age': 30}]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         unescaped = html.unescape(output)
         self.assertIn("'name'", unescaped)
         self.assertIn("'age'", unescaped)
@@ -418,7 +418,7 @@ class TestTableRendering(unittest.TestCase):
     def test_renders_row_index_column(self):
         lst = [{'x': 1}, {'x': 2}]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         # Row indices should appear
         self.assertIn('0', output)
         self.assertIn('1', output)
@@ -426,14 +426,14 @@ class TestTableRendering(unittest.TestCase):
     def test_renders_cell_content(self):
         lst = [{'name': 'Alice'}]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         self.assertIn('Alice', output)
 
     def test_cell_html_wrapped_with_composite_key(self):
         """Cell HTML should be inside a snc-child-key span with composite key."""
         lst = [{'name': 'test_str'}]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         matches = re.findall(r'snc-child-key="([^"]*)"', output)
         found_composite = False
         for m in matches:
@@ -446,7 +446,7 @@ class TestTableRendering(unittest.TestCase):
     def test_missing_field_renders_empty_cell(self):
         lst = [{'a': 1}, {'b': 2}]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         unescaped = html.unescape(output)
         self.assertIn("'a'", unescaped)
         self.assertIn("'b'", unescaped)
@@ -455,7 +455,7 @@ class TestTableRendering(unittest.TestCase):
     def test_list_mode_still_uses_brackets(self):
         lst = ["hello", "world"]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         self.assertIn('[', output)
         self.assertIn(']', output)
         self.assertNotIn('<table', output)
@@ -463,7 +463,7 @@ class TestTableRendering(unittest.TestCase):
     def test_list_of_lists_renders_table(self):
         lst = [[1, 2], [3, 4]]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer)
+        output = visualize(lst, model, mock_get_visualizer, None)
         self.assertIn('<table', output)
         self.assertIn('1', output)
         self.assertIn('4', output)
@@ -503,7 +503,7 @@ class TestTableEventRouting(unittest.TestCase):
         class CmdVis:
             def can_visualize(self, v): return isinstance(v, str)
             def init_model(self, v, get_visualizer=None): return {}
-            def visualize(self, v, m, gv, max_width=None, max_height=None): return '<span snc-mouse-down="X">x</span>'
+            def visualize(self, v, m, gv, eval_in_scope=None, max_width=None, max_height=None): return '<span snc-mouse-down="X">x</span>'
             def update(self, event, sc, sl, model, value, gv=None):
                 return (model, ['table_cmd'])
 
@@ -529,20 +529,20 @@ class TestVisualizeMaxDimensions(unittest.TestCase):
     def test_list_mode_accepts_max_width_and_max_height(self):
         lst = ["hello"]
         model = init_model(lst, mock_get_visualizer)
-        output_default = visualize(lst, model, mock_get_visualizer)
-        output_with_dims = visualize(lst, model, mock_get_visualizer, max_width=100, max_height=50)
+        output_default = visualize(lst, model, mock_get_visualizer, None)
+        output_with_dims = visualize(lst, model, mock_get_visualizer, None, max_width=100, max_height=50)
         self.assertEqual(output_default, output_with_dims)
 
     def test_table_mode_accepts_max_width_and_max_height(self):
         lst = [{'name': 'Alice'}, {'name': 'Bob'}]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer, max_width=200, max_height=100)
+        output = visualize(lst, model, mock_get_visualizer, None, max_width=200, max_height=100)
         self.assertIn('<table', output)
 
     def test_empty_list_accepts_max_width_and_max_height(self):
         lst = []
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer, max_width=50, max_height=50)
+        output = visualize(lst, model, mock_get_visualizer, None, max_width=50, max_height=50)
         self.assertIn('[', output)
 
 
@@ -552,7 +552,7 @@ class TestSmallParameter(unittest.TestCase):
     def test_visualize_accepts_small_parameter(self):
         lst = ["hello"]
         model = init_model(lst, mock_get_visualizer)
-        output = visualize(lst, model, mock_get_visualizer, small=True)
+        output = visualize(lst, model, mock_get_visualizer, None, small=True)
         self.assertIn('hello', output)
 
     def test_children_receive_small_true_by_default(self):
@@ -560,7 +560,7 @@ class TestSmallParameter(unittest.TestCase):
         get_vis = lambda v: tracker
         lst = ["a", "b"]
         model = init_model(lst, get_vis)
-        visualize(lst, model, get_vis)
+        visualize(lst, model, get_vis, None)
         self.assertEqual(len(tracker.visualize_calls), 2)
         self.assertTrue(tracker.visualize_calls[0]['small'])
         self.assertTrue(tracker.visualize_calls[1]['small'])
@@ -572,7 +572,7 @@ class TestSmallParameter(unittest.TestCase):
         model = init_model(lst, get_vis)
         model['focused_child'] = '1'
         tracker.visualize_calls.clear()
-        visualize(lst, model, get_vis)
+        visualize(lst, model, get_vis, None)
         self.assertTrue(tracker.visualize_calls[0]['small'])
         self.assertFalse(tracker.visualize_calls[1]['small'])
 
@@ -581,7 +581,7 @@ class TestSmallParameter(unittest.TestCase):
         get_vis = lambda v: tracker
         lst = ["a"]
         model = init_model(lst, get_vis)
-        visualize(lst, model, get_vis)
+        visualize(lst, model, get_vis, None)
         self.assertTrue(tracker.visualize_calls[0]['small'])
 
     def test_table_mode_children_receive_small_true(self):
@@ -593,7 +593,7 @@ class TestSmallParameter(unittest.TestCase):
         lst = [{'name': 'Alice'}]
         model = init_model(lst, get_vis)
         tracker.visualize_calls.clear()
-        visualize(lst, model, get_vis)
+        visualize(lst, model, get_vis, None)
         self.assertTrue(all(c['small'] for c in tracker.visualize_calls))
 
     def test_table_mode_focused_child_receives_small_false(self):
@@ -606,7 +606,7 @@ class TestSmallParameter(unittest.TestCase):
         model = init_model(lst, get_vis)
         model['focused_child'] = "0\x00'name'"
         tracker.visualize_calls.clear()
-        visualize(lst, model, get_vis)
+        visualize(lst, model, get_vis, None)
         alice_call = next(c for c in tracker.visualize_calls if c['value'] == 'Alice')
         bob_call = next(c for c in tracker.visualize_calls if c['value'] == 'Bob')
         self.assertFalse(alice_call['small'])

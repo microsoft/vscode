@@ -604,11 +604,11 @@ def char_span_els(string, index, is_special, highlight=None, model=None) -> List
     # (this abbreviation speeds up the string visualization quite a bit)
     if styles or pat_html or repetition_html: # yes this branching speeds it up slightly
         # return f'{pat_html}<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
-        return [pat_html, '<span snc-mouse="', str(index), '" style="padding-right:1px;', styles, '">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span>', repetition_html]
+        return [pat_html, '<span snc-mouse="', str(index), '" style="height:100%;display:inline-block"><span style="padding-right:1px;', styles, '">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span></span>', repetition_html]
     else:
         # Yes, keep {styles} bc string interning, I think
         # return f'<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>'
-        return ['<span snc-mouse="', str(index), '" style="padding-right:1px;', '">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span>']
+        return ['<span snc-mouse="', str(index), '" style="height:100%;display:inline-block"><span style="padding-right:1px;', styles, '">', html.escape(string) if string in HTML_ESCAPE_CHARS else string, '</span></span>']
 
 
     # return f'{pat_html}<span snc-mouse="{index}" style="padding-right:1px;{styles}">{html.escape(string) if string in HTML_ESCAPE_CHARS else string}</span>{repetition_html}'
@@ -1107,51 +1107,192 @@ def resize_literal_segment(selection_regex: str, segment_index: int, string_valu
     return f"/{''.join(parts)}/"
 
 
-def get_search_flags(selection_regex: str | None) -> str:
-    """Extract the postfix flags from a search string (everything after the last /)."""
-    if not selection_regex:
-        return ''
-    last_slash = selection_regex.rfind('/', 1)
-    if last_slash <= 0:
-        return ''
-    return selection_regex[last_slash + 1:]
+# Valid string literal prefixes (lowercase); checked case-insensitively
+_STRING_PREFIXES = {'', 'f', 'r', 'b', 'u', 'fr', 'rf', 'br', 'rb'}
 
 
-def is_first_match_mode(selection_regex: str | None) -> bool:
-    """Check if the search is in first-match mode ('1' in postfix flags)."""
-    return '1' in get_search_flags(selection_regex)
+def _find_closing_delimiter(search: str | None) -> int | None:
+    """Find the index just past the closing delimiter of a search string.
 
+    Supports regex (/pattern/), Python string literals ('str', "str",
+    triple-quoted, with f/r/b/u prefixes), and backtick expressions (`expr`).
 
-def is_case_insensitive(selection_regex: str | None) -> bool:
-    """Check if the search is case-insensitive ('i' in postfix flags)."""
-    return 'i' in get_search_flags(selection_regex)
-
-
-def get_regex_inner_pattern(selection_regex: str | None) -> str | None:
+    Returns None if no valid closing delimiter is found.
     """
-    Extract the inner pattern from a selection regex (strips / delimiters and postfix flags).
-
-    Args:
-        selection_regex: Regex with / delimiters, e.g., "/hello/" or "/hello/1i"
-
-    Returns:
-        Inner pattern without delimiters or flags, or None if input is None
-    """
-    if selection_regex is None:
+    if not search:
         return None
-    last_slash = selection_regex.rfind('/', 1)
-    if last_slash <= 0:
-        return selection_regex[1:-1]
-    return selection_regex[1:last_slash]
+
+    # Regex: /pattern/ — find the LAST slash (flags never contain /)
+    if search[0] == '/':
+        idx = search.rfind('/')
+        return idx + 1 if idx > 0 else None
+
+    # Backtick expression: `expr`
+    if search[0] == '`':
+        idx = search.find('`', 1)
+        return idx + 1 if idx > 0 else None
+
+    # String literal: optional prefix + quote
+    prefix_end = 0
+    lower = search.lower()
+    for length in (2, 1):
+        candidate = lower[:length]
+        if candidate in _STRING_PREFIXES and candidate != '':
+            prefix_end = length
+            break
+
+    if prefix_end >= len(search):
+        return None
+
+    rest = search[prefix_end:]
+    is_raw = 'r' in lower[:prefix_end]
+
+    # Detect quote style
+    if rest.startswith("'''") or rest.startswith('"""'):
+        quote = rest[:3]
+        scan_start = 3
+    elif rest[0] in ("'", '"'):
+        quote = rest[0]
+        scan_start = 1
+    else:
+        return None
+
+    triple = len(quote) == 3
+    i = scan_start
+    while i < len(rest):
+        if not is_raw and rest[i] == '\\' and i + 1 < len(rest):
+            i += 2
+            continue
+        if triple:
+            if rest[i:i + 3] == quote:
+                return prefix_end + i + 3
+        else:
+            if rest[i] == quote:
+                return prefix_end + i + 1
+        i += 1
+
+    return None
 
 
-def _toggle_search_flag(selection_regex: str, flag_char: str) -> str:
-    """Toggle a single flag character in the postfix of a search string."""
-    last_slash = selection_regex.rfind('/', 1)
-    if last_slash <= 0:
-        return selection_regex
-    prefix = selection_regex[:last_slash + 1]  # e.g. "/hello/"
-    flags = selection_regex[last_slash + 1:]   # e.g. "1i"
+def is_regex_search(search: str | None) -> bool:
+    """Check if the search string is a regex search (starts with /)."""
+    return bool(search) and search[0] == '/'
+
+
+def is_string_search(search: str | None) -> bool:
+    """Check if the search string is a Python string literal search."""
+    if not search:
+        return False
+    if search[0] in ('/', '`'):
+        return False
+    return _find_closing_delimiter(search) is not None
+
+
+def is_backtick_search(search: str | None) -> bool:
+    """Check if the search is a backtick-delimited expression (`expr`)."""
+    if not search or search[0] != '`':
+        return False
+    return _find_closing_delimiter(search) is not None
+
+
+def is_expression_search(search: str | None) -> bool:
+    """Check if the search is an expression (backtick or bare text)."""
+    if not search:
+        return False
+    if is_regex_search(search) or is_string_search(search):
+        return False
+    return True
+
+
+def get_eval_expression(search: str | None) -> str | None:
+    """Extract the Python expression from a backtick or bare search.
+
+    Returns the expression text, or None if not an expression search.
+    """
+    if not search or is_regex_search(search) or is_string_search(search):
+        return None
+    if is_backtick_search(search):
+        end = _find_closing_delimiter(search)
+        return search[1:end - 1]
+    return search  # bare text
+
+
+def get_search_flags(search: str | None) -> str:
+    """Extract postfix flags from a search string (everything after the closing delimiter)."""
+    if not search:
+        return ''
+    end = _find_closing_delimiter(search)
+    if end is None:
+        return ''
+    return search[end:]
+
+
+def is_first_match_mode(search: str | None) -> bool:
+    """Check if the search is in first-match mode ('1' in postfix flags)."""
+    return '1' in get_search_flags(search)
+
+
+def is_case_insensitive(search: str | None) -> bool:
+    """Check if the search is case-insensitive ('i' in postfix flags)."""
+    return 'i' in get_search_flags(search)
+
+
+def get_regex_inner_pattern(search: str | None) -> str | None:
+    """Extract the inner pattern from a regex search (strips / delimiters and flags).
+
+    Returns None if input is None or not a regex search.
+    """
+    if search is None or not is_regex_search(search):
+        return None
+    end = _find_closing_delimiter(search)
+    if end is None:
+        return search[1:-1]
+    return search[1:end - 1]
+
+
+def get_string_literal(search: str | None) -> str | None:
+    """Extract the string literal portion (including quotes, excluding flags).
+
+    E.g., "'hello'" from "'hello'i", "f'hello'" from "f'hello'1i".
+    Returns None if not a string search.
+    """
+    if not search or not is_string_search(search):
+        return None
+    end = _find_closing_delimiter(search)
+    if end is None:
+        return None
+    return search[:end]
+
+
+def eval_string_search(search: str | None) -> str | None:
+    """Evaluate the string literal in a search to get the actual Python string value.
+
+    Returns None if not a string search or if evaluation fails.
+    """
+    literal = get_string_literal(search)
+    if literal is None:
+        return None
+    try:
+        result = eval(literal)
+        if isinstance(result, (str, bytes)):
+            return result if isinstance(result, str) else result.decode('utf-8', errors='replace')
+        return None
+    except Exception:
+        return None
+
+
+def _toggle_search_flag(search: str, flag_char: str) -> str:
+    """Toggle a single flag character in the postfix of a search string.
+
+    Bare text (no delimiters) is wrapped in backticks before adding a flag.
+    """
+    end = _find_closing_delimiter(search)
+    if end is None:
+        # Bare text: wrap in backticks so we can append a flag
+        search = f'`{search}`'
+        end = len(search)
+    prefix = search[:end]
+    flags = search[end:]
     if flag_char in flags:
         flags = flags.replace(flag_char, '')
     else:
@@ -1707,32 +1848,103 @@ def _to_fully_grouped_inner(inner_pattern: str) -> str:
     return ''.join(result_parts) if result_parts else inner_pattern
 
 
-def parse_regex_for_highlighting(selection_regex: str | None, string_value: str) -> List[Tuple[int, int, str, str, Tuple[int, int | float]]]:
+def _literal_match_highlights(search_text: str, string_value: str,
+                              first_match_only: bool, re_flags: int) -> list:
+    """Produce highlight tuples by matching a literal string against the value.
+
+    All highlights are display-only (segment_index=None) since non-regex
+    searches have no interactive segments.
     """
-    Parse the selection regex and run it against the ORIGINAL string to get highlight ranges.
+    escaped = re.escape(search_text)
 
-    Two-phase approach:
-    1. Match the regex against the original string (not augmented)
-    2. Translate string positions to internal visual indices
+    try:
+        if first_match_only:
+            m = re.search(escaped, string_value, flags=re_flags)
+            matches = [m] if m else []
+        else:
+            matches = list(re.finditer(escaped, string_value, flags=re_flags))
+    except Exception:
+        return []
 
-    Handles canonical regex format where some segments may not be in explicit groups.
-    Internally converts to fully-grouped form for matching.
+    if not matches:
+        return []
 
-    This ensures regex patterns work correctly (e.g., \\n+ matches consecutive newlines)
-    while still producing the correct internal indices for UI highlighting.
+    str_to_internal = build_string_to_internal_mapping(string_value)
+    highlights = []
+
+    for match in matches:
+        str_start, str_end = match.span()
+        if str_start == str_end:
+            continue
+        internal_start = str_to_internal[str_start] if str_start < len(str_to_internal) else 2
+        if str_end > 0 and str_end <= len(str_to_internal):
+            internal_end = str_to_internal[str_end - 1] + 1
+            if str_end - 1 < len(string_value) and string_value[str_end - 1] == '\n':
+                internal_end += 1
+        else:
+            internal_end = str_to_internal[-1] if str_to_internal else 2
+        highlights.append((internal_start, internal_end, 'literal', search_text, (1, 1), None))
+
+    return highlights
+
+
+def _string_search_highlights(search: str, string_value: str) -> list:
+    """Produce highlight tuples for a literal string search."""
+    search_text = eval_string_search(search)
+    if not search_text:
+        return []
+    return _literal_match_highlights(
+        search_text, string_value,
+        is_first_match_mode(search),
+        re.I if is_case_insensitive(search) else 0)
+
+
+def _expression_search_highlights(search: str, string_value: str, eval_in_scope=None) -> list:
+    """Produce highlight tuples for a backtick or bare expression search.
+
+    Uses eval_in_scope (if provided) to evaluate in the user's code scope,
+    falling back to bare eval. Returns no highlights if eval fails.
+    """
+    expr_text = get_eval_expression(search)
+    if not expr_text:
+        return []
+    try:
+        result = eval_in_scope(expr_text) if eval_in_scope else eval(expr_text)
+    except Exception:
+        return []
+    if not isinstance(result, str):
+        return []
+    if not result:
+        return []
+    return _literal_match_highlights(
+        result, string_value,
+        is_first_match_mode(search),
+        re.I if is_case_insensitive(search) else 0)
+
+
+def parse_regex_for_highlighting(selection_regex: str | None, string_value: str, eval_in_scope=None) -> List[Tuple[int, int, str, str, Tuple[int, int | float]]]:
+    """
+    Parse the search and run it against the ORIGINAL string to get highlight ranges.
+
+    Supports regex (/pattern/), string literals ('string'), backtick
+    expressions (`expr`), and bare expressions.
 
     Args:
-        selection_regex: Regex with / delimiters, e.g., "/hello(.*)world/" or "/(hello)(world)/"
+        selection_regex: Search string in any supported format
         string_value: The string being visualized
+        eval_in_scope: Optional callable to eval expressions in the user's code scope
 
     Returns:
-        List of (internal_start, internal_end, type, pattern_display, repetition) tuples.
-        - type is 'literal' or 'fuzzy'
-        - pattern_display is the subpattern text (e.g., "hello", ".*")
-        - repetition is (min, max) tuple where max can be float('inf')
+        List of (internal_start, internal_end, type, pattern_display, repetition, segment_index) tuples.
     """
     if selection_regex is None:
         return []
+
+    if is_string_search(selection_regex):
+        return _string_search_highlights(selection_regex, string_value)
+
+    if is_expression_search(selection_regex):
+        return _expression_search_highlights(selection_regex, string_value, eval_in_scope)
 
     inner_pattern = get_regex_inner_pattern(selection_regex)
     if not inner_pattern:
@@ -2242,14 +2454,14 @@ def build_preview_regex(model, string_value: str) -> str | None:
         else:
             return append_segment_to_regex(current_regex, 'literal', selected_text)
 
-def visualize(value, model, get_visualizer, max_width=None, max_height=None, small=False) -> str:
-    return ''.join(visualize_els(value, model, get_visualizer, max_width, max_height, small))
+def visualize(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> str:
+    return ''.join(visualize_els(value, model, get_visualizer, eval_in_scope, max_width, max_height, small))
 
-def visualize_els(value, model, get_visualizer, max_width=None, max_height=None, small=False) -> List[str]:
+def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> List[str]:
 
     # Build highlight_by_index from highlights (uses preview regex to include in-progress selection)
     preview_regex = build_preview_regex(model, value)
-    highlights = parse_regex_for_highlighting(preview_regex, value) if value else []
+    highlights = parse_regex_for_highlighting(preview_regex, value, eval_in_scope) if value else []
     highlight_by_index = {}
     for highlight in highlights:
         start, end, _, _, _, _ = highlight
@@ -2616,43 +2828,69 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
             shift_key = event_json.get('shiftKey', False)
 
             if key == 'Enter':
-                # Close dropdown if open, otherwise generate regex code
                 if model.get('openDropdown'):
                     model['openDropdown'] = None
                 else:
                     selection_regex = model.get('search')
 
                     if selection_regex and source_code and source_line:
-                        inner_pattern = get_regex_inner_pattern(selection_regex)
-                        regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
                         expr, var_name = extract_expression_from_line(source_code, source_line)
                         var_to_search = var_name if var_name else f"({expr})"
-                        flags_str = 're.M|re.I' if is_case_insensitive(selection_regex) else 're.M'
-                        if is_first_match_mode(selection_regex):
-                            suggest_name = f"{var_name}_match" if var_name else "result_match"
-                            commands.append((suggest_name, f"re.search(r'{regex_pattern}', {var_to_search}, flags={flags_str})"))
+                        first = is_first_match_mode(selection_regex)
+                        ci = is_case_insensitive(selection_regex)
+
+                        if is_string_search(selection_regex) or is_expression_search(selection_regex):
+                            embed = get_string_literal(selection_regex) if is_string_search(selection_regex) else get_eval_expression(selection_regex)
+                            flags_str = ', flags=re.I' if ci else ''
+                            if first:
+                                suggest_name = f"{var_name}_match" if var_name else "result_match"
+                                commands.append((suggest_name, f"re.search(re.escape({embed}), {var_to_search}{flags_str})"))
+                            else:
+                                suggest_name = f"{var_name}_matches" if var_name else "result_matches"
+                                commands.append((suggest_name, f"list(re.finditer(re.escape({embed}), {var_to_search}{flags_str}))"))
                         else:
-                            suggest_name = f"{var_name}_matches" if var_name else "result_matches"
-                            commands.append((suggest_name, f"list(re.finditer(r'{regex_pattern}', {var_to_search}, flags={flags_str}))"))
+                            inner_pattern = get_regex_inner_pattern(selection_regex)
+                            regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+                            flags_str = 're.M|re.I' if ci else 're.M'
+                            if first:
+                                suggest_name = f"{var_name}_match" if var_name else "result_match"
+                                commands.append((suggest_name, f"re.search(r'{regex_pattern}', {var_to_search}, flags={flags_str})"))
+                            else:
+                                suggest_name = f"{var_name}_matches" if var_name else "result_matches"
+                                commands.append((suggest_name, f"list(re.finditer(r'{regex_pattern}', {var_to_search}, flags={flags_str}))"))
 
             elif key == 'Backspace':
-                # Close dropdown if open, otherwise generate regex delete (re.sub) code
                 if model.get('openDropdown'):
                     model['openDropdown'] = None
                 else:
                     selection_regex = model.get('search')
 
                     if selection_regex and source_code and source_line:
-                        inner_pattern = get_regex_inner_pattern(selection_regex)
-                        regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
                         expr, var_name = extract_expression_from_line(source_code, source_line)
                         var_to_search = var_name if var_name else f"({expr})"
                         suggest_name = var_name if var_name else "result"
-                        flags_str = 're.M|re.I' if is_case_insensitive(selection_regex) else 're.M'
-                        if is_first_match_mode(selection_regex):
-                            commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, count=1, flags={flags_str})"))
+                        first = is_first_match_mode(selection_regex)
+                        ci = is_case_insensitive(selection_regex)
+
+                        if is_string_search(selection_regex) or is_expression_search(selection_regex):
+                            embed = get_string_literal(selection_regex) if is_string_search(selection_regex) else get_eval_expression(selection_regex)
+                            if ci:
+                                flags_str = ', flags=re.I'
+                                count_str = ', count=1' if first else ''
+                                commands.append((suggest_name, f"re.sub(re.escape({embed}), '', {var_to_search}{count_str}{flags_str})"))
+                            else:
+                                if first:
+                                    commands.append((suggest_name, f"{var_to_search}.replace({embed}, '', 1)"))
+                                else:
+                                    commands.append((suggest_name, f"{var_to_search}.replace({embed}, '')"))
                         else:
-                            commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, flags={flags_str})"))
+                            inner_pattern = get_regex_inner_pattern(selection_regex)
+                            regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+                            flags_str = 're.M|re.I' if ci else 're.M'
+                            if first:
+                                commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, count=1, flags={flags_str})"))
+                            else:
+                                commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, flags={flags_str})"))
 
             elif key == 'Escape':
                 # Close dropdown if open, otherwise clear selections

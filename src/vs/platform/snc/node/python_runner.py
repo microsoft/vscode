@@ -37,7 +37,7 @@ class StaticVisualizer(Protocol):
 
 class Visualizer(Protocol):
     can_visualize: Callable[[Any], bool]
-    visualize: Callable[[Any, Any, Callable[[Any], Any]], str]  # takes value, model, get_visualizer; optional max_width, max_height kwargs
+    visualize: Callable[..., str]  # (value, model, get_visualizer, **kwargs) -> str
     init_model: Callable[[Any, Callable[[Any], Any]], Any]  # takes value, get_visualizer
     update: Callable[[Any, Any, Any, Any, Any, Callable[[Any], Any]], Any]  # takes ui_event, source code, source line, model, value, get_visualizer; returns (new model, commands)
 
@@ -101,7 +101,7 @@ class GenericVisualizer(Visualizer):
     def init_model(value, get_visualizer) -> Any:
         return None
 
-    def visualize(value, model, get_visualizer, max_width=None, max_height=None, small=False) -> str:
+    def visualize(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> str:
         return html.escape(repr(value))
 
     def update(event: Any, source_code: str, source_line: int, model: Any, value: str, get_visualizer=None) -> Tuple[Any, List[Any]]:
@@ -114,7 +114,6 @@ class VisualizerOfStaticVisualizer():
         self.vis = static_visualizer_module
 
     def __getattr__(self, name):
-        # Forward optional interfaces (e.g. get_fields, get_field_value) to the underlying module
         return getattr(self.vis, name)
 
     def can_visualize(self, value) -> bool:
@@ -123,7 +122,7 @@ class VisualizerOfStaticVisualizer():
     def init_model(self, value, get_visualizer) -> Any:
         return GenericVisualizer.init_model(value, get_visualizer)
 
-    def visualize(self, value, model, get_visualizer, max_width=None, max_height=None, small=False) -> str:
+    def visualize(self, value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> str:
         return self.vis.visualize(value)
 
     def update(self, event, source_code, source_line, model, value, get_visualizer=None) -> Tuple[Any, List[Any]]:
@@ -242,18 +241,15 @@ def _build_new_code_edits(source_code: str, line: int, suggest_var_name: Optiona
     return edits
 
 
-def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = None) -> None:
+def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = None, eval_in_scope=None) -> None:
     """
     Log any runtime value for visualization using the custom visualizer system.
-
-    This function now uses the pluggable visualizer system to generate HTML representations
-    of runtime values, falling back to the default repr() approach if no custom visualizer
-    is available.
 
     Args:
         line: The original line number from the source code
         value: The value to be logged (can be any type including error messages)
         last_line_in_containing_loop: The last line of the loop containing this value (None if not in a loop)
+        eval_in_scope: Optional callable to eval expressions in the user's code scope
     """
     global execution_step, line_emit_counter
     execution_step += 1
@@ -298,7 +294,7 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
         if isinstance(model, dict):
             model['_type_fingerprint'] = fingerprint
 
-        html_content = vis.visualize(value, model, get_visualizer)
+        html_content = vis.visualize(value, model, get_visualizer, eval_in_scope=eval_in_scope)
 
         assert isinstance(html_content, str)
 
@@ -354,25 +350,20 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
         except Exception:
             pass
 
-def log_and_return(line: int, value: Any, last_line_in_containing_loop: int | None = None) -> Any:
+def log_and_return(line: int, value: Any, last_line_in_containing_loop: int | None = None, eval_in_scope=None) -> Any:
     """
     Log a value for visualization and return it unchanged.
-
-    This helper function is used by the print transformation to log the first
-    argument of print statements while preserving the original print behavior.
 
     Args:
         line: The original line number from the source code
         value: The value to be logged and returned
         last_line_in_containing_loop: The last line of the loop containing this value (None if not in a loop)
+        eval_in_scope: Optional callable to eval expressions in the user's code scope
 
     Returns:
         The same value that was passed in, unchanged
     """
-    # Log the value using the standard logging function
-    log_value(line, value, last_line_in_containing_loop)
-
-    # Return the value unchanged so it can be used inline
+    log_value(line, value, last_line_in_containing_loop, eval_in_scope)
     return value
 
 def _emit_vis_load_warning(warning_msg: str) -> None:
@@ -485,6 +476,21 @@ def emit_checkpoint_ready(checkpoint: int) -> None:
         pass
 
 
+
+
+def _eval_in_scope_keyword(lineno: int, col_offset: int) -> ast.keyword:
+    """Build AST for the keyword argument: eval_in_scope=lambda _c: eval(_c)"""
+    param = ast.arg(arg='_c', lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset)
+    body = ast.Call(
+        func=ast.Name(id='eval', ctx=ast.Load(), lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset),
+        args=[ast.Name(id='_c', ctx=ast.Load(), lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset)],
+        keywords=[], lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset
+    )
+    lam = ast.Lambda(
+        args=ast.arguments(posonlyargs=[], args=[param], vararg=None, kwonlyargs=[], kw_defaults=[], kwarg=None, defaults=[]),
+        body=body, lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset
+    )
+    return ast.keyword(arg='eval_in_scope', value=lam, lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset)
 
 
 class CodeTransformer(ast.NodeTransformer):
@@ -664,7 +670,7 @@ class CodeTransformer(ast.NodeTransformer):
         call_node = ast.Call(
             func=func_node,
             args=args,
-            keywords=[],
+            keywords=[_eval_in_scope_keyword(lineno, col_offset)],
             lineno=lineno,
             col_offset=col_offset,
             end_lineno=lineno,
@@ -1095,7 +1101,7 @@ class CodeTransformer(ast.NodeTransformer):
                         end_col_offset=node.col_offset + (i * 20) + 15
                     ),
                     args=log_args,
-                    keywords=[],
+                    keywords=[_eval_in_scope_keyword(node.lineno, node.col_offset)],
                     lineno=node.lineno,
                     col_offset=node.col_offset + (i * 20),
                     end_lineno=node.lineno,
@@ -1171,9 +1177,9 @@ class CodeTransformer(ast.NodeTransformer):
                             end_lineno=node.lineno,
                             end_col_offset=2011 + len(str(node.lineno))
                         ),
-                        none_constant  # Use None constant instead of Name node
+                        none_constant
                     ],
-                    keywords=[],
+                    keywords=[_eval_in_scope_keyword(node.lineno, 2000)],
                     lineno=node.lineno,
                     col_offset=2000,
                     end_lineno=node.lineno,

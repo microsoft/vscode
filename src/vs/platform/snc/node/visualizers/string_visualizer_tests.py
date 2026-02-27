@@ -40,6 +40,14 @@ from string_visualizer import (
     get_search_flags,
     is_first_match_mode,
     is_case_insensitive,
+    is_regex_search,
+    is_string_search,
+    is_backtick_search,
+    is_expression_search,
+    get_string_literal,
+    get_eval_expression,
+    eval_string_search,
+    _find_closing_delimiter,
     is_adjacent_right,
     is_adjacent_left,
     synthesize_fuzzy_pattern,
@@ -717,7 +725,7 @@ class TestClickInsideFuzzy(unittest.TestCase):
         # THIS IS THE BUG: visualize() crashes because the in-progress selection
         # overlaps with the existing fuzzy highlight
         # After fix, this should NOT raise an assertion error
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
 
         # Should produce valid HTML without crashing
         self.assertIsInstance(html_output, str)
@@ -1747,7 +1755,7 @@ class TestDropdownInVisualize(unittest.TestCase):
         model = init_model("hello world")
         model['search'] = '/(hello)(.*)(world)/'
 
-        html = visualize("hello world", model, None)
+        html = visualize("hello world", model, None, None)
 
         # Should contain a dropdown toggle event for segment 1 (the fuzzy one)
         self.assertIn('DropdownToggle', html)
@@ -1759,7 +1767,7 @@ class TestDropdownInVisualize(unittest.TestCase):
         model['search'] = '/(hello)(.*)(world)/'
         model['openDropdown'] = {'id': 'fuzzy-pattern-1', 'segmentIndex': 1}
 
-        html = visualize("hello world", model, None)
+        html = visualize("hello world", model, None, None)
 
         # Should contain dropdown select events for options
         self.assertIn('DropdownSelect', html)
@@ -2722,7 +2730,7 @@ class TestSearchBoxVisualize(unittest.TestCase):
 
     def test_search_box_present_in_output(self):
         """The search box input element is present in visualize output."""
-        html = visualize("hello world", init_model("hello world"), None)
+        html = visualize("hello world", init_model("hello world"), None, None)
         self.assertIn('<input', html)
         self.assertIn('snc-input', html)
         self.assertIn('SearchBoxInput', html)
@@ -2730,7 +2738,7 @@ class TestSearchBoxVisualize(unittest.TestCase):
     def test_search_box_shows_empty_when_no_regex(self):
         """Search box value is empty when there's no selection regex."""
         model = init_model("hello world")
-        html = visualize("hello world", model, None)
+        html = visualize("hello world", model, None, None)
         # The value attribute should be empty
         self.assertIn('value=""', html)
 
@@ -2739,7 +2747,7 @@ class TestSearchBoxVisualize(unittest.TestCase):
         model = init_model("hello world")
         model['search'] = '/(hello)(.*)(world)/'
 
-        html = visualize("hello world", model, None)
+        html = visualize("hello world", model, None, None)
         self.assertIn('/(hello)(.*)(world)/', html)
 
     def test_search_box_shows_regex_after_mouse_selection(self):
@@ -2756,12 +2764,12 @@ class TestSearchBoxVisualize(unittest.TestCase):
         model, _ = update(make_mouse_up_event(6),
                          source_code, 1, model, value)
 
-        html = visualize(value, model, None)
+        html = visualize(value, model, None, None)
         self.assertIn('/hello/', html)
 
     def test_search_box_has_placeholder(self):
         """Search box has a placeholder for when it's empty."""
-        html = visualize("hello world", init_model("hello world"), None)
+        html = visualize("hello world", init_model("hello world"), None, None)
         self.assertIn('placeholder=', html)
 
 
@@ -3752,7 +3760,7 @@ class TestLiteralDragHandleUpdate(unittest.TestCase):
         self.assertIsNotNone(model.get('handleDrag'))
 
         # The visualize function should use the preview regex which includes the space.
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
         # The space character (index 7) should have highlight styling
         # (border-top indicates literal highlight).
         # We check that the space char is highlighted by looking for border-top near the space.
@@ -3792,35 +3800,35 @@ class TestLiteralDragHandleRendering(unittest.TestCase):
         """Literal selection bracket renders elements with ew-resize cursor."""
         model = init_model(self.value)
         model['search'] = '/(hello)/'
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
         self.assertIn('ew-resize', html_output)
 
     def test_literal_segment_has_left_handle(self):
         """First char of literal segment renders a left drag handle."""
         model = init_model(self.value)
         model['search'] = '/(hello)/'
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
         self.assertIn("side=&#x27;left&#x27;", html_output)
 
     def test_literal_segment_has_right_handle(self):
         """Last char of literal segment renders a right drag handle."""
         model = init_model(self.value)
         model['search'] = '/(hello)/'
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
         self.assertIn("side=&#x27;right&#x27;", html_output)
 
     def test_literal_handle_has_HandleMouseDown_event(self):
         """Drag handle elements have HandleMouseDown event attribute."""
         model = init_model(self.value)
         model['search'] = '/(hello)/'
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
         self.assertIn('HandleMouseDown', html_output)
 
     def test_fuzzy_segment_has_no_drag_handles(self):
         """Fuzzy selection does NOT render drag handles."""
         model = init_model(self.value)
         model['search'] = '/(.*)/'
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
         self.assertNotIn('ew-resize', html_output)
         self.assertNotIn('HandleMouseDown', html_output)
 
@@ -3828,7 +3836,7 @@ class TestLiteralDragHandleRendering(unittest.TestCase):
         """In /(hello)(.*)(world)/, only literal segments have handles."""
         model = init_model(self.value)
         model['search'] = '/(hello)(.*)(world)/'
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
         # Should have handles for hello and world (both literal)
         self.assertIn('HandleMouseDown', html_output)
         # Count occurrences: 2 segments * 2 handles each = 4 HandleMouseDown
@@ -4272,7 +4280,7 @@ class TestRepetitionDropdownRendering(unittest.TestCase):
         # Adjacent literals need groups to be preserved in canonical form
         model['search'] = '/(hello)(world)/'
 
-        html_output = visualize("helloworld", model, None)
+        html_output = visualize("helloworld", model, None, None)
 
         # Should contain a repetition dropdown toggle event
         self.assertIn('repetition-0', html_output)
@@ -4283,7 +4291,7 @@ class TestRepetitionDropdownRendering(unittest.TestCase):
         # Use canonical form that will produce highlights
         model['search'] = '/hello.*world/'
 
-        html_output = visualize("hello world", model, None)
+        html_output = visualize("hello world", model, None, None)
 
         # Should contain repetition dropdown toggle events
         # Segment 1 is fuzzy (.*)
@@ -4296,7 +4304,7 @@ class TestRepetitionDropdownRendering(unittest.TestCase):
         model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1,
                                   'exactN': '', 'rangeMin': '', 'rangeMax': ''}
 
-        html_output = visualize("hello world", model, None)
+        html_output = visualize("hello world", model, None, None)
 
         # Should contain dropdown select options
         self.assertIn('DropdownSelect', html_output)
@@ -4308,7 +4316,7 @@ class TestRepetitionDropdownRendering(unittest.TestCase):
         model['openDropdown'] = {'id': 'repetition-1', 'segmentIndex': 1,
                                   'exactN': '', 'rangeMin': '', 'rangeMax': ''}
 
-        html_output = visualize("hello world", model, None)
+        html_output = visualize("hello world", model, None, None)
 
         # Should contain RepetitionInput events for text fields
         self.assertIn('RepetitionInput', html_output)
@@ -4380,7 +4388,7 @@ class TestHoverPreview(unittest.TestCase):
         model['hoverIdx'] = 5  # 'l' in "hello" (internal index)
         model['hoverType'] = 'literal'
 
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
 
         # The hovered char should have a blue top border (literal style)
         # Extract the span for index 5
@@ -4394,7 +4402,7 @@ class TestHoverPreview(unittest.TestCase):
         model['hoverIdx'] = 5
         model['hoverType'] = 'fuzzy'
 
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
 
         # The hovered char should have a gray bottom border (fuzzy style)
         self.assertIn('border-bottom', html_output)
@@ -4408,7 +4416,7 @@ class TestHoverPreview(unittest.TestCase):
         model['hoverIdx'] = 4
         model['hoverType'] = 'fuzzy'
 
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
 
         # The highlighted char should still have literal border-top (from the selection),
         # not the fuzzy border-bottom from the hover. Count occurrences of border-bottom
@@ -4430,7 +4438,7 @@ class TestHoverPreview(unittest.TestCase):
         model['hoverIdx'] = 5
         model['hoverType'] = 'literal'
 
-        html_output = visualize(self.value, model, None)
+        html_output = visualize(self.value, model, None, None)
 
         # Extract the span for index 5 to check it has left+right borders
         import re as _re
@@ -4463,24 +4471,24 @@ class TestSmallParameter(unittest.TestCase):
 
     def test_visualize_accepts_small_parameter(self):
         model = init_model("hello")
-        output = visualize("hello", model, None, small=True)
+        output = visualize("hello", model, None, None, small=True)
         self.assertIn('hello</span>', output)
 
     def test_search_box_present_when_not_small(self):
         model = init_model("hello")
-        output = visualize("hello", model, None, small=False)
+        output = visualize("hello", model, None, None, small=False)
         self.assertIn('Search', output)
         self.assertIn('<input', output)
 
     def test_search_box_hidden_when_small(self):
         model = init_model("hello")
-        output = visualize("hello", model, None, small=True)
+        output = visualize("hello", model, None, None, small=True)
         self.assertNotIn('<input', output)
         self.assertNotIn('Search', output)
 
     def test_search_box_present_by_default(self):
         model = init_model("hello")
-        output = visualize("hello", model, None)
+        output = visualize("hello", model, None, None)
         self.assertIn('Search', output)
 
 
@@ -4492,7 +4500,7 @@ class TestTextGrouping(unittest.TestCase):
         """For 'hello' with no highlights/hover, the 5 plain chars should be
         in a single snc-text-start span, not 5 individual snc-mouse spans."""
         model = init_model("hello")
-        output = visualize("hello", model, None)
+        output = visualize("hello", model, None, None)
         self.assertIn('snc-text-start="2"', output)
         import re as _re
         individual_plain = _re.findall(r'snc-mouse="[2-6]"', output)
@@ -4502,7 +4510,7 @@ class TestTextGrouping(unittest.TestCase):
     def test_grouped_span_contains_all_plain_chars(self):
         """The grouped span's text content should contain the full plain text."""
         model = init_model("hello")
-        output = visualize("hello", model, None)
+        output = visualize("hello", model, None, None)
         self.assertIn('snc-text-start="2"', output)
         import re as _re
         match = _re.search(r'<span snc-text-start="2"[^>]*>([^<]+)</span>', output)
@@ -4512,7 +4520,7 @@ class TestTextGrouping(unittest.TestCase):
     def test_special_chars_always_individual_spans(self):
         """Prefix/suffix markers and \\n/\\t always get individual snc-mouse spans."""
         model = init_model("a\nb")
-        output = visualize("a\nb", model, None)
+        output = visualize("a\nb", model, None, None)
         import re as _re
         self.assertIn('snc-mouse="0"', output)
         self.assertIn('snc-mouse="1"', output)
@@ -4523,14 +4531,14 @@ class TestTextGrouping(unittest.TestCase):
     def test_group_flushes_at_newline(self):
         """'ab\\ncd' should produce groups for 'ab' and 'cd', with \\n chars individual."""
         model = init_model("ab\ncd")
-        output = visualize("ab\ncd", model, None)
+        output = visualize("ab\ncd", model, None, None)
         self.assertIn('snc-text-start="2"', output)
         self.assertIn('snc-text-start="7"', output)
 
     def test_group_flushes_at_tab(self):
         """'ab\\tcd' should produce groups for 'ab' and 'cd', with \\t individual."""
         model = init_model("ab\tcd")
-        output = visualize("ab\tcd", model, None)
+        output = visualize("ab\tcd", model, None, None)
         self.assertIn('snc-text-start="2"', output)
         self.assertIn('snc-text-start="5"', output)
         self.assertIn('snc-mouse="4"', output)
@@ -4541,7 +4549,7 @@ class TestTextGrouping(unittest.TestCase):
         model = init_model("hello")
         model['hoverIdx'] = 4
         model['hoverType'] = 'literal'
-        output = visualize("hello", model, None)
+        output = visualize("hello", model, None, None)
         self.assertIn('snc-mouse="4"', output)
         self.assertIn('snc-text-start="2"', output)
         self.assertIn('snc-text-start="5"', output)
@@ -4550,7 +4558,7 @@ class TestTextGrouping(unittest.TestCase):
         """Highlighted chars get individual spans; surrounding plain chars are grouped."""
         model = init_model("hello world")
         model['search'] = '/(hello)/'
-        output = visualize("hello world", model, None)
+        output = visualize("hello world", model, None, None)
         import re as _re
         for idx in range(2, 7):
             self.assertIn(f'snc-mouse="{idx}"', output,
@@ -4560,7 +4568,7 @@ class TestTextGrouping(unittest.TestCase):
     def test_start_index_correctness_across_groups(self):
         """With 'ab\\tcd', verify snc-text-start values match internal indexing."""
         model = init_model("ab\tcd")
-        output = visualize("ab\tcd", model, None)
+        output = visualize("ab\tcd", model, None, None)
         import re as _re
         starts = _re.findall(r'snc-text-start="(\d+)"', output)
         self.assertIn('2', starts, "First group should start at index 2")
@@ -4569,7 +4577,7 @@ class TestTextGrouping(unittest.TestCase):
     def test_html_escape_in_grouped_span(self):
         """Characters like < and & are HTML-escaped inside grouped spans."""
         model = init_model("a<b")
-        output = visualize("a<b", model, None)
+        output = visualize("a<b", model, None, None)
         import re as _re
         match = _re.search(r'<span snc-text-start="2"[^>]*>(.*?)</span>', output)
         self.assertIsNotNone(match)
@@ -4578,19 +4586,19 @@ class TestTextGrouping(unittest.TestCase):
     def test_single_plain_char_still_grouped(self):
         """Even a single plain char between specials should use grouped span."""
         model = init_model("\na\n")
-        output = visualize("\na\n", model, None)
+        output = visualize("\na\n", model, None, None)
         self.assertIn('snc-text-start="5"', output)
 
     def test_empty_string_no_grouped_spans(self):
         """An empty string should have no snc-text-start spans."""
         model = init_model("")
-        output = visualize("", model, None)
+        output = visualize("", model, None, None)
         self.assertNotIn('snc-text-start', output)
 
     def test_grouped_span_has_letter_spacing(self):
         """Grouped spans should have letter-spacing:1px for consistent spacing."""
         model = init_model("hello")
-        output = visualize("hello", model, None)
+        output = visualize("hello", model, None, None)
         import re as _re
         match = _re.search(r'<span snc-text-start="2"[^>]*style="([^"]*)"', output)
         self.assertIsNotNone(match)
@@ -4810,26 +4818,26 @@ class TestFirstMatchToggleRendering(unittest.TestCase):
     def test_toggle_button_present(self):
         """The '1st' toggle button should be present in the search box HTML."""
         model = init_model("hello world")
-        output = visualize("hello world", model, None)
+        output = visualize("hello world", model, None, None)
         self.assertIn('1st', output)
 
     def test_toggle_button_inactive_by_default(self):
         """The toggle should appear inactive (not highlighted) by default."""
         model = init_model("hello world")
-        output = visualize("hello world", model, None)
+        output = visualize("hello world", model, None, None)
         self.assertIn('FirstMatchToggle', output)
 
     def test_toggle_button_active_when_first_match(self):
         """The toggle should appear active when in first-match mode."""
         model = init_model("hello world")
         model['search'] = '/hello/1'
-        output = visualize("hello world", model, None)
+        output = visualize("hello world", model, None, None)
         self.assertIn('1st', output)
 
     def test_toggle_hidden_when_small(self):
         """The toggle should be hidden when small=True (no search box)."""
         model = init_model("hello world")
-        output = visualize("hello world", model, None, small=True)
+        output = visualize("hello world", model, None, None, small=True)
         self.assertNotIn('1st', output)
 
 
@@ -4840,7 +4848,7 @@ class TestSearchBoxValueWithPostfix(unittest.TestCase):
         """The search box value should include the /1 postfix when in first-match mode."""
         model = init_model("hello world")
         model['search'] = '/hello/1'
-        output = visualize("hello world", model, None)
+        output = visualize("hello world", model, None, None)
         self.assertIn('/hello/1', output)
 
     def test_search_box_input_preserves_postfix(self):
@@ -5123,19 +5131,723 @@ class TestCaseSensitiveToggleRendering(unittest.TestCase):
 
     def test_aa_button_present(self):
         model = init_model("hello")
-        output = visualize("hello", model, None)
+        output = visualize("hello", model, None, None)
         self.assertIn('Aa', output)
 
     def test_aa_button_active_by_default(self):
         """Aa should be highlighted (active) by default = case-sensitive."""
         model = init_model("hello")
-        output = visualize("hello", model, None)
+        output = visualize("hello", model, None, None)
         self.assertIn('CaseSensitiveToggle', output)
 
     def test_aa_button_hidden_when_small(self):
         model = init_model("hello")
-        output = visualize("hello", model, None, small=True)
+        output = visualize("hello", model, None, None, small=True)
         self.assertNotIn('Aa', output)
+
+
+# =============================================================================
+# String Search Tests
+# =============================================================================
+
+class TestFindClosingDelimiter(unittest.TestCase):
+    """Test _find_closing_delimiter for regex and string searches."""
+
+    def test_regex(self):
+        self.assertEqual(_find_closing_delimiter('/hello/'), 7)
+
+    def test_regex_with_flags(self):
+        self.assertEqual(_find_closing_delimiter('/hello/1i'), 7)
+
+    def test_single_quote(self):
+        self.assertEqual(_find_closing_delimiter("'hello'"), 7)
+
+    def test_double_quote(self):
+        self.assertEqual(_find_closing_delimiter('"hello"'), 7)
+
+    def test_triple_single_quote(self):
+        self.assertEqual(_find_closing_delimiter("'''hello'''"), 11)
+
+    def test_triple_double_quote(self):
+        self.assertEqual(_find_closing_delimiter('"""hello"""'), 11)
+
+    def test_single_quote_with_flags(self):
+        self.assertEqual(_find_closing_delimiter("'hello'i"), 7)
+
+    def test_triple_quote_with_flags(self):
+        self.assertEqual(_find_closing_delimiter("'''hello'''1i"), 11)
+
+    def test_f_string(self):
+        self.assertEqual(_find_closing_delimiter("f'hello'"), 8)
+
+    def test_r_string(self):
+        self.assertEqual(_find_closing_delimiter("r'hello'"), 8)
+
+    def test_b_string(self):
+        self.assertEqual(_find_closing_delimiter("b'hello'"), 8)
+
+    def test_fr_string(self):
+        self.assertEqual(_find_closing_delimiter("fr'hello'"), 9)
+
+    def test_rb_string(self):
+        self.assertEqual(_find_closing_delimiter("rb'hello'"), 9)
+
+    def test_escaped_quote_in_single(self):
+        self.assertEqual(_find_closing_delimiter(r"'it\'s'"), 7)
+
+    def test_no_closing_delimiter_returns_none(self):
+        self.assertIsNone(_find_closing_delimiter("'hello"))
+
+    def test_none_returns_none(self):
+        self.assertIsNone(_find_closing_delimiter(None))
+
+    def test_empty_string_literal(self):
+        self.assertEqual(_find_closing_delimiter("''"), 2)
+
+    def test_empty_regex(self):
+        self.assertEqual(_find_closing_delimiter('//'), 2)
+
+    def test_triple_quote_with_single_inside(self):
+        self.assertEqual(_find_closing_delimiter("'''it's'''"), 10)
+
+    def test_double_quote_with_escaped_inside(self):
+        self.assertEqual(_find_closing_delimiter(r'"say \"hi\""'), 12)
+
+    def test_raw_string_backslash_doesnt_escape(self):
+        # r'\' is a valid raw string containing a single backslash
+        self.assertEqual(_find_closing_delimiter(r"r'hello\'"), 9)
+
+
+class TestIsRegexSearch(unittest.TestCase):
+    def test_regex(self):
+        self.assertTrue(is_regex_search('/hello/'))
+
+    def test_string(self):
+        self.assertFalse(is_regex_search("'hello'"))
+
+    def test_none(self):
+        self.assertFalse(is_regex_search(None))
+
+
+class TestIsStringSearch(unittest.TestCase):
+    def test_single_quote(self):
+        self.assertTrue(is_string_search("'hello'"))
+
+    def test_double_quote(self):
+        self.assertTrue(is_string_search('"hello"'))
+
+    def test_f_string(self):
+        self.assertTrue(is_string_search("f'hello'"))
+
+    def test_r_string(self):
+        self.assertTrue(is_string_search("r'hello'"))
+
+    def test_triple_quote(self):
+        self.assertTrue(is_string_search("'''hello'''"))
+
+    def test_regex_is_not_string(self):
+        self.assertFalse(is_string_search('/hello/'))
+
+    def test_none(self):
+        self.assertFalse(is_string_search(None))
+
+    def test_bare_text(self):
+        self.assertFalse(is_string_search('hello'))
+
+
+class TestGetStringLiteral(unittest.TestCase):
+    """Test extracting the string literal portion (including quotes, excluding flags)."""
+
+    def test_simple(self):
+        self.assertEqual(get_string_literal("'hello'"), "'hello'")
+
+    def test_with_flags(self):
+        self.assertEqual(get_string_literal("'hello'i"), "'hello'")
+
+    def test_with_combined_flags(self):
+        self.assertEqual(get_string_literal("'hello'1i"), "'hello'")
+
+    def test_f_string(self):
+        self.assertEqual(get_string_literal("f'hello'"), "f'hello'")
+
+    def test_triple_quote(self):
+        self.assertEqual(get_string_literal("'''hello'''1i"), "'''hello'''")
+
+    def test_regex_returns_none(self):
+        self.assertIsNone(get_string_literal("/hello/"))
+
+    def test_none_returns_none(self):
+        self.assertIsNone(get_string_literal(None))
+
+
+class TestEvalStringSearch(unittest.TestCase):
+    """Test eval_string_search evaluates the string literal to a Python str."""
+
+    def test_simple_single_quote(self):
+        self.assertEqual(eval_string_search("'hello'"), "hello")
+
+    def test_simple_double_quote(self):
+        self.assertEqual(eval_string_search('"hello"'), "hello")
+
+    def test_with_flags(self):
+        self.assertEqual(eval_string_search("'hello'i"), "hello")
+
+    def test_escape_sequence(self):
+        self.assertEqual(eval_string_search(r"'hello\nworld'"), "hello\nworld")
+
+    def test_triple_quote(self):
+        self.assertEqual(eval_string_search("'''hello'''"), "hello")
+
+    def test_raw_string(self):
+        self.assertEqual(eval_string_search(r"r'\n'"), r"\n")
+
+    def test_regex_returns_none(self):
+        self.assertIsNone(eval_string_search("/hello/"))
+
+    def test_none_returns_none(self):
+        self.assertIsNone(eval_string_search(None))
+
+    def test_unterminated_returns_none(self):
+        self.assertIsNone(eval_string_search("'hello"))
+
+    def test_empty_string(self):
+        self.assertEqual(eval_string_search("''"), "")
+
+
+class TestGetSearchFlagsWithStrings(unittest.TestCase):
+    """Test get_search_flags works for both regex and string searches."""
+
+    def test_regex_no_flags(self):
+        self.assertEqual(get_search_flags('/hello/'), '')
+
+    def test_regex_flags(self):
+        self.assertEqual(get_search_flags('/hello/1i'), '1i')
+
+    def test_string_no_flags(self):
+        self.assertEqual(get_search_flags("'hello'"), '')
+
+    def test_string_i_flag(self):
+        self.assertEqual(get_search_flags("'hello'i"), 'i')
+
+    def test_string_1i_flags(self):
+        self.assertEqual(get_search_flags("'hello'1i"), '1i')
+
+    def test_triple_quote_flags(self):
+        self.assertEqual(get_search_flags("'''hello'''1"), '1')
+
+    def test_f_string_flags(self):
+        self.assertEqual(get_search_flags("f'hello'i"), 'i')
+
+
+class TestIsFirstMatchModeWithStrings(unittest.TestCase):
+    def test_string_no_flags(self):
+        self.assertFalse(is_first_match_mode("'hello'"))
+
+    def test_string_1_flag(self):
+        self.assertTrue(is_first_match_mode("'hello'1"))
+
+    def test_string_1i_flags(self):
+        self.assertTrue(is_first_match_mode("'hello'1i"))
+
+
+class TestIsCaseInsensitiveWithStrings(unittest.TestCase):
+    def test_string_no_flags(self):
+        self.assertFalse(is_case_insensitive("'hello'"))
+
+    def test_string_i_flag(self):
+        self.assertTrue(is_case_insensitive("'hello'i"))
+
+
+class TestToggleFlagWithStrings(unittest.TestCase):
+    """Test _toggle_search_flag works with string search format."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_toggle_first_match_on_string(self):
+        self.model['search'] = "'hello'"
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], "'hello'1")
+
+    def test_toggle_case_on_string(self):
+        self.model['search'] = "'hello'"
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], "'hello'i")
+
+    def test_toggle_both_flags_on_string(self):
+        self.model['search'] = "'hello'"
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['search'], "'hello'1i")
+
+    def test_toggle_roundtrip_on_string(self):
+        self.model['search'] = "'hello'"
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], "'hello'i")
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['search'], "'hello'")
+
+
+class TestStringSearchHighlighting(unittest.TestCase):
+    """Test that string search produces correct highlighting."""
+
+    def test_single_match(self):
+        value = "hello world"
+        highlights = parse_regex_for_highlighting("'hello'", value)
+        self.assertEqual(len(highlights), 1)
+        start, end, seg_type, _, _, _ = highlights[0]
+        self.assertEqual(seg_type, 'literal')
+
+    def test_many_match(self):
+        value = "abc abc abc"
+        highlights = parse_regex_for_highlighting("'abc'", value)
+        self.assertEqual(len(highlights), 3)
+
+    def test_first_match_only(self):
+        value = "abc abc abc"
+        highlights = parse_regex_for_highlighting("'abc'1", value)
+        self.assertEqual(len(highlights), 1)
+
+    def test_case_insensitive(self):
+        value = "Hello hello HELLO"
+        highlights = parse_regex_for_highlighting("'hello'i", value)
+        self.assertEqual(len(highlights), 3)
+
+    def test_case_sensitive(self):
+        value = "Hello hello HELLO"
+        highlights = parse_regex_for_highlighting("'hello'", value)
+        self.assertEqual(len(highlights), 1)
+
+    def test_no_match(self):
+        value = "hello world"
+        highlights = parse_regex_for_highlighting("'xyz'", value)
+        self.assertEqual(len(highlights), 0)
+
+    def test_special_regex_chars_are_escaped(self):
+        """Dots, parens, etc. in the literal should not be treated as regex."""
+        value = "hello (world)."
+        highlights = parse_regex_for_highlighting("'(world).'", value)
+        self.assertEqual(len(highlights), 1)
+
+    def test_escape_sequence(self):
+        r"""String with \n should match actual newlines."""
+        value = "hello\nworld"
+        highlights = parse_regex_for_highlighting(r"'\n'", value)
+        self.assertEqual(len(highlights), 1)
+
+    def test_double_quote_string(self):
+        value = "hello world"
+        highlights = parse_regex_for_highlighting('"hello"', value)
+        self.assertEqual(len(highlights), 1)
+
+    def test_triple_quote_string(self):
+        value = "hello world"
+        highlights = parse_regex_for_highlighting("'''hello'''", value)
+        self.assertEqual(len(highlights), 1)
+
+    def test_empty_string_search_no_highlights(self):
+        """Empty string literal should not produce highlights."""
+        value = "hello"
+        highlights = parse_regex_for_highlighting("''", value)
+        self.assertEqual(len(highlights), 0)
+
+    def test_combined_first_match_case_insensitive(self):
+        value = "Hello hello HELLO"
+        highlights = parse_regex_for_highlighting("'hello'1i", value)
+        self.assertEqual(len(highlights), 1)
+
+
+class TestStringSearchEnterCodeGen(unittest.TestCase):
+    """Test Enter code generation for string searches."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_many_match_case_sensitive(self):
+        self.model['search'] = "'hello'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertIn("re.escape('hello')", expr)
+        self.assertIn("re.finditer(", expr)
+        self.assertNotIn("re.I", expr)
+
+    def test_first_match_case_sensitive(self):
+        self.model['search'] = "'hello'1"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_match")
+        self.assertIn("re.search(", expr)
+        self.assertIn("re.escape('hello')", expr)
+
+    def test_many_match_case_insensitive(self):
+        self.model['search'] = "'hello'i"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.finditer(", expr)
+        self.assertIn("re.I", expr)
+
+    def test_first_match_case_insensitive(self):
+        self.model['search'] = "'hello'1i"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertIn("re.search(", expr)
+        self.assertIn("re.I", expr)
+        self.assertEqual(suggest_name, "x_match")
+
+    def test_double_quote_preserved(self):
+        """Double-quote string literal preserved in generated code."""
+        self.model['search'] = '"hello"'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('re.escape("hello")', expr)
+
+
+class TestStringSearchBackspaceCodeGen(unittest.TestCase):
+    """Test Backspace code generation for string searches."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_many_match_case_sensitive(self):
+        self.model['search'] = "'hello'"
+        _, commands = update(make_key_down_event('Backspace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertIn(".replace('hello', '')", expr)
+        self.assertNotIn("re.sub", expr)
+
+    def test_first_match_case_sensitive(self):
+        self.model['search'] = "'hello'1"
+        _, commands = update(make_key_down_event('Backspace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn(".replace('hello', '', 1)", expr)
+
+    def test_many_match_case_insensitive(self):
+        self.model['search'] = "'hello'i"
+        _, commands = update(make_key_down_event('Backspace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.sub(", expr)
+        self.assertIn("re.escape('hello')", expr)
+        self.assertIn("re.I", expr)
+
+    def test_first_match_case_insensitive(self):
+        self.model['search'] = "'hello'1i"
+        _, commands = update(make_key_down_event('Backspace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.sub(", expr)
+        self.assertIn("count=1", expr)
+        self.assertIn("re.I", expr)
+
+
+# =============================================================================
+# Backtick / Expression Search Tests
+# =============================================================================
+
+class TestFindClosingDelimiterBacktick(unittest.TestCase):
+
+    def test_backtick(self):
+        self.assertEqual(_find_closing_delimiter('`s`'), 3)
+
+    def test_backtick_with_flags(self):
+        self.assertEqual(_find_closing_delimiter('`s`1i'), 3)
+
+    def test_backtick_complex_expr(self):
+        self.assertEqual(_find_closing_delimiter('`x.lower()`'), 11)
+
+    def test_backtick_no_close_returns_none(self):
+        self.assertIsNone(_find_closing_delimiter('`hello'))
+
+    def test_backtick_empty_expr(self):
+        self.assertEqual(_find_closing_delimiter('``'), 2)
+
+
+class TestIsBacktickSearch(unittest.TestCase):
+
+    def test_backtick(self):
+        self.assertTrue(is_backtick_search('`s`'))
+
+    def test_backtick_with_flags(self):
+        self.assertTrue(is_backtick_search('`s`i'))
+
+    def test_regex_is_not(self):
+        self.assertFalse(is_backtick_search('/hello/'))
+
+    def test_string_is_not(self):
+        self.assertFalse(is_backtick_search("'hello'"))
+
+    def test_bare_is_not(self):
+        self.assertFalse(is_backtick_search('s'))
+
+    def test_none(self):
+        self.assertFalse(is_backtick_search(None))
+
+
+class TestIsExpressionSearch(unittest.TestCase):
+    """is_expression_search covers both backtick and bare text."""
+
+    def test_backtick(self):
+        self.assertTrue(is_expression_search('`s`'))
+
+    def test_bare(self):
+        self.assertTrue(is_expression_search('s'))
+
+    def test_bare_function_call(self):
+        self.assertTrue(is_expression_search('f(x)'))
+
+    def test_regex_is_not(self):
+        self.assertFalse(is_expression_search('/hello/'))
+
+    def test_string_is_not(self):
+        self.assertFalse(is_expression_search("'hello'"))
+
+    def test_none(self):
+        self.assertFalse(is_expression_search(None))
+
+    def test_empty(self):
+        self.assertFalse(is_expression_search(''))
+
+
+class TestGetEvalExpression(unittest.TestCase):
+
+    def test_backtick(self):
+        self.assertEqual(get_eval_expression('`s`'), 's')
+
+    def test_backtick_complex(self):
+        self.assertEqual(get_eval_expression('`x.lower()`'), 'x.lower()')
+
+    def test_backtick_with_flags(self):
+        self.assertEqual(get_eval_expression('`s`1i'), 's')
+
+    def test_bare(self):
+        self.assertEqual(get_eval_expression('s'), 's')
+
+    def test_bare_complex(self):
+        self.assertEqual(get_eval_expression('x.lower()'), 'x.lower()')
+
+    def test_regex_returns_none(self):
+        self.assertIsNone(get_eval_expression('/hello/'))
+
+    def test_string_returns_none(self):
+        self.assertIsNone(get_eval_expression("'hello'"))
+
+    def test_none(self):
+        self.assertIsNone(get_eval_expression(None))
+
+
+class TestGetSearchFlagsBacktickAndBare(unittest.TestCase):
+
+    def test_backtick_no_flags(self):
+        self.assertEqual(get_search_flags('`s`'), '')
+
+    def test_backtick_with_flags(self):
+        self.assertEqual(get_search_flags('`s`1i'), '1i')
+
+    def test_bare_no_flags(self):
+        """Bare text has no closing delimiter so no flags."""
+        self.assertEqual(get_search_flags('s'), '')
+
+
+class TestToggleFlagBareWrapsInBackticks(unittest.TestCase):
+    """Toggling a flag on bare text should wrap it in backticks."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_toggle_first_match_on_bare(self):
+        self.model['search'] = 's'
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '`s`1')
+
+    def test_toggle_case_on_bare(self):
+        self.model['search'] = 's'
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '`s`i')
+
+    def test_toggle_on_backtick(self):
+        self.model['search'] = '`s`'
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '`s`1')
+
+    def test_toggle_roundtrip_backtick(self):
+        self.model['search'] = '`s`'
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '`s`1')
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['search'], '`s`')
+
+
+class TestExpressionSearchHighlighting(unittest.TestCase):
+    """Test highlighting for backtick and bare expression searches."""
+
+    def test_backtick_literal_evals(self):
+        """Backtick containing a string literal can be eval'd for highlights."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting("`'hello'`", value)
+        self.assertEqual(len(highlights), 1)
+
+    def test_backtick_variable_no_highlights(self):
+        """Backtick referencing a variable can't be eval'd; no highlights."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting('`s`', value)
+        self.assertEqual(len(highlights), 0)
+
+    def test_bare_literal_evals(self):
+        """Bare string literal expression eval'd for highlights."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting("`'hello'`", value)
+        self.assertEqual(len(highlights), 1)
+
+    def test_bare_variable_no_highlights(self):
+        """Bare variable reference can't be eval'd; no highlights."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting('s', value)
+        self.assertEqual(len(highlights), 0)
+
+    def test_backtick_case_insensitive(self):
+        value = "Hello hello HELLO"
+        highlights = parse_regex_for_highlighting("`'hello'`i", value)
+        self.assertEqual(len(highlights), 3)
+
+    def test_backtick_first_match(self):
+        value = "hello hello hello"
+        highlights = parse_regex_for_highlighting("`'hello'`1", value)
+        self.assertEqual(len(highlights), 1)
+
+    def test_highlight_segment_indices_are_none(self):
+        """Expression search highlights should all have segment_index=None."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting("`'hello'`", value)
+        for h in highlights:
+            self.assertIsNone(h[5], "Expression search highlights should be display-only")
+
+
+class TestExpressionSearchEnterCodeGen(unittest.TestCase):
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_backtick_many_cs(self):
+        self.model['search'] = '`s`'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        name, expr = commands[0]
+        self.assertEqual(name, 'x_matches')
+        self.assertIn('re.finditer(re.escape(s)', expr)
+        self.assertNotIn('re.I', expr)
+
+    def test_backtick_first_ci(self):
+        self.model['search'] = '`s`1i'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        name, expr = commands[0]
+        self.assertEqual(name, 'x_match')
+        self.assertIn('re.search(re.escape(s)', expr)
+        self.assertIn('re.I', expr)
+
+    def test_bare_many_cs(self):
+        self.model['search'] = 's'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        name, expr = commands[0]
+        self.assertIn('re.finditer(re.escape(s)', expr)
+
+    def test_bare_complex_expression(self):
+        self.model['search'] = 'x.lower()'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('re.escape(x.lower())', expr)
+
+
+class TestExpressionSearchBackspaceCodeGen(unittest.TestCase):
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_backtick_many_cs(self):
+        self.model['search'] = '`s`'
+        _, commands = update(make_key_down_event('Backspace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        name, expr = commands[0]
+        self.assertEqual(name, 'x')
+        self.assertIn('.replace(s, \'\')', expr)
+
+    def test_backtick_first_cs(self):
+        self.model['search'] = '`s`1'
+        _, commands = update(make_key_down_event('Backspace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        _, expr = commands[0]
+        self.assertIn(".replace(s, '', 1)", expr)
+
+    def test_backtick_many_ci(self):
+        self.model['search'] = '`s`i'
+        _, commands = update(make_key_down_event('Backspace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        _, expr = commands[0]
+        self.assertIn('re.sub(re.escape(s)', expr)
+        self.assertIn('re.I', expr)
+
+    def test_backtick_first_ci(self):
+        self.model['search'] = '`s`1i'
+        _, commands = update(make_key_down_event('Backspace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        _, expr = commands[0]
+        self.assertIn('re.sub(re.escape(s)', expr)
+        self.assertIn('count=1', expr)
+        self.assertIn('re.I', expr)
 
 
 if __name__ == '__main__':

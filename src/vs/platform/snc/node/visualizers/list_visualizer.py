@@ -95,7 +95,7 @@ def init_model(lst, get_visualizer=None):
     return {'children': children, 'handledKeys': handled_keys, 'display_mode': 'list', 'columns': []}
 
 
-def _visualize_table(lst, model, get_visualizer, max_width=None, max_height=None, small=False):
+def _visualize_table(lst, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False):
     children = model.get('children', {})
     columns = model.get('columns', [])
     focused_child = model.get('focused_child')
@@ -135,9 +135,9 @@ def _visualize_table(lst, model, get_visualizer, max_width=None, max_height=None
                     cell_model = cell_vis.init_model(cell_value, get_visualizer)
                 child_small = (composite_key != focused_child)
                 if hasattr(cell_vis, 'visualize_els'):
-                    cell_htmls = cell_vis.visualize_els(cell_value, cell_model, get_visualizer, max_width=max_column_width, max_height=80, small=child_small)
+                    cell_htmls = cell_vis.visualize_els(cell_value, cell_model, get_visualizer, eval_in_scope, max_width=max_column_width, max_height=80, small=child_small)
                 else:
-                    cell_htmls = [cell_vis.visualize(cell_value, cell_model, get_visualizer, max_width=max_column_width, max_height=80, small=child_small)]
+                    cell_htmls = [cell_vis.visualize(cell_value, cell_model, get_visualizer, eval_in_scope, max_width=max_column_width, max_height=80, small=child_small)]
                 strs.append('<td style="padding:0 8px;">')
                 strs.append(wrap_child_prefix(composite_key))
                 strs.extend(cell_htmls)
@@ -152,9 +152,9 @@ def _visualize_table(lst, model, get_visualizer, max_width=None, max_height=None
     return ''.join(strs)
 
 
-def visualize(lst: list, model: dict, get_visualizer, max_width=None, max_height=None, small=False):
+def visualize(lst: list, model: dict, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False):
     if model.get('display_mode') == 'table':
-        return _visualize_table(lst, model, get_visualizer, max_width=max_width, max_height=max_height, small=small)
+        return _visualize_table(lst, model, get_visualizer, eval_in_scope, max_width=max_width, max_height=max_height, small=small)
 
     children = model.get('children', {})
     focused_child = model.get('focused_child')
@@ -167,7 +167,7 @@ def visualize(lst: list, model: dict, get_visualizer, max_width=None, max_height
         if child_model is None:
             child_model = vis.init_model(item, get_visualizer)
         child_small = (key != focused_child)
-        child_html = vis.visualize(item, child_model, get_visualizer, small=child_small)
+        child_html = vis.visualize(item, child_model, get_visualizer, eval_in_scope, small=child_small)
         items_html_parts.append(wrap_child_html(child_html, key))
 
     items_html = '\n'.join(items_html_parts)
