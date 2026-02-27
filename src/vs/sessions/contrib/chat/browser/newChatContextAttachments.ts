@@ -103,7 +103,7 @@ export class NewChatContextAttachments extends Disposable {
 			const pill = dom.append(this._container, dom.$('.sessions-chat-attachment-pill'));
 			pill.tabIndex = 0;
 			pill.role = 'button';
-			const icon = entry.kind === 'image' ? Codicon.fileMedia : Codicon.file;
+			const icon = entry.kind === 'image' ? Codicon.fileMedia : entry.kind === 'directory' ? Codicon.folder : Codicon.file;
 			dom.append(pill, renderIcon(icon));
 			dom.append(pill, dom.$('span.sessions-chat-attachment-name', undefined, entry.name));
 
@@ -133,36 +133,24 @@ export class NewChatContextAttachments extends Disposable {
 		const overlay = dom.append(dndContainer, dom.$('.sessions-chat-dnd-overlay'));
 		let overlayText: HTMLElement | undefined;
 
-		const guessDropType = (e: DragEvent): 'file' | 'folder' | undefined => {
-			if (containsDragType(e, DataTransfers.FILES)) {
-				return 'file';
-			} else if (containsDragType(e, CodeDataTransfers.EDITORS)) {
-				return 'file';
-			} else if (containsDragType(e, CodeDataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.INTERNAL_URI_LIST)) {
-				return 'folder';
-			}
-			return undefined;
+		const isDropSupported = (e: DragEvent): boolean => {
+			return containsDragType(e, DataTransfers.FILES, CodeDataTransfers.EDITORS, CodeDataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.INTERNAL_URI_LIST);
 		};
 
-		const getOverlayLabel = (type: 'file' | 'folder'): string => {
-			const typeName = type === 'file'
-				? localize('file', "File")
-				: localize('folder', "Folder");
-			return localize('attachAsContext', "Attach {0} as Context", typeName);
-		};
-
-		const showOverlay = (type: 'file' | 'folder') => {
+		const showOverlay = () => {
 			overlay.classList.add('visible');
-			overlayText?.remove();
-			const iconAndTextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${getOverlayLabel(type)}`);
-			const htmlElements = iconAndTextElements.map(element => {
-				if (typeof element === 'string') {
-					return dom.$('span.overlay-text', undefined, element);
-				}
-				return element;
-			});
-			overlayText = dom.$('span.attach-context-overlay-text', undefined, ...htmlElements);
-			overlay.appendChild(overlayText);
+			if (!overlayText) {
+				const label = localize('attachAsContext', "Attach as Context");
+				const iconAndTextElements = renderLabelWithIcons(`$(${Codicon.attach.id}) ${label}`);
+				const htmlElements = iconAndTextElements.map(element => {
+					if (typeof element === 'string') {
+						return dom.$('span.overlay-text', undefined, element);
+					}
+					return element;
+				});
+				overlayText = dom.$('span.attach-context-overlay-text', undefined, ...htmlElements);
+				overlay.appendChild(overlayText);
+			}
 		};
 
 		const hideOverlay = () => {
@@ -173,14 +161,13 @@ export class NewChatContextAttachments extends Disposable {
 
 		this._register(new DragAndDropObserver(dndContainer, {
 			onDragOver: (e) => {
-				const dropType = guessDropType(e);
-				if (dropType) {
+				if (isDropSupported(e)) {
 					e.preventDefault();
 					e.stopPropagation();
 					if (e.dataTransfer) {
 						e.dataTransfer.dropEffect = 'copy';
 					}
-					showOverlay(dropType);
+					showOverlay();
 				}
 			},
 			onDragLeave: () => {
@@ -478,6 +465,23 @@ export class NewChatContextAttachments extends Disposable {
 	}
 
 	private async _attachFileUri(uri: URI, name: string): Promise<void> {
+		let stat;
+		try {
+			stat = await this.fileService.stat(uri);
+		} catch {
+			return;
+		}
+
+		if (stat.isDirectory) {
+			this._addAttachments({
+				kind: 'directory',
+				id: uri.toString(),
+				value: uri,
+				name,
+			});
+			return;
+		}
+
 		if (/\.(png|jpg|jpeg|bmp|gif|tiff)$/i.test(uri.path)) {
 			const readFile = await this.fileService.readFile(uri);
 			const resizedImage = await resizeImage(readFile.value.buffer);
