@@ -26,8 +26,8 @@ This tests the baseline empty state before any session or workspace is active. T
 2. Observe no sidebar counts are shown for any section (Agents, Skills, Instructions, Prompts, Hooks)
 3. Open the management editor by clicking on one of the sections (e.g., "Instructions")
 4. Observe the empty state messages
-4. Click through each section in the sidebar
-5. Run Developer: Customizations Debug and read the report
+5. Click through each section in the sidebar
+6. Run Developer: Customizations Debug and read the report
 
 #### Expected Results
 
