@@ -30,13 +30,13 @@ const MetaModulesToLookFor = [
 ];
 
 const ModulesToLookFor = [
-	// Platform-type packages
+	// Platform-related type definition packages
 	'@types/vscode',
 	'@vscode/dts',
 	'@types/node',
 	'@types/bun',
-	'@types/dom',
 	'bun-types',
+	'@types/web',
 	// Packages that suggest a JS-based backend server
 	'express',
 	'sails',
@@ -687,8 +687,8 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@vscode/dts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@types/node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@types/bun" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-			"workspace.npm.@types/dom" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.bun-types" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@types/web" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.fastify" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.hono" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@types/react" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
