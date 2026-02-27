@@ -8,9 +8,9 @@ import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
 import { dirs } from './dirs.ts';
+import { root, stateFile, computeState, isUpToDate } from './installStateHash.ts';
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const root = path.dirname(path.dirname(import.meta.dirname));
 const rootNpmrcConfigKeys = getNpmrcConfigKeys(path.join(root, '.npmrc'));
 
 function log(dir: string, message: string) {
@@ -35,24 +35,45 @@ function run(command: string, args: string[], opts: child_process.SpawnSyncOptio
 	}
 }
 
-function npmInstall(dir: string, opts?: child_process.SpawnSyncOptions) {
-	opts = {
+function spawnAsync(command: string, args: string[], opts: child_process.SpawnOptions): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const child = child_process.spawn(command, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
+		let output = '';
+		child.stdout?.on('data', (data: Buffer) => { output += data.toString(); });
+		child.stderr?.on('data', (data: Buffer) => { output += data.toString(); });
+		child.on('error', reject);
+		child.on('close', (code) => {
+			if (code !== 0) {
+				reject(new Error(`Process exited with code: ${code}\n${output}`));
+			} else {
+				resolve(output);
+			}
+		});
+	});
+}
+
+async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): Promise<void> {
+	const finalOpts: child_process.SpawnOptions = {
 		env: { ...process.env },
 		...(opts ?? {}),
-		cwd: dir,
-		stdio: 'inherit',
-		shell: true
+		cwd: path.join(root, dir),
+		shell: true,
 	};
 
 	const command = process.env['npm_command'] || 'install';
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
+		const syncOpts: child_process.SpawnSyncOptions = {
+			env: finalOpts.env,
+			cwd: root,
+			stdio: 'inherit',
+			shell: true,
+		};
 		const userinfo = os.userInfo();
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
-		opts.cwd = root;
 		if (process.env['npm_config_arch'] === 'arm64') {
-			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], opts);
+			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], syncOpts);
 		}
 		run('sudo', [
 			'docker', 'run',
@@ -63,11 +84,16 @@ function npmInstall(dir: string, opts?: child_process.SpawnSyncOptions) {
 			'-w', path.resolve('/root/vscode', dir),
 			process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'],
 			'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && npm i -g node-gyp-build && npm ci\"`
-		], opts);
-		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
+		], syncOpts);
+		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], syncOpts);
 	} else {
 		log(dir, 'Installing dependencies...');
-		run(npm, command.split(' '), opts);
+		const output = await spawnAsync(npm, command.split(' '), finalOpts);
+		if (output.trim()) {
+			for (const line of output.trim().split('\n')) {
+				log(dir, line);
+			}
+		}
 	}
 	removeParcelWatcherPrebuild(dir);
 }
@@ -156,65 +182,114 @@ function clearInheritedNpmrcConfig(dir: string, env: NodeJS.ProcessEnv): void {
 	}
 }
 
-for (const dir of dirs) {
+async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: number): Promise<void> {
+	const errors: Error[] = [];
+	let index = 0;
 
-	if (dir === '') {
-		removeParcelWatcherPrebuild(dir);
-		continue; // already executed in root
-	}
-
-	let opts: child_process.SpawnSyncOptions | undefined;
-
-	if (dir === 'build') {
-		opts = {
-			env: {
-				...process.env
-			},
-		};
-		if (process.env['CC']) { opts.env!['CC'] = 'gcc'; }
-		if (process.env['CXX']) { opts.env!['CXX'] = 'g++'; }
-		if (process.env['CXXFLAGS']) { opts.env!['CXXFLAGS'] = ''; }
-		if (process.env['LDFLAGS']) { opts.env!['LDFLAGS'] = ''; }
-
-		setNpmrcConfig('build', opts.env!);
-		npmInstall('build', opts);
-		continue;
-	}
-
-	if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
-		// node modules used by vscode server
-		opts = {
-			env: {
-				...process.env
-			},
-		};
-		if (process.env['VSCODE_REMOTE_CC']) {
-			opts.env!['CC'] = process.env['VSCODE_REMOTE_CC'];
-		} else {
-			delete opts.env!['CC'];
+	async function worker() {
+		while (index < tasks.length) {
+			const i = index++;
+			try {
+				await tasks[i]();
+			} catch (err) {
+				errors.push(err as Error);
+			}
 		}
-		if (process.env['VSCODE_REMOTE_CXX']) {
-			opts.env!['CXX'] = process.env['VSCODE_REMOTE_CXX'];
-		} else {
-			delete opts.env!['CXX'];
-		}
-		if (process.env['CXXFLAGS']) { delete opts.env!['CXXFLAGS']; }
-		if (process.env['CFLAGS']) { delete opts.env!['CFLAGS']; }
-		if (process.env['LDFLAGS']) { delete opts.env!['LDFLAGS']; }
-		if (process.env['VSCODE_REMOTE_CXXFLAGS']) { opts.env!['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
-		if (process.env['VSCODE_REMOTE_LDFLAGS']) { opts.env!['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
-		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env!['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
-
-		setNpmrcConfig('remote', opts.env!);
-		npmInstall(dir, opts);
-		continue;
 	}
 
-	// For directories that don't define their own .npmrc, clear inherited config
-	const env = { ...process.env };
-	clearInheritedNpmrcConfig(dir, env);
-	npmInstall(dir, { env });
+	await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker()));
+
+	if (errors.length > 0) {
+		for (const err of errors) {
+			console.error(err.message);
+		}
+		process.exit(1);
+	}
 }
 
-child_process.execSync('git config pull.rebase merges');
-child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+async function main() {
+	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
+		log('.', 'All dependencies up to date, skipping postinstall.');
+		child_process.execSync('git config pull.rebase merges');
+		child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+		return;
+	}
+
+	const _state = computeState();
+
+	const nativeTasks: (() => Promise<void>)[] = [];
+	const parallelTasks: (() => Promise<void>)[] = [];
+
+	for (const dir of dirs) {
+		if (dir === '') {
+			removeParcelWatcherPrebuild(dir);
+			continue; // already executed in root
+		}
+
+		if (dir === 'build') {
+			nativeTasks.push(() => {
+				const env: NodeJS.ProcessEnv = { ...process.env };
+				if (process.env['CC']) { env['CC'] = 'gcc'; }
+				if (process.env['CXX']) { env['CXX'] = 'g++'; }
+				if (process.env['CXXFLAGS']) { env['CXXFLAGS'] = ''; }
+				if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
+				setNpmrcConfig('build', env);
+				return npmInstallAsync('build', { env });
+			});
+			continue;
+		}
+
+		if (/^(.build\/distro\/npm\/)?remote$/.test(dir)) {
+			const remoteDir = dir;
+			nativeTasks.push(() => {
+				const env: NodeJS.ProcessEnv = { ...process.env };
+				if (process.env['VSCODE_REMOTE_CC']) {
+					env['CC'] = process.env['VSCODE_REMOTE_CC'];
+				} else {
+					delete env['CC'];
+				}
+				if (process.env['VSCODE_REMOTE_CXX']) {
+					env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
+				} else {
+					delete env['CXX'];
+				}
+				if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
+				if (process.env['CFLAGS']) { delete env['CFLAGS']; }
+				if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
+				if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
+				if (process.env['VSCODE_REMOTE_LDFLAGS']) { env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
+				if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+				setNpmrcConfig('remote', env);
+				return npmInstallAsync(remoteDir, { env });
+			});
+			continue;
+		}
+
+		const taskDir = dir;
+		parallelTasks.push(() => {
+			const env = { ...process.env };
+			clearInheritedNpmrcConfig(taskDir, env);
+			return npmInstallAsync(taskDir, { env });
+		});
+	}
+
+	// Native dirs (build, remote) run sequentially to avoid node-gyp conflicts
+	for (const task of nativeTasks) {
+		await task();
+	}
+
+	// JS-only dirs run in parallel
+	const concurrency = Math.min(os.cpus().length, 8);
+	log('.', `Running ${parallelTasks.length} npm installs with concurrency ${concurrency}...`);
+	await runWithConcurrency(parallelTasks, concurrency);
+
+	child_process.execSync('git config pull.rebase merges');
+	child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+
+	fs.writeFileSync(stateFile, JSON.stringify(_state));
+}
+
+main().catch(err => {
+	console.error(err);
+	process.exit(1);
+});
