@@ -10,6 +10,10 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 
 ### Scenario 1: Empty state — no session, no customizations
 
+#### Description
+
+This tests the baseline empty state before any session or workspace is active. The 'new AI developer' state - who doesn't have any customizations on their machine yet.
+
 #### Preconditions
 
 - On 'New Session' screen
@@ -21,146 +25,183 @@ The following test plan outlines the scenarios and specifications for the AI Cus
 1. Open the sidebar customizations section
 2. Observe no sidebar counts are shown for any section (Agents, Skills, Instructions, Prompts, Hooks)
 3. Open the management editor by clicking on one of the sections (e.g., "Instructions")
-4. Observe the empty state message and
-4. Click through each section in the sidebar
+4. Observe the empty state messages
+5. Click through each section in the sidebar
+6. Run Developer: Customizations Debug and read the report
 
 #### Expected Results
 
-- All sidebar counts show 0 (no badges visible)
-- Management editor shows empty state for each section with "No X yet" message and create 
-- "Add" button is disabled or hidden (no active workspace to create in)
-- User storage group is empty (no `~/.copilot/` or `~/.claude/` files)
-- Extension storage group may show built-in extension items if Copilot extension contributes any
+- All sidebar counts are hidden (no badges visible)
+- Management editor shows empty state for each section with "No X yet" message
+- Create button for **user** customizations is visible but disabled until a workspace folder or repository is selected (Hooks should also show a disabled button, since there is no 'user' scoped hooks)
 
 #### Notes
 
-- This tests the baseline empty state before any session or workspace is active
-- The `isSessionsWindow` flag should be `true`, verified via Developer: Customizations Debug
+- The `Window: Sessions` should be verified by running `Developer: Customizations Debug`
+- No workspace root should be active, verified via `Developer: Customizations Debug` (active root = none)
 
 ---
 
-### Scenario 2: Active session with workspace customizations
+### Scenario 2: Active workspace selected from new session state
+
+#### Description
+
+This tests the transition from the empty state to having an active workspace selected, but before a worktree is checked out (i.e., before starting a task). This is the 'new session' state where the user has selected a repository but hasn't started working in a specific branch or worktree yet. Customizations should be loaded from the repository root, not a worktree, and counts should reflect that.
 
 #### Preconditions
 
-- Active session with a repository that has customizations (e.g., the `vscode` repo which has `.github/agents/`, `.github/skills/`, `.github/instructions/`, `.github/prompts/`)
-- Session has a worktree checked out
+- On 'New Session' screen (Scenario 1 completed)
+- A git repository, cloned on the machine, is available to select
+  - For this test use `microsoft/vscode` cloned to a test folder
 
 #### Actions
 
-1. Observe sidebar counts update after session becomes active
-2. Open management editor, select "Instructions" section
-3. Verify items listed match the workspace files
-4. Run Developer: Customizations Debug and compare Stage 1 (raw data) with Stage 3 (widget state)
-5. Select "Agents" section and verify agent count
-6. Select "Prompts" section and verify skill-type commands are excluded
+1. From the new session screen, select a workspace folder
+2. Observe the sidebar customization counts update
+3. Open the management editor by clicking on "Instructions"
+4. Observe items appear in the "Workspace" group
+5. Note the workspace item count in the group header
+6. Compare the sidebar badge count with the editor's workspace item count — they should match
+7. Click "Agents" in the sidebar
+8. Observe agent items listed with parsed friendly names (not raw filenames) and a description
+9. Click "Skills" in the sidebar
+10. Observe skills listed with names derived from folder names
+11. Click "Prompts" in the sidebar
+12. Observe only prompt-type items (no skills mixed in, although note there may be similarly named items)
+13. Click "Hooks" in the sidebar
+14. Observe only workspace-scoped hook files (no user-level `~/.claude/settings.json`)
+15. Run Developer: Customizations Debug and read the report
 
 #### Expected Results
 
-- Sidebar counts match editor list counts for every section
-- Instructions section includes AGENTS.md, CLAUDE.md, copilot-instructions.md (from `listAgentInstructions`) classified as "Workspace"
-- Instructions section includes `.instructions.md` files from `.github/instructions/`
-- Agents section uses `getCustomAgents()` — parsed names, not raw filenames (README.md excluded)
-- Prompts section shows only prompt-type commands, not skill-type (skills have their own section)
-- Hooks section shows only workspace-local hook files (user hooks filtered out by `sources: [local]`)
-- Debug report shows `Window: Sessions`, `Active root: /path/to/worktree`
-- Extension and plugin groups are not shown (sessions filter: `sources: [local, user]`)
+- Sidebar counts update from 0 to reflect the selected workspace's customizations
+- Sidebar badge count matches editor list count for every section
+- Instructions includes root-level files (AGENTS.md, CLAUDE.md, copilot-instructions.md) under "Workspace"
+- Instructions includes `.instructions.md` files from `.github/instructions/`
+- Agents shows friendly names (e.g., "Optimize" not "optimize.agent.md")
+- Prompts excludes skill-type slash commands
+- Hooks shows only workspace-local files (filter: `sources: [local]`)
+- No "Extensions" or "Plugins" groups visible
+- If user-level files exist in `~/.copilot/` or `~/.claude/`, a "User" group appears for applicable sections
+- Debug report shows `Window: Sessions`, `Active root: /path/to/repository`
+- Create button shows both "Workspace" and "User" options in dropdown
 
 #### Notes
 
-- This is the core "happy path" for sessions — most customizations come from the workspace
-- Count consistency between sidebar badges and editor item count is the key regression test
+- The active root comes from the repository, not a worktree
 
 ---
 
-### Scenario 3: User-level customizations from CLI paths
+### Scenario 3: Create new workspace instruction in an active worktree session
 
 #### Preconditions
 
-- Files exist in `~/.copilot/instructions/`, `~/.claude/rules/`, or `~/.claude/agents/`
-- Active session with a repository open
+- Active session with a worktree checked out (task started and running)
+- Use the same repository as Scenario 2 (`microsoft/vscode`)
 
 #### Actions
 
-1. Open management editor, select "Instructions"
-2. Verify user-level instruction files appear under the "User" group
-3. Select "Agents" section and check for `~/.claude/agents/` user agents
-4. Run Developer: Customizations Debug and check the `includedUserFileRoots` filter
-5. Verify that VS Code profile user files (e.g., `$PROFILE/instructions/`) are NOT shown
+1. Observe sidebar customization counts reflect the worktree's customizations and are the same as Scenario 2 (since new worktree inherits from repo root, counts should be the same)
+2. Open the management editor by clicking on "Instructions"
+3. Observe items listed — should match files in the worktree (not the bare repo)
+4. Verify there is a primary button "New Instructions (Workspace)" and another option in the dropdown for "New Instructions (User)"
+5. Click the "+ New Instructions (Workspace)" button (primary action)
+6. Select a name `<name>` when the quickpick appears and confirm
+7. Verify the file opens in the embedded editor
+8. Verify the file path shown in the editor header is `<WORKTREE_PATH>/.github/instructions/<name>.instructions.md`
+9. Update the instruction file with some content, then press the back button
+10. Confirm the instruction file was auto-committed and shows up in the worktree changes list
+11. Reopen the customization management editor and click on "Instructions" again
+12. Observe the new instruction appears in the "Workspace" group
+13. Observe the sidebar badge count has incremented by 1
 
 #### Expected Results
 
-- User files from `~/.copilot/` and `~/.claude/` appear in the "User" group
-- User files from the VS Code profile path do NOT appear (filtered by `includedUserFileRoots: [~/.copilot, ~/.claude, ~/.agents]`)
-- Prompts section shows ALL user roots (filter has `includedUserFileRoots: undefined`) — including VS Code profile prompts
-- Debug report Stage 2 shows "Removed" entries for any filtered-out user files
-- Sidebar counts reflect the filtered user file counts
+- Active root is the worktree path, not the repository path
+- File is created under the worktree's `.github/instructions/` folder (not the bare repo)
+- File auto-saves and auto-commits to the worktree
+- Item count updates in both the sidebar badge and editor list after creation
+- The new file appears in the list with a friendly name derived from the filename
 
 #### Notes
 
-- This validates the `IStorageSourceFilter.includedUserFileRoots` allowlist
-- Prompts are intentionally an exception — they show from all user roots since CLI now supports user prompts
+- This is the primary creation flow — workspace instructions are the most common customization type
+- Key difference from Scenario 2: active root is the worktree, creation targets the worktree
 
 ---
 
-### Scenario 4: Creating new customization files
+### Scenario 4: Create new user instruction in an active worktree session
 
 #### Preconditions
 
-- Active session with a worktree
+- Active session with a worktree checked out (continuing from Scenario 3)
 
 #### Actions
 
-1. Open management editor, select "Instructions"
-2. Click the "Add" button → "New Instructions (Workspace)"
-3. Verify the file is created in `.github/instructions/` under the worktree
-4. Click "Add" button dropdown → "New Instructions (User)"
-5. Verify the file is created in `~/.copilot/instructions/` (not VS Code profile)
-6. Select "Hooks" section
-7. Click "Add" → verify a `hooks.json` is created in `.github/hooks/`
-8. Verify the hooks.json has `"version": 1`, uses `"bash"` field, and contains all events from `COPILOT_CLI_HOOK_TYPE_MAP`
+1. Open the management editor by clicking on "Instructions"
+2. Click the "Add" dropdown arrow → click "New Instruction (User)"
+3. Select a name `<name>` when the quickpick appears and confirm
+4. Verify the file opens in the embedded editor
+5. Verify the file path shown in the editor header is `~/.copilot/instructions/<name>.instructions.md`
+6. Confirm the path is NOT the VS Code profile folder (e.g., NOT `~/.vscode-oss-sessions-dev/User/...`)
+7. Press the back button to return to the list
+8. Observe the new instruction appears in the "User" group
+9. Observe the sidebar badge count reflects the new user instruction
+10. Run Developer: Customizations Debug
+11. Check the "Source Folders (creation targets)" section — verify `[user]` points to `~/.copilot/instructions`
 
 #### Expected Results
 
-- Workspace files created under the active worktree's `.github/` folder
-- User files created under `~/.copilot/{type}/` (from `AgenticPromptsService.getSourceFolders()` override)
-- Hooks.json skeleton has correct Copilot CLI format: `version: 1`, `bash` (not `command`), all hook events derived from schema
-- After creation, item count updates automatically
-- Created files are editable in the embedded editor
+- User file is created under `~/.copilot/instructions/` (not the VS Code profile folder)
+- The file appears in the "User" group in the list
+- Sidebar badge count includes the new user file
+- Debug report confirms the user creation target is `~/.copilot/instructions`
 
 #### Notes
 
-- This tests that `AgenticPromptsService.getSourceFolders()` correctly redirects user creation to `~/.copilot/`
-- Hooks creation derives events from `COPILOT_CLI_HOOK_TYPE_MAP` — adding new events to the schema auto-includes them
+- This validates that `AgenticPromptsService.getSourceFolders()` correctly redirects user creation to `~/.copilot/`
+- The VS Code profile folder should never be used for user creation in sessions
 
 ---
 
-### Scenario 5: Switching sessions updates customizations
+### Scenario 5: Create a new hook in an active worktree session
 
 #### Preconditions
 
-- Two sessions active: one with a repo that has many customizations, another with none
-- Or: one active session, then start a new session with a different repo
+- Active session with a worktree checked out (continuing from Scenario 3)
+- No existing `hooks.json` in the worktree's `.github/hooks/` folder
 
 #### Actions
 
-1. Note the sidebar customization counts for the first session
-2. Switch to the second session (click it in the session list)
-3. Observe sidebar counts update
-4. Open the management editor and verify items reflect the new session's workspace
-5. Switch back to the first session
-6. Verify counts and items revert to the first session's state
+1. Open the management editor by clicking on "Hooks"
+2. Observe the current hook items (if any)
+3. Click the "Add" button → observe a `hooks.json` is created
+4. Verify the hooks.json opens in the embedded editor
+5. Verify the file path is `<WORKTREE_PATH>/.github/hooks/hooks.json`
+6. Read the generated JSON and check:
+   - `"version": 1` is present at the top level
+   - Hook entries use `"bash"` as the shell field (not `"command"`)
+   - All hook event types are present: `sessionStart`, `userPromptSubmitted`, `preToolUse`, `postToolUse`
+   - Each event has a `[{ "type": "command", "bash": "" }]` skeleton
+7. Edit one of the hook entries (e.g., add a bash command to `sessionStart`)
+8. Press the back button to return to the list
+9. Observe the hooks.json appears in the "Workspace" group
+10. Observe the sidebar badge count for Hooks has updated
+11. Run Developer: Customizations Debug on the Hooks section
+12. Verify `Active root` points to the worktree path
+13. Compare Stage 1 counts with Stage 3 counts — they should be consistent
 
 #### Expected Results
 
-- Sidebar counts update reactively when `activeSession` observable changes
-- Management editor items refresh automatically (list widget subscribes to `activeProjectRoot`)
-- Active root in the debug report changes to the new session's worktree
-- No stale counts from the previous session persist
-- If the new session has no worktree, counts show only user-level items (workspace = 0)
-- "Add (Workspace)" button becomes disabled when no active root
+- Hooks.json is created in the worktree's `.github/hooks/` folder
+- JSON skeleton has correct Copilot CLI format: `"version": 1`, `"bash"` field
+- All hook events from `COPILOT_CLI_HOOK_TYPE_MAP` are present in the skeleton
+- Hooks section shows only workspace-local hook files (no user-level hooks visible)
+- Item count updates after creation
+- Debug report Stage 1 → Stage 3 pipeline shows no unexpected filtering
 
 #### Notes
 
-- This tests the reactive wiring: `autorun` on `activeSession` triggers `_updateCounts()` in toolbar and `refresh()` in list widget
-- Stale count bugs typically manifest when switching sessions — the count remains from the prior session
+- Hook events are derived from `COPILOT_CLI_HOOK_TYPE_MAP` — adding new events to the schema auto-includes them in the skeleton
+- Only `"bash"` is used (not `"command"`) to match the Copilot CLI schema
+- The `"version": 1` field is required by the CLI for format detection
