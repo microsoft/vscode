@@ -33,7 +33,7 @@ This tests the baseline empty state before any session or workspace is active. T
 
 - All sidebar counts are hidden (no badges visible)
 - Management editor shows empty state for each section with "No X yet" message
-- Create button for **user** customizations should be visible and enabled (except Hooks, which should show a greyed out button since there is no 'user' scoped hooks)
+- Create button for **user** customizations is visible but disabled until a workspace folder or repository is selected (Hooks should also show a disabled button, since there is no 'user' scoped hooks)
 
 #### Notes
 
