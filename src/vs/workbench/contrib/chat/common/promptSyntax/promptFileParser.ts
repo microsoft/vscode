@@ -416,13 +416,41 @@ export class PromptBody {
 			const fileReferences: IBodyFileReference[] = [];
 			const variableReferences: IBodyVariableReference[] = [];
 			const bodyOffset = Iterable.reduce(Iterable.slice(this.linesWithEOL, 0, this.range.startLineNumber - 1), (len, line) => line.length + len, 0);
+			let inFencedCodeBlock = false;
 			for (let i = this.range.startLineNumber - 1, lineStartOffset = bodyOffset; i < this.range.endLineNumber - 1; i++) {
 				const line = this.linesWithEOL[i];
+
+				// Toggle fenced code block state on lines starting with ```
+				if (/^`{3}/.test(line.trimStart())) {
+					inFencedCodeBlock = !inFencedCodeBlock;
+					lineStartOffset += line.length;
+					continue;
+				}
+
+				// Skip all lines inside fenced code blocks
+				if (inFencedCodeBlock) {
+					lineStartOffset += line.length;
+					continue;
+				}
+
+				// Collect inline code spans (backtick-delimited) to exclude from matching
+				const inlineCodeRanges: { start: number; end: number }[] = [];
+				for (const inlineMatch of line.matchAll(/`[^`]+`/g)) {
+					inlineCodeRanges.push({ start: inlineMatch.index, end: inlineMatch.index + inlineMatch[0].length });
+				}
+
+				const isInsideInlineCode = (offset: number) => {
+					return inlineCodeRanges.some(r => offset >= r.start && offset < r.end);
+				};
+
 				// Match markdown links: [text](link)
 				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
 					if (match.index > 0 && line[match.index - 1] === '!') {
 						continue; // skip image links
+					}
+					if (isInsideInlineCode(match.index)) {
+						continue; // skip matches inside inline code
 					}
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
 					const linkStartOffset = match.index + match[0].length - match[2].length - 1;
@@ -439,6 +467,9 @@ export class PromptBody {
 					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + fullMatch.length + 1);
 					if (markdownLinkRanges.some(mdRange => Range.areIntersectingOrTouching(mdRange, fullRange))) {
 						continue;
+					}
+					if (isInsideInlineCode(match.index)) {
+						continue; // skip matches inside inline code
 					}
 					const contentMatch = match.groups?.['filePath'] || match.groups?.['toolName'];
 					if (!contentMatch) {
