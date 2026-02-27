@@ -1338,6 +1338,60 @@ suite('PromptsService', () => {
 			);
 		});
 
+		test('header with infer: false sets agentInvocable to false', async () => {
+			const rootFolderName = 'custom-agents-infer-false';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-false.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: false.\'',
+						'infer: false',
+						'---',
+						'I should not be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-true.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: true.\'',
+						'infer: true',
+						'---',
+						'I should be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-no-infer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent without infer.\'',
+						'---',
+						'I should default to being invocable by the model.',
+					]
+				}
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+
+			const inferFalseAgent = result.find(a => a.name === 'agent-infer-false');
+			assert.ok(inferFalseAgent, 'Should find agent with infer: false');
+			assert.strictEqual(inferFalseAgent.visibility.agentInvocable, false, 'infer: false should set agentInvocable to false');
+
+			const inferTrueAgent = result.find(a => a.name === 'agent-infer-true');
+			assert.ok(inferTrueAgent, 'Should find agent with infer: true');
+			assert.strictEqual(inferTrueAgent.visibility.agentInvocable, true, 'infer: true should set agentInvocable to true');
+
+			const noInferAgent = result.find(a => a.name === 'agent-no-infer');
+			assert.ok(noInferAgent, 'Should find agent without infer');
+			assert.strictEqual(noInferAgent.visibility.agentInvocable, true, 'missing infer should default agentInvocable to true');
+		});
+
 		test('agents from user data folder', async () => {
 			const rootFolderName = 'custom-agents-user-data';
 			const rootFolder = `/${rootFolderName}`;
