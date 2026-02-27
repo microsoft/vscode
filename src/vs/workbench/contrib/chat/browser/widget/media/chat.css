@@ -1436,6 +1436,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-textLink-activeForeground);
 }
 
+.action-widget .action-list-filter-input.chat-model-picker-filter-input,
+.action-widget .action-list-filter-input.chat-model-picker-filter-input:focus {
+	outline: none;
+	box-shadow: none;
+	border-color: transparent;
+}
+
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
 	color: var(--vscode-icon-foreground) !important;
 }
