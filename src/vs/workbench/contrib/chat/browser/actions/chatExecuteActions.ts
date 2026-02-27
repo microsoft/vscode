@@ -185,6 +185,14 @@ const requestInProgressOrPendingToolCall = ContextKeyExpr.or(
 	ChatContextKeys.Editing.hasToolConfirmation,
 	ChatContextKeys.Editing.hasQuestionCarousel,
 );
+const requestInProgressWithoutInput = ContextKeyExpr.and(
+	ChatContextKeys.requestInProgress,
+	ChatContextKeys.inputHasText.negate(),
+);
+const pendingToolCall = ContextKeyExpr.or(
+	ChatContextKeys.Editing.hasToolConfirmation,
+	ChatContextKeys.Editing.hasQuestionCarousel,
+);
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
 
 export class ChatSubmitAction extends SubmitAction {
@@ -838,7 +846,7 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					requestInProgressOrPendingToolCall,
+					ContextKeyExpr.or(requestInProgressWithoutInput, pendingToolCall),
 					ChatContextKeys.remoteJobCreating.negate(),
 					ChatContextKeys.currentlyEditing.negate(),
 				),
