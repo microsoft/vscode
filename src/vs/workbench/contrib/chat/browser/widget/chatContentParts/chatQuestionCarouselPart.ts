@@ -488,6 +488,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Render question header row with title and close button
 		const headerRow = dom.$('.chat-question-header-row');
+		const titleRow = dom.$('.chat-question-title-row');
 
 		// Render question title (short header) in the header bar as plain text
 		if (question.title) {
@@ -518,13 +519,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					title.textContent = messageContent;
 				}
 			}
-			headerRow.appendChild(title);
+			titleRow.appendChild(title);
 		}
 
 		// Add close button to header row (if allowSkip is enabled)
 		if (this._closeButtonContainer) {
-			headerRow.appendChild(this._closeButtonContainer);
+			titleRow.appendChild(this._closeButtonContainer);
 		}
+
+		headerRow.appendChild(titleRow);
 
 		this._questionContainer.appendChild(headerRow);
 
