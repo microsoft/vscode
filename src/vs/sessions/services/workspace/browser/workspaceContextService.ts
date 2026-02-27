@@ -49,7 +49,11 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 	}
 
 	getWorkbenchState(): WorkbenchState {
-		return WorkbenchState.EMPTY;
+		return WorkbenchState.WORKSPACE;
+	}
+
+	hasWorkspaceData(): boolean {
+		return false;
 	}
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
