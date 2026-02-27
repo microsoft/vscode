@@ -377,6 +377,45 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
 	});
 
+	test('fenced code block with 4 backticks', async () => {
+		const uri = URI.parse('file:///test/prompt-4tick.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'````',
+			'#tool:ignored and [link](./ignored.md)',
+			'````',
+			'#tool:visible',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
+		assert.deepEqual(result.body.fileReferences, []);
+	});
+
+	test('fenced code block with tilde fence (~~~)', async () => {
+		const uri = URI.parse('file:///test/prompt-tilde.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'~~~',
+			'#file:./ignored.md and [link](./ignored-link.md)',
+			'#tool:ignored',
+			'~~~',
+			'[real](./real.md)',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.fileReferences.map(r => ({ content: r.content, isMarkdownLink: r.isMarkdownLink })), [
+			{ content: './real.md', isMarkdownLink: true },
+		]);
+		assert.deepEqual(result.body.variableReferences, []);
+	});
+
 
 	test('agent with agents', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');
