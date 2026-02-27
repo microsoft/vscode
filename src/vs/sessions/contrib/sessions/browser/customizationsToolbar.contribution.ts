@@ -30,7 +30,7 @@ import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getSourceCounts, getSourceCountsTotal, ISourceCounts } from './customizationCounts.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 interface ICustomizationItemConfig {
@@ -154,18 +154,28 @@ class CustomizationLinkViewItem extends ActionViewItem {
 		this._updateCounts();
 	}
 
+	private _updateCountsRequestId = 0;
+
 	private async _updateCounts(): Promise<void> {
 		if (!this._countContainer) {
 			return;
 		}
 
+		const requestId = ++this._updateCountsRequestId;
+
 		if (this._config.promptType) {
 			const type = this._config.promptType;
 			const filter = this._workspaceService.getStorageSourceFilter(type);
 			const counts = await getSourceCounts(this._promptsService, type, filter, this._workspaceContextService, this._workspaceService);
+			if (requestId !== this._updateCountsRequestId) {
+				return;
+			}
 			this._renderSourceCounts(this._countContainer, counts);
 		} else if (this._config.getCount) {
 			const count = await this._config.getCount(this._languageModelsService, this._mcpService);
+			if (requestId !== this._updateCountsRequestId) {
+				return;
+			}
 			this._renderSimpleCount(this._countContainer, count);
 		}
 	}
@@ -244,7 +254,7 @@ class CustomizationsToolbarContribution extends Disposable implements IWorkbench
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
 					const input = AICustomizationManagementEditorInput.getOrCreate();
-					const editor = await editorService.openEditor(input, { pinned: true });
+					const editor = await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
 					if (editor instanceof AICustomizationManagementEditor) {
 						editor.selectSectionById(config.section);
 					}
