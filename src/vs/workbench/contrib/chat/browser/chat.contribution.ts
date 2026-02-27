@@ -1463,7 +1463,8 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 
 	private registerNewChatButtonIcon(): void {
 		this.experimentService.getTreatment<string>('chatNewButtonIcon').then((value) => {
-			if (typeof value === 'string' && value.length > 0) {
+			const supportedValues = ['copilot', 'new-session', 'comment'];
+			if (typeof value === 'string' && supportedValues.includes(value)) {
 				this.newChatButtonExperimentIcon.set(value);
 			} else {
 				this.newChatButtonExperimentIcon.reset();
