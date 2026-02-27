@@ -385,6 +385,11 @@
 					"file": 1,
 					"line": 2,
 					"column": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*Setting up sessions.*",
+					"endsPattern": "Redirection server listening on.*"
 				}
 			}
 		}

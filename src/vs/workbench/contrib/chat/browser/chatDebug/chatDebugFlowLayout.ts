@@ -231,6 +231,8 @@ function layoutGroups(
 
 function makeEdge(from: LayoutNode, to: LayoutNode): LayoutEdge {
 	return {
+		fromId: from.id,
+		toId: to.id,
 		fromX: from.x + from.width / 2,
 		fromY: from.y + from.height,
 		toX: to.x + to.width / 2,
@@ -338,6 +340,8 @@ function resolvePendingExpansions(
 
 		// Horizontal edge from merged node to first child
 		result.edges.push({
+			fromId: mergedNode.id,
+			toId: childNodes[0].id,
 			fromX: mergedNode.x + mergedNode.width,
 			fromY: mergedNode.y + mergedNode.height / 2,
 			toX: expandX,
@@ -499,6 +503,7 @@ function layoutParallelGroup(children: FlowNode[], startX: number, y: number, de
 		const dx = currentX;
 		const offsetNodes = subtree.nodes.map(n => ({ ...n, x: n.x + dx }));
 		const offsetEdges = subtree.edges.map(e => ({
+			fromId: e.fromId, toId: e.toId,
 			fromX: e.fromX + dx, fromY: e.fromY,
 			toX: e.toX + dx, toY: e.toY,
 		}));
@@ -536,7 +541,7 @@ function centerLayout(layout: { nodes: LayoutNode[]; edges: LayoutEdge[]; subgra
 	}
 	for (let i = 0; i < layout.edges.length; i++) {
 		const e = layout.edges[i];
-		(layout.edges as LayoutEdge[])[i] = { fromX: e.fromX + dx, fromY: e.fromY, toX: e.toX + dx, toY: e.toY };
+		(layout.edges as LayoutEdge[])[i] = { fromId: e.fromId, toId: e.toId, fromX: e.fromX + dx, fromY: e.fromY, toX: e.toX + dx, toY: e.toY };
 	}
 	for (let i = 0; i < layout.subgraphs.length; i++) {
 		const s = layout.subgraphs[i];
@@ -618,7 +623,28 @@ export function renderFlowChartSVG(layout: FlowLayout): FlowChartRenderResult {
 		})
 	);
 
-	return { svg, focusableElements: sortedFocusable };
+	// Build adjacency map from edges so keyboard navigation can follow
+	// graph directionality instead of visual sort order.
+	const adjacency = new Map<string, { next: string[]; prev: string[] }>();
+	for (const edge of layout.edges) {
+		if (edge.fromId && edge.toId) {
+			let fromEntry = adjacency.get(edge.fromId);
+			if (!fromEntry) {
+				fromEntry = { next: [], prev: [] };
+				adjacency.set(edge.fromId, fromEntry);
+			}
+			fromEntry.next.push(edge.toId);
+
+			let toEntry = adjacency.get(edge.toId);
+			if (!toEntry) {
+				toEntry = { next: [], prev: [] };
+				adjacency.set(edge.toId, toEntry);
+			}
+			toEntry.prev.push(edge.fromId);
+		}
+	}
+
+	return { svg, focusableElements: sortedFocusable, adjacency, positions: positionByKey };
 }
 
 function renderSubgraphs(svg: SVGElement, subgraphs: readonly SubgraphRect[], focusableElements: Map<string, SVGElement>): void {

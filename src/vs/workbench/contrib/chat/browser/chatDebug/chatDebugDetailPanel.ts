@@ -42,6 +42,7 @@ export class ChatDebugDetailPanel extends Disposable {
 	private readonly detailDisposables = this._register(new DisposableStore());
 	private currentDetailText: string = '';
 	private currentDetailEventId: string | undefined;
+	private firstFocusableElement: HTMLElement | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -97,6 +98,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		const fullScreenButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.openInEditor', "Open in Editor"), title: localize('chatDebug.openInEditor', "Open in Editor") }));
 		fullScreenButton.element.classList.add('chat-debug-detail-button');
 		fullScreenButton.icon = Codicon.goToFile;
+		this.firstFocusableElement = fullScreenButton.element;
 		this.detailDisposables.add(fullScreenButton.onDidClick(() => {
 			this.editorService.openEditor({ contents: this.currentDetailText, resource: undefined } satisfies IUntitledTextResourceEditorInput);
 		}));
@@ -165,8 +167,17 @@ export class ChatDebugDetailPanel extends Disposable {
 		}
 	}
 
+	get isVisible(): boolean {
+		return this.element.style.display !== 'none';
+	}
+
+	focus(): void {
+		this.firstFocusableElement?.focus();
+	}
+
 	hide(): void {
 		this.currentDetailEventId = undefined;
+		this.firstFocusableElement = undefined;
 		DOM.hide(this.element);
 		DOM.clearNode(this.element);
 		DOM.clearNode(this.contentContainer);

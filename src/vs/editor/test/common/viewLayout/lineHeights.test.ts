@@ -182,7 +182,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);
 
-		manager.onLinesInserted(3, 4, []); // Insert 2 lines at line 3
+		manager.onLinesInserted(3, 4); // Insert 2 lines at line 3
 
 		assert.strictEqual(manager.heightForLineNumber(5), 10);
 		assert.strictEqual(manager.heightForLineNumber(6), 10);
@@ -195,7 +195,7 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 5, 7, 20);
 
-		manager.onLinesInserted(6, 7, []); // Insert 2 lines at line 6
+		manager.onLinesInserted(6, 7); // Insert 2 lines at line 6
 
 		assert.strictEqual(manager.heightForLineNumber(5), 20);
 		assert.strictEqual(manager.heightForLineNumber(6), 20);
@@ -267,9 +267,8 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		assert.strictEqual(manager.heightForLineNumber(2), 10);
 
 		// Insert line 2 to line 2, with the same decoration ID 'decA' covering line 2
-		manager.onLinesInserted(2, 2, [
-			new CustomLineHeightData('decA', 2, 2, 30)
-		]);
+		manager.onLinesInserted(2, 2);
+		manager.insertOrChangeCustomLineHeight('decA', 2, 2, 30);
 
 		// After insertion, the decoration 'decA' now covers line 2
 		// Since insertOrChangeCustomLineHeight removes the old decoration first,
@@ -349,7 +348,7 @@ suite('Editor ViewLayout - LineHeightsManager (auto-commit on read)', () => {
 		// Caller A removes its decoration before any flush occurs.
 		manager.removeCustomLineHeight('decA');
 		// Caller B triggers a structural change that causes queue flush in the middle of commit.
-		manager.onLinesInserted(1, 1, []);
+		manager.onLinesInserted(1, 1);
 
 		// decA must stay removed. If queued inserts are not canceled on remove, decA incorrectly survives.
 		assert.strictEqual(manager.heightForLineNumber(4), 10);
@@ -381,7 +380,7 @@ suite('Editor ViewLayout - LineHeightsManager (auto-commit on read)', () => {
 		manager.insertOrChangeCustomLineHeight('dec1', 2, 2, 20);
 		manager.insertOrChangeCustomLineHeight('dec2', 5, 5, 30);
 		// Step 3: insert 2 lines at line 3 (shifts dec2 from line 5 → 7)
-		manager.onLinesInserted(3, 4, []);
+		manager.onLinesInserted(3, 4);
 		// Step 4: delete line 1 (shifts dec1 from line 2 → 1, dec2 from line 7 → 6)
 		manager.onLinesDeleted(1, 1);
 		// Step 5-6: remove the two decorations
@@ -402,7 +401,7 @@ suite('Editor ViewLayout - LineHeightsManager (auto-commit on read)', () => {
 		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 3, 20);
 		// Insert 1 line at line 1 → dec1 shifts from 3 → 4
-		manager.onLinesInserted(1, 1, []);
+		manager.onLinesInserted(1, 1);
 		manager.removeCustomLineHeight('dec1');
 		// Read — no explicit commit
 		assert.strictEqual(manager.heightForLineNumber(3), 10);
@@ -442,7 +441,7 @@ suite('Editor ViewLayout - LineHeightsManager (auto-commit on read)', () => {
 		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 3, 20);
 		// Insert 2 lines at line 1 → dec1 moves from 3 → 5
-		manager.onLinesInserted(1, 2, []);
+		manager.onLinesInserted(1, 2);
 		// Delete line 1 → dec1 moves from 5 → 4
 		manager.onLinesDeleted(1, 1);
 		// Read
@@ -455,9 +454,9 @@ suite('Editor ViewLayout - LineHeightsManager (auto-commit on read)', () => {
 		const manager = new LineHeightsManager(10, []);
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 3, 20);
 		// Insert 1 line at line 1 → dec1 at 3 → 4
-		manager.onLinesInserted(1, 1, []);
+		manager.onLinesInserted(1, 1);
 		// Insert 1 line at line 1 → dec1 at 4 → 5
-		manager.onLinesInserted(1, 1, []);
+		manager.onLinesInserted(1, 1);
 		// Read
 		assert.strictEqual(manager.heightForLineNumber(5), 20);
 		assert.strictEqual(manager.heightForLineNumber(3), 10);
@@ -492,7 +491,7 @@ suite('Editor ViewLayout - LineHeightsManager (auto-commit on read)', () => {
 		// Insert a decoration at line 3 (pending, not committed)
 		manager.insertOrChangeCustomLineHeight('dec1', 3, 3, 20);
 		// Insert 2 lines before it at line 1 → should shift dec1 from 3 → 5
-		manager.onLinesInserted(1, 2, []);
+		manager.onLinesInserted(1, 2);
 		// Read
 		assert.strictEqual(manager.heightForLineNumber(3), 10);
 		assert.strictEqual(manager.heightForLineNumber(5), 20);
@@ -523,5 +522,14 @@ suite('Editor ViewLayout - LineHeightsManager (auto-commit on read)', () => {
 		assert.strictEqual(manager.heightForLineNumber(5), 10);
 		assert.strictEqual(manager.heightForLineNumber(6), 30);
 		assert.strictEqual(manager.getAccumulatedLineHeightsIncludingLineNumber(6), 110);
+	});
+
+	test('deleting line 2 with lineHeightsRemoved re-adding at line 1 moves special line to line 1', () => {
+		const manager = new LineHeightsManager(10, []);
+		manager.insertOrChangeCustomLineHeight('dec1', 2, 2, 20);
+		assert.strictEqual(manager.heightForLineNumber(2), 20);
+		manager.onLinesDeleted(2, 2);
+		manager.insertOrChangeCustomLineHeight('dec1', 1, 1, 20);
+		assert.strictEqual(manager.heightForLineNumber(1), 20);
 	});
 });

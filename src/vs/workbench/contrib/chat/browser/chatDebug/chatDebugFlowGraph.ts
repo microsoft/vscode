@@ -47,6 +47,8 @@ export interface LayoutNode {
 }
 
 export interface LayoutEdge {
+	readonly fromId?: string;
+	readonly toId?: string;
 	readonly fromX: number;
 	readonly fromY: number;
 	readonly toX: number;
@@ -76,6 +78,10 @@ export interface FlowChartRenderResult {
 	readonly svg: SVGElement;
 	/** Map from node/subgraph ID to its focusable SVG element. */
 	readonly focusableElements: Map<string, SVGElement>;
+	/** Adjacency lists derived from graph edges: successors and predecessors per node ID. */
+	readonly adjacency: Map<string, { next: string[]; prev: string[] }>;
+	/** Map from node/subgraph ID to its layout position. */
+	readonly positions: Map<string, { x: number; y: number }>;
 }
 
 // ---- Build flow graph from debug events ----
