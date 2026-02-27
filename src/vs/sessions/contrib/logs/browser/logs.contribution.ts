@@ -29,13 +29,12 @@ const logsViewIcon = registerIcon('sessions-logs-view-icon', Codicon.output, loc
 class RegisterLogsViewContainerContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.registerLogsViewContainer';
-	private readonly showLogsContextKey = CONTEXT_SESSIONS_SHOW_LOGS.bindTo(this.contextKeyService);
 
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
-		this.showLogsContextKey.set(!environmentService.isBuilt);
+		CONTEXT_SESSIONS_SHOW_LOGS.bindTo(contextKeyService).set(!environmentService.isBuilt);
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
