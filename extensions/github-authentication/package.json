@@ -19,7 +19,8 @@
   ],
   "enabledApiProposals": [
     "authIssuers",
-    "authProviderSpecific"
+    "authProviderSpecific",
+    "agentSessionsWorkspace"
   ],
   "activationEvents": [],
   "capabilities": {

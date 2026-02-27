@@ -13,7 +13,6 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
-import { SessionsAuxiliaryBarContribution } from './sessionsAuxiliaryBarContribution.js';
 import { AgenticSessionsViewPane, SessionsViewId } from './sessionsViewPane.js';
 import { SessionsManagementService, ISessionsManagementService } from './sessionsManagementService.js';
 
@@ -47,6 +46,5 @@ const agentSessionsViewDescriptor: IViewDescriptor = {
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([agentSessionsViewDescriptor], agentSessionsViewContainer);
 
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(SessionsAuxiliaryBarContribution.ID, SessionsAuxiliaryBarContribution, WorkbenchPhase.AfterRestored);
 
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);

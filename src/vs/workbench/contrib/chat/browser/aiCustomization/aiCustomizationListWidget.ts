@@ -34,12 +34,19 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
+import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
+import { HOOK_TYPES, formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
+import { parse as parseJSONC } from '../../../../../base/common/json.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { OS } from '../../../../../base/common/platform.js';
 
 const $ = DOM.$;
 
@@ -364,10 +371,11 @@ export class AICustomizationListWidget extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
-		@ILogService private readonly logService: ILogService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -621,7 +629,7 @@ export class AICustomizationListWidget extends Disposable {
 		this.addButton.element.style.display = hasDropdown ? '' : 'none';
 		this.addButtonSimple.element.style.display = hasDropdown ? 'none' : '';
 
-		if (this.workspaceService.preferManualCreation) {
+		if (this.workspaceService.isSessionsWindow) {
 			// Sessions: primary is workspace creation
 			const hasWorkspace = this.hasActiveWorkspace();
 			const label = `$(${Codicon.add.id}) New ${typeLabel} (Workspace)`;
@@ -672,7 +680,7 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Hooks: no user-scoped creation
 		if (promptType === PromptsType.hook) {
-			if (this.workspaceService.preferManualCreation) {
+			if (this.workspaceService.isSessionsWindow) {
 				// Sessions: no dropdown for hooks
 			} else {
 				// Core: primary is generate, dropdown has configure quick pick
@@ -685,7 +693,7 @@ export class AICustomizationListWidget extends Disposable {
 			return actions;
 		}
 
-		if (this.workspaceService.preferManualCreation) {
+		if (this.workspaceService.isSessionsWindow) {
 			// Sessions: primary is workspace, dropdown has user
 			actions.push(this.dropdownActionDisposables.add(new Action('createUser', `$(${Codicon.account.id}) New ${typeLabel} (User)`, undefined, true, () => {
 				this._onDidRequestCreateManual.fire({ type: promptType, target: 'user' });
@@ -717,7 +725,7 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	private executePrimaryCreateAction(): void {
 		const promptType = sectionToPromptType(this.currentSection);
-		if (this.workspaceService.preferManualCreation) {
+		if (this.workspaceService.isSessionsWindow) {
 			// Sessions: primary creates in workspace
 			if (!this.hasActiveWorkspace()) {
 				return;
@@ -762,10 +770,6 @@ export class AICustomizationListWidget extends Disposable {
 	private async loadItems(): Promise<void> {
 		const promptType = sectionToPromptType(this.currentSection);
 		const items: IAICustomizationListItem[] = [];
-
-		const folders = this.workspaceContextService.getWorkspace().folders;
-		const activeRepo = this.workspaceService.getActiveProjectRoot();
-		this.logService.info(`[AICustomizationListWidget] loadItems: section=${this.currentSection}, promptType=${promptType}, workspaceFolders=[${folders.map(f => f.uri.toString()).join(', ')}], activeRepo=${activeRepo?.toString() ?? 'none'}`);
 
 
 		if (promptType === PromptsType.agent) {
@@ -819,18 +823,54 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else if (promptType === PromptsType.hook) {
-			// Show hook files (not individual hooks) so users can open and edit them
+			// Try to parse individual hooks from each file; fall back to showing the file itself
 			const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
+			const activeRoot = this.workspaceService.getActiveProjectRoot();
+			const userHomeUri = await this.pathService.userHome();
+			const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
+
 			for (const hookFile of hookFiles) {
-				const filename = basename(hookFile.uri);
-				items.push({
-					id: hookFile.uri.toString(),
-					uri: hookFile.uri,
-					name: this.getFriendlyName(filename),
-					filename,
-					storage: hookFile.storage,
-					promptType,
-				});
+				let parsedHooks = false;
+				try {
+					const content = await this.fileService.readFile(hookFile.uri);
+					const json = parseJSONC(content.value.toString());
+					const { hooks } = parseHooksFromFile(hookFile.uri, json, activeRoot, userHome);
+
+					if (hooks.size > 0) {
+						parsedHooks = true;
+						for (const [hookType, entry] of hooks) {
+							const hookMeta = HOOK_TYPES.find(h => h.id === hookType);
+							for (let i = 0; i < entry.hooks.length; i++) {
+								const hook = entry.hooks[i];
+								const cmdLabel = formatHookCommandLabel(hook, OS);
+								const truncatedCmd = cmdLabel.length > 60 ? cmdLabel.substring(0, 57) + '...' : cmdLabel;
+								items.push({
+									id: `${hookFile.uri.toString()}#${entry.originalId}[${i}]`,
+									uri: hookFile.uri,
+									name: hookMeta?.label ?? entry.originalId,
+									filename: basename(hookFile.uri),
+									description: truncatedCmd || localize('hookUnset', "(unset)"),
+									storage: hookFile.storage,
+									promptType,
+								});
+							}
+						}
+					}
+				} catch {
+					// Parse failed — fall through to show raw file
+				}
+
+				if (!parsedHooks) {
+					const filename = basename(hookFile.uri);
+					items.push({
+						id: hookFile.uri.toString(),
+						uri: hookFile.uri,
+						name: this.getFriendlyName(filename),
+						filename,
+						storage: hookFile.storage,
+						promptType,
+					});
+				}
 			}
 		} else {
 			// For instructions, fetch prompt files and group by storage
@@ -882,23 +922,17 @@ export class AICustomizationListWidget extends Disposable {
 			items.push(...pluginItems.map(mapToListItem));
 		}
 
-		// Filter out files under excluded user roots
-		const excludedRoots = this.workspaceService.excludedUserFileRoots;
-		if (excludedRoots.length > 0) {
-			for (let i = items.length - 1; i >= 0; i--) {
-				if (items[i].storage === PromptsStorage.user && excludedRoots.some(root => isEqualOrParent(items[i].uri, root))) {
-					items.splice(i, 1);
-				}
-			}
-		}
+		// Apply storage source filter (removes items not in visible sources or excluded user roots)
+		const filter = this.workspaceService.getStorageSourceFilter(promptType);
+		const filteredItems = applyStorageSourceFilter(items, filter);
+		items.length = 0;
+		items.push(...filteredItems);
 
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
 
 		// Set git status for workspace (local) items
 		this.updateGitStatus(items);
-
-		this.logService.info(`[AICustomizationListWidget] loadItems complete: ${items.length} items loaded [${items.map(i => `${i.name}(${i.storage}:${i.uri.toString()})`).join(', ')}]`);
 
 		this.allItems = items;
 		this.filterItems();
@@ -973,12 +1007,9 @@ export class AICustomizationListWidget extends Disposable {
 			}
 		}
 
-		const totalBeforeFilter = matchedItems.length;
-		this.logService.info(`[AICustomizationListWidget] filterItems: allItems=${this.allItems.length}, matched=${totalBeforeFilter}`);
-
 		// Group items by storage
 		const promptType = sectionToPromptType(this.currentSection);
-		const visibleSources = new Set(this.workspaceService.getVisibleStorageSources(promptType));
+		const visibleSources = new Set(this.workspaceService.getStorageSourceFilter(promptType).sources);
 		const groups: { storage: PromptsStorage; label: string; icon: ThemeIcon; description: string; items: IAICustomizationListItem[] }[] = [
 			{ storage: PromptsStorage.local, label: localize('workspaceGroup', "Workspace"), icon: workspaceIcon, description: localize('workspaceGroupDescription', "Customizations stored as files in your project folder and shared with your team via version control."), items: [] },
 			{ storage: PromptsStorage.user, label: localize('userGroup', "User"), icon: userIcon, description: localize('userGroupDescription', "Customizations stored locally on your machine in a central location. Private to you and available across all projects."), items: [] },
@@ -1029,7 +1060,6 @@ export class AICustomizationListWidget extends Disposable {
 		}
 
 		this.list.splice(0, this.list.length, this.displayEntries);
-		this.logService.info(`[AICustomizationListWidget] filterItems complete: ${this.displayEntries.length} display entries spliced into list`);
 		this.updateEmptyState();
 	}
 
@@ -1169,5 +1199,17 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	get itemCount(): number {
 		return this.allItems.length;
+	}
+
+	/**
+	 * Generates a debug report for the current section.
+	 */
+	async generateDebugReport(): Promise<string> {
+		return generateCustomizationDebugReport(
+			this.currentSection,
+			this.promptsService,
+			this.workspaceService,
+			{ allItems: this.allItems, displayEntries: this.displayEntries },
+		);
 	}
 }
