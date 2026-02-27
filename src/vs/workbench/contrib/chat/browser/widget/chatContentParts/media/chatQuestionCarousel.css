@@ -374,16 +374,16 @@
 		background: var(--vscode-button-secondaryHoverBackground) !important;
 	}
 
-	/* Submit button (next on last question) uses primary background */
-	.chat-question-carousel-nav .monaco-button.chat-question-nav-arrow.chat-question-nav-submit {
+	/* Dedicated submit button uses primary background */
+	.chat-question-carousel-nav .monaco-button.chat-question-submit-button {
 		background: var(--vscode-button-background) !important;
 		color: var(--vscode-button-foreground) !important;
-		width: auto;
+		height: 22px;
 		min-width: auto;
 		padding: 0 8px;
 	}
 
-	.chat-question-carousel-nav .monaco-button.chat-question-nav-arrow.chat-question-nav-submit:hover:not(.disabled) {
+	.chat-question-carousel-nav .monaco-button.chat-question-submit-button:hover:not(.disabled) {
 		background: var(--vscode-button-hoverBackground) !important;
 	}
 

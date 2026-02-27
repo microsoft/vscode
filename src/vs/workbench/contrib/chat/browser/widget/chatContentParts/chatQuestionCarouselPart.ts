@@ -55,6 +55,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private _prevButton: Button | undefined;
 	private _nextButton: Button | undefined;
 	private readonly _nextButtonHover: MutableDisposable<{ dispose(): void }> = this._register(new MutableDisposable());
+	private _submitButton: Button | undefined;
+	private readonly _submitButtonHover: MutableDisposable<{ dispose(): void }> = this._register(new MutableDisposable());
 	private _skipAllButton: Button | undefined;
 
 	private _isSkipped = false;
@@ -164,6 +166,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		nextButton.label = `$(${Codicon.chevronRight.id})`;
 		this._nextButton = nextButton;
 
+		const submitButton = interactiveStore.add(new Button(this._navigationButtons, { ...defaultButtonStyles }));
+		submitButton.element.classList.add('chat-question-submit-button');
+		submitButton.label = localize('submit', 'Submit');
+		this._submitButton = submitButton;
+
 		this._navigationButtons.appendChild(arrowsContainer);
 		this._footerRow.appendChild(this._navigationButtons);
 		this.domNode.append(this._footerRow);
@@ -171,7 +178,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Register event listeners
 		interactiveStore.add(prevButton.onDidClick(() => this.navigate(-1)));
-		interactiveStore.add(nextButton.onDidClick(() => this.handleNext()));
+		interactiveStore.add(nextButton.onDidClick(() => this.navigate(1)));
+		interactiveStore.add(submitButton.onDidClick(() => this.submit()));
 		if (this._skipAllButton) {
 			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore()));
 		}
@@ -192,7 +200,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				if (isTextInput || isFreeformTextarea) {
 					e.preventDefault();
 					e.stopPropagation();
-					this.handleNext();
+					this.handleNextOrSubmit();
 				}
 			} else if ((event.ctrlKey || event.metaKey) && (event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Delete)) {
 				e.stopPropagation();
@@ -228,10 +236,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	/**
-	 * Handles the next/submit button action.
-	 * Either advances to the next question or submits.
+	 * Handles the next/submit behavior for keyboard and option selection flows.
+	 * Either advances to the next question or submits when on the last question.
 	 */
-	private handleNext(): void {
+	private handleNextOrSubmit(): void {
 		this.saveCurrentAnswer();
 
 		if (this._currentIndex < this.carousel.questions.length - 1) {
@@ -243,6 +251,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._options.onSubmit(this._answers);
 			this.hideAndShowSummary();
 		}
+	}
+
+	/**
+	 * Handles explicit submit action from the dedicated submit button.
+	 */
+	private submit(): void {
+		this.saveCurrentAnswer();
+		this._options.onSubmit(this._answers);
+		this.hideAndShowSummary();
 	}
 
 	/**
@@ -291,10 +308,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._singleSelectItems.clear();
 		this._multiSelectCheckboxes.clear();
 		this._freeformTextareas.clear();
+		this._nextButtonHover.value = undefined;
+		this._submitButtonHover.value = undefined;
 
 		// Clear references to disposed elements
 		this._prevButton = undefined;
 		this._nextButton = undefined;
+		this._submitButton = undefined;
 		this._skipAllButton = undefined;
 		this._questionContainer = undefined;
 		this._navigationButtons = undefined;
@@ -464,7 +484,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderCurrentQuestion(focusContainerForScreenReader: boolean = false): void {
-		if (!this._questionContainer || !this._prevButton || !this._nextButton) {
+		if (!this._questionContainer || !this._prevButton || !this._nextButton || !this._submitButton) {
 			return;
 		}
 
@@ -559,24 +579,22 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._prevButton!.enabled = this._currentIndex > 0;
 		this._prevButton!.element.style.display = isSingleQuestion ? 'none' : '';
 
-		// Update next button icon/label for last question
+		// Keep navigation arrows stable and disable next on the last question
 		const isLastQuestion = this._currentIndex === this.carousel.questions.length - 1;
 		const submitLabel = localize('submit', 'Submit');
 		const nextLabel = localize('next', 'Next');
 		const nextLabelWithKeybinding = this.getLabelWithKeybinding(nextLabel, NEXT_QUESTION_ACTION_ID);
-		if (isLastQuestion) {
-			this._nextButton!.label = submitLabel;
-			this._nextButton!.element.setAttribute('aria-label', submitLabel);
-			// Switch to primary style for submit
-			this._nextButton!.element.classList.add('chat-question-nav-submit');
-			this._nextButtonHover.value = this._hoverService.setupDelayedHover(this._nextButton!.element, { content: submitLabel });
-		} else {
-			this._nextButton!.label = `$(${Codicon.chevronRight.id})`;
-			this._nextButton!.element.setAttribute('aria-label', nextLabelWithKeybinding);
-			// Keep secondary style for next
-			this._nextButton!.element.classList.remove('chat-question-nav-submit');
-			this._nextButtonHover.value = this._hoverService.setupDelayedHover(this._nextButton!.element, { content: nextLabelWithKeybinding });
-		}
+		this._nextButton!.label = `$(${Codicon.chevronRight.id})`;
+		this._nextButton!.enabled = !isLastQuestion;
+		this._nextButton!.element.setAttribute('aria-label', nextLabelWithKeybinding);
+		this._nextButtonHover.value = this._hoverService.setupDelayedHover(this._nextButton!.element, { content: nextLabelWithKeybinding });
+
+		this._submitButton!.enabled = isLastQuestion;
+		this._submitButton!.element.style.display = isLastQuestion ? '' : 'none';
+		this._submitButton!.element.setAttribute('aria-label', submitLabel);
+		this._submitButtonHover.value = isLastQuestion
+			? this._hoverService.setupDelayedHover(this._submitButton!.element, { content: submitLabel })
+			: undefined;
 
 		// Update aria-label to reflect the current question
 		this._updateAriaLabel();
@@ -750,7 +768,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				if (freeform) {
 					freeform.value = '';
 				}
-				this.handleNext();
+				this.handleNextOrSubmit();
 			}));
 
 			this._inputBoxes.add(this._hoverService.setupDelayedHover(listItem, {
@@ -818,7 +836,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				// Enter confirms current selection and advances to next question
 				e.preventDefault();
 				e.stopPropagation();
-				this.handleNext();
+				this.handleNextOrSubmit();
 				return;
 			} else if (event.keyCode >= KeyCode.Digit1 && event.keyCode <= KeyCode.Digit9) {
 				// Number keys 1-9 select the corresponding option, or focus freeform for next number
@@ -1014,7 +1032,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			} else if (event.keyCode === KeyCode.Enter) {
 				e.preventDefault();
 				e.stopPropagation();
-				this.handleNext();
+				this.handleNextOrSubmit();
 			} else if (event.keyCode === KeyCode.Space) {
 				e.preventDefault();
 				// Toggle the currently focused checkbox using click() to trigger onChange
