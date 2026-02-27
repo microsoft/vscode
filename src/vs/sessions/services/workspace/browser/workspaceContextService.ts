@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { Queue } from '../../../../base/common/async.js';
 import { removeTrailingPathSeparator } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -27,6 +28,7 @@ export class SessionsWorkspaceContextService implements IWorkspaceContextService
 	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
 
 	private workspace: Workspace;
+	private readonly _updateFoldersQueue = new Queue<void>();
 
 	constructor(
 		sessionsWorkspaceUri: URI,
@@ -45,7 +47,7 @@ export class SessionsWorkspaceContextService implements IWorkspaceContextService
 	}
 
 	getWorkbenchState(): WorkbenchState {
-		return WorkbenchState.WORKSPACE;
+		return WorkbenchState.EMPTY;
 	}
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
@@ -94,7 +96,11 @@ export class SessionsWorkspaceContextService implements IWorkspaceContextService
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> { return undefined; }
 
-	private async doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void> {
+	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void> {
+		return this._updateFoldersQueue.queue(() => this._doUpdateFolders(foldersToAdd, foldersToRemove, index));
+	}
+
+	private async _doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void> {
 		if (foldersToAdd.length === 0 && foldersToRemove.length === 0) {
 			return;
 		}

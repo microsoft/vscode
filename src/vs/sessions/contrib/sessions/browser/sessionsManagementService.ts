@@ -99,7 +99,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _activeSession = observableValue<IActiveSessionItem | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
-	private readonly _activeSessionDisposables = this._register(new DisposableStore());
+	private readonly _newActiveSessionDisposables = this._register(new DisposableStore());
 
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
 	private lastSelectedSession: URI | undefined;
@@ -400,7 +400,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private setActiveSession(session: IAgentSession | INewSession | undefined): void {
-		this._activeSessionDisposables.clear();
 		let activeSessionItem: IActiveSessionItem | undefined;
 		if (session) {
 			if (isAgentSession(session)) {
@@ -423,7 +422,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 					worktree: undefined,
 					providerType: session.target,
 				};
-				this._activeSessionDisposables.add(session.onDidChange(e => {
+				this._newActiveSessionDisposables.clear();
+				this._newActiveSessionDisposables.add(session.onDidChange(e => {
 					if (e === 'repoUri') {
 						this.doSetActiveSession({
 							isUntitled: true,
