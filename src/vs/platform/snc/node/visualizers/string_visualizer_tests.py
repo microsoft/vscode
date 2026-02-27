@@ -22,7 +22,6 @@ from string_visualizer import (
     DropdownToggle, DropdownSelect,
     SearchBoxInput,
     RepetitionInput,
-    NewCode,
     compute_internal_length,
     extract_by_internal_indices,
     get_last_segment_end_internal_idx,
@@ -40,8 +39,6 @@ from string_visualizer import (
     is_adjacent_left,
     synthesize_fuzzy_pattern,
     find_available_variable_name,
-    generate_regex_code_from_pattern,
-    generate_regex_delete_from_pattern,
     DC1, DC2, DC3, DC4,  # Sentinel characters
 )
 
@@ -934,17 +931,16 @@ class TestKeyboardEvents(unittest.TestCase):
         self.assertEqual(commands, [])
 
     def test_enter_generates_new_code_command(self):
-        """Enter key generates NewCode command with regex expression."""
+        """Enter key returns (suggest_var_name, expr) tuple for regex search."""
         model = self._create_hello_selection(self.model)
 
         model, commands = update(make_key_down_event('Enter'),
                                 self.source_code, self.source_line, model, self.value)
 
         self.assertEqual(len(commands), 1)
-        self.assertIsInstance(commands[0], NewCode)
-        # Check generated code
-        expected_code = "import re\nx = 'hello world'\nx_matches = list(re.finditer(r'hello', x, flags=re.M))"
-        self.assertEqual(commands[0].code, expected_code)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertEqual(expr, "list(re.finditer(r'hello', x, flags=re.M))")
 
     def test_enter_without_selection_does_nothing(self):
         """Enter without selection produces no commands."""
@@ -954,19 +950,19 @@ class TestKeyboardEvents(unittest.TestCase):
         self.assertEqual(commands, [])
 
     def test_backspace_generates_delete_code_command(self):
-        """Backspace key generates NewCode command with re.sub deletion expression."""
+        """Backspace key returns (suggest_var_name, expr) tuple for re.sub deletion."""
         model = self._create_hello_selection(self.model)
 
         model, commands = update(make_key_down_event('Backspace'),
                                 self.source_code, self.source_line, model, self.value)
 
         self.assertEqual(len(commands), 1)
-        self.assertIsInstance(commands[0], NewCode)
-        expected_code = "import re\nx = 'hello world'\nx2 = re.sub(r'hello', '', x, flags=re.M)"
-        self.assertEqual(commands[0].code, expected_code)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertEqual(expr, "re.sub(r'hello', '', x, flags=re.M)")
 
-    def test_enter_avoids_name_collision_for_match_variable(self):
-        """Enter key uses the next available _matches suffix when name collides."""
+    def test_enter_suggests_name_regardless_of_collision(self):
+        """Enter key suggests var name without collision resolution (harness handles that)."""
         source_code = "x = 'hello world'\nx_matches = 'already used'\nx_matches2 = 'also used'"
         model = self._create_hello_selection(self.model)
 
@@ -974,18 +970,12 @@ class TestKeyboardEvents(unittest.TestCase):
                                 source_code, self.source_line, model, self.value)
 
         self.assertEqual(len(commands), 1)
-        self.assertIsInstance(commands[0], NewCode)
-        expected_code = (
-            "import re\n"
-            "x = 'hello world'\n"
-            "x_matches3 = list(re.finditer(r'hello', x, flags=re.M))\n"
-            "x_matches = 'already used'\n"
-            "x_matches2 = 'also used'"
-        )
-        self.assertEqual(commands[0].code, expected_code)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertEqual(expr, "list(re.finditer(r'hello', x, flags=re.M))")
 
-    def test_backspace_avoids_name_collision_for_delete_variable(self):
-        """Backspace key uses the next available numeric suffix when name collides."""
+    def test_backspace_suggests_name_regardless_of_collision(self):
+        """Backspace key suggests var name without collision resolution (harness handles that)."""
         source_code = "x = 'hello world'\nx2 = 'already used'\nx3 = 'also used'"
         model = self._create_hello_selection(self.model)
 
@@ -993,15 +983,9 @@ class TestKeyboardEvents(unittest.TestCase):
                                 source_code, self.source_line, model, self.value)
 
         self.assertEqual(len(commands), 1)
-        self.assertIsInstance(commands[0], NewCode)
-        expected_code = (
-            "import re\n"
-            "x = 'hello world'\n"
-            "x4 = re.sub(r'hello', '', x, flags=re.M)\n"
-            "x2 = 'already used'\n"
-            "x3 = 'also used'"
-        )
-        self.assertEqual(commands[0].code, expected_code)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertEqual(expr, "re.sub(r'hello', '', x, flags=re.M)")
 
     def test_backspace_without_selection_does_nothing(self):
         """Backspace without selection produces no commands."""
@@ -3131,7 +3115,7 @@ class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
         self.source_line = 1
 
     def test_enter_after_search_box_regex(self):
-        """Enter generates code using the regex typed in the search box."""
+        """Enter generates (suggest_name, expr) using the regex typed in the search box."""
         model, _ = update(make_search_box_input_event('/(hello)(.*)(world)/'),
                           self.source_code, self.source_line, self.model, self.value)
 
@@ -3139,12 +3123,12 @@ class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
                                 self.source_code, self.source_line, model, self.value)
 
         self.assertEqual(len(commands), 1)
-        self.assertIsInstance(commands[0], NewCode)
-        # The generated code should have the stripped pattern (no groups)
-        self.assertIn("list(re.finditer(r'hello.*world'", commands[0].code)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertIn("list(re.finditer(r'hello.*world'", expr)
 
     def test_enter_after_search_box_simple_regex(self):
-        """Enter generates code for a simple regex without groups."""
+        """Enter generates (suggest_name, expr) for a simple regex without groups."""
         model, _ = update(make_search_box_input_event('/hello/'),
                           self.source_code, self.source_line, self.model, self.value)
 
@@ -3152,11 +3136,12 @@ class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
                                 self.source_code, self.source_line, model, self.value)
 
         self.assertEqual(len(commands), 1)
-        self.assertIsInstance(commands[0], NewCode)
-        self.assertIn("list(re.finditer(r'hello'", commands[0].code)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertIn("list(re.finditer(r'hello'", expr)
 
-    def test_enter_after_search_box_avoids_match_collision(self):
-        """Search-box Enter path also avoids collisions for _matches variable names."""
+    def test_enter_after_search_box_suggests_name_regardless_of_collision(self):
+        """Search-box Enter path suggests name without collision resolution."""
         source_code = "x = 'hello world'\nx_matches = 'already used'"
         model, _ = update(make_search_box_input_event('/hello/'),
                           source_code, self.source_line, self.model, self.value)
@@ -3165,8 +3150,9 @@ class TestSearchBoxEnterGeneratesCode(unittest.TestCase):
                                 source_code, self.source_line, model, self.value)
 
         self.assertEqual(len(commands), 1)
-        self.assertIsInstance(commands[0], NewCode)
-        self.assertIn("x_matches2 = list(re.finditer(r'hello'", commands[0].code)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertIn("list(re.finditer(r'hello'", expr)
 
 
 class TestFindAvailableVariableName(unittest.TestCase):
@@ -3180,15 +3166,29 @@ class TestFindAvailableVariableName(unittest.TestCase):
         source_code = "x_match = 1\nx_match2 = 2\nx_match3 = 3"
         self.assertEqual(find_available_variable_name(source_code, "x_match"), "x_match4")
 
-    def test_generate_regex_code_from_pattern_avoids_result_match_collision(self):
-        source_code = "print('hello world')\nresult_matches = 'used'"
-        new_code = generate_regex_code_from_pattern(source_code, 1, "/hello/")
-        self.assertIn("result_matches2 = list(re.finditer(r'hello', (print('hello world')), flags=re.M))", new_code)
+    def test_bare_expression_suggests_result_matches(self):
+        """For a bare expression (not an assignment), suggested name is result_matches."""
+        source_code = "print('hello world')"
+        model = init_model("hello world")
+        model['search'] = '/hello/'
+        model, commands = update(make_key_down_event('Enter'),
+                                source_code, 1, model, "hello world")
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "result_matches")
+        self.assertIn("re.finditer(r'hello'", expr)
 
-    def test_generate_regex_delete_from_pattern_avoids_result2_collision(self):
-        source_code = "print('hello world')\nresult2 = 'used'\nresult3 = 'also used'"
-        new_code = generate_regex_delete_from_pattern(source_code, 1, "/hello/")
-        self.assertIn("result = re.sub(r'hello', '', (print('hello world')), flags=re.M)", new_code)
+    def test_bare_expression_suggests_result_for_delete(self):
+        """For a bare expression, Backspace suggests 'result' as var name."""
+        source_code = "print('hello world')"
+        model = init_model("hello world")
+        model['search'] = '/hello/'
+        model, commands = update(make_key_down_event('Backspace'),
+                                source_code, 1, model, "hello world")
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "result")
+        self.assertIn("re.sub(r'hello'", expr)
 
 
 class TestSearchBoxEscape(unittest.TestCase):

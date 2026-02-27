@@ -32,8 +32,14 @@ export interface IProcessOptions {
 	modelsAndEventsJson?: string; // visualizers state, and events to apply
 }
 
+export interface NewCodeEdit {
+	type: 'insert';
+	afterLine: number; // 1-indexed; 0 means insert before line 1
+	text: string;
+}
+
 export type SNCCommand =
-	| { type: 'NewCode'; code: string };
+	| { type: 'NewCode'; triggerLine: number; triggerVisIndex: number; edits: NewCodeEdit[] };
 
 /**
  * Timing data for visualizer performance measurement.

@@ -82,11 +82,6 @@ from typing import List, Tuple, Any
 
 # === Command types (Elm-style commands for VS Code to execute) ===
 
-@dataclass(frozen=True, slots=True)
-class NewCode:
-    """Command to replace the entire file with new code."""
-    code: str
-
 # === Event types ===
 
 @dataclass(frozen=True, slots=True)
@@ -1978,42 +1973,6 @@ def find_available_variable_name(source_code: str, desired_name: str) -> str:
         next_suffix += 1
 
 
-def _insert_line_after_with_matching_indent(source_code: str, line_number: int, generated_expr: str) -> List[str]:
-    """Insert generated_expr after line_number, matching that line's indentation."""
-    lines = source_code.split('\n')
-    if line_number >= 1 and line_number <= len(lines):
-        current_line = lines[line_number - 1]
-        indent = len(current_line) - len(current_line.lstrip())
-        indent_str = current_line[:indent]
-    else:
-        indent_str = ""
-
-    lines.insert(line_number, indent_str + generated_expr)
-    return lines
-
-
-def _ensure_import_statement(lines: List[str], import_stmt: str) -> None:
-    """Insert import_stmt near the top unless an identical import already exists."""
-    if any(line.strip() == import_stmt for line in lines):
-        return
-
-    import_line = 0
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if stripped.startswith('import ') or stripped.startswith('from '):
-            import_line = i + 1
-        elif stripped and not stripped.startswith('#'):
-            # Stop at first non-import, non-comment line
-            break
-    lines.insert(import_line, import_stmt)
-
-
-def _build_regex_search_assignment(source_code: str, var_name: str | None, expr: str, regex_pattern: str) -> str:
-    """Build a collision-safe assignment for a list(re.finditer(...)) expression."""
-    desired_name = f"{var_name}_matches" if var_name else "result_matches"
-    var_to_search = var_name if var_name else f"({expr})"
-    new_var = find_available_variable_name(source_code, desired_name)
-    return f"{new_var} = list(re.finditer(r'{regex_pattern}', {var_to_search}, flags=re.M))"
 
 
 def strip_capturing_groups(pattern: str) -> str:
@@ -2044,61 +2003,6 @@ def strip_capturing_groups(pattern: str) -> str:
     return ''.join(result)
 
 
-def generate_regex_code_from_pattern(source_code: str, line_number: int, selection_regex: str) -> str:
-    """
-    Generate new source code with a regex search expression inserted after the current line.
-
-    Args:
-        source_code: The full source code
-        line_number: Line where the string is visualized (1-indexed)
-        selection_regex: Regex with / delimiters (canonical form), e.g., "/hello(.*)world/"
-
-    Returns:
-        New source code with regex search line inserted
-    """
-    expr, var_name = extract_expression_from_line(source_code, line_number)
-
-    # Extract inner pattern and strip capturing groups
-    inner_pattern = get_regex_inner_pattern(selection_regex)
-    regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
-
-    # Generate the regex expression
-    regex_expr = _build_regex_search_assignment(source_code, var_name, expr, regex_pattern)
-
-    lines = _insert_line_after_with_matching_indent(source_code, line_number, regex_expr)
-    _ensure_import_statement(lines, 'import re')
-
-    return '\n'.join(lines)
-
-
-def generate_regex_delete_from_pattern(source_code: str, line_number: int, selection_regex: str) -> str:
-    """
-    Generate new source code with a re.sub deletion expression inserted after the current line.
-
-    Args:
-        source_code: The full source code
-        line_number: Line where the string is visualized (1-indexed)
-        selection_regex: Regex with / delimiters (canonical form), e.g., "/hello(.*)world/"
-
-    Returns:
-        New source code with re.sub line inserted
-    """
-    expr, var_name = extract_expression_from_line(source_code, line_number)
-
-    # Extract inner pattern and strip capturing groups
-    inner_pattern = get_regex_inner_pattern(selection_regex)
-    regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
-
-    # Generate the re.sub expression
-    desired_name = f"{var_name}" if var_name else "result"
-    var_to_search = var_name if var_name else f"({expr})"
-    new_var = find_available_variable_name(source_code, desired_name)
-    regex_expr = f"{new_var} = re.sub(r'{regex_pattern}', '', {var_to_search}, flags=re.M)"
-
-    lines = _insert_line_after_with_matching_indent(source_code, line_number, regex_expr)
-    _ensure_import_statement(lines, 'import re')
-
-    return '\n'.join(lines)
 
 
 def vis_char_with_index_els(char, i, highlight_by_index, model=None) -> Tuple[List[str], int]:
@@ -2604,12 +2508,15 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                 if model.get('openDropdown'):
                     model['openDropdown'] = None
                 else:
-                    # Generate regex code if we have a selection
                     selection_regex = model.get('search')
 
                     if selection_regex and source_code and source_line:
-                        new_code = generate_regex_code_from_pattern(source_code, source_line, selection_regex)
-                        commands.append(NewCode(code=new_code))
+                        inner_pattern = get_regex_inner_pattern(selection_regex)
+                        regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+                        expr, var_name = extract_expression_from_line(source_code, source_line)
+                        var_to_search = var_name if var_name else f"({expr})"
+                        suggest_name = f"{var_name}_matches" if var_name else "result_matches"
+                        commands.append((suggest_name, f"list(re.finditer(r'{regex_pattern}', {var_to_search}, flags=re.M))"))
 
             elif key == 'Backspace':
                 # Close dropdown if open, otherwise generate regex delete (re.sub) code
@@ -2619,8 +2526,12 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                     selection_regex = model.get('search')
 
                     if selection_regex and source_code and source_line:
-                        new_code = generate_regex_delete_from_pattern(source_code, source_line, selection_regex)
-                        commands.append(NewCode(code=new_code))
+                        inner_pattern = get_regex_inner_pattern(selection_regex)
+                        regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+                        expr, var_name = extract_expression_from_line(source_code, source_line)
+                        var_to_search = var_name if var_name else f"({expr})"
+                        suggest_name = var_name if var_name else "result"
+                        commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, flags=re.M)"))
 
             elif key == 'Escape':
                 # Close dropdown if open, otherwise clear selections

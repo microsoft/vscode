@@ -3,6 +3,7 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { ICodeEditor, IViewZone, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { IModelContentChangedEvent } from '../../../common/textModelEvents.js';
 import { IProcessOptions, IVisualizationItem, SNCCommand, SNCStreamMessage, SNCTimingData, UiEvent } from '../../../../platform/snc/common/snc.js';
@@ -1150,19 +1151,41 @@ export class SNCController extends Disposable implements IEditorContribution {
 	 */
 	private handleCommand(command: SNCCommand): void {
 		if (command.type === 'NewCode') {
-			// Replace the entire editor content with new code
 			const model = this.editor.getModel();
-			if (model) {
-				// Use pushEditOperations to make the change undoable
-				model.pushEditOperations(
-					[],
-					[{
-						range: model.getFullModelRange(),
-						text: command.code
-					}],
-					() => null
-				);
+			if (!model || command.edits.length === 0) {
+				return;
 			}
+
+			// Record viewport position of trigger line before the edit
+			const triggerLineTop = this.editor.getTopForLineNumber(command.triggerLine);
+			const scrollTop = this.editor.getScrollTop();
+			const viewportOffset = triggerLineTop - scrollTop;
+
+			// Sort edits bottom-to-top so line numbers remain valid as we insert
+			const sortedEdits = [...command.edits].sort((a, b) => b.afterLine - a.afterLine);
+
+			const editOperations = sortedEdits.map(edit => {
+				if (edit.afterLine === 0) {
+					return {
+						range: new Range(1, 1, 1, 1),
+						text: edit.text + '\n'
+					};
+				}
+				const col = model.getLineMaxColumn(edit.afterLine);
+				return {
+					range: new Range(edit.afterLine, col, edit.afterLine, col),
+					text: '\n' + edit.text
+				};
+			});
+
+			model.pushEditOperations([], editOperations, () => null);
+
+			// Scroll so the new visualizer line appears at the same viewport
+			// position as the triggering visualizer was before the edit.
+			const insertsAboveTrigger = command.edits.filter(e => e.afterLine < command.triggerLine).length;
+			const newVisualizerLine = command.triggerLine + insertsAboveTrigger + 1;
+			const newLineTop = this.editor.getTopForLineNumber(newVisualizerLine);
+			this.editor.setScrollTop(newLineTop - viewportOffset);
 		}
 	}
 

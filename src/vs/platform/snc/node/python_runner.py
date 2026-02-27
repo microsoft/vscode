@@ -168,6 +168,80 @@ def _type_fingerprint(value: Any, depth: int = 3) -> str:
         return '?'
 
 
+def _find_available_variable_name(source_code: str, desired_name: str) -> str:
+    """Find a non-colliding variable name in source_code.
+
+    If desired_name is already used, tries desired_name + "2", then + "3", etc.
+    If desired_name already ends with digits, increments that numeric suffix.
+    """
+    import re as _re
+    existing_names = set(_re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', source_code))
+    if desired_name not in existing_names:
+        return desired_name
+
+    suffix_match = _re.match(r'^(.*?)(\d+)$', desired_name)
+    if suffix_match:
+        base_name = suffix_match.group(1)
+        next_suffix = int(suffix_match.group(2)) + 1
+    else:
+        base_name = desired_name
+        next_suffix = 2
+
+    while True:
+        candidate = f"{base_name}{next_suffix}"
+        if candidate not in existing_names:
+            return candidate
+        next_suffix += 1
+
+
+def _build_new_code_edits(source_code: str, line: int, suggest_var_name: Optional[str], expr: str) -> List[Dict[str, Any]]:
+    """Convert a (suggest_var_name, expr) tuple into a list of line-level edits.
+
+    Each edit is {"type": "insert", "afterLine": N, "text": "..."} where afterLine
+    is 1-indexed (0 means before the first line).
+
+    Handles variable name collision avoidance, indentation matching,
+    and automatic import insertion.
+    """
+    import re as _re
+    edits: List[Dict[str, Any]] = []
+
+    if suggest_var_name:
+        var_name = _find_available_variable_name(source_code, suggest_var_name)
+        assignment = f"{var_name} = {expr}"
+    else:
+        assignment = expr
+
+    lines = source_code.split('\n')
+    if 1 <= line <= len(lines):
+        current_line = lines[line - 1]
+        indent = len(current_line) - len(current_line.lstrip())
+        indent_str = current_line[:indent]
+    else:
+        indent_str = ""
+
+    edits.append({"type": "insert", "afterLine": line, "text": indent_str + assignment})
+
+    # Detect and insert needed imports
+    needed_imports: List[str] = []
+    if _re.search(r'\bre\.', expr):
+        needed_imports.append('import re')
+
+    for import_stmt in needed_imports:
+        if any(l.strip() == import_stmt for l in lines):
+            continue
+        insert_after = 0
+        for i, l in enumerate(lines):
+            stripped = l.strip()
+            if stripped.startswith('import ') or stripped.startswith('from '):
+                insert_after = i + 1  # 1-indexed line number
+            elif stripped and not stripped.startswith('#'):
+                break
+        edits.append({"type": "insert", "afterLine": insert_after, "text": import_stmt})
+
+    return edits
+
+
 def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = None) -> None:
     """
     Log any runtime value for visualization using the custom visualizer system.
@@ -258,11 +332,20 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
     # Stream any commands from the visualizer
     for cmd in commands:
         try:
-            # Commands are dataclasses, convert to dict for JSON
-            cmd_dict = {"type": type(cmd).__name__}
-            if hasattr(cmd, '__dataclass_fields__'):
-                for field_name in cmd.__dataclass_fields__:
-                    cmd_dict[field_name] = getattr(cmd, field_name)
+            if isinstance(cmd, tuple) and len(cmd) == 2:
+                suggest_var_name, expr = cmd
+                edits = _build_new_code_edits(_source_code, line, suggest_var_name, expr)
+                cmd_dict: Dict[str, Any] = {
+                    "type": "NewCode",
+                    "triggerLine": line,
+                    "triggerVisIndex": idx_in_line,
+                    "edits": edits
+                }
+            else:
+                cmd_dict = {"type": type(cmd).__name__}
+                if hasattr(cmd, '__dataclass_fields__'):
+                    for field_name in cmd.__dataclass_fields__:
+                        cmd_dict[field_name] = getattr(cmd, field_name)
             cmd_msg: Dict[str, Any] = {"type": "command", "command": cmd_dict}
             if _current_run_id:
                 cmd_msg["run_id"] = _current_run_id
