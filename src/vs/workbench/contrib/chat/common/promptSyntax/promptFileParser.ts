@@ -417,14 +417,38 @@ export class PromptBody {
 			const variableReferences: IBodyVariableReference[] = [];
 			const bodyOffset = Iterable.reduce(Iterable.slice(this.linesWithEOL, 0, this.range.startLineNumber - 1), (len, line) => line.length + len, 0);
 			let inFencedCodeBlock = false;
+			let fencedCodeBlockFenceChar: string | undefined;
+			let fencedCodeBlockFenceLength = 0;
 			for (let i = this.range.startLineNumber - 1, lineStartOffset = bodyOffset; i < this.range.endLineNumber - 1; i++) {
 				const line = this.linesWithEOL[i];
+				const trimmedLine = line.trimStart();
 
-				// Toggle fenced code block state on lines starting with ```
-				if (/^`{3}/.test(line.trimStart())) {
-					inFencedCodeBlock = !inFencedCodeBlock;
-					lineStartOffset += line.length;
-					continue;
+				// Detect fenced code block lines (``` or ~~~, 3 or more chars)
+				const fenceMatch = /^(?<fence>(`{3,}|~{3,}))/u.exec(trimmedLine);
+				if (fenceMatch) {
+					const fence = fenceMatch.groups!.fence;
+					const fenceChar = fence[0];
+					const fenceLength = fence.length;
+					const restOfLine = trimmedLine.slice(fence.length);
+
+					if (!inFencedCodeBlock) {
+						// Opening fence: record fence char/length and enter fenced code block
+						inFencedCodeBlock = true;
+						fencedCodeBlockFenceChar = fenceChar;
+						fencedCodeBlockFenceLength = fenceLength;
+						lineStartOffset += line.length;
+						continue;
+					}
+
+					// Potential closing fence: must match fence char and have at least the same length,
+					// and only whitespace is allowed after the fence.
+					if (fencedCodeBlockFenceChar === fenceChar && fenceLength >= fencedCodeBlockFenceLength && /^\s*$/.test(restOfLine)) {
+						inFencedCodeBlock = false;
+						fencedCodeBlockFenceChar = undefined;
+						fencedCodeBlockFenceLength = 0;
+						lineStartOffset += line.length;
+						continue;
+					}
 				}
 
 				// Skip all lines inside fenced code blocks
