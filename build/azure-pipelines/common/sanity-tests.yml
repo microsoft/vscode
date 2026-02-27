@@ -29,6 +29,15 @@ jobs:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
     timeoutInMinutes: 30
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(SCREENSHOTS_DIR)
+          artifactName: screenshots-${{ parameters.name }}
+          displayName: Publish Screenshots
+          condition: succeededOrFailed()
+          continueOnError: true
+          sbomEnabled: false
     variables:
       TEST_DIR: $(Build.SourcesDirectory)/test/sanity
       LOG_FILE: $(TEST_DIR)/results.xml
@@ -41,6 +50,14 @@ jobs:
         fetchTags: false
         sparseCheckoutDirectories: test/sanity .nvmrc
         displayName: Checkout test/sanity
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: mkdir "$(SCREENSHOTS_DIR)"
+          displayName: Create Screenshots Directory
+
+      - ${{ else }}:
+        - bash: mkdir -p "$(SCREENSHOTS_DIR)"
+          displayName: Create Screenshots Directory
 
       - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.arch, 'arm64')) }}:
         - script: |
@@ -160,12 +177,4 @@ jobs:
           testResultsFiles: $(LOG_FILE)
           testRunTitle: ${{ parameters.displayName }}
         displayName: Publish Test Results
-        condition: succeededOrFailed()
-
-      - task: PublishPipelineArtifact@1
-        inputs:
-          targetPath: $(SCREENSHOTS_DIR)
-          artifact: screenshots-${{ parameters.name }}
-        displayName: Publish Screenshots
-        continueOnError: true
         condition: succeededOrFailed()
