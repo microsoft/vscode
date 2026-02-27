@@ -104,8 +104,8 @@ This tests the transition from the empty state to having an active workspace sel
 1. Observe sidebar customization counts reflect the worktree's customizations and are the same as Scenario 2 (since new worktree inherits from repo root, counts should be the same)
 2. Open the management editor by clicking on "Instructions"
 3. Observe items listed — should match files in the worktree (not the bare repo)
-4. Verify there is a primary button "New Instruction (Workspace)" and another option in the dropdown for "New Instruction (User)"
-5. Click the "+ New Instruction (Workspace)" button (primary action)
+4. Verify there is a primary button "New Instructions (Workspace)" and another option in the dropdown for "New Instructions (User)"
+5. Click the "+ New Instructions (Workspace)" button (primary action)
 6. Select a name `<name>` when the quickpick appears and confirm
 7. Verify the file opens in the embedded editor
 8. Verify the file path shown in the editor header is `<WORKTREE_PATH>/.github/instructions/<name>.instructions.md`
