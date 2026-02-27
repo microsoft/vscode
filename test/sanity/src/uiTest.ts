@@ -131,7 +131,22 @@ export class UITest {
 
 		this.context.log('Waiting for extension to appear in search results');
 		const extensionItem = page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/);
-		await extensionItem.waitFor();
+		const messageContainer = page.locator('.extensions-viewlet .message-container:not(.hidden)');
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const result = await Promise.race([
+				extensionItem.waitFor().then(() => 'found' as const),
+				messageContainer.waitFor().then(() => 'message' as const),
+			]);
+
+			if (result === 'found') {
+				break;
+			}
+
+			const message = await messageContainer.textContent();
+			this.context.log(`Marketplace message: ${message} (attempt ${attempt + 1}/3), clicking Refresh`);
+			await page.getByRole('button', { name: 'Refresh' }).click();
+		}
 
 		this.context.log('Clicking Install on the first extension in the list');
 		const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
