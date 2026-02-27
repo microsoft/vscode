@@ -596,6 +596,11 @@ export class ModelPickerWidget extends Disposable {
 			getModelPickerAccessibilityProvider(),
 			listOptions
 		);
+
+		const activeElement = dom.getActiveElement();
+		if (dom.isHTMLInputElement(activeElement) && activeElement.classList.contains('action-list-filter-input')) {
+			activeElement.classList.add('chat-model-picker-filter-input');
+		}
 	}
 
 	private _updateBadge(): void {
