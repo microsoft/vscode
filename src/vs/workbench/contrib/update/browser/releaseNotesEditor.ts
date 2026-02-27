@@ -228,14 +228,13 @@ export class ReleaseNotesManager extends Disposable {
 				throw new Error('Failed to fetch release notes');
 			}
 
-			if (!text || (!/^#\s/.test(text) && !useCurrentFile)) { // release notes always starts with `#` followed by whitespace, except when using the current file
+			if (!text || (!/^#\s/.test(text) && !text.startsWith('---') && !useCurrentFile)) { // release notes always starts with `#` or YAML front-matter, except when using the current file
 				throw new Error('Invalid release notes');
 			}
 
 			// On stable builds, reject release notes that are still the Insiders pre-release
 			// version. This can happen when a new stable release ships before the final stable
-			// release notes are published to the website, causing the Insiders draft to be
-			// served instead (e.g. heading: "# February 2026 Insiders (version 1.110)").
+			// release notes are published to the website.
 			if (!useCurrentFile && this._productService.quality === 'stable' && isInsidersReleaseNotes(text)) {
 				throw new Error('not found');
 			}
@@ -784,14 +783,7 @@ export class ReleaseNotesManager extends Disposable {
 
 /**
  * Returns true if the release notes text is for an Insiders pre-release build.
- *
- * The canonical signal is the `ProductEdition: Insiders` YAML front-matter field.
- * When front-matter is present (e.g. content fetched directly from the vscode-docs
- * repository) that field is checked exclusively.
- *
- * Some endpoints (e.g. code.visualstudio.com/raw/) strip front-matter before serving
- * the content. In that case we fall back to checking whether the first heading contains
- * the word "Insiders" (e.g. "# February 2026 Insiders (version 1.110)").
+ * Determined by the `ProductEdition: Insiders` YAML front-matter field.
  */
 export function isInsidersReleaseNotes(text: string): boolean {
 	if (text.startsWith('---')) {
@@ -801,8 +793,7 @@ export function isInsidersReleaseNotes(text: string): boolean {
 			return /^ProductEdition:\s*Insiders\s*$/m.test(frontmatter);
 		}
 	}
-	// Fallback for endpoints that strip front-matter
-	return /^#[^\n]*\bInsiders\b/.test(text);
+	return false;
 }
 
 export async function renderReleaseNotesMarkdown(
