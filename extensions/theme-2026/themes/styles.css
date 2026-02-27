@@ -14,7 +14,6 @@
 	--shadow-xl: 0 0 20px rgba(0, 0, 0, 0.15);
 	--shadow-hover: 0 0 8px rgba(0, 0, 0, 0.12);
 	--shadow-sm-strong: 0 0 4px rgba(0, 0, 0, 0.18);
-	--shadow-button-active: inset 0 1px 2px rgba(0, 0, 0, 0.1);
 	--shadow-active-tab: 0 8px 12px rgba(0, 0, 0, 0.02);
 
 	/* Panel depth shadows cast onto the editor surface */
@@ -210,10 +209,6 @@
 /* Chat Widget */
 .monaco-workbench .interactive-session .chat-input-container {
 	border-radius: var(--radius-lg);
-}
-
-.monaco-workbench.vs .interactive-session .chat-input-container {
-	box-shadow: inset var(--shadow-sm);
 }
 
 .monaco-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
@@ -466,11 +461,7 @@
 }
 
 /* Input Boxes */
-.monaco-workbench .monaco-inputbox,
-.monaco-workbench .suggest-input-container {
-	box-shadow: inset var(--shadow-sm);
-	border: none;
-}
+
 
 .monaco-inputbox .monaco-action-bar .action-item .codicon,
 .monaco-workbench .search-container .input-box,
@@ -482,12 +473,6 @@
 .monaco-workbench .interactive-session .chat-input-toolbars .monaco-action-bar .action-item .codicon,
 .monaco-workbench .interactive-session .chat-input-toolbars .action-label .codicon {
 	color: var(--vscode-icon-foreground) !important;
-}
-
-/* Buttons */
-
-.monaco-workbench .monaco-button:active {
-	box-shadow: var(--shadow-button-active);
 }
 
 /* Todo List Widget - remove shadows from buttons */
@@ -628,7 +613,6 @@
 /* Notebook */
 
 .monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {
-	box-shadow: inset var(--shadow-sm);
 	border-radius: var(--radius-md);
 }
 
@@ -653,7 +637,6 @@
 
 /* Command Center */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
-	box-shadow: inset var(--shadow-sm) !important;
 	border-radius: var(--radius-lg) !important;
 	background: color-mix(in srgb, var(--vscode-commandCenter-background) 60%, transparent) !important;
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
@@ -661,12 +644,10 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
-	box-shadow: inset var(--shadow-sm) !important;
 	background: color-mix(in srgb, var(--vscode-commandCenter-activeBackground) 60%, transparent) !important;
 }
 
 .monaco-workbench .part.titlebar .command-center .agent-status-pill {
-	box-shadow: inset var(--shadow-sm);
 	border-color: var(--vscode-input-border);
 }
 
