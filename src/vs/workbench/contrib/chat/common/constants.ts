@@ -101,11 +101,6 @@ export enum ChatNotificationMode {
 	Always = 'always',
 }
 
-export enum AgentsControlClickBehavior {
-	Default = 'default',
-	Cycle = 'cycle',
-}
-
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
 
 export enum ChatAgentLocation {
