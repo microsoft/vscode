@@ -143,10 +143,13 @@ export class UITest {
 				break;
 			}
 
-			const message = await messageContainer.textContent();
+			const message = await messageContainer.locator('.message').innerText();
 			this.context.log(`Marketplace message: ${message} (attempt ${attempt + 1}/3), clicking Refresh`);
 			await page.getByRole('button', { name: 'Refresh' }).click();
+			await messageContainer.waitFor({ state: 'hidden', timeout: 30_000 });
 		}
+
+		await extensionItem.waitFor();
 
 		this.context.log('Clicking Install on the first extension in the list');
 		const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
@@ -154,7 +157,7 @@ export class UITest {
 		await installButton.click();
 
 		this.context.log('Waiting for extension to be installed');
-		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor({ timeout: 5 * 60 * 1000 });
+		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor({ timeout: 5 * 60_1000 });
 	}
 
 	/**
