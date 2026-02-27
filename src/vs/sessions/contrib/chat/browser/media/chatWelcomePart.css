@@ -35,7 +35,7 @@
 	width: 100%;
 	max-width: 200px;
 	aspect-ratio: 1/1;
-	background-image: url('./letterpress-dark.svg');
+	background-image: url('./letterpress-sessions-dark.svg');
 	background-size: contain;
 	background-position: center;
 	background-repeat: no-repeat;
@@ -45,7 +45,7 @@
 
 .vs .chat-full-welcome-letterpress,
 .hc-light .chat-full-welcome-letterpress {
-	background-image: url('./letterpress-light.svg');
+	background-image: url('./letterpress-sessions-light.svg');
 }
 
 @container (max-height: 350px) {
