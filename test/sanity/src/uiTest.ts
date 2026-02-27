@@ -131,7 +131,7 @@ export class UITest {
 
 		this.context.log('Waiting for extension to appear in search results');
 		const extensionItem = page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/);
-		const messageContainer = page.locator('.extensions-viewlet .message-container:not(.hidden)');
+		const messageContainer = page.locator('.extensions-viewlet .message-container:not(.hidden)').first();
 
 		for (let attempt = 0; attempt < 3; attempt++) {
 			const result = await Promise.race([
