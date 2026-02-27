@@ -48,9 +48,22 @@
 		padding: 0 16px 10px 16px;
 		overflow: hidden;
 
+		.chat-question-title-row {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			gap: 8px;
+			min-width: 0;
+		}
+
 		.chat-question-title {
 			flex: 1;
 			min-width: 0;
+			word-wrap: break-word;
+			overflow-wrap: break-word;
+			font-weight: 500;
+			font-size: var(--vscode-chat-font-size-body-s);
+			margin: 0;
 			padding-top: 4px;
 			padding-bottom: 4px;
 			margin-left: -16px;
@@ -59,28 +72,18 @@
 			padding-right: 16px;
 			border-bottom: 1px solid var(--vscode-chat-requestBorder);
 
-			.chat-question-title {
-				flex: 1;
-				min-width: 0;
-				word-wrap: break-word;
-				overflow-wrap: break-word;
-				font-weight: 500;
-				font-size: var(--vscode-chat-font-size-body-s);
-				margin: 0;
+			.rendered-markdown {
+				a {
+					color: var(--vscode-textLink-foreground);
+				}
 
-				.rendered-markdown {
-					a {
-						color: var(--vscode-textLink-foreground);
-					}
+				a:hover,
+				a:active {
+					color: var(--vscode-textLink-activeForeground);
+				}
 
-					a:hover,
-					a:active {
-						color: var(--vscode-textLink-activeForeground);
-					}
-
-					p {
-						margin: 0;
-					}
+				p {
+					margin: 0;
 				}
 			}
 
