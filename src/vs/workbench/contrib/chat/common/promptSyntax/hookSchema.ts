@@ -523,13 +523,6 @@ export function formatHookCommandLabel(hook: IHookCommand, os: OperatingSystem):
 	if (!command) {
 		return '';
 	}
-
-	// Add platform badge if using platform-specific override
-	if (isUsingPlatformOverride(hook, os)) {
-		const platformLabel = getPlatformLabel(os);
-		return `[${platformLabel}] ${command}`;
-	}
-
 	return command;
 }
 

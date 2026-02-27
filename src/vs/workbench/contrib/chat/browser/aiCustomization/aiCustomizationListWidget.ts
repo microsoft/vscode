@@ -39,7 +39,14 @@ import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
+import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
+import { HOOK_TYPES, formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
+import { parse as parseJSONC } from '../../../../../base/common/json.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { OS } from '../../../../../base/common/platform.js';
 
 const $ = DOM.$;
 
@@ -367,6 +374,8 @@ export class AICustomizationListWidget extends Disposable {
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IFileService private readonly fileService: IFileService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -814,18 +823,54 @@ export class AICustomizationListWidget extends Disposable {
 				});
 			}
 		} else if (promptType === PromptsType.hook) {
-			// Show hook files (not individual hooks) so users can open and edit them
+			// Try to parse individual hooks from each file; fall back to showing the file itself
 			const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
+			const activeRoot = this.workspaceService.getActiveProjectRoot();
+			const userHomeUri = await this.pathService.userHome();
+			const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
+
 			for (const hookFile of hookFiles) {
-				const filename = basename(hookFile.uri);
-				items.push({
-					id: hookFile.uri.toString(),
-					uri: hookFile.uri,
-					name: this.getFriendlyName(filename),
-					filename,
-					storage: hookFile.storage,
-					promptType,
-				});
+				let parsedHooks = false;
+				try {
+					const content = await this.fileService.readFile(hookFile.uri);
+					const json = parseJSONC(content.value.toString());
+					const { hooks } = parseHooksFromFile(hookFile.uri, json, activeRoot, userHome);
+
+					if (hooks.size > 0) {
+						parsedHooks = true;
+						for (const [hookType, entry] of hooks) {
+							const hookMeta = HOOK_TYPES.find(h => h.id === hookType);
+							for (let i = 0; i < entry.hooks.length; i++) {
+								const hook = entry.hooks[i];
+								const cmdLabel = formatHookCommandLabel(hook, OS);
+								const truncatedCmd = cmdLabel.length > 60 ? cmdLabel.substring(0, 57) + '...' : cmdLabel;
+								items.push({
+									id: `${hookFile.uri.toString()}#${entry.originalId}[${i}]`,
+									uri: hookFile.uri,
+									name: hookMeta?.label ?? entry.originalId,
+									filename: basename(hookFile.uri),
+									description: truncatedCmd || localize('hookUnset', "(unset)"),
+									storage: hookFile.storage,
+									promptType,
+								});
+							}
+						}
+					}
+				} catch {
+					// Parse failed — fall through to show raw file
+				}
+
+				if (!parsedHooks) {
+					const filename = basename(hookFile.uri);
+					items.push({
+						id: hookFile.uri.toString(),
+						uri: hookFile.uri,
+						name: this.getFriendlyName(filename),
+						filename,
+						storage: hookFile.storage,
+						promptType,
+					});
+				}
 			}
 		} else {
 			// For instructions, fetch prompt files and group by storage

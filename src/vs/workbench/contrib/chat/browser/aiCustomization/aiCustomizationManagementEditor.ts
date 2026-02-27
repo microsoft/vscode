@@ -166,6 +166,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private selectedSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
+	private _editorContentChanged = false;
 
 	private readonly inEditorContextKey: IContextKey<boolean>;
 	private readonly sectionContextKey: IContextKey<string>;
@@ -635,6 +636,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 	public selectSectionById(sectionId: AICustomizationManagementSection): void {
 		const index = this.sections.findIndex(s => s.id === sectionId);
 		if (index >= 0) {
+			// Directly update state and UI, bypassing the early-return guard in selectSection
+			// to handle the case where the editor just opened with a persisted section that
+			// matches the requested one (content might not be loaded yet).
+			if (this.viewMode === 'editor') {
+				this.goBackToList();
+			}
+			if (this.viewMode === 'mcpDetail') {
+				this.goBackFromMcpDetail();
+			}
+			this.selectedSection = sectionId;
+			this.sectionContextKey.set(sectionId);
+			this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, sectionId, StorageScope.PROFILE, StorageTarget.USER);
+			this.updateContentVisibility();
+			if (this.isPromptsSection(sectionId)) {
+				void this.listWidget.setSection(sectionId);
+			}
 			this.sectionsList.setFocus([index]);
 			this.sectionsList.setSelection([index]);
 		}
@@ -723,8 +740,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.embeddedEditor!.focus();
 
 			this.editorModelChangeDisposables.clear();
+			this._editorContentChanged = false;
 			const saveDelayer = this.editorModelChangeDisposables.add(new Delayer<void>(500));
 			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
+				this._editorContentChanged = true;
 				this.editorSaveIndicator.className = 'editor-save-indicator visible';
 				this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 				this.editorSaveIndicator.title = localize('saving', "Saving...");
@@ -753,10 +772,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private goBackToList(): void {
-		// Auto-commit workspace files when leaving the embedded editor
+		// Auto-commit workspace files when leaving the embedded editor (only if modified)
 		const fileUri = this.currentEditingUri;
 		const projectRoot = this.currentEditingProjectRoot;
-		if (fileUri && projectRoot) {
+		if (fileUri && projectRoot && this._editorContentChanged) {
 			this.workspaceService.commitFiles(projectRoot, [fileUri]);
 		}
 
@@ -770,6 +789,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.embeddedEditor?.setModel(null);
 		this.viewMode = 'list';
 		this.updateContentVisibility();
+
+		// Refresh the list to pick up newly created/edited files
+		void this.listWidget?.refresh();
 
 		if (this.dimension) {
 			this.layout(this.dimension);
