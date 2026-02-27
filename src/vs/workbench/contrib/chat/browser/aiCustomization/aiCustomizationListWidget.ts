@@ -43,7 +43,10 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
-import { HOOK_TYPES } from '../../common/promptSyntax/hookSchema.js';
+import { HOOK_TYPES, formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
+import { parse as parseJSONC } from '../../../../../base/common/json.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { OS } from '../../../../../base/common/platform.js';
 
 const $ = DOM.$;
 
@@ -823,13 +826,14 @@ export class AICustomizationListWidget extends Disposable {
 			// Try to parse individual hooks from each file; fall back to showing the file itself
 			const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
 			const activeRoot = this.workspaceService.getActiveProjectRoot();
-			const userHome = this.pathService.userHome({ preferLocal: true }).fsPath;
+			const userHomeUri = await this.pathService.userHome();
+			const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
 			for (const hookFile of hookFiles) {
 				let parsedHooks = false;
 				try {
 					const content = await this.fileService.readFile(hookFile.uri);
-					const json = JSON.parse(content.value.toString());
+					const json = parseJSONC(content.value.toString());
 					const { hooks } = parseHooksFromFile(hookFile.uri, json, activeRoot, userHome);
 
 					if (hooks.size > 0) {
@@ -838,8 +842,8 @@ export class AICustomizationListWidget extends Disposable {
 							const hookMeta = HOOK_TYPES.find(h => h.id === hookType);
 							for (let i = 0; i < entry.hooks.length; i++) {
 								const hook = entry.hooks[i];
-								const cmd = hook.command || hook.osx || hook.linux || hook.windows || '';
-								const truncatedCmd = cmd.length > 60 ? cmd.substring(0, 57) + '...' : cmd;
+								const cmdLabel = formatHookCommandLabel(hook, OS);
+								const truncatedCmd = cmdLabel.length > 60 ? cmdLabel.substring(0, 57) + '...' : cmdLabel;
 								items.push({
 									id: `${hookFile.uri.toString()}#${entry.originalId}[${i}]`,
 									uri: hookFile.uri,
