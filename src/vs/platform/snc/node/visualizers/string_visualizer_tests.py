@@ -22,6 +22,8 @@ from string_visualizer import (
     DropdownToggle, DropdownSelect,
     SearchBoxInput,
     RepetitionInput,
+    FirstMatchToggle,
+    CaseSensitiveToggle,
     compute_internal_length,
     extract_by_internal_indices,
     get_last_segment_end_internal_idx,
@@ -35,6 +37,9 @@ from string_visualizer import (
     _subpattern_to_string,
     strip_capturing_groups,
     get_regex_inner_pattern,
+    get_search_flags,
+    is_first_match_mode,
+    is_case_insensitive,
     is_adjacent_right,
     is_adjacent_left,
     synthesize_fuzzy_pattern,
@@ -4590,6 +4595,547 @@ class TestTextGrouping(unittest.TestCase):
         match = _re.search(r'<span snc-text-start="2"[^>]*style="([^"]*)"', output)
         self.assertIsNotNone(match)
         self.assertIn('letter-spacing:1px', match.group(1))
+
+
+# =============================================================================
+# First-Match Toggle Tests
+# =============================================================================
+
+class TestIsFirstMatchMode(unittest.TestCase):
+    """Test is_first_match_mode helper function."""
+
+    def test_none_is_not_first_match(self):
+        self.assertFalse(is_first_match_mode(None))
+
+    def test_many_match_default(self):
+        self.assertFalse(is_first_match_mode('/hello/'))
+
+    def test_first_match_with_1_postfix(self):
+        self.assertTrue(is_first_match_mode('/hello/1'))
+
+    def test_complex_pattern_many_match(self):
+        self.assertFalse(is_first_match_mode('/hello.*world/'))
+
+    def test_complex_pattern_first_match(self):
+        self.assertTrue(is_first_match_mode('/hello.*world/1'))
+
+    def test_empty_pattern_not_first_match(self):
+        self.assertFalse(is_first_match_mode('//'))
+
+    def test_empty_pattern_first_match(self):
+        self.assertTrue(is_first_match_mode('//1'))
+
+
+class TestGetRegexInnerPatternWithPostfix(unittest.TestCase):
+    """Test get_regex_inner_pattern strips /1 postfix correctly."""
+
+    def test_many_match_pattern(self):
+        self.assertEqual(get_regex_inner_pattern('/hello/'), 'hello')
+
+    def test_first_match_pattern_strips_1(self):
+        self.assertEqual(get_regex_inner_pattern('/hello/1'), 'hello')
+
+    def test_complex_first_match(self):
+        self.assertEqual(get_regex_inner_pattern('/hello.*world/1'), 'hello.*world')
+
+    def test_none_returns_none(self):
+        self.assertIsNone(get_regex_inner_pattern(None))
+
+
+class TestFirstMatchToggle(unittest.TestCase):
+    """Test the FirstMatchToggle event toggles between first and many match mode."""
+
+    def setUp(self):
+        self.value = "hello world hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world hello world'"
+        self.source_line = 1
+
+    def test_toggle_from_many_to_first(self):
+        """Toggling from many-match adds /1 postfix."""
+        self.model['search'] = '/hello/'
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/hello/1')
+
+    def test_toggle_from_first_to_many(self):
+        """Toggling from first-match removes /1 postfix."""
+        self.model['search'] = '/hello/1'
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/hello/')
+
+    def test_toggle_with_no_search_does_nothing(self):
+        """Toggling with no search pattern does nothing."""
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertIsNone(model['search'])
+
+    def test_toggle_saves_undo(self):
+        """Toggling saves to undo history."""
+        self.model['search'] = '/hello/'
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertIn('/hello/', model['undoHistory'])
+
+    def test_double_toggle_roundtrip(self):
+        """Toggling twice returns to original state."""
+        self.model['search'] = '/hello/'
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/hello/1')
+        model, _ = update(make_first_match_toggle_event(),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['search'], '/hello/')
+
+
+class TestManyMatchHighlighting(unittest.TestCase):
+    """Test that many-match mode highlights ALL matches, not just the first."""
+
+    def test_many_match_highlights_all_occurrences(self):
+        """Many-match mode should return highlights for all matches."""
+        value = "abc abc abc"
+        highlights = parse_regex_for_highlighting('/abc/', value)
+        match_starts = [h[0] for h in highlights]
+        self.assertGreater(len(match_starts), 1,
+                           "Many-match should highlight more than one occurrence")
+
+    def test_first_match_highlights_only_first(self):
+        """First-match mode should return highlights for only the first match."""
+        value = "abc abc abc"
+        highlights = parse_regex_for_highlighting('/abc/1', value)
+        match_count = len(set(h[0] for h in highlights))
+        self.assertEqual(match_count, 1,
+                         "First-match should highlight only one occurrence")
+
+    def test_many_match_correct_positions(self):
+        """Many-match mode highlights at correct string positions."""
+        value = "ab ab"
+        # "ab" appears at string positions 0-2 and 3-5
+        # Internal indices: +2 offset, so first "ab" at 2-4, second at 5-7
+        highlights = parse_regex_for_highlighting('/ab/', value)
+        starts = sorted(set(h[0] for h in highlights))
+        self.assertEqual(len(starts), 2, "Should find two 'ab' matches")
+
+    def test_many_match_with_fuzzy_pattern(self):
+        """Many-match with fuzzy pattern highlights multiple matches."""
+        value = "12 34 56"
+        highlights = parse_regex_for_highlighting(r'/\d+/', value)
+        starts = sorted(set(h[0] for h in highlights))
+        self.assertGreaterEqual(len(starts), 3,
+                                "Should find three digit groups")
+
+    def test_many_match_no_matches(self):
+        """Many-match with no matches returns empty."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting('/xyz/', value)
+        self.assertEqual(len(highlights), 0)
+
+
+class TestFirstMatchEnterCodeGen(unittest.TestCase):
+    """Test Enter code gen differs between first-match and many-match modes."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_many_match_enter_generates_finditer(self):
+        """Default many-match Enter generates list(re.finditer(...))."""
+        self.model['search'] = '/hello/'
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertIn("list(re.finditer(", expr)
+
+    def test_first_match_enter_generates_search(self):
+        """First-match Enter generates re.search(...)."""
+        self.model['search'] = '/hello/1'
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_match")
+        self.assertIn("re.search(", expr)
+        self.assertNotIn("finditer", expr)
+
+    def test_first_match_enter_with_complex_pattern(self):
+        """First-match Enter with grouped pattern uses re.search."""
+        self.model['search'] = '/(hello)(.*)(world)/1'
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertIn("re.search(", expr)
+
+
+class TestFirstMatchBackspaceCodeGen(unittest.TestCase):
+    """Test Backspace code gen differs between first-match and many-match modes."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_many_match_backspace_generates_sub(self):
+        """Default many-match Backspace generates re.sub without count."""
+        self.model['search'] = '/hello/'
+        model, commands = update(make_key_down_event('Backspace'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertIn("re.sub(", expr)
+        self.assertNotIn("count=1", expr)
+
+    def test_first_match_backspace_generates_sub_with_count(self):
+        """First-match Backspace generates re.sub with count=1."""
+        self.model['search'] = '/hello/1'
+        model, commands = update(make_key_down_event('Backspace'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertIn("re.sub(", expr)
+        self.assertIn("count=1", expr)
+
+
+class TestFirstMatchToggleRendering(unittest.TestCase):
+    """Test that the '1st' toggle button renders in the search box."""
+
+    def test_toggle_button_present(self):
+        """The '1st' toggle button should be present in the search box HTML."""
+        model = init_model("hello world")
+        output = visualize("hello world", model, None)
+        self.assertIn('1st', output)
+
+    def test_toggle_button_inactive_by_default(self):
+        """The toggle should appear inactive (not highlighted) by default."""
+        model = init_model("hello world")
+        output = visualize("hello world", model, None)
+        self.assertIn('FirstMatchToggle', output)
+
+    def test_toggle_button_active_when_first_match(self):
+        """The toggle should appear active when in first-match mode."""
+        model = init_model("hello world")
+        model['search'] = '/hello/1'
+        output = visualize("hello world", model, None)
+        self.assertIn('1st', output)
+
+    def test_toggle_hidden_when_small(self):
+        """The toggle should be hidden when small=True (no search box)."""
+        model = init_model("hello world")
+        output = visualize("hello world", model, None, small=True)
+        self.assertNotIn('1st', output)
+
+
+class TestSearchBoxValueWithPostfix(unittest.TestCase):
+    """Test that the search box displays the full value including /1 postfix."""
+
+    def test_search_box_shows_postfix(self):
+        """The search box value should include the /1 postfix when in first-match mode."""
+        model = init_model("hello world")
+        model['search'] = '/hello/1'
+        output = visualize("hello world", model, None)
+        self.assertIn('/hello/1', output)
+
+    def test_search_box_input_preserves_postfix(self):
+        """Typing /hello/1 in the search box sets first-match mode."""
+        model = init_model("hello world")
+        model, _ = update(make_search_box_input_event('/hello/1'),
+                          "x = 'hello world'", 1, model, "hello world")
+        self.assertEqual(model['search'], '/hello/1')
+        self.assertTrue(is_first_match_mode(model['search']))
+
+
+def make_first_match_toggle_event() -> dict:
+    """Create a FirstMatchToggle event dict."""
+    return {
+        'pythonEventStr': repr(FirstMatchToggle()),
+        'eventJSON': {},
+    }
+
+
+def make_case_sensitive_toggle_event() -> dict:
+    """Create a CaseSensitiveToggle event dict."""
+    return {
+        'pythonEventStr': repr(CaseSensitiveToggle()),
+        'eventJSON': {},
+    }
+
+
+# =============================================================================
+# Case-Sensitive Toggle Tests
+# =============================================================================
+
+class TestGetSearchFlags(unittest.TestCase):
+    """Test get_search_flags helper that extracts postfix flags."""
+
+    def test_no_flags(self):
+        self.assertEqual(get_search_flags('/hello/'), '')
+
+    def test_first_match_flag(self):
+        self.assertEqual(get_search_flags('/hello/1'), '1')
+
+    def test_case_insensitive_flag(self):
+        self.assertEqual(get_search_flags('/hello/i'), 'i')
+
+    def test_combined_flags_1i(self):
+        self.assertEqual(get_search_flags('/hello/1i'), '1i')
+
+    def test_combined_flags_i1(self):
+        self.assertEqual(get_search_flags('/hello/i1'), 'i1')
+
+    def test_none_returns_empty(self):
+        self.assertEqual(get_search_flags(None), '')
+
+    def test_pattern_with_slash(self):
+        """Slash inside pattern doesn't confuse flag extraction."""
+        self.assertEqual(get_search_flags('/a\\/b/i'), 'i')
+
+
+class TestIsCaseInsensitive(unittest.TestCase):
+    """Test is_case_insensitive helper."""
+
+    def test_none_is_case_sensitive(self):
+        self.assertFalse(is_case_insensitive(None))
+
+    def test_no_flag_is_case_sensitive(self):
+        self.assertFalse(is_case_insensitive('/hello/'))
+
+    def test_i_flag_is_case_insensitive(self):
+        self.assertTrue(is_case_insensitive('/hello/i'))
+
+    def test_1i_flag_is_case_insensitive(self):
+        self.assertTrue(is_case_insensitive('/hello/1i'))
+
+    def test_1_flag_only_is_case_sensitive(self):
+        self.assertFalse(is_case_insensitive('/hello/1'))
+
+
+class TestGetRegexInnerPatternWithFlags(unittest.TestCase):
+    """Test get_regex_inner_pattern strips all postfix flags."""
+
+    def test_no_flags(self):
+        self.assertEqual(get_regex_inner_pattern('/hello/'), 'hello')
+
+    def test_1_flag(self):
+        self.assertEqual(get_regex_inner_pattern('/hello/1'), 'hello')
+
+    def test_i_flag(self):
+        self.assertEqual(get_regex_inner_pattern('/hello/i'), 'hello')
+
+    def test_1i_flags(self):
+        self.assertEqual(get_regex_inner_pattern('/hello/1i'), 'hello')
+
+    def test_i1_flags(self):
+        self.assertEqual(get_regex_inner_pattern('/hello/i1'), 'hello')
+
+    def test_pattern_with_slash(self):
+        self.assertEqual(get_regex_inner_pattern('/a\\/b/i'), 'a\\/b')
+
+
+class TestIsFirstMatchModeWithCombinedFlags(unittest.TestCase):
+    """Test is_first_match_mode works with combined flag postfixes."""
+
+    def test_1_flag(self):
+        self.assertTrue(is_first_match_mode('/hello/1'))
+
+    def test_1i_flag(self):
+        self.assertTrue(is_first_match_mode('/hello/1i'))
+
+    def test_i1_flag(self):
+        self.assertTrue(is_first_match_mode('/hello/i1'))
+
+    def test_i_flag_only(self):
+        self.assertFalse(is_first_match_mode('/hello/i'))
+
+    def test_no_flags(self):
+        self.assertFalse(is_first_match_mode('/hello/'))
+
+
+class TestCaseSensitiveToggle(unittest.TestCase):
+    """Test the CaseSensitiveToggle event."""
+
+    def setUp(self):
+        self.value = "Hello hello HELLO"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'Hello hello HELLO'"
+        self.source_line = 1
+
+    def test_toggle_to_case_insensitive(self):
+        """Toggling from case-sensitive adds i flag."""
+        self.model['search'] = '/hello/'
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/hello/i')
+
+    def test_toggle_to_case_sensitive(self):
+        """Toggling from case-insensitive removes i flag."""
+        self.model['search'] = '/hello/i'
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/hello/')
+
+    def test_toggle_preserves_first_match_flag(self):
+        """Toggling case preserves the 1 flag."""
+        self.model['search'] = '/hello/1'
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/hello/1i')
+
+    def test_toggle_off_preserves_first_match_flag(self):
+        """Toggling case off with 1 flag preserves 1."""
+        self.model['search'] = '/hello/1i'
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/hello/1')
+
+    def test_toggle_with_no_search_does_nothing(self):
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertIsNone(model['search'])
+
+    def test_toggle_saves_undo(self):
+        self.model['search'] = '/hello/'
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertIn('/hello/', model['undoHistory'])
+
+    def test_double_toggle_roundtrip(self):
+        self.model['search'] = '/hello/'
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['search'], '/hello/i')
+        model, _ = update(make_case_sensitive_toggle_event(),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertEqual(model['search'], '/hello/')
+
+
+class TestCaseInsensitiveHighlighting(unittest.TestCase):
+    """Test that case-insensitive flag affects highlighting."""
+
+    def test_case_insensitive_matches_different_cases(self):
+        """Case-insensitive search highlights all case variants."""
+        value = "Hello hello HELLO"
+        highlights = parse_regex_for_highlighting('/hello/i', value)
+        starts = sorted(set(h[0] for h in highlights))
+        self.assertEqual(len(starts), 3, "Should match all three 'hello' variants")
+
+    def test_case_sensitive_matches_exact_case_only(self):
+        """Case-sensitive search only matches exact case."""
+        value = "Hello hello HELLO"
+        highlights = parse_regex_for_highlighting('/hello/', value)
+        starts = sorted(set(h[0] for h in highlights))
+        self.assertEqual(len(starts), 1, "Should match only exact 'hello'")
+
+    def test_case_insensitive_first_match(self):
+        """Case-insensitive + first-match highlights only first case variant."""
+        value = "Hello hello HELLO"
+        highlights = parse_regex_for_highlighting('/hello/1i', value)
+        match_count = len(set(h[0] for h in highlights))
+        self.assertEqual(match_count, 1, "First-match should highlight only one")
+
+
+class TestCaseInsensitiveEnterCodeGen(unittest.TestCase):
+    """Test Enter generates code with re.I flag when case-insensitive."""
+
+    def setUp(self):
+        self.value = "Hello hello"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'Hello hello'"
+        self.source_line = 1
+
+    def test_case_sensitive_enter_no_re_I(self):
+        """Case-sensitive Enter should NOT include re.I in flags."""
+        self.model['search'] = '/hello/'
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertNotIn('re.I', expr)
+
+    def test_case_insensitive_enter_has_re_I(self):
+        """Case-insensitive Enter should include re.I in flags."""
+        self.model['search'] = '/hello/i'
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('re.I', expr)
+        self.assertIn('re.M', expr)
+
+    def test_case_insensitive_first_match_enter(self):
+        """Case-insensitive + first-match Enter uses re.search with re.I."""
+        self.model['search'] = '/hello/1i'
+        model, commands = update(make_key_down_event('Enter'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertIn('re.search(', expr)
+        self.assertIn('re.I', expr)
+        self.assertEqual(suggest_name, "x_match")
+
+
+class TestCaseInsensitiveBackspaceCodeGen(unittest.TestCase):
+    """Test Backspace generates code with re.I flag when case-insensitive."""
+
+    def setUp(self):
+        self.value = "Hello hello"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'Hello hello'"
+        self.source_line = 1
+
+    def test_case_sensitive_backspace_no_re_I(self):
+        self.model['search'] = '/hello/'
+        model, commands = update(make_key_down_event('Backspace'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertNotIn('re.I', expr)
+
+    def test_case_insensitive_backspace_has_re_I(self):
+        self.model['search'] = '/hello/i'
+        model, commands = update(make_key_down_event('Backspace'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('re.I', expr)
+        self.assertIn('re.M', expr)
+
+    def test_case_insensitive_first_match_backspace(self):
+        """Case-insensitive + first-match Backspace uses count=1 and re.I."""
+        self.model['search'] = '/hello/1i'
+        model, commands = update(make_key_down_event('Backspace'),
+                                self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('count=1', expr)
+        self.assertIn('re.I', expr)
+
+
+class TestCaseSensitiveToggleRendering(unittest.TestCase):
+    """Test that the 'Aa' toggle button renders in the search box."""
+
+    def test_aa_button_present(self):
+        model = init_model("hello")
+        output = visualize("hello", model, None)
+        self.assertIn('Aa', output)
+
+    def test_aa_button_active_by_default(self):
+        """Aa should be highlighted (active) by default = case-sensitive."""
+        model = init_model("hello")
+        output = visualize("hello", model, None)
+        self.assertIn('CaseSensitiveToggle', output)
+
+    def test_aa_button_hidden_when_small(self):
+        model = init_model("hello")
+        output = visualize("hello", model, None, small=True)
+        self.assertNotIn('Aa', output)
 
 
 if __name__ == '__main__':

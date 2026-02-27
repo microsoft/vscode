@@ -119,6 +119,14 @@ class SearchBoxInput:
     value: str
 
 @dataclass(frozen=True, slots=True)
+class FirstMatchToggle:
+    pass
+
+@dataclass(frozen=True, slots=True)
+class CaseSensitiveToggle:
+    pass
+
+@dataclass(frozen=True, slots=True)
 class RepetitionInput:
     dropdown_id: str
     field: str  # 'exact', 'min', or 'max'
@@ -539,48 +547,47 @@ def char_span_els(string, index, is_special, highlight=None, model=None) -> List
         color = '#00aeff' if seg_type == 'literal' else '#868686'
 
         styles += f' border-{"top" if seg_type == "literal" else "bottom"}: 1px solid {color}; border-image: linear-gradient(to {"bottom" if seg_type == "literal" else "top"}, {color} 20%, transparent 20%) 1;'
+        is_interactive = segment_index is not None
         if start == index:
             styles += f' border-left: 1px solid {color}; margin-left: -1px;'
-            if seg_type == 'fuzzy':
-                # Fuzzy segments get a dropdown for pattern selection
-                pat_html = f'<span style="position: relative; display: inline-block; vertical-align: baseline">{_fuzzy_dropdown_html(pat_str, segment_index, color, model)}</span>'
-            else:
-                pat_html = _overlay_html(pat_str, 'left', seg_type, color)
-                # Left drag handle for literal segments (3px x 4px invisible box at upper-left corner)
-                left_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='left'))
-                pat_html += (
-                    '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
-                    f'<span snc-mouse-down="{html.escape(left_handle_event)}" '
-                    'style="position: absolute; top: -1px; left: -1px; width: 3px; height: 4px; '
-                    'cursor: ew-resize; z-index: 20;"></span></span>'
-                )
+            if is_interactive:
+                if seg_type == 'fuzzy':
+                    pat_html = f'<span style="position: relative; display: inline-block; vertical-align: baseline">{_fuzzy_dropdown_html(pat_str, segment_index, color, model)}</span>'
+                else:
+                    pat_html = _overlay_html(pat_str, 'left', seg_type, color)
+                    left_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='left'))
+                    pat_html += (
+                        '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
+                        f'<span snc-mouse-down="{html.escape(left_handle_event)}" '
+                        'style="position: absolute; top: -1px; left: -1px; width: 3px; height: 4px; '
+                        'cursor: ew-resize; z-index: 20;"></span></span>'
+                    )
         if end - 1 == index:
             styles += f' border-right: 1px solid {color}; padding-right: 0px;'
-            if min_count == max_count:
-                rep_str = f'{min_count}'
-            elif min_count == 0 and max_count == float('inf'):
-                rep_str = '*'
-            elif min_count == 1 and max_count == float('inf'):
-                rep_str = '+'
-            elif min_count == 0 and max_count == 1:
-                rep_str = '?'
-            elif min_count == 0:
-                rep_str = f'≤{max_count}'
-            elif max_count == float('inf'):
-                rep_str = f'≥{min_count}'
-            else:
-                rep_str = f'{min_count}-{max_count}'
-            # Render repetition as a clickable dropdown (for both literal and fuzzy)
-            repetition_html = _repetition_dropdown_html(rep_str, segment_index, seg_type, color, model)
-            if seg_type == 'literal':
-                # Right drag handle for literal segments (3px x 4px invisible box at upper-right corner)
-                right_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='right'))
-                repetition_html += (
-                    '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
-                    f'<span snc-mouse-down="{html.escape(right_handle_event)}" '
-                    'style="position: absolute; top: -1px; left: -3px; width: 3px; height: 4px; '
-                    'cursor: ew-resize; z-index: 20;"></span></span>'
-                )
+            if is_interactive:
+                if min_count == max_count:
+                    rep_str = f'{min_count}'
+                elif min_count == 0 and max_count == float('inf'):
+                    rep_str = '*'
+                elif min_count == 1 and max_count == float('inf'):
+                    rep_str = '+'
+                elif min_count == 0 and max_count == 1:
+                    rep_str = '?'
+                elif min_count == 0:
+                    rep_str = f'≤{max_count}'
+                elif max_count == float('inf'):
+                    rep_str = f'≥{min_count}'
+                else:
+                    rep_str = f'{min_count}-{max_count}'
+                repetition_html = _repetition_dropdown_html(rep_str, segment_index, seg_type, color, model)
+                if seg_type == 'literal':
+                    right_handle_event = repr(HandleMouseDown(segment_index=segment_index, side='right'))
+                    repetition_html += (
+                        '<span style="position: relative; display: inline-block; width: 0; height: 0; vertical-align: text-top;">'
+                        f'<span snc-mouse-down="{html.escape(right_handle_event)}" '
+                        'style="position: absolute; top: -1px; left: -3px; width: 3px; height: 4px; '
+                        'cursor: ew-resize; z-index: 20;"></span></span>'
+                    )
     elif model is not None and model.get('hoverIdx') == index and not model.get('dragging'):
         # Hover preview: show border indicating literal/fuzzy on the hovered character
         is_literal = model.get('hoverType', 'literal') == 'literal'
@@ -1100,19 +1107,56 @@ def resize_literal_segment(selection_regex: str, segment_index: int, string_valu
     return f"/{''.join(parts)}/"
 
 
+def get_search_flags(selection_regex: str | None) -> str:
+    """Extract the postfix flags from a search string (everything after the last /)."""
+    if not selection_regex:
+        return ''
+    last_slash = selection_regex.rfind('/', 1)
+    if last_slash <= 0:
+        return ''
+    return selection_regex[last_slash + 1:]
+
+
+def is_first_match_mode(selection_regex: str | None) -> bool:
+    """Check if the search is in first-match mode ('1' in postfix flags)."""
+    return '1' in get_search_flags(selection_regex)
+
+
+def is_case_insensitive(selection_regex: str | None) -> bool:
+    """Check if the search is case-insensitive ('i' in postfix flags)."""
+    return 'i' in get_search_flags(selection_regex)
+
+
 def get_regex_inner_pattern(selection_regex: str | None) -> str | None:
     """
-    Extract the inner pattern from a selection regex (strips / delimiters).
+    Extract the inner pattern from a selection regex (strips / delimiters and postfix flags).
 
     Args:
-        selection_regex: Regex with / delimiters, e.g., "/hello(.*)world/"
+        selection_regex: Regex with / delimiters, e.g., "/hello/" or "/hello/1i"
 
     Returns:
-        Inner pattern without delimiters, e.g., "hello(.*)world", or None if input is None
+        Inner pattern without delimiters or flags, or None if input is None
     """
     if selection_regex is None:
         return None
-    return selection_regex[1:-1]
+    last_slash = selection_regex.rfind('/', 1)
+    if last_slash <= 0:
+        return selection_regex[1:-1]
+    return selection_regex[1:last_slash]
+
+
+def _toggle_search_flag(selection_regex: str, flag_char: str) -> str:
+    """Toggle a single flag character in the postfix of a search string."""
+    last_slash = selection_regex.rfind('/', 1)
+    if last_slash <= 0:
+        return selection_regex
+    prefix = selection_regex[:last_slash + 1]  # e.g. "/hello/"
+    flags = selection_regex[last_slash + 1:]   # e.g. "1i"
+    if flag_char in flags:
+        flags = flags.replace(flag_char, '')
+    else:
+        flags += flag_char
+    return prefix + flags
 
 
 # Mapping from category constants to shorthand display strings
@@ -1715,108 +1759,125 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str)
             anchors, is_fuzzy, repetition, pattern_display = _analyze_group(subpattern)
             group_info.append((anchors, is_fuzzy, repetition, pattern_display))
 
+    first_match_only = is_first_match_mode(selection_regex)
+    re_flags = re.M | (re.I if is_case_insensitive(selection_regex) else 0)
+
     # Run the fully-grouped regex against the ORIGINAL string (not augmented!)
     # re.M makes ^ and $ match at line boundaries
     try:
-        match = re.search(grouped_pattern, string_value, flags=re.M)
+        if first_match_only:
+            matches = []
+            m = re.search(grouped_pattern, string_value, flags=re_flags)
+            if m:
+                matches = [m]
+        else:
+            matches = list(re.finditer(grouped_pattern, string_value, flags=re_flags))
     except Exception:
         return []
 
-    if not match:
+    if not matches:
         return []
 
     # Build the string-to-internal mapping for position translation
     str_to_internal = build_string_to_internal_mapping(string_value)
 
-    # Translate match positions to internal indices
     highlights = []
-    num_groups = match.lastindex or 0
 
-    for group_num in range(1, num_groups + 1):
-        span = match.span(group_num)
-        if span == (-1, -1):
-            continue  # Group didn't participate in match
+    for match_idx, match in enumerate(matches):
+        # First match gets real segment indices (for interactive widgets);
+        # additional matches get None (highlight-only, no dropdowns/handles)
+        is_primary = (match_idx == 0)
 
-        str_start, str_end = span
-        group_idx = group_num - 1
-        anchors, is_fuzzy, repetition, pattern_display = group_info[group_idx] if group_idx < len(group_info) else ([], False, (1, 1), '')
-        seg_type = 'fuzzy' if is_fuzzy else 'literal'
+        num_groups = match.lastindex or 0
 
-        # Translate string positions to internal indices
-        # Handle edge case: empty match (e.g., anchor-only groups or .* matching nothing)
-        if str_start == str_end:
-            # Zero-width match - we're at a gap/boundary position
-            # For fuzzy (.*) matching empty, this is typically at an anchor position like $
-            if str_start < len(str_to_internal):
-                internal_pos = str_to_internal[str_start]
+        for group_num in range(1, num_groups + 1):
+            span = match.span(group_num)
+            if span == (-1, -1):
+                continue  # Group didn't participate in match
+
+            str_start, str_end = span
+            group_idx = group_num - 1
+            anchors, is_fuzzy, repetition, pattern_display = group_info[group_idx] if group_idx < len(group_info) else ([], False, (1, 1), '')
+            seg_type = 'fuzzy' if is_fuzzy else 'literal'
+
+            if is_primary:
+                segment_index = len(highlights)
             else:
-                internal_pos = str_to_internal[-1] if str_to_internal else 2
+                segment_index = None
 
-            # For zero-width matches, we're at the boundary BEFORE the character
-            # This corresponds to anchor positions:
-            # - Before a newline: the $ anchor (internal_pos - 1 for \n)
-            # - At string start: could be \A or ^
-            # - At string end: the $ anchor
-            if str_start < len(string_value) and string_value[str_start] == '\n':
-                # We're at the boundary before a newline - that's the $ position
-                internal_start = internal_pos - 1  # $ is one before \n
-            elif str_start == len(string_value):
-                # We're at the end of string - that's the $ position
-                internal_start = internal_pos
-            elif str_start == 0:
-                # At the very start - position 2 (after \A and ^)
-                internal_start = internal_pos
+            # Translate string positions to internal indices
+            # Handle edge case: empty match (e.g., anchor-only groups or .* matching nothing)
+            if str_start == str_end:
+                # Zero-width match - we're at a gap/boundary position
+                # For fuzzy (.*) matching empty, this is typically at an anchor position like $
+                if str_start < len(str_to_internal):
+                    internal_pos = str_to_internal[str_start]
+                else:
+                    internal_pos = str_to_internal[-1] if str_to_internal else 2
+
+                # For zero-width matches, we're at the boundary BEFORE the character
+                # This corresponds to anchor positions:
+                # - Before a newline: the $ anchor (internal_pos - 1 for \n)
+                # - At string start: could be \A or ^
+                # - At string end: the $ anchor
+                if str_start < len(string_value) and string_value[str_start] == '\n':
+                    # We're at the boundary before a newline - that's the $ position
+                    internal_start = internal_pos - 1  # $ is one before \n
+                elif str_start == len(string_value):
+                    # We're at the end of string - that's the $ position
+                    internal_start = internal_pos
+                elif str_start == 0:
+                    # At the very start - position 2 (after \A and ^)
+                    internal_start = internal_pos
+                else:
+                    # General case: position right after previous char
+                    internal_start = internal_pos
+
+                internal_end = internal_start
+
+                # Expand based on which anchors are present
+                if 'AT_BEGINNING_STRING' in anchors:
+                    internal_start = 0
+                if 'AT_BEGINNING' in anchors:
+                    if str_start == 0:
+                        internal_start = min(internal_start, 1)
+                if 'AT_END' in anchors:
+                    internal_end = max(internal_end, internal_start + 1)
+                if 'AT_END_STRING' in anchors:
+                    internal_end = compute_internal_length(string_value)
+
+                if internal_end <= internal_start:
+                    internal_end = internal_start + 1
+                highlights.append((internal_start, internal_end, seg_type, pattern_display, repetition, segment_index))
             else:
-                # General case: position right after previous char
-                internal_start = internal_pos
+                # Normal match with content
+                internal_start = str_to_internal[str_start] if str_start < len(str_to_internal) else 2
+                # For end, we need the position AFTER the last matched character
+                if str_end > 0 and str_end <= len(str_to_internal):
+                    internal_end = str_to_internal[str_end - 1] + 1
+                    # Adjust for newlines: if last char is \n, end should be after the ^ marker
+                    if str_end > 0 and str_end - 1 < len(string_value) and string_value[str_end - 1] == '\n':
+                        # \n maps to middle of 3 indices ($, \n, ^), so add 1 more to include ^
+                        internal_end += 1
+                else:
+                    internal_end = str_to_internal[-1] if str_to_internal else 2
 
-            internal_end = internal_start
-
-            # Expand based on which anchors are present
-            if 'AT_BEGINNING_STRING' in anchors:
-                internal_start = 0
-            if 'AT_BEGINNING' in anchors:
-                if str_start == 0:
+                # Extend for leading anchors
+                if 'AT_BEGINNING_STRING' in anchors:
+                    internal_start = 0
+                if 'AT_BEGINNING' in anchors and str_start == 0:
                     internal_start = min(internal_start, 1)
-            if 'AT_END' in anchors:
-                internal_end = max(internal_end, internal_start + 1)
-            if 'AT_END_STRING' in anchors:
-                internal_end = compute_internal_length(string_value)
 
-            if internal_end <= internal_start:
-                internal_end = internal_start + 1
-            segment_index = len(highlights)
-            highlights.append((internal_start, internal_end, seg_type, pattern_display, repetition, segment_index))
-        else:
-            # Normal match with content
-            internal_start = str_to_internal[str_start] if str_start < len(str_to_internal) else 2
-            # For end, we need the position AFTER the last matched character
-            if str_end > 0 and str_end <= len(str_to_internal):
-                internal_end = str_to_internal[str_end - 1] + 1
-                # Adjust for newlines: if last char is \n, end should be after the ^ marker
-                if str_end > 0 and str_end - 1 < len(string_value) and string_value[str_end - 1] == '\n':
-                    # \n maps to middle of 3 indices ($, \n, ^), so add 1 more to include ^
-                    internal_end += 1
-            else:
-                internal_end = str_to_internal[-1] if str_to_internal else 2
+                # Extend for trailing anchors
+                if 'AT_END_STRING' in anchors:
+                    internal_end = compute_internal_length(string_value)
+                if 'AT_END' in anchors:
+                    # $ anchor - extend to include the $ marker
+                    # For end of string, $ is at augmented_len - 2
+                    # For end of line, $ is right before the \n
+                    pass  # The current end should already be correct
 
-            # Extend for leading anchors
-            if 'AT_BEGINNING_STRING' in anchors:
-                internal_start = 0
-            if 'AT_BEGINNING' in anchors and str_start == 0:
-                internal_start = min(internal_start, 1)
-
-            # Extend for trailing anchors
-            if 'AT_END_STRING' in anchors:
-                internal_end = compute_internal_length(string_value)
-            if 'AT_END' in anchors:
-                # $ anchor - extend to include the $ marker
-                # For end of string, $ is at augmented_len - 2
-                # For end of line, $ is right before the \n
-                pass  # The current end should already be correct
-
-            segment_index = len(highlights)
-            highlights.append((internal_start, internal_end, seg_type, pattern_display, repetition, segment_index))
+                highlights.append((internal_start, internal_end, seg_type, pattern_display, repetition, segment_index))
 
     return highlights
 
@@ -1826,11 +1887,13 @@ def get_last_segment_end_internal_idx(selection_regex: str | None, string_value:
     Get the internal index where the last segment ends.
 
     Used to determine if a new selection is extending from the previous one.
+    Only considers primary match segments (segment_index is not None).
     """
     highlights = parse_regex_for_highlighting(selection_regex, string_value)
-    if not highlights:
+    primary = [h for h in highlights if h[5] is not None]
+    if not primary:
         return None
-    last_start, last_end, _, _, _, _ = highlights[-1]
+    last_start, last_end, _, _, _, _ = primary[-1]
     return last_end
 
 
@@ -1839,11 +1902,13 @@ def get_first_segment_start_internal_idx(selection_regex: str | None, string_val
     Get the internal index where the first segment starts.
 
     Used to determine if a new selection is extending from the left side.
+    Only considers primary match segments (segment_index is not None).
     """
     highlights = parse_regex_for_highlighting(selection_regex, string_value)
-    if not highlights:
+    primary = [h for h in highlights if h[5] is not None]
+    if not primary:
         return None
-    first_start, first_end, _, _, _, _ = highlights[0]
+    first_start, first_end, _, _, _, _ = primary[0]
     return first_start
 
 
@@ -1853,11 +1918,12 @@ def find_fuzzy_segment_at_index(selection_regex: str | None, string_value: str, 
 
     Returns dict with 'start', 'end', 'segment_index' if found, None otherwise.
     Used to detect clicks inside realized fuzzy regions.
+    Only considers primary match segments (segment_index is not None).
     """
     highlights = parse_regex_for_highlighting(selection_regex, string_value)
-    for i, (start, end, seg_type, _, _, _) in enumerate(highlights):
-        if seg_type == 'fuzzy' and start <= idx < end:
-            return {'start': start, 'end': end, 'segment_index': i}
+    for i, (start, end, seg_type, _, _, seg_idx) in enumerate(highlights):
+        if seg_idx is not None and seg_type == 'fuzzy' and start <= idx < end:
+            return {'start': start, 'end': end, 'segment_index': seg_idx}
     return None
 
 
@@ -2243,8 +2309,53 @@ def visualize_els(value, model, get_visualizer, max_width=None, max_height=None,
         search_box_value = selection_regex if selection_regex else ""
         search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
         search_svg_html = SEARCH_SVG.replace("stroke:#000000;", "stroke:#8C8C8C;").replace("<svg ", f'<svg style="position: absolute; margin-left: 5px; margin-top: 4px; width: 12px; height: 12px;"', 1)
+        toggle_btn_style = (
+            'border-radius: 3px;'
+            'padding: 0px 3px;'
+            'font-family: inherit;'
+            'font-size: 10px;'
+            'cursor: pointer;'
+            'line-height: 16px;'
+            'user-select: none;'
+        )
+        # "Aa" toggle: on (highlighted) = case-sensitive (default), off = case-insensitive
+        case_sensitive = not is_case_insensitive(selection_regex)
+        cs_event = repr(CaseSensitiveToggle())
+        cs_bg = '#264f78' if case_sensitive else 'transparent'
+        cs_color = '#dcdcaa' if case_sensitive else '#8C8C8C'
+        case_toggle_html = (
+            f'<span snc-mouse-down="{html.escape(cs_event)}"'
+            f' style="'
+            f'background: {cs_bg};'
+            f'color: {cs_color};'
+            f'border: 1px solid #3c3c3c;'
+            f'{toggle_btn_style}'
+            f'"'
+            f'>Aa</span>'
+        )
+        # "1st" toggle: off by default, on = first-match
+        first_match = is_first_match_mode(selection_regex)
+        fm_event = repr(FirstMatchToggle())
+        fm_bg = '#264f78' if first_match else 'transparent'
+        fm_color = '#dcdcaa' if first_match else '#8C8C8C'
+        first_match_toggle_html = (
+            f'<span snc-mouse-down="{html.escape(fm_event)}"'
+            f' style="'
+            f'background: {fm_bg};'
+            f'color: {fm_color};'
+            f'border: 1px solid #3c3c3c;'
+            f'{toggle_btn_style}'
+            f'"'
+            f'>1st</span>'
+        )
+        toggles_html = (
+            f'<span style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px;">'
+            f'{case_toggle_html}'
+            f'{first_match_toggle_html}'
+            f'</span>'
+        )
         search_box_html = (
-            f'<div style="margin-top: 4px; white-space: normal;">'
+            f'<div style="margin-top: 4px; white-space: normal; position: relative;">'
             f'{search_svg_html}'
             f'<input type="text" tabindex="0"'
             f' snc-input="{html.escape(search_input_event)}"'
@@ -2256,7 +2367,7 @@ def visualize_els(value, model, get_visualizer, max_width=None, max_height=None,
         f'color: #dcdcaa;'
         f'border: 1px solid #3c3c3c;'
         f'border-radius: 10px;'
-        f'padding: 2px 8px 2px 20px;'
+        f'padding: 2px 55px 2px 20px;'
         f'font-family: inherit;'
         f'font-size: 12px;'
         f'outline: none;'
@@ -2264,6 +2375,7 @@ def visualize_els(value, model, get_visualizer, max_width=None, max_height=None,
         f'box-sizing: border-box;'
         f'"'
         f' />'
+        f'{toggles_html}'
         f'</div>'
     )
 
@@ -2515,8 +2627,13 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                         regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
                         expr, var_name = extract_expression_from_line(source_code, source_line)
                         var_to_search = var_name if var_name else f"({expr})"
-                        suggest_name = f"{var_name}_matches" if var_name else "result_matches"
-                        commands.append((suggest_name, f"list(re.finditer(r'{regex_pattern}', {var_to_search}, flags=re.M))"))
+                        flags_str = 're.M|re.I' if is_case_insensitive(selection_regex) else 're.M'
+                        if is_first_match_mode(selection_regex):
+                            suggest_name = f"{var_name}_match" if var_name else "result_match"
+                            commands.append((suggest_name, f"re.search(r'{regex_pattern}', {var_to_search}, flags={flags_str})"))
+                        else:
+                            suggest_name = f"{var_name}_matches" if var_name else "result_matches"
+                            commands.append((suggest_name, f"list(re.finditer(r'{regex_pattern}', {var_to_search}, flags={flags_str}))"))
 
             elif key == 'Backspace':
                 # Close dropdown if open, otherwise generate regex delete (re.sub) code
@@ -2531,7 +2648,11 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                         expr, var_name = extract_expression_from_line(source_code, source_line)
                         var_to_search = var_name if var_name else f"({expr})"
                         suggest_name = var_name if var_name else "result"
-                        commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, flags=re.M)"))
+                        flags_str = 're.M|re.I' if is_case_insensitive(selection_regex) else 're.M'
+                        if is_first_match_mode(selection_regex):
+                            commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, count=1, flags={flags_str})"))
+                        else:
+                            commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, flags={flags_str})"))
 
             elif key == 'Escape':
                 # Close dropdown if open, otherwise clear selections
@@ -2661,6 +2782,22 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                             model['search'] = new_regex
 
                 # Keep dropdown open for further edits
+
+        case FirstMatchToggle():
+            current_regex = model.get('search')
+            if current_regex:
+                new_regex = _toggle_search_flag(current_regex, '1')
+                model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
+                model['redoHistory'] = []
+                model['search'] = new_regex
+
+        case CaseSensitiveToggle():
+            current_regex = model.get('search')
+            if current_regex:
+                new_regex = _toggle_search_flag(current_regex, 'i')
+                model['undoHistory'] = model.get('undoHistory', []) + [current_regex]
+                model['redoHistory'] = []
+                model['search'] = new_regex
 
         case SearchBoxInput(value=val):
             # Update search directly from search box input.
