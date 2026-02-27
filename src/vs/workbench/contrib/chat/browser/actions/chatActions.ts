@@ -79,8 +79,8 @@ export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 export const CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID = 'workbench.action.chat.triggerSetupSupportAnonymousAction';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 
-export const GENERATE_INSTRUCTIONS_COMMAND_ID = 'workbench.action.chat.generateInstructions';
-export const GENERATE_INSTRUCTION_COMMAND_ID = 'workbench.action.chat.generateInstruction';
+export const GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID = 'workbench.action.chat.generateAgentInstructions';
+export const GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID = 'workbench.action.chat.generateOnDemandInstructions';
 export const GENERATE_PROMPT_COMMAND_ID = 'workbench.action.chat.generatePrompt';
 export const GENERATE_SKILL_COMMAND_ID = 'workbench.action.chat.generateSkill';
 export const GENERATE_AGENT_COMMAND_ID = 'workbench.action.chat.generateAgent';
@@ -679,7 +679,7 @@ export function registerChatActions() {
 				}, {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('sparkle')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')),
 					order: 1
 				}],
 			});
@@ -715,19 +715,43 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class NewChatEditorSparkleIconAction extends Action2 {
+	registerAction2(class NewChatEditorNewSessionIconAction extends Action2 {
 		constructor() {
 			super({
-				id: ACTION_ID_OPEN_CHAT + '.sparkleIcon',
+				id: ACTION_ID_OPEN_CHAT + '.newSessionIcon',
 				title: localize2('interactiveSession.open', "New Chat Editor"),
-				icon: Codicon.chatSparkle,
+				icon: Codicon.newSession,
 				f1: false,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('sparkle')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('new-session')),
+					order: 1
+				}],
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const widgetService = accessor.get(IChatWidgetService);
+			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+		}
+	});
+
+	registerAction2(class NewChatEditorCommentIconAction extends Action2 {
+		constructor() {
+			super({
+				id: ACTION_ID_OPEN_CHAT + '.commentIcon',
+				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.comment,
+				f1: false,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				menu: [{
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('comment')),
 					order: 1
 				}],
 			});
@@ -1235,9 +1259,8 @@ export function registerChatActions() {
 	registerAction2(class GenerateInstructionsAction extends Action2 {
 		constructor() {
 			super({
-				id: GENERATE_INSTRUCTIONS_COMMAND_ID,
-				title: localize2('generateInstructions', "Generate Workspace Instructions with Agent"),
-				shortTitle: localize2('generateInstructions.short', "Generate Instructions with Agent"),
+				id: GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
+				title: localize2('generateInstructions', "Generate Agent Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1258,9 +1281,8 @@ export function registerChatActions() {
 	registerAction2(class GenerateInstructionAction extends Action2 {
 		constructor() {
 			super({
-				id: GENERATE_INSTRUCTION_COMMAND_ID,
-				title: localize2('generateInstruction', "Generate On-demand Instruction with Agent"),
-				shortTitle: localize2('generateInstruction.short', "Generate Instruction with Agent"),
+				id: GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
+				title: localize2('generateOnDemandInstructions', "Generate On-Demand Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1272,7 +1294,7 @@ export function registerChatActions() {
 			const commandService = accessor.get(ICommandService);
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',
-				query: '/create-instruction ',
+				query: '/create-instructions ',
 				isPartialQuery: true,
 			});
 		}
@@ -1282,8 +1304,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: GENERATE_PROMPT_COMMAND_ID,
-				title: localize2('generatePrompt', "Generate Prompt File with Agent"),
-				shortTitle: localize2('generatePrompt.short', "Generate Prompt with Agent"),
+				title: localize2('generatePrompt', "Generate Prompt File"),
+				shortTitle: localize2('generatePrompt.short', "Generate Prompt"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1305,8 +1327,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: GENERATE_SKILL_COMMAND_ID,
-				title: localize2('generateSkill', "Generate Skill with Agent"),
-				shortTitle: localize2('generateSkill.short', "Generate Skill with Agent"),
+				title: localize2('generateSkill', "Generate Skill"),
+				shortTitle: localize2('generateSkill.short', "Generate Skill"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1328,8 +1350,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: GENERATE_AGENT_COMMAND_ID,
-				title: localize2('generateAgent', "Generate Custom Agent with Agent"),
-				shortTitle: localize2('generateAgent.short', "Generate Agent with Agent"),
+				title: localize2('generateAgent', "Generate Custom Agent"),
+				shortTitle: localize2('generateAgent.short', "Generate Agent"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
@@ -1351,8 +1373,8 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: GENERATE_HOOK_COMMAND_ID,
-				title: localize2('generateHook', "Generate Hook with Agent"),
-				shortTitle: localize2('generateHook.short', "Generate Hook with Agent"),
+				title: localize2('generateHook', "Generate Hook"),
+				shortTitle: localize2('generateHook.short', "Generate Hook"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,

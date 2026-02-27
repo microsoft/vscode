@@ -613,17 +613,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.initSelectedModel();
 
-		this._register(this.languageModelsService.onDidChangeLanguageModels((vendor) => {
-			// Remove vendor from cache since the models changed and what is stored is no longer valid
-			// TODO @lramos15 - The cache should be less confusing since we have the LM Service cache + the view cache interacting weirdly
-			this.storageService.store(
-				CachedLanguageModelsKey,
-				this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []).filter(m => !m.identifier.startsWith(vendor)),
-				StorageScope.APPLICATION,
-				StorageTarget.MACHINE
-			);
-
-			// We've changed models and the current one is no longer available. Select a new one
+		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
 			const selectedModel = this._currentLanguageModel ? this.getModels().find(m => m.identifier === this._currentLanguageModel.get()?.identifier) : undefined;
 			if (!this.currentLanguageModel || !selectedModel) {
 				this.setCurrentLanguageModelToDefault();
@@ -1061,12 +1051,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
 		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []);
-		let models = this.languageModelsService.getLanguageModelIds()
+		const liveModels = this.languageModelsService.getLanguageModelIds()
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
-		if (models.length === 0 || models.some(m => m.metadata.isDefaultForLocation[this.location]) === false) {
-			models = cachedModels;
-		} else {
+
+		// Merge live models with cached models per-vendor. For vendors whose
+		// models have resolved, use the live data. For vendors that are still
+		// contributed but haven't resolved yet (startup race), keep their
+		// cached models. Vendors that are no longer contributed at all (e.g.
+		// extension uninstalled) are evicted from the cache.
+		let models: ILanguageModelChatMetadataAndIdentifier[];
+		if (liveModels.length > 0) {
+			const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
+			const contributedVendors = new Set(this.languageModelsService.getVendors().map(v => v.vendor));
+			models = [
+				...liveModels,
+				...cachedModels.filter(m => !liveVendors.has(m.metadata.vendor) && contributedVendors.has(m.metadata.vendor)),
+			];
 			this.storageService.store(CachedLanguageModelsKey, models, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		} else {
+			models = cachedModels;
 		}
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 

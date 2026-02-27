@@ -23,6 +23,7 @@ import { SuggestController } from '../../../../editor/contrib/suggest/browser/su
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService, IContextKey, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -35,10 +36,8 @@ import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hover
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
+import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
@@ -59,13 +58,20 @@ import { FolderPicker } from './folderPicker.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
+import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
+import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatHistoryNavigator } from '../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
+import { IHistoryNavigationWidget } from '../../../../base/browser/history.js';
+import { registerAndCreateHistoryNavigationContext, IHistoryNavigationContext } from '../../../../platform/history/browser/contextScopedHistoryWidget.js';
 
-const STORAGE_KEY_LAST_MODEL = 'sessions.selectedModel';
+const STORAGE_KEY_DRAFT_STATE = 'sessions.draftState';
 const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 
@@ -87,12 +93,20 @@ interface INewChatWidgetOptions {
  * This widget is shown only in the empty/welcome state. Once the user sends
  * a message, a session is created and the workbench ChatViewPane takes over.
  */
-class NewChatWidget extends Disposable {
+class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private readonly _targetPicker: SessionTargetPicker;
 	private readonly _isolationModePicker: IsolationModePicker;
 	private readonly _branchPicker: BranchPicker;
+	private readonly _syncIndicator: SyncIndicator;
 	private readonly _options: INewChatWidgetOptions;
+
+	// IHistoryNavigationWidget
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	readonly onDidFocus = this._onDidFocus.event;
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	readonly onDidBlur = this._onDidBlur.event;
+	get element(): HTMLElement { return this._editorContainer; }
 
 	// Input
 	private _editor!: CodeEditorWidget;
@@ -138,6 +152,11 @@ class NewChatWidget extends Disposable {
 	// Slash commands
 	private _slashCommandHandler: SlashCommandHandler | undefined;
 
+	// Input history
+	private readonly _history: ChatHistoryNavigator;
+	private _historyNavigationBackwardsEnablement!: IHistoryNavigationContext['historyNavigationBackwardsEnablement'];
+	private _historyNavigationForwardsEnablement!: IHistoryNavigationContext['historyNavigationForwardsEnablement'];
+
 	constructor(
 		options: INewChatWidgetOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -145,24 +164,23 @@ class NewChatWidget extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IContextMenuService contextMenuService: IContextMenuService,
 		@ILogService private readonly logService: ILogService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
+		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
 		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
 		this._repoPicker = this._register(this.instantiationService.createInstance(RepoPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
-		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, options.defaultTarget));
+		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, this._resolveDefaultTarget(options)));
 		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
+		this._syncIndicator = this._register(this.instantiationService.createInstance(SyncIndicator));
 		this._options = options;
 
 		// When target changes, create new session
@@ -171,6 +189,7 @@ class NewChatWidget extends Disposable {
 			const isLocal = target === AgentSessionProviders.Background;
 			this._isolationModePicker.setVisible(isLocal);
 			this._branchPicker.setVisible(isLocal);
+			this._syncIndicator.setVisible(isLocal);
 			this._focusEditor();
 		}));
 
@@ -179,7 +198,8 @@ class NewChatWidget extends Disposable {
 			this._updateInputLoadingState();
 		}));
 
-		this._register(this._branchPicker.onDidChange(() => {
+		this._register(this._branchPicker.onDidChange((branch) => {
+			this._syncIndicator.setBranch(branch);
 			this._focusEditor();
 		}));
 
@@ -221,7 +241,7 @@ class NewChatWidget extends Disposable {
 
 		// Input area inside the input slot
 		const inputArea = dom.$('.sessions-chat-input-area');
-		this._contextAttachments.registerDropTarget(inputArea);
+		this._contextAttachments.registerDropTarget(wrapper);
 		this._contextAttachments.registerPasteHandler(inputArea);
 
 		// Attachments row (pills only) inside input area, above editor
@@ -239,17 +259,22 @@ class NewChatWidget extends Disposable {
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
 		this._branchPicker.render(branchContainer);
+		this._syncIndicator.render(branchContainer);
 
 		// Set initial visibility based on default target
 		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
 		this._isolationModePicker.setVisible(isLocal);
 		this._branchPicker.setVisible(isLocal);
+		this._syncIndicator.setVisible(isLocal);
 
 		// Render target buttons & extension pickers
 		this._renderOptionGroupPickers();
 
 		// Initialize model picker
 		this._initDefaultModel();
+
+		// Restore draft input state from storage
+		this._restoreState();
 
 		// Create initial session
 		this._createNewSession();
@@ -335,6 +360,7 @@ class NewChatWidget extends Disposable {
 		this._updateInputLoadingState();
 		this._branchPicker.setRepository(undefined);
 		this._isolationModePicker.setRepository(undefined);
+		this._syncIndicator.setRepository(undefined);
 
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
@@ -344,6 +370,7 @@ class NewChatWidget extends Disposable {
 			this._updateInputLoadingState();
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
+			this._syncIndicator.setRepository(repository);
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -353,6 +380,7 @@ class NewChatWidget extends Disposable {
 			this._updateInputLoadingState();
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
+			this._syncIndicator.setRepository(undefined);
 		});
 	}
 
@@ -379,6 +407,15 @@ class NewChatWidget extends Disposable {
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
 		editorContainer.style.height = `${MIN_EDITOR_HEIGHT}px`;
+
+		// Create scoped context key service and register history navigation
+		// BEFORE creating the editor, so the editor's context key scope is a child
+		const inputScopedContextKeyService = this._register(this.contextKeyService.createScoped(container));
+		const { historyNavigationBackwardsEnablement, historyNavigationForwardsEnablement } = this._register(registerAndCreateHistoryNavigationContext(inputScopedContextKeyService, this));
+		this._historyNavigationBackwardsEnablement = historyNavigationBackwardsEnablement;
+		this._historyNavigationForwardsEnablement = historyNavigationForwardsEnablement;
+
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, inputScopedContextKeyService])));
 
 		const uri = URI.from({ scheme: 'sessions-chat', path: `input-${Date.now()}` });
 		const textModel = this._register(this.modelService.createModel('', null, uri, true));
@@ -414,13 +451,16 @@ class NewChatWidget extends Disposable {
 			]),
 		};
 
-		this._editor = this._register(this.instantiationService.createInstance(
+		this._editor = this._register(scopedInstantiationService.createInstance(
 			CodeEditorWidget, editorContainer, editorOptions, widgetOptions,
 		));
 		this._editor.setModel(textModel);
 
 		// Ensure suggest widget renders above the input (not clipped by container)
 		SuggestController.get(this._editor)?.forceRenderingAbove();
+
+		this._register(this._editor.onDidFocusEditorWidget(() => this._onDidFocus.fire()));
+		this._register(this._editor.onDidBlurEditorWidget(() => this._onDidBlur.fire()));
 
 		this._register(this._editor.onKeyDown(e => {
 			if (e.keyCode === KeyCode.Enter && !e.shiftKey && !e.ctrlKey && !e.altKey) {
@@ -438,6 +478,19 @@ class NewChatWidget extends Disposable {
 				this._send({ openNewAfterSend: true });
 			}
 		}));
+
+		// Update history navigation enablement based on cursor position
+		const updateHistoryNavigationEnablement = () => {
+			const model = this._editor.getModel();
+			const position = this._editor.getPosition();
+			if (!model || !position) {
+				return;
+			}
+			this._historyNavigationBackwardsEnablement.set(position.lineNumber === 1 && position.column === 1);
+			this._historyNavigationForwardsEnablement.set(position.lineNumber === model.getLineCount() && position.column === model.getLineMaxColumn(position.lineNumber));
+		};
+		this._register(this._editor.onDidChangeCursorPosition(() => updateHistoryNavigationEnablement()));
+		updateHistoryNavigationEnablement();
 
 		let previousHeight = -1;
 		this._register(this._editor.onDidContentSizeChange(e => {
@@ -552,7 +605,6 @@ class NewChatWidget extends Disposable {
 			currentModel: this._currentLanguageModel,
 			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
 				this._currentLanguageModel.set(model, undefined);
-				this.storageService.store(STORAGE_KEY_LAST_MODEL, model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 				this._newSession.value?.setModelId(model.identifier);
 				this._focusEditor();
 			},
@@ -576,13 +628,10 @@ class NewChatWidget extends Disposable {
 
 	private _initDefaultModel(): void {
 		const models = this._getAvailableModels();
-		const lastModelId = this.storageService.get(STORAGE_KEY_LAST_MODEL, StorageScope.PROFILE);
-		const lastModel = lastModelId ? models.find(m => m.identifier === lastModelId) : undefined;
-		if (lastModel) {
-			this._currentLanguageModel.set(lastModel, undefined);
-		} else if (models.length > 0) {
-			this._currentLanguageModel.set(models[0], undefined);
-		}
+		const draft = this._getDraftState();
+		const lastModelId = draft?.selectedModel?.identifier ?? this._history.values.at(-1)?.selectedModel?.identifier;
+		const defaultModel = (lastModelId ? models.find(m => m.identifier === lastModelId) : undefined) ?? models[0];
+		this._currentLanguageModel.set(defaultModel, undefined);
 	}
 
 	private _getAvailableModels(): ILanguageModelChatMetadataAndIdentifier[] {
@@ -787,6 +836,60 @@ class NewChatWidget extends Disposable {
 		}
 	}
 
+	// --- Input History (IHistoryNavigationWidget) ---
+
+	showPreviousValue(): void {
+		if (this._history.isAtStart()) {
+			return;
+		}
+		const state = this._getInputState();
+		if (state.inputText || state.attachments.length) {
+			this._history.overlay(state);
+		}
+		this._navigateHistory(true);
+	}
+
+	showNextValue(): void {
+		if (this._history.isAtEnd()) {
+			return;
+		}
+		const state = this._getInputState();
+		if (state.inputText || state.attachments.length) {
+			this._history.overlay(state);
+		}
+		this._navigateHistory(false);
+	}
+
+	private _getInputState(): IChatModelInputState {
+		return {
+			inputText: this._editor?.getModel()?.getValue() ?? '',
+			attachments: [...this._contextAttachments.attachments],
+			mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent },
+			selectedModel: this._currentLanguageModel.get(),
+			selections: this._editor?.getSelections() ?? [],
+			contrib: {},
+		};
+	}
+
+	private _navigateHistory(previous: boolean): void {
+		const entry = previous ? this._history.previous() : this._history.next();
+		const inputText = entry?.inputText ?? '';
+		if (entry) {
+			this._editor?.getModel()?.setValue(inputText);
+			this._contextAttachments.setAttachments(entry.attachments);
+		}
+		aria.status(inputText);
+		if (previous) {
+			this._editor.setPosition({ lineNumber: 1, column: 1 });
+		} else {
+			const model = this._editor.getModel();
+			if (model) {
+				const lastLine = model.getLineCount();
+				this._editor.setPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
+			}
+		}
+	}
+
 	// --- Send ---
 
 	private _updateSendButtonState(): void {
@@ -797,25 +900,10 @@ class NewChatWidget extends Disposable {
 		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
-	private async _send(options?: { skipSetup?: boolean; openNewAfterSend?: boolean }): Promise<void> {
+	private async _send(options?: { openNewAfterSend?: boolean }): Promise<void> {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
 		if (!query || !session || this._sending) {
-			return;
-		}
-
-		// If chat is not set up (extension not installed or user not signed in),
-		// trigger the standard chat setup flow first, then re-submit.
-		if (!options?.skipSetup && this._needsChatSetup()) {
-			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
-				dialogIcon: Codicon.agent,
-				dialogTitle: this.chatEntitlementService.anonymous ?
-					localize('sessions.startUsingSessions', "Start using Sessions") :
-					localize('sessions.signinRequired', "Sign in to use Sessions")
-			});
-			if (success) {
-				return await this._send({ ...options, skipSetup: true });
-			}
 			return;
 		}
 
@@ -837,6 +925,9 @@ class NewChatWidget extends Disposable {
 		session.setAttachedContext(
 			this._contextAttachments.attachments.length > 0 ? [...this._contextAttachments.attachments] : undefined
 		);
+
+		this._history.append(this._getInputState());
+		this._clearDraftState();
 
 		this._sending = true;
 		this._editor.updateOptions({ readOnly: true });
@@ -881,22 +972,56 @@ class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _needsChatSetup(): boolean {
-		const { sentiment, entitlement } = this.chatEntitlementService;
-		if (
-			!sentiment?.installed ||						// Extension not installed: run setup to install
-			sentiment?.disabled ||							// Extension disabled: run setup to enable
-			sentiment?.untrusted ||							// Workspace untrusted: run setup to ask for trust
-			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
-			(
-				entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
-				!this.chatEntitlementService.anonymous		// unless anonymous access is enabled
-			)
-		) {
-			return true;
-		}
 
-		return false;
+	private _resolveDefaultTarget(options: INewChatWidgetOptions): AgentSessionProviders {
+		const draft = this._getDraftState();
+		if (draft?.target && options.allowedTargets.includes(draft.target)) {
+			return draft.target;
+		}
+		return options.defaultTarget;
+	}
+
+	private _restoreState(): void {
+		const draft = this._getDraftState();
+		if (draft) {
+			this._editor?.getModel()?.setValue(draft.inputText);
+			if (draft.attachments?.length) {
+				this._contextAttachments.setAttachments(draft.attachments.map(IChatRequestVariableEntry.fromExport));
+			}
+			if (draft.selectedModel) {
+				const models = this._getAvailableModels();
+				const model = models.find(m => m.identifier === draft.selectedModel?.identifier);
+				if (model) {
+					this._currentLanguageModel.set(model, undefined);
+				}
+			}
+		}
+	}
+
+	private _getDraftState(): (IChatModelInputState & { target?: AgentSessionProviders }) | undefined {
+		const raw = this.storageService.get(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
+		if (!raw) {
+			return undefined;
+		}
+		try {
+			return JSON.parse(raw);
+		} catch {
+			return undefined;
+		}
+	}
+
+	private _clearDraftState(): void {
+		this.storageService.remove(STORAGE_KEY_DRAFT_STATE, StorageScope.WORKSPACE);
+	}
+
+	saveState(): void {
+		const inputState = this._getInputState();
+		const state = {
+			...inputState,
+			attachments: inputState.attachments.map(IChatRequestVariableEntry.toExport),
+			target: this._targetPicker.selectedTarget,
+		};
+		this.storageService.store(STORAGE_KEY_DRAFT_STATE, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	// --- Layout ---
@@ -982,6 +1107,10 @@ export class NewChatViewPane extends ViewPane {
 		if (visible) {
 			this._widget?.focusInput();
 		}
+	}
+
+	override saveState(): void {
+		this._widget?.saveState();
 	}
 }
 

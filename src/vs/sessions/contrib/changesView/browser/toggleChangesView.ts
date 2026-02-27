@@ -14,16 +14,18 @@ import { IChatService } from '../../../../workbench/contrib/chat/common/chatServ
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsManagementService } from './sessionsManagementService.js';
+import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { CHANGES_VIEW_ID } from './changesView.js';
 
 interface IPendingTurnState {
 	readonly hadChangesBeforeSend: boolean;
 	readonly submittedAt: number;
 }
 
-export class SessionsAuxiliaryBarContribution extends Disposable {
+export class ToggleChangesViewContribution extends Disposable {
 
-	static readonly ID = 'workbench.contrib.sessionsAuxiliaryBarContribution';
+	static readonly ID = 'workbench.contrib.toggleChangesView';
 
 	private readonly pendingTurnStateByResource = new ResourceMap<IPendingTurnState>();
 
@@ -33,6 +35,7 @@ export class SessionsAuxiliaryBarContribution extends Disposable {
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@IChatService private readonly chatService: IChatService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 
@@ -106,12 +109,10 @@ export class SessionsAuxiliaryBarContribution extends Disposable {
 	}
 
 	private syncAuxiliaryBarVisibility(hasChanges: boolean): void {
-		const shouldHideAuxiliaryBar = !hasChanges;
-		const isAuxiliaryBarVisible = this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-		if (shouldHideAuxiliaryBar === !isAuxiliaryBarVisible) {
-			return;
+		if (hasChanges) {
+			this.viewsService.openView(CHANGES_VIEW_ID, true);
+		} else {
+			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		}
-
-		this.layoutService.setPartHidden(shouldHideAuxiliaryBar, Parts.AUXILIARYBAR_PART);
 	}
 }

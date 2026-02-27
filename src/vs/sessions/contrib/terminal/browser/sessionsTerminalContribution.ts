@@ -12,24 +12,21 @@ import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 
 /**
  * Returns the cwd URI for the given session: worktree for non-cloud agent
  * sessions, repository otherwise, or `undefined` when neither is available.
  */
 function getSessionCwd(session: IActiveSessionItem | undefined): URI | undefined {
-	if (isAgentSession(session) && session.providerType !== AgentSessionProviders.Cloud) {
-		return session.worktree ?? session.repository;
-	}
-	return session?.repository;
+	return session?.worktree ?? session?.repository;
 }
 
 /**
@@ -147,7 +144,7 @@ class OpenSessionInTerminalAction extends Action2 {
 				id: Menus.TitleBarRight,
 				group: 'navigation',
 				order: 9,
-				when: IsAuxiliaryWindowContext.toNegated()
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 			}]
 		});
 	}

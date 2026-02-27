@@ -28,20 +28,6 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 // Test service implementations
-import { TestCodeEditorService, TestCommandService } from '../../../../editor/test/browser/editorTestServices.js';
-import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
-import { TestEditorWorkerService } from '../../../../editor/test/common/services/testEditorWorkerService.js';
-import { TestTextResourcePropertiesService } from '../../../../editor/test/common/services/testTextResourcePropertiesService.js';
-import { TestTreeSitterLibraryService } from '../../../../editor/test/common/services/testTreeSitterLibraryService.js';
-import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
-import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
-import { MockContextKeyService, MockKeybindingService } from '../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
-import { NullOpenerService } from '../../../../platform/opener/test/common/nullOpenerService.js';
-import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
-import { TestMenuService } from '../workbenchTestServices.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
@@ -58,31 +44,45 @@ import { ModelService } from '../../../../editor/common/services/modelService.js
 import { ITextResourcePropertiesService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { ITreeSitterLibraryService } from '../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 import { ICodeLensCache } from '../../../../editor/contrib/codelens/browser/codeLensCache.js';
+import { TestCodeEditorService, TestCommandService } from '../../../../editor/test/browser/editorTestServices.js';
+import { TestLanguageConfigurationService } from '../../../../editor/test/common/modes/testLanguageConfigurationService.js';
+import { TestEditorWorkerService } from '../../../../editor/test/common/services/testEditorWorkerService.js';
+import { TestTextResourcePropertiesService } from '../../../../editor/test/common/services/testTextResourcePropertiesService.js';
+import { TestTreeSitterLibraryService } from '../../../../editor/test/common/services/testTreeSitterLibraryService.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IActionViewItemService, NullActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { TestClipboardService } from '../../../../platform/clipboard/test/common/testClipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDataChannelService, NullDataChannelService } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { MockContextKeyService, MockKeybindingService } from '../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILoggerService, ILogService, NullLoggerService, NullLogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../../platform/opener/test/common/nullOpenerService.js';
 import { IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { UndoRedoService } from '../../../../platform/undoRedo/common/undoRedoService.js';
 import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { TestMenuService } from '../workbenchTestServices.js';
 
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -90,12 +90,12 @@ import { ITextModel } from '../../../../editor/common/model.js';
 
 
 // Import color registrations to ensure colors are available
+import { isThenable } from '../../../../base/common/async.js';
 import '../../../../platform/theme/common/colors/baseColors.js';
 import '../../../../platform/theme/common/colors/editorColors.js';
 import '../../../../platform/theme/common/colors/listColors.js';
 import '../../../../platform/theme/common/colors/miscColors.js';
 import '../../../common/theme.js';
-import { isThenable } from '../../../../base/common/async.js';
 
 /**
  * A storage service that never stores anything and always returns the default/fallback value.
@@ -381,6 +381,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onDidChangeDefaultAccount: new Emitter<null>().event,
 		onDidChangePolicyData: new Emitter<null>().event,
 		policyData: null,
+		copilotTokenInfo: null,
+		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
 		getDefaultAccount: async () => null,
 		getDefaultAccountAuthenticationProvider: () => ({ id: 'test', name: 'Test', scopes: [], enterprise: false }),
 		setDefaultAccountProvider: () => { },

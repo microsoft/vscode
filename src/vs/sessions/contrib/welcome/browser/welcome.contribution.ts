@@ -5,6 +5,7 @@
 
 import './media/welcomeOverlay.css';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { $, append } from '../../../../base/browser/dom.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -24,6 +25,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
@@ -86,7 +88,8 @@ class SessionsWelcomeOverlay extends Disposable {
 				dialogIcon: Codicon.agent,
 				dialogTitle: this.chatEntitlementService.anonymous ?
 					localize('sessions.startUsingSessions', "Start using Sessions") :
-					localize('sessions.signinRequired', "Sign in to use Sessions")
+					localize('sessions.signinRequired', "Sign in to use Sessions"),
+				dialogHideSkip: true
 			});
 
 			if (success) {
@@ -134,6 +137,7 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -195,6 +199,11 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 
 		this.watcherRef.clear();
 		this.overlayRef.value = new DisposableStore();
+
+		// Mark the welcome overlay as visible for titlebar disabling
+		const welcomeVisibleKey = SessionsWelcomeVisibleContext.bindTo(this.contextKeyService);
+		welcomeVisibleKey.set(true);
+		this.overlayRef.value.add(toDisposable(() => welcomeVisibleKey.reset()));
 
 		const overlay = this.overlayRef.value.add(this.instantiationService.createInstance(
 			SessionsWelcomeOverlay,

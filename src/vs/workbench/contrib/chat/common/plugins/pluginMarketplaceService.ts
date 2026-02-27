@@ -8,13 +8,13 @@ import { Event } from '../../../../../base/common/event.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
+import { isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { ChatConfiguration } from '../constants.js';
@@ -75,6 +75,7 @@ export interface IPluginMarketplaceService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeMarketplaces: Event<void>;
 	fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]>;
+	getMarketplacePluginMetadata(pluginUri: URI): Promise<IMarketplacePlugin | undefined>;
 }
 
 /**
@@ -292,6 +293,66 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 			StorageScope.APPLICATION,
 			StorageTarget.MACHINE,
 		);
+	}
+
+	async getMarketplacePluginMetadata(pluginUri: URI): Promise<IMarketplacePlugin | undefined> {
+		const configuredRefs = this._configurationService.getValue<unknown[]>(ChatConfiguration.PluginMarketplaces) ?? [];
+		const refs = parseMarketplaceReferences(configuredRefs);
+
+		for (const ref of refs) {
+			let repoDir: URI;
+			try {
+				repoDir = this._pluginRepositoryService.getRepositoryUri(ref);
+			} catch {
+				continue;
+			}
+
+			if (!isEqualOrParent(pluginUri, repoDir)) {
+				continue;
+			}
+
+			for (const def of MARKETPLACE_DEFINITIONS) {
+				const definitionUri = joinPath(repoDir, def.path);
+				let json: IMarketplaceJson | undefined;
+				try {
+					const contents = await this._fileService.readFile(definitionUri);
+					json = parseJSONC(contents.value.toString()) as IMarketplaceJson | undefined;
+				} catch {
+					continue;
+				}
+
+				if (!json?.plugins || !Array.isArray(json.plugins)) {
+					continue;
+				}
+
+				for (const p of json.plugins) {
+					if (typeof p.name !== 'string' || !p.name) {
+						continue;
+					}
+
+					const source = resolvePluginSource(json.metadata?.pluginRoot, p.source ?? '');
+					if (source === undefined) {
+						continue;
+					}
+
+					const pluginSourceUri = normalizePath(joinPath(repoDir, source));
+					if (isEqualOrParent(pluginUri, pluginSourceUri)) {
+						return {
+							name: p.name,
+							description: p.description ?? '',
+							version: p.version ?? '',
+							source,
+							marketplace: ref.displayLabel,
+							marketplaceReference: ref,
+							marketplaceType: def.type,
+							readmeUri: getMarketplaceReadmeFileUri(repoDir, source),
+						};
+					}
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	private async _fetchFromClonedRepo(reference: IMarketplaceReference, token: CancellationToken): Promise<IMarketplacePlugin[]> {
