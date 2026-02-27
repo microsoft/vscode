@@ -142,7 +142,8 @@
 				}
 
 				/* todo: ideally not !important, but the competing css has 14 specificity */
-				.codicon:not(.chat-thinking-icon){
+				.codicon.codicon-check,
+				.codicon.codicon-loading {
 					display: none !important;
 				}
 
