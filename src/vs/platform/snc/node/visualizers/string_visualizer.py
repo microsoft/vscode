@@ -119,6 +119,14 @@ class SearchBoxInput:
     value: str
 
 @dataclass(frozen=True, slots=True)
+class ReplaceBoxInput:
+    value: str
+
+@dataclass(frozen=True, slots=True)
+class ReplaceToggle:
+    pass
+
+@dataclass(frozen=True, slots=True)
 class FirstMatchToggle:
     pass
 
@@ -2566,30 +2574,82 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
             f'{first_match_toggle_html}'
             f'</span>'
         )
+        replace_visible = model.get('replace_visible', False)
+        replace_toggle_event = repr(ReplaceToggle())
+        triangle_char = '\u25be' if replace_visible else '\u25b8'
+        disclosure_html = (
+            f'<span snc-mouse-down="{html.escape(replace_toggle_event)}"'
+            f' style="'
+            f'cursor: pointer;'
+            f'color: #8C8C8C;'
+            f'font-size: 10px;'
+            f'line-height: 22px;'
+            f'user-select: none;'
+            f'width: 12px;'
+            f'text-align: center;'
+            f'flex-shrink: 0;'
+            f'">{triangle_char}</span>'
+        )
+
+        replace_box_html = ''
+        if replace_visible:
+            replace_text_value = model.get('replace_text') or ''
+            replace_input_event = "lambda e: ReplaceBoxInput(value=e.get('value', ''))"
+            replace_box_html = (
+                f'<div style="margin-top: 4px;">'
+                f'<input type="text" tabindex="0"'
+                f' snc-input="{html.escape(replace_input_event)}"'
+                f' value="{html.escape(replace_text_value)}"'
+                f' placeholder="Replace"'
+                f' spellcheck="false"'
+                f' style="'
+                f'background: #1e1e1e;'
+                f'color: #dcdcaa;'
+                f'border: 1px solid #3c3c3c;'
+                f'border-radius: 10px;'
+                f'padding: 2px 8px;'
+                f'font-family: inherit;'
+                f'font-size: 12px;'
+                f'outline: none;'
+                f'width: 100%;'
+                f'box-sizing: border-box;'
+                f'"'
+                f' />'
+                f'</div>'
+            )
+
         search_box_html = (
-            f'<div style="margin-top: 4px; white-space: normal; position: relative;">'
+            f'<div style="margin-top: 4px; white-space: normal; display: flex; align-items: start; gap: 2px;'
+            f' max-width: {str(max_width) + "px" if max_width is not None else "none"};'
+            f'">'
+            f'{disclosure_html}'
+            f'<div style="flex: 1; min-width: 0;">'
+            f'<div style="position: relative;">'
             f'{search_svg_html}'
             f'<input type="text" tabindex="0"'
             f' snc-input="{html.escape(search_input_event)}"'
             f' value="{html.escape(search_box_value)}"'
             f' placeholder="Search"'
             f' spellcheck="false"'
-        f' style="'
-        f'background: #1e1e1e;'
-        f'color: #dcdcaa;'
-        f'border: 1px solid #3c3c3c;'
-        f'border-radius: 10px;'
-        f'padding: 2px 55px 2px 20px;'
-        f'font-family: inherit;'
-        f'font-size: 12px;'
-        f'outline: none;'
-        f'width: {str(max_width) + "px" if max_width is not None else "100%"};'
-        f'box-sizing: border-box;'
-        f'"'
-        f' />'
-        f'{toggles_html}'
-        f'</div>'
-    )
+            f' style="'
+            f'background: #1e1e1e;'
+            f'color: #dcdcaa;'
+            f'border: 1px solid #3c3c3c;'
+            f'border-radius: 10px;'
+            f'padding: 2px 55px 2px 20px;'
+            f'font-family: inherit;'
+            f'font-size: 12px;'
+            f'outline: none;'
+            f'width: 100%;'
+            f'box-sizing: border-box;'
+            f'"'
+            f' />'
+            f'{toggles_html}'
+            f'</div>'
+            f'{replace_box_html}'
+            f'</div>'
+            f'</div>'
+        )
 
     string_div_style = (
         'line-height: 28px;'
@@ -2630,6 +2690,8 @@ def init_model(value, get_visualizer=None):
         "handledKeys": ["Escape", "Enter", "Backspace", "cmd z", "cmd shift z"],  # Keys to intercept from VS Code
         "hoverIdx": None,         # Internal index of the character currently hovered
         "hoverType": None,        # "literal" or "fuzzy" based on mouse position in top/bottom half
+        "replace_visible": False, # Whether the replace input box is visible
+        "replace_text": None,     # The replacement text (a Python string literal, e.g., "'world'")
     }
 
 
@@ -2830,6 +2892,37 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
             if key == 'Enter':
                 if model.get('openDropdown'):
                     model['openDropdown'] = None
+                elif model.get('replace_visible'):
+                    selection_regex = model.get('search')
+                    replace_text = model.get('replace_text')
+
+                    if selection_regex and source_code and source_line and replace_text and is_string_search(replace_text):
+                        replace_literal = get_string_literal(replace_text)
+                        expr, var_name = extract_expression_from_line(source_code, source_line)
+                        var_to_search = var_name if var_name else f"({expr})"
+                        suggest_name = var_name if var_name else "result"
+                        first = is_first_match_mode(selection_regex)
+                        ci = is_case_insensitive(selection_regex)
+
+                        if is_string_search(selection_regex) or is_expression_search(selection_regex):
+                            embed = get_string_literal(selection_regex) if is_string_search(selection_regex) else get_eval_expression(selection_regex)
+                            if ci:
+                                flags_str = ', flags=re.I'
+                                count_str = ', count=1' if first else ''
+                                commands.append((suggest_name, f"re.sub(re.escape({embed}), {replace_literal}, {var_to_search}{count_str}{flags_str})"))
+                            else:
+                                if first:
+                                    commands.append((suggest_name, f"{var_to_search}.replace({embed}, {replace_literal}, 1)"))
+                                else:
+                                    commands.append((suggest_name, f"{var_to_search}.replace({embed}, {replace_literal})"))
+                        else:
+                            inner_pattern = get_regex_inner_pattern(selection_regex)
+                            regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
+                            flags_str = 're.M|re.I' if ci else 're.M'
+                            if first:
+                                commands.append((suggest_name, f"re.sub(r'{regex_pattern}', {replace_literal}, {var_to_search}, count=1, flags={flags_str})"))
+                            else:
+                                commands.append((suggest_name, f"re.sub(r'{regex_pattern}', {replace_literal}, {var_to_search}, flags={flags_str})"))
                 else:
                     selection_regex = model.get('search')
 
@@ -3052,5 +3145,11 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
             model['cursorIdx'] = None
             model['dragging'] = False
             model['insertAfterSegment'] = None
+
+        case ReplaceToggle():
+            model['replace_visible'] = not model.get('replace_visible', False)
+
+        case ReplaceBoxInput(value=val):
+            model['replace_text'] = val if val else None
 
     return (model, commands)

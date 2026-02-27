@@ -21,6 +21,7 @@ from string_visualizer import (
     HandleMouseDown,
     DropdownToggle, DropdownSelect,
     SearchBoxInput,
+    ReplaceBoxInput, ReplaceToggle,
     RepetitionInput,
     FirstMatchToggle,
     CaseSensitiveToggle,
@@ -5848,6 +5849,271 @@ class TestExpressionSearchBackspaceCodeGen(unittest.TestCase):
         self.assertIn('re.sub(re.escape(s)', expr)
         self.assertIn('count=1', expr)
         self.assertIn('re.I', expr)
+
+
+# =============================================================================
+# Replace Box Tests
+# =============================================================================
+
+def make_replace_box_input_event(value: str) -> dict:
+    """Create a ReplaceBoxInput event dict (simulates typing in the replace box)."""
+    return {
+        'pythonEventStr': "lambda e: ReplaceBoxInput(value=e.get('value', ''))",
+        'eventJSON': {
+            'type': 'input',
+            'value': value,
+        }
+    }
+
+
+def make_replace_toggle_event() -> dict:
+    """Create a ReplaceToggle event dict (simulates clicking the disclosure triangle)."""
+    return {
+        'pythonEventStr': repr(ReplaceToggle()),
+        'eventJSON': {},
+    }
+
+
+class TestReplaceToggle(unittest.TestCase):
+    """Test disclosure triangle toggles replace box visibility."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_toggle_shows_replace_box(self):
+        """Clicking disclosure triangle shows the replace box."""
+        self.assertFalse(self.model.get('replace_visible', False))
+        model, _ = update(make_replace_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertTrue(model['replace_visible'])
+
+    def test_toggle_twice_hides_replace_box(self):
+        """Clicking disclosure triangle twice hides the replace box."""
+        model, _ = update(make_replace_toggle_event(),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertTrue(model['replace_visible'])
+        model, _ = update(make_replace_toggle_event(),
+                          self.source_code, self.source_line, model, self.value)
+        self.assertFalse(model['replace_visible'])
+
+
+class TestReplaceBoxInput(unittest.TestCase):
+    """Test replace box input updates model."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['replace_visible'] = True
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_typing_updates_replace_text(self):
+        """Typing in replace box updates replace_text."""
+        model, _ = update(make_replace_box_input_event("'world'"),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(model['replace_text'], "'world'")
+
+    def test_clearing_replace_box(self):
+        """Clearing the replace box sets replace_text to None."""
+        self.model['replace_text'] = "'world'"
+        model, _ = update(make_replace_box_input_event(''),
+                          self.source_code, self.source_line, self.model, self.value)
+        self.assertIsNone(model['replace_text'])
+
+
+class TestReplaceEnterCodeGen(unittest.TestCase):
+    """Test Enter in replace mode generates find-and-replace code."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['replace_visible'] = True
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_regex_replace_many_match(self):
+        """Regex search + replace generates re.sub with replacement."""
+        self.model['search'] = '/hello/'
+        self.model['replace_text'] = "'world'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertIn("re.sub(", expr)
+        self.assertIn("'world'", expr)
+        self.assertNotIn("count=1", expr)
+
+    def test_regex_replace_first_match(self):
+        """Regex search + replace + first-match generates re.sub with count=1."""
+        self.model['search'] = '/hello/1'
+        self.model['replace_text'] = "'world'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertIn("re.sub(", expr)
+        self.assertIn("'world'", expr)
+        self.assertIn("count=1", expr)
+
+    def test_regex_replace_case_insensitive(self):
+        """Regex search + replace + case-insensitive includes re.I."""
+        self.model['search'] = '/hello/i'
+        self.model['replace_text'] = "'world'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.I", expr)
+
+    def test_string_replace_many_match_case_sensitive(self):
+        """String search + replace, case-sensitive, many-match uses str.replace."""
+        self.model['search'] = "'hello'"
+        self.model['replace_text'] = "'world'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertIn(".replace('hello', 'world')", expr)
+
+    def test_string_replace_first_match_case_sensitive(self):
+        """String search + replace, case-sensitive, first-match uses str.replace with count."""
+        self.model['search'] = "'hello'1"
+        self.model['replace_text'] = "'world'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn(".replace('hello', 'world', 1)", expr)
+
+    def test_string_replace_case_insensitive(self):
+        """String search + replace, case-insensitive uses re.sub."""
+        self.model['search'] = "'hello'i"
+        self.model['replace_text'] = "'world'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.sub(", expr)
+        self.assertIn("re.escape('hello')", expr)
+        self.assertIn("'world'", expr)
+        self.assertIn("re.I", expr)
+
+    def test_expression_replace_many_match(self):
+        """Expression search + replace uses str.replace for case-sensitive."""
+        self.model['search'] = '`s`'
+        self.model['replace_text'] = "'world'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertIn(".replace(s, 'world')", expr)
+
+    def test_empty_replace_text_does_nothing(self):
+        """Enter with empty replace text produces no commands."""
+        self.model['search'] = '/hello/'
+        self.model['replace_text'] = None
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(commands, [])
+
+    def test_invalid_replace_text_does_nothing(self):
+        """Enter with invalid (non-string-literal) replace text produces no commands."""
+        self.model['search'] = '/hello/'
+        self.model['replace_text'] = 'not a string literal'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(commands, [])
+
+    def test_replace_visible_false_does_extract(self):
+        """Enter with replace_visible=False generates extract code (current behavior)."""
+        self.model['search'] = '/hello/'
+        self.model['replace_visible'] = False
+        self.model['replace_text'] = "'world'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertIn("re.finditer(", expr)
+
+    def test_double_quote_replace(self):
+        """Double-quote replacement string is preserved."""
+        self.model['search'] = "'hello'"
+        self.model['replace_text'] = '"world"'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('"world"', expr)
+
+    def test_fstring_replace(self):
+        """f-string replacement is preserved."""
+        self.model['search'] = "'hello'"
+        self.model['replace_text'] = "f'hi {name}'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("f'hi {name}'", expr)
+
+    def test_no_search_does_nothing(self):
+        """Enter in replace mode with no search pattern produces no commands."""
+        self.model['search'] = None
+        self.model['replace_text'] = "'world'"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(commands, [])
+
+
+class TestReplaceBoxVisualize(unittest.TestCase):
+    """Test that the replace box renders correctly in visualize output."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_disclosure_triangle_present(self):
+        """Disclosure triangle is present in non-small visualize output."""
+        model = init_model(self.value)
+        html = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('ReplaceToggle()', html)
+
+    def test_replace_box_hidden_by_default(self):
+        """Replace input is not visible when replace_visible is False."""
+        model = init_model(self.value)
+        html = visualize(self.value, model, None, None, max_width=400)
+        self.assertNotIn('ReplaceBoxInput', html)
+
+    def test_replace_box_visible_when_toggled(self):
+        """Replace input is visible when replace_visible is True."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        html = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('ReplaceBoxInput', html)
+
+    def test_replace_box_preserves_value(self):
+        """Replace input preserves the current replace_text value."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['replace_text'] = "'world'"
+        html = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn("&#x27;world&#x27;", html)  # html.escape("'world'")
+
+    def test_no_replace_box_in_small_mode(self):
+        """Small mode doesn't render disclosure triangle or replace box."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        html = visualize(self.value, model, None, None, max_width=400, small=True)
+        self.assertNotIn('ReplaceToggle', html)
+        self.assertNotIn('ReplaceBoxInput', html)
 
 
 if __name__ == '__main__':
