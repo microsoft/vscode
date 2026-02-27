@@ -99,16 +99,14 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		this._resultPromise = new Promise<IOAuthResult>((resolve, reject) => deferred = { resolve, reject });
 
 		const appNameQueryParam = `&app_name=${encodeURIComponent(env.appName)}`;
-		const appIconQueryParam = `&app_icon=${encodeURIComponent(
-			workspace.isAgentSessionsWorkspace ? 'sessions-icon.svg' : 'code-icon.svg'
-		)}`;
+		const appIsSessionsQueryParam = workspace.isAgentSessionsWorkspace ? '&app_is_sessions=true' : '';
 		this._server = http.createServer((req, res) => {
 			const reqUrl = new URL(req.url!, `http://${req.headers.host}`);
 			switch (reqUrl.pathname) {
 				case '/signin': {
 					const receivedNonce = (reqUrl.searchParams.get('nonce') ?? '').replace(/ /g, '+');
 					if (receivedNonce !== this.nonce) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}${appNameQueryParam}` });
+						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}${appNameQueryParam}${appIsSessionsQueryParam}` });
 						res.end();
 					}
 					res.writeHead(302, { location: this._startingRedirect.toString() });
@@ -125,20 +123,20 @@ export class LoopbackAuthServer implements ILoopbackServer {
 						return;
 					}
 					if (this.state !== state) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('State does not match.')}${appNameQueryParam}${appIconQueryParam}` });
+						res.writeHead(302, { location: `/?error=${encodeURIComponent('State does not match.')}${appNameQueryParam}${appIsSessionsQueryParam}` });
 						res.end();
 						throw new Error('State does not match.');
 					}
 					if (this.nonce !== nonce) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}${appNameQueryParam}${appIconQueryParam}` });
+						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}${appNameQueryParam}${appIsSessionsQueryParam}` });
 						res.end();
 						throw new Error('Nonce does not match.');
 					}
 					deferred.resolve({ code, state });
 					if (isPortable) {
-						res.writeHead(302, { location: `/?app_name=${encodeURIComponent(env.appName)}${appIconQueryParam}` });
+						res.writeHead(302, { location: `/?app_name=${encodeURIComponent(env.appName)}${appIsSessionsQueryParam}` });
 					} else {
-						res.writeHead(302, { location: `/?redirect_uri=${encodeURIComponent(callbackUri)}${appNameQueryParam}${appIconQueryParam}` });
+						res.writeHead(302, { location: `/?redirect_uri=${encodeURIComponent(callbackUri)}${appNameQueryParam}${appIsSessionsQueryParam}` });
 					}
 					res.end();
 					break;
