@@ -10,6 +10,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugLogProvider, IChatDebugResolvedEventContent, IChatDebugService } from './chatDebugService.js';
+import { LocalChatSessionUri } from './model/chatUri.js';
 
 export class ChatDebugServiceImpl extends Disposable implements IChatDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -33,6 +34,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	activeSessionResource: URI | undefined;
 
 	log(sessionResource: URI, name: string, details?: string, level: ChatDebugLogLevel = ChatDebugLogLevel.Info, options?: { id?: string; category?: string; parentEventId?: string }): void {
+		if (!LocalChatSessionUri.isLocalSession(sessionResource)) {
+			return;
+		}
 		this.addEvent({
 			kind: 'generic',
 			id: options?.id,
@@ -118,6 +122,10 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	async invokeProviders(sessionResource: URI): Promise<void> {
+		if (!LocalChatSessionUri.isLocalSession(sessionResource)) {
+			return;
+		}
+
 		// Cancel only the previous invocation for THIS session, not others.
 		// Each session has its own pipeline so events from multiple sessions
 		// can be streamed concurrently.

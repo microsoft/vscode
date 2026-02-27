@@ -1038,8 +1038,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		let session: IChatSession;
-		if (sessionResource.path.startsWith('/untitled')) {
-			const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
+		const newSessionOptions = this.getNewSessionOptionsForSessionType(resolvedType);
+		if (sessionResource.path.startsWith('/untitled') && newSessionOptions) {
 			session = {
 				sessionResource: sessionResource,
 				onWillDispose: Event.None,
@@ -1259,6 +1259,7 @@ export enum ChatSessionPosition {
 type NewChatSessionSendOptions = {
 	readonly prompt: string;
 	readonly attachedContext?: IChatRequestVariableEntry[];
+	readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | { id: string; name: string } }>;
 };
 
 export type NewChatSessionOpenOptions = {
@@ -1322,6 +1323,17 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 	// Send initial prompt if provided
 	if (chatSendOptions) {
 		try {
+			// Set initial session options on the model before sending the request,
+			// so that the contributed session provider can read them.
+			if (chatSendOptions.initialSessionOptions) {
+				const model = chatService.getSession(resource);
+				if (model?.contributedChatSession) {
+					model.setContributedChatSession({
+						...model.contributedChatSession,
+						initialSessionOptions: chatSendOptions.initialSessionOptions,
+					});
+				}
+			}
 			await chatService.sendRequest(resource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext: chatSendOptions.attachedContext });
 		} catch (e) {
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);

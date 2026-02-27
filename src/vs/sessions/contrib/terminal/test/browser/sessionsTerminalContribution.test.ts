@@ -132,14 +132,15 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, worktreeUri.fsPath);
 	});
 
-	test('creates a terminal with repository for cloud agent sessions', async () => {
+	test('reate a terminal with repository for cloud agent sessions', async () => {
 		const repoUri = URI.file('/repo');
-		const session = makeAgentSession({ worktree: URI.file('/worktree'), repository: repoUri, providerType: AgentSessionProviders.Cloud });
+		const workTree = URI.file('/worktree');
+		const session = makeAgentSession({ worktree: workTree, repository: repoUri, providerType: AgentSessionProviders.Cloud });
 		activeSessionObs.set(session, undefined);
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 1);
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, workTree.fsPath);
 	});
 
 	test('creates a terminal with repository for non-agent sessions', async () => {
@@ -317,7 +318,7 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
 	});
 
-	test('uses repository for cloud agent session even when worktree exists', async () => {
+	test('does not use repository for cloud agent session when worktree exists', async () => {
 		const worktreeUri = URI.file('/worktree');
 		const repoUri = URI.file('/repo');
 		const session = makeAgentSession({
@@ -328,7 +329,7 @@ suite('SessionsTerminalContribution', () => {
 		activeSessionObs.set(session, undefined);
 		await tick();
 
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, worktreeUri.fsPath);
 	});
 
 	// --- switching back to previously used path reuses terminal ---

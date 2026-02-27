@@ -28,6 +28,7 @@ import { timeout } from '../../../../../../../base/common/async.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { DecorationSelector, getTerminalCommandDecorationState, getTerminalCommandDecorationTooltip } from '../../../../../terminal/browser/xterm/decorationStyles.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
@@ -411,6 +412,18 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			isComplete
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
+
+		// Sync terminal output expansion with the collapsible wrapper.
+		// Skip the initial run — initial state is handled separately.
+		let isFirstRun = true;
+		this._register(autorun(r => {
+			const expanded = wrapper.expanded.read(r);
+			if (isFirstRun) {
+				isFirstRun = false;
+				return;
+			}
+			this._toggleOutput(expanded);
+		}));
 
 		return wrapper.domNode;
 	}

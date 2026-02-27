@@ -145,6 +145,7 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					...base,
 					kind: 'modelTurn',
 					model: e.model,
+					requestName: e.requestName,
 					inputTokens: e.inputTokens,
 					outputTokens: e.outputTokens,
 					totalTokens: e.totalTokens,
@@ -197,13 +198,14 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 				};
 			}
 			default: {
-				// Final fallback: treat as generic
 				const generic = event as vscode.ChatDebugGenericEvent;
+				const rawName = generic.name;
+				const rawDetails = generic.details;
 				return {
 					...base,
 					kind: 'generic',
-					name: generic.name ?? '',
-					details: generic.details,
+					name: typeof rawName === 'string' ? rawName : '',
+					details: typeof rawDetails === 'string' ? rawDetails : undefined,
 					level: generic.level ?? 1,
 					category: generic.category,
 				};

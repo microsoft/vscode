@@ -132,17 +132,14 @@
 					margin: 0 0 2px 6px;
 				}
 
-				.codicon:not(.chat-thinking-icon) {
-					display: none;
+				/* todo: ideally not !important, but the competing css has 14 specificity */
+				.codicon:not(.chat-thinking-icon){
+					display: none !important;
 				}
 
 				.chat-collapsible-hover-chevron.codicon {
 					display: inline-flex;
 				}
-
-			.chat-used-context.show-checkmarks .chat-used-context-label .monaco-icon-button > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
-				display: inline-block;
-			}
 
 			.show-checkmarks .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
 				display: inline-block;

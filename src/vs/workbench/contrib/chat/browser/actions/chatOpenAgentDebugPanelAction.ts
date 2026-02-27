@@ -10,6 +10,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
@@ -66,12 +67,21 @@ export function registerChatOpenAgentDebugPanelAction() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
+		async run(accessor: ServicesAccessor, context?: URI | unknown): Promise<void> {
 			const editorService = accessor.get(IEditorService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
 			const chatDebugService = accessor.get(IChatDebugService);
 
-			// Use provided session resource, or fall back to the last focused widget
+			// Extract session resource from context — may be a URI directly
+			// or an IChatViewTitleActionContext from the chat config menu
+			let sessionResource: URI | undefined;
+			if (URI.isUri(context)) {
+				sessionResource = context;
+			} else if (isChatViewTitleActionContext(context)) {
+				sessionResource = context.sessionResource;
+			}
+
+			// Fall back to the last focused widget
 			if (!sessionResource) {
 				const widget = chatWidgetService.lastFocusedWidget;
 				sessionResource = widget?.viewModel?.sessionResource;

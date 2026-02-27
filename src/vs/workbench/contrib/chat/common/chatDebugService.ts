@@ -48,6 +48,7 @@ export interface IChatDebugToolCallEvent extends IChatDebugEventCommon {
 export interface IChatDebugModelTurnEvent extends IChatDebugEventCommon {
 	readonly kind: 'modelTurn';
 	readonly model?: string;
+	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly totalTokens?: number;

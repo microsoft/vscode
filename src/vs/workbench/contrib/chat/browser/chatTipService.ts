@@ -26,6 +26,7 @@ import { CreateSlashCommandsUsageTracker } from './createSlashCommandsUsageTrack
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
+import { GENERATE_AGENT_COMMAND_ID, GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID, GENERATE_SKILL_COMMAND_ID } from './actions/chatActions.js';
 
 type ChatTipEvent = {
 	tipId: string;
@@ -41,11 +42,11 @@ type ChatTipClassification = {
 	comment: 'Tracks user interactions with chat tips to understand which tips resonate and which are dismissed.';
 };
 
-const ATTACH_FILES_REFERENCE_TRACKING_COMMAND = 'chat.tips.attachFiles.referenceUsed';
-const CREATE_INSTRUCTION_TRACKING_COMMAND = 'chat.tips.createInstruction.commandUsed';
-const CREATE_PROMPT_TRACKING_COMMAND = 'chat.tips.createPrompt.commandUsed';
-const CREATE_AGENT_TRACKING_COMMAND = 'chat.tips.createAgent.commandUsed';
-const CREATE_SKILL_TRACKING_COMMAND = 'chat.tips.createSkill.commandUsed';
+export const ATTACH_FILES_REFERENCE_TRACKING_COMMAND = 'chat.tips.attachFiles.referenceUsed';
+export const CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND = 'chat.tips.createAgentInstructions.commandUsed';
+export const CREATE_PROMPT_TRACKING_COMMAND = 'chat.tips.createPrompt.commandUsed';
+export const CREATE_AGENT_TRACKING_COMMAND = 'chat.tips.createAgent.commandUsed';
+export const CREATE_SKILL_TRACKING_COMMAND = 'chat.tips.createSkill.commandUsed';
 
 export const IChatTipService = createDecorator<IChatTipService>('chatTipService');
 
@@ -116,6 +117,11 @@ export interface IChatTipService {
 	 * Navigates to the previous tip in the catalog without permanently dismissing the current one.
 	 */
 	navigateToPreviousTip(): IChatTip | undefined;
+
+	/**
+	 * Returns whether there are multiple eligible tips for navigation.
+	 */
+	hasMultipleTips(): boolean;
 
 	/**
 	 * Clears all dismissed tips so they can be shown again.
@@ -192,25 +198,27 @@ const TIP_CATALOG: ITipDefinition[] = [
 		id: 'tip.createInstruction',
 		message: localize(
 			'tip.createInstruction',
-			"Tip: Use [/create-instruction](command:workbench.action.chat.generateInstruction) to generate an on-demand instruction file with the agent."
+			"Tip: Use [/create-instructions](command:{0}) to generate an on-demand instructions file with the agent.",
+			GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID
 		),
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-		enabledCommands: ['workbench.action.chat.generateInstruction'],
+		enabledCommands: [GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID],
 		excludeWhenCommandsExecuted: [
-			'workbench.action.chat.generateInstruction',
-			CREATE_INSTRUCTION_TRACKING_COMMAND,
+			GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
+			CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND,
 		],
 	},
 	{
 		id: 'tip.createPrompt',
 		message: localize(
 			'tip.createPrompt',
-			"Tip: Use [/create-prompt](command:workbench.action.chat.generatePrompt) to generate a reusable prompt file with the agent."
+			"Tip: Use [/create-prompt](command:{0}) to generate a reusable prompt file with the agent.",
+			GENERATE_PROMPT_COMMAND_ID
 		),
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-		enabledCommands: ['workbench.action.chat.generatePrompt'],
+		enabledCommands: [GENERATE_PROMPT_COMMAND_ID],
 		excludeWhenCommandsExecuted: [
-			'workbench.action.chat.generatePrompt',
+			GENERATE_PROMPT_COMMAND_ID,
 			CREATE_PROMPT_TRACKING_COMMAND,
 		],
 	},
@@ -218,12 +226,13 @@ const TIP_CATALOG: ITipDefinition[] = [
 		id: 'tip.createAgent',
 		message: localize(
 			'tip.createAgent',
-			"Tip: Use [/create-agent](command:workbench.action.chat.generateAgent) to scaffold a custom agent for your workflow."
+			"Tip: Use [/create-agent](command:{0}) to scaffold a custom agent for your workflow.",
+			GENERATE_AGENT_COMMAND_ID
 		),
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-		enabledCommands: ['workbench.action.chat.generateAgent'],
+		enabledCommands: [GENERATE_AGENT_COMMAND_ID],
 		excludeWhenCommandsExecuted: [
-			'workbench.action.chat.generateAgent',
+			GENERATE_AGENT_COMMAND_ID,
 			CREATE_AGENT_TRACKING_COMMAND,
 		],
 	},
@@ -231,12 +240,13 @@ const TIP_CATALOG: ITipDefinition[] = [
 		id: 'tip.createSkill',
 		message: localize(
 			'tip.createSkill',
-			"Tip: Use [/create-skill](command:workbench.action.chat.generateSkill) to create a skill the agent can load when relevant."
+			"Tip: Use [/create-skill](command:{0}) to create a skill the agent can load when relevant.",
+			GENERATE_SKILL_COMMAND_ID
 		),
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-		enabledCommands: ['workbench.action.chat.generateSkill'],
+		enabledCommands: [GENERATE_SKILL_COMMAND_ID],
 		excludeWhenCommandsExecuted: [
-			'workbench.action.chat.generateSkill',
+			GENERATE_SKILL_COMMAND_ID,
 			CREATE_SKILL_TRACKING_COMMAND,
 		],
 	},
@@ -275,7 +285,7 @@ const TIP_CATALOG: ITipDefinition[] = [
 				ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
 			),
 		),
-		excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint'],
+		excludeWhenCommandsExecuted: ['workbench.action.chat.restoreCheckpoint', 'workbench.action.chat.restoreLastCheckpoint'],
 	},
 	{
 		id: 'tip.messageQueueing',
@@ -754,14 +764,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		const trimmed = message.text.trimStart();
-		const match = /^\/(create-(?:instruction|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
+		const match = /^\/(create-(?:instructions|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
 		return match ? this._toCreateSlashCommandTrackingId(match[1]) : undefined;
 	}
 
 	private _toCreateSlashCommandTrackingId(command: string): string | undefined {
 		switch (command) {
-			case 'create-instruction':
-				return CREATE_INSTRUCTION_TRACKING_COMMAND;
+			case 'create-instructions':
+				return CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND;
 			case 'create-prompt':
 				return CREATE_PROMPT_TRACKING_COMMAND;
 			case 'create-agent':
@@ -976,6 +986,15 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		return this._navigateTip(-1, this._contextKeyService);
 	}
 
+	hasMultipleTips(): boolean {
+		if (!this._contextKeyService) {
+			return false;
+		}
+
+		this._createSlashCommandsUsageTracker.syncContextKey(this._contextKeyService);
+		return this._hasNavigableTip(this._contextKeyService);
+	}
+
 	private _navigateTip(direction: 1 | -1, contextKeyService: IContextKeyService): IChatTip | undefined {
 		this._createSlashCommandsUsageTracker.syncContextKey(contextKeyService);
 		if (!this._shownTip) {
@@ -987,20 +1006,57 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return undefined;
 		}
 
+		const candidate = this._getNavigableTip(direction, currentIndex, contextKeyService);
+		if (candidate) {
+			this._logTipTelemetry(this._shownTip.id, direction === 1 ? 'navigateNext' : 'navigatePrevious');
+			this._shownTip = candidate;
+			this._tipRequestId = 'welcome';
+			this._storageService.store(ChatTipService._LAST_TIP_ID_KEY, candidate.id, StorageScope.APPLICATION, StorageTarget.USER);
+			this._logTipTelemetry(candidate.id, 'shown');
+			this._trackTipCommandClicks(candidate);
+			const tip = this._createTip(candidate);
+			this._onDidNavigateTip.fire(tip);
+			return tip;
+		}
+
+		return undefined;
+	}
+
+	private _hasNavigableTip(contextKeyService: IContextKeyService): boolean {
+		if (!this._shownTip) {
+			return false;
+		}
+
+		const currentIndex = TIP_CATALOG.findIndex(t => t.id === this._shownTip!.id);
+		if (currentIndex === -1) {
+			return false;
+		}
+
+		return !!this._getNavigableTip(1, currentIndex, contextKeyService);
+	}
+
+	private _getNavigableTip(direction: 1 | -1, currentIndex: number, contextKeyService: IContextKeyService): ITipDefinition | undefined {
 		const dismissedIds = new Set(this._getDismissedTipIds());
+
+		let eligibleTipCount = 0;
+		for (const tip of TIP_CATALOG) {
+			if (!dismissedIds.has(tip.id) && this._isEligible(tip, contextKeyService)) {
+				eligibleTipCount++;
+				if (eligibleTipCount > 1) {
+					break;
+				}
+			}
+		}
+
+		if (eligibleTipCount <= 1) {
+			return undefined;
+		}
+
 		for (let i = 1; i < TIP_CATALOG.length; i++) {
 			const idx = ((currentIndex + direction * i) % TIP_CATALOG.length + TIP_CATALOG.length) % TIP_CATALOG.length;
 			const candidate = TIP_CATALOG[idx];
 			if (!dismissedIds.has(candidate.id) && this._isEligible(candidate, contextKeyService)) {
-				this._logTipTelemetry(this._shownTip.id, direction === 1 ? 'navigateNext' : 'navigatePrevious');
-				this._shownTip = candidate;
-				this._tipRequestId = 'welcome';
-				this._storageService.store(ChatTipService._LAST_TIP_ID_KEY, candidate.id, StorageScope.APPLICATION, StorageTarget.USER);
-				this._logTipTelemetry(candidate.id, 'shown');
-				this._trackTipCommandClicks(candidate);
-				const tip = this._createTip(candidate);
-				this._onDidNavigateTip.fire(tip);
-				return tip;
+				return candidate;
 			}
 		}
 

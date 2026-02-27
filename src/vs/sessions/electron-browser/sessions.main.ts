@@ -11,12 +11,11 @@ import { setFullscreen } from '../../base/browser/browser.js';
 import { domContentLoaded } from '../../base/browser/dom.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { URI } from '../../base/common/uri.js';
-import { WorkspaceService } from '../../workbench/services/configuration/browser/configurationService.js';
 import { INativeWorkbenchEnvironmentService, NativeWorkbenchEnvironmentService } from '../../workbench/services/environment/electron-browser/environmentService.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILoggerService, ILogService, LogLevel } from '../../platform/log/common/log.js';
 import { NativeWorkbenchStorageService } from '../../workbench/services/storage/electron-browser/storageService.js';
-import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier, toWorkspaceIdentifier } from '../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IAnyWorkspaceIdentifier, reviveIdentifier } from '../../platform/workspace/common/workspace.js';
 import { IWorkbenchConfigurationService } from '../../workbench/services/configuration/common/configuration.js';
 import { IStorageService } from '../../platform/storage/common/storage.js';
 import { Disposable } from '../../base/common/lifecycle.js';
@@ -30,7 +29,6 @@ import { IRemoteAgentService } from '../../workbench/services/remote/common/remo
 import { FileService } from '../../platform/files/common/fileService.js';
 import { IFileService } from '../../platform/files/common/files.js';
 import { RemoteFileSystemProviderClient } from '../../workbench/services/remote/common/remoteFileSystemProviderClient.js';
-import { ConfigurationCache } from '../../workbench/services/configuration/common/configurationCache.js';
 import { ISignService } from '../../platform/sign/common/sign.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { IUriIdentityService } from '../../platform/uriIdentity/common/uriIdentity.js';
@@ -66,8 +64,11 @@ import { AccountPolicyService } from '../../workbench/services/policies/common/a
 import { MultiplexPolicyService } from '../../workbench/services/policies/common/multiplexPolicyService.js';
 import { Workbench as AgenticWorkbench } from '../browser/workbench.js';
 import { NativeMenubarControl } from '../../workbench/electron-browser/parts/titlebar/menubarControl.js';
+import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
+import { ConfigurationService } from '../services/configuration/browser/configurationService.js';
+import { SessionsWorkspaceContextService } from '../services/workspace/browser/workspaceContextService.js';
 
-export class AgenticMain extends Disposable {
+export class SessionsMain extends Disposable {
 
 	constructor(
 		private readonly configuration: INativeWindowConfiguration
@@ -167,7 +168,7 @@ export class AgenticMain extends Disposable {
 		this._register(workbench.onDidShutdown(() => this.dispose()));
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection; logService: ILogService; storageService: NativeWorkbenchStorageService; configurationService: WorkspaceService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection; logService: ILogService; storageService: NativeWorkbenchStorageService; configurationService: ConfigurationService }> {
 		const serviceCollection = new ServiceCollection();
 
 
@@ -290,13 +291,13 @@ export class AgenticMain extends Disposable {
 		//
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-		// Create services that require resolving in parallel
-		const workspace = this.resolveWorkspaceIdentifier(environmentService);
-		const [configurationService, storageService] = await Promise.all([
-			this.createWorkspaceService(workspace, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService).then(service => {
+		// Workspace
+		const workspaceContextService = new SessionsWorkspaceContextService(uriIdentityService.extUri.joinPath(uriIdentityService.extUri.dirname(userDataProfilesService.profilesHome), 'agent-sessions.code-workspace'), uriIdentityService);
+		serviceCollection.set(IWorkspaceContextService, workspaceContextService);
+		serviceCollection.set(IWorkspaceEditingService, workspaceContextService);
 
-				// Workspace
-				serviceCollection.set(IWorkspaceContextService, service);
+		const [configurationService, storageService] = await Promise.all([
+			this.createConfigurationService(userDataProfileService, fileService, logService, policyService).then(service => {
 
 				// Configuration
 				serviceCollection.set(IWorkbenchConfigurationService, service);
@@ -304,7 +305,7 @@ export class AgenticMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(workspace, environmentService, userDataProfileService, userDataProfilesService, mainProcessService).then(service => {
+			this.createStorageService(workspaceContextService.getWorkspace(), environmentService, userDataProfileService, userDataProfilesService, mainProcessService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -325,12 +326,8 @@ export class AgenticMain extends Disposable {
 		const workspaceTrustEnablementService = new WorkspaceTrustEnablementService(configurationService, environmentService);
 		serviceCollection.set(IWorkspaceTrustEnablementService, workspaceTrustEnablementService);
 
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService, workspaceTrustEnablementService, fileService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, workspaceContextService, workspaceTrustEnablementService, fileService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
-
-		// Update workspace trust so that configuration is updated accordingly
-		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted());
-		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkspaceTrusted())));
 
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -346,39 +343,19 @@ export class AgenticMain extends Disposable {
 		return { serviceCollection, logService, storageService, configurationService };
 	}
 
-	private resolveWorkspaceIdentifier(environmentService: INativeWorkbenchEnvironmentService): IAnyWorkspaceIdentifier {
-
-		// Return early for when a folder or multi-root is opened
-		if (this.configuration.workspace) {
-			return this.configuration.workspace;
-		}
-
-		// Otherwise, workspace is empty, so we derive an identifier
-		return toWorkspaceIdentifier(this.configuration.backupPath, environmentService.isExtensionDevelopment);
-	}
-
-	private async createWorkspaceService(
-		workspace: IAnyWorkspaceIdentifier,
-		environmentService: INativeWorkbenchEnvironmentService,
+	private async createConfigurationService(
 		userDataProfileService: IUserDataProfileService,
-		userDataProfilesService: IUserDataProfilesService,
 		fileService: FileService,
-		remoteAgentService: IRemoteAgentService,
-		uriIdentityService: IUriIdentityService,
 		logService: ILogService,
 		policyService: IPolicyService
-	): Promise<WorkspaceService> {
-		const configurationCache = new ConfigurationCache([Schemas.file, Schemas.vscodeUserData] /* Cache all non native resources */, environmentService, fileService);
-		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache }, environmentService, userDataProfileService, userDataProfilesService, fileService, remoteAgentService, uriIdentityService, logService, policyService);
-
+	): Promise<ConfigurationService> {
+		const configurationService = new ConfigurationService(userDataProfileService.currentProfile.settingsResource, fileService, policyService, logService);
 		try {
-			await workspaceService.initialize(workspace);
-
-			return workspaceService;
+			await configurationService.initialize();
+			return configurationService;
 		} catch (error) {
 			onUnexpectedError(error);
-
-			return workspaceService;
+			return configurationService;
 		}
 	}
 
@@ -416,7 +393,7 @@ export interface IDesktopMain {
 }
 
 export function main(configuration: INativeWindowConfiguration): Promise<void> {
-	const workbench = new AgenticMain(configuration);
+	const workbench = new SessionsMain(configuration);
 
 	return workbench.open();
 }

@@ -645,6 +645,8 @@
 		"--vscode-searchEditor-findMatchBorder",
 		"--vscode-searchEditor-textInputBorder",
 		"--vscode-selection-background",
+		"--vscode-sessionsUpdateButton-downloadedBackground",
+		"--vscode-sessionsUpdateButton-downloadingBackground",
 		"--vscode-settings-checkboxBackground",
 		"--vscode-settings-checkboxBorder",
 		"--vscode-settings-checkboxForeground",

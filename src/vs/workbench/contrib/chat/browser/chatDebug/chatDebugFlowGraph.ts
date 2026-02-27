@@ -549,6 +549,9 @@ function getEventSublabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEven
 	switch (kind) {
 		case 'modelTurn': {
 			const parts: string[] = [];
+			if (event.kind === 'modelTurn' && event.requestName) {
+				parts.push(event.requestName);
+			}
 			if (event.kind === 'modelTurn' && event.totalTokens) {
 				parts.push(localize('tokenCount', "{0} tokens", event.totalTokens));
 			}

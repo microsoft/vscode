@@ -375,9 +375,18 @@
 		{
 			"label": "Launch Component Explorer",
 			"type": "shell",
-			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json",
+			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv",
 			"isBackground": true,
-			"problemMatcher": []
+			"problemMatcher": {
+				"owner": "component-explorer",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^\\s*at\\s+(.+?):(\\d+):(\\d+)\\s*$",
+					"file": 1,
+					"line": 2,
+					"column": 3
+				}
+			}
 		}
 	]
 }

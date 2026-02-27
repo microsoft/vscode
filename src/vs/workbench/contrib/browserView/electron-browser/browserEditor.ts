@@ -717,7 +717,7 @@ export class BrowserEditor extends EditorPane {
 	 */
 	async showFind(): Promise<void> {
 		// Get selected text from the browser view to pre-populate the search box.
-		const selectedText = await this._model?.getSelectedText();
+		const selectedText = (await this._model?.getSelectedText())?.trim();
 
 		// Only use the selected text if it doesn't contain newlines (single line selection)
 		const textToReveal = selectedText && !/[\r\n]/.test(selectedText) ? selectedText : undefined;

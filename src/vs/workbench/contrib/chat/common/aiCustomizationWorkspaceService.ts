@@ -7,6 +7,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
+import { PromptsStorage } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
@@ -45,6 +46,23 @@ export interface IAICustomizationWorkspaceService {
 	 * The sections to show in the AI Customization Management Editor sidebar.
 	 */
 	readonly managementSections: readonly AICustomizationManagementSection[];
+
+	/**
+	 * The storage sources to show as groups in the customization list.
+	 */
+	readonly visibleStorageSources: readonly PromptsStorage[];
+
+	/**
+	 * Returns the visible storage sources for a specific customization type.
+	 * Allows per-type overrides (e.g., hooks may only show workspace sources).
+	 */
+	getVisibleStorageSources(type: PromptsType): readonly PromptsStorage[];
+
+	/**
+	 * URI roots to exclude from user-level file listings.
+	 * Files under these roots are hidden from the customization list.
+	 */
+	readonly excludedUserFileRoots: readonly URI[];
 
 	/**
 	 * Whether the primary creation action should create a file directly
