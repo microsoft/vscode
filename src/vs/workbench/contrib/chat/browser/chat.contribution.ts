@@ -265,6 +265,9 @@ configurationRegistry.registerConfiguration({
 			},
 			default: {
 				'panel': 'always',
+			},
+			experiment: {
+				mode: 'startup'
 			}
 		},
 		'chat.implicitContext.suggestedContext': {
