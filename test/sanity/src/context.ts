@@ -38,6 +38,7 @@ export class TestContext {
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
 	private nextPort = 3010;
+	private currentPage: Page | undefined;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -47,6 +48,7 @@ export class TestContext {
 		checkSigning: boolean;
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
+		screenshotsDir: string | undefined;
 	}>) {
 	}
 
@@ -99,9 +101,12 @@ export class TestContext {
 
 			} catch (error) {
 				self.log(`Test failed with error: ${error instanceof Error ? error.message : String(error)}`);
+				await self.captureScreenshot(name);
 				throw error;
 
 			} finally {
+				self.currentPage = undefined;
+
 				process.chdir(homeDir);
 				self.log(`Changed working directory to: ${homeDir}`);
 
@@ -1067,7 +1072,29 @@ export class TestContext {
 	public async getPage(pagePromise: Promise<Page>): Promise<Page> {
 		const page = await pagePromise;
 		page.setDefaultTimeout(3 * 60 * 1000);
+		this.currentPage = page;
 		return page;
+	}
+
+	/**
+	 * Captures a screenshot of the current page if one is active.
+	 * @param testName The name of the test, used for the screenshot filename.
+	 */
+	private async captureScreenshot(testName: string): Promise<void> {
+		if (!this.currentPage) {
+			return;
+		}
+
+		try {
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			fs.mkdirSync(screenshotDir, { recursive: true });
+			const sanitizedName = testName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const screenshotPath = path.join(screenshotDir, `${sanitizedName}.png`);
+			await this.currentPage.screenshot({ path: screenshotPath, fullPage: true });
+			this.log(`Screenshot saved to: ${screenshotPath}`);
+		} catch (e) {
+			this.log(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
+		}
 	}
 
 	/**
