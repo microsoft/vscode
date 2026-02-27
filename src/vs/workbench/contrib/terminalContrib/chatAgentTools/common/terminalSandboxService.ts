@@ -22,6 +22,8 @@ import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfigu
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 
+const domainPatternRegex = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?<domain>[^\/:?#]+)(?::\d+)?(?:[/?#]|$)/i;
+
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
 export interface ITerminalSandboxService {
@@ -160,17 +162,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
 
-			const allowedDomainsSet = new Set(networkSetting.allowedDomains ?? []);
-			if (networkSetting.allowTrustedDomains) {
-				for (const domain of this._trustedDomainService.trustedDomains) {
-					// Filter out sole wildcard '*' as sandbox runtime doesn't allow it
-					// Wildcards like '*.github.com' are OK
-					if (domain !== '*') {
-						allowedDomainsSet.add(domain);
-					}
-				}
-			}
-			const allowedDomains = Array.from(allowedDomainsSet);
+			const allowedDomains = this._getAllowedDomains(networkSetting);
 
 			const sandboxSettings = {
 				network: {
@@ -210,5 +202,34 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
 			}
 		}
+	}
+
+	private _getAllowedDomains(networkSetting: ITerminalSandboxNetworkSettings): string[] {
+		const allowedDomains = new Set<string>();
+		this._addNormalizedDomains(allowedDomains, networkSetting.allowedDomains ?? []);
+
+		if (networkSetting.allowTrustedDomains) {
+			this._addNormalizedDomains(allowedDomains, this._trustedDomainService.trustedDomains);
+		}
+
+		return Array.from(allowedDomains);
+	}
+
+	private _addNormalizedDomains(target: Set<string>, domains: string[]): void {
+		for (const domain of domains) {
+			const normalizedDomain = this._normalizeDomain(domain);
+			if (normalizedDomain) {
+				target.add(normalizedDomain);
+			}
+		}
+	}
+
+	private _normalizeDomain(domain: string): string | undefined {
+		const trimmedDomain = domain.trim();
+		if (!trimmedDomain || trimmedDomain === '*') {
+			return undefined;
+		}
+
+		return trimmedDomain.match(domainPatternRegex)?.groups?.domain;
 	}
 }
