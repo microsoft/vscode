@@ -94,9 +94,9 @@ jobs:
           REPORT="test/componentFixtures/.screenshots/report/report.json"
           if [ -f "$REPORT" ]; then
             CHANGED=$(node -e "const r = require('./$REPORT'); console.log(r.summary.added + r.summary.removed + r.summary.changed)")
-            TITLE="📸 ⚠️ ${CHANGED} screenshots changed"
+            TITLE="⚠ ${CHANGED} screenshots changed"
           else
-            TITLE="📸 ✅ Screenshots match"
+            TITLE="✅ Screenshots match"
           fi
 
           SHA="${{ github.event.pull_request.head.sha || github.sha }}"
