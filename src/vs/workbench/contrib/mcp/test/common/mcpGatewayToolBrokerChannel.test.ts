@@ -132,9 +132,35 @@ suite('McpGatewayToolBrokerChannel', () => {
 		);
 
 		mcpService.servers.set([server], undefined);
-		await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+		const tools = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
 
+		// Server started during the grace period; tools are now available.
 		assert.strictEqual(server.startCalls, 1);
+		assert.deepStrictEqual(tools.map(t => t.name), ['echo']);
+		channel.dispose();
+	});
+
+	test('returns empty tools and does not re-wait if server does not start within grace period', async () => {
+		const mcpService = new TestMcpService();
+		// Use a very short grace period so the test does not take 5 s.
+		const channel = new McpGatewayToolBrokerChannel(mcpService, 10);
+
+		const server = createNeverStartingServer(
+			'collectionA',
+			'serverA',
+			[createTool('echo', async () => ({ content: [{ type: 'text', text: 'A' }] }))],
+		);
+
+		mcpService.servers.set([server], undefined);
+
+		// First call: waits up to 10 ms, server never starts → empty result.
+		const tools = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+		assert.deepStrictEqual(tools, []);
+
+		// Second call: grace-period promise already resolved; returns immediately without re-waiting.
+		const tools2 = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+		assert.deepStrictEqual(tools2, []);
+
 		channel.dispose();
 	});
 });
@@ -173,6 +199,42 @@ function createServer(
 		resourceTemplates: async () => [],
 		dispose: () => { },
 		toolsValue: tools,
+		get startCalls() { return startCalls; },
+	};
+}
+
+function createNeverStartingServer(
+	collectionId: string,
+	definitionId: string,
+	initialTools: readonly IMcpTool[],
+): IMcpServer & { startCalls: number } {
+	const owner = {};
+	const tools = observableValue<readonly IMcpTool[]>(owner, initialTools);
+	const connectionState = observableValue<McpConnectionState>(owner, { state: McpConnectionState.Kind.Running });
+	const cacheState = observableValue<McpServerCacheState>(owner, McpServerCacheState.Unknown);
+	let startCalls = 0;
+
+	return {
+		collection: { id: collectionId, label: collectionId },
+		definition: { id: definitionId, label: definitionId },
+		connection: observableValue(owner, undefined),
+		connectionState,
+		serverMetadata: observableValue(owner, undefined),
+		readDefinitions: () => observableValue(owner, { server: undefined, collection: undefined }),
+		showOutput: async () => { },
+		start: async () => {
+			startCalls++;
+			// Never resolves — simulates a server that hangs on startup.
+			return new Promise<{ state: McpConnectionState.Kind }>(() => { });
+		},
+		stop: async () => { },
+		cacheState,
+		tools,
+		prompts: observableValue(owner, []),
+		capabilities: observableValue(owner, undefined),
+		resources: () => (async function* () { })(),
+		resourceTemplates: async () => [],
+		dispose: () => { },
 		get startCalls() { return startCalls; },
 	};
 }
