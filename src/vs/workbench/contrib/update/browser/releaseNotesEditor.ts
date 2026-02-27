@@ -232,6 +232,14 @@ export class ReleaseNotesManager extends Disposable {
 				throw new Error('Invalid release notes');
 			}
 
+			// On stable builds, reject release notes that are still the Insiders pre-release
+			// version. This can happen when a new stable release ships before the final stable
+			// release notes are published to the website, causing the Insiders draft to be
+			// served instead (e.g. heading: "# February 2026 Insiders (version 1.110)").
+			if (!useCurrentFile && this._productService.quality === 'stable' && isInsidersReleaseNotes(text)) {
+				throw new Error('not found');
+			}
+
 			return patchKeybindings(text);
 		};
 
@@ -772,6 +780,16 @@ export class ReleaseNotesManager extends Disposable {
 			});
 		}
 	}
+}
+
+/**
+ * Returns true if the release notes text is for an Insiders pre-release build.
+ * The Insiders draft is published before stable release notes are ready, so a stable
+ * build may temporarily receive this content. The heading of Insiders notes contains
+ * the word "Insiders" (e.g. "# February 2026 Insiders (version 1.110)").
+ */
+export function isInsidersReleaseNotes(text: string): boolean {
+	return /^#[^\n]*\bInsiders\b/.test(text);
 }
 
 export async function renderReleaseNotesMarkdown(
