@@ -12,8 +12,9 @@ import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWork
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { getWorkspaceIdentifier } from '../../../../workbench/services/workspaces/browser/workspaces.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
-export class SessionsWorkspaceContextService implements IWorkspaceContextService, IWorkspaceEditingService {
+export class SessionsWorkspaceContextService extends Disposable implements IWorkspaceContextService, IWorkspaceEditingService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -24,16 +25,17 @@ export class SessionsWorkspaceContextService implements IWorkspaceContextService
 	private readonly _onWillChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersWillChangeEvent>();
 	readonly onWillChangeWorkspaceFolders = this._onWillChangeWorkspaceFolders.event;
 
-	private readonly _onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
+	private readonly _onDidChangeWorkspaceFolders = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
 
 	private workspace: Workspace;
-	private readonly _updateFoldersQueue = new Queue<void>();
+	private readonly _updateFoldersQueue = this._register(new Queue<void>());
 
 	constructor(
 		sessionsWorkspaceUri: URI,
 		private readonly uriIdentityService: IUriIdentityService
 	) {
+		super();
 		const workspaceIdentifier = getWorkspaceIdentifier(sessionsWorkspaceUri);
 		this.workspace = new Workspace(workspaceIdentifier.id, [], false, workspaceIdentifier.configPath, uri => uriIdentityService.extUri.ignorePathCasing(uri));
 	}
