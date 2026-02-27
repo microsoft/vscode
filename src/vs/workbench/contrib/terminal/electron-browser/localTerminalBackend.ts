@@ -300,7 +300,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 		// If running in the context of an extension development host, include the environment derived from the launch configuration
 		if (this._environmentService.debugExtensionHost.env) {
-			Object.assign(env, this._environmentService.debugExtensionHost.env);
+			terminalEnvironment.mergeEnvironments(env, this._environmentService.debugExtensionHost.env);
 		}
 
 		return env;
