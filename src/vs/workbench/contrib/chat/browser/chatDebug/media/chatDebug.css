@@ -527,6 +527,18 @@
 	white-space: nowrap;
 	flex-shrink: 0;
 }
+.chat-debug-file-list-group-header {
+	margin-top: 4px;
+	padding: 2px 4px;
+	color: var(--vscode-descriptionForeground);
+}
+.chat-debug-file-list-group-header:first-child {
+	margin-top: 0;
+}
+.chat-debug-file-list-group-label {
+	font-weight: 600;
+	font-size: 11px;
+}
 .chat-debug-file-list-icon {
 	flex-shrink: 0;
 	width: 16px;

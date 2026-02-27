@@ -67,7 +67,8 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 			alert(progress.content.value);
 		}
 		const isLoadingIcon = icon && ThemeIcon.isEqual(icon, ThemeIcon.modify(Codicon.loading, 'spin'));
-		const useShimmer = shimmer ?? ((!icon || isLoadingIcon) && this.showSpinner);
+		// Even if callers request shimmer, only the active (spinner-visible) progress row should animate.
+		const useShimmer = (shimmer ?? (!icon || isLoadingIcon)) && this.showSpinner;
 		// if we have shimmer, don't show spinner
 		const codicon = useShimmer ? Codicon.check : (icon ?? (this.showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin') : Codicon.check));
 		const result = this.chatContentMarkdownRenderer.render(progress.content);

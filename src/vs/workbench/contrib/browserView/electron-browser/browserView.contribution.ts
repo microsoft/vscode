@@ -21,12 +21,13 @@ import { Schemas } from '../../../../base/common/network.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
-import { IOpenerService, IOpener, OpenInternalOptions, OpenExternalOptions } from '../../../../platform/opener/common/opener.js';
+import { IExternalOpener, IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
@@ -103,7 +104,7 @@ registerWorkbenchContribution2(BrowserEditorResolverContribution.ID, BrowserEdit
 /**
  * Opens localhost URLs in the Integrated Browser when the setting is enabled.
  */
-class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IOpener {
+class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchContribution, IExternalOpener {
 	static readonly ID = 'workbench.contrib.localhostLinkOpener';
 
 	constructor(
@@ -114,17 +115,16 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 	) {
 		super();
 
-		this._register(openerService.registerOpener(this));
+		this._register(openerService.registerExternalOpener(this));
 	}
 
-	async open(resource: URI | string, _options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+	async openExternal(href: string, _ctx: { sourceUri: URI; preferredOpenerId?: string }, _token: CancellationToken): Promise<boolean> {
 		if (!this.configurationService.getValue<boolean>('workbench.browser.openLocalhostLinks')) {
 			return false;
 		}
 
-		const url = typeof resource === 'string' ? resource : resource.toString(true);
 		try {
-			const parsed = new URL(url);
+			const parsed = new URL(href);
 			if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
 				return false;
 			}
@@ -137,7 +137,7 @@ class LocalhostLinkOpenerContribution extends Disposable implements IWorkbenchCo
 
 		logBrowserOpen(this.telemetryService, 'localhostLinkOpener');
 
-		const browserUri = BrowserViewUri.forUrl(url);
+		const browserUri = BrowserViewUri.forUrl(href);
 		await this.editorService.openEditor({ resource: browserUri, options: { pinned: true } });
 		return true;
 	}

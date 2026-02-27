@@ -679,7 +679,7 @@ export function registerChatActions() {
 				}, {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('sparkle')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')),
 					order: 1
 				}],
 			});
@@ -715,19 +715,43 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class NewChatEditorSparkleIconAction extends Action2 {
+	registerAction2(class NewChatEditorNewSessionIconAction extends Action2 {
 		constructor() {
 			super({
-				id: ACTION_ID_OPEN_CHAT + '.sparkleIcon',
+				id: ACTION_ID_OPEN_CHAT + '.newSessionIcon',
 				title: localize2('interactiveSession.open', "New Chat Editor"),
-				icon: Codicon.chatSparkle,
+				icon: Codicon.newSession,
 				f1: false,
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('sparkle')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('new-session')),
+					order: 1
+				}],
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const widgetService = accessor.get(IChatWidgetService);
+			await widgetService.openSession(LocalChatSessionUri.getNewSessionUri(), ACTIVE_GROUP, { pinned: true } satisfies IChatEditorOptions);
+		}
+	});
+
+	registerAction2(class NewChatEditorCommentIconAction extends Action2 {
+		constructor() {
+			super({
+				id: ACTION_ID_OPEN_CHAT + '.commentIcon',
+				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.comment,
+				f1: false,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				menu: [{
+					id: MenuId.EditorTitle,
+					group: 'navigation',
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('comment')),
 					order: 1
 				}],
 			});

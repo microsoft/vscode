@@ -372,8 +372,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-	padding: 8px 16px;
-	margin-bottom: 4px;
+	padding: 8px;
 
 	.chat-question-summary-item {
 		display: flex;

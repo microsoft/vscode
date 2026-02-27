@@ -20,16 +20,16 @@
 	overflow: hidden;
 	color: var(--vscode-commandCenter-foreground);
 	gap: 6px;
+	cursor: default;
 }
 
 /* Session pill - clickable area for session picker */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
 	display: flex;
 	align-items: center;
-	cursor: pointer;
 	padding: 0 4px;
 	border-radius: 4px;
-	overflow: hidden;
+	min-width: 0;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
@@ -62,8 +62,9 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	overflow: hidden;
+	min-width: 0;
 	justify-content: center;
+	cursor: pointer;
 }
 
 /* Kind icon */

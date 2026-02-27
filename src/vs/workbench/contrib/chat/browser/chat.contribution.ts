@@ -1139,7 +1139,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.SimpleTerminalCollapsible]: {
 			type: 'boolean',
-			default: product.quality !== 'stable',
+			default: true,
 			markdownDescription: nls.localize('chat.tools.terminal.simpleCollapsible', "When enabled, terminal tool calls are always displayed in a collapsible container with a simplified view."),
 			tags: ['experimental'],
 		},
@@ -1248,12 +1248,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is available in the Command Palette. When disabled, the Chat Customizations editor and related commands are hidden."),
 			default: true,
 		},
-		[ChatConfiguration.ChatCustomizationUserStoragePath]: {
-			type: 'string',
-			tags: ['experimental'],
-			description: nls.localize('chat.customizationsMenu.userStoragePath', "Experimental: This setting is temporary and should not be relied on. Override the base directory for user-level customization files. When set, new user customizations are created here instead of the VS Code profile folder."),
-			default: '',
-		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -1463,7 +1457,8 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 
 	private registerNewChatButtonIcon(): void {
 		this.experimentService.getTreatment<string>('chatNewButtonIcon').then((value) => {
-			if (value === 'copilot' || value === 'sparkle') {
+			const supportedValues = ['copilot', 'new-session', 'comment'];
+			if (typeof value === 'string' && supportedValues.includes(value)) {
 				this.newChatButtonExperimentIcon.set(value);
 			} else {
 				this.newChatButtonExperimentIcon.reset();
