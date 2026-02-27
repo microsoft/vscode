@@ -22,8 +22,6 @@ import { TerminalChatAgentToolsSettingId } from './terminalChatAgentToolsConfigu
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ITrustedDomainService } from '../../../url/common/trustedDomainService.js';
 
-const domainPatternRegex = /^(?:[a-z][a-z0-9+.-]*:\/\/)?(?<domain>[^\/:?#]+)(?::\d+)?(?:[/?#]|$)/i;
-
 export const ITerminalSandboxService = createDecorator<ITerminalSandboxService>('terminalSandboxService');
 
 export interface ITerminalSandboxService {
@@ -162,7 +160,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
 
-			const allowedDomains = this._getAllowedDomains(networkSetting);
+			let allowedDomains: string[] = [];
+			if (networkSetting.allowTrustedDomains) {
+				allowedDomains = this._addTrustedDomainsToAllowedDomains(networkSetting.allowedDomains ?? []);
+			}
 
 			const sandboxSettings = {
 				network: {
@@ -204,32 +205,18 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 	}
 
-	private _getAllowedDomains(networkSetting: ITerminalSandboxNetworkSettings): string[] {
-		const allowedDomains = new Set<string>();
-		this._addNormalizedDomains(allowedDomains, networkSetting.allowedDomains ?? []);
-
-		if (networkSetting.allowTrustedDomains) {
-			this._addNormalizedDomains(allowedDomains, this._trustedDomainService.trustedDomains);
-		}
-
-		return Array.from(allowedDomains);
-	}
-
-	private _addNormalizedDomains(target: Set<string>, domains: string[]): void {
-		for (const domain of domains) {
-			const normalizedDomain = this._normalizeDomain(domain);
-			if (normalizedDomain) {
-				target.add(normalizedDomain);
+	private _addTrustedDomainsToAllowedDomains(allowedDomains: string[]): string[] {
+		const allowedDomainsSet = new Set(allowedDomains);
+		for (const domain of this._trustedDomainService.trustedDomains) {
+			try {
+				const uri = new URL(domain);
+				allowedDomainsSet.add(uri.hostname);
+			} catch {
+				if (domain !== '*') {
+					allowedDomainsSet.add(domain);
+				}
 			}
 		}
-	}
-
-	private _normalizeDomain(domain: string): string | undefined {
-		const trimmedDomain = domain.trim();
-		if (!trimmedDomain || trimmedDomain === '*') {
-			return undefined;
-		}
-
-		return trimmedDomain.match(domainPatternRegex)?.groups?.domain;
+		return Array.from(allowedDomainsSet);
 	}
 }
