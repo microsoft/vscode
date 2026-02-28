@@ -1317,6 +1317,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: auto;
 }
 
+.interactive-session .chat-input-toolbars > .chat-input-toolbar .actions-container:first-child {
+	margin-right: 0;
+}
+
 .interactive-session .chat-input-toolbars .tool-warning-indicator {
 	position: absolute;
 	bottom: 0;
@@ -1394,10 +1398,38 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 0px 3px 6px;
+	padding: 3px 1px 3px 7px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
+}
+
+.interactive-session .chat-input-toolbar .chat-mode-picker-item.hide-chevrons .action-label,
+.interactive-session .chat-input-toolbar .chat-session-target-picker-item.hide-chevrons .action-label,
+.interactive-session .chat-input-toolbar .chat-mode-picker-item .action-label.hide-chevrons,
+.interactive-session .chat-input-toolbar .chat-session-target-picker-item .action-label.hide-chevrons {
+	width: 22px;
+	min-width: 22px;
+	height: 22px;
+	padding: 3px;
+	box-sizing: border-box;
+	margin: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.interactive-session .chat-input-toolbar .chat-mode-picker-item .action-label.hide-chevrons .chat-input-picker-label,
+.interactive-session .chat-input-toolbar .chat-session-target-picker-item .action-label.hide-chevrons .chat-input-picker-label {
+	display: none;
+}
+
+.interactive-session .chat-input-toolbar .chat-mode-picker-item .action-label.hide-chevrons .codicon,
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons .codicon,
+.interactive-session .chat-input-toolbar .chat-session-target-picker-item .action-label.hide-chevrons .codicon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,

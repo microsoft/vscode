@@ -260,6 +260,11 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		return menuContributions;
 	}
 
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-mode-picker-item');
+	}
+
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
 
@@ -280,7 +285,9 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		if (!isDefault || !icon || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
 		}
-		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
+		if (!this.pickerOptions.hideChevrons.get()) {
+			labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
 
 		dom.reset(element, ...labelElements);
 		return null;

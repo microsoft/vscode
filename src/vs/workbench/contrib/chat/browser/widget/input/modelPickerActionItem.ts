@@ -209,7 +209,9 @@ export class ModelPickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		domChildren.push(dom.$('span.chat-input-picker-label', undefined, name ?? localize('chat.modelPicker.auto', "Auto")));
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		if (!this.pickerOptions.hideChevrons.get()) {
+			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
 
 		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);

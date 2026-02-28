@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -459,6 +460,7 @@ export class ModelPickerWidget extends Disposable {
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
+	private _hideChevrons: IObservable<boolean> | undefined;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -482,6 +484,17 @@ export class ModelPickerWidget extends Disposable {
 		@IUpdateService private readonly _updateService: IUpdateService,
 	) {
 		super();
+	}
+
+	setHideChevrons(hideChevrons: IObservable<boolean>): void {
+		this._hideChevrons = hideChevrons;
+		this._register(autorun(reader => {
+			const hide = hideChevrons.read(reader);
+			this._renderLabel();
+			if (this._domNode) {
+				this._domNode.classList.toggle('hide-chevrons', hide);
+			}
+		}));
 	}
 
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
@@ -637,7 +650,9 @@ export class ModelPickerWidget extends Disposable {
 			domChildren.push(this._badgeIcon);
 		}
 
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		if (!this._hideChevrons?.get()) {
+			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
 
 		dom.reset(this._domNode, ...domChildren);
 
