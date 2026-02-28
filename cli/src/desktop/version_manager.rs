@@ -379,7 +379,7 @@ fn detect_installed_program(log: &log::Logger) -> io::Result<Vec<PathBuf>> {
 		}
 	};
 
-	let current_exe = std::env::current_exe().expect("expected to read current exe");
+	let current_exe = std::env::current_exe()?;
 	let mut output = vec![];
 	for dir in path.split(':') {
 		let target: PathBuf = [dir, APPLICATION_NAME].iter().collect();
