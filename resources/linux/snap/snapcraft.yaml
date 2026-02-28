@@ -61,7 +61,7 @@ parts:
       - -usr/share/man
     override-build: |
       craftctl default
-      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/@@DEB_ARCHITECTURE@@-linux-gnu:$ORIGIN:/snap/core24/current/lib/@@DEB_ARCHITECTURE@@-linux-gnu' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
+      patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/@@DEB_ARCHITECTURE@@:$ORIGIN:/snap/core24/current/lib/@@DEB_ARCHITECTURE@@' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
       chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
   cleanup:
     after:

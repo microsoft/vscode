@@ -259,13 +259,19 @@ function prepareSnapPackage(arch: string) {
 		const code = gulp.src(binaryDir + '/**/*', { base: binaryDir })
 			.pipe(rename(function (p) { p.dirname = `usr/share/${product.applicationName}/${p.dirname}`; }));
 
+		const debMultiarch =
+			arch === 'x64' ? 'x86_64-linux-gnu' :
+			arch === 'arm64' ? 'aarch64-linux-gnu' :
+			arch === 'armhf' ? 'arm-linux-gnueabihf' :
+			`${arch}-linux-gnu`;
+
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@VERSION@@', commit!.substr(0, 8)))
 			// Possible platform values https://snapcraft.io/docs/architectures
 			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
 			.pipe(replace('@@BUILD_ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
-			.pipe(replace('@@DEB_ARCHITECTURE@@', arch === 'x64' ? 'x86_64' : 'aarch64'))
+			.pipe(replace('@@DEB_ARCHITECTURE@@', debMultiarch))
 			.pipe(rename('snap/snapcraft.yaml'));
 
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
