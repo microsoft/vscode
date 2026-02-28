@@ -514,6 +514,11 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.setAttribute('aria-haspopup', 'true');
 		this._domNode.setAttribute('aria-expanded', 'false');
 
+		// Apply initial collapsed state now that _domNode exists
+		if (this._hideChevrons?.get()) {
+			this._domNode.classList.toggle('hide-chevrons', true);
+		}
+
 		this._badgeIcon = dom.append(this._domNode, dom.$('span.model-picker-badge'));
 		this._updateBadge();
 
