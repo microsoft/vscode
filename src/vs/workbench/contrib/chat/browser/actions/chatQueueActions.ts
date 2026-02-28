@@ -280,7 +280,10 @@ export function registerChatQueueActions(): void {
 		submenu: MenuId.ChatExecuteQueue,
 		title: localize2('chat.queueSubmenu', "Queue"),
 		icon: Codicon.listOrdered,
-		when: queuingActionsPresent,
+		when: ContextKeyExpr.and(
+			queuingActionsPresent,
+			ChatContextKeys.inputHasText,
+		),
 		group: 'navigation',
 		order: 4,
 	});

@@ -253,41 +253,51 @@ export class AgentPluginService extends Disposable implements IAgentPluginServic
 
 type PluginEntry = IAgentPlugin & { enabled: ISettableObservable<boolean> };
 
-export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgentPluginDiscovery {
+/**
+ * Describes a single discovered plugin source, before the shared
+ * infrastructure builds the full {@link IAgentPlugin} from it.
+ */
+interface IPluginSource {
+	readonly uri: URI;
+	readonly enabled: boolean;
+	readonly fromMarketplace: IMarketplacePlugin | undefined;
+	/** Called when setEnabled is invoked on the plugin */
+	setEnabled(value: boolean): void;
+	/** Called when remove is invoked on the plugin */
+	remove(): void;
+}
 
-	private readonly _pluginPathsConfig: IObservable<Record<string, boolean>>;
+/**
+ * Shared base class for plugin discovery implementations. Contains the common
+ * logic for reading plugin contents (commands, skills, agents, hooks, MCP server
+ * definitions) from the filesystem and watching for live updates.
+ *
+ * Subclasses implement {@link _discoverPluginSources} to determine *which*
+ * plugins exist, while this class handles the rest.
+ */
+export abstract class AbstractAgentPluginDiscovery extends Disposable implements IAgentPluginDiscovery {
+
 	private readonly _pluginEntries = new Map<string, { plugin: PluginEntry; store: DisposableStore; adapter: IAgentPluginFormatAdapter }>();
 
 	private readonly _plugins = observableValue<readonly IAgentPlugin[]>('discoveredAgentPlugins', []);
 	public readonly plugins: IObservable<readonly IAgentPlugin[]> = this._plugins;
 
-	private _discoverVersion = 0;
+	protected _discoverVersion = 0;
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService,
-		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IPathService private readonly _pathService: IPathService,
-		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		protected readonly _fileService: IFileService,
+		protected readonly _pathService: IPathService,
+		protected readonly _logService: ILogService,
+		protected readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-		this._pluginPathsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginPaths, {}, _configurationService);
 	}
 
-	public start(): void {
-		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
-		this._register(autorun(reader => {
-			this._pluginPathsConfig.read(reader);
-			scheduler.schedule();
-		}));
-		scheduler.schedule();
-	}
+	public abstract start(): void;
 
-	private async _refreshPlugins(): Promise<void> {
+	protected async _refreshPlugins(): Promise<void> {
 		const version = ++this._discoverVersion;
-		const plugins = await this._discoverPlugins();
+		const plugins = await this._discoverAndBuildPlugins();
 		if (version !== this._discoverVersion || this._store.isDisposed) {
 			return;
 		}
@@ -295,38 +305,20 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		this._plugins.set(plugins, undefined);
 	}
 
-	private async _discoverPlugins(): Promise<readonly IAgentPlugin[]> {
+	/** Subclasses return plugin sources to discover. */
+	protected abstract _discoverPluginSources(): Promise<readonly IPluginSource[]>;
+
+	private async _discoverAndBuildPlugins(): Promise<readonly IAgentPlugin[]> {
+		const sources = await this._discoverPluginSources();
 		const plugins: IAgentPlugin[] = [];
 		const seenPluginUris = new Set<string>();
-		const config = this._pluginPathsConfig.get();
 
-		for (const [path, enabled] of Object.entries(config)) {
-			if (!path.trim()) {
-				continue;
-			}
-
-			const resources = this._resolvePluginPath(path.trim());
-			for (const resource of resources) {
-				let stat;
-				try {
-					stat = await this._fileService.resolve(resource);
-				} catch {
-					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Could not resolve plugin path: ${resource.toString()}`);
-					continue;
-				}
-
-				if (!stat.isDirectory) {
-					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Plugin path is not a directory: ${resource.toString()}`);
-					continue;
-				}
-
-				const key = stat.resource.toString();
-				if (!seenPluginUris.has(key)) {
-					const adapter = await this._detectPluginFormatAdapter(stat.resource);
-					const fromMarketplace = await this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource);
-					seenPluginUris.add(key);
-					plugins.push(this._toPlugin(stat.resource, path, enabled, adapter, fromMarketplace));
-				}
+		for (const source of sources) {
+			const key = source.uri.toString();
+			if (!seenPluginUris.has(key)) {
+				seenPluginUris.add(key);
+				const adapter = await this._detectPluginFormatAdapter(source.uri);
+				plugins.push(this._toPlugin(source.uri, source.enabled, adapter, source.fromMarketplace, value => source.setEnabled(value), () => source.remove()));
 			}
 		}
 
@@ -334,58 +326,6 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 
 		plugins.sort((a, b) => a.uri.toString().localeCompare(b.uri.toString()));
 		return plugins;
-	}
-
-	/**
-	 * Resolves a plugin path to one or more resource URIs. Absolute paths are
-	 * used directly; relative paths are resolved against each workspace folder.
-	 */
-	private _resolvePluginPath(path: string): URI[] {
-		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
-			return [URI.file(path)];
-		}
-
-		return this._workspaceContextService.getWorkspace().folders.map(
-			folder => joinPath(folder.uri, path)
-		);
-	}
-
-	/**
-	 * Updates the enabled state of a plugin path in the configuration,
-	 * writing to the most specific config target where the key is defined.
-	 */
-	private _updatePluginPathEnabled(configKey: string, value: boolean): void {
-		const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginPaths);
-
-		// Walk from most specific to least specific to find where this key is defined
-		const targets = [
-			ConfigurationTarget.WORKSPACE_FOLDER,
-			ConfigurationTarget.WORKSPACE,
-			ConfigurationTarget.USER_LOCAL,
-			ConfigurationTarget.USER_REMOTE,
-			ConfigurationTarget.USER,
-			ConfigurationTarget.APPLICATION,
-		];
-
-		for (const target of targets) {
-			const mapping = getConfigValueInTarget(inspected, target);
-			if (mapping && Object.prototype.hasOwnProperty.call(mapping, configKey)) {
-				this._configurationService.updateValue(
-					ChatConfiguration.PluginPaths,
-					{ ...mapping, [configKey]: value },
-					target,
-				);
-				return;
-			}
-		}
-
-		// Key not found in any target; write to USER_LOCAL as default
-		const current = getConfigValueInTarget(inspected, ConfigurationTarget.USER_LOCAL) ?? {};
-		this._configurationService.updateValue(
-			ChatConfiguration.PluginPaths,
-			{ ...current, [configKey]: value },
-			ConfigurationTarget.USER_LOCAL,
-		);
 	}
 
 	private async _detectPluginFormatAdapter(pluginUri: URI): Promise<IAgentPluginFormatAdapter> {
@@ -397,7 +337,7 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		return this._instantiationService.createInstance(CopilotPluginFormatAdapter);
 	}
 
-	private async _pathExists(resource: URI): Promise<boolean> {
+	protected async _pathExists(resource: URI): Promise<boolean> {
 		try {
 			await this._fileService.resolve(resource);
 			return true;
@@ -406,7 +346,7 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		}
 	}
 
-	private _toPlugin(uri: URI, configKey: string, initialEnabled: boolean, adapter: IAgentPluginFormatAdapter, fromMarketplace: IMarketplacePlugin | undefined): IAgentPlugin {
+	private _toPlugin(uri: URI, initialEnabled: boolean, adapter: IAgentPluginFormatAdapter, fromMarketplace: IMarketplacePlugin | undefined, setEnabledCallback: (value: boolean) => void, removeCallback: () => void): IAgentPlugin {
 		const key = uri.toString();
 		const existing = this._pluginEntries.get(key);
 		if (existing) {
@@ -476,9 +416,8 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 		const plugin: PluginEntry = {
 			uri,
 			enabled,
-			setEnabled: (value: boolean) => {
-				this._updatePluginPathEnabled(configKey, value);
-			},
+			setEnabled: setEnabledCallback,
+			remove: removeCallback,
 			hooks,
 			commands,
 			skills,
@@ -758,3 +697,203 @@ export class ConfiguredAgentPluginDiscovery extends Disposable implements IAgent
 	}
 }
 
+export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	private readonly _pluginPathsConfig: IObservable<Record<string, boolean>>;
+
+	constructor(
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService fileService: IFileService,
+		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IPathService pathService: IPathService,
+		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(fileService, pathService, logService, instantiationService);
+		this._pluginPathsConfig = observableConfigValue<Record<string, boolean>>(ChatConfiguration.PluginPaths, {}, _configurationService);
+	}
+
+	public override start(): void {
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		this._register(autorun(reader => {
+			this._pluginPathsConfig.read(reader);
+			scheduler.schedule();
+		}));
+		scheduler.schedule();
+	}
+
+	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
+		const sources: IPluginSource[] = [];
+		const config = this._pluginPathsConfig.get();
+
+		for (const [path, enabled] of Object.entries(config)) {
+			if (!path.trim()) {
+				continue;
+			}
+
+			const resources = this._resolvePluginPath(path.trim());
+			for (const resource of resources) {
+				let stat;
+				try {
+					stat = await this._fileService.resolve(resource);
+				} catch {
+					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Could not resolve plugin path: ${resource.toString()}`);
+					continue;
+				}
+
+				if (!stat.isDirectory) {
+					this._logService.debug(`[ConfiguredAgentPluginDiscovery] Plugin path is not a directory: ${resource.toString()}`);
+					continue;
+				}
+
+				const fromMarketplace = this._pluginMarketplaceService.getMarketplacePluginMetadata(stat.resource);
+				const configKey = path;
+				sources.push({
+					uri: stat.resource,
+					enabled,
+					fromMarketplace,
+					setEnabled: (value: boolean) => this._updatePluginPathEnabled(configKey, value),
+					remove: () => this._removePluginPath(configKey),
+				});
+			}
+		}
+
+		return sources;
+	}
+
+	/**
+	 * Resolves a plugin path to one or more resource URIs. Absolute paths are
+	 * used directly; relative paths are resolved against each workspace folder.
+	 */
+	private _resolvePluginPath(path: string): URI[] {
+		if (win32.isAbsolute(path) || posix.isAbsolute(path)) {
+			return [URI.file(path)];
+		}
+
+		return this._workspaceContextService.getWorkspace().folders.map(
+			folder => joinPath(folder.uri, path)
+		);
+	}
+
+	/**
+	 * Updates the enabled state of a plugin path in the configuration,
+	 * writing to the most specific config target where the key is defined.
+	 */
+	private _updatePluginPathEnabled(configKey: string, value: boolean): void {
+		const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginPaths);
+
+		// Walk from most specific to least specific to find where this key is defined
+		const targets = [
+			ConfigurationTarget.WORKSPACE_FOLDER,
+			ConfigurationTarget.WORKSPACE,
+			ConfigurationTarget.USER_LOCAL,
+			ConfigurationTarget.USER_REMOTE,
+			ConfigurationTarget.USER,
+			ConfigurationTarget.APPLICATION,
+		];
+
+		for (const target of targets) {
+			const mapping = getConfigValueInTarget(inspected, target);
+			if (mapping && Object.prototype.hasOwnProperty.call(mapping, configKey)) {
+				this._configurationService.updateValue(
+					ChatConfiguration.PluginPaths,
+					{ ...mapping, [configKey]: value },
+					target,
+				);
+				return;
+			}
+		}
+
+		// Key not found in any target; write to USER_LOCAL as default
+		const current = getConfigValueInTarget(inspected, ConfigurationTarget.USER_LOCAL) ?? {};
+		this._configurationService.updateValue(
+			ChatConfiguration.PluginPaths,
+			{ ...current, [configKey]: value },
+			ConfigurationTarget.USER_LOCAL,
+		);
+	}
+
+	/**
+	 * Removes a plugin path from `chat.plugins.paths` in the most specific
+	 * config target where the key is defined.
+	 */
+	private _removePluginPath(configKey: string): void {
+		const inspected = this._configurationService.inspect<Record<string, boolean>>(ChatConfiguration.PluginPaths);
+
+		const targets = [
+			ConfigurationTarget.WORKSPACE_FOLDER,
+			ConfigurationTarget.WORKSPACE,
+			ConfigurationTarget.USER_LOCAL,
+			ConfigurationTarget.USER_REMOTE,
+			ConfigurationTarget.USER,
+			ConfigurationTarget.APPLICATION,
+		];
+
+		for (const target of targets) {
+			const mapping = getConfigValueInTarget(inspected, target);
+			if (mapping && Object.prototype.hasOwnProperty.call(mapping, configKey)) {
+				const updated = { ...mapping };
+				delete updated[configKey];
+				this._configurationService.updateValue(
+					ChatConfiguration.PluginPaths,
+					updated,
+					target,
+				);
+				return;
+			}
+		}
+	}
+}
+
+export class MarketplaceAgentPluginDiscovery extends AbstractAgentPluginDiscovery {
+
+	constructor(
+		@IPluginMarketplaceService private readonly _pluginMarketplaceService: IPluginMarketplaceService,
+		@IFileService fileService: IFileService,
+		@IPathService pathService: IPathService,
+		@ILogService logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super(fileService, pathService, logService, instantiationService);
+	}
+
+	public override start(): void {
+		const scheduler = this._register(new RunOnceScheduler(() => this._refreshPlugins(), 0));
+		this._register(autorun(reader => {
+			this._pluginMarketplaceService.installedPlugins.read(reader);
+			scheduler.schedule();
+		}));
+		scheduler.schedule();
+	}
+
+	protected override async _discoverPluginSources(): Promise<readonly IPluginSource[]> {
+		const installed = this._pluginMarketplaceService.installedPlugins.get();
+		const sources: IPluginSource[] = [];
+
+		for (const entry of installed) {
+			let stat;
+			try {
+				stat = await this._fileService.resolve(entry.pluginUri);
+			} catch {
+				this._logService.debug(`[MarketplaceAgentPluginDiscovery] Could not resolve installed plugin: ${entry.pluginUri.toString()}`);
+				continue;
+			}
+
+			if (!stat.isDirectory) {
+				this._logService.debug(`[MarketplaceAgentPluginDiscovery] Installed plugin path is not a directory: ${entry.pluginUri.toString()}`);
+				continue;
+			}
+
+			sources.push({
+				uri: stat.resource,
+				enabled: entry.enabled,
+				fromMarketplace: entry.plugin,
+				setEnabled: (value: boolean) => this._pluginMarketplaceService.setInstalledPluginEnabled(entry.pluginUri, value),
+				remove: () => this._pluginMarketplaceService.removeInstalledPlugin(entry.pluginUri),
+			});
+		}
+
+		return sources;
+	}
+}
