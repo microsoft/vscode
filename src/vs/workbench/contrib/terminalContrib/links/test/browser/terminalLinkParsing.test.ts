@@ -621,57 +621,63 @@ suite('TerminalLinkParsing', () => {
 
 		suite('should detect file names in git diffs', () => {
 			test('--- a/foo/bar', () => {
-				deepStrictEqual(
-					detectLinks('--- a/foo/bar', OperatingSystem.Linux),
-					[
-						{
-							path: {
-								index: 6,
-								text: 'foo/bar'
-							},
-							prefix: undefined,
-							suffix: undefined
-						}
-					] as IParsedLink[]
-				);
+				['a', 'c', 'w', 'i', 'o'].forEach((a) => {
+					deepStrictEqual(
+						detectLinks(`--- ${a}/foo/bar`, OperatingSystem.Linux),
+						[
+							{
+								path: {
+									index: 6,
+									text: 'foo/bar'
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+				});
 			});
 			test('+++ b/foo/bar', () => {
-				deepStrictEqual(
-					detectLinks('+++ b/foo/bar', OperatingSystem.Linux),
-					[
-						{
-							path: {
-								index: 6,
-								text: 'foo/bar'
-							},
-							prefix: undefined,
-							suffix: undefined
-						}
-					] as IParsedLink[]
-				);
+				['b', 'c', 'w', 'i', 'o'].forEach((b) => {
+					deepStrictEqual(
+						detectLinks(`+++ ${b}/foo/bar`, OperatingSystem.Linux),
+						[
+							{
+								path: {
+									index: 6,
+									text: 'foo/bar'
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+				});
 			});
 			test('diff --git a/foo/bar b/foo/baz', () => {
-				deepStrictEqual(
-					detectLinks('diff --git a/foo/bar b/foo/baz', OperatingSystem.Linux),
-					[
-						{
-							path: {
-								index: 13,
-								text: 'foo/bar'
+				[['a', 'b'], ['c', 'w'], ['i', 'o']].forEach(([a, b]) => {
+					deepStrictEqual(
+						detectLinks(`diff --git ${a}/foo/bar ${b}/foo/baz`, OperatingSystem.Linux),
+						[
+							{
+								path: {
+									index: 13,
+									text: 'foo/bar'
+								},
+								prefix: undefined,
+								suffix: undefined
 							},
-							prefix: undefined,
-							suffix: undefined
-						},
-						{
-							path: {
-								index: 23,
-								text: 'foo/baz'
-							},
-							prefix: undefined,
-							suffix: undefined
-						}
-					] as IParsedLink[]
-				);
+							{
+								path: {
+									index: 23,
+									text: 'foo/baz'
+								},
+								prefix: undefined,
+								suffix: undefined
+							}
+						] as IParsedLink[]
+					);
+				});
 			});
 		});
 
