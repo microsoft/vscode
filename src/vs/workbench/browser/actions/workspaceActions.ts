@@ -9,7 +9,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, hasWorkspac
 import { IWorkspaceEditingService } from '../../services/workspaces/common/workspaceEditing.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_COMMAND_ID } from './workspaceCommands.js';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, ADD_FILE_TO_WORKSPACE_COMMAND_ID, ADD_FILE_TO_WORKSPACE_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_COMMAND_ID } from './workspaceCommands.js';
 import { IFileDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { MenuRegistry, MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
 import { EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, OpenFolderWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from '../../common/contextkeys.js';
@@ -231,6 +231,27 @@ export class AddRootFolderAction extends Action2 {
 	}
 }
 
+export class AddFileToWorkspaceAction extends Action2 {
+
+	static readonly ID = 'workbench.action.addFileToWorkspace';
+
+	constructor() {
+		super({
+			id: AddFileToWorkspaceAction.ID,
+			title: ADD_FILE_TO_WORKSPACE_LABEL,
+			category: workspacesCategory,
+			f1: true,
+			precondition: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace'))
+		});
+	}
+
+	override run(accessor: ServicesAccessor): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+
+		return commandService.executeCommand(ADD_FILE_TO_WORKSPACE_COMMAND_ID);
+	}
+}
+
 export class RemoveRootFolderAction extends Action2 {
 
 	static readonly ID = 'workbench.action.removeRootFolder';
@@ -323,6 +344,7 @@ class DuplicateWorkspaceInNewWindowAction extends Action2 {
 // --- Actions Registration
 
 registerAction2(AddRootFolderAction);
+registerAction2(AddFileToWorkspaceAction);
 registerAction2(RemoveRootFolderAction);
 registerAction2(OpenFileAction);
 registerAction2(OpenFolderAction);
@@ -394,6 +416,16 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	},
 	when: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')),
 	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '3_workspace',
+	command: {
+		id: ADD_FILE_TO_WORKSPACE_COMMAND_ID,
+		title: localize({ key: 'miAddFileToWorkspace', comment: ['&& denotes a mnemonic'] }, "Add &&File to Workspace...")
+	},
+	when: ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')),
+	order: 1.5
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {

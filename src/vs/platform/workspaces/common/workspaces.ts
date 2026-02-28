@@ -18,7 +18,7 @@ import { IWorkspaceBackupInfo, IFolderBackupInfo } from '../../backup/common/bac
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
-import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFolder } from '../../workspace/common/workspace.js';
+import { IBaseWorkspace, IRawFileWorkspaceFolder, IRawUriWorkspaceFolder, IWorkspaceIdentifier, WorkspaceFile, WorkspaceFolder } from '../../workspace/common/workspace.js';
 
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
 
@@ -104,11 +104,23 @@ function isRawUriWorkspaceFolder(obj: unknown): obj is IRawUriWorkspaceFolder {
 
 export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
 
+export type IStoredWorkspaceFile = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
+
+export function isStoredWorkspaceFile(obj: unknown): obj is IStoredWorkspaceFile {
+	return isRawFileWorkspaceFolder(obj) || isRawUriWorkspaceFolder(obj);
+}
+
 export interface IStoredWorkspace extends IBaseWorkspace {
 	folders: IStoredWorkspaceFolder[];
+	files?: IStoredWorkspaceFile[];
 }
 
 export interface IWorkspaceFolderCreationData {
+	readonly uri: URI;
+	readonly name?: string;
+}
+
+export interface IWorkspaceFileCreationData {
 	readonly uri: URI;
 	readonly name?: string;
 }
@@ -234,6 +246,58 @@ export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], 
 }
 
 /**
+ * Given a file URI and the workspace config folder, computes the `IStoredWorkspaceFile`
+ * using a relative or absolute path or a uri.
+ *
+ * @param fileURI a workspace file
+ * @param forceAbsolute if set, keep the path absolute
+ * @param fileName a workspace file name
+ * @param targetConfigFolderURI the folder where the workspace is living in
+ */
+export function getStoredWorkspaceFile(fileURI: URI, forceAbsolute: boolean, fileName: string | undefined, targetConfigFolderURI: URI, extUri: IExtUri): IStoredWorkspaceFile {
+	// Path resolution logic is identical to folders
+	return getStoredWorkspaceFolder(fileURI, forceAbsolute, fileName, targetConfigFolderURI, extUri);
+}
+
+export function toWorkspaceFiles(configuredFiles: IStoredWorkspaceFile[], workspaceConfigFile: URI, extUri: IExtUri): WorkspaceFile[] {
+	const result: WorkspaceFile[] = [];
+	const seen: Set<string> = new Set();
+
+	const relativeTo = extUri.dirname(workspaceConfigFile);
+	for (const configuredFile of configuredFiles) {
+		let uri: URI | undefined = undefined;
+		if (isRawFileWorkspaceFolder(configuredFile)) {
+			if (configuredFile.path) {
+				uri = extUri.resolvePath(relativeTo, configuredFile.path);
+			}
+		} else if (isRawUriWorkspaceFolder(configuredFile)) {
+			try {
+				uri = URI.parse(configuredFile.uri);
+				if (uri.path[0] !== posix.sep) {
+					uri = uri.with({ path: posix.sep + uri.path });
+				}
+			} catch (e) {
+				console.warn(e); // ignore
+			}
+		}
+
+		if (uri) {
+
+			// remove duplicates
+			const comparisonKey = extUri.getComparisonKey(uri);
+			if (!seen.has(comparisonKey)) {
+				seen.add(comparisonKey);
+
+				const name = configuredFile.name || extUri.basenameOrAuthority(uri);
+				result.push(new WorkspaceFile({ uri, name, index: result.length }, configuredFile));
+			}
+		}
+	}
+
+	return result;
+}
+
+/**
  * Rewrites the content of a workspace file to be saved at a new location.
  * Throws an exception if file is not a valid workspace file
  */
@@ -256,11 +320,39 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, extUri));
 	}
 
+	// Rewrite standalone files paths
+	const rewrittenFiles: IStoredWorkspaceFile[] = [];
+	if (storedWorkspace.files) {
+		for (const file of storedWorkspace.files) {
+			const fileURI = isRawFileWorkspaceFolder(file) ? extUri.resolvePath(sourceConfigFolder, file.path) : URI.parse(file.uri);
+			let absolute;
+			if (isFromUntitledWorkspace) {
+				absolute = false;
+			} else {
+				absolute = !isRawFileWorkspaceFolder(file) || isAbsolute(file.path);
+			}
+			rewrittenFiles.push(getStoredWorkspaceFile(fileURI, absolute, file.name, targetConfigFolder, extUri));
+		}
+	}
+
 	// Preserve as much of the existing workspace as possible by using jsonEdit
-	// and only changing the folders portion.
+	// and only changing the folders and files portions.
 	const formattingOptions: FormattingOptions = { insertSpaces: false, tabSize: 4, eol: (isLinux || isMacintosh) ? '\n' : '\r\n' };
 	const edits = jsonEdit.setProperty(rawWorkspaceContents, ['folders'], rewrittenFolders, formattingOptions);
 	let newContent = jsonEdit.applyEdits(rawWorkspaceContents, edits);
+
+	// Rewrite files only if the original workspace had files
+	if (storedWorkspace.files && storedWorkspace.files.length > 0) {
+		if (rewrittenFiles.length > 0) {
+			const fileEdits = jsonEdit.setProperty(newContent, ['files'], rewrittenFiles, formattingOptions);
+			newContent = jsonEdit.applyEdits(newContent, fileEdits);
+		} else {
+			newContent = jsonEdit.applyEdits(newContent, jsonEdit.removeProperty(newContent, ['files'], formattingOptions));
+		}
+	} else if (rewrittenFiles.length > 0) {
+		const fileEdits = jsonEdit.setProperty(newContent, ['files'], rewrittenFiles, formattingOptions);
+		newContent = jsonEdit.applyEdits(newContent, fileEdits);
+	}
 
 	if (isEqualAuthority(storedWorkspace.remoteAuthority, getRemoteAuthority(targetConfigPathURI))) {
 		// unsaved remote workspaces have the remoteAuthority set. Remove it when no longer nexessary.
@@ -280,6 +372,13 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 		storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
 	} else {
 		throw new Error(`${path} looks like an invalid workspace file.`);
+	}
+
+	// Filter out files which do not have a path or uri set
+	if (Array.isArray(storedWorkspace.files)) {
+		storedWorkspace.files = storedWorkspace.files.filter(file => isStoredWorkspaceFile(file));
+	} else {
+		storedWorkspace.files = [];
 	}
 
 	return storedWorkspace;

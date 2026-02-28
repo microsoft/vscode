@@ -1659,7 +1659,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// In-Explorer DND
 		else {
 			const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>);
-			const isRootsReorder = items.every(item => item.isRoot);
+			const isRootsReorder = items.every(item => item.isRoot && item.isDirectory);
 
 			if (!target) {
 				// Dropping onto the empty area. Do not accept if items dragged are already
@@ -1685,7 +1685,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 
 			if (items.some((source) => {
-				if (source.isRoot) {
+				if (source.isRoot && source.isDirectory) {
 					return false; // Root folders are handled seperately
 				}
 
@@ -1800,6 +1800,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		if (!target.isDirectory && target.parent) {
 			target = target.parent;
 		}
+		if (!target.isDirectory) {
+			return;
+		}
 		if (target.isReadonly) {
 			return;
 		}
@@ -1856,11 +1859,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Handle confirm setting
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
-			const message = items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
+			const isRootFolder = (s: ExplorerItem) => s.isRoot && s.isDirectory;
+			const message = items.length > 1 && items.every(isRootFolder) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
 				: items.length > 1 ? localize('confirmMultiMove', "Are you sure you want to move the following {0} files into '{1}'?", items.length, target.name)
-					: items[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
+					: isRootFolder(items[0]) ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
 						: localize('confirmMove', "Are you sure you want to move '{0}' into '{1}'?", items[0].name, target.name);
-			const detail = items.length > 1 && !items.every(s => s.isRoot) ? getFileNamesMessage(items.map(i => i.resource)) : undefined;
+			const detail = items.length > 1 && !items.every(isRootFolder) ? getFileNamesMessage(items.map(i => i.resource)) : undefined;
 
 			const confirmation = await this.dialogService.confirm({
 				message,
@@ -1881,9 +1885,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 		}
 
-		await this.doHandleRootDrop(items.filter(s => s.isRoot), target, targetSector);
+		await this.doHandleRootDrop(items.filter(s => s.isRoot && s.isDirectory), target, targetSector);
 
-		const sources = items.filter(s => !s.isRoot);
+		const sources = items.filter(s => !s.isRoot || !s.isDirectory);
 		if (isCopy) {
 			return this.doHandleExplorerDropOnCopy(sources, target);
 		}

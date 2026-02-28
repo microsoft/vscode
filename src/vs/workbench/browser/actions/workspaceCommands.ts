@@ -28,6 +28,9 @@ import { ILocalizedString } from '../../../platform/action/common/action.js';
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL: ILocalizedString = localize2('addFolderToWorkspace', 'Add Folder to Workspace...');
 
+export const ADD_FILE_TO_WORKSPACE_COMMAND_ID = 'addFileToWorkspace';
+export const ADD_FILE_TO_WORKSPACE_LABEL: ILocalizedString = localize2('addFileToWorkspace', 'Add File to Workspace...');
+
 export const SET_ROOT_FOLDER_COMMAND_ID = 'setRootFolder';
 
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
@@ -102,6 +105,37 @@ async function selectWorkspaceFolders(accessor: ServicesAccessor): Promise<URI[]
 	});
 
 	return folders;
+}
+
+CommandsRegistry.registerCommand({
+	id: ADD_FILE_TO_WORKSPACE_COMMAND_ID,
+	handler: async (accessor) => {
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+
+		const files = await selectWorkspaceFiles(accessor);
+		if (!files?.length) {
+			return;
+		}
+
+		await workspaceEditingService.addFiles(files.map(file => ({ uri: file })));
+	}
+});
+
+async function selectWorkspaceFiles(accessor: ServicesAccessor): Promise<URI[] | undefined> {
+	const dialogsService = accessor.get(IFileDialogService);
+	const pathService = accessor.get(IPathService);
+
+	const files = await dialogsService.showOpenDialog({
+		openLabel: mnemonicButtonLabel(localize({ key: 'addFile', comment: ['&& denotes a mnemonic'] }, "&&Add")),
+		title: localize('addFileToWorkspaceTitle', "Add File to Workspace"),
+		canSelectFiles: true,
+		canSelectFolders: false,
+		canSelectMany: true,
+		defaultUri: await dialogsService.defaultFilePath(),
+		availableFileSystems: [pathService.defaultUriScheme]
+	});
+
+	return files;
 }
 
 CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {

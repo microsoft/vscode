@@ -26,7 +26,7 @@ import product from '../../../platform/product/common/product.js';
 import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, WillSaveStateReason } from '../../../platform/storage/common/storage.js';
 import { toUserDataProfile } from '../../../platform/userDataProfile/common/userDataProfile.js';
-import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, Workspace } from '../../../platform/workspace/common/workspace.js';
+import { ISingleFolderWorkspaceIdentifier, IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFilesChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, WorkbenchState, Workspace } from '../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, ResourceTrustRequestOptions, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspace } from '../../../platform/workspace/test/common/testWorkspace.js';
 import { GroupIdentifier, IRevertOptions, ISaveOptions, SaveReason } from '../../common/editor.js';
@@ -92,6 +92,9 @@ export class TestContextService implements IWorkspaceContextService {
 	private readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent>;
 	get onDidChangeWorkspaceFolders(): Event<IWorkspaceFoldersChangeEvent> { return this._onDidChangeWorkspaceFolders.event; }
 
+	private readonly _onDidChangeWorkspaceFiles: Emitter<IWorkspaceFilesChangeEvent>;
+	get onDidChangeWorkspaceFiles(): Event<IWorkspaceFilesChangeEvent> { return this._onDidChangeWorkspaceFiles.event; }
+
 	private readonly _onDidChangeWorkbenchState: Emitter<WorkbenchState>;
 	get onDidChangeWorkbenchState(): Event<WorkbenchState> { return this._onDidChangeWorkbenchState.event; }
 
@@ -101,6 +104,7 @@ export class TestContextService implements IWorkspaceContextService {
 		this._onDidChangeWorkspaceName = new Emitter<void>();
 		this._onWillChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersWillChangeEvent>();
 		this._onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
+		this._onDidChangeWorkspaceFiles = new Emitter<IWorkspaceFilesChangeEvent>();
 		this._onDidChangeWorkbenchState = new Emitter<WorkbenchState>();
 	}
 

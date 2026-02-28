@@ -40,6 +40,11 @@ export interface IWorkspaceContextService {
 	readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
+	 * An event which fires on workspace standalone files change.
+	 */
+	readonly onDidChangeWorkspaceFiles: Event<IWorkspaceFilesChangeEvent>;
+
+	/**
 	 * Provides access to the complete workspace object.
 	 */
 	getCompleteWorkspace(): Promise<IWorkspace>;
@@ -263,6 +268,11 @@ export interface IWorkspaceFoldersChangeEvent {
 	changed: IWorkspaceFolder[];
 }
 
+export interface IWorkspaceFilesChangeEvent {
+	added: IWorkspaceFile[];
+	removed: IWorkspaceFile[];
+}
+
 export interface IWorkspace {
 
 	/**
@@ -274,6 +284,11 @@ export interface IWorkspace {
 	 * Folders in the workspace.
 	 */
 	readonly folders: IWorkspaceFolder[];
+
+	/**
+	 * Standalone files in the workspace that are not inside any workspace folder.
+	 */
+	readonly files?: IWorkspaceFile[];
 
 	/**
 	 * Transient workspaces are meant to go away after being used
@@ -344,15 +359,23 @@ export class Workspace implements IWorkspace {
 		this.updateFoldersMap();
 	}
 
+	private _files: WorkspaceFile[] = [];
+	get files(): WorkspaceFile[] { return this._files; }
+	set files(files: WorkspaceFile[]) {
+		this._files = files;
+	}
+
 	constructor(
 		private _id: string,
 		folders: WorkspaceFolder[],
 		private _transient: boolean,
 		private _configuration: URI | null,
 		private ignorePathCasing: (key: URI) => boolean,
+		files: WorkspaceFile[] = [],
 	) {
 		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		this.folders = folders;
+		this.files = files;
 	}
 
 	update(workspace: Workspace) {
@@ -361,6 +384,7 @@ export class Workspace implements IWorkspace {
 		this._transient = workspace.transient;
 		this.ignorePathCasing = workspace.ignorePathCasing;
 		this.folders = workspace.folders;
+		this.files = workspace.files;
 	}
 
 	get id(): string {
@@ -395,7 +419,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration };
+		return { id: this.id, folders: this.folders, files: this.files, transient: this.transient, configuration: this.configuration };
 	}
 }
 
@@ -442,6 +466,63 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 
 export function toWorkspaceFolder(resource: URI): WorkspaceFolder {
 	return new WorkspaceFolder({ uri: resource, index: 0, name: basenameOrAuthority(resource) }, { uri: resource.toString() });
+}
+
+export interface IWorkspaceFileData {
+
+	/**
+	 * The associated URI for this workspace file.
+	 */
+	readonly uri: URI;
+
+	/**
+	 * The name of this workspace file. Defaults to
+	 * the basename of its [uri-path](#Uri.path)
+	 */
+	readonly name: string;
+
+	/**
+	 * The ordinal number of this workspace file.
+	 */
+	readonly index: number;
+}
+
+export interface IWorkspaceFile extends IWorkspaceFileData { }
+
+export function isWorkspaceFile(thing: unknown): thing is IWorkspaceFile {
+	const candidate = thing as IWorkspaceFile;
+
+	return !!(candidate && typeof candidate === 'object'
+		&& URI.isUri(candidate.uri)
+		&& typeof candidate.name === 'string'
+		&& typeof candidate.index === 'number');
+}
+
+export class WorkspaceFile implements IWorkspaceFile {
+
+	readonly uri: URI;
+	readonly name: string;
+	readonly index: number;
+
+	constructor(
+		data: IWorkspaceFileData,
+		/**
+		 * Provides access to the original metadata for this workspace
+		 * file. This can be different from the metadata provided in
+		 * this class:
+		 * - raw paths can be relative
+		 * - raw paths are not normalized
+		 */
+		readonly raw?: IRawFileWorkspaceFolder | IRawUriWorkspaceFolder
+	) {
+		this.uri = data.uri;
+		this.index = data.index;
+		this.name = data.name;
+	}
+
+	toJSON(): IWorkspaceFileData {
+		return { uri: this.uri, name: this.name, index: this.index };
+	}
 }
 
 export const WORKSPACE_EXTENSION = 'code-workspace';

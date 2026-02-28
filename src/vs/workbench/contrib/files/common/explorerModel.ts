@@ -36,11 +36,19 @@ export class ExplorerModel implements IDisposable {
 		configService: IConfigurationService,
 		filesConfigService: IFilesConfigurationService,
 	) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, fileService, configService, filesConfigService, undefined, true, false, false, false, folder.name));
+		const setRoots = () => {
+			const folderRoots = this.contextService.getWorkspace().folders
+				.map(folder => new ExplorerItem(folder.uri, fileService, configService, filesConfigService, undefined, true, false, false, false, folder.name));
+			const fileRoots = (this.contextService.getWorkspace().files ?? [])
+				.map(file => new ExplorerItem(file.uri, fileService, configService, filesConfigService, undefined, false, false, false, false, file.name));
+			this._roots = [...folderRoots, ...fileRoots];
+		};
 		setRoots();
 
-		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
+		this._listener = Event.any(
+			this.contextService.onDidChangeWorkspaceFolders,
+			this.contextService.onDidChangeWorkspaceFiles,
+		)(() => {
 			setRoots();
 			this._onDidChangeRoots.fire();
 		});
@@ -75,6 +83,12 @@ export class ExplorerModel implements IDisposable {
 			if (root) {
 				return root.find(resource);
 			}
+		}
+
+		// Check standalone files
+		const standaloneFile = this.roots.find(r => !r.isDirectory && this.uriIdentityService.extUri.isEqual(r.resource, resource));
+		if (standaloneFile) {
+			return standaloneFile;
 		}
 
 		return null;

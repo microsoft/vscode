@@ -10,7 +10,7 @@ import { equals } from '../../../../base/common/objects.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Queue, Barrier, Promises, Delayer, Throttler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
-import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier, IWorkspaceFilesChangeEvent, WorkspaceFile, IWorkspaceFile } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../../../../platform/configuration/common/configurationModels.js';
 import { IConfigurationChangeEvent, ConfigurationTarget, IConfigurationOverrides, isConfigurationOverrides, IConfigurationData, IConfigurationValue, IConfigurationChange, ConfigurationTargetToString, IConfigurationUpdateOverrides, isConfigurationUpdateOverrides, IConfigurationService, IConfigurationUpdateOptions } from '../../../../platform/configuration/common/configuration.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
@@ -18,7 +18,7 @@ import { Configuration } from '../common/configurationModels.js';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
+import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders, IStoredWorkspaceFile, isStoredWorkspaceFile, IWorkspaceFileCreationData, getStoredWorkspaceFile, toWorkspaceFiles } from '../../../../platform/workspaces/common/workspaces.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationEditing, EditableConfigurationTarget } from '../common/configurationEditing.js';
 import { WorkspaceConfiguration, FolderConfiguration, RemoteUserConfiguration, UserConfiguration, DefaultConfiguration, ApplicationConfiguration } from './configuration.js';
@@ -88,6 +88,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 	private readonly _onDidChangeWorkspaceFolders: Emitter<IWorkspaceFoldersChangeEvent> = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
+
+	private readonly _onDidChangeWorkspaceFiles: Emitter<IWorkspaceFilesChangeEvent> = this._register(new Emitter<IWorkspaceFilesChangeEvent>());
+	public readonly onDidChangeWorkspaceFiles: Event<IWorkspaceFilesChangeEvent> = this._onDidChangeWorkspaceFiles.event;
 
 	private readonly _onDidChangeWorkspaceName: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
@@ -314,6 +317,80 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return this.onWorkspaceConfigurationChanged(false);
 	}
 
+	public addFiles(filesToAdd: IWorkspaceFileCreationData[]): Promise<void> {
+		return this.updateFiles(filesToAdd, []);
+	}
+
+	public removeFiles(filesToRemove: URI[]): Promise<void> {
+		return this.updateFiles([], filesToRemove);
+	}
+
+	public async updateFiles(filesToAdd: IWorkspaceFileCreationData[], filesToRemove: URI[]): Promise<void> {
+		return this.workspaceEditingQueue.queue(() => this.doUpdateFiles(filesToAdd, filesToRemove));
+	}
+
+	private async doUpdateFiles(filesToAdd: IWorkspaceFileCreationData[], filesToRemove: URI[]): Promise<void> {
+		if (this.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+			return Promise.resolve(undefined); // we need a workspace to begin with
+		}
+
+		if (filesToAdd.length + filesToRemove.length === 0) {
+			return Promise.resolve(undefined); // nothing to do
+		}
+
+		let filesHaveChanged = false;
+
+		// Remove first (if any)
+		const currentWorkspaceFiles = this.getWorkspace().files ?? [];
+		let newStoredFiles: IStoredWorkspaceFile[] = currentWorkspaceFiles.map(f => f.raw).filter((file, index): file is IStoredWorkspaceFile => {
+			if (!isStoredWorkspaceFile(file)) {
+				return true; // keep entries which are unrelated
+			}
+
+			return !this.contains(filesToRemove, currentWorkspaceFiles[index].uri); // keep entries which are unrelated
+		});
+
+		filesHaveChanged = currentWorkspaceFiles.length !== newStoredFiles.length;
+
+		// Add afterwards (if any)
+		if (filesToAdd.length) {
+			const workspaceConfigPath = this.getWorkspace().configuration!;
+			const workspaceConfigFolder = this.uriIdentityService.extUri.dirname(workspaceConfigPath);
+			const currentFileUris = toWorkspaceFiles(newStoredFiles, workspaceConfigPath, this.uriIdentityService.extUri).map(f => f.uri);
+
+			const storedFilesToAdd: IStoredWorkspaceFile[] = [];
+
+			for (const fileToAdd of filesToAdd) {
+				const fileURI = fileToAdd.uri;
+				if (this.contains(currentFileUris, fileURI)) {
+					continue; // already existing
+				}
+				storedFilesToAdd.push(getStoredWorkspaceFile(fileURI, false, fileToAdd.name, workspaceConfigFolder, this.uriIdentityService.extUri));
+			}
+
+			if (storedFilesToAdd.length > 0) {
+				filesHaveChanged = true;
+				newStoredFiles = [...newStoredFiles, ...storedFilesToAdd];
+			}
+		}
+
+		// Set files if we recorded a change
+		if (filesHaveChanged) {
+			return this.setWorkspaceFiles(newStoredFiles);
+		}
+
+		return Promise.resolve(undefined);
+	}
+
+	private async setWorkspaceFiles(files: IStoredWorkspaceFile[]): Promise<void> {
+		if (!this.instantiationService) {
+			throw new Error('Cannot update workspace files because workspace service is not yet ready to accept writes.');
+		}
+
+		await this.instantiationService.invokeFunction(accessor => this.workspaceConfiguration.setFiles(files, accessor.get(IJSONEditingService)));
+		return this.onWorkspaceConfigurationChanged(false);
+	}
+
 	private contains(resources: URI[], toCheck: URI): boolean {
 		return resources.some(resource => this.uriIdentityService.extUri.isEqual(resource, toCheck));
 	}
@@ -522,8 +599,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		await this.workspaceConfiguration.initialize({ id: workspaceIdentifier.id, configPath: workspaceIdentifier.configPath }, this.isWorkspaceTrusted);
 		const workspaceConfigPath = workspaceIdentifier.configPath;
 		const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), workspaceConfigPath, this.uriIdentityService.extUri);
+		const workspaceFiles = toWorkspaceFiles(this.workspaceConfiguration.getFiles(), workspaceConfigPath, this.uriIdentityService.extUri);
 		const workspaceId = workspaceIdentifier.id;
-		const workspace = new Workspace(workspaceId, workspaceFolders, this.workspaceConfiguration.isTransient(), workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const workspace = new Workspace(workspaceId, workspaceFolders, this.workspaceConfiguration.isTransient(), workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri), workspaceFiles);
 		workspace.initialized = this.workspaceConfiguration.initialized;
 		return workspace;
 	}
@@ -604,6 +682,13 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				result.removed.push(currentFolder);
 			}
 		}
+		return result;
+	}
+
+	private compareFiles(currentFiles: IWorkspaceFile[], newFiles: IWorkspaceFile[]): IWorkspaceFilesChangeEvent {
+		const result: IWorkspaceFilesChangeEvent = { added: [], removed: [] };
+		result.added = newFiles.filter(newFile => !currentFiles.some(currentFile => newFile.uri.toString() === currentFile.uri.toString()));
+		result.removed = currentFiles.filter(currentFile => !newFiles.some(newFile => currentFile.uri.toString() === newFile.uri.toString()));
 		return result;
 	}
 
@@ -829,6 +914,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private async onWorkspaceConfigurationChanged(fromCache: boolean): Promise<void> {
 		if (this.workspace && this.workspace.configuration) {
 			let newFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), this.workspace.configuration, this.uriIdentityService.extUri);
+			const newFiles = toWorkspaceFiles(this.workspaceConfiguration.getFiles(), this.workspace.configuration, this.uriIdentityService.extUri);
 
 			// Validate only if workspace is initialized
 			if (this.workspace.initialized) {
@@ -844,7 +930,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 				}
 			}
 
-			await this.updateWorkspaceConfiguration(newFolders, this.workspaceConfiguration.getConfiguration(), fromCache);
+			await this.updateWorkspaceConfiguration(newFolders, newFiles, this.workspaceConfiguration.getConfiguration(), fromCache);
 		}
 	}
 
@@ -898,7 +984,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	private async updateWorkspaceConfiguration(workspaceFolders: WorkspaceFolder[], configuration: ConfigurationModel, fromCache: boolean): Promise<void> {
+	private async updateWorkspaceConfiguration(workspaceFolders: WorkspaceFolder[], workspaceFiles: WorkspaceFile[], configuration: ConfigurationModel, fromCache: boolean): Promise<void> {
 		const previous = { data: this._configuration.toData(), workspace: this.workspace };
 		const change = this._configuration.compareAndUpdateWorkspaceConfiguration(configuration);
 		const changes = this.compareFolders(this.workspace.folders, workspaceFolders);
@@ -911,6 +997,14 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		} else {
 			this.triggerConfigurationChange(change, previous, ConfigurationTarget.WORKSPACE);
 		}
+
+		// Handle workspace file changes
+		const fileChanges = this.compareFiles(this.workspace.files, workspaceFiles);
+		if (fileChanges.added.length || fileChanges.removed.length) {
+			this.workspace.files = workspaceFiles;
+			this._onDidChangeWorkspaceFiles.fire(fileChanges);
+		}
+
 		this.updateRestrictedSettings();
 	}
 
@@ -976,14 +1070,14 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const validWorkspaceFolders = await this.toValidWorkspaceFolders(this.workspace.folders);
 		const { removed } = this.compareFolders(this.workspace.folders, validWorkspaceFolders);
 		if (removed.length) {
-			await this.updateWorkspaceConfiguration(validWorkspaceFolders, this.workspaceConfiguration.getConfiguration(), fromCache);
+			await this.updateWorkspaceConfiguration(validWorkspaceFolders, this.workspace.files, this.workspaceConfiguration.getConfiguration(), fromCache);
 		}
 	}
 
 	// Filter out workspace folders which are files (not directories)
 	// Workspace folders those cannot be resolved are not filtered because they are handled by the Explorer.
 	private async toValidWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<WorkspaceFolder[]> {
-		const validWorkspaceFolders: WorkspaceFolder[] = [];
+		const validWorkspaceFolders: WorkspaceFolder[] = []; 
 		for (const workspaceFolder of workspaceFolders) {
 			try {
 				const result = await this.fileService.stat(workspaceFolder.uri);

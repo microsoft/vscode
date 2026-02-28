@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, isSavedWorkspace, isUntitledWorkspace, isWorkspaceIdentifier, IWorkspaceContextService, IWorkspaceIdentifier, toWorkspaceIdentifier, WorkbenchState, WORKSPACE_EXTENSION, WORKSPACE_FILTER } from '../../../../platform/workspace/common/workspace.js';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from '../../configuration/common/jsonEditing.js';
-import { IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, IEnterWorkspaceResult, IStoredWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
+import { IWorkspaceFolderCreationData, IWorkspaceFileCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, IEnterWorkspaceResult, IStoredWorkspace } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkspaceService } from '../../configuration/browser/configurationService.js';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -239,6 +239,42 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		// Delegate removal of folders to workspace service otherwise
 		try {
 			await this.contextService.removeFolders(foldersToRemove);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
+	}
+
+	async addFiles(filesToAdd: IWorkspaceFileCreationData[], donotNotifyError = false): Promise<void> {
+		const state = this.contextService.getWorkbenchState();
+
+		// If we are in no-workspace or single-folder workspace, adding files has to
+		// enter a workspace first.
+		if (state !== WorkbenchState.WORKSPACE) {
+			const newWorkspaceFolders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
+			await this.createAndEnterWorkspace(newWorkspaceFolders);
+		}
+
+		// Delegate addition of files to workspace service
+		try {
+			await this.contextService.addFiles(filesToAdd);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
+	}
+
+	async removeFiles(filesToRemove: URI[], donotNotifyError = false): Promise<void> {
+
+		// Delegate removal of files to workspace service
+		try {
+			await this.contextService.removeFiles(filesToRemove);
 		} catch (error) {
 			if (donotNotifyError) {
 				throw error;

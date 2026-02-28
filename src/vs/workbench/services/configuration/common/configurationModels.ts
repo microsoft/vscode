@@ -6,7 +6,7 @@
 import { equals } from '../../../../base/common/objects.js';
 import { toValuesTree, IConfigurationModel, IConfigurationOverrides, IConfigurationValue, IConfigurationChange } from '../../../../platform/configuration/common/configuration.js';
 import { Configuration as BaseConfiguration, ConfigurationModelParser, ConfigurationModel, ConfigurationParseOptions } from '../../../../platform/configuration/common/configurationModels.js';
-import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
+import { IStoredWorkspaceFolder, IStoredWorkspaceFile } from '../../../../platform/workspaces/common/workspaces.js';
 import { Workspace } from '../../../../platform/workspace/common/workspace.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,6 +18,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
 
 	private _folders: IStoredWorkspaceFolder[] = [];
+	private _files: IStoredWorkspaceFile[] = [];
 	private _transient: boolean = false;
 	private _settingsModelParser: ConfigurationModelParser;
 	private _launchModel: ConfigurationModel;
@@ -32,6 +33,10 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 
 	get folders(): IStoredWorkspaceFolder[] {
 		return this._folders;
+	}
+
+	get files(): IStoredWorkspaceFile[] {
+		return this._files;
 	}
 
 	get transient(): boolean {
@@ -60,6 +65,7 @@ export class WorkspaceConfigurationModelParser extends ConfigurationModelParser 
 
 	protected override doParseRaw(raw: IStringDictionary<unknown>, configurationParseOptions?: ConfigurationParseOptions): IConfigurationModel {
 		this._folders = (raw['folders'] || []) as IStoredWorkspaceFolder[];
+		this._files = (raw['files'] || []) as IStoredWorkspaceFile[];
 		this._transient = isBoolean(raw['transient']) && raw['transient'];
 		this._settingsModelParser.parseRaw(raw['settings'] as IStringDictionary<unknown>, configurationParseOptions);
 		this._launchModel = this.createConfigurationModelFrom(raw, 'launch');
