@@ -1229,10 +1229,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, elementIndex: number, templateData: IChatListItemTemplate): void {
 		const renderedParts = templateData.renderedParts ?? [];
 		templateData.renderedParts = renderedParts;
-		const lastMarkdownIndex = partsToRender.findLastIndex(part => part?.kind === 'markdownContent');
 		partsToRender.forEach((partToRender, contentIndex) => {
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
-			const isFinalAnswerPart = partToRender?.kind === 'markdownContent' && contentIndex === lastMarkdownIndex && element.isComplete;
+			const isFinalAnswerPart = this.isFinalAnswerMarkdownPart(contentForThisTurn, contentIndex, element);
 
 			if (!partToRender) {
 				// null=no change
@@ -1308,7 +1307,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				try {
 					if (alreadyRenderedPart?.domNode) {
 						if (newPart.domNode) {
-							alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+							if (isFinalAnswerPart && this.isRenderedPartInsideThinking(alreadyRenderedPart)) {
+								alreadyRenderedPart.domNode.remove();
+								templateData.value.appendChild(newPart.domNode);
+							} else {
+								alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+							}
 						} else {
 							alreadyRenderedPart.domNode.remove();
 						}
@@ -1450,12 +1454,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private diff(renderedParts: ReadonlyArray<IChatContentPart>, contentToRender: ReadonlyArray<IChatRendererContent>, element: ChatTreeItem): ReadonlyArray<IChatRendererContent | null> {
 		const diff: (IChatRendererContent | null)[] = [];
-		const elementIsComplete = isResponseVM(element) && element.isComplete;
-		const lastMarkdownContentIndex = contentToRender.findLastIndex(part => part.kind === 'markdownContent');
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
 			const renderedPart = renderedParts[i];
-			const isFinalAnswerPart = content.kind === 'markdownContent' && i === lastMarkdownContentIndex && elementIsComplete;
+			const isFinalAnswerPart = this.isFinalAnswerMarkdownPart(contentToRender, i, element);
 
 			if (isFinalAnswerPart && this.isRenderedPartInsideThinking(renderedPart)) {
 				diff.push(content);
@@ -1471,6 +1473,26 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return diff;
+	}
+
+	private isFinalAnswerMarkdownPart(content: ReadonlyArray<IChatRendererContent>, index: number, element: ChatTreeItem): boolean {
+		if (!isResponseVM(element) || !element.isComplete) {
+			return false;
+		}
+
+		const part = content[index];
+		if (!part || part.kind !== 'markdownContent') {
+			return false;
+		}
+
+		const lastPinnedPartIndex = content.findLastIndex(c =>
+			c.kind === 'thinking'
+			|| c.kind === 'toolInvocation'
+			|| c.kind === 'toolInvocationSerialized'
+			|| c.kind === 'textEditGroup'
+			|| c.kind === 'hook');
+
+		return index > lastPinnedPartIndex;
 	}
 
 	private isRenderedPartInsideThinking(renderedPart: IChatContentPart | undefined): boolean {
@@ -2381,9 +2403,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderMarkdown(markdown: IChatMarkdownContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const element = context.element;
-		const isFinalRenderPass = isResponseVM(element) && element.isComplete && !element.renderData;
-		const lastPinnedPartIndex = isFinalRenderPass ? context.content.findLastIndex(c => c.kind === 'thinking' || c.kind === 'toolInvocation' || c.kind === 'toolInvocationSerialized') : -1;
-		const isFinalAnswerPart = isFinalRenderPass && context.contentIndex > lastPinnedPartIndex;
+		const isFinalAnswerPart = this.isFinalAnswerMarkdownPart(context.content, context.contentIndex, element);
 		if (!this.hasCodeblockUri(markdown) || isFinalAnswerPart) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
