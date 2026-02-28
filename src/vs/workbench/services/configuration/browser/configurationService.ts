@@ -329,6 +329,28 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return this.workspaceEditingQueue.queue(() => this.doUpdateFiles(filesToAdd, filesToRemove));
 	}
 
+	public async reorderFiles(files: IWorkspaceFileCreationData[]): Promise<void> {
+		return this.workspaceEditingQueue.queue(() => this.doReorderFiles(files));
+	}
+
+	private async doReorderFiles(files: IWorkspaceFileCreationData[]): Promise<void> {
+		if (this.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+			return;
+		}
+
+		if (files.length === 0) {
+			return;
+		}
+
+		const workspaceConfigPath = this.getWorkspace().configuration!;
+		const workspaceConfigFolder = this.uriIdentityService.extUri.dirname(workspaceConfigPath);
+		const newStoredFiles: IStoredWorkspaceFile[] = files.map(file =>
+			getStoredWorkspaceFile(file.uri, false, file.name, workspaceConfigFolder, this.uriIdentityService.extUri)
+		);
+
+		return this.setWorkspaceFiles(newStoredFiles);
+	}
+
 	private async doUpdateFiles(filesToAdd: IWorkspaceFileCreationData[], filesToRemove: URI[]): Promise<void> {
 		if (this.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 			return Promise.resolve(undefined); // we need a workspace to begin with
@@ -692,6 +714,18 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return result;
 	}
 
+	private hasFileOrderChanged(currentFiles: IWorkspaceFile[], newFiles: IWorkspaceFile[]): boolean {
+		if (currentFiles.length !== newFiles.length) {
+			return true;
+		}
+		for (let i = 0; i < currentFiles.length; i++) {
+			if (currentFiles[i].uri.toString() !== newFiles[i].uri.toString()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	private async initializeConfiguration(trigger: boolean): Promise<void> {
 		await this.defaultConfiguration.initialize();
 
@@ -1000,7 +1034,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		// Handle workspace file changes
 		const fileChanges = this.compareFiles(this.workspace.files, workspaceFiles);
-		if (fileChanges.added.length || fileChanges.removed.length) {
+		if (fileChanges.added.length || fileChanges.removed.length || this.hasFileOrderChanged(this.workspace.files, workspaceFiles)) {
 			this.workspace.files = workspaceFiles;
 			this._onDidChangeWorkspaceFiles.fire(fileChanges);
 		}

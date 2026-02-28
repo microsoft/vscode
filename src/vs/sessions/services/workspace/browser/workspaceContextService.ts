@@ -108,6 +108,10 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 
 	async removeFiles(_files: URI[]): Promise<void> { }
 
+	async updateFiles(_filesToAdd: { uri: URI; name?: string }[], _filesToRemove: URI[]): Promise<void> { }
+
+	async reorderFiles(_files: { uri: URI; name?: string }[]): Promise<void> { }
+
 	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void> {
 		return this._updateFoldersQueue.queue(() => this._doUpdateFolders(foldersToAdd, foldersToRemove, index));
 	}

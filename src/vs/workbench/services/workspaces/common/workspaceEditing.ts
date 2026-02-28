@@ -65,6 +65,18 @@ export interface IWorkspaceEditingService {
 	removeFiles(files: URI[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
+	 * Allows to add and remove standalone files from the existing workspace at once.
+	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 */
+	updateFiles(filesToAdd: IWorkspaceFileCreationData[], filesToRemove: URI[], donotNotifyError?: boolean): Promise<void>;
+
+	/**
+	 * Reorder standalone files in the existing workspace.
+	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 */
+	reorderFiles(files: IWorkspaceFileCreationData[], donotNotifyError?: boolean): Promise<void>;
+
+	/**
 	 * Enters the workspace with the provided path.
 	 */
 	enterWorkspace(path: URI): Promise<void>;

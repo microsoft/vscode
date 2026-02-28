@@ -284,6 +284,34 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
+	async updateFiles(filesToAdd: IWorkspaceFileCreationData[], filesToRemove: URI[], donotNotifyError = false): Promise<void> {
+
+		// Delegate update of files to workspace service
+		try {
+			await this.contextService.updateFiles(filesToAdd, filesToRemove);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
+	}
+
+	async reorderFiles(files: IWorkspaceFileCreationData[], donotNotifyError = false): Promise<void> {
+
+		// Delegate reorder of files to workspace service
+		try {
+			await this.contextService.reorderFiles(files);
+		} catch (error) {
+			if (donotNotifyError) {
+				throw error;
+			}
+
+			this.handleWorkspaceConfigurationEditingError(error);
+		}
+	}
+
 	private includesSingleFolderWorkspace(folders: URI[]): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 			const workspaceFolder = this.contextService.getWorkspace().folders[0];
