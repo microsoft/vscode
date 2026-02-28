@@ -2150,7 +2150,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			actionContext: { widget },
 			onlyShowIconsForDefaultActions: observableFromEvent(
 				this._inputEditor.onDidLayoutChange,
-				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 650 /* This is a magical number based on testing*/
+				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 400 /* This is a magical number based on testing*/
 			).recomputeInitiallyAndOnChange(this._store),
 			hoverPosition: {
 				forcePosition: true,
