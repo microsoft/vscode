@@ -83,6 +83,10 @@ from typing import List, Tuple, Any
 
 # === Command types (Elm-style commands for VS Code to execute) ===
 
+@dataclass(frozen=True, slots=True)
+class CopyToClipboard:
+    text: str
+
 # === Event types ===
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +138,11 @@ class FirstMatchToggle:
 @dataclass(frozen=True, slots=True)
 class CaseSensitiveToggle:
     pass
+
+@dataclass(frozen=True, slots=True)
+class ActionButtonClick:
+    action: str  # 'get_transform', 'replace', 'delete', 'loop', 'any', 'all', 'if_any', 'if_all', 'count'
+    copy: bool   # True → CopyToClipboard, False → NewCode
 
 @dataclass(frozen=True, slots=True)
 class RepetitionInput:
