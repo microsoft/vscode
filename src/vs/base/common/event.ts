@@ -530,7 +530,16 @@ export namespace Event {
 				}, _bufferLeakWarnTimeThreshold),
 				warned: false
 			};
+			if (disposable) {
+				disposable.add(toDisposable(() => clearTimeout(bufferLeakWarningData!.timerId)));
+			}
 		}
+
+		const clearLeakWarningTimer = () => {
+			if (bufferLeakWarningData) {
+				clearTimeout(bufferLeakWarningData.timerId);
+			}
+		};
 
 		let listener: IDisposable | null = event(e => {
 			if (buffer) {
@@ -552,9 +561,7 @@ export namespace Event {
 		const flush = () => {
 			buffer?.forEach(e => emitter.fire(e));
 			buffer = null;
-			if (_isBufferLeakWarningEnabled() && bufferLeakWarningData) {
-				clearTimeout(bufferLeakWarningData.timerId);
-			}
+			clearLeakWarningTimer();
 		};
 
 		const emitter = new Emitter<T>({
@@ -582,6 +589,7 @@ export namespace Event {
 					listener.dispose();
 				}
 				listener = null;
+				clearLeakWarningTimer();
 			}
 		});
 
