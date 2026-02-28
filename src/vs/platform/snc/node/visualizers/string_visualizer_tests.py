@@ -145,7 +145,7 @@ class TestBasics(unittest.TestCase):
         # Note: stringValue is no longer stored in model - it's passed as parameter
         self.assertEqual(model['undoHistory'], [])
         self.assertEqual(model['redoHistory'], [])
-        self.assertEqual(model['handledKeys'], ["Escape", "Enter", "Backspace", "cmd z", "cmd shift z"])
+        self.assertEqual(model['handledKeys'], ["Escape", "Enter", "cmd Backspace", "cmd r", "cmd z", "cmd shift z"])
 
     def test_null_event_returns_unchanged_model(self):
         """Passing None event returns model unchanged with no commands."""
@@ -970,7 +970,7 @@ class TestKeyboardEvents(unittest.TestCase):
         """Backspace key returns (suggest_var_name, expr) tuple for re.sub deletion."""
         model = self._create_hello_selection(self.model)
 
-        model, commands = update(make_key_down_event('Backspace'),
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
                                 self.source_code, self.source_line, model, self.value)
 
         self.assertEqual(len(commands), 1)
@@ -996,7 +996,7 @@ class TestKeyboardEvents(unittest.TestCase):
         source_code = "x = 'hello world'\nx2 = 'already used'\nx3 = 'also used'"
         model = self._create_hello_selection(self.model)
 
-        model, commands = update(make_key_down_event('Backspace'),
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
                                 source_code, self.source_line, model, self.value)
 
         self.assertEqual(len(commands), 1)
@@ -1006,7 +1006,7 @@ class TestKeyboardEvents(unittest.TestCase):
 
     def test_backspace_without_selection_does_nothing(self):
         """Backspace without selection produces no commands."""
-        model, commands = update(make_key_down_event('Backspace'),
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
                                 self.source_code, self.source_line, self.model, self.value)
 
         self.assertEqual(commands, [])
@@ -3200,7 +3200,7 @@ class TestFindAvailableVariableName(unittest.TestCase):
         source_code = "print('hello world')"
         model = init_model("hello world")
         model['search'] = '/hello/'
-        model, commands = update(make_key_down_event('Backspace'),
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
                                 source_code, 1, model, "hello world")
         self.assertEqual(len(commands), 1)
         suggest_name, expr = commands[0]
@@ -4796,7 +4796,7 @@ class TestFirstMatchBackspaceCodeGen(unittest.TestCase):
     def test_many_match_backspace_generates_sub(self):
         """Default many-match Backspace generates re.sub without count."""
         self.model['search'] = '/hello/'
-        model, commands = update(make_key_down_event('Backspace'),
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
                                 self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         suggest_name, expr = commands[0]
@@ -4807,7 +4807,7 @@ class TestFirstMatchBackspaceCodeGen(unittest.TestCase):
     def test_first_match_backspace_generates_sub_with_count(self):
         """First-match Backspace generates re.sub with count=1."""
         self.model['search'] = '/hello/1'
-        model, commands = update(make_key_down_event('Backspace'),
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
                                 self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         suggest_name, expr = commands[0]
@@ -5104,7 +5104,7 @@ class TestCaseInsensitiveBackspaceCodeGen(unittest.TestCase):
 
     def test_case_sensitive_backspace_no_re_I(self):
         self.model['search'] = '/hello/'
-        model, commands = update(make_key_down_event('Backspace'),
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
                                 self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
@@ -5112,7 +5112,7 @@ class TestCaseInsensitiveBackspaceCodeGen(unittest.TestCase):
 
     def test_case_insensitive_backspace_has_re_I(self):
         self.model['search'] = '/hello/i'
-        model, commands = update(make_key_down_event('Backspace'),
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
                                 self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
@@ -5122,7 +5122,7 @@ class TestCaseInsensitiveBackspaceCodeGen(unittest.TestCase):
     def test_case_insensitive_first_match_backspace(self):
         """Case-insensitive + first-match Backspace uses count=1 and re.I."""
         self.model['search'] = '/hello/1i'
-        model, commands = update(make_key_down_event('Backspace'),
+        model, commands = update(make_key_down_event('Backspace', meta_key=True),
                                 self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
@@ -5540,7 +5540,7 @@ class TestStringSearchBackspaceCodeGen(unittest.TestCase):
 
     def test_many_match_case_sensitive(self):
         self.model['search'] = "'hello'"
-        _, commands = update(make_key_down_event('Backspace'),
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         suggest_name, expr = commands[0]
@@ -5550,7 +5550,7 @@ class TestStringSearchBackspaceCodeGen(unittest.TestCase):
 
     def test_first_match_case_sensitive(self):
         self.model['search'] = "'hello'1"
-        _, commands = update(make_key_down_event('Backspace'),
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
@@ -5558,7 +5558,7 @@ class TestStringSearchBackspaceCodeGen(unittest.TestCase):
 
     def test_many_match_case_insensitive(self):
         self.model['search'] = "'hello'i"
-        _, commands = update(make_key_down_event('Backspace'),
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
@@ -5568,7 +5568,7 @@ class TestStringSearchBackspaceCodeGen(unittest.TestCase):
 
     def test_first_match_case_insensitive(self):
         self.model['search'] = "'hello'1i"
-        _, commands = update(make_key_down_event('Backspace'),
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
@@ -5822,7 +5822,7 @@ class TestExpressionSearchBackspaceCodeGen(unittest.TestCase):
 
     def test_backtick_many_cs(self):
         self.model['search'] = '`s`'
-        _, commands = update(make_key_down_event('Backspace'),
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         name, expr = commands[0]
@@ -5831,14 +5831,14 @@ class TestExpressionSearchBackspaceCodeGen(unittest.TestCase):
 
     def test_backtick_first_cs(self):
         self.model['search'] = '`s`1'
-        _, commands = update(make_key_down_event('Backspace'),
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
                             self.source_code, self.source_line, self.model, self.value)
         _, expr = commands[0]
         self.assertIn(".replace(s, '', 1)", expr)
 
     def test_backtick_many_ci(self):
         self.model['search'] = '`s`i'
-        _, commands = update(make_key_down_event('Backspace'),
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
                             self.source_code, self.source_line, self.model, self.value)
         _, expr = commands[0]
         self.assertIn('re.sub(re.escape(s)', expr)
@@ -5846,7 +5846,7 @@ class TestExpressionSearchBackspaceCodeGen(unittest.TestCase):
 
     def test_backtick_first_ci(self):
         self.model['search'] = '`s`1i'
-        _, commands = update(make_key_down_event('Backspace'),
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
                             self.source_code, self.source_line, self.model, self.value)
         _, expr = commands[0]
         self.assertIn('re.sub(re.escape(s)', expr)
