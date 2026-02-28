@@ -7,6 +7,9 @@ import { DecreaseHoverVerbosityLevel, GoToBottomHoverAction, GoToTopHoverAction,
 import { EditorContributionInstantiation, registerEditorAction, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { editorHoverBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID } from './hoverActionIds.js';
 import { HoverParticipantRegistry } from './hoverTypes.js';
 import { MarkdownHoverParticipant } from './markdownHoverParticipant.js';
 import { MarkerHoverParticipant } from './markerHoverParticipant.js';
@@ -33,6 +36,9 @@ registerEditorAction(IncreaseHoverVerbosityLevel);
 registerEditorAction(DecreaseHoverVerbosityLevel);
 HoverParticipantRegistry.register(MarkdownHoverParticipant);
 HoverParticipantRegistry.register(MarkerHoverParticipant);
+CommandsRegistry.registerCommand(HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID, (accessor) => {
+	accessor.get(IConfigurationService).updateValue('editor.hover.showLongLineWarning', false);
+});
 
 // theming
 registerThemingParticipant((theme, collector) => {
