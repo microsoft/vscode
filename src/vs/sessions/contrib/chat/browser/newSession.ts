@@ -214,7 +214,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		this._repoUri = uri;
 		this._onDidChange.fire('repoUri');
 		this._onDidChange.fire('disabled');
-		this.setOption('repository', uri.fsPath);
+		this.setOption('repository', uri.path.substring(1));
 	}
 
 	setIsolationMode(_mode: IsolationMode): void {
