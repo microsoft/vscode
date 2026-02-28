@@ -239,5 +239,39 @@ suite('Annotations', function () {
 			assert.ok(!md.content.value.includes('_vscodecontentref_'));
 			assert.ok(md.content.value.endsWith('index.ts'));
 		});
+
+		test('inline reference at start of block merges with following markdown', () => {
+			const result = annotateSpecialMarkdownContent([
+				{ kind: 'inlineReference', inlineReference: URI.parse('file:///index.ts'), name: 'index.ts' },
+				{ kind: 'markdownContent', content: new MarkdownString(' is the entry point', { isTrusted: true, supportThemeIcons: true }) },
+			]);
+
+			assert.strictEqual(result.length, 1);
+			const md = result[0] as IChatMarkdownContent;
+			assert.ok(md.content.value.includes('[index.ts]'));
+			assert.ok(md.content.value.includes('_vscodecontentref_'));
+			assert.ok(md.content.value.endsWith(' is the entry point'));
+			assert.ok(md.inlineReferences);
+			assert.strictEqual(md.content.isTrusted, true);
+			assert.strictEqual(md.content.supportThemeIcons, true);
+		});
+
+		test('inline reference after regular text does not force-merge incompatible markdown', () => {
+			const result = annotateSpecialMarkdownContent([
+				content('See '),
+				{ kind: 'inlineReference', inlineReference: URI.parse('file:///index.ts'), name: 'index.ts' },
+				{ kind: 'markdownContent', content: new MarkdownString(' more info', { isTrusted: true, supportThemeIcons: true }) },
+			]);
+
+			// The first item has "See [index.ts](...)" with default markdown properties,
+			// the second item has different properties - they must stay separate.
+			assert.strictEqual(result.length, 2);
+			const first = result[0] as IChatMarkdownContent;
+			assert.ok(first.content.value.startsWith('See '));
+			assert.ok(first.inlineReferences);
+			const second = result[1] as IChatMarkdownContent;
+			assert.strictEqual(second.content.value, ' more info');
+			assert.strictEqual(second.content.isTrusted, true);
+		});
 	});
 });
