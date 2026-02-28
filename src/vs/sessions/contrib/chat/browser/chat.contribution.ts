@@ -17,7 +17,6 @@ import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensi
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { isAgentSession } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
@@ -37,6 +36,8 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -50,7 +51,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 				id: Menus.TitleBarRight,
 				group: 'navigation',
 				order: 10,
-				when: IsAuxiliaryWindowContext.toNegated()
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 			}]
 		});
 	}
@@ -65,7 +66,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			return;
 		}
 
-		const folderUri = isAgentSession(activeSession) && activeSession.providerType !== AgentSessionProviders.Cloud ? activeSession.worktree : undefined;
+		const folderUri = activeSession.providerType === AgentSessionProviders.Background ? activeSession?.worktree ?? activeSession?.repository : undefined;
 
 		if (!folderUri) {
 			return;
@@ -137,11 +138,11 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		let chatViewContainer = viewContainerRegistry.get(ChatViewContainerId);
 		if (chatViewContainer) {
-			viewContainerRegistry.deregisterViewContainer(chatViewContainer);
 			const view = viewsRegistry.getView(ChatViewId);
 			if (view) {
 				viewsRegistry.deregisterViews([view], chatViewContainer);
 			}
+			viewContainerRegistry.deregisterViewContainer(chatViewContainer);
 		}
 
 		chatViewContainer = viewContainerRegistry.registerViewContainer({

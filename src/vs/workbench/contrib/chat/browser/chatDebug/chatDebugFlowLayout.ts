@@ -830,6 +830,7 @@ function renderNodes(svg: SVGElement, nodes: readonly LayoutNode[], focusableEle
 
 		// Merged-discovery expand/collapse toggle on the right side
 		if (node.mergedCount) {
+			g.setAttribute('data-is-toggle', 'true');
 			renderMergedToggle(g, node, color, fontFamily);
 		}
 

@@ -312,10 +312,15 @@ export class ChatDebugFlowChartView extends Disposable {
 
 			switch (e.key) {
 				case 'Tab': {
-					e.preventDefault();
+					// Navigate between flow chart nodes; allow natural tab-out
+					// when at the boundary so focus can reach the detail panel.
 					if (this.focusedElementId) {
-						this.focusAdjacentElement(this.focusedElementId, e.shiftKey ? -1 : 1);
-					} else {
+						const moved = this.focusAdjacentElement(this.focusedElementId, e.shiftKey ? -1 : 1);
+						if (moved) {
+							e.preventDefault();
+						}
+					} else if (!e.shiftKey) {
+						e.preventDefault();
 						this.focusFirstElement();
 					}
 					break;
@@ -325,14 +330,20 @@ export class ChatDebugFlowChartView extends Disposable {
 					if (subgraphId) {
 						e.preventDefault();
 						e.stopPropagation();
+						this.detailPanel.hide();
 						this.toggleSubgraph(subgraphId);
 					} else {
 						const nodeId = target.getAttribute?.('data-node-id');
 						if (nodeId) {
 							e.preventDefault();
-							const event = this.eventById.get(nodeId);
-							if (event) {
-								this.detailPanel.show(event);
+							if (target.getAttribute?.('data-is-toggle')) {
+								this.detailPanel.hide();
+								this.toggleMergedDiscovery(nodeId);
+							} else {
+								const event = this.eventById.get(nodeId);
+								if (event) {
+									this.detailPanel.show(event);
+								}
 							}
 						}
 					}
@@ -396,6 +407,7 @@ export class ChatDebugFlowChartView extends Disposable {
 		} else {
 			this.expandedMergedIds.add(mergedId);
 		}
+		this.focusedElementId = mergedId;
 		this.load();
 	}
 
@@ -419,23 +431,25 @@ export class ChatDebugFlowChartView extends Disposable {
 		}
 	}
 
-	private focusAdjacentElement(currentMapKey: string, direction: 1 | -1): void {
+	private focusAdjacentElement(currentMapKey: string, direction: 1 | -1): boolean {
 		if (!this.renderResult) {
-			return;
+			return false;
 		}
 		const keys = [...this.renderResult.focusableElements.keys()];
 		const idx = keys.indexOf(currentMapKey);
 		if (idx === -1) {
-			return;
+			return false;
 		}
 		const nextIdx = idx + direction;
 		if (nextIdx < 0 || nextIdx >= keys.length) {
-			return;
+			return false;
 		}
 		const el = this.renderResult.focusableElements.get(keys[nextIdx]);
 		if (el) {
 			(el as SVGElement).focus();
+			return true;
 		}
+		return false;
 	}
 
 	private restoreFocus(elementId: string): void {
@@ -506,20 +520,27 @@ export class ChatDebugFlowChartView extends Disposable {
 			// Merged-discovery expand toggle
 			const mergedId = target.getAttribute?.('data-merged-id');
 			if (mergedId) {
+				this.detailPanel.hide();
 				this.toggleMergedDiscovery(mergedId);
 				return;
 			}
 			const subgraphId = target.getAttribute?.('data-subgraph-id');
 			if (subgraphId) {
+				this.detailPanel.hide();
 				this.toggleSubgraph(subgraphId);
 				return;
 			}
 			const nodeId = target.getAttribute?.('data-node-id');
 			if (nodeId) {
 				(target as HTMLElement).focus();
-				const event = this.eventById.get(nodeId);
-				if (event) {
-					this.detailPanel.show(event);
+				if (target.getAttribute?.('data-is-toggle')) {
+					this.detailPanel.hide();
+					this.toggleMergedDiscovery(nodeId);
+				} else {
+					const event = this.eventById.get(nodeId);
+					if (event) {
+						this.detailPanel.show(event);
+					}
 				}
 				return;
 			}

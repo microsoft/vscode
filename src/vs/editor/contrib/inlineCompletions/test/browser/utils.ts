@@ -5,34 +5,34 @@
 
 import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
-import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
-import { Position } from '../../../../common/core/position.js';
-import { ITextModel } from '../../../../common/model.js';
-import { IInlineCompletionChangeHint, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
-import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
-import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
 import { autorun, derived } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { CoreEditingCommands, CoreNavigationCommands } from '../../../../browser/coreCommands.js';
+import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
+import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
+import { TextEdit } from '../../../../common/core/edits/textEdit.js';
+import { Position } from '../../../../common/core/position.js';
+import { Range } from '../../../../common/core/range.js';
+import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
+import { IInlineCompletionChangeHint, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { LanguageFeaturesService } from '../../../../common/services/languageFeaturesService.js';
-import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
-import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
-import { Range } from '../../../../common/core/range.js';
-import { TextEdit } from '../../../../common/core/edits/textEdit.js';
-import { BugIndicatingError } from '../../../../../base/common/errors.js';
-import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
-import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
-import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
-import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IRenameSymbolTrackerService, NullRenameSymbolTrackerService } from '../../../../browser/services/renameSymbolTrackerService.js';
-import { ITextModelService, IResolvedTextEditorModel } from '../../../../common/services/resolverService.js';
 import { IModelService } from '../../../../common/services/model.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../common/services/resolverService.js';
+import { ViewModel } from '../../../../common/viewModel/viewModelImpl.js';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { InlineCompletionsController } from '../../browser/controller/inlineCompletionsController.js';
+import { InlineCompletionsModel } from '../../browser/model/inlineCompletionsModel.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -274,6 +274,8 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					onDidChangeDefaultAccount: Event.None,
 					onDidChangePolicyData: Event.None,
 					policyData: null,
+					copilotTokenInfo: null,
+					onDidChangeCopilotTokenInfo: Event.None,
 					getDefaultAccount: async () => null,
 					setDefaultAccountProvider: () => { },
 					getDefaultAccountAuthenticationProvider: () => { return { id: 'mockProvider', name: 'Mock Provider', enterprise: false }; },

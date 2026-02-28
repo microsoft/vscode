@@ -17,7 +17,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { getCleanPromptName } from '../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType, INSTRUCTIONS_DOCUMENTATION_URL, AGENT_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL, HOOK_DOCUMENTATION_URL } from '../../../common/promptSyntax/promptTypes.js';
 import { NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../newPromptFileActions.js';
-import { GENERATE_INSTRUCTIONS_COMMAND_ID, GENERATE_INSTRUCTION_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID, GENERATE_SKILL_COMMAND_ID, GENERATE_AGENT_COMMAND_ID } from '../../actions/chatActions.js';
+import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID, GENERATE_PROMPT_COMMAND_ID, GENERATE_SKILL_COMMAND_ID, GENERATE_AGENT_COMMAND_ID } from '../../actions/chatActions.js';
 import { IKeyMods, IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { askForPromptFileName } from './askForPromptName.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -170,33 +170,33 @@ const NEW_INSTRUCTIONS_FILE_OPTION: IPromptPickerQuickPickItem = {
 };
 
 /**
- * A quick pick item that starts the 'Generate Workspace Instructions' command.
+ * A quick pick item that starts the 'Generate Agent Instructions' command.
  */
-const GENERATE_WORKSPACE_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = {
+const GENERATE_AGENT_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = {
 	type: 'item',
 	label: `$(sparkle) ${localize(
-		'commands.generate-workspace-instructions.select-dialog.label',
-		'Generate workspace instructions with agent...',
+		'commands.generate-agent-instructions.select-dialog.label',
+		'Generate agent instructions...',
 	)}`,
 	pickable: false,
 	alwaysShow: true,
 	buttons: [newHelpButton(PromptsType.instructions)],
-	commandId: GENERATE_INSTRUCTIONS_COMMAND_ID,
+	commandId: GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
 };
 
 /**
- * A quick pick item that starts the 'Generate On-demand Instruction' command.
+ * A quick pick item that starts the 'Generate On-demand Instructions' command.
  */
-const GENERATE_INSTRUCTION_OPTION: IPromptPickerQuickPickItem = {
+const GENERATE_ON_DEMAND_INSTRUCTIONS_OPTION: IPromptPickerQuickPickItem = {
 	type: 'item',
 	label: `$(sparkle) ${localize(
-		'commands.generate-instruction.select-dialog.label',
-		'Generate on-demand instruction with agent...',
+		'commands.generate-on-demand-instructions.select-dialog.label',
+		'Generate on-demand instructions...',
 	)}`,
 	pickable: false,
 	alwaysShow: true,
 	buttons: [newHelpButton(PromptsType.instructions)],
-	commandId: GENERATE_INSTRUCTION_COMMAND_ID,
+	commandId: GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
 };
 
 /**
@@ -236,7 +236,7 @@ const GENERATE_PROMPT_OPTION: IPromptPickerQuickPickItem = {
 	type: 'item',
 	label: `$(sparkle) ${localize(
 		'commands.generate-prompt.select-dialog.label',
-		'Generate prompt with agent...',
+		'Generate prompt...',
 	)}`,
 	pickable: false,
 	alwaysShow: true,
@@ -251,7 +251,7 @@ const GENERATE_SKILL_OPTION: IPromptPickerQuickPickItem = {
 	type: 'item',
 	label: `$(sparkle) ${localize(
 		'commands.generate-skill.select-dialog.label',
-		'Generate skill with agent...',
+		'Generate skill...',
 	)}`,
 	pickable: false,
 	alwaysShow: true,
@@ -266,7 +266,7 @@ const GENERATE_AGENT_OPTION: IPromptPickerQuickPickItem = {
 	type: 'item',
 	label: `$(sparkle) ${localize(
 		'commands.generate-agent.select-dialog.label',
-		'Generate agent with agent...',
+		'Generate agent...',
 	)}`,
 	pickable: false,
 	alwaysShow: true,
@@ -537,7 +537,7 @@ export class PromptFilePickers {
 			case PromptsType.prompt:
 				return [NEW_PROMPT_FILE_OPTION, GENERATE_PROMPT_OPTION];
 			case PromptsType.instructions:
-				return [NEW_INSTRUCTIONS_FILE_OPTION, GENERATE_INSTRUCTION_OPTION, GENERATE_WORKSPACE_INSTRUCTIONS_OPTION];
+				return [NEW_INSTRUCTIONS_FILE_OPTION, GENERATE_ON_DEMAND_INSTRUCTIONS_OPTION, GENERATE_AGENT_INSTRUCTIONS_OPTION];
 			case PromptsType.agent:
 				return [NEW_AGENT_FILE_OPTION, GENERATE_AGENT_OPTION];
 			case PromptsType.skill:

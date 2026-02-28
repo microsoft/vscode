@@ -359,7 +359,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('useModal.all', "All editors open in a centered modal overlay."),
 				],
 				'description': localize('useModal', "Controls whether editors open in a modal overlay."),
-				'default': 'off', // TODO@bpasero figure out the default
+				'default': product.quality !== 'stable' ? 'some' : 'off', // TODO@bpasero figure out the default
 				tags: ['experimental'],
 				experiment: {
 					mode: 'auto'

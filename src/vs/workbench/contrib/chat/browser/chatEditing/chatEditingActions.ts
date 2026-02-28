@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -595,6 +596,55 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 
 		widget?.viewModel?.model.setCheckpoint(item.id);
 		await restoreSnapshotWithConfirmation(accessor, item);
+	}
+});
+
+registerAction2(class RestoreLastCheckpoint extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.restoreLastCheckpoint',
+			title: localize2('chat.restoreLastCheckpoint.label', "Restore to Last Checkpoint"),
+			f1: true,
+			category: CHAT_CATEGORY,
+			icon: Codicon.discard,
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.inChatSession,
+				ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true),
+				ChatContextKeys.lockedToCodingAgent.negate()
+			)
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		let item = args[0] as ChatTreeItem | undefined;
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		const sessionResource = widget?.viewModel?.sessionResource ?? (isChatTreeItem(item) ? item.sessionResource : undefined);
+		if (!sessionResource) {
+			return;
+		}
+
+		const chatModel = chatService.getSession(sessionResource);
+		if (!chatModel?.editingSession) {
+			return;
+		}
+
+		const checkpointRequest = chatModel.checkpoint;
+		if (!checkpointRequest) {
+			alert(localize('chat.restoreCheckpoint.none', 'There is no checkpoint to restore.'));
+			return;
+		}
+
+		widget?.viewModel?.model.setCheckpoint(checkpointRequest.id);
+		widget?.focusInput();
+		widget?.input.setValue(checkpointRequest.message.text, false);
+
+		await restoreSnapshotWithConfirmationByRequestId(accessor, sessionResource, checkpointRequest.id);
 	}
 });
 

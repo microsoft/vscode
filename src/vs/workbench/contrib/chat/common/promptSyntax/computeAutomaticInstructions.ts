@@ -63,7 +63,7 @@ export class ComputeAutomaticInstructions {
 		private readonly _modeKind: ChatModeKind,
 		private readonly _enabledTools: UserSelectedTools | undefined,
 		private readonly _enabledSubagents: (readonly string[]) | undefined,
-		private readonly _sessionId: string | undefined,
+		private readonly _sessionResource: URI | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -93,7 +93,7 @@ export class ComputeAutomaticInstructions {
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
 
-		const instructionFiles = await this._promptsService.getInstructionFiles(token, this._sessionId);
+		const instructionFiles = await this._promptsService.getInstructionFiles(token, this._sessionResource);
 
 		this._logService.trace(`[InstructionsContextComputer] ${instructionFiles.length} instruction files available.`);
 
@@ -354,7 +354,7 @@ export class ComputeAutomaticInstructions {
 				entries.push('</instructions>', '', ''); // add trailing newline
 			}
 
-			const agentSkills = await this._promptsService.findAgentSkills(token, this._sessionId);
+			const agentSkills = await this._promptsService.findAgentSkills(token, this._sessionResource);
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
 			const modelInvocableSkills = agentSkills?.filter(skill => !skill.disableModelInvocation);
 			if (modelInvocableSkills && modelInvocableSkills.length > 0) {
@@ -400,7 +400,7 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name);
 				}
 			})();
-			const agents = await this._promptsService.getCustomAgents(token, this._sessionId);
+			const agents = await this._promptsService.getCustomAgents(token, this._sessionResource);
 			if (agents.length > 0) {
 				entries.push('<agents>');
 				entries.push('Here is a list of agents that can be used when running a subagent.');

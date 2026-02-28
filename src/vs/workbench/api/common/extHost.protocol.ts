@@ -1415,6 +1415,7 @@ export interface IChatDebugToolCallEventDto extends IChatDebugEventCommonDto {
 export interface IChatDebugModelTurnEventDto extends IChatDebugEventCommonDto {
 	readonly kind: 'modelTurn';
 	readonly model?: string;
+	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly totalTokens?: number;

@@ -236,24 +236,33 @@
 
 /* Notifications */
 
-.monaco-workbench .notifications-toasts {
-	box-shadow: var(--shadow-lg);
-	border-radius: var(--radius-sm);
+.monaco-workbench .notifications-toasts,
+.monaco-workbench > .notifications-toasts .notification-toast-container {
+	overflow: visible;
 }
 
 .monaco-workbench .notification-toast {
 	box-shadow: none !important;
-	margin: 0 !important;
 }
 
-.monaco-workbench .notification-toast-container {
+.monaco-workbench .notifications-list-container {
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 	background: color-mix(in srgb, var(--vscode-notifications-background) 60%, transparent) !important;
+	box-shadow: var(--shadow-lg) !important;
 }
 
-.monaco-workbench.vs-dark .notification-toast-container {
+.monaco-workbench .notifications-center .notifications-list-container {
+	box-shadow: none !important;
+}
+
+.monaco-workbench .notification-list-item,
+.monaco-workbench .notifications-center-header {
 	background: color-mix(in srgb, var(--vscode-notifications-background) 60%, transparent) !important;
+}
+
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
+	opacity: 1;
 }
 
 .monaco-workbench .notification-toast-container .notification-toast {
@@ -272,8 +281,8 @@
 	background: color-mix(in srgb, var(--vscode-notifications-background) 60%, transparent) !important;
 }
 
-.monaco-workbench .notifications-list-container,
-.monaco-workbench > .notifications-center > .notifications-center-header,
+/* .monaco-workbench .notifications-list-container,
+.monaco-workbench > .notifications-center > .notifications-center-header, */
 .monaco-workbench .notifications-list-container .monaco-list-rows {
 	background: transparent !important;
 }
@@ -287,6 +296,10 @@
 	box-shadow: var(--shadow-lg);
 	border: none;
 	border-radius: var(--radius-lg);
+}
+
+.monaco-workbench .monaco-select-box-dropdown-container {
+	box-shadow: var(--shadow-lg);
 }
 
 .monaco-workbench .monaco-menu-container > .monaco-scrollable-element {
@@ -381,10 +394,11 @@
 }
 
 .monaco-workbench .defineKeybindingWidget {
-	box-shadow: var(--shadow-lg);
+	box-shadow: var(--shadow-lg) !important;
 	border-radius: var(--radius-lg);
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
+	background-color: color-mix(in srgb, var(--vscode-editorHoverWidget-background) 60%, transparent) !important;
 }
 
 .monaco-workbench.vs-dark .defineKeybindingWidget {
@@ -588,11 +602,16 @@
 	border-bottom: none !important;
 }
 
-.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-line-numbers,
+.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-lines-scrollable {
+	background: var(--vscode-editor-background) !important;
+}
+
 .monaco-editor .sticky-widget .sticky-line-content {
-	backdrop-filter: var(--backdrop-blur-md) !important;
-	-webkit-backdrop-filter: var(--backdrop-blur-md) !important;
-	background: color-mix(in srgb, var(--vscode-editor-background) 40%, transparent) !important;
+	background: var(--vscode-editor-background) !important;
+}
+
+.monaco-workbench .monaco-editor .sticky-widget .sticky-widget-line-numbers {
+	background: var(--vscode-editor-background) !important;
 }
 
 .monaco-workbench .monaco-editor .sticky-widget .sticky-line-content:hover {
@@ -705,6 +724,17 @@
 	background: var(--vscode-notifications-background) !important;
 }
 
+.monaco-workbench.monaco-reduce-transparency .notifications-list-container {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: var(--vscode-notifications-background) !important;
+}
+
+.monaco-workbench.monaco-reduce-transparency .notification-list-item,
+.monaco-workbench.monaco-reduce-transparency .notifications-center-header {
+	background: var(--vscode-notifications-background) !important;
+}
+
 .monaco-workbench.monaco-reduce-transparency .notifications-center {
 	-webkit-backdrop-filter: none;
 	backdrop-filter: none;
@@ -768,6 +798,7 @@
 .monaco-workbench.monaco-reduce-transparency .defineKeybindingWidget {
 	-webkit-backdrop-filter: none;
 	backdrop-filter: none;
+	background: var(--vscode-editorHoverWidget-background) !important;
 }
 
 /* Chat Editor Overlay */

@@ -8,12 +8,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
 	GENERATE_HOOK_COMMAND_ID,
-	GENERATE_INSTRUCTION_COMMAND_ID,
+	GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
 } from '../actions/chatActions.js';
@@ -52,7 +53,20 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		AICustomizationManagementSection.McpServers,
 	];
 
+	readonly visibleStorageSources: readonly PromptsStorage[] = [
+		PromptsStorage.local,
+		PromptsStorage.user,
+		PromptsStorage.extension,
+		PromptsStorage.plugin,
+	];
+
+	getVisibleStorageSources(_type: PromptsType): readonly PromptsStorage[] {
+		return this.visibleStorageSources;
+	}
+
 	readonly preferManualCreation = false;
+
+	readonly excludedUserFileRoots: readonly URI[] = [];
 
 	async commitFiles(_projectRoot: URI, _fileUris: URI[]): Promise<void> {
 		// No-op in core VS Code.
@@ -62,7 +76,7 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 		const commandIds: Partial<Record<PromptsType, string>> = {
 			[PromptsType.agent]: GENERATE_AGENT_COMMAND_ID,
 			[PromptsType.skill]: GENERATE_SKILL_COMMAND_ID,
-			[PromptsType.instructions]: GENERATE_INSTRUCTION_COMMAND_ID,
+			[PromptsType.instructions]: GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
 			[PromptsType.prompt]: GENERATE_PROMPT_COMMAND_ID,
 			[PromptsType.hook]: GENERATE_HOOK_COMMAND_ID,
 		};

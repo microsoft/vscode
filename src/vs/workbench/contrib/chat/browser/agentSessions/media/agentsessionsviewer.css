@@ -99,8 +99,7 @@
 			.agent-session-icon {
 				flex-shrink: 0;
 				font-size: 12px;
-				width: 14px;
-				height: 14px;
+				height: 16px;
 				display: flex;
 				align-items: center;
 				justify-content: center;
@@ -139,7 +138,7 @@
 
 		.agent-session-title-row {
 			line-height: 17px;
-			padding-bottom: 6px;
+			padding-bottom: 4px;
 		}
 
 		.agent-session-details-row {

@@ -604,7 +604,7 @@ export class InlineChatController implements IEditorContribution {
 		if (!session) {
 			return;
 		}
-		this._chatService.cancelCurrentRequestForSession(session.chatModel.sessionResource);
+		this._chatService.cancelCurrentRequestForSession(session.chatModel.sessionResource, 'inlineChatReject');
 		await session.editingSession.reject();
 		session.dispose();
 	}

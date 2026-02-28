@@ -31,6 +31,7 @@ import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
+import type { EmbeddedProductInfo } from './lib/embeddedType.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
@@ -388,7 +389,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
 		const embedded = isInsiderOrExploration
-			? (product as typeof product & { embedded?: { nameShort: string; nameLong: string; applicationName: string; dataFolderName: string; darwinBundleIdentifier: string; urlProtocol: string } }).embedded
+			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
 			: undefined;
 
 		const packageSubJsonStream = isInsiderOrExploration
@@ -403,12 +404,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const productSubJsonStream = embedded
 			? gulp.src(['product.json'], { base: '.' })
 				.pipe(jsonEditor((json: Record<string, unknown>) => {
-					json.nameShort = embedded.nameShort;
-					json.nameLong = embedded.nameLong;
-					json.applicationName = embedded.applicationName;
-					json.dataFolderName = embedded.dataFolderName;
-					json.darwinBundleIdentifier = embedded.darwinBundleIdentifier;
-					json.urlProtocol = embedded.urlProtocol;
+					Object.keys(embedded).forEach(key => {
+						json[key] = embedded[key as keyof EmbeddedProductInfo];
+					});
 					return json;
 				}))
 				.pipe(rename('product.sub.json'))
@@ -499,6 +497,9 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'resources/win32/code_70x70.png',
 				'resources/win32/code_150x150.png'
 			], { base: '.' }));
+			if (embedded) {
+				all = es.merge(all, gulp.src('resources/win32/sessions.ico', { base: '.' }));
+			}
 		} else if (platform === 'linux') {
 			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
@@ -522,6 +523,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				darwinMiniAppName: embedded.nameShort,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
 				darwinMiniAppIcon: 'resources/darwin/sessions.icns',
+				win32ProxyAppName: embedded.nameShort,
+				win32ProxyIcon: 'resources/win32/sessions.ico',
 			} : {})
 		};
 
@@ -530,7 +533,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
 			.pipe(electron(electronConfig))
-			.pipe(filter(['**', '!LICENSE', '!version'], { dot: true }));
+			.pipe(filter([
+				'**',
+				'!LICENSE',
+				'!version',
+				...(platform === 'darwin' && !isInsiderOrExploration ? ['!**/Contents/Applications'] : []),
+				...(platform === 'win32' && !isInsiderOrExploration ? ['!**/electron_proxy.exe'] : []),
+			], { dot: true }));
 
 		if (platform === 'linux') {
 			result = es.merge(result, gulp.src('resources/completions/bash/code', { base: '.' })

@@ -31,6 +31,11 @@ export interface IAgentPluginSkill {
 	readonly name: string;
 }
 
+export interface IAgentPluginAgent {
+	readonly uri: URI;
+	readonly name: string;
+}
+
 export interface IAgentPluginMcpServerDefinition {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
@@ -43,6 +48,7 @@ export interface IAgentPlugin {
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
+	readonly agents: IObservable<readonly IAgentPluginAgent[]>;
 	readonly mcpServerDefinitions: IObservable<readonly IAgentPluginMcpServerDefinition[]>;
 	/** Set when the plugin was installed from a marketplace repository. */
 	readonly fromMarketplace?: IMarketplacePlugin;

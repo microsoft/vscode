@@ -361,3 +361,12 @@
 .sessions-chat-picker-slot .action-label span + .chat-session-option-label {
 	margin-left: 2px;
 }
+
+/* Sync indicator: a slim non-interactive-looking separator before the button */
+.sessions-chat-sync-indicator {
+	margin-left: 4px;
+}
+
+.sessions-chat-sync-indicator .action-label .sessions-chat-dropdown-label {
+	margin-left: 3px;
+}

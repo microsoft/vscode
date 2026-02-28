@@ -36,9 +36,6 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../nls.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { ChatSessionPosition, getResourceForNewChatSession } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../../../workbench/contrib/chat/browser/chatSessions/chatSessionPickerActionItem.js';
@@ -59,6 +56,7 @@ import { FolderPicker } from './folderPicker.js';
 import { IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IsolationModePicker, SessionTargetPicker } from './sessionTargetPicker.js';
 import { BranchPicker } from './branchPicker.js';
+import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
@@ -92,6 +90,7 @@ class NewChatWidget extends Disposable {
 	private readonly _targetPicker: SessionTargetPicker;
 	private readonly _isolationModePicker: IsolationModePicker;
 	private readonly _branchPicker: BranchPicker;
+	private readonly _syncIndicator: SyncIndicator;
 	private readonly _options: INewChatWidgetOptions;
 
 	// Input
@@ -152,8 +151,6 @@ class NewChatWidget extends Disposable {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._contextAttachments = this._register(this.instantiationService.createInstance(NewChatContextAttachments));
@@ -163,6 +160,7 @@ class NewChatWidget extends Disposable {
 		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, options.defaultTarget));
 		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
+		this._syncIndicator = this._register(this.instantiationService.createInstance(SyncIndicator));
 		this._options = options;
 
 		// When target changes, create new session
@@ -171,6 +169,7 @@ class NewChatWidget extends Disposable {
 			const isLocal = target === AgentSessionProviders.Background;
 			this._isolationModePicker.setVisible(isLocal);
 			this._branchPicker.setVisible(isLocal);
+			this._syncIndicator.setVisible(isLocal);
 			this._focusEditor();
 		}));
 
@@ -179,7 +178,8 @@ class NewChatWidget extends Disposable {
 			this._updateInputLoadingState();
 		}));
 
-		this._register(this._branchPicker.onDidChange(() => {
+		this._register(this._branchPicker.onDidChange((branch) => {
+			this._syncIndicator.setBranch(branch);
 			this._focusEditor();
 		}));
 
@@ -239,11 +239,13 @@ class NewChatWidget extends Disposable {
 		dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-spacer'));
 		const branchContainer = dom.append(isolationContainer, dom.$('.sessions-chat-local-mode-right'));
 		this._branchPicker.render(branchContainer);
+		this._syncIndicator.render(branchContainer);
 
 		// Set initial visibility based on default target
 		const isLocal = this._targetPicker.selectedTarget === AgentSessionProviders.Background;
 		this._isolationModePicker.setVisible(isLocal);
 		this._branchPicker.setVisible(isLocal);
+		this._syncIndicator.setVisible(isLocal);
 
 		// Render target buttons & extension pickers
 		this._renderOptionGroupPickers();
@@ -335,6 +337,7 @@ class NewChatWidget extends Disposable {
 		this._updateInputLoadingState();
 		this._branchPicker.setRepository(undefined);
 		this._isolationModePicker.setRepository(undefined);
+		this._syncIndicator.setRepository(undefined);
 
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
@@ -344,6 +347,7 @@ class NewChatWidget extends Disposable {
 			this._updateInputLoadingState();
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
+			this._syncIndicator.setRepository(repository);
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -353,6 +357,7 @@ class NewChatWidget extends Disposable {
 			this._updateInputLoadingState();
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
+			this._syncIndicator.setRepository(undefined);
 		});
 	}
 
@@ -797,25 +802,10 @@ class NewChatWidget extends Disposable {
 		this._sendButton.enabled = !this._sending && hasText && !(this._newSession.value?.disabled ?? true);
 	}
 
-	private async _send(options?: { skipSetup?: boolean; openNewAfterSend?: boolean }): Promise<void> {
+	private async _send(options?: { openNewAfterSend?: boolean }): Promise<void> {
 		const query = this._editor.getModel()?.getValue().trim();
 		const session = this._newSession.value;
 		if (!query || !session || this._sending) {
-			return;
-		}
-
-		// If chat is not set up (extension not installed or user not signed in),
-		// trigger the standard chat setup flow first, then re-submit.
-		if (!options?.skipSetup && this._needsChatSetup()) {
-			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
-				dialogIcon: Codicon.agent,
-				dialogTitle: this.chatEntitlementService.anonymous ?
-					localize('sessions.startUsingSessions', "Start using Sessions") :
-					localize('sessions.signinRequired', "Sign in to use Sessions")
-			});
-			if (success) {
-				return await this._send({ ...options, skipSetup: true });
-			}
 			return;
 		}
 
@@ -881,23 +871,6 @@ class NewChatWidget extends Disposable {
 		}
 	}
 
-	private _needsChatSetup(): boolean {
-		const { sentiment, entitlement } = this.chatEntitlementService;
-		if (
-			!sentiment?.installed ||						// Extension not installed: run setup to install
-			sentiment?.disabled ||							// Extension disabled: run setup to enable
-			sentiment?.untrusted ||							// Workspace untrusted: run setup to ask for trust
-			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
-			(
-				entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
-				!this.chatEntitlementService.anonymous		// unless anonymous access is enabled
-			)
-		) {
-			return true;
-		}
-
-		return false;
-	}
 
 	// --- Layout ---
 
