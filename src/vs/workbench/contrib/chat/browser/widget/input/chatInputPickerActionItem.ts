@@ -24,8 +24,6 @@ export interface IChatInputPickerOptions {
 
 	readonly actionContext?: IChatExecuteActionContext;
 
-	readonly onlyShowIconsForDefaultActions: IObservable<boolean>;
-
 	readonly hideChevrons: IObservable<boolean>;
 
 	readonly hoverPosition?: IHoverPositionOptions;
@@ -55,11 +53,10 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
-			this.pickerOptions.onlyShowIconsForDefaultActions.read(reader);
 			const hideChevrons = this.pickerOptions.hideChevrons.read(reader);
 			if (this.element) {
-				this.renderLabel(this.element);
 				this.element.classList.toggle('hide-chevrons', hideChevrons);
+				this.renderLabel(this.element);
 			}
 		}));
 	}

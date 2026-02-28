@@ -269,7 +269,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		this.setAriaLabelAttributes(element);
 
 		const currentMode = this.delegate.currentMode.get();
-		const isDefault = currentMode.id === ChatMode.Agent.id;
 		const state = currentMode.label.get();
 		let icon = currentMode.icon.get();
 
@@ -279,13 +278,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		}
 
 		const labelElements = [];
+		const collapsed = this.pickerOptions.hideChevrons.get();
 		if (icon) {
 			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
 		}
-		if (!isDefault || !icon || !this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
+		if (!collapsed || !icon) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
 		}
-		if (!this.pickerOptions.hideChevrons.get()) {
+		if (!collapsed) {
 			labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 		}
 

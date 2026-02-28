@@ -490,10 +490,10 @@ export class ModelPickerWidget extends Disposable {
 		this._hideChevrons = hideChevrons;
 		this._register(autorun(reader => {
 			const hide = hideChevrons.read(reader);
-			this._renderLabel();
 			if (this._domNode) {
 				this._domNode.classList.toggle('hide-chevrons', hide);
 			}
+			this._renderLabel();
 		}));
 	}
 
