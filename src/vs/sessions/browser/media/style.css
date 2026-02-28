@@ -52,5 +52,6 @@
 .agent-sessions-workbench .interactive-session .interactive-input-part {
 	margin: 0 8px !important;
 	display: inherit !important;
-	padding: 4px 0 8px 0px !important;
+	/* Align with changes view */
+	padding: 4px 0 6px 0 !important;
 }
