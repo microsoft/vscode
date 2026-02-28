@@ -2472,6 +2472,152 @@ def build_preview_regex(model, string_value: str) -> str | None:
         else:
             return append_segment_to_regex(current_regex, 'literal', selected_text)
 
+def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_width=None) -> str:
+    """Render the action button bar below the search/replace boxes.
+
+    Returns HTML string with buttons for all available actions.
+    Buttons are grayed out when not applicable (e.g., Replace when not in replace mode,
+    All/If All when not in replace mode).
+    """
+    selection_regex = model.get('search')
+    has_search = selection_regex is not None and selection_regex != ''
+    replace_visible = model.get('replace_visible', False)
+    replace_text = model.get('replace_text')
+    has_replace = replace_visible and replace_text
+
+    # Compute match count for the Count button label
+    match_count = _count_matches(selection_regex, value, eval_in_scope) if has_search else 0
+
+    # Common button styles
+    btn_base = (
+        'border: 1px solid #3c3c3c;'
+        'border-radius: 3px;'
+        'padding: 1px 5px;'
+        'font-family: inherit;'
+        'font-size: 10px;'
+        'cursor: pointer;'
+        'line-height: 16px;'
+        'user-select: none;'
+        'white-space: nowrap;'
+        'background: transparent;'
+        'color: #8C8C8C;'
+    )
+    # Copy button style: flush left, smaller
+    copy_base = (
+        'border: 1px solid #3c3c3c;'
+        'border-left: none;'
+        'border-radius: 0 3px 3px 0;'
+        'padding: 1px 3px;'
+        'font-family: inherit;'
+        'font-size: 10px;'
+        'cursor: pointer;'
+        'line-height: 16px;'
+        'user-select: none;'
+        'white-space: nowrap;'
+        'background: transparent;'
+        'color: #8C8C8C;'
+    )
+    # Button with flush copy neighbor: no right border-radius
+    btn_with_copy = btn_base + 'border-radius: 3px 0 0 3px;'
+    disabled_style = 'opacity: 0.35; pointer-events: none;'
+
+    def action_btn(label: str, action: str, enabled: bool = True, title: str = '', extra_style: str = '') -> str:
+        style = btn_with_copy + ('' if enabled else disabled_style) + extra_style
+        event = repr(ActionButtonClick(action=action, copy=False))
+        title_attr = f' title="{html.escape(title)}"' if title else ''
+        return f'<span snc-mouse-down="{html.escape(event)}" style="{style}"{title_attr}>{label}</span>'
+
+    def copy_btn(action: str, enabled: bool = True) -> str:
+        style = copy_base + ('' if enabled else disabled_style)
+        event = repr(ActionButtonClick(action=action, copy=True))
+        return f'<span snc-mouse-down="{html.escape(event)}" style="{style}" title="Copy to clipboard">\u29C9</span>'
+
+    def btn_group(label: str, action: str, enabled: bool = True, title: str = '', extra_btn_style: str = '') -> str:
+        return action_btn(label, action, enabled, title, extra_btn_style) + copy_btn(action, enabled)
+
+    # Build button groups
+    parts = []
+
+    # 1. Get/Transform + Copy
+    if has_replace:
+        parts.append(btn_group('Transform \u23ce', 'get_transform', has_search, 'Transform: map expression over matches (Enter)'))
+    else:
+        parts.append(btn_group('Get \u23ce', 'get_transform', has_search, 'Get list of matches (Enter)'))
+
+    # 2. Replace + Copy (grayed out when not in replace mode)
+    parts.append(btn_group('Replace \u2318R', 'replace', has_search and has_replace, 'Replace matches (\u2318R)'))
+
+    # 3. Loop + Copy
+    parts.append(btn_group('Loop', 'loop', has_search, 'For loop over matches'))
+
+    # 4. ? dropdown button
+    open_dropdown = model.get('openDropdown') if model else None
+    predicate_dropdown_open = open_dropdown is not None and open_dropdown.get('id') == 'action-predicate'
+
+    # Build ? button with dropdown
+    toggle_event = repr(DropdownToggle('action-predicate'))
+    q_style = btn_base + ('background: #264f78; color: #dcdcaa;' if predicate_dropdown_open else '')
+    q_btn = f'<span snc-mouse-down="{html.escape(toggle_event)}" style="{q_style}" title="Boolean queries">\u2026</span>'
+
+    if predicate_dropdown_open:
+        # Build dropdown options
+        dropdown_opts = []
+        opt_style = 'padding: 3px 6px; display: flex; align-items: center; gap: 2px;'
+
+        def dropdown_row(label: str, action: str, enabled: bool) -> str:
+            row_style = opt_style + ('' if enabled else disabled_style)
+            act_event = repr(ActionButtonClick(action=action, copy=False))
+            cp_event = repr(ActionButtonClick(action=action, copy=True))
+            return (
+                f'<div style="{row_style}" class="snc-dropdown-option">'
+                f'<span snc-mouse-down="{html.escape(act_event)}" style="cursor:pointer;flex:1;">{label}</span>'
+                f'<span snc-mouse-down="{html.escape(cp_event)}" style="cursor:pointer;font-size:10px;color:#8C8C8C;" title="Copy to clipboard">\u29C9</span>'
+                f'</div>'
+            )
+
+        dropdown_opts.append(dropdown_row('Any', 'any', has_search))
+        dropdown_opts.append(dropdown_row('All', 'all', has_search and has_replace))
+        dropdown_opts.append(dropdown_row('If Any', 'if_any', has_search))
+        dropdown_opts.append(dropdown_row('If All', 'if_all', has_search and has_replace))
+
+        dropdown_panel = (
+            '<div class="snc-dropdown-panel" snc-dropdown-align="left" style="'
+            'position: absolute;'
+            'left: 0;'
+            'top: 100%;'
+            'background: #252526;'
+            'border: 1px solid #3c3c3c;'
+            'border-radius: 3px;'
+            'z-index: 100;'
+            'min-width: 100px;'
+            'box-shadow: 0 2px 8px rgba(0,0,0,0.4);'
+            'font-size: 11px;'
+            'line-height: 1.4;'
+            f'">{"".join(dropdown_opts)}</div>'
+        )
+        q_btn = (
+            f'<span class="snc-dropdown-trigger" style="position: relative; display: inline-block;">'
+            f'{q_btn}{dropdown_panel}</span>'
+        )
+
+    parts.append(q_btn)
+
+    # 5. Delete + Copy
+    parts.append(btn_group('Delete \u2318\u232b', 'delete', has_search, 'Delete matches (\u2318\u232b)'))
+
+    # 6. Count (N) + Copy
+    count_label = f'Count ({match_count})'
+    parts.append(btn_group(count_label, 'count', has_search, 'Count of matches'))
+
+    return (
+        f'<div style="margin-top: 4px; white-space: normal; display: flex; flex-wrap: wrap; gap: 3px; align-items: center;'
+        f' max-width: {str(max_width) + "px" if max_width is not None else "none"};'
+        f'">'
+        f'{"".join(parts)}'
+        f'</div>'
+    )
+
+
 def visualize(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> str:
     return ''.join(visualize_els(value, model, get_visualizer, eval_in_scope, max_width, max_height, small))
 
@@ -2670,12 +2816,15 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         'scrollbar-color: rgba(127, 127, 127, 0.1) transparent;'
     )
 
+    # Action buttons bar (hidden when small)
+    action_buttons_html = '' if small else _render_action_buttons(model, value, eval_in_scope, max_width)
+
     # Add tabindex to make div focusable for keyboard events, and snc-key-down handler
     # doing it like this to try to make less string garbage
     return [
         f'''<div tabindex="0" snc-key-down="{html.escape(repr(KeyDown()))}" style="color: {STRING}; white-space: pre; user-select: none; outline: none;"><div style="{string_div_style}">''',
         *char_els,
-        f'''</div>{search_box_html}</div>''',
+        f'''</div>{search_box_html}{action_buttons_html}</div>''',
     ]
 
 

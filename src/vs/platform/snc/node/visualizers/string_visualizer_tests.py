@@ -6798,11 +6798,11 @@ class TestActionButtonRendering(unittest.TestCase):
         self.assertIn('Count (3)', html_output)
 
     def test_question_mark_dropdown_renders(self):
-        """? button is present in the action bar."""
+        """Predicate dropdown button is present in the action bar."""
         model = init_model(self.value)
         model['search'] = '/hello/'
         html_output = visualize(self.value, model, None, None, max_width=400)
-        self.assertIn('?', html_output)
+        self.assertIn('action-predicate', html_output)
 
 
 if __name__ == '__main__':
