@@ -24,6 +24,7 @@ import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/brows
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatModeService, isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
@@ -190,9 +191,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private getRepositoryFromMetadata(metadata: { readonly [key: string]: unknown } | undefined): [URI | undefined, URI | undefined] {
+	private getRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined] {
+		const metadata = session.metadata;
 		if (!metadata) {
 			return [undefined, undefined];
+		}
+
+		if (session.providerType === AgentSessionProviders.Cloud) {
+			return [URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${metadata.owner}/${metadata.name}`), undefined];
 		}
 
 		const repositoryPath = metadata?.repositoryPath as string | undefined;
@@ -433,7 +439,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (session) {
 			if (isAgentSession(session)) {
 				this.lastSelectedSession = session.resource;
-				const [repository, worktree] = this.getRepositoryFromMetadata(session.metadata);
+				const [repository, worktree] = this.getRepositoryFromMetadata(session);
 				activeSessionItem = {
 					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
 					label: session.label,
