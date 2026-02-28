@@ -2399,9 +2399,6 @@ suite('FindModel', () => {
 			assert.strictEqual(findState.matchesCount, 1001);
 			// With cursor selecting 'hello' at line 900, matchesPosition should be 900
 			assert.strictEqual(findState.matchesPosition, 900);
-
-			findModel.dispose();
-			findState.dispose();
 		});
 	});
 
