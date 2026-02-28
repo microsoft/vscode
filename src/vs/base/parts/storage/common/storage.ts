@@ -349,7 +349,7 @@ export class Storage extends Disposable implements IStorage {
 		// the DB is not healthy.
 		try {
 			await this.doFlush(0 /* as soon as possible */);
-		} catch (error) {
+		} catch {
 			// Ignore
 		}
 

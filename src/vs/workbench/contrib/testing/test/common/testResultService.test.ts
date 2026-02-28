@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -21,6 +21,7 @@ import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState
 import { makeEmptyCounts } from '../../common/testingStates.js';
 import { TestTestCollection, getInitializedMainTestCollection, testStubs } from './testStubs.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 
 suite('Workbench - Test Results Service', () => {
 	const getLabelsIn = (it: Iterable<TestResultItem>) => [...it].map(t => t.item.label).sort();
@@ -193,11 +194,11 @@ suite('Workbench - Test Results Service', () => {
 			r.markComplete();
 
 			const c = makeEmptyCounts();
-			c[TestResultState.Unset] = 3;
+			c[TestResultState.Skipped] = 3;
 			c[TestResultState.Passed] = 1;
 			assert.deepStrictEqual(r.counts, c);
 
-			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestResultState.Unset);
+			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestResultState.Skipped);
 			assert.deepStrictEqual(r.getStateById(new TestId(['ctrlId', 'id-a', 'id-aa']).toString())?.ownComputedState, TestResultState.Passed);
 		});
 	});
@@ -207,7 +208,7 @@ suite('Workbench - Test Results Service', () => {
 		let results: TestResultService;
 
 		class TestTestResultService extends TestResultService {
-			protected override persistScheduler = { schedule: () => this.persistImmediately() } as any;
+			protected override persistScheduler = upcastPartial<RunOnceScheduler>({ schedule: () => this.persistImmediately() });
 		}
 
 		setup(() => {

@@ -5,7 +5,7 @@
 
 import type * as nbformat from '@jupyterlab/nbformat';
 import type { NotebookCell, NotebookCellData, NotebookCellOutput, NotebookData, NotebookDocument } from 'vscode';
-import { CellOutputMetadata, type CellMetadata } from './common';
+import { CellOutputMetadata, hasKey, type CellMetadata } from './common';
 import { textMimeTypes, NotebookCellKindMarkup, CellOutputMimeTypes, defaultNotebookFormat } from './constants';
 
 const textDecoder = new TextDecoder();
@@ -39,17 +39,17 @@ export function sortObjectPropertiesRecursively(obj: any): any {
 		return (
 			Object.keys(obj)
 				.sort()
-				.reduce<Record<string, any>>((sortedObj, prop) => {
+				.reduce<Record<string, unknown>>((sortedObj, prop) => {
 					sortedObj[prop] = sortObjectPropertiesRecursively(obj[prop]);
 					return sortedObj;
-				}, {}) as any
+				}, {})
 		);
 	}
 	return obj;
 }
 
 export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData } | { metadata?: { [key: string]: any } }): CellMetadata {
-	if ('cell' in options) {
+	if (hasKey(options, { cell: true })) {
 		const cell = options.cell;
 		const metadata = {
 			execution_count: null,
@@ -57,7 +57,7 @@ export function getCellMetadata(options: { cell: NotebookCell | NotebookCellData
 			...(cell.metadata ?? {})
 		} satisfies CellMetadata;
 		if (cell.kind === NotebookCellKindMarkup) {
-			delete (metadata as any).execution_count;
+			delete (metadata as Record<string, unknown>).execution_count;
 		}
 		return metadata;
 	} else {
@@ -103,7 +103,7 @@ function createCodeCellFromNotebookCell(cell: NotebookCellData, preferredLanguag
 		// & in that case execution summary could contain the data, but metadata will not.
 		// In such cases we do not want to re-set the metadata with the value from execution summary (remember, user reverted that).
 		execution_count: cellMetadata.execution_count ?? null,
-		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
+		source: splitCellSourceIntoMultilineString(cell.value),
 		outputs: (cell.outputs || []).map(translateCellDisplayOutput),
 		metadata: cellMetadata.metadata
 	};
@@ -117,7 +117,7 @@ function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCel
 	const cellMetadata = getCellMetadata({ cell });
 	const rawCell: any = {
 		cell_type: 'raw',
-		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
+		source: splitCellSourceIntoMultilineString(cell.value),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
@@ -127,6 +127,15 @@ function createRawCellFromNotebookCell(cell: NotebookCellData): nbformat.IRawCel
 		rawCell.id = cellMetadata.id;
 	}
 	return rawCell;
+}
+
+/**
+ * Splits the source of a cell into an array of strings, each representing a line.
+ * Also normalizes line endings to use LF (`\n`) instead of CRLF (`\r\n`).
+ * Same is done in deserializer as well.
+ */
+function splitCellSourceIntoMultilineString(source: string): string[] {
+	return splitMultilineString(source.replace(/\r\n/g, '\n'));
 }
 
 function splitMultilineString(source: nbformat.MultilineString): string[] {
@@ -368,7 +377,7 @@ export function createMarkdownCellFromNotebookCell(cell: NotebookCellData): nbfo
 	const cellMetadata = getCellMetadata({ cell });
 	const markdownCell: any = {
 		cell_type: 'markdown',
-		source: splitMultilineString(cell.value.replace(/\r\n/g, '\n')),
+		source: splitCellSourceIntoMultilineString(cell.value),
 		metadata: cellMetadata?.metadata || {} // This cannot be empty.
 	};
 	if (cellMetadata?.attachments) {
@@ -389,8 +398,8 @@ export function pruneCell(cell: nbformat.ICell): nbformat.ICell {
 
 	// Remove outputs and execution_count from non code cells
 	if (result.cell_type !== 'code') {
-		delete (<any>result).outputs;
-		delete (<any>result).execution_count;
+		delete (result as Record<string, unknown>).outputs;
+		delete (result as Record<string, unknown>).execution_count;
 	} else {
 		// Clean outputs from code cells
 		result.outputs = result.outputs ? (result.outputs as nbformat.IOutput[]).map(fixupOutput) : [];
@@ -459,7 +468,7 @@ export function serializeNotebookToString(data: NotebookData): string {
 		.map(cell => createJupyterCellFromNotebookCell(cell, preferredCellLanguage))
 		.map(pruneCell);
 
-	const indentAmount = data.metadata && 'indentAmount' in data.metadata && typeof data.metadata.indentAmount === 'string' ?
+	const indentAmount = data.metadata && typeof data.metadata.indentAmount === 'string' ?
 		data.metadata.indentAmount :
 		' ';
 

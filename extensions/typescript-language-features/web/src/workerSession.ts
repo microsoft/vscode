@@ -22,6 +22,12 @@ export interface StartSessionOptions {
 	readonly disableAutomaticTypingAcquisition: boolean;
 }
 
+type ServerModule = typeof ts.server;
+
+interface TsServerInternals extends ServerModule {
+	indent(str: string): string;
+}
+
 export function startWorkerSession(
 	ts: typeof import('typescript/lib/tsserverlibrary'),
 	host: ts.server.ServerHost,
@@ -31,7 +37,7 @@ export function startWorkerSession(
 	pathMapper: PathMapper,
 	logger: Logger,
 ): void {
-	const indent: (str: string) => string = (ts as any).server.indent;
+	const indent = (ts.server as TsServerInternals).indent;
 
 	const worker = new class WorkerSession extends ts.server.Session<{}> {
 

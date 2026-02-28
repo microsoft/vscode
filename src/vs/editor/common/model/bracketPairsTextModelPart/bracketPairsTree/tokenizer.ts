@@ -64,17 +64,21 @@ export class TextBufferTokenizer implements Tokenizer {
 	private readonly textBufferLineCount: number;
 	private readonly textBufferLastLineLength: number;
 
-	private readonly reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens);
+	private readonly reader;
 
 	constructor(
 		private readonly textModel: ITokenizerSource,
 		private readonly bracketTokens: LanguageAgnosticBracketTokens
 	) {
+		this.reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens);
+		this._offset = lengthZero;
+		this.didPeek = false;
+		this.peeked = null;
 		this.textBufferLineCount = textModel.getLineCount();
 		this.textBufferLastLineLength = textModel.getLineLength(this.textBufferLineCount);
 	}
 
-	private _offset: Length = lengthZero;
+	private _offset: Length;
 
 	get offset() {
 		return this._offset;
@@ -95,8 +99,8 @@ export class TextBufferTokenizer implements Tokenizer {
 		this.reader.setPosition(obj.lineCount, obj.columnCount);
 	}
 
-	private didPeek = false;
-	private peeked: Token | null = null;
+	private didPeek;
+	private peeked: Token | null;
 
 	read(): Token | null {
 		let token: Token | null;

@@ -55,6 +55,7 @@ import { EditorOpenSource } from '../../../../../platform/editor/common/editor.j
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { AbstractTreePart } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 
 function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>, treeInput: ExplorerItem[]): boolean {
@@ -104,14 +105,14 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 	}
 
 	const compressedNavigationControllers = focusedStat && compressedNavigationControllerProvider.getCompressedNavigationController(focusedStat);
-	const compressedNavigationController = compressedNavigationControllers && compressedNavigationControllers.length ? compressedNavigationControllers[0] : undefined;
+	const compressedNavigationController = compressedNavigationControllers?.length ? compressedNavigationControllers[0] : undefined;
 	focusedStat = compressedNavigationController ? compressedNavigationController.current : focusedStat;
 
 	const selectedStats: ExplorerItem[] = [];
 
 	for (const stat of selection) {
 		const controllers = compressedNavigationControllerProvider.getCompressedNavigationController(stat);
-		const controller = controllers && controllers.length ? controllers[0] : undefined;
+		const controller = controllers?.at(0);
 		if (controller && focusedStat && controller === compressedNavigationController) {
 			if (stat === focusedStat) {
 				selectedStats.push(stat);
@@ -185,6 +186,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 
+	override get singleViewPaneContainerTitle(): string {
+		return this.name;
+	}
+
 	constructor(
 		options: IExplorerViewPaneOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -209,7 +214,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		@IFileService private readonly fileService: IFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -274,6 +280,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		// Expand on drag over
 		this.dragHandler = new DelayedDragHandler(container, () => this.setExpanded(true));
 
+		// eslint-disable-next-line no-restricted-syntax
 		const titleElement = container.querySelector('.title') as HTMLElement;
 		const setHeader = () => {
 			titleElement.textContent = this.name;
@@ -443,7 +450,14 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
 
-		const isCompressionEnabled = () => this.configurationService.getValue<boolean>('explorer.compactFolders');
+		const isCompressionEnabled = () => {
+			const configValue = this.configurationService.getValue<boolean>('explorer.compactFolders');
+			// Disable compact folders when screen reader is optimized for better accessibility
+			if (this.accessibilityService.isScreenReaderOptimized()) {
+				return false;
+			}
+			return configValue;
+		};
 
 		const getFileNestingSettings = (item?: ExplorerItem) => this.configurationService.getValue<IFilesConfiguration>({ resource: item?.root.resource }).explorer.fileNesting;
 
@@ -506,6 +520,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const onDidChangeCompressionConfiguration = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('explorer.compactFolders'));
 		this._register(onDidChangeCompressionConfiguration(_ => this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() })));
 
+		// Update compression when screen reader mode changes
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			this.tree.updateOptions({ compressionEnabled: isCompressionEnabled() });
+		}));
+
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
@@ -550,7 +569,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(this.tree.onDidChangeCollapseState(e => {
 			const element = e.node.element?.element;
 			if (element) {
-				const navigationControllers = this.renderer.getCompressedNavigationController(element instanceof Array ? element[0] : element);
+				const navigationControllers = this.renderer.getCompressedNavigationController(Array.isArray(element) ? element[0] : element);
 				navigationControllers?.forEach(controller => controller.updateCollapsed(e.node.collapsed));
 			}
 			// Update showing expand / collapse button
@@ -643,7 +662,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		let arg: URI | {};
 		if (stat instanceof ExplorerItem) {
 			const compressedControllers = this.renderer.getCompressedNavigationController(stat);
-			arg = compressedControllers && compressedControllers.length ? compressedControllers[0].current.resource : stat.resource;
+			arg = compressedControllers?.length ? compressedControllers[0].current.resource : stat.resource;
 		} else {
 			arg = roots.length === 1 ? roots[0].resource : {};
 		}
@@ -665,7 +684,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	private onFocusChanged(elements: readonly ExplorerItem[]): void {
-		const stat = elements && elements.length ? elements[0] : undefined;
+		const stat = elements.at(0);
 		this.setContextKeys(stat);
 
 		if (stat) {
@@ -711,6 +730,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 	override getOptimalWidth(): number {
 		const parentNode = this.tree.getHTMLElement();
+		// eslint-disable-next-line no-restricted-syntax
 		const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
 
 		return DOM.getLargestChildWidth(parentNode, childNodes);
@@ -738,7 +758,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		let viewState: IAsyncDataTreeViewState | undefined;
-		if (this.tree && this.tree.getInput()) {
+		if (this.tree?.getInput()) {
 			viewState = this.tree.getViewState();
 		} else {
 			const rawViewState = this.storageService.get(ExplorerView.TREE_VIEW_STATE_STORAGE_KEY, StorageScope.WORKSPACE);

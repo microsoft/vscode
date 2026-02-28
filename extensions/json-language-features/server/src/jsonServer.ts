@@ -5,7 +5,7 @@
 
 import {
 	Connection,
-	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
+	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType, ResponseError,
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions, Diagnostic, CodeAction, CodeActionKind
 } from 'vscode-languageserver';
 
@@ -34,6 +34,10 @@ namespace SchemaContentChangeNotification {
 
 namespace ForceValidateRequest {
 	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
+}
+
+namespace ForceValidateAllRequest {
+	export const type: RequestType<void, void, any> = new RequestType('json/validateAll');
 }
 
 namespace LanguageStatusRequest {
@@ -80,6 +84,8 @@ export interface RuntimeEnvironment {
 	};
 }
 
+const sortCodeActionKind = CodeActionKind.Source.concat('.sort', '.json');
+
 export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
 
 	function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file']) {
@@ -100,8 +106,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			}
 			return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 				return responseText;
-			}, error => {
-				return Promise.reject(error.message);
+			}, (error: ResponseError<any>) => {
+				return Promise.reject(error);
 			});
 		};
 	}
@@ -139,7 +145,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// in the passed params the rootPath of the workspace plus the client capabilities.
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
 
-		const initializationOptions = params.initializationOptions as any || {};
+		const initializationOptions = params.initializationOptions || {};
 
 		const handledProtocols = initializationOptions?.handledSchemaProtocols;
 
@@ -194,7 +200,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				interFileDependencies: false,
 				workspaceDiagnostics: false
 			},
-			codeActionProvider: true
+			codeActionProvider: {
+				codeActionKinds: [sortCodeActionKind]
+			}
 		};
 
 		return { capabilities };
@@ -294,6 +302,10 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	// Retry schema validation on all open documents
+	connection.onRequest(ForceValidateAllRequest.type, async () => {
+		diagnosticsSupport?.requestRefresh();
+	});
+
 	connection.onRequest(ForceValidateRequest.type, async uri => {
 		const document = documents.get(uri);
 		if (document) {
@@ -383,11 +395,11 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	connection.onDidChangeWatchedFiles((change) => {
 		// Monitored files have changed in VSCode
 		let hasChanges = false;
-		change.changes.forEach(c => {
+		for (const c of change.changes) {
 			if (languageService.resetSchema(c.uri)) {
 				hasChanges = true;
 			}
-		});
+		}
 		if (hasChanges) {
 			diagnosticsSupport?.requestRefresh();
 		}
@@ -446,7 +458,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		return runSafeAsync(runtime, async () => {
 			const document = documents.get(codeActionParams.textDocument.uri);
 			if (document) {
-				const sortCodeAction = CodeAction.create('Sort JSON', CodeActionKind.Source.concat('.sort', '.json'));
+				const sortCodeAction = CodeAction.create('Sort JSON', sortCodeActionKind);
 				sortCodeAction.command = {
 					command: 'json.sort',
 					title: l10n.t('Sort JSON')

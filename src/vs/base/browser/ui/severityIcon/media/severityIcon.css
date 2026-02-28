@@ -8,7 +8,6 @@
 .text-search-provider-messages .providerMessage .codicon.codicon-error,
 .extensions-viewlet > .extensions .codicon.codicon-error,
 .extension-editor .codicon.codicon-error,
-.preferences-editor .codicon.codicon-error,
 .chat-attached-context-attachment .codicon.codicon-error {
 	color: var(--vscode-problemsErrorIcon-foreground);
 }
@@ -26,7 +25,6 @@
 .markers-panel .marker-icon.info, .markers-panel .marker-icon .codicon.codicon-info,
 .text-search-provider-messages .providerMessage .codicon.codicon-info,
 .extensions-viewlet > .extensions .codicon.codicon-info,
-.extension-editor .codicon.codicon-info,
-.preferences-editor .codicon.codicon-info {
+.extension-editor .codicon.codicon-info {
 	color: var(--vscode-problemsInfoIcon-foreground);
 }

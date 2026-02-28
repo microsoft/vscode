@@ -1,0 +1,161 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Overall styles */
+.chat-viewpane {
+	display: flex;
+	flex-direction: column;
+
+	.chat-controls-container {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+		height: 100%;
+		min-height: 0;
+		min-width: 0;
+
+		.interactive-session {
+
+			/* needed so that the chat input does not overflow and input grows over content above */
+			width: 100%;
+			min-height: 0;
+			min-width: 0;
+		}
+	}
+}
+
+/* Sessions control: either sidebar or stacked */
+.chat-viewpane.has-sessions-control .agent-sessions-container {
+	display: flex;
+	flex-direction: column;
+
+	.agent-sessions-title-container {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		font-size: 11px;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+
+		.agent-sessions-title {
+			cursor: pointer;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
+
+	.agent-sessions-toolbar {
+
+		.action-item {
+			/* align with the title actions*/
+			margin-right: 4px;
+		}
+
+		&.filtered .action-label.codicon.codicon-filter {
+			/* indicate when sessions filter is enabled */
+			border-color: var(--vscode-inputOption-activeBorder);
+			color: var(--vscode-inputOption-activeForeground);
+			background-color: var(--vscode-inputOption-activeBackground);
+		}
+	}
+}
+
+/* Sessions control: stacked */
+.chat-viewpane.has-sessions-control.sessions-control-orientation-stacked {
+
+	.agent-sessions-container {
+		/* center it above the chat which has this max-width restriction */
+		max-width: 950px;
+		margin: 0 auto;
+		width: 100%;
+	}
+
+	.agent-sessions-new-button-container {
+		/* hide new session button when stacked */
+		display: none;
+	}
+}
+
+/* Sessions control: side by side */
+.chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
+
+	&.chat-view-position-left {
+		flex-direction: row;
+
+		.agent-sessions-container {
+			border-right: 1px solid var(--vscode-panel-border);
+		}
+	}
+
+	&.chat-view-position-right {
+		flex-direction: row-reverse;
+
+		.agent-sessions-container {
+			border-left: 1px solid var(--vscode-panel-border);
+		}
+	}
+
+	.agent-sessions-new-button-container {
+		padding: 8px;
+	}
+}
+
+/* Sessions control: panel location */
+.chat-viewpane.has-sessions-control.chat-view-location-panel {
+
+	.agent-sessions-new-button-container {
+		/* hide new session button in the panel considering less vertical space */
+		display: none !important;
+	}
+}
+
+/*
+ * Padding rules for agent sessions elements based on:
+ * - orientation (stacked vs sidebyside)
+ * - view position (left vs right)
+ * - activity bar location (default vs other for auxiliarybar)
+ */
+.chat-viewpane.has-sessions-control {
+
+	/* Base padding: left-aligned content */
+	.agent-sessions-title-container {
+		padding: 0 8px 0 20px;
+	}
+
+	.agent-session-section {
+		padding: 0 6px 0 14px;
+	}
+
+	/* Right position: symmetric padding */
+	&.sessions-control-orientation-sidebyside.chat-view-position-right {
+
+		.agent-sessions-title-container {
+			padding: 0 8px;
+		}
+
+		.agent-session-section {
+			padding: 0 6px 0 8px;
+		}
+	}
+
+	/* Auxiliarybar with non-default activity bar: tighter title padding */
+	&.activity-bar-location-other.chat-view-location-auxiliarybar {
+
+		.agent-sessions-title-container {
+			padding-right: 4px;
+		}
+
+		/* Right position needs adjusted left padding too */
+		&.sessions-control-orientation-sidebyside.chat-view-position-right {
+
+			.agent-sessions-title-container,
+			.agent-session-section {
+				padding-left: 8px;
+			}
+		}
+	}
+}

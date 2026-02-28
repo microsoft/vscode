@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../base/common/event.js';
 import { Disposable } from '../../base/common/lifecycle.js';
 import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from '../../platform/contextkey/common/contextkey.js';
-import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from '../../platform/contextkey/common/contextkeys.js';
-import { SplitEditorsVertically, InEditorZenModeContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, TitleBarVisibleContext, TitleBarStyleContext, IsAuxiliaryWindowFocusedContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorGroupLockedContext, MultipleEditorGroupsContext, EditorsVisibleContext } from '../common/contextkeys.js';
-import { trackFocus, addDisposableListener, EventType, onDidRegisterWindow, getActiveWindow, isEditableElement } from '../../base/browser/dom.js';
+import { IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from '../../platform/contextkey/common/contextkeys.js';
+import { SplitEditorsVertically, InEditorZenModeContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, TitleBarVisibleContext, TitleBarStyleContext, IsAuxiliaryWindowFocusedContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorGroupLockedContext, MultipleEditorGroupsContext, EditorsVisibleContext, AuxiliaryBarMaximizedContext, InAutomationContext, IsSessionsWindowContext } from '../common/contextkeys.js';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService.js';
@@ -18,7 +16,6 @@ import { getRemoteName } from '../../platform/remote/common/remoteHosts.js';
 import { getVirtualWorkspaceScheme } from '../../platform/workspace/common/virtualWorkspace.js';
 import { IWorkingCopyService } from '../services/workingCopy/common/workingCopyService.js';
 import { isNative } from '../../base/common/platform.js';
-import { IPaneCompositePartService } from '../services/panecomposite/browser/panecomposite.js';
 import { WebFileSystemAccess } from '../../platform/files/browser/webFileSystemAccess.js';
 import { IProductService } from '../../platform/product/common/productService.js';
 import { getTitleBarStyle } from '../../platform/window/common/window.js';
@@ -27,7 +24,6 @@ import { isFullscreen, onDidChangeFullscreen } from '../../base/browser/browser.
 import { IEditorService } from '../services/editor/common/editorService.js';
 
 export class WorkbenchContextKeysHandler extends Disposable {
-	private inputFocusedContext: IContextKey<boolean>;
 
 	private dirtyWorkingCopiesContext: IContextKey<boolean>;
 
@@ -50,6 +46,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private virtualWorkspaceContext: IContextKey<string>;
 	private temporaryWorkspaceContext: IContextKey<boolean>;
+	private isSessionsWindowContext: IContextKey<boolean>;
+	private inAutomationContext: IContextKey<boolean>;
 
 	private inZenModeContext: IContextKey<boolean>;
 	private isMainWindowFullscreenContext: IContextKey<boolean>;
@@ -62,6 +60,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private panelAlignmentContext: IContextKey<string>;
 	private panelMaximizedContext: IContextKey<boolean>;
 	private auxiliaryBarVisibleContext: IContextKey<boolean>;
+	private auxiliaryBarMaximizedContext: IContextKey<boolean>;
 	private editorTabsVisibleContext: IContextKey<boolean>;
 	private titleAreaVisibleContext: IContextKey<boolean>;
 	private titleBarStyleContext: IContextKey<string>;
@@ -75,7 +74,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 	) {
 		super();
@@ -94,6 +92,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this.virtualWorkspaceContext = VirtualWorkspaceContext.bindTo(this.contextKeyService);
 		this.temporaryWorkspaceContext = TemporaryWorkspaceContext.bindTo(this.contextKeyService);
+		this.isSessionsWindowContext = IsSessionsWindowContext.bindTo(this.contextKeyService);
+		this.isSessionsWindowContext.set(this.environmentService.isSessionsWindow);
 		this.updateWorkspaceContextKeys();
 
 		// Capabilities
@@ -108,6 +108,10 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		ProductQualityContext.bindTo(this.contextKeyService).set(this.productService.quality || '');
 		EmbedderIdentifierContext.bindTo(this.contextKeyService).set(productService.embedderIdentifier);
 
+		// Automation
+		this.inAutomationContext = InAutomationContext.bindTo(this.contextKeyService);
+		this.inAutomationContext.set(!!this.environmentService.enableSmokeTestDriver);
+
 		// Editor Groups
 		this.activeEditorGroupEmpty = ActiveEditorGroupEmptyContext.bindTo(this.contextKeyService);
 		this.activeEditorGroupIndex = ActiveEditorGroupIndexContext.bindTo(this.contextKeyService);
@@ -121,9 +125,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Working Copies
 		this.dirtyWorkingCopiesContext = DirtyWorkingCopiesContext.bindTo(this.contextKeyService);
 		this.dirtyWorkingCopiesContext.set(this.workingCopyService.hasDirty);
-
-		// Inputs
-		this.inputFocusedContext = InputFocusedContext.bindTo(this.contextKeyService);
 
 		// Workbench State
 		this.workbenchStateContext = WorkbenchStateContext.bindTo(this.contextKeyService);
@@ -177,6 +178,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Sidebar
 		this.sideBarVisibleContext = SideBarVisibleContext.bindTo(this.contextKeyService);
+		this.sideBarVisibleContext.set(this.layoutService.isVisible(Parts.SIDEBAR_PART));
 
 		// Title Bar
 		this.titleAreaVisibleContext = TitleBarVisibleContext.bindTo(this.contextKeyService);
@@ -196,6 +198,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		// Auxiliary Bar
 		this.auxiliaryBarVisibleContext = AuxiliaryBarVisibleContext.bindTo(this.contextKeyService);
 		this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		this.auxiliaryBarMaximizedContext = AuxiliaryBarMaximizedContext.bindTo(this.contextKeyService);
+		this.auxiliaryBarMaximizedContext.set(this.layoutService.isAuxiliaryBarMaximized());
 
 		this.registerListeners();
 	}
@@ -215,8 +219,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateActiveEditorGroupContextKeys()));
 
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
-
-		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => disposables.add(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(window.document), true)), { window: mainWindow, disposables: this._store }));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -242,15 +244,18 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.layoutService.onDidChangePanelAlignment(alignment => this.panelAlignmentContext.set(alignment)));
 
-		this._register(this.paneCompositeService.onDidPaneCompositeClose(() => this.updateSideBarContextKeys()));
-		this._register(this.paneCompositeService.onDidPaneCompositeOpen(() => this.updateSideBarContextKeys()));
-
 		this._register(this.layoutService.onDidChangePartVisibility(() => {
 			this.mainEditorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 			this.panelVisibleContext.set(this.layoutService.isVisible(Parts.PANEL_PART));
 			this.panelMaximizedContext.set(this.layoutService.isPanelMaximized());
 			this.auxiliaryBarVisibleContext.set(this.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+			this.sideBarVisibleContext.set(this.layoutService.isVisible(Parts.SIDEBAR_PART));
+
 			this.updateTitleBarContextKeys();
+		}));
+
+		this._register(this.layoutService.onDidChangeAuxiliaryBarMaximized(() => {
+			this.auxiliaryBarMaximizedContext.set(this.layoutService.isAuxiliaryBarMaximized());
 		}));
 
 		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));
@@ -297,36 +302,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.editorTabsVisibleContext.set(this.editorGroupService.partOptions.showTabs === 'multiple');
 	}
 
-	private updateInputContextKeys(ownerDocument: Document): void {
-
-		function activeElementIsInput(): boolean {
-			return !!ownerDocument.activeElement && isEditableElement(ownerDocument.activeElement);
-		}
-
-		const isInputFocused = activeElementIsInput();
-		this.inputFocusedContext.set(isInputFocused);
-
-		if (isInputFocused) {
-			const tracker = trackFocus(ownerDocument.activeElement as HTMLElement);
-			Event.once(tracker.onDidBlur)(() => {
-
-				// Ensure we are only updating the context key if we are
-				// still in the same document that we are tracking. This
-				// fixes a race condition in multi-window setups where
-				// the blur event arrives in the inactive window overwriting
-				// the context key of the active window. This is because
-				// blur events from the focus tracker are emitted with a
-				// timeout of 0.
-
-				if (getActiveWindow().document === ownerDocument) {
-					this.inputFocusedContext.set(activeElementIsInput());
-				}
-
-				tracker.dispose();
-			});
-		}
-	}
-
 	private updateWorkbenchStateContextKey(): void {
 		this.workbenchStateContext.set(this.getWorkbenchStateString());
 	}
@@ -346,10 +321,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			case WorkbenchState.FOLDER: return 'folder';
 			case WorkbenchState.WORKSPACE: return 'workspace';
 		}
-	}
-
-	private updateSideBarContextKeys(): void {
-		this.sideBarVisibleContext.set(this.layoutService.isVisible(Parts.SIDEBAR_PART));
 	}
 
 	private updateTitleBarContextKeys(): void {

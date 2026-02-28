@@ -49,7 +49,7 @@ export function writeTransientState(model: ITextModel, state: IWordWrapTransient
  * Read (in memory) the word wrap state for a particular model.
  */
 export function readTransientState(model: ITextModel, codeEditorService: ICodeEditorService): IWordWrapTransientState | null {
-	return codeEditorService.getTransientModelProperty(model, transientWordWrapState);
+	return codeEditorService.getTransientModelProperty(model, transientWordWrapState) as IWordWrapTransientState | null;
 }
 
 const TOGGLE_WORD_WRAP_ID = 'editor.action.toggleWordWrap';
@@ -259,7 +259,7 @@ class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchCo
 		this._canToggleWordWrap = CAN_TOGGLE_WORD_WRAP.bindTo(this._contextService);
 		this._editorWordWrap = EDITOR_WORD_WRAP.bindTo(this._contextService);
 		this._activeEditor = null;
-		this._activeEditorListener = new DisposableStore();
+		this._activeEditorListener = this._register(new DisposableStore());
 		this._update();
 	}
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -11,7 +12,10 @@ import { PolicyName } from '../../../base/common/policy.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export type PolicyValue = string | number | boolean;
-export type PolicyDefinition = { type: 'string' | 'number' | 'boolean'; previewFeature?: boolean; defaultValue?: string | number | boolean };
+export type PolicyDefinition = {
+	type: 'string' | 'number' | 'boolean';
+	value?: (policyData: IPolicyData) => string | number | boolean | undefined;
+};
 
 export const IPolicyService = createDecorator<IPolicyService>('policy');
 
@@ -39,7 +43,7 @@ export abstract class AbstractPolicyService extends Disposable implements IPolic
 		this.policyDefinitions = { ...policyDefinitions, ...this.policyDefinitions };
 
 		if (size !== Object.keys(this.policyDefinitions).length) {
-			await this._updatePolicyDefinitions(policyDefinitions);
+			await this._updatePolicyDefinitions(this.policyDefinitions);
 		}
 
 		return Iterable.reduce(this.policies.entries(), (r, [name, value]) => ({ ...r, [name]: value }), {});

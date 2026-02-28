@@ -71,7 +71,18 @@ class CheckoutStatusBar {
 
 		// Branch
 		if (this.repository.HEAD.type === RefType.Head && this.repository.HEAD.name) {
-			return this.repository.isBranchProtected() ? '$(lock)' : '$(git-branch)';
+			switch (true) {
+				case this.repository.isBranchProtected():
+					return '$(lock)';
+				case this.repository.mergeInProgress || !!this.repository.rebaseCommit:
+					return '$(git-branch-conflicts)';
+				case this.repository.indexGroup.resourceStates.length > 0:
+					return '$(git-branch-staged-changes)';
+				case this.repository.workingTreeGroup.resourceStates.length + this.repository.untrackedGroup.resourceStates.length > 0:
+					return '$(git-branch-changes)';
+				default:
+					return '$(git-branch)';
+			}
 		}
 
 		// Tag
@@ -281,13 +292,17 @@ export class StatusBarCommands {
 	private checkoutStatusBar: CheckoutStatusBar;
 	private disposables: Disposable[] = [];
 
-	constructor(repository: Repository, remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry) {
+	constructor(private readonly repository: Repository, remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry) {
 		this.syncStatusBar = new SyncStatusBar(repository, remoteSourcePublisherRegistry);
 		this.checkoutStatusBar = new CheckoutStatusBar(repository);
 		this.onDidChange = anyEvent(this.syncStatusBar.onDidChange, this.checkoutStatusBar.onDidChange);
 	}
 
 	get commands(): Command[] {
+		if (this.repository.isHidden) {
+			return [];
+		}
+
 		return [this.checkoutStatusBar.command, this.syncStatusBar.command]
 			.filter((c): c is Command => !!c);
 	}

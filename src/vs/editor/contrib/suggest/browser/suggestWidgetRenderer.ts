@@ -134,6 +134,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			const fontInfo = options.get(EditorOption.fontInfo);
 			const fontFamily = fontInfo.getMassagedFontFamily();
 			const fontFeatureSettings = fontInfo.fontFeatureSettings;
+			const fontVariationSettings = fontInfo.fontVariationSettings;
 			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 			const fontWeight = fontInfo.fontWeight;
@@ -147,6 +148,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			root.style.letterSpacing = letterSpacingPx;
 			main.style.fontFamily = fontFamily;
 			main.style.fontFeatureSettings = fontFeatureSettings;
+			main.style.fontVariationSettings = fontVariationSettings;
 			main.style.lineHeight = lineHeightPx;
 			icon.style.height = lineHeightPx;
 			icon.style.width = lineHeightPx;

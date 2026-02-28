@@ -3,36 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../../../base/common/observable.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../browser/point.js';
+import { Point } from '../../../../../../common/core/2d/point.js';
 import { singleTextRemoveCommonPrefix } from '../../../model/singleTextEditHelpers.js';
 import { IInlineEditsView } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
 import { inlineEditIndicatorPrimaryBorder } from '../theme.js';
-import { PathBuilder } from '../utils/utils.js';
+import { getEditorValidOverlayRect, PathBuilder, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsCollapsedView extends Disposable implements IInlineEditsView {
 
-	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
-	readonly onDidClick = this._onDidClick.event;
+	readonly onDidClick = Event.None;
 
 	private readonly _editorObs: ObservableCodeEditor;
+	private readonly _iconRef = n.ref<SVGElement>();
+
+	readonly isVisible: IObservable<boolean>;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEditWithChanges | undefined>,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		const firstEdit = this._edit.map(inlineEdit => inlineEdit?.edit.edits[0] ?? null);
+		const firstEdit = this._edit.map(inlineEdit => inlineEdit?.edit?.replacements[0] ?? null);
 
 		const startPosition = firstEdit.map(edit => edit ? singleTextRemoveCommonPrefix(edit, this._editor.getModel()!).range.getStartPosition() : null);
 		const observedStartPoint = this._editorObs.observePosition(startPosition, this._store);
@@ -52,7 +55,6 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 				overflow: 'visible',
 				top: '0px',
 				left: '0px',
-				zIndex: '0',
 				display: 'block',
 			},
 		}, [
@@ -65,6 +67,27 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 			allowEditorOverflow: false,
 			minContentWidthInPx: constObservable(0),
 		}));
+
+		this.isVisible = this._edit.map((inlineEdit, reader) => !!inlineEdit && startPoint.read(reader) !== null);
+	}
+
+	public triggerAnimation(): Promise<Animation> {
+		if (this._accessibilityService.isMotionReduced()) {
+			return new Animation(null, null).finished;
+		}
+
+		// PULSE ANIMATION:
+		const animation = this._iconRef.element.animate([
+			{ offset: 0.00, transform: 'translateY(-3px)', },
+			{ offset: 0.20, transform: 'translateY(1px)', },
+			{ offset: 0.36, transform: 'translateY(-1px)', },
+			{ offset: 0.52, transform: 'translateY(1px)', },
+			{ offset: 0.68, transform: 'translateY(-1px)', },
+			{ offset: 0.84, transform: 'translateY(1px)', },
+			{ offset: 1.00, transform: 'translateY(0px)', },
+		], { duration: 2000 });
+
+		return animation.finished;
 	}
 
 	private getCollapsedIndicator(startPoint: IObservable<Point | null>) {
@@ -74,12 +97,10 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 
 		return n.svg({
 			class: 'collapsedView',
+			ref: this._iconRef,
 			style: {
 				position: 'absolute',
-				top: 0,
-				left: contentLeft,
-				width: this._editorObs.contentWidth,
-				height: this._editorObs.editor.getContentHeight(),
+				...rectToProps((r) => getEditorValidOverlayRect(this._editorObs).read(r)),
 				overflow: 'hidden',
 				pointerEvents: 'none',
 			}

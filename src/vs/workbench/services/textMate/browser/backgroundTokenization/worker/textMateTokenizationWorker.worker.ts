@@ -13,6 +13,8 @@ import { TextMateWorkerTokenizer } from './textMateWorkerTokenizer.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { IWebWorkerServerRequestHandler, IWebWorkerServer } from '../../../../../../base/common/worker/webWorker.js';
 import { TextMateWorkerHost } from './textMateWorkerHost.js';
+import { ISerializedAnnotation } from '../../../../../../editor/common/model/tokens/annotations.js';
+import { IFontTokenOption } from '../../../../../../editor/common/textModelEvents.js';
 
 export function create(workerServer: IWebWorkerServer): TextMateTokenizationWorker {
 	return new TextMateTokenizationWorker(workerServer);
@@ -42,7 +44,7 @@ export interface StateDeltas {
 }
 
 export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandler {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	private readonly _host: TextMateWorkerHost;
 	private readonly _models = new Map</* controllerId */ number, TextMateWorkerTokenizer>();
@@ -88,7 +90,7 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 
 		return new TMGrammarFactory({
 			logTrace: (msg: string) => {/* console.log(msg) */ },
-			logError: (msg: string, err: any) => console.error(msg, err),
+			logError: (msg: string, err: unknown) => console.error(msg, err),
 			readFile: (resource: URI) => this._host.$readFile(resource)
 		}, grammarDefinitions, vscodeTextmate, onigLib);
 	}
@@ -109,8 +111,8 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 				}
 				return that._grammarCache[encodedLanguageId];
 			},
-			setTokensAndStates(versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void {
-				that._host.$setTokensAndStates(data.controllerId, versionId, tokens, stateDeltas);
+			setTokensAndStates(versionId: number, tokens: Uint8Array, fontTokens: ISerializedAnnotation<IFontTokenOption>[], stateDeltas: StateDeltas[]): void {
+				that._host.$setTokensAndStates(data.controllerId, versionId, tokens, fontTokens, stateDeltas);
 			},
 			reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void {
 				that._host.$reportTokenizationTime(timeMs, languageId, sourceExtensionId, lineLength, isRandomSample);

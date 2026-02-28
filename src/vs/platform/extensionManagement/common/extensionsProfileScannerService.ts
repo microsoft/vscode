@@ -177,7 +177,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 		await this.withProfileExtensions(profileLocation, profileExtensions => {
 			const result: IScannedProfileExtension[] = [];
 			for (const profileExtension of profileExtensions) {
-				const extension = extensions.find(([e]) => areSameExtensions(e.identifier, profileExtension.identifier) && e.manifest.version === profileExtension.version);
+				const extension = extensions.find(([e]) => areSameExtensions({ id: e.identifier.id }, { id: profileExtension.identifier.id }) && e.manifest.version === profileExtension.version);
 				if (extension) {
 					profileExtension.metadata = { ...profileExtension.metadata, ...extension[1] };
 					updatedExtensions.push(profileExtension);
@@ -390,18 +390,21 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 	}
 }
 
-function isStoredProfileExtension(candidate: any): candidate is IStoredProfileExtension {
+function isStoredProfileExtension(obj: unknown): obj is IStoredProfileExtension {
+	const candidate = obj as IStoredProfileExtension | undefined;
 	return isObject(candidate)
 		&& isIExtensionIdentifier(candidate.identifier)
-		&& (isUriComponents(candidate.location) || (isString(candidate.location) && candidate.location))
+		&& (isUriComponents(candidate.location) || (isString(candidate.location) && !!candidate.location))
 		&& (isUndefined(candidate.relativeLocation) || isString(candidate.relativeLocation))
-		&& candidate.version && isString(candidate.version);
+		&& !!candidate.version
+		&& isString(candidate.version);
 }
 
-function isUriComponents(thing: unknown): thing is UriComponents {
-	if (!thing) {
+function isUriComponents(obj: unknown): obj is UriComponents {
+	if (!obj) {
 		return false;
 	}
-	return isString((<any>thing).path) &&
-		isString((<any>thing).scheme);
+	const thing = obj as UriComponents | undefined;
+	return typeof thing?.path === 'string' &&
+		typeof thing?.scheme === 'string';
 }

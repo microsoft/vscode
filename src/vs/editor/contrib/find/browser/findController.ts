@@ -29,11 +29,13 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IThemeService, themeColorFromId } from '../../../../platform/theme/common/themeService.js';
+import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { Selection } from '../../../common/core/selection.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
 import { ReplaceWidgetHistory } from './replaceWidgetHistory.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -129,7 +131,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._notificationService = notificationService;
 		this._hoverService = hoverService;
 
-		this._updateHistoryDelayer = new Delayer<void>(500);
+		this._updateHistoryDelayer = this._register(new Delayer<void>(500));
 		this._state = this._register(new FindReplaceState());
 		this.loadQueryState();
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
@@ -218,6 +220,22 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 	public isFindInputFocused(): boolean {
 		return !!CONTEXT_FIND_INPUT_FOCUSED.getValue(this._contextKeyService);
+	}
+
+	/**
+	 * Returns whether the Replace input was the last focused input in the find widget.
+	 * Returns false by default; overridden in FindController.
+	 */
+	public wasReplaceInputLastFocused(): boolean {
+		return false;
+	}
+
+	/**
+	 * Focuses the last focused element in the find widget.
+	 * Implemented by FindController; base implementation does nothing.
+	 */
+	public focusLastElement(): void {
+		// Base implementation - overridden in FindController
 	}
 
 	public getState(): FindReplaceState {
@@ -452,11 +470,12 @@ export class FindController extends CommonFindController implements IFindControl
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService _storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super(editor, _contextKeyService, _storageService, clipboardService, notificationService, hoverService);
 		this._widget = null;
@@ -514,8 +533,24 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory));
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._hoverService, this._findWidgetSearchHistory, this._replaceWidgetHistory, this._configurationService, this._accessibilityService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService));
+	}
+
+	/**
+	 * Returns whether the Replace input was the last focused input in the find widget.
+	 */
+	public override wasReplaceInputLastFocused(): boolean {
+		return this._widget?.lastFocusedInputWasReplace ?? false;
+	}
+
+	/**
+	 * Focuses the last focused element in the find widget.
+	 * This is more precise than just focusing the Find or Replace input,
+	 * as it can restore focus to checkboxes, buttons, etc.
+	 */
+	public override focusLastElement(): void {
+		this._widget?.focusLastElement();
 	}
 
 	saveViewState(): any {
@@ -595,7 +630,7 @@ export class StartFindWithArgsAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor, args?: IFindStartArguments): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args?: IFindStartArguments): Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (controller) {
 			const newState: INewFindReplaceState = args ? {
@@ -646,7 +681,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (controller) {
 			await controller.start({
@@ -665,7 +700,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 	}
 }
 export abstract class MatchFindAction extends EditorAction {
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (controller && !this._run(controller)) {
 			await controller.start({
@@ -685,63 +720,76 @@ export abstract class MatchFindAction extends EditorAction {
 	protected abstract _run(controller: CommonFindController): boolean;
 }
 
-export class NextMatchFindAction extends MatchFindAction {
-
-	constructor() {
-		super({
-			id: FIND_IDS.NextMatchFindAction,
-			label: nls.localize2('findNextMatchAction', "Find Next"),
-			precondition: undefined,
-			kbOpts: [{
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG, secondary: [KeyCode.F3] },
-				weight: KeybindingWeight.EditorContrib
-			}, {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			}]
-		});
+async function matchFindAction(editor: ICodeEditor, next: boolean): Promise<void> {
+	const controller = CommonFindController.get(editor);
+	if (!controller) {
+		return;
 	}
 
-	protected _run(controller: CommonFindController): boolean {
-		const result = controller.moveToNextMatch();
+	const runMatch = (): boolean => {
+		const result = next ? controller.moveToNextMatch() : controller.moveToPrevMatch();
 		if (result) {
 			controller.editor.pushUndoStop();
 			return true;
 		}
-
 		return false;
-	}
-}
+	};
 
-
-export class PreviousMatchFindAction extends MatchFindAction {
-
-	constructor() {
-		super({
-			id: FIND_IDS.PreviousMatchFindAction,
-			label: nls.localize2('findPreviousMatchAction', "Find Previous"),
-			precondition: undefined,
-			kbOpts: [{
-				kbExpr: EditorContextKeys.focus,
-				primary: KeyMod.Shift | KeyCode.F3,
-				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
-				weight: KeybindingWeight.EditorContrib
-			}, {
-				kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
-				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: KeybindingWeight.EditorContrib
-			}
-			]
+	if (!runMatch()) {
+		await controller.start({
+			forceRevealReplace: false,
+			seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
+			seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
+			seedSearchStringFromGlobalClipboard: true,
+			shouldFocus: FindStartFocusAction.NoFocusChange,
+			shouldAnimate: true,
+			updateSearchScope: false,
+			loop: editor.getOption(EditorOption.find).loop
 		});
-	}
-
-	protected _run(controller: CommonFindController): boolean {
-		return controller.moveToPrevMatch();
+		runMatch();
 	}
 }
+
+export const NextMatchFindAction = registerMultiEditorAction(new MultiEditorAction({
+	id: FIND_IDS.NextMatchFindAction,
+	label: nls.localize2('findNextMatchAction', "Find Next"),
+	precondition: undefined,
+	kbOpts: [{
+		kbExpr: EditorContextKeys.focus,
+		primary: KeyCode.F3,
+		mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG, secondary: [KeyCode.F3] },
+		weight: KeybindingWeight.EditorContrib
+	}, {
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
+		primary: KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	}]
+}));
+
+NextMatchFindAction.addImplementation(0, async (accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> => {
+	return matchFindAction(editor, true);
+});
+
+
+export const PreviousMatchFindAction = registerMultiEditorAction(new MultiEditorAction({
+	id: FIND_IDS.PreviousMatchFindAction,
+	label: nls.localize2('findPreviousMatchAction', "Find Previous"),
+	precondition: undefined,
+	kbOpts: [{
+		kbExpr: EditorContextKeys.focus,
+		primary: KeyMod.Shift | KeyCode.F3,
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
+		weight: KeybindingWeight.EditorContrib
+	}, {
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_FIND_INPUT_FOCUSED),
+		primary: KeyMod.Shift | KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	}]
+}));
+
+PreviousMatchFindAction.addImplementation(0, async (accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> => {
+	return matchFindAction(editor, false);
+});
 
 export class MoveToMatchFindAction extends EditorAction {
 
@@ -754,7 +802,7 @@ export class MoveToMatchFindAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (!controller) {
 			return;
@@ -861,7 +909,7 @@ export class MoveToMatchFindAction extends EditorAction {
 }
 
 export abstract class SelectionMatchFindAction extends EditorAction {
-	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const controller = CommonFindController.get(editor);
 		if (!controller) {
 			return;
@@ -990,8 +1038,6 @@ registerEditorContribution(CommonFindController.ID, FindController, EditorContri
 
 registerEditorAction(StartFindWithArgsAction);
 registerEditorAction(StartFindWithSelectionAction);
-registerEditorAction(NextMatchFindAction);
-registerEditorAction(PreviousMatchFindAction);
 registerEditorAction(MoveToMatchFindAction);
 registerEditorAction(NextSelectionMatchFindAction);
 registerEditorAction(PreviousSelectionMatchFindAction);
@@ -1097,7 +1143,7 @@ registerEditorCommand(new FindCommand({
 	handler: x => x.replace(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 5,
-		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED),
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, CONTEXT_REPLACE_INPUT_FOCUSED, EditorContextKeys.isComposing.negate()),
 		primary: KeyCode.Enter
 	}
 }));

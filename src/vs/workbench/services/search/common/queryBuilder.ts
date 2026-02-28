@@ -12,7 +12,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import * as path from '../../../../base/common/path.js';
 import { isEqual, basename, relativePath, isAbsolutePath } from '../../../../base/common/resources.js';
 import * as strings from '../../../../base/common/strings.js';
-import { assertIsDefined, isDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined, isDefined } from '../../../../base/common/types.js';
 import { URI, URI as uri, UriComponents } from '../../../../base/common/uri.js';
 import { isMultilineRegexSource } from '../../../../editor/common/model/textModelSearch.js';
 import * as nls from '../../../../nls.js';
@@ -91,6 +91,7 @@ interface ICommonQueryBuilderOptions<U extends UriComponents = URI> {
 	disregardExcludeSettings?: boolean;
 	disregardSearchExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
+	ignoreGlobCase?: boolean;
 	onlyOpenEditors?: boolean;
 	onlyFileScheme?: boolean;
 }
@@ -269,6 +270,7 @@ export class QueryBuilder {
 
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
+			ignoreGlobCase: options.ignoreGlobCase,
 			onlyOpenEditors: options.onlyOpenEditors,
 			maxResults: options.maxResults,
 			onlyFileScheme: options.onlyFileScheme
@@ -313,11 +315,11 @@ export class QueryBuilder {
 				}
 
 				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-				assertIsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
+				assertReturnsDefined(folderQuery.includePattern)[escapeGlobPattern(relPath.replace(/\\/g, '/'))] = true;
 			} else {
 				if (file.fsPath) {
 					hasIncludedFile = true;
-					includePattern[file.fsPath] = true;
+					includePattern[escapeGlobPattern(file.fsPath)] = true;
 				}
 			}
 		});
@@ -617,6 +619,7 @@ export class QueryBuilder {
 			disregardGlobalIgnoreFiles: typeof options.disregardGlobalIgnoreFiles === 'boolean' ? options.disregardGlobalIgnoreFiles : !folderConfig.search.useGlobalIgnoreFiles,
 			disregardParentIgnoreFiles: typeof options.disregardParentIgnoreFiles === 'boolean' ? options.disregardParentIgnoreFiles : !folderConfig.search.useParentIgnoreFiles,
 			ignoreSymlinks: typeof options.ignoreSymlinks === 'boolean' ? options.ignoreSymlinks : !folderConfig.search.followSymlinks,
+			ignoreGlobCase: options.ignoreGlobCase,
 		};
 	}
 }
@@ -691,7 +694,7 @@ function normalizeGlobPattern(pattern: string): string {
  * given the input "//?/C:/A?.txt", this would produce output '//[?]/C:/A[?].txt',
  * which may not be desirable in some cases. Use with caution if UNC paths could be expected.
  */
-function escapeGlobPattern(path: string): string {
+export function escapeGlobPattern(path: string): string {
 	return path.replace(/([?*[\]])/g, '[$1]');
 }
 

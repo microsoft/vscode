@@ -24,12 +24,11 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 	provideColorPresentations(_model: ITextModel, colorInfo: IColorInformation, _token: CancellationToken): IColorPresentation[] {
 		const range = colorInfo.range;
 		const colorFromInfo: IColor = colorInfo.color;
-		const alpha = colorFromInfo.alpha;
-		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), alpha));
+		const color = new Color(new RGBA(Math.round(255 * colorFromInfo.red), Math.round(255 * colorFromInfo.green), Math.round(255 * colorFromInfo.blue), colorFromInfo.alpha));
 
-		const rgb = alpha ? Color.Format.CSS.formatRGB(color) : Color.Format.CSS.formatRGBA(color);
-		const hsl = alpha ? Color.Format.CSS.formatHSL(color) : Color.Format.CSS.formatHSLA(color);
-		const hex = alpha ? Color.Format.CSS.formatHex(color) : Color.Format.CSS.formatHexA(color);
+		const rgb = Color.Format.CSS.formatRGB(color);
+		const hsl = Color.Format.CSS.formatHSL(color);
+		const hex = Color.Format.CSS.formatHexA(color, true);
 
 		const colorPresentations: IColorPresentation[] = [];
 		colorPresentations.push({ label: rgb, textEdit: { range: range, text: rgb } });

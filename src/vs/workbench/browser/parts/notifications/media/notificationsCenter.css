@@ -6,8 +6,8 @@
 .monaco-workbench > .notifications-center {
 	position: absolute;
 	z-index: 1000;
-	right: 11px; /* attempt to position at same location as a toast */
-	bottom: 33px; /* 22px status bar height + 11px (attempt to position at same location as a toast) */
+	right: 7px; /* attempt to position at same location as a toast */
+	bottom: 29px; /* 22px status bar height + 7px (attempt to position at same location as a toast) */
 	display: none;
 	overflow: hidden;
 	border-radius: 4px;
@@ -15,6 +15,16 @@
 
 .monaco-workbench.nostatusbar > .notifications-center {
 	bottom: 11px; /* attempt to position at same location as a toast */
+}
+
+.monaco-workbench > .notifications-center.bottom-left {
+	right: auto;
+	left: 7px;
+}
+
+.monaco-workbench > .notifications-center.top-right {
+	bottom: auto;
+	top: 7px;
 }
 
 .monaco-workbench > .notifications-center.visible {

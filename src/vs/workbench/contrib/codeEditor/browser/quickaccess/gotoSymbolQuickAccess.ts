@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IKeyMods, IQuickPickSeparator, IQuickInputService, IQuickPick, ItemActivation } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from '../../../../../platform/quickinput/common/quickAccess.js';
@@ -28,7 +29,6 @@ import { IQuickAccessTextEditorContext } from '../../../../../editor/contrib/qui
 import { IOutlineService, OutlineTarget } from '../../../../services/outline/browser/outline.js';
 import { isCompositeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ITextEditorOptions } from '../../../../../platform/editor/common/editor.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IOutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -37,11 +37,10 @@ import { matchesFuzzyIconAware, parseLabelWithIcons } from '../../../../../base/
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
-	protected readonly onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
+	protected readonly onDidActiveTextEditorControlChange: Event<void>;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@IOutlineService private readonly outlineService: IOutlineService,
@@ -50,6 +49,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		super(languageFeaturesService, outlineModelService, {
 			openSideBySideDirection: () => this.configuration.openSideBySideDirection
 		});
+		this.onDidActiveTextEditorControlChange = this.editorService.onDidActiveEditorChange;
 	}
 
 	//#region DocumentSymbols (text editor required)
@@ -88,7 +88,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				preserveFocus: options.preserveFocus
 			};
 
-			this.editorGroupService.sideGroup.openEditor(this.editorService.activeEditor, editorOptions);
+			this.editorService.openEditor(this.editorService.activeEditor, editorOptions, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it

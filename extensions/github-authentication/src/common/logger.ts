@@ -18,6 +18,10 @@ export class Log {
 		this.output.trace(message);
 	}
 
+	public debug(message: string): void {
+		this.output.debug(message);
+	}
+
 	public info(message: string): void {
 		this.output.info(message);
 	}

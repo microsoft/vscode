@@ -25,7 +25,7 @@ declare module 'vscode' {
 		/**
 		 * An optional event to signal that the kernel source actions have changed.
 		 */
-		onDidChangeNotebookKernelSourceActions?: Event<void>;
+		readonly onDidChangeNotebookKernelSourceActions?: Event<void>;
 		/**
 		 * Provide kernel source actions
 		 */

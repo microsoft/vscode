@@ -14,6 +14,7 @@ import { spinningLoading } from '../../../../platform/theme/common/iconRegistry.
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ITerminalStatus } from '../common/terminal.js';
 import { mainWindow } from '../../../../base/browser/window.js';
+import { isString } from '../../../../base/common/types.js';
 
 /**
  * The set of _internal_ terminal statuses, other components building on the terminal should put
@@ -112,7 +113,7 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 	remove(status: ITerminalStatus): void;
 	remove(statusId: string): void;
 	remove(statusOrId: ITerminalStatus | string): void {
-		const status = typeof statusOrId === 'string' ? this._statuses.get(statusOrId) : statusOrId;
+		const status = isString(statusOrId) ? this._statuses.get(statusOrId) : statusOrId;
 		// Verify the status is the same as the one passed in
 		if (status && this._statuses.get(status.id)) {
 			const wasPrimary = this.primary?.id === status.id;

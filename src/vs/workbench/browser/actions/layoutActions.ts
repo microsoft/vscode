@@ -7,6 +7,7 @@ import { ILocalizedString, localize, localize2 } from '../../../nls.js';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from '../../../platform/actions/common/actions.js';
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { alert } from '../../../base/browser/ui/aria/aria.js';
 import { EditorActionsLocation, EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts, Position, ZenModeSettings, positionToString } from '../../services/layout/browser/layoutService.js';
 import { ServicesAccessor, IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { KeyMod, KeyCode, KeyChord } from '../../../base/common/keyCodes.js';
@@ -22,7 +23,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, TitleBarStyleContext, IsAuxiliaryWindowContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -30,7 +31,7 @@ import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
 import { ICommandActionTitle } from '../../../platform/action/common/action.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { TitlebarStyle } from '../../../platform/window/common/window.js';
+import { MenuSettings, TitlebarStyle } from '../../../platform/window/common/window.js';
 import { IPreferencesService } from '../../services/preferences/common/preferences.js';
 import { QuickInputAlignmentContextKey } from '../../../platform/quickinput/browser/quickInput.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -173,7 +174,10 @@ MenuRegistry.appendMenuItem(MenuId.LayoutControlMenu, {
 	title: localize('configureLayout', "Configure Layout"),
 	icon: configureLayoutIcon,
 	group: '1_workbench_layout',
-	when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'menu')
+	when: ContextKeyExpr.and(
+		IsAuxiliaryWindowContext.negate(),
+		ContextKeyExpr.equals('config.workbench.layoutControl.type', 'menu')
+	)
 });
 
 
@@ -316,8 +320,15 @@ export class ToggleSidebarVisibilityAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const isCurrentlyVisible = layoutService.isVisible(Parts.SIDEBAR_PART);
 
-		layoutService.setPartHidden(layoutService.isVisible(Parts.SIDEBAR_PART), Parts.SIDEBAR_PART);
+		layoutService.setPartHidden(isCurrentlyVisible, Parts.SIDEBAR_PART);
+
+		// Announce visibility change to screen readers
+		const alertMessage = isCurrentlyVisible
+			? localize('sidebarHidden', "Primary Side Bar hidden")
+			: localize('sidebarVisible', "Primary Side Bar shown");
+		alert(alertMessage);
 	}
 }
 
@@ -345,7 +356,13 @@ MenuRegistry.appendMenuItems([
 				icon: panelLeftOffIcon,
 				toggled: { condition: SideBarVisibleContext, icon: panelLeftIcon }
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')),
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'left')
+			),
 			order: 0
 		}
 	}, {
@@ -358,7 +375,13 @@ MenuRegistry.appendMenuItems([
 				icon: panelRightOffIcon,
 				toggled: { condition: SideBarVisibleContext, icon: panelRightIcon }
 			},
-			when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'), ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')), ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')),
+			when: ContextKeyExpr.and(
+				IsAuxiliaryWindowContext.negate(),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'toggles'),
+					ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')),
+				ContextKeyExpr.equals('config.workbench.sideBar.location', 'right')
+			),
 			order: 2
 		}
 	}
@@ -760,7 +783,7 @@ if (isWindows || isLinux || isWeb) {
 				},
 				category: Categories.View,
 				f1: true,
-				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')),
+				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact')),
 				menu: [{
 					id: MenuId.MenubarAppearanceMenu,
 					group: '2_workbench_layout',
@@ -780,7 +803,7 @@ if (isWindows || isLinux || isWeb) {
 			command: {
 				id: 'workbench.action.toggleMenuBar',
 				title: localize('miMenuBarNoMnemonic', "Menu Bar"),
-				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact'))
+				toggled: ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact'))
 			},
 			when: ContextKeyExpr.and(IsAuxiliaryWindowFocusedContext.toNegated(), ContextKeyExpr.notEquals(TitleBarStyleContext.key, TitlebarStyle.NATIVE), IsMainWindowFullscreenContext.negate()),
 			group: '2_config',
@@ -983,7 +1006,7 @@ class MoveFocusedViewAction extends Action2 {
 		}
 
 		const viewDescriptor = viewDescriptorService.getViewDescriptorById(focusedViewId);
-		if (!viewDescriptor || !viewDescriptor.canMoveView) {
+		if (!viewDescriptor?.canMoveView) {
 			dialogService.error(localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
 			return;
 		}
@@ -1036,7 +1059,7 @@ class MoveFocusedViewAction extends Action2 {
 			.map(viewletId => {
 				return {
 					id: viewletId,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(viewletId)!)!.title
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(viewletId)!).title
 				};
 			}));
 
@@ -1057,7 +1080,7 @@ class MoveFocusedViewAction extends Action2 {
 			.map(panel => {
 				return {
 					id: panel,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!).title
 				};
 			}));
 
@@ -1078,7 +1101,7 @@ class MoveFocusedViewAction extends Action2 {
 			.map(panel => {
 				return {
 					id: panel,
-					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!)!.title
+					label: viewDescriptorService.getViewContainerModel(viewDescriptorService.getViewContainerById(panel)!).title
 				};
 			}));
 
@@ -1161,6 +1184,9 @@ abstract class BaseResizeViewAction extends Action2 {
 	protected static readonly RESIZE_INCREMENT = 60; // This is a css pixel size
 
 	protected resizePart(widthChange: number, heightChange: number, layoutService: IWorkbenchLayoutService, partToResize?: Parts): void {
+		if (layoutService.activeContainer !== layoutService.mainContainer) {
+			return; // we do not support resizing in auxiliary windows
+		}
 
 		let part: Parts | undefined;
 		if (partToResize === undefined) {
@@ -1372,7 +1398,7 @@ const CreateOptionLayoutItem = (id: string, active: ContextKeyExpression, label:
 	};
 };
 
-const MenuBarToggledContext = ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'hidden'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'toggle'), ContextKeyExpr.notEquals('config.window.menuBarVisibility', 'compact')) as ContextKeyExpression;
+const MenuBarToggledContext = ContextKeyExpr.and(IsMacNativeContext.toNegated(), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'hidden'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'toggle'), ContextKeyExpr.notEquals(`config.${MenuSettings.MenuBarVisibility}`, 'compact')) as ContextKeyExpression;
 const ToggleVisibilityActions: CustomizeLayoutItem[] = [];
 if (!isMacintosh || !isNative) {
 	ToggleVisibilityActions.push(CreateToggleLayoutItem('workbench.action.toggleMenuBar', MenuBarToggledContext, localize('menuBar', "Menu Bar"), menubarIcon));
@@ -1433,7 +1459,10 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				},
 				{
 					id: MenuId.LayoutControlMenu,
-					when: ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both'),
+					when: ContextKeyExpr.and(
+						IsAuxiliaryWindowContext.toNegated(),
+						ContextKeyExpr.equals('config.workbench.layoutControl.type', 'both')
+					),
 					group: '1_layout'
 				}
 			]

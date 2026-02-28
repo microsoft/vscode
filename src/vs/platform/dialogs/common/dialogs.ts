@@ -283,7 +283,8 @@ export interface ICustomDialogOptions {
 export interface ICustomDialogMarkdown {
 	readonly markdown: IMarkdownString;
 	readonly classes?: string[];
-	readonly dismissOnLinkClick?: boolean;
+	/** Custom link handler for markdown content, see {@link IContentActionHandler}. Defaults to {@link openLinkFromMarkdown}. */
+	actionHandler?(link: string): Promise<boolean>;
 }
 
 /**
@@ -309,7 +310,7 @@ export interface IDialogHandler {
 	/**
 	 * Present the about dialog to the user.
 	 */
-	about(): Promise<void>;
+	about(title: string, details: string, detailsToCopy: string): Promise<void>;
 }
 
 enum DialogKind {
@@ -439,7 +440,7 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 	abstract input(input: IInput): Promise<IInputResult>;
 	abstract prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>>;
-	abstract about(): Promise<void>;
+	abstract about(title: string, details: string, detailsToCopy: string): Promise<void>;
 }
 
 /**
@@ -455,12 +456,12 @@ export interface IDialogService {
 	/**
 	 * An event that fires when a dialog is about to show.
 	 */
-	onWillShowDialog: Event<void>;
+	readonly onWillShowDialog: Event<void>;
 
 	/**
 	 * An event that fires when a dialog did show (closed).
 	 */
-	onDidShowDialog: Event<void>;
+	readonly onDidShowDialog: Event<void>;
 
 	/**
 	 * Ask the user for confirmation with a modal dialog.

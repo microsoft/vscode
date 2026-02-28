@@ -29,23 +29,24 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { getTelemetryLevel, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SimpleSettingRenderer } from '../../markdown/browser/markdownSettingRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
+import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
-export class ReleaseNotesManager {
+export class ReleaseNotesManager extends Disposable {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
 	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastMeta: { text: string; base: URI } | undefined;
-	private readonly disposables = new DisposableStore();
 
-	public constructor(
+	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -59,13 +60,18 @@ export class ReleaseNotesManager {
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IUpdateService private readonly _updateService: IUpdateService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
-		TokenizationRegistry.onDidChange(() => {
-			return this.updateHtml();
-		});
+		super();
 
-		_configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
-		_webviewWorkbenchService.onDidChangeActiveWebviewEditor(this.onDidChangeActiveWebviewEditor, this, this.disposables);
+		this._register(TokenizationRegistry.onDidChange(() => {
+			return this.updateHtml();
+		}));
+
+		this._register(_configurationService.onDidChangeConfiguration((e) => this.onDidChangeConfiguration(e)));
+		this._register(_webviewWorkbenchService.onDidChangeActiveWebviewEditor((e) => this.onDidChangeActiveWebviewEditor(e)));
+		this._register(this._updateService.onStateChange(() => this.postUpdateAction()));
 		this._simpleSettingRenderer = this._instantiationService.createInstance(SimpleSettingRenderer);
 	}
 
@@ -98,7 +104,7 @@ export class ReleaseNotesManager {
 
 		const activeEditorPane = this._editorService.activeEditorPane;
 		if (this._currentReleaseNotes) {
-			this._currentReleaseNotes.setName(title);
+			this._currentReleaseNotes.setWebviewTitle(title);
 			this._currentReleaseNotes.webview.setHtml(html);
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
@@ -118,14 +124,20 @@ export class ReleaseNotesManager {
 				},
 				'releaseNotes',
 				title,
+				undefined,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
-			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
-
 			const disposables = new DisposableStore();
+
+			disposables.add(this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri))));
+
 			disposables.add(this._currentReleaseNotes.webview.onMessage(e => {
 				if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
+				} else if (e.message.type === 'updateAction') {
+					if (e.message.commandId) {
+						this._commandService.executeCommand(e.message.commandId);
+					}
 				} else if (e.message.type === 'clickSetting') {
 					const x = this._currentReleaseNotes?.webview.container.offsetLeft + e.message.value.x;
 					const y = this._currentReleaseNotes?.webview.container.offsetTop + e.message.value.y;
@@ -246,7 +258,7 @@ export class ReleaseNotesManager {
 			// handled in receive message
 		} else {
 			this.addGAParameters(uri, 'ReleaseNotes')
-				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings'] }))
+				.then(updated => this._openerService.open(updated, { allowCommands: ['workbench.action.openSettings', 'summarize.release.notes'] }))
 				.then(undefined, onUnexpectedError);
 		}
 	}
@@ -263,18 +275,12 @@ export class ReleaseNotesManager {
 	private async renderBody(fileContent: { text: string; base: URI }) {
 		const nonce = generateUuid();
 
-		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
-			shouldSanitize: false,
-			markedExtensions: [{
-				renderer: {
-					html: this._simpleSettingRenderer.getHtmlRenderer(),
-					codespan: this._simpleSettingRenderer.getCodeSpanRenderer(),
-				}
-			}]
-		});
+		const processedContent = await renderReleaseNotesMarkdown(fileContent.text, this._extensionService, this._languageService, this._simpleSettingRenderer);
+
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
+		const updateAction = this.getUpdateAction();
 
 		return `<!DOCTYPE html>
 		<html>
@@ -366,10 +372,255 @@ export class ReleaseNotesManager {
 					}
 
 					header { display: flex; align-items: center; padding-top: 1em; }
+
+					/* Release notes enhancements from vscode-docs */
+					html {
+						font-size: 10px;
+						height: 100%;
+						overscroll-behavior: none;
+					}
+
+					body {
+						margin: 0 auto;
+						max-width: 980px;
+						height: auto;
+						overflow-y: auto;
+						overscroll-behavior: none;
+					}
+
+					/* Scroll to top button */
+					#scroll-to-top {
+						position: fixed;
+						width: 40px;
+						height: 40px;
+						right: 25px;
+						bottom: 25px;
+						background-color: var(--vscode-button-background, #444);
+						border-color: var(--vscode-button-border);
+						border-radius: 50%;
+						cursor: pointer;
+						box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+						outline: none;
+						display: flex;
+						justify-content: center;
+						align-items: center;
+					}
+
+					#scroll-to-top:hover {
+						background-color: var(--vscode-button-hoverBackground);
+						box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+					}
+
+					body.vscode-high-contrast #scroll-to-top {
+						border-width: 2px;
+						border-style: solid;
+						box-shadow: none;
+					}
+
+					#scroll-to-top span.icon::before {
+						content: "";
+						display: block;
+						background: var(--vscode-button-foreground);
+						/* Chevron up icon */
+						-webkit-mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
+						mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
+						width: 16px;
+						height: 16px;
+					}
+
+					/* Header styling */
+					h2 {
+						margin-top: 1.2em;
+						scroll-margin-top: 1.2em;
+					}
+
+					h2:not(:first-of-type) {
+						margin-top: 4em;
+						scroll-margin-top: 1em;
+					}
+
+					h3 {
+						margin-top: 4em;
+						scroll-margin-top: 1em;
+					}
+
+					h2 + h3 {
+						margin-top: 0;
+					}
+
+					/* Highlights table styling */
+					.highlights-table {
+						border-collapse: collapse;
+						border: none;
+					}
+
+					.highlights-table th {
+						vertical-align: top;
+						border: none;
+						padding-top: 2em;
+						font-weight: bold;
+					}
+
+					.highlights-table td {
+						vertical-align: top;
+						border: none;
+					}
+
+					.highlights-table tr:nth-child(2) td {
+						padding-bottom: 1em;
+					}
+
+					/* Main content layout */
+					.toc-nav-layout {
+						display: flex;
+						align-items: flex-start;
+					}
+
+					/* TOC Navigation */
+					#toc-nav {
+						position: sticky;
+						top: 20px;
+						width: 10vw;
+						min-width: 120px;
+						margin-right: 32px;
+						margin-top: 2em;
+					}
+
+					#toc-nav > div {
+						font-weight: bold;
+						font-size: 1em;
+						margin-bottom: 1em;
+						text-transform: uppercase;
+					}
+
+					#toc-nav ul {
+						list-style: none;
+						padding: 0;
+						margin: 0;
+					}
+
+					#toc-nav ul li {
+						margin-bottom: 0.5em;
+					}
+
+					#toc-nav a {
+						color: var(--vscode-editor-foreground, #ccc);
+						text-decoration: none !important;
+						transition: background-color 0.2s, color 0.2s;
+						padding: 4px 6px;
+						margin: -4px -6px;
+						border-radius: 4px;
+						display: block;
+						outline: none;
+					}
+
+					#toc-nav a:hover {
+						background-color: var(--vscode-button-secondaryHoverBackground, #1177bb);
+						color: var(--vscode-button-secondaryForeground, #ffffff);
+						cursor: pointer;
+						text-decoration: none !important;
+					}
+
+					/* Main content area */
+					.notes-main {
+						flex: 1;
+						min-width: 0;
+					}
+
+					/* Responsive breakpoint - Hide TOC on smaller screens */
+					@media (max-width: 576px) {
+						#toc-nav {
+							display: none;
+						}
+
+						.toc-nav-layout {
+							flex-direction: column;
+						}
+
+						.notes-main {
+							margin-left: 0;
+						}
+					}
+
+					/* Update action button */
+					#update-action-btn {
+						position: fixed;
+						right: 25px;
+						top: 25px;
+						background-color: var(--vscode-button-background);
+						color: var(--vscode-button-foreground);
+						border: 1px solid var(--vscode-button-border, transparent);
+						border-radius: 50%;
+						width: 40px;
+						height: 40px;
+						padding: 0;
+						cursor: pointer;
+						font-size: var(--vscode-font-size);
+						font-family: var(--vscode-font-family);
+						white-space: nowrap;
+						box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+						z-index: 100;
+						overflow: hidden;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+					}
+
+					#update-action-btn .icon {
+						flex-shrink: 0;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						width: 16px;
+						height: 16px;
+					}
+
+					#update-action-btn .icon svg {
+						width: 16px;
+						height: 16px;
+						display: block;
+					}
+
+					#update-action-btn .label {
+						overflow: hidden;
+						max-width: 0;
+						opacity: 0;
+						margin-left: 0;
+					}
+
+					#update-action-btn:hover,
+					#update-action-btn.expanded {
+						background-color: var(--vscode-button-hoverBackground);
+						box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+						width: auto;
+						height: auto;
+						max-height: 40px;
+						border-radius: var(--vscode-cornerRadius-small);
+						padding: 6px 10px;
+						line-height: 16px;
+					}
+
+					#update-action-btn:hover .label,
+					#update-action-btn.expanded .label {
+						max-width: 200px;
+						opacity: 1;
+						margin-left: 6px;
+					}
+
+					#update-action-btn.expanded {
+						background-color: var(--vscode-button-background);
+						box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+					}
+
+					body.vscode-high-contrast #update-action-btn {
+						border-width: 2px;
+						border-style: solid;
+						box-shadow: none;
+					}
 				</style>
 			</head>
 			<body>
-				${content}
+				${processedContent}
 				<script nonce="${nonce}">
 					const vscode = acquireVsCodeApi();
 					const container = document.createElement('p');
@@ -397,6 +648,15 @@ export class ReleaseNotesManager {
 					window.addEventListener('message', event => {
 						if (event.data.type === 'showReleaseNotes') {
 							input.checked = event.data.value;
+						} else if (event.data.type === 'updateAction') {
+							if (event.data.label) {
+								updateActionBtn.querySelector('.label').textContent = event.data.label;
+								updateActionBtn.dataset.commandId = event.data.commandId;
+								updateActionBtn.setAttribute('aria-label', event.data.label);
+								updateActionBtn.style.display = 'flex';
+							} else {
+								updateActionBtn.style.display = 'none';
+							}
 						}
 					});
 
@@ -419,9 +679,77 @@ export class ReleaseNotesManager {
 					input.addEventListener('change', event => {
 						vscode.postMessage({ type: 'showReleaseNotes', value: input.checked }, '*');
 					});
+
+					// Update action button
+					const updateActionBtn = document.createElement('button');
+					updateActionBtn.id = 'update-action-btn';
+
+					// Arrow-circle-down SVG icon
+					const iconSpan = document.createElement('span');
+					iconSpan.className = 'icon';
+					iconSpan.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 1v9.5M4.5 7.5L8 11l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 13h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
+					updateActionBtn.appendChild(iconSpan);
+
+					const labelSpan = document.createElement('span');
+					labelSpan.className = 'label';
+					updateActionBtn.appendChild(labelSpan);
+
+					const initialAction = ${JSON.stringify(updateAction ?? null)};
+					if (initialAction) {
+						labelSpan.textContent = initialAction.label;
+						updateActionBtn.dataset.commandId = initialAction.commandId;
+						updateActionBtn.setAttribute('aria-label', initialAction.label);
+						updateActionBtn.style.display = 'flex';
+					} else {
+						updateActionBtn.style.display = 'none';
+					}
+
+					document.body.appendChild(updateActionBtn);
+
+					updateActionBtn.addEventListener('click', () => {
+						if (updateActionBtn.dataset.commandId) {
+							vscode.postMessage({ type: 'updateAction', commandId: updateActionBtn.dataset.commandId });
+						}
+					});
+
+					// Expand button when at top of page
+					function updateExpandedState() {
+						if (window.scrollY <= 100) {
+							updateActionBtn.classList.add('expanded');
+						} else {
+							updateActionBtn.classList.remove('expanded');
+						}
+					}
+					updateExpandedState();
+					window.addEventListener('scroll', updateExpandedState);
 				</script>
 			</body>
 		</html>`;
+	}
+
+	private getUpdateAction(): { label: string; commandId: string } | undefined {
+		const state = this._updateService.state;
+		switch (state.type) {
+			case StateType.AvailableForDownload:
+				return { label: nls.localize('releaseNotes.downloadUpdate', "Download Update"), commandId: 'update.downloadNow' };
+			case StateType.Downloaded:
+				return { label: nls.localize('releaseNotes.installUpdate', "Install Update"), commandId: 'update.install' };
+			case StateType.Ready:
+				return { label: nls.localize('releaseNotes.restartToUpdate', "Restart to Update"), commandId: 'update.restart' };
+			default:
+				return undefined;
+		}
+	}
+
+	private postUpdateAction(): void {
+		if (this._currentReleaseNotes) {
+			const action = this.getUpdateAction();
+			this._currentReleaseNotes.webview.postMessage({
+				type: 'updateAction',
+				label: action?.label ?? '',
+				commandId: action?.commandId ?? ''
+			});
+		}
 	}
 
 	private onDidChangeConfiguration(e: IConfigurationChangeEvent): void {
@@ -444,4 +772,34 @@ export class ReleaseNotesManager {
 			});
 		}
 	}
+}
+
+export async function renderReleaseNotesMarkdown(
+	text: string,
+	extensionService: IExtensionService,
+	languageService: ILanguageService,
+	simpleSettingRenderer: SimpleSettingRenderer,
+): Promise<TrustedHTML> {
+	// Remove HTML comment markers around table of contents navigation
+	text = text
+		.toString()
+		.replace(/<!--\s*TOC\s*/gi, '')
+		.replace(/\s*Navigation End\s*-->/gi, '');
+
+	return renderMarkdownDocument(text, extensionService, languageService, {
+		sanitizerConfig: {
+			allowRelativeMediaPaths: true,
+			allowedLinkProtocols: {
+				override: [Schemas.http, Schemas.https, Schemas.command, Schemas.codeSetting]
+			},
+			allowedTags: { augment: ['nav', 'svg', 'path'] },
+			allowedAttributes: { augment: ['aria-role', 'viewBox', 'fill', 'xmlns', 'd'] }
+		},
+		markedExtensions: [{
+			renderer: {
+				html: simpleSettingRenderer.getHtmlRenderer(),
+				codespan: simpleSettingRenderer.getCodeSpanRenderer(),
+			}
+		}]
+	});
 }

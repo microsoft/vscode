@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdownAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IOutlineModelService, OutlineModelService } from '../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
 import { localize } from '../../../../../nls.js';
@@ -87,7 +87,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 			}
 
 			if (!hasHeader) {
-				content = renderMarkdownAsPlaintext({ value: content });
+				content = renderAsPlaintext({ value: content });
 			}
 		}
 

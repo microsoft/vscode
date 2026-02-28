@@ -876,4 +876,80 @@ suite.skip('File Watcher (parcel)', function () {
 		await promises.unlink(filePath);
 		await changeFuture;
 	});
+
+	(isLinux ? test.skip : test)('includes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/*.TXT'], recursive: true }]);
+
+		// New file (matches *.TXT case-insensitively)
+		const newFilePath = join(testDir, 'deep', 'newFile.txt');
+		let changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newFilePath, 'Hello World');
+		await changeFuture;
+
+		// Change file
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		await Promises.writeFile(newFilePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.DELETED);
+		await promises.unlink(newFilePath);
+		await changeFuture;
+	});
+
+	(isLinux ? test.skip : test)('includes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/*.TXT'], recursive: true }]);
+
+		// New file (matches *.TXT case-insensitively)
+		const newFilePath = join(testDir, 'deep', 'newFile.txt');
+		let changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newFilePath, 'Hello World');
+		await changeFuture;
+
+		// Change file
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		await Promises.writeFile(newFilePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.DELETED);
+		await promises.unlink(newFilePath);
+		await changeFuture;
+	});
+
+	(isLinux ? test.skip : test)('excludes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: ['**/DEEP/**'], recursive: true }]);
+
+		// New file in excluded folder (should not trigger event)
+		const newTextFilePath = join(testDir, 'deep', 'newFile.txt');
+		const changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newTextFilePath, 'Hello World');
+
+		const res = await Promise.any([
+			timeout(500).then(() => true),
+			changeFuture.then(() => false)
+		]);
+
+		if (!res) {
+			assert.fail('Unexpected change event');
+		}
+	});
+
+	(isLinux ? test.skip : test)('excludes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: ['**/DEEP/**'], recursive: true }]);
+
+		// New file in excluded folder (should not trigger event)
+		const newTextFilePath = join(testDir, 'deep', 'newFile.txt');
+		const changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newTextFilePath, 'Hello World');
+
+		const res = await Promise.any([
+			timeout(500).then(() => true),
+			changeFuture.then(() => false)
+		]);
+
+		if (!res) {
+			assert.fail('Unexpected change event');
+		}
+	});
 });

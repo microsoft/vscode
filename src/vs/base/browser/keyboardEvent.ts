@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from './browser.js';
-import { EVENT_KEY_CODE_MAP, KeyCode, KeyCodeUtils, KeyMod } from '../common/keyCodes.js';
+import { EVENT_KEY_CODE_MAP, isModifierKey, KeyCode, KeyCodeUtils, KeyMod } from '../common/keyCodes.js';
 import { KeyCodeChord } from '../common/keybindings.js';
 import * as platform from '../common/platform.js';
-
-
 
 function extractKeyCode(e: KeyboardEvent): KeyCode {
 	if (e.charCode) {
@@ -114,6 +112,15 @@ export function printStandardKeyboardEvent(e: StandardKeyboardEvent): string {
 	return `modifiers: [${modifiers.join(',')}], code: ${e.code}, keyCode: ${e.keyCode} ('${KeyCodeUtils.toString(e.keyCode)}')`;
 }
 
+export function hasModifierKeys(keyStatus: {
+	readonly ctrlKey: boolean;
+	readonly shiftKey: boolean;
+	readonly altKey: boolean;
+	readonly metaKey: boolean;
+}): boolean {
+	return keyStatus.ctrlKey || keyStatus.shiftKey || keyStatus.altKey || keyStatus.metaKey;
+}
+
 export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	readonly _standardKeyboardEventBrand = true;
@@ -181,7 +188,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	private _computeKeybinding(): number {
 		let key = KeyCode.Unknown;
-		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
+		if (!isModifierKey(this.keyCode)) {
 			key = this.keyCode;
 		}
 
@@ -205,7 +212,7 @@ export class StandardKeyboardEvent implements IKeyboardEvent {
 
 	private _computeKeyCodeChord(): KeyCodeChord {
 		let key = KeyCode.Unknown;
-		if (this.keyCode !== KeyCode.Ctrl && this.keyCode !== KeyCode.Shift && this.keyCode !== KeyCode.Alt && this.keyCode !== KeyCode.Meta) {
+		if (!isModifierKey(this.keyCode)) {
 			key = this.keyCode;
 		}
 		return new KeyCodeChord(this.ctrlKey, this.shiftKey, this.altKey, this.metaKey, key);

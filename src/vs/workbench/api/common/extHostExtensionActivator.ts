@@ -402,6 +402,7 @@ class ActivationOperation {
 				if (dep.value && dep.value.activationFailed) {
 					// Error condition 2: a dependency has already failed activation
 					const error = new Error(`Cannot activate the '${this.friendlyName}' extension because its dependency '${dep.friendlyName}' failed to activate`);
+					// eslint-disable-next-line local/code-no-any-casts
 					(<any>error).detail = dep.value.activationFailedError;
 					this._value = new FailedExtension(error);
 					this._host.onExtensionActivationError(this._id, error, null);

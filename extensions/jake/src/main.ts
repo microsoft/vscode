@@ -120,9 +120,9 @@ class FolderDetector {
 	}
 
 	public async getTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
-		const jakeTask = (<any>_task.definition).task;
+		const jakeTask = _task.definition.task;
 		if (jakeTask) {
-			const kind: JakeTaskDefinition = (<any>_task.definition);
+			const kind = _task.definition as JakeTaskDefinition;
 			const options: vscode.ShellExecutionOptions = { cwd: this.workspaceFolder.uri.fsPath };
 			const task = new vscode.Task(kind, this.workspaceFolder, jakeTask, 'jake', new vscode.ShellExecution(await this._jakeCommand, [jakeTask], options));
 			return task;

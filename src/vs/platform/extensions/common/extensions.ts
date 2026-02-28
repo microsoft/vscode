@@ -104,6 +104,7 @@ export interface ICodeActionContribution {
 export interface IAuthenticationContribution {
 	readonly id: string;
 	readonly label: string;
+	readonly authorizationServerGlobs?: string[];
 }
 
 export interface IWalkthroughStep {
@@ -184,14 +185,31 @@ export interface IToolContribution {
 	userDescription?: string;
 }
 
+export interface IToolSetContribution {
+	name: string;
+	referenceName: string;
+	description: string;
+	icon?: string;
+	tools: string[];
+}
+
 export interface IMcpCollectionContribution {
 	readonly id: string;
 	readonly label: string;
+	readonly when?: string;
+}
+
+export interface IChatFileContribution {
+	readonly path: string;
+	readonly name?: string;
+	readonly description?: string;
+	readonly when?: string;
 }
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: any;
+	configurationDefaults?: any;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
@@ -215,8 +233,13 @@ export interface IExtensionContributions {
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
 	readonly chatParticipants?: ReadonlyArray<IChatParticipantContribution>;
+	readonly chatPromptFiles?: ReadonlyArray<IChatFileContribution>;
+	readonly chatInstructions?: ReadonlyArray<IChatFileContribution>;
+	readonly chatAgents?: ReadonlyArray<IChatFileContribution>;
+	readonly chatSkills?: ReadonlyArray<IChatFileContribution>;
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
-	readonly modelContextServerCollections?: ReadonlyArray<IMcpCollectionContribution>;
+	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
+	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
 }
 
 export interface IExtensionCapabilities {
@@ -280,6 +303,7 @@ export interface IRelaxedExtensionManifest {
 	engines: { readonly vscode: string };
 	description?: string;
 	main?: string;
+	type?: string;
 	browser?: string;
 	preview?: boolean;
 	// For now this only supports pointing to l10n bundle files
@@ -288,8 +312,9 @@ export interface IRelaxedExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
-	activationEvents?: string[];
+	activationEvents?: readonly string[];
 	extensionDependencies?: string[];
+	extensionAffinity?: string[];
 	extensionPack?: string[];
 	extensionKind?: ExtensionKind | ExtensionKind[];
 	contributes?: IExtensionContributions;

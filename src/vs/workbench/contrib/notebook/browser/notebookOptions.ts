@@ -13,7 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { FontMeasurements } from '../../../../editor/browser/config/fontMeasurements.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { BareFontInfo } from '../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../editor/common/config/fontInfoFromSettings.js';
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { NotebookTextModel } from '../common/model/notebookTextModel.js';
 import { InteractiveWindowCollapseCodeCells, NotebookCellDefaultCollapseConfig, NotebookCellInternalMetadata, NotebookSetting, ShowCellStatusBarType } from '../common/notebookCommon.js';
@@ -327,7 +327,7 @@ export class NotebookOptions extends Disposable {
 								// there is a `::before` or `::after` text decoration whose position is above or below current line
 								// we at least make sure that the editor top padding is at least one line
 								const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-								updateEditorTopPadding(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value).lineHeight + 2);
+								updateEditorTopPadding(createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value).lineHeight + 2);
 								decorationTriggeredAdjustment = true;
 								break;
 							}
@@ -387,7 +387,7 @@ export class NotebookOptions extends Disposable {
 		if (lineHeight === 0) {
 			// use editor line height
 			const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-			const fontInfo = FontMeasurements.readFontInfo(this.targetWindow, BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value));
+			const fontInfo = FontMeasurements.readFontInfo(this.targetWindow, createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(this.targetWindow).value));
 			lineHeight = fontInfo.lineHeight;
 		} else if (lineHeight < minimumLineHeight) {
 			// Values too small to be line heights in pixels are in ems.

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 
-export = new class DeclareServiceBrand implements eslint.Rule.RuleModule {
+export default new class DeclareServiceBrand implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		fixable: 'code',
@@ -14,7 +15,7 @@ export = new class DeclareServiceBrand implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {
-			['PropertyDefinition[key.name="_serviceBrand"][value]']: (node: any) => {
+			['PropertyDefinition[key.name="_serviceBrand"][value]']: (node: ESTree.PropertyDefinition) => {
 				return context.report({
 					node,
 					message: `The '_serviceBrand'-property should not have a value`,

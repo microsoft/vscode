@@ -19,7 +19,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
+import { productService, TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 import { GlobalExtensionEnablementService } from '../../../../../platform/extensionManagement/common/extensionEnablementService.js';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from '../../../../../platform/userDataSync/common/userDataSyncAccount.js';
 import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
@@ -41,6 +41,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AllowedExtensionsService } from '../../../../../platform/extensionManagement/common/allowedExtensionsService.js';
+import { IStringDictionary } from '../../../../../base/common/collections.js';
 
 function createStorageService(instantiationService: TestInstantiationService, disposableStore: DisposableStore): IStorageService {
 	let service = instantiationService.get(IStorageService);
@@ -97,7 +98,8 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			new class extends mock<IWorkspaceTrustRequestService>() { override requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> { return Promise.resolve(true); } },
 			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, disposables.add(new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustEnablementService(), new NullLogService()))),
 			instantiationService,
-			new NullLogService()
+			new NullLogService(),
+			productService
 		);
 		this._register(disposables);
 	}
@@ -154,7 +156,7 @@ suite('ExtensionEnablementService Test', () => {
 				getInstalled: () => Promise.resolve(installed),
 				async getExtensionsControlManifest(): Promise<IExtensionsControlManifest> {
 					return {
-						malicious,
+						malicious: malicious.map(e => ({ extensionOrPublisher: e })),
 						deprecated: {},
 						search: []
 					};
@@ -1240,7 +1242,7 @@ function aLocalExtension(id: string, contributes?: IExtensionContributions, type
 	return aLocalExtension2(id, contributes ? { contributes } : {}, isUndefinedOrNull(type) ? {} : { type });
 }
 
-function aLocalExtension2(id: string, manifest: Partial<IExtensionManifest> = {}, properties: any = {}): ILocalExtension {
+function aLocalExtension2(id: string, manifest: Partial<IExtensionManifest> = {}, properties: IStringDictionary<unknown> = {}): ILocalExtension {
 	const [publisher, name] = id.split('.');
 	manifest = { name, publisher, ...manifest };
 	properties = {

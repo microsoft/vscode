@@ -207,7 +207,7 @@ export function format(documentText: string, range: Range | undefined, options: 
  * @param any The object to stringify and format
  * @param options The formatting options to use
  */
-export function toFormattedString(obj: any, options: FormattingOptions) {
+export function toFormattedString(obj: unknown, options: FormattingOptions) {
 	const content = JSON.stringify(obj, undefined, options.insertSpaces ? options.tabSize || 4 : '\t');
 	if (options.eol !== undefined) {
 		return content.replace(/\r\n|\r|\n/g, options.eol);

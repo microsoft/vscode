@@ -41,9 +41,9 @@ export class TestService extends Disposable implements ITestService {
 	private testControllers = observableValue<ReadonlyMap<string, IMainThreadTestController>>('testControllers', new Map<string, IMainThreadTestController>());
 	private testExtHosts = new Set<IMainThreadTestHostProxy>();
 
-	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined; taskId: string | undefined }>();
-	private readonly willProcessDiffEmitter = new Emitter<TestsDiff>();
-	private readonly didProcessDiffEmitter = new Emitter<TestsDiff>();
+	private readonly cancelExtensionTestRunEmitter = this._register(new Emitter<{ runId: string | undefined; taskId: string | undefined }>());
+	private readonly willProcessDiffEmitter = this._register(new Emitter<TestsDiff>());
+	private readonly didProcessDiffEmitter = this._register(new Emitter<TestsDiff>());
 	private readonly testRefreshCancellations = new Set<CancellationTokenSource>();
 	private readonly isRefreshingTests: IContextKey<boolean>;
 	private readonly activeEditorHasTests: IContextKey<boolean>;
@@ -72,7 +72,7 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly collection = new MainThreadTestCollection(this.uriIdentityService, this.expandTest.bind(this));
+	public readonly collection: MainThreadTestCollection;
 
 	/**
 	 * @inheritdoc
@@ -82,17 +82,13 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly showInlineOutput = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
-		key: 'inlineTestOutputVisible',
-		scope: StorageScope.WORKSPACE,
-		target: StorageTarget.USER
-	}, this.storage), true));
+	public readonly showInlineOutput: MutableObservableValue<boolean>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IStorageService private readonly storage: IStorageService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IStorageService storage: IStorageService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITestProfileService private readonly testProfiles: ITestProfileService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -101,6 +97,13 @@ export class TestService extends Disposable implements ITestService {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
+		this.collection = new MainThreadTestCollection(uriIdentityService, this.expandTest.bind(this));
+		this.showInlineOutput = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
+			key: 'inlineTestOutputVisible',
+			scope: StorageScope.WORKSPACE,
+			target: StorageTarget.USER
+		}, storage), true));
+
 		this.excluded = instantiationService.createInstance(TestExclusions);
 		this.isRefreshingTests = TestingContextKeys.isRefreshingTests.bindTo(contextKeyService);
 		this.activeEditorHasTests = TestingContextKeys.activeEditorHasTests.bindTo(contextKeyService);
@@ -176,6 +179,7 @@ export class TestService extends Disposable implements ITestService {
 			group: req.group,
 			exclude: req.exclude?.map(t => t.item.extId),
 			continuous: req.continuous,
+			preserveFocus: req.preserveFocus,
 		};
 
 		// If no tests are covered by the defaults, just use whatever the defaults

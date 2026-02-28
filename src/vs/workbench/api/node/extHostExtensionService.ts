@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as performance from '../../../base/common/performance.js';
+import type * as vscode from 'vscode';
 import { createApiFactoryAndRegisterActors } from '../common/extHost.api.impl.js';
-import { RequireInterceptor } from '../common/extHostRequireInterceptor.js';
+import { INodeModuleFactory, RequireInterceptor } from '../common/extHostRequireInterceptor.js';
 import { ExtensionActivationTimesBuilder } from '../common/extHostExtensionActivator.js';
 import { connectProxyResolver } from './proxyResolver.js';
 import { AbstractExtHostExtensionService } from '../common/extHostExtensionService.js';
@@ -15,11 +16,16 @@ import { Schemas } from '../../../base/common/network.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtensionRuntime } from '../common/extHostTypes.js';
 import { CLIServer } from './extHostCLIServer.js';
-import { realpathSync } from '../../../base/node/extpath.js';
+import { realpathSync } from '../../../base/node/pfs.js';
 import { ExtHostConsoleForwarder } from './extHostConsoleForwarder.js';
 import { ExtHostDiskFileSystemProvider } from './extHostDiskFileSystemProvider.js';
-import { createRequire } from 'node:module';
-const require = createRequire(import.meta.url);
+import nodeModule from 'node:module';
+import { assertType } from '../../../base/common/types.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { BidirectionalMap } from '../../../base/common/map.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+
+const require = nodeModule.createRequire(import.meta.url);
 
 class NodeModuleRequireInterceptor extends RequireInterceptor {
 
@@ -69,6 +75,124 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 	}
 }
 
+class NodeModuleESMInterceptor extends RequireInterceptor {
+
+	private static _createDataUri(scriptContent: string): string {
+		return `data:text/javascript;base64,${Buffer.from(scriptContent).toString('base64')}`;
+	}
+
+	// This string is a script that runs in the loader thread of NodeJS.
+	private static _loaderScript = `
+	let lookup;
+	export const initialize = async (context) => {
+		let requestIds = 0;
+		const { port } = context;
+		const pendingRequests = new Map();
+		port.onmessage = (event) => {
+			const { id, url } = event.data;
+			pendingRequests.get(id)?.(url);
+		};
+		lookup = url => {
+			// debugger;
+			const myId = requestIds++;
+			return new Promise((resolve) => {
+				pendingRequests.set(myId, resolve);
+				port.postMessage({ id: myId, url, });
+			});
+		};
+	};
+	export const resolve = async (specifier, context, nextResolve) => {
+		if (specifier !== 'vscode' || !context.parentURL) {
+			return nextResolve(specifier, context);
+		}
+		const otherUrl = await lookup(context.parentURL);
+		return {
+			url: otherUrl,
+			shortCircuit: true,
+		};
+	};`;
+
+	private static _vscodeImportFnName = `_VSCODE_IMPORT_VSCODE_API`;
+
+	private readonly _store = new DisposableStore();
+
+	dispose(): void {
+		this._store.dispose();
+	}
+
+	protected override _installInterceptor(): void {
+
+		type Message = { id: string; url: string };
+
+		const apiInstances = new BidirectionalMap<typeof vscode, string>();
+		const apiImportDataUrl = new Map<string, string>();
+
+		// define a global function that can be used to get API instances given a random key
+		Object.defineProperty(globalThis, NodeModuleESMInterceptor._vscodeImportFnName, {
+			enumerable: false,
+			configurable: false,
+			writable: false,
+			value: (key: string) => {
+				return apiInstances.getKey(key);
+			}
+		});
+
+		const { port1, port2 } = new MessageChannel();
+
+		let apiModuleFactory: INodeModuleFactory | undefined;
+
+		// this is a workaround for the fact that the layer checker does not understand
+		// that onmessage is NodeJS API here
+		const port1LayerCheckerWorkaround: any = port1;
+
+		port1LayerCheckerWorkaround.onmessage = (e: { data: Message }) => {
+
+			// Get the vscode-module factory - which is the same logic that's also used by
+			// the CommonJS require interceptor
+			if (!apiModuleFactory) {
+				apiModuleFactory = this._factories.get('vscode');
+				assertType(apiModuleFactory);
+			}
+
+			const { id, url } = e.data;
+			const uri = URI.parse(url);
+
+			// Get or create the API instance. The interface is per extension and extensions are
+			// looked up by the uri (e.data.url) and path containment.
+			const apiInstance = apiModuleFactory.load('_not_used', uri, () => { throw new Error('CANNOT LOAD MODULE from here.'); });
+			let key = apiInstances.get(apiInstance);
+			if (!key) {
+				key = generateUuid();
+				apiInstances.set(apiInstance, key);
+			}
+
+			// Create and cache a data-url which is the import script for the API instance
+			let scriptDataUrlSrc = apiImportDataUrl.get(key);
+			if (!scriptDataUrlSrc) {
+				const jsCode = `const _vscodeInstance = globalThis.${NodeModuleESMInterceptor._vscodeImportFnName}('${key}');\n\n${Object.keys(apiInstance).map((name => `export const ${name} = _vscodeInstance['${name}'];`)).join('\n')}`;
+				scriptDataUrlSrc = NodeModuleESMInterceptor._createDataUri(jsCode);
+				apiImportDataUrl.set(key, scriptDataUrlSrc);
+			}
+
+			port1.postMessage({
+				id,
+				url: scriptDataUrlSrc
+			});
+		};
+
+		nodeModule.register(NodeModuleESMInterceptor._createDataUri(NodeModuleESMInterceptor._loaderScript), {
+			parentURL: import.meta.url,
+			data: { port: port2 },
+			transferList: [port2],
+		});
+
+		this._store.add(toDisposable(() => {
+			port1.close();
+			port2.close();
+		}));
+	}
+}
+
 export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	readonly extensionRuntime = ExtensionRuntime.Node;
@@ -93,8 +217,13 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		this._instaService.createInstance(ExtHostDiskFileSystemProvider);
 
 		// Module loading tricks
-		const interceptor = this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry });
-		await interceptor.install();
+		await this._instaService.createInstance(NodeModuleRequireInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry })
+			.install();
+
+		// ESM loading tricks
+		await this._store.add(this._instaService.createInstance(NodeModuleESMInterceptor, extensionApiFactory, { mine: this._myRegistry, all: this._globalRegistry }))
+			.install();
+
 		performance.mark('code/extHost/didInitAPI');
 
 		// Do this when extension service exists, but extensions are not being activated yet.
@@ -107,13 +236,13 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		return extensionDescription.main;
 	}
 
-	protected async _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+	private async _doLoadModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder, mode: 'esm' | 'cjs'): Promise<T> {
 		if (module.scheme !== Schemas.file) {
 			throw new Error(`Cannot load URI: '${module}', must be of file-scheme`);
 		}
 		let r: T | null = null;
 		activationTimesBuilder.codeLoadingStart();
-		this._logService.trace(`ExtensionService#loadCommonJSModule ${module.toString(true)}`);
+		this._logService.trace(`ExtensionService#loadModule [${mode}] -> ${module.toString(true)}`);
 		this._logService.flush();
 		const extensionId = extension?.identifier.value;
 		if (extension) {
@@ -123,7 +252,11 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			if (extensionId) {
 				performance.mark(`code/extHost/willLoadExtensionCode/${extensionId}`);
 			}
-			r = <T>(require)(module.fsPath);
+			if (mode === 'esm') {
+				r = <T>await import(module.toString(true));
+			} else {
+				r = <T>require(module.fsPath);
+			}
 		} finally {
 			if (extensionId) {
 				performance.mark(`code/extHost/didLoadExtensionCode/${extensionId}`);
@@ -131,6 +264,14 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 			activationTimesBuilder.codeLoadingStop();
 		}
 		return r;
+	}
+
+	protected async _loadCommonJSModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+		return this._doLoadModule<T>(extension, module, activationTimesBuilder, 'cjs');
+	}
+
+	protected async _loadESMModule<T>(extension: IExtensionDescription | null, module: URI, activationTimesBuilder: ExtensionActivationTimesBuilder): Promise<T> {
+		return this._doLoadModule<T>(extension, module, activationTimesBuilder, 'esm');
 	}
 
 	public async $setRemoteEnvironment(env: { [key: string]: string | null }): Promise<void> {

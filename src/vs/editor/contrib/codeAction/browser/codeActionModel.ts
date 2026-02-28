@@ -36,6 +36,8 @@ class CodeActionOracle extends Disposable {
 
 	private readonly _autoTriggerTimer = this._register(new TimeoutTimer());
 
+	ignoreLightbulbOff = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _markerService: IMarkerService,
@@ -74,9 +76,9 @@ class CodeActionOracle extends Disposable {
 			return selection;
 		}
 		const enabled = this._editor.getOption(EditorOption.lightbulb).enabled;
-		if (enabled === ShowLightbulbIconMode.Off) {
+		if (enabled === ShowLightbulbIconMode.Off && !this.ignoreLightbulbOff) {
 			return undefined;
-		} else if (enabled === ShowLightbulbIconMode.On) {
+		} else if (enabled === ShowLightbulbIconMode.Off || enabled === ShowLightbulbIconMode.On) {
 			return selection;
 		} else if (enabled === ShowLightbulbIconMode.OnCode) {
 			const isSelectionEmpty = selection.isEmpty();
@@ -167,6 +169,22 @@ export class CodeActionModel extends Disposable {
 
 	private _disposed = false;
 
+	private _ignoreLightbulbOff = false;
+
+	set ignoreLightbulbOff(value: boolean) {
+		if (this._ignoreLightbulbOff === value) {
+			return;
+		}
+		this._ignoreLightbulbOff = value;
+		const oracle = this._codeActionOracle.value;
+		if (oracle) {
+			oracle.ignoreLightbulbOff = value;
+			if (value) {
+				oracle.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
+			}
+		}
+	}
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _registry: LanguageFeatureRegistry<CodeActionProvider>,
@@ -221,7 +239,7 @@ export class CodeActionModel extends Disposable {
 			const supportedActions: string[] = this._registry.all(model).flatMap(provider => provider.providedCodeActionKinds ?? []);
 			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle.value = new CodeActionOracle(this._editor, this._markerService, trigger => {
+			const oracle = new CodeActionOracle(this._editor, this._markerService, trigger => {
 				if (!trigger) {
 					this.setState(CodeActionsState.Empty);
 					return;
@@ -232,14 +250,19 @@ export class CodeActionModel extends Disposable {
 				const actions = createCancelablePromise(async token => {
 					if (this._settingEnabledNearbyQuickfixes() && trigger.trigger.type === CodeActionTriggerType.Invoke && (trigger.trigger.triggerAction === CodeActionTriggerSource.QuickFix || trigger.trigger.filter?.include?.contains(CodeActionKind.QuickFix))) {
 						const codeActionSet = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+						this.codeActionsDisposable.value = codeActionSet;
 						const allCodeActions = [...codeActionSet.allActions];
 						if (token.isCancellationRequested) {
 							codeActionSet.dispose();
 							return emptyCodeActionSet;
 						}
 
-						// Search for quickfixes in the curret code action set.
-						const foundQuickfix = codeActionSet.validActions?.some(action => action.action.kind ? CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) : false);
+						// Search for non-AI quickfixes in the current code action set - if AI code actions are the only thing found, continue searching for diagnostics in line.
+						const foundQuickfix = codeActionSet.validActions?.some(action => {
+							return action.action.kind &&
+								CodeActionKind.QuickFix.contains(new HierarchicalKind(action.action.kind)) &&
+								!action.action.isAI;
+						});
 						const allMarkers = this._markerService.read({ resource: model.uri });
 						if (foundQuickfix) {
 							for (const action of codeActionSet.validActions) {
@@ -326,6 +349,7 @@ export class CodeActionModel extends Disposable {
 					// Case for manual triggers - specifically Source Actions and Refactors
 					if (trigger.trigger.type === CodeActionTriggerType.Invoke) {
 						const codeActions = await getCodeActions(this._registry, model, trigger.selection, trigger.trigger, Progress.None, token);
+						this.codeActionsDisposable.value = codeActions;
 						return codeActions;
 					}
 
@@ -357,6 +381,8 @@ export class CodeActionModel extends Disposable {
 					}, 500);
 				}
 			}, undefined);
+			oracle.ignoreLightbulbOff = this._ignoreLightbulbOff;
+			this._codeActionOracle.value = oracle;
 			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto, triggerAction: CodeActionTriggerSource.Default });
 		} else {
 			this._supportedCodeActions.reset();
@@ -365,7 +391,7 @@ export class CodeActionModel extends Disposable {
 
 	public trigger(trigger: CodeActionTrigger) {
 		this._codeActionOracle.value?.trigger(trigger);
-		this.codeActionsDisposable.clear();
+		this.codeActionsDisposable.dispose();
 	}
 
 	private setState(newState: CodeActionsState.State, skipNotify?: boolean) {

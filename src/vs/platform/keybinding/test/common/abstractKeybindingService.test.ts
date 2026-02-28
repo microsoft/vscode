@@ -5,7 +5,7 @@
 import assert from 'assert';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { createSimpleKeybinding, ResolvedKeybinding, KeyCodeChord, Keybinding } from '../../../../base/common/keybindings.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { OS } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -93,8 +93,8 @@ suite('AbstractKeybindingService', () => {
 			return '';
 		}
 
-		public registerSchemaContribution() {
-			// noop
+		public registerSchemaContribution(): IDisposable {
+			return Disposable.None;
 		}
 
 		public enableKeybindingHoldMode() {
@@ -104,7 +104,7 @@ suite('AbstractKeybindingService', () => {
 
 	let createTestKeybindingService: (items: ResolvedKeybindingItem[], contextValue?: any) => TestKeybindingService = null!;
 	let currentContextValue: IContext | null = null;
-	let executeCommandCalls: { commandId: string; args: any[] }[] = null!;
+	let executeCommandCalls: { commandId: string; args: unknown[] }[] = null!;
 	let showMessageCalls: { sev: Severity; message: any }[] = null!;
 	let statusMessageCalls: string[] | null = null;
 	let statusMessageCallsDisposed: string[] | null = null;
@@ -134,7 +134,15 @@ suite('AbstractKeybindingService', () => {
 				onDidChangeContext: undefined!,
 				bufferChangeEvents() { },
 				createKey: undefined!,
-				contextMatchesRules: undefined!,
+				contextMatchesRules: (rules: ContextKeyExpression | null | undefined) => {
+					if (!rules) {
+						return true;
+					}
+					if (!currentContextValue) {
+						return false;
+					}
+					return rules.evaluate(currentContextValue);
+				},
 				getContextKeyValue: undefined!,
 				createScoped: undefined!,
 				createOverlay: undefined!,
@@ -148,7 +156,7 @@ suite('AbstractKeybindingService', () => {
 				_serviceBrand: undefined,
 				onWillExecuteCommand: () => Disposable.None,
 				onDidExecuteCommand: () => Disposable.None,
-				executeCommand: (commandId: string, ...args: any[]): Promise<any> => {
+				executeCommand: (commandId: string, ...args: unknown[]): Promise<any> => {
 					executeCommandCalls.push({
 						commandId: commandId,
 						args: args
@@ -159,8 +167,6 @@ suite('AbstractKeybindingService', () => {
 
 			const notificationService: INotificationService = {
 				_serviceBrand: undefined,
-				onDidAddNotification: undefined!,
-				onDidRemoveNotification: undefined!,
 				onDidChangeFilter: undefined!,
 				notify: (notification: INotification) => {
 					showMessageCalls.push({ sev: notification.severity, message: notification.message });
@@ -184,7 +190,7 @@ suite('AbstractKeybindingService', () => {
 				status(message: string, options?: IStatusMessageOptions) {
 					statusMessageCalls!.push(message);
 					return {
-						dispose: () => {
+						close: () => {
 							statusMessageCallsDisposed!.push(message);
 						}
 					};
@@ -237,7 +243,7 @@ suite('AbstractKeybindingService', () => {
 			currentContextValue = createContext({});
 			const shouldPreventDefault = kbService.testDispatch(key);
 			assert.deepStrictEqual(shouldPreventDefault, true);
-			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: "myCommand", args: [null] }]));
+			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: 'myCommand', args: [null] }]));
 			assert.deepStrictEqual(showMessageCalls, []);
 			assert.deepStrictEqual(statusMessageCalls, []);
 			assert.deepStrictEqual(statusMessageCallsDisposed, []);
@@ -265,7 +271,7 @@ suite('AbstractKeybindingService', () => {
 
 			shouldPreventDefault = kbService.testDispatch(chord1);
 			assert.deepStrictEqual(shouldPreventDefault, true);
-			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: "myCommand", args: [null] }]));
+			assert.deepStrictEqual(executeCommandCalls, ([{ commandId: 'myCommand', args: [null] }]));
 			assert.deepStrictEqual(showMessageCalls, []);
 			assert.deepStrictEqual(statusMessageCalls, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
 			assert.deepStrictEqual(statusMessageCallsDisposed, ([`(${toUsLabel(chord0)}) was pressed. Waiting for second key of chord...`]));
@@ -614,5 +620,111 @@ suite('AbstractKeybindingService', () => {
 		statusMessageCallsDisposed = [];
 
 		kbService.dispose();
+	});
+
+	suite('appendKeybinding', () => {
+		test('appends keybinding label when command has a keybinding', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('My Label', 'myCommand');
+			const expectedLabel = toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.strictEqual(result, `My Label (${expectedLabel})`);
+
+			kbService.dispose();
+		});
+
+		test('returns only label when command has no keybinding', () => {
+			const kbService = createTestKeybindingService([]);
+
+			const result = kbService.appendKeybinding('My Label', 'myCommand');
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('returns only label when commandId is null', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('My Label', null);
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('returns only label when commandId is undefined', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('My Label', undefined);
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('returns only label when commandId is empty string', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('My Label', '');
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('appends keybinding for command with context when context matches', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand', ContextKeyExpr.has('key1')),
+			]);
+
+			currentContextValue = createContext({ key1: true });
+			const result = kbService.appendKeybinding('My Label', 'myCommand');
+			const expectedLabel = toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.strictEqual(result, `My Label (${expectedLabel})`);
+
+			kbService.dispose();
+		});
+
+		test('returns only label when context does not match and enforceContextCheck is true', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand', ContextKeyExpr.has('key1')),
+			]);
+
+			currentContextValue = createContext({});
+			const result = kbService.appendKeybinding('My Label', 'myCommand', undefined, true);
+			assert.strictEqual(result, 'My Label');
+
+			kbService.dispose();
+		});
+
+		test('appends keybinding when context does not match but enforceContextCheck is false', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand', ContextKeyExpr.has('key1')),
+			]);
+
+			currentContextValue = createContext({});
+			const result = kbService.appendKeybinding('My Label', 'myCommand', undefined, false);
+			const expectedLabel = toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.strictEqual(result, `My Label (${expectedLabel})`);
+
+			kbService.dispose();
+		});
+
+		test('appends keybinding even when label is empty string', () => {
+			const kbService = createTestKeybindingService([
+				kbItem(KeyMod.CtrlCmd | KeyCode.KeyK, 'myCommand'),
+			]);
+
+			const result = kbService.appendKeybinding('', 'myCommand');
+			const expectedLabel = toUsLabel(KeyMod.CtrlCmd | KeyCode.KeyK);
+			assert.strictEqual(result, ` (${expectedLabel})`);
+
+			kbService.dispose();
+		});
 	});
 });

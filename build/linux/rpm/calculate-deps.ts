@@ -5,7 +5,7 @@
 
 import { spawnSync } from 'child_process';
 import { constants, statSync } from 'fs';
-import { additionalDeps } from './dep-lists';
+import { additionalDeps } from './dep-lists.ts';
 
 export function generatePackageDeps(files: string[]): Set<string>[] {
 	const dependencies: Set<string>[] = files.map(file => calculatePackageDeps(file));

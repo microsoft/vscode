@@ -306,18 +306,16 @@ export class DarwinTestRunner extends PosixTestRunner {
 	protected override getDefaultArgs() {
 		return [
 			TEST_ELECTRON_SCRIPT_PATH,
-			'--no-sandbox',
-			'--disable-dev-shm-usage',
-			'--use-gl=swiftshader',
+			'--no-sandbox'
 		];
 	}
 
 	/** @override */
 	protected override async binaryPath() {
-		const { nameLong } = await this.readProductJson();
+		const { nameLong, nameShort } = await this.readProductJson();
 		return path.join(
 			this.repoLocation.uri.fsPath,
-			`.build/electron/${nameLong}.app/Contents/MacOS/Electron`
+			`.build/electron/${nameLong}.app/Contents/MacOS/${nameShort}`
 		);
 	}
 }

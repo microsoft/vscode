@@ -93,9 +93,9 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 
 	private readonly _onDidChangeCanReply = new Emitter<boolean>();
 	get onDidChangeCanReply(): Event<boolean> { return this._onDidChangeCanReply.event; }
-	set canReply(state: boolean) {
+	set canReply(state: boolean | languages.CommentAuthorInformation) {
 		this._canReply = state;
-		this._onDidChangeCanReply.fire(this._canReply);
+		this._onDidChangeCanReply.fire(!!this._canReply);
 	}
 
 	get canReply() {
@@ -182,7 +182,7 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 		public resource: string,
 		private _range: T | undefined,
 		comments: languages.Comment[] | undefined,
-		private _canReply: boolean,
+		private _canReply: boolean | languages.CommentAuthorInformation,
 		private _isTemplate: boolean,
 		public editorId?: string
 	) {
@@ -216,10 +216,13 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	dispose() {
 		this._isDisposed = true;
 		this._onDidChangeCollapsibleState.dispose();
+		this._onDidChangeInitialCollapsibleState.dispose();
 		this._onDidChangeComments.dispose();
 		this._onDidChangeInput.dispose();
 		this._onDidChangeLabel.dispose();
+		this._onDidChangeCanReply.dispose();
 		this._onDidChangeState.dispose();
+		this._onDidChangeApplicability.dispose();
 	}
 
 	toJSON(): MarshalledCommentThread {
@@ -239,7 +242,7 @@ class CommentThreadWithDisposable {
 	}
 }
 
-export class MainThreadCommentController implements ICommentController {
+export class MainThreadCommentController extends Disposable implements ICommentController {
 	get handle(): number {
 		return this._handle;
 	}
@@ -274,7 +277,7 @@ export class MainThreadCommentController implements ICommentController {
 		return this._features.options;
 	}
 
-	private readonly _threads: DisposableMap<number, CommentThreadWithDisposable> = new DisposableMap<number, CommentThreadWithDisposable>();
+	private readonly _threads: DisposableMap<number, CommentThreadWithDisposable> = this._register(new DisposableMap<number, CommentThreadWithDisposable>());
 	public activeEditingCommentThread?: MainThreadCommentThread<IRange | ICellRange>;
 
 	get features(): CommentProviderFeatures {
@@ -293,7 +296,9 @@ export class MainThreadCommentController implements ICommentController {
 		private readonly _id: string,
 		private readonly _label: string,
 		private _features: CommentProviderFeatures
-	) { }
+	) {
+		super();
+	}
 
 	get activeComment() {
 		return this._activeComment;
@@ -519,7 +524,7 @@ export class MainThreadCommentController implements ICommentController {
 		await this._proxy.$updateCommentThreadTemplate(this.handle, threadHandle, range);
 	}
 
-	toJSON(): any {
+	toJSON() {
 		return {
 			$mid: MarshalledId.CommentController,
 			handle: this.handle
@@ -592,6 +597,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	$unregisterCommentController(handle: number): void {
 		const providerId = this._handlers.get(handle);
 		this._handlers.delete(handle);
+		this._commentControllers.get(handle)?.dispose();
 		this._commentControllers.delete(handle);
 
 		if (typeof providerId !== 'string') {

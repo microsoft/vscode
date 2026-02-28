@@ -87,7 +87,7 @@ type TWithOptionalCancellationToken<TFunction extends Function> = TFunction exte
 export function cancelPreviousCalls<
 	TObject extends Disposable,
 	TArgs extends unknown[],
-	TReturn extends unknown,
+	TReturn,
 >(
 	_proto: TObject,
 	methodName: string,
@@ -152,7 +152,7 @@ export function cancelPreviousCalls<
 		const cancellationSource = new CancellationTokenSource(token);
 		record.set(methodName, cancellationSource);
 
-		// then update or add cancelaltion token at the end of the arguments list
+		// then update or add cancellation token at the end of the arguments list
 		if (CancellationToken.isCancellationToken(lastArgument)) {
 			args[args.length - 1] = cancellationSource.token;
 		} else {
