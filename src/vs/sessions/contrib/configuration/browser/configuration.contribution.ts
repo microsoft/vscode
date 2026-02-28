@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 
@@ -14,6 +15,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.restoreLastPanelSession': true,
 		'chat.unifiedAgentsBar.enabled': true,
 		'chat.viewSessions.enabled': false,
+		'chat.notifyWindowOnConfirmation': isMacintosh ? 'always' : 'windowNotFocused', // macOS can confirm from the toast so we show it always
 
 		'breadcrumbs.enabled': false,
 
