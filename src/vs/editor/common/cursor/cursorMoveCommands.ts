@@ -561,39 +561,71 @@ export class CursorMoveCommands {
 	// Compute the target line after moving `count` steps downward from `startLine`,
 	// treating each folded region as a single step.
 	private static _targetFoldedDown(startLine: number, count: number, hiddenAreas: Range[], lineCount: number): number {
-		let target = startLine + count;
+		let line = startLine;
 		let i = 0;
-		while (i < hiddenAreas.length && hiddenAreas[i].endLineNumber <= startLine) { i++; }
-		while (i < hiddenAreas.length && hiddenAreas[i].startLineNumber <= target) {
-			const area = hiddenAreas[i];
-			const extended = target + (area.endLineNumber - area.startLineNumber + 1);
-			if (extended > lineCount) {
-				// Fold reaches end of document; land on the line before it.
-				return area.startLineNumber - 1;
-			}
-			target = extended;
+
+		while (i < hiddenAreas.length && hiddenAreas[i].endLineNumber < line + 1) {
 			i++;
 		}
-		return Math.min(target, lineCount);
+
+		for (let step = 0; step < count; step++) {
+			if (line >= lineCount) {
+				return lineCount;
+			}
+
+			let candidate = line + 1;
+			while (i < hiddenAreas.length && hiddenAreas[i].endLineNumber < candidate) {
+				i++;
+			}
+
+			if (i < hiddenAreas.length && hiddenAreas[i].startLineNumber <= candidate) {
+				candidate = hiddenAreas[i].endLineNumber + 1;
+			}
+
+			if (candidate > lineCount) {
+				// The next visible line does not exist (e.g. a fold reaches EOF).
+				return line;
+			}
+
+			line = candidate;
+		}
+
+		return line;
 	}
 
 	// Compute the target line after moving `count` steps upward from `startLine`,
 	// treating each folded region as a single step.
 	private static _targetFoldedUp(startLine: number, count: number, hiddenAreas: Range[]): number {
-		let target = startLine - count;
+		let line = startLine;
 		let i = hiddenAreas.length - 1;
-		while (i >= 0 && hiddenAreas[i].startLineNumber >= startLine) { i--; }
-		while (i >= 0 && hiddenAreas[i].endLineNumber >= target) {
-			const area = hiddenAreas[i];
-			const extended = target - (area.endLineNumber - area.startLineNumber + 1);
-			if (extended < 1) {
-				// Fold reaches start of document; land on the line after it.
-				return area.endLineNumber + 1;
-			}
-			target = extended;
+
+		while (i >= 0 && hiddenAreas[i].startLineNumber > line - 1) {
 			i--;
 		}
-		return Math.max(target, 1);
+
+		for (let step = 0; step < count; step++) {
+			if (line <= 1) {
+				return 1;
+			}
+
+			let candidate = line - 1;
+			while (i >= 0 && hiddenAreas[i].startLineNumber > candidate) {
+				i--;
+			}
+
+			if (i >= 0 && hiddenAreas[i].endLineNumber >= candidate) {
+				candidate = hiddenAreas[i].startLineNumber - 1;
+			}
+
+			if (candidate < 1) {
+				// The previous visible line does not exist (e.g. a fold reaches BOF).
+				return line;
+			}
+
+			line = candidate;
+		}
+
+		return line;
 	}
 
 	private static _moveToViewPosition(viewModel: IViewModel, cursor: CursorState, inSelectionMode: boolean, toViewLineNumber: number, toViewColumn: number): PartialCursorState {

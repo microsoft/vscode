@@ -590,6 +590,28 @@ suite('Cursor move command - foldedLine unit', () => {
 			cursorEqual(viewModel, 1, 1);
 		});
 	});
+
+	test('move down by foldedLine with count clamps to last visible line after fold', () => {
+		executeFoldTest((editor, viewModel) => {
+			// Lines 2-4 are hidden. Visible lines are 1 and 5.
+			viewModel.setHiddenAreas([new Range(2, 1, 4, 1)]);
+			moveTo(viewModel, 1, 1);
+			// 2j should land on line 5 and clamp there.
+			moveDownByFoldedLine(viewModel, 2);
+			cursorEqual(viewModel, 5, 1);
+		});
+	});
+
+	test('move up by foldedLine with count clamps to first visible line before fold', () => {
+		executeFoldTest((editor, viewModel) => {
+			// Lines 2-4 are hidden. Visible lines are 1 and 5.
+			viewModel.setHiddenAreas([new Range(2, 1, 4, 1)]);
+			moveTo(viewModel, 5, 1);
+			// 2k should land on line 1 and clamp there.
+			moveUpByFoldedLine(viewModel, 2);
+			cursorEqual(viewModel, 1, 1);
+		});
+	});
 });
 
 // Move command
