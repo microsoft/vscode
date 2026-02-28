@@ -43,8 +43,8 @@ import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceType } from '../common/plugins/pluginMarketplaceService.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
+import { MODAL_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
+import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
@@ -387,7 +387,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			this.editorService.openEditor(
 				this.instantiationService.createInstance(AgentPluginEditorInput, options.element!),
 				options.editorOptions,
-				ACTIVE_GROUP
+				MODAL_GROUP
 			);
 		}));
 	}

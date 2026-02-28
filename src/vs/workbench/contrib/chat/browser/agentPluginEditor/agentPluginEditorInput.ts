@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
-import { EditorInputCapabilities, IUntypedEditorInput } from '../../../common/editor.js';
-import { EditorInput } from '../../../common/editor/editorInput.js';
-import { join } from '../../../../base/common/path.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { IAgentPluginItem, AgentPluginItemKind } from './agentPluginsView.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { EditorInputCapabilities, IUntypedEditorInput } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
+import { IAgentPluginItem, AgentPluginItemKind } from '../agentPluginsView.js';
 
 const AgentPluginEditorIcon = registerIcon('agent-plugin-editor-icon', Codicon.extensions, localize('agentPluginEditorLabelIcon', 'Icon of the Agent Plugin editor.'));
 
@@ -38,7 +37,7 @@ export class AgentPluginEditorInput extends EditorInput {
 	override get resource() {
 		return URI.from({
 			scheme: Schemas.extension,
-			path: join(getPluginId(this._item), 'agentPlugin')
+			path: `/agentPlugin/${encodeURIComponent(getPluginId(this._item))}`
 		});
 	}
 
