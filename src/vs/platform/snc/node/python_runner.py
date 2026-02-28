@@ -219,7 +219,10 @@ def _build_new_code_edits(source_code: str, line: int, suggest_var_name: Optiona
     else:
         indent_str = ""
 
-    edits.append({"type": "insert", "afterLine": line, "text": indent_str + assignment})
+    # Apply base indentation to all lines (supports multi-line statements like for loops)
+    assignment_lines = assignment.split('\n')
+    text = '\n'.join(indent_str + aline for aline in assignment_lines)
+    edits.append({"type": "insert", "afterLine": line, "text": text})
 
     # Detect and insert needed imports
     needed_imports: List[str] = []
