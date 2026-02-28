@@ -133,14 +133,14 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 
 	private _getNotificationBody(sessionResource: URI, info: IChatRequestNeedsInputInfo, isQuestionCarousel: boolean): string {
 		const terminalCommand = this._getPendingTerminalCommand(sessionResource);
+		if (isQuestionCarousel) {
+			return localize('questionCarouselDetail', "Questions need your input.");
+		}
 		if (isMacintosh && terminalCommand) {
 			return this._sanitizeOSToastText(terminalCommand); // prefer full command on macOS where you can approve from the toast
 		}
 		if (info.detail) {
 			return this._sanitizeOSToastText(info.detail);
-		}
-		if (isQuestionCarousel) {
-			return localize('questionCarouselDetail', "Questions need your input.");
 		}
 		return localize('notificationDetail', "Approval needed to continue.");
 	}
