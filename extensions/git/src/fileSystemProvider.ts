@@ -132,19 +132,22 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	}
 
 	private async getOrOpenRepository(uri: string | Uri): Promise<Repository | undefined> {
-		const repository = this.model.getRepository(uri);
+		let repository = this.model.getRepository(uri);
 		if (repository) {
 			return repository;
 		}
 
-		try {
-			const fsPath = typeof uri === 'string' ? uri : uri.fsPath;
+		// In case of the empty window, or the agent sessions window, no repositories are open
+		// so we need to explicitly open a repository before we can serve git content for the
+		// given git resource.
+		if (workspace.workspaceFolders === undefined || workspace.isAgentSessionsWorkspace) {
+			const fsPath = typeof uri === 'string' ? uri : fromGitUri(uri).path;
+
 			await this.model.openRepository(fsPath, true, true);
-			return this.model.getRepository(uri);
-		} catch (err) {
-			this.logger.error(`[GitFileSystemProvider][getOrOpenRepository] Failed to open repository for ${uri.toString()}: ${err}`);
-			return undefined;
+			repository = this.model.getRepository(uri);
 		}
+
+		return repository;
 	}
 
 	watch(): Disposable {
