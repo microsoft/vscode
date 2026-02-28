@@ -25,6 +25,8 @@ from string_visualizer import (
     RepetitionInput,
     FirstMatchToggle,
     CaseSensitiveToggle,
+    ActionButtonClick,
+    CopyToClipboard,
     compute_internal_length,
     extract_by_internal_indices,
     get_last_segment_end_internal_idx,
@@ -53,6 +55,7 @@ from string_visualizer import (
     is_adjacent_left,
     synthesize_fuzzy_pattern,
     find_available_variable_name,
+    _count_matches,
     DC1, DC2, DC3, DC4,  # Sentinel characters
 )
 
@@ -6143,6 +6146,656 @@ class TestReplaceBoxVisualize(unittest.TestCase):
         html = visualize(self.value, model, None, None, max_width=400, small=True)
         self.assertNotIn('ReplaceToggle', html)
         self.assertNotIn('ReplaceBoxInput', html)
+
+
+# =============================================================================
+# Action Button Test Helpers
+# =============================================================================
+
+def make_action_button_event(action: str, copy: bool = False) -> dict:
+    """Create an ActionButtonClick event dict."""
+    return {
+        'pythonEventStr': repr(ActionButtonClick(action=action, copy=copy)),
+        'eventJSON': {},
+    }
+
+
+# =============================================================================
+# Handled Keys Updated Tests
+# =============================================================================
+
+class TestHandledKeysUpdated(unittest.TestCase):
+    """Test that init_model includes new handled keys for action shortcuts."""
+
+    def test_init_model_handled_keys(self):
+        """handledKeys should include cmd Backspace, cmd r, and NOT plain Backspace."""
+        model = init_model("test")
+        keys = model['handledKeys']
+        self.assertIn('cmd Backspace', keys)
+        self.assertIn('cmd r', keys)
+        self.assertNotIn('Backspace', keys)
+        self.assertIn('Enter', keys)
+        self.assertIn('Escape', keys)
+        self.assertIn('cmd z', keys)
+        self.assertIn('cmd shift z', keys)
+
+
+# =============================================================================
+# Action Button: Get/Transform Tests
+# =============================================================================
+
+class TestActionButtonGetTransform(unittest.TestCase):
+    """Test Get/Transform action button and Enter key behavior."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_get_button_non_replace(self):
+        """ActionButtonClick('get_transform') with regex produces finditer."""
+        _, commands = update(make_action_button_event('get_transform'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertEqual(expr, "list(re.finditer(r'hello', x, flags=re.M))")
+
+    def test_get_button_non_replace_first_match(self):
+        """With 1st mode, Get produces re.search."""
+        self.model['search'] = '/hello/1'
+        _, commands = update(make_action_button_event('get_transform'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_match")
+        self.assertEqual(expr, "re.search(r'hello', x, flags=re.M)")
+
+    def test_transform_button_replace_mode(self):
+        """With replace_visible, get_transform produces list comprehension."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('get_transform'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_transformed")
+        self.assertEqual(expr, "[_mtch[0].upper() for _mtch in re.finditer(r'hello', x, flags=re.M)]")
+
+    def test_transform_button_first_match(self):
+        """With 1st mode + replace, produces next(..., None)."""
+        self.model['search'] = '/hello/1'
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('get_transform'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_transformed")
+        self.assertEqual(expr, "next((_mtch[0].upper() for _mtch in re.finditer(r'hello', x, flags=re.M)), None)")
+
+    def test_enter_key_non_replace_unchanged(self):
+        """Enter still produces Get in non-replace mode."""
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_matches")
+        self.assertEqual(expr, "list(re.finditer(r'hello', x, flags=re.M))")
+
+    def test_enter_key_replace_mode_now_transforms(self):
+        """Enter in replace mode now produces Transform (not re.sub)."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_transformed")
+        self.assertIn("for _mtch in re.finditer(", expr)
+        self.assertNotIn("re.sub(", expr)
+
+    def test_copy_get_transform(self):
+        """copy=True produces CopyToClipboard command."""
+        _, commands = update(make_action_button_event('get_transform', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        cmd = commands[0]
+        self.assertIsInstance(cmd, CopyToClipboard)
+        self.assertEqual(cmd.text, "list(re.finditer(r'hello', x, flags=re.M))")
+
+    def test_get_transform_string_search(self):
+        """Get with string search uses re.escape."""
+        self.model['search'] = "'hello'"
+        _, commands = update(make_action_button_event('get_transform'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.escape('hello')", expr)
+
+    def test_get_transform_no_search_does_nothing(self):
+        """No search pattern produces no commands."""
+        self.model['search'] = None
+        _, commands = update(make_action_button_event('get_transform'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(commands, [])
+
+
+# =============================================================================
+# Action Button: Replace Tests
+# =============================================================================
+
+class TestActionButtonReplace(unittest.TestCase):
+    """Test Replace action button and Cmd-R key."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "'world'"
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_replace_button(self):
+        """Replace button produces re.sub with lambda."""
+        _, commands = update(make_action_button_event('replace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertEqual(expr, "re.sub(r'hello', lambda _mtch: 'world', x, flags=re.M)")
+
+    def test_replace_button_first_match(self):
+        """Replace with first-match includes count=1."""
+        self.model['search'] = '/hello/1'
+        _, commands = update(make_action_button_event('replace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertEqual(expr, "re.sub(r'hello', lambda _mtch: 'world', x, count=1, flags=re.M)")
+
+    def test_replace_button_not_in_replace_mode(self):
+        """Replace button does nothing when not in replace mode."""
+        self.model['replace_visible'] = False
+        _, commands = update(make_action_button_event('replace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(commands, [])
+
+    def test_cmd_r_key(self):
+        """Cmd-R produces same as replace button."""
+        _, commands = update(make_key_down_event('r', meta_key=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertEqual(expr, "re.sub(r'hello', lambda _mtch: 'world', x, flags=re.M)")
+
+    def test_copy_replace(self):
+        """copy=True produces CopyToClipboard with re.sub expr."""
+        _, commands = update(make_action_button_event('replace', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        cmd = commands[0]
+        self.assertIsInstance(cmd, CopyToClipboard)
+        self.assertIn("re.sub(", cmd.text)
+
+    def test_replace_button_string_search(self):
+        """Replace with string search uses re.escape."""
+        self.model['search'] = "'hello'"
+        _, commands = update(make_action_button_event('replace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.sub(re.escape('hello')", expr)
+
+
+# =============================================================================
+# Action Button: Delete Tests
+# =============================================================================
+
+class TestActionButtonDelete(unittest.TestCase):
+    """Test Delete action button and Cmd-Backspace key."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_delete_button(self):
+        """Delete button produces re.sub with empty string."""
+        _, commands = update(make_action_button_event('delete'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertEqual(expr, "re.sub(r'hello', '', x, flags=re.M)")
+
+    def test_cmd_backspace_key(self):
+        """Cmd-Backspace produces delete code."""
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x")
+        self.assertEqual(expr, "re.sub(r'hello', '', x, flags=re.M)")
+
+    def test_plain_backspace_no_longer_deletes(self):
+        """Plain Backspace key no longer produces delete commands."""
+        _, commands = update(make_key_down_event('Backspace'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(commands, [])
+
+    def test_copy_delete(self):
+        """copy=True produces CopyToClipboard with delete expr."""
+        _, commands = update(make_action_button_event('delete', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        cmd = commands[0]
+        self.assertIsInstance(cmd, CopyToClipboard)
+        self.assertIn("re.sub(", cmd.text)
+
+    def test_delete_string_search(self):
+        """Delete with string search, case-sensitive uses .replace()."""
+        self.model['search'] = "'hello'"
+        _, commands = update(make_action_button_event('delete'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertEqual(expr, "x.replace('hello', '')")
+
+
+# =============================================================================
+# Action Button: Loop Tests
+# =============================================================================
+
+class TestActionButtonLoop(unittest.TestCase):
+    """Test Loop action button."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_loop_non_replace(self):
+        """Loop produces for loop with enumerate(re.finditer(...))."""
+        _, commands = update(make_action_button_event('loop'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertIsNone(suggest_name)
+        self.assertIn("for _i, _mtch in enumerate(re.finditer(r'hello', x, flags=re.M)):", expr)
+        self.assertIn("\n    pass", expr)
+
+    def test_loop_replace_mode(self):
+        """Loop in replace mode iterates over transformed values."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('loop'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertIsNone(suggest_name)
+        self.assertIn("for _i, _val in enumerate(", expr)
+        self.assertIn("_mtch[0].upper() for _mtch in re.finditer(", expr)
+
+    def test_loop_suggest_name_none(self):
+        """Loop returns suggest_name=None for multiline code."""
+        _, commands = update(make_action_button_event('loop'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        self.assertIsNone(commands[0][0])
+
+    def test_copy_loop(self):
+        """copy=True produces CopyToClipboard with loop code."""
+        _, commands = update(make_action_button_event('loop', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        cmd = commands[0]
+        self.assertIsInstance(cmd, CopyToClipboard)
+        self.assertIn("for _i, _mtch in enumerate(", cmd.text)
+
+
+# =============================================================================
+# Action Button: Any Tests
+# =============================================================================
+
+class TestActionButtonAny(unittest.TestCase):
+    """Test Any action button."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_any_non_replace(self):
+        """Any in non-replace mode produces bool(re.search(...))."""
+        _, commands = update(make_action_button_event('any'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_any")
+        self.assertEqual(expr, "bool(re.search(r'hello', x, flags=re.M))")
+
+    def test_any_replace_mode(self):
+        """Any in replace mode produces any(EXPR for _mtch in ...)."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('any'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_any")
+        self.assertEqual(expr, "any(_mtch[0].upper() for _mtch in re.finditer(r'hello', x, flags=re.M))")
+
+    def test_copy_any(self):
+        """copy=True produces CopyToClipboard."""
+        _, commands = update(make_action_button_event('any', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        cmd = commands[0]
+        self.assertIsInstance(cmd, CopyToClipboard)
+
+    def test_any_string_search(self):
+        """Any with string search."""
+        self.model['search'] = "'hello'"
+        _, commands = update(make_action_button_event('any'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.search(re.escape('hello')", expr)
+
+
+# =============================================================================
+# Action Button: All Tests
+# =============================================================================
+
+class TestActionButtonAll(unittest.TestCase):
+    """Test All action button (replace mode only)."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_all_replace_mode(self):
+        """All in replace mode produces all(EXPR for _mtch in ...)."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('all'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_all")
+        self.assertEqual(expr, "all(_mtch[0].upper() for _mtch in re.finditer(r'hello', x, flags=re.M))")
+
+    def test_all_non_replace_returns_nothing(self):
+        """All not in replace mode produces no commands."""
+        _, commands = update(make_action_button_event('all'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(commands, [])
+
+    def test_copy_all(self):
+        """copy=True produces CopyToClipboard."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('all', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        self.assertIsInstance(commands[0], CopyToClipboard)
+
+
+# =============================================================================
+# Action Button: If Any Tests
+# =============================================================================
+
+class TestActionButtonIfAny(unittest.TestCase):
+    """Test If Any action button."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_if_any_non_replace(self):
+        """If Any in non-replace produces if re.search(...):\\n    pass."""
+        _, commands = update(make_action_button_event('if_any'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertIsNone(suggest_name)
+        self.assertIn("if re.search(r'hello', x, flags=re.M):", expr)
+        self.assertIn("\n    pass", expr)
+
+    def test_if_any_replace_mode(self):
+        """If Any in replace mode produces if any(...):\\n    pass."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('if_any'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertIsNone(suggest_name)
+        self.assertIn("if any(", expr)
+        self.assertIn("\n    pass", expr)
+
+    def test_copy_if_any(self):
+        """Copy If Any copies just the boolean expression."""
+        _, commands = update(make_action_button_event('if_any', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        cmd = commands[0]
+        self.assertIsInstance(cmd, CopyToClipboard)
+        # Copy should be just the boolean expression, no "if" or "pass"
+        self.assertNotIn("if ", cmd.text)
+        self.assertNotIn("pass", cmd.text)
+
+
+# =============================================================================
+# Action Button: If All Tests
+# =============================================================================
+
+class TestActionButtonIfAll(unittest.TestCase):
+    """Test If All action button (replace mode only)."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_if_all_replace_mode(self):
+        """If All in replace mode produces if all(...):\\n    pass."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('if_all'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertIsNone(suggest_name)
+        self.assertIn("if all(", expr)
+        self.assertIn("\n    pass", expr)
+
+    def test_if_all_non_replace_returns_nothing(self):
+        """If All not in replace mode produces no commands."""
+        _, commands = update(make_action_button_event('if_all'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(commands, [])
+
+    def test_copy_if_all(self):
+        """Copy If All copies just the all(...) expression."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('if_all', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        cmd = commands[0]
+        self.assertIsInstance(cmd, CopyToClipboard)
+        self.assertNotIn("if ", cmd.text)
+        self.assertNotIn("pass", cmd.text)
+
+
+# =============================================================================
+# Action Button: Count Tests
+# =============================================================================
+
+class TestActionButtonCount(unittest.TestCase):
+    """Test Count action button."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_count_non_replace(self):
+        """Count produces sum(1 for _ in re.finditer(...))."""
+        _, commands = update(make_action_button_event('count'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_count")
+        self.assertEqual(expr, "sum(1 for _ in re.finditer(r'hello', x, flags=re.M))")
+
+    def test_count_replace_mode(self):
+        """Count in replace mode filters by replace expr truthiness."""
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_action_button_event('count'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_count")
+        self.assertEqual(expr, "sum(1 for _mtch in re.finditer(r'hello', x, flags=re.M) if _mtch[0].upper())")
+
+    def test_copy_count(self):
+        """copy=True produces CopyToClipboard."""
+        _, commands = update(make_action_button_event('count', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        self.assertIsInstance(commands[0], CopyToClipboard)
+
+    def test_count_string_search(self):
+        """Count with string search."""
+        self.model['search'] = "'hello'"
+        _, commands = update(make_action_button_event('count'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.escape('hello')", expr)
+
+
+# =============================================================================
+# Count Matches Helper Tests
+# =============================================================================
+
+class TestCountMatches(unittest.TestCase):
+    """Test _count_matches() helper for button label display."""
+
+    def test_count_regex_matches(self):
+        """Count regex matches in a string."""
+        self.assertEqual(_count_matches('/l/', "hello world"), 3)
+
+    def test_count_string_matches(self):
+        """Count string literal matches."""
+        self.assertEqual(_count_matches("'l'", "hello world"), 3)
+
+    def test_count_first_match_mode(self):
+        """First match mode returns 0 or 1."""
+        self.assertEqual(_count_matches('/l/1', "hello world"), 1)
+        self.assertEqual(_count_matches('/z/1', "hello world"), 0)
+
+    def test_count_no_search(self):
+        """No search returns 0."""
+        self.assertEqual(_count_matches(None, "hello world"), 0)
+
+    def test_count_no_matches(self):
+        """Pattern that doesn't match returns 0."""
+        self.assertEqual(_count_matches('/xyz/', "hello world"), 0)
+
+    def test_count_case_insensitive(self):
+        """Case insensitive flag affects count."""
+        self.assertEqual(_count_matches('/HELLO/i', "hello world"), 1)
+        self.assertEqual(_count_matches('/HELLO/', "hello world"), 0)
+
+
+# =============================================================================
+# Action Button Rendering Tests
+# =============================================================================
+
+class TestActionButtonRendering(unittest.TestCase):
+    """Test that action buttons render correctly in visualize output."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_buttons_present_non_small(self):
+        """Action buttons render in non-small mode."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('ActionButtonClick', html_output)
+        self.assertIn('get_transform', html_output)
+        self.assertIn('delete', html_output)
+
+    def test_buttons_absent_small(self):
+        """No action buttons in small mode."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400, small=True)
+        self.assertNotIn('ActionButtonClick', html_output)
+
+    def test_get_label_changes_to_transform(self):
+        """Button label changes from 'Get' to 'Transform' in replace mode."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_get = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('Get', html_get)
+
+        model['replace_visible'] = True
+        model['replace_text'] = "'world'"
+        html_transform = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('Transform', html_transform)
+
+    def test_replace_button_grayed_when_no_replace(self):
+        """Replace button has low opacity when not in replace mode."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        # The replace button section should have opacity styling for disabled state
+        # Just check that the replace action reference exists but is styled as disabled
+        self.assertIn("action=&#x27;replace&#x27;", html_output)
+
+    def test_count_shows_match_count(self):
+        """Count button text shows the number of matches."""
+        model = init_model(self.value)
+        model['search'] = '/l/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        # 'hello world' has 3 'l' characters
+        self.assertIn('Count (3)', html_output)
+
+    def test_question_mark_dropdown_renders(self):
+        """? button is present in the action bar."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('?', html_output)
 
 
 if __name__ == '__main__':

@@ -2678,6 +2678,73 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         f'''</div>{search_box_html}</div>''',
     ]
 
+
+def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope=None) -> int:
+    """Count the number of matches for the current search pattern.
+
+    Used by the Count button to display the match count in its label.
+
+    Args:
+        selection_regex: The search pattern (with delimiters and flags)
+        string_value: The string to search in
+        eval_in_scope: Optional callable for expression evaluation
+
+    Returns:
+        The number of matches found
+    """
+    if not selection_regex or not string_value:
+        return 0
+
+    ci = is_case_insensitive(selection_regex)
+    first = is_first_match_mode(selection_regex)
+
+    if is_string_search(selection_regex):
+        literal_str = eval_string_search(selection_regex)
+        if not literal_str:
+            return 0
+        if ci:
+            pattern = re.compile(re.escape(literal_str), re.IGNORECASE)
+            if first:
+                return 1 if pattern.search(string_value) else 0
+            return len(pattern.findall(string_value))
+        else:
+            if first:
+                return 1 if literal_str in string_value else 0
+            return string_value.count(literal_str)
+
+    if is_expression_search(selection_regex):
+        expr_text = get_eval_expression(selection_regex)
+        if not expr_text:
+            return 0
+        try:
+            result = eval_in_scope(expr_text) if eval_in_scope else eval(expr_text)
+        except Exception:
+            return 0
+        if not isinstance(result, str):
+            return 0
+        if ci:
+            pattern = re.compile(re.escape(result), re.IGNORECASE)
+            if first:
+                return 1 if pattern.search(string_value) else 0
+            return len(pattern.findall(string_value))
+        else:
+            if first:
+                return 1 if result in string_value else 0
+            return string_value.count(result)
+
+    inner = get_regex_inner_pattern(selection_regex)
+    if not inner:
+        return 0
+    pattern = strip_capturing_groups(inner)
+    flags = re.M | (re.I if ci else 0)
+    try:
+        if first:
+            return 1 if re.search(pattern, string_value, flags=flags) else 0
+        return len(list(re.finditer(pattern, string_value, flags=flags)))
+    except Exception:
+        return 0
+
+
 def init_model(value, get_visualizer=None):
     """
     Initialize the model state for a new visualization.
