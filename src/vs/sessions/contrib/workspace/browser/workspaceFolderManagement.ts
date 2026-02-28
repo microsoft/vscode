@@ -75,7 +75,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			}
 			// if (session.providerType === AgentSessionProviders.Cloud) {
 			// 	return {
-			// 		uri: URI.parse(`github-remote-file://github${session.repository.path}`),
+			// 		uri: session.repository
 			// 	};
 			// }
 		}
