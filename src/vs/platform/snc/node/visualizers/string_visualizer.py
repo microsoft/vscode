@@ -68,6 +68,7 @@ COMMANDS:
 ================================================================================
 """
 
+import ast
 import html
 import os
 import re
@@ -2755,6 +2756,32 @@ def finalize_handle_drag(model: dict, string_value: str) -> dict:
     model['handleDrag'] = None
     return model
 
+# ^ is a rare python infix operator, generally invalid in variable position.
+# replace only ^ that are invariable position (not in strings, etc)
+# does this by replace-and-check one by one to see if parse succeeds with the ^ retained
+ONE_CARET_RE = re.compile(r'(?<!\^)\^(?!\^)')
+def replace_caret_in_py_exp(py_exp: str, replace_exp) -> str:
+    # first change all ^ to _caret_N_
+    temp_names = []
+    def temp_replacer(m):
+        temp_name = f'_caret_{len(temp_names)}_'
+        temp_names.append(temp_name)
+        return temp_name
+    out = ONE_CARET_RE.sub(temp_replacer, py_exp)
+
+    # for each _mtch_N_, replace with ^ and see if python parsing fails. if so, it's a variable name; replace with replace_exp
+    # if not, it's a ^ in a string or something: let it be
+    for name in temp_names:
+        try:
+            temp_str = out.replace(name, '^')
+            ast.parse(temp_str)
+            # parsing okay, means it's a caret in a string or something. keep it.
+            out = temp_str
+        except SyntaxError:
+            # it's a variable, replace with replace_exp
+            out = out.replace(name, replace_exp)
+
+    return out
 
 def update(event, source_code: str, source_line: int, model: dict, value: str, get_visualizer=None) -> Tuple[dict, List[Any]]:
     """
@@ -2896,33 +2923,30 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                     selection_regex = model.get('search')
                     replace_text = model.get('replace_text')
 
-                    if selection_regex and source_code and source_line and replace_text and is_string_search(replace_text):
-                        replace_literal = get_string_literal(replace_text)
+                    if selection_regex and source_code and source_line and replace_text:
+                        replace_expr = replace_text
+                        if replace_expr.startswith('`') and len(replace_expr) >= 2:
+                            end = replace_expr.find('`', 1)
+                            if end > 0:
+                                replace_expr = replace_expr[1:end]
+                        lambda_str = f'lambda _mtch: {replace_caret_in_py_exp(replace_expr, "_mtch")}'
+
                         expr, var_name = extract_expression_from_line(source_code, source_line)
                         var_to_search = var_name if var_name else f"({expr})"
                         suggest_name = var_name if var_name else "result"
                         first = is_first_match_mode(selection_regex)
                         ci = is_case_insensitive(selection_regex)
+                        count_str = ', count=1' if first else ''
 
                         if is_string_search(selection_regex) or is_expression_search(selection_regex):
                             embed = get_string_literal(selection_regex) if is_string_search(selection_regex) else get_eval_expression(selection_regex)
-                            if ci:
-                                flags_str = ', flags=re.I'
-                                count_str = ', count=1' if first else ''
-                                commands.append((suggest_name, f"re.sub(re.escape({embed}), {replace_literal}, {var_to_search}{count_str}{flags_str})"))
-                            else:
-                                if first:
-                                    commands.append((suggest_name, f"{var_to_search}.replace({embed}, {replace_literal}, 1)"))
-                                else:
-                                    commands.append((suggest_name, f"{var_to_search}.replace({embed}, {replace_literal})"))
+                            flags_str = ', flags=re.I' if ci else ''
+                            commands.append((suggest_name, f"re.sub(re.escape({embed}), {lambda_str}, {var_to_search}{count_str}{flags_str})"))
                         else:
                             inner_pattern = get_regex_inner_pattern(selection_regex)
                             regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
                             flags_str = 're.M|re.I' if ci else 're.M'
-                            if first:
-                                commands.append((suggest_name, f"re.sub(r'{regex_pattern}', {replace_literal}, {var_to_search}, count=1, flags={flags_str})"))
-                            else:
-                                commands.append((suggest_name, f"re.sub(r'{regex_pattern}', {replace_literal}, {var_to_search}, flags={flags_str})"))
+                            commands.append((suggest_name, f"re.sub(r'{regex_pattern}', {lambda_str}, {var_to_search}{count_str}, flags={flags_str})"))
                 else:
                     selection_regex = model.get('search')
 

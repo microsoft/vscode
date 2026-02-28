@@ -4441,11 +4441,11 @@ class TestHoverPreview(unittest.TestCase):
 
         html_output = visualize(self.value, model, None, None)
 
-        # Extract the span for index 5 to check it has left+right borders
+        # Extract the inner span's style (borders live on the nested span inside snc-mouse="5")
         import re as _re
-        spans = _re.findall(r'<span[^>]*snc-mouse="5"[^>]*style="([^"]*)"', html_output)
-        self.assertTrue(len(spans) > 0, "Should find span with snc-mouse=5")
-        style = spans[0]
+        inner_spans = _re.findall(r'<span snc-mouse="5"[^>]*><span style="([^"]*)"', html_output)
+        self.assertTrue(len(inner_spans) > 0, "Should find inner span inside snc-mouse=5")
+        style = inner_spans[0]
         self.assertIn('border-left', style)
         self.assertIn('border-right', style)
         self.assertIn('border-top', style)
@@ -5925,7 +5925,11 @@ class TestReplaceBoxInput(unittest.TestCase):
 
 
 class TestReplaceEnterCodeGen(unittest.TestCase):
-    """Test Enter in replace mode generates find-and-replace code."""
+    """Test Enter in replace mode generates find-and-replace code.
+
+    Replace always uses re.sub with a lambda _mtch replacer.
+    The ^ character in the replace expression translates to _mtch.
+    """
 
     def setUp(self):
         self.value = "hello world"
@@ -5935,7 +5939,7 @@ class TestReplaceEnterCodeGen(unittest.TestCase):
         self.source_line = 1
 
     def test_regex_replace_many_match(self):
-        """Regex search + replace generates re.sub with replacement."""
+        """Regex search + string literal replacement uses lambda."""
         self.model['search'] = '/hello/'
         self.model['replace_text'] = "'world'"
         _, commands = update(make_key_down_event('Enter'),
@@ -5943,12 +5947,10 @@ class TestReplaceEnterCodeGen(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         suggest_name, expr = commands[0]
         self.assertEqual(suggest_name, "x")
-        self.assertIn("re.sub(", expr)
-        self.assertIn("'world'", expr)
-        self.assertNotIn("count=1", expr)
+        self.assertEqual(expr, "re.sub(r'hello', lambda _mtch: 'world', x, flags=re.M)")
 
     def test_regex_replace_first_match(self):
-        """Regex search + replace + first-match generates re.sub with count=1."""
+        """Regex search + first-match generates re.sub with count=1."""
         self.model['search'] = '/hello/1'
         self.model['replace_text'] = "'world'"
         _, commands = update(make_key_down_event('Enter'),
@@ -5956,22 +5958,20 @@ class TestReplaceEnterCodeGen(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         suggest_name, expr = commands[0]
         self.assertEqual(suggest_name, "x")
-        self.assertIn("re.sub(", expr)
-        self.assertIn("'world'", expr)
-        self.assertIn("count=1", expr)
+        self.assertEqual(expr, "re.sub(r'hello', lambda _mtch: 'world', x, count=1, flags=re.M)")
 
     def test_regex_replace_case_insensitive(self):
-        """Regex search + replace + case-insensitive includes re.I."""
+        """Regex search + case-insensitive includes re.M|re.I."""
         self.model['search'] = '/hello/i'
         self.model['replace_text'] = "'world'"
         _, commands = update(make_key_down_event('Enter'),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
-        self.assertIn("re.I", expr)
+        self.assertEqual(expr, "re.sub(r'hello', lambda _mtch: 'world', x, flags=re.M|re.I)")
 
     def test_string_replace_many_match_case_sensitive(self):
-        """String search + replace, case-sensitive, many-match uses str.replace."""
+        """String search + replace, case-sensitive uses re.sub with lambda."""
         self.model['search'] = "'hello'"
         self.model['replace_text'] = "'world'"
         _, commands = update(make_key_down_event('Enter'),
@@ -5979,33 +5979,30 @@ class TestReplaceEnterCodeGen(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         suggest_name, expr = commands[0]
         self.assertEqual(suggest_name, "x")
-        self.assertIn(".replace('hello', 'world')", expr)
+        self.assertEqual(expr, "re.sub(re.escape('hello'), lambda _mtch: 'world', x)")
 
     def test_string_replace_first_match_case_sensitive(self):
-        """String search + replace, case-sensitive, first-match uses str.replace with count."""
+        """String search + replace, first-match uses re.sub with count=1."""
         self.model['search'] = "'hello'1"
         self.model['replace_text'] = "'world'"
         _, commands = update(make_key_down_event('Enter'),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
-        self.assertIn(".replace('hello', 'world', 1)", expr)
+        self.assertEqual(expr, "re.sub(re.escape('hello'), lambda _mtch: 'world', x, count=1)")
 
     def test_string_replace_case_insensitive(self):
-        """String search + replace, case-insensitive uses re.sub."""
+        """String search + replace, case-insensitive includes re.I."""
         self.model['search'] = "'hello'i"
         self.model['replace_text'] = "'world'"
         _, commands = update(make_key_down_event('Enter'),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
-        self.assertIn("re.sub(", expr)
-        self.assertIn("re.escape('hello')", expr)
-        self.assertIn("'world'", expr)
-        self.assertIn("re.I", expr)
+        self.assertEqual(expr, "re.sub(re.escape('hello'), lambda _mtch: 'world', x, flags=re.I)")
 
     def test_expression_replace_many_match(self):
-        """Expression search + replace uses str.replace for case-sensitive."""
+        """Expression search + replace uses re.sub with lambda."""
         self.model['search'] = '`s`'
         self.model['replace_text'] = "'world'"
         _, commands = update(make_key_down_event('Enter'),
@@ -6013,20 +6010,52 @@ class TestReplaceEnterCodeGen(unittest.TestCase):
         self.assertEqual(len(commands), 1)
         suggest_name, expr = commands[0]
         self.assertEqual(suggest_name, "x")
-        self.assertIn(".replace(s, 'world')", expr)
+        self.assertEqual(expr, "re.sub(re.escape(s), lambda _mtch: 'world', x)")
+
+    def test_caret_translates_to_match_var(self):
+        """^ in replace expression translates to _mtch."""
+        self.model['search'] = '/hello/'
+        self.model['replace_text'] = "^[0].upper()"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertEqual(expr, "re.sub(r'hello', lambda _mtch: _mtch[0].upper(), x, flags=re.M)")
+
+    def test_backtick_wrapped_expression(self):
+        """Backtick-wrapped replace expression is unwrapped and ^ translated."""
+        self.model['search'] = '/hello/'
+        self.model['replace_text'] = "`^[0].upper()`"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertEqual(expr, "re.sub(r'hello', lambda _mtch: _mtch[0].upper(), x, flags=re.M)")
+
+    def test_caret_method_call(self):
+        """^ with method call: ^.group(1) -> _mtch.group(1)."""
+        self.model['search'] = '/hello/'
+        self.model['replace_text'] = "^.group(1)"
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("lambda _mtch: _mtch.group(1)", expr)
+
+    def test_arbitrary_code_accepted(self):
+        """Any non-empty replace text is accepted as Python code."""
+        self.model['search'] = '/hello/'
+        self.model['replace_text'] = 'some_func(^[0])'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("lambda _mtch: some_func(_mtch[0])", expr)
 
     def test_empty_replace_text_does_nothing(self):
         """Enter with empty replace text produces no commands."""
         self.model['search'] = '/hello/'
         self.model['replace_text'] = None
-        _, commands = update(make_key_down_event('Enter'),
-                            self.source_code, self.source_line, self.model, self.value)
-        self.assertEqual(commands, [])
-
-    def test_invalid_replace_text_does_nothing(self):
-        """Enter with invalid (non-string-literal) replace text produces no commands."""
-        self.model['search'] = '/hello/'
-        self.model['replace_text'] = 'not a string literal'
         _, commands = update(make_key_down_event('Enter'),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(commands, [])
@@ -6044,24 +6073,24 @@ class TestReplaceEnterCodeGen(unittest.TestCase):
         self.assertIn("re.finditer(", expr)
 
     def test_double_quote_replace(self):
-        """Double-quote replacement string is preserved."""
+        """Double-quote replacement expression is preserved in lambda."""
         self.model['search'] = "'hello'"
         self.model['replace_text'] = '"world"'
         _, commands = update(make_key_down_event('Enter'),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
-        self.assertIn('"world"', expr)
+        self.assertIn('lambda _mtch: "world"', expr)
 
     def test_fstring_replace(self):
-        """f-string replacement is preserved."""
+        """f-string replacement is preserved in lambda."""
         self.model['search'] = "'hello'"
         self.model['replace_text'] = "f'hi {name}'"
         _, commands = update(make_key_down_event('Enter'),
                             self.source_code, self.source_line, self.model, self.value)
         self.assertEqual(len(commands), 1)
         _, expr = commands[0]
-        self.assertIn("f'hi {name}'", expr)
+        self.assertIn("lambda _mtch: f'hi {name}'", expr)
 
     def test_no_search_does_nothing(self):
         """Enter in replace mode with no search pattern produces no commands."""
