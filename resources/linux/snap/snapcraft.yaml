@@ -6,9 +6,10 @@ description: |
   simplicity of a code editor with what developers need for the core
   edit-build-debug cycle.
 
-architectures:
-  - build-on: @@BUILD_ARCHITECTURE@@
-    run-on: @@ARCHITECTURE@@
+platforms:
+  @@ARCHITECTURE@@:
+    build-on: [@@BUILD_ARCHITECTURE@@]
+    build-for: [@@ARCHITECTURE@@]
 
 grade: stable
 confinement: classic
