@@ -9,13 +9,11 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		'chat.agentsControl.enabled': true,
 		'chat.agent.maxRequests': 1000,
 		'chat.customizationsMenu.userStoragePath': '~/.copilot',
-		'chat.restoreLastPanelSession': true,
-		'chat.unifiedAgentsBar.enabled': true,
 		'chat.viewSessions.enabled': false,
 		'chat.notifyWindowOnConfirmation': isMacintosh ? 'always' : 'windowNotFocused', // macOS can confirm from the toast so we show it always
+		'chat.implicitContext.suggestedContext': false,
 
 		'breadcrumbs.enabled': false,
 
