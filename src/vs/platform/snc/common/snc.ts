@@ -39,7 +39,8 @@ export interface NewCodeEdit {
 }
 
 export type SNCCommand =
-	| { type: 'NewCode'; triggerLine: number; triggerVisIndex: number; edits: NewCodeEdit[] };
+	| { type: 'NewCode'; triggerLine: number; triggerVisIndex: number; edits: NewCodeEdit[] }
+	| { type: 'CopyToClipboard'; text: string };
 
 /**
  * Timing data for visualizer performance measurement.

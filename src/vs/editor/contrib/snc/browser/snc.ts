@@ -118,7 +118,9 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			// Other keys should still type normally, but must not bubble to VS Code.
 			const target = ev.target as HTMLElement;
 			if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-				if (ev.key !== 'Enter' && ev.key !== 'Escape' && ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown' && ev.key !== 'Tab') {
+				const isAllowedKey = ev.key === 'Enter' || ev.key === 'Escape' || ev.key === 'ArrowUp' || ev.key === 'ArrowDown' || ev.key === 'Tab';
+				const isMetaCombo = ev.metaKey && (ev.key === 'Backspace' || ev.key === 'r');
+				if (!isAllowedKey && !isMetaCombo) {
 					ev.stopPropagation();
 					return;
 				}
@@ -523,7 +525,9 @@ class VisualizationWidget extends Disposable implements IOverlayWidget {
 			dom.addDisposableListener(panel, 'keydown', (ev: KeyboardEvent) => {
 				const target = ev.target as HTMLElement;
 				if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-					if (ev.key !== 'Enter' && ev.key !== 'Escape') {
+					const isAllowedKey = ev.key === 'Enter' || ev.key === 'Escape';
+					const isMetaCombo = ev.metaKey && (ev.key === 'Backspace' || ev.key === 'r');
+					if (!isAllowedKey && !isMetaCombo) {
 						ev.stopPropagation();
 						return;
 					}
@@ -1186,6 +1190,8 @@ export class SNCController extends Disposable implements IEditorContribution {
 			const newVisualizerLine = command.triggerLine + insertsAboveTrigger + 1;
 			const newLineTop = this.editor.getTopForLineNumber(newVisualizerLine);
 			this.editor.setScrollTop(newLineTop - viewportOffset);
+		} else if (command.type === 'CopyToClipboard') {
+			navigator.clipboard.writeText(command.text).catch(() => { /* ignore clipboard errors */ });
 		}
 	}
 
