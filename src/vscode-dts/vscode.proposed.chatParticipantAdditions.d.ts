@@ -1063,5 +1063,9 @@ declare module 'vscode' {
 		readonly content: string;
 		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 		readonly metadata?: Record<string, boolean | string | number>;
+		/**
+		 * Whether the mode is a builtin mode (e.g. Ask, Edit, Agent) rather than a user or extension-defined custom mode.
+		 */
+		readonly isBuiltin?: boolean;
 	}
 }
