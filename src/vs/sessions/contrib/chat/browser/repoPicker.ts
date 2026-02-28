@@ -14,6 +14,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INewSession } from './newSession.js';
+import { URI } from '../../../../base/common/uri.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_REPO = 'agentSessions.lastPickedRepo';
@@ -82,7 +84,7 @@ export class RepoPicker extends Disposable {
 		this._newSession = session;
 		this._browseGeneration++;
 		if (session && this._selectedRepo) {
-			session.setOption('repositories', this._selectedRepo);
+			this._setRepo(this._selectedRepo);
 		}
 	}
 
@@ -178,7 +180,7 @@ export class RepoPicker extends Disposable {
 		this._addToRecentlyPicked(item);
 		this.storageService.store(STORAGE_KEY_LAST_REPO, JSON.stringify(item), StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._updateTriggerLabel();
-		this._newSession?.setOption('repositories', item);
+		this._setRepo(item);
 		this._onDidSelectRepo.fire(item.id);
 	}
 
@@ -267,4 +269,9 @@ export class RepoPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 	}
+
+	private _setRepo(repo: IRepoItem): void {
+		this._newSession?.setRepoUri(URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${repo.id}`));
+	}
+
 }

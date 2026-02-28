@@ -14,14 +14,9 @@ export interface IPluginInstallService {
 
 	/**
 	 * Clones the marketplace repository (if not already cached) and registers
-	 * the plugin's source directory in the user's `chat.plugins.paths` config.
+	 * the plugin in the marketplace service's installed plugins storage.
 	 */
 	installPlugin(plugin: IMarketplacePlugin): Promise<void>;
-
-	/**
-	 * Removes the plugin from `chat.plugins.paths` config.
-	 */
-	uninstallPlugin(pluginUri: URI): Promise<void>;
 
 	/**
 	 * Pulls the latest changes for an already-cloned marketplace repository.

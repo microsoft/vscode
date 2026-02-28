@@ -157,13 +157,12 @@ class UninstallPluginAction extends Action {
 
 	constructor(
 		private readonly plugin: IAgentPlugin,
-		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 	) {
 		super(UninstallPluginAction.ID, localize('uninstall', "Uninstall"));
 	}
 
 	override async run(): Promise<void> {
-		this.pluginInstallService.uninstallPlugin(this.plugin.uri);
+		this.plugin.remove();
 	}
 }
 

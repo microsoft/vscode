@@ -52,9 +52,14 @@ export class UITest {
 	 * Run the UI test actions.
 	 */
 	public async run(page: Page) {
-		await this.dismissWorkspaceTrustDialog(page);
-		await this.createTextFile(page);
-		await this.installExtension(page);
+		try {
+			await this.dismissWorkspaceTrustDialog(page);
+			await this.createTextFile(page);
+			await this.installExtension(page);
+		} catch (error) {
+			await this.context.captureScreenshot(page);
+			throw error;
+		}
 	}
 
 	/**
@@ -80,9 +85,11 @@ export class UITest {
 	private async runCommand(page: Page, command: string) {
 		this.context.log(`Running command: ${command}`);
 		await page.keyboard.press('F1');
-		await page.getByPlaceholder(/^Type the name of a command/).fill(`>${command}`);
-		await page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) }).click();
-		await page.waitForTimeout(1000);
+		const input = page.getByPlaceholder(/^Type the name of a command/);
+		await input.fill(`>${command}`);
+		const item = page.locator('span.monaco-highlighted-label', { hasText: new RegExp(`^${command}$`) });
+		await item.click();
+		await input.waitFor({ state: 'hidden' });
 	}
 
 	/**
@@ -125,15 +132,37 @@ export class UITest {
 
 		this.context.log('Typing extension name to search for');
 		await page.getByText('Search Extensions in Marketplace').focus();
-		await page.keyboard.insertText('GitHub Pull Requests');
+		await page.keyboard.type('GitHub Pull Requests', { delay: 50 });
+
+		this.context.log('Waiting for extension to appear in search results');
+		const extensionItem = page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/);
+		const messageContainer = page.locator('.extensions-viewlet .message-container:not(.hidden)').first();
+
+		for (let attempt = 0; attempt < 3; attempt++) {
+			const result = await Promise.race([
+				extensionItem.waitFor().then(() => 'found' as const),
+				messageContainer.waitFor().then(() => 'message' as const),
+			]);
+
+			if (result === 'found') {
+				break;
+			}
+
+			const message = await messageContainer.locator('.message').innerText();
+			this.context.log(`Marketplace message: ${message} (attempt ${attempt + 1}/3), clicking Refresh`);
+			await page.getByRole('button', { name: 'Refresh' }).click();
+			await messageContainer.waitFor({ state: 'hidden', timeout: 30_000 });
+		}
+
+		await extensionItem.waitFor();
 
 		this.context.log('Clicking Install on the first extension in the list');
-		await page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/).waitFor();
-		await page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first().click();
-		await page.waitForTimeout(1000);
+		const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
+		await installButton.waitFor();
+		await installButton.click();
 
 		this.context.log('Waiting for extension to be installed');
-		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor();
+		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor({ timeout: 5 * 60_1000 });
 	}
 
 	/**
