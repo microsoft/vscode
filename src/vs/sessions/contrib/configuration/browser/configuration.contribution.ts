@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 
@@ -11,6 +12,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.agent.maxRequests': 1000,
 		'chat.customizationsMenu.userStoragePath': '~/.copilot',
 		'chat.viewSessions.enabled': false,
+		'chat.notifyWindowOnConfirmation': isMacintosh ? 'always' : 'windowNotFocused', // macOS can confirm from the toast so we show it always
 		'chat.implicitContext.suggestedContext': false,
 
 		'breadcrumbs.enabled': false,
