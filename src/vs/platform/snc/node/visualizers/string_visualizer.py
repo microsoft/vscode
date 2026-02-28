@@ -2764,7 +2764,7 @@ def init_model(value, get_visualizer=None):
         "handleDrag": None,       # {"segmentIndex": int, "side": "left"|"right", "cursorIdx": int} when dragging a handle
         "undoHistory": [],        # Stack of previous search states
         "redoHistory": [],        # Stack for redo
-        "handledKeys": ["Escape", "Enter", "Backspace", "cmd z", "cmd shift z"],  # Keys to intercept from VS Code
+        "handledKeys": ["Escape", "Enter", "cmd Backspace", "cmd r", "cmd z", "cmd shift z"],  # Keys to intercept from VS Code
         "hoverIdx": None,         # Internal index of the character currently hovered
         "hoverType": None,        # "literal" or "fuzzy" based on mouse position in top/bottom half
         "replace_visible": False, # Whether the replace input box is visible
@@ -3249,95 +3249,32 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
             if key == 'Enter':
                 if model.get('openDropdown'):
                     model['openDropdown'] = None
-                elif model.get('replace_visible'):
-                    selection_regex = model.get('search')
-                    replace_text = model.get('replace_text')
-
-                    if selection_regex and source_code and source_line and replace_text:
-                        replace_expr = replace_text
-                        if replace_expr.startswith('`') and len(replace_expr) >= 2:
-                            end = replace_expr.find('`', 1)
-                            if end > 0:
-                                replace_expr = replace_expr[1:end]
-                        lambda_str = f'lambda _mtch: {replace_caret_in_py_exp(replace_expr, "_mtch")}'
-
-                        expr, var_name = extract_expression_from_line(source_code, source_line)
-                        var_to_search = var_name if var_name else f"({expr})"
-                        suggest_name = var_name if var_name else "result"
-                        first = is_first_match_mode(selection_regex)
-                        ci = is_case_insensitive(selection_regex)
-                        count_str = ', count=1' if first else ''
-
-                        if is_string_search(selection_regex) or is_expression_search(selection_regex):
-                            embed = get_string_literal(selection_regex) if is_string_search(selection_regex) else get_eval_expression(selection_regex)
-                            flags_str = ', flags=re.I' if ci else ''
-                            commands.append((suggest_name, f"re.sub(re.escape({embed}), {lambda_str}, {var_to_search}{count_str}{flags_str})"))
-                        else:
-                            inner_pattern = get_regex_inner_pattern(selection_regex)
-                            regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
-                            flags_str = 're.M|re.I' if ci else 're.M'
-                            commands.append((suggest_name, f"re.sub(r'{regex_pattern}', {lambda_str}, {var_to_search}{count_str}, flags={flags_str})"))
                 else:
-                    selection_regex = model.get('search')
+                    # Enter: Get (non-replace) or Transform (replace mode)
+                    ctx = _get_search_context(model, source_code, source_line)
+                    if ctx:
+                        result = _build_get_or_transform_expr(ctx)
+                        if result:
+                            commands.append(result)
 
-                    if selection_regex and source_code and source_line:
-                        expr, var_name = extract_expression_from_line(source_code, source_line)
-                        var_to_search = var_name if var_name else f"({expr})"
-                        first = is_first_match_mode(selection_regex)
-                        ci = is_case_insensitive(selection_regex)
-
-                        if is_string_search(selection_regex) or is_expression_search(selection_regex):
-                            embed = get_string_literal(selection_regex) if is_string_search(selection_regex) else get_eval_expression(selection_regex)
-                            flags_str = ', flags=re.I' if ci else ''
-                            if first:
-                                suggest_name = f"{var_name}_match" if var_name else "result_match"
-                                commands.append((suggest_name, f"re.search(re.escape({embed}), {var_to_search}{flags_str})"))
-                            else:
-                                suggest_name = f"{var_name}_matches" if var_name else "result_matches"
-                                commands.append((suggest_name, f"list(re.finditer(re.escape({embed}), {var_to_search}{flags_str}))"))
-                        else:
-                            inner_pattern = get_regex_inner_pattern(selection_regex)
-                            regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
-                            flags_str = 're.M|re.I' if ci else 're.M'
-                            if first:
-                                suggest_name = f"{var_name}_match" if var_name else "result_match"
-                                commands.append((suggest_name, f"re.search(r'{regex_pattern}', {var_to_search}, flags={flags_str})"))
-                            else:
-                                suggest_name = f"{var_name}_matches" if var_name else "result_matches"
-                                commands.append((suggest_name, f"list(re.finditer(r'{regex_pattern}', {var_to_search}, flags={flags_str}))"))
-
-            elif key == 'Backspace':
+            elif key == 'Backspace' and meta_key:
+                # Cmd-Delete: Delete matches
                 if model.get('openDropdown'):
                     model['openDropdown'] = None
                 else:
-                    selection_regex = model.get('search')
+                    ctx = _get_search_context(model, source_code, source_line)
+                    if ctx:
+                        result = _build_delete_expr(ctx)
+                        if result:
+                            commands.append(result)
 
-                    if selection_regex and source_code and source_line:
-                        expr, var_name = extract_expression_from_line(source_code, source_line)
-                        var_to_search = var_name if var_name else f"({expr})"
-                        suggest_name = var_name if var_name else "result"
-                        first = is_first_match_mode(selection_regex)
-                        ci = is_case_insensitive(selection_regex)
-
-                        if is_string_search(selection_regex) or is_expression_search(selection_regex):
-                            embed = get_string_literal(selection_regex) if is_string_search(selection_regex) else get_eval_expression(selection_regex)
-                            if ci:
-                                flags_str = ', flags=re.I'
-                                count_str = ', count=1' if first else ''
-                                commands.append((suggest_name, f"re.sub(re.escape({embed}), '', {var_to_search}{count_str}{flags_str})"))
-                            else:
-                                if first:
-                                    commands.append((suggest_name, f"{var_to_search}.replace({embed}, '', 1)"))
-                                else:
-                                    commands.append((suggest_name, f"{var_to_search}.replace({embed}, '')"))
-                        else:
-                            inner_pattern = get_regex_inner_pattern(selection_regex)
-                            regex_pattern = strip_capturing_groups(inner_pattern) if inner_pattern else ""
-                            flags_str = 're.M|re.I' if ci else 're.M'
-                            if first:
-                                commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, count=1, flags={flags_str})"))
-                            else:
-                                commands.append((suggest_name, f"re.sub(r'{regex_pattern}', '', {var_to_search}, flags={flags_str})"))
+            elif key == 'r' and meta_key:
+                # Cmd-R: Replace (re.sub)
+                ctx = _get_search_context(model, source_code, source_line)
+                if ctx:
+                    result = _build_replace_expr(ctx)
+                    if result:
+                        commands.append(result)
 
             elif key == 'Escape':
                 # Close dropdown if open, otherwise clear selections
@@ -3505,5 +3442,48 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
 
         case ReplaceBoxInput(value=val):
             model['replace_text'] = val if val else None
+
+        case ActionButtonClick(action=action, copy=copy):
+            ctx = _get_search_context(model, source_code, source_line)
+            if ctx:
+                result = None
+                match action:
+                    case 'get_transform':
+                        result = _build_get_or_transform_expr(ctx)
+                    case 'replace':
+                        result = _build_replace_expr(ctx)
+                    case 'delete':
+                        result = _build_delete_expr(ctx)
+                    case 'loop':
+                        result = _build_loop_code(ctx)
+                    case 'any':
+                        result = _build_any_expr(ctx)
+                    case 'all':
+                        result = _build_all_expr(ctx)
+                    case 'if_any':
+                        if copy:
+                            # Copy just the boolean expression, not the if statement
+                            bool_expr = _get_copy_expr_for_if('if_any', ctx)
+                            if bool_expr:
+                                commands.append(CopyToClipboard(text=bool_expr))
+                            return (model, commands)
+                        else:
+                            result = _build_if_any_code(ctx)
+                    case 'if_all':
+                        if copy:
+                            bool_expr = _get_copy_expr_for_if('if_all', ctx)
+                            if bool_expr:
+                                commands.append(CopyToClipboard(text=bool_expr))
+                            return (model, commands)
+                        else:
+                            result = _build_if_all_code(ctx)
+                    case 'count':
+                        result = _build_count_expr(ctx)
+                if result:
+                    if copy:
+                        _, expr = result
+                        commands.append(CopyToClipboard(text=expr))
+                    else:
+                        commands.append(result)
 
     return (model, commands)
