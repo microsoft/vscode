@@ -30,6 +30,7 @@ parts:
       - libcanberra-gtk3-module
       - libcurl4t64
       - libegl1
+      - librsvg2-common
       - libdrm2
       - libgbm1
       - libgl1
@@ -50,6 +51,7 @@ parts:
       - libxss1
       - locales-all
       - packagekit-gtk3-module
+      - shared-mime-info
       - xdg-utils
     prime:
       - -usr/share/doc
