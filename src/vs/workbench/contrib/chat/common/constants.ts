@@ -84,7 +84,7 @@ export function validateChatMode(mode: unknown): ChatModeKind | undefined {
 export enum ChatPermissionLevel {
 	/** Use existing auto-approve settings */
 	Default = 'default',
-	/** Auto-approve all tool calls, auto-retry on error, silently increase tool call limits */
+	/** Auto-approve all tool calls, auto-retry on error */
 	AutoApprove = 'autoApprove',
 	/** Everything AutoApprove does plus an internal stop hook that continues until the task is done */
 	Autopilot = 'autopilot'

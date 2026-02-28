@@ -64,7 +64,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						checked: currentLevel === ChatPermissionLevel.AutoApprove,
 						tooltip: '',
 						hover: {
-							content: localize('permissions.autoApprove.description', "Auto-approve all tool calls, retry on errors, skip on max requests"),
+							content: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {

@@ -159,7 +159,7 @@ export interface IChatAgentRequest {
 	hasHooksEnabled?: boolean;
 	/**
 	 * The permission level for tool auto-approval in this request.
-	 * - `'autoApprove'`: Auto-approve all tool calls, retry on errors, skip on max requests.
+	 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
 	 * - `'autopilot'`: Everything autoApprove does plus continues until the task is done.
 	 */
 	permissionLevel?: string;

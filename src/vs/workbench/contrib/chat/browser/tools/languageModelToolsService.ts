@@ -638,7 +638,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			this.ensureToolDetails(dto, toolResult, tool.data);
 
 			const afterExecuteState = await toolInvocation?.didExecuteTool(toolResult, undefined, () =>
-				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource));
+				this.shouldAutoConfirmPostExecution(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, dto.context?.sessionResource, dto.chatRequestId));
 
 			if (toolInvocation && afterExecuteState?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
 				const postConfirm = await IChatToolInvocation.awaitPostConfirmation(toolInvocation, token);
@@ -788,7 +788,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		// No hook decision - use normal auto-confirm logic
-		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource);
+		const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace, tool.data.source, dto.parameters, sessionResource, dto.chatRequestId);
 		return { autoConfirmed, preparedInvocation };
 	}
 
@@ -1037,7 +1037,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return true;
 	}
 
-	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined): Promise<ConfirmedReason | undefined> {
 		const tool = this._tools.get(toolId);
 		if (!tool) {
 			return undefined;
@@ -1046,7 +1046,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// Auto-Approve All permission level bypasses all tool confirmations
 		if (chatSessionResource) {
 			const model = this._chatService.getSession(chatSessionResource);
-			const request = model?.getRequests().at(-1);
+			const request = chatRequestId
+				? model?.getRequests().find(r => r.id === chatRequestId)
+				: model?.getRequests().at(-1);
 			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
@@ -1083,11 +1085,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined): Promise<ConfirmedReason | undefined> {
+	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined): Promise<ConfirmedReason | undefined> {
 		// Auto-Approve All permission level bypasses all post-execution confirmations
 		if (chatSessionResource) {
 			const model = this._chatService.getSession(chatSessionResource);
-			const request = model?.getRequests().at(-1);
+			const request = chatRequestId
+				? model?.getRequests().find(r => r.id === chatRequestId)
+				: model?.getRequests().at(-1);
 			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}

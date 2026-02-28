@@ -1741,7 +1741,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		this.chatSessionPickerContainer.style.display = '';
+		if (this.chatSessionPickerContainer) {
+			this.chatSessionPickerContainer.style.display = '';
+		}
 
 		// Fire option change events for existing widgets to sync their state
 		// (only if we have a session context - in welcome view, options aren't persisted yet)
@@ -1768,7 +1770,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private hideAllSessionPickerWidgets(): void {
-		this.chatSessionPickerContainer.style.display = 'none';
+		if (this.chatSessionPickerContainer) {
+			this.chatSessionPickerContainer.style.display = 'none';
+		}
 	}
 
 	private disposeSessionPickerWidgets(): void {
