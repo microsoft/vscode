@@ -128,6 +128,7 @@ class ModelSemanticColoring extends Disposable {
 	private readonly _fetchDocumentSemanticTokens: RunOnceScheduler;
 	private _currentDocumentResponse: SemanticTokensResponse | null;
 	private _currentDocumentRequestCancellationTokenSource: CancellationTokenSource | null;
+	private _relevantProviders = new Set<DocumentSemanticTokensProvider>();
 	private _providersChangedDuringRequest: boolean;
 
 	constructor(
@@ -147,6 +148,7 @@ class ModelSemanticColoring extends Disposable {
 		this._currentDocumentResponse = null;
 		this._currentDocumentRequestCancellationTokenSource = null;
 		this._providersChangedDuringRequest = false;
+		this._updateRelevantProviders();
 
 		this._register(this._model.onDidChangeContent(() => {
 			if (!this._fetchDocumentSemanticTokens.isScheduled()) {
@@ -169,6 +171,7 @@ class ModelSemanticColoring extends Disposable {
 				this._currentDocumentRequestCancellationTokenSource = null;
 			}
 			this._setDocumentSemanticTokens(null, null, null, []);
+			this._updateRelevantProviders();
 			this._fetchDocumentSemanticTokens.schedule(0);
 		}));
 
@@ -182,11 +185,12 @@ class ModelSemanticColoring extends Disposable {
 	}
 
 	public handleRegistryChange(): void {
+		this._updateRelevantProviders();
 		this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
 	}
 
 	public handleProviderDidChange(provider: DocumentSemanticTokensProvider): void {
-		if (!this._provider.all(this._model).includes(provider)) {
+		if (!this._relevantProviders.has(provider)) {
 			return;
 		}
 		if (this._currentDocumentRequestCancellationTokenSource) {
@@ -195,6 +199,10 @@ class ModelSemanticColoring extends Disposable {
 			return;
 		}
 		this._fetchDocumentSemanticTokens.schedule(0);
+	}
+
+	private _updateRelevantProviders(): void {
+		this._relevantProviders = new Set(this._provider.all(this._model));
 	}
 
 	public override dispose(): void {
