@@ -125,7 +125,13 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			return false;
 		}
 		const normalized = posix.normalize(fileUri.path);
-		return normalized.startsWith('/tmp/') || normalized.startsWith('/private/tmp/');
+		if (normalized.startsWith('/tmp/')) {
+			return true;
+		}
+		if (os === OperatingSystem.Macintosh && normalized.startsWith('/private/tmp/')) {
+			return true;
+		}
+		return false;
 	}
 
 	private _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[]): ICommandLineAnalyzerResult {
