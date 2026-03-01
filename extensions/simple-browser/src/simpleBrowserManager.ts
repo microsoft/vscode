@@ -9,6 +9,7 @@ import { ShowOptions, SimpleBrowserView } from './simpleBrowserView';
 export class SimpleBrowserManager {
 
 	private _activeView?: SimpleBrowserView;
+	private _opening = false;
 
 	constructor(
 		private readonly extensionUri: vscode.Uri,
@@ -24,10 +25,18 @@ export class SimpleBrowserManager {
 		if (this._activeView) {
 			this._activeView.show(url, options);
 		} else {
-			const view = SimpleBrowserView.create(this.extensionUri, url, options);
-			this.registerWebviewListeners(view);
+			if (this._opening) {
+				return;
+			}
+			this._opening = true;
+			try {
+				const view = SimpleBrowserView.create(this.extensionUri, url, options);
+				this.registerWebviewListeners(view);
 
-			this._activeView = view;
+				this._activeView = view;
+			} finally {
+				this._opening = false;
+			}
 		}
 	}
 
