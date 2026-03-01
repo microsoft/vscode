@@ -183,6 +183,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('tee append to /tmp - allow', () => t('echo hello | tee -a /tmp/file.txt', 'outsideWorkspace', true, 1));
 			test('tee /tmp traversal - block', () => t('echo hello | tee /tmp/../etc/config', 'outsideWorkspace', false, 1));
 			test('tee with -- treats dash-args as files', () => t('echo hello | tee -- -file.txt', 'outsideWorkspace', true, 1));
+			test('tee lone - is stdout not a file', () => t('echo hello | tee -', 'outsideWorkspace', true, 0));
 		});
 
 		suite('no cwd provided', () => {

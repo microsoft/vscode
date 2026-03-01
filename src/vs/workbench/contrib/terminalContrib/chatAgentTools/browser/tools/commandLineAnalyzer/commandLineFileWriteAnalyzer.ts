@@ -128,7 +128,9 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		if (normalized.startsWith('/tmp/')) {
 			return true;
 		}
-		if (os === OperatingSystem.Macintosh && normalized.startsWith('/private/tmp/')) {
+		// /private/tmp is the real path behind the /tmp symlink on macOS.
+		// This path does not exist on Linux by default
+		if (normalized.startsWith('/private/tmp/')) {
 			return true;
 		}
 		return false;

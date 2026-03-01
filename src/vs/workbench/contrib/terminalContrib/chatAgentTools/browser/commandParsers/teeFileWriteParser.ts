@@ -82,6 +82,12 @@ export class TeeFileWriteParser implements ICommandFileWriteParser {
 				continue;
 			}
 
+			// A lone "-" is stdout, not a file target
+			if (token === '-') {
+				i++;
+				continue;
+			}
+
 			// Non-option argument: this is a file target
 			files.push(stripQuotes(token));
 			i++;
