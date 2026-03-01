@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatMarkdownContent, IChatResponseCodeblockUriPart } from '../../../common/chatService/chatService.js';
-import { annotateSpecialMarkdownContent, extractCodeblockUrisFromText, extractSubAgentInvocationIdFromText, extractVulnerabilitiesFromText, isInsideCodeContext } from '../../../common/widget/annotations.js';
+import { annotateSpecialMarkdownContent, extractCodeblockUrisFromText, extractSubAgentInvocationIdFromText, extractVulnerabilitiesFromText, hasEditCodeblockUriTag, isInsideCodeContext } from '../../../common/widget/annotations.js';
 
 function content(str: string): IChatMarkdownContent {
 	return { kind: 'markdownContent', content: new MarkdownString(str) };
@@ -273,5 +273,46 @@ suite('Annotations', function () {
 			assert.strictEqual(second.content.value, ' more info');
 			assert.strictEqual(second.content.isTrusted, true);
 		});
+	});
+
+	suite('hasEditCodeblockUriTag', () => {
+		test('returns true for edit codeblock URI tags', () => {
+			const editTag = '<vscode_codeblock_uri isEdit>file:///test.ts</vscode_codeblock_uri>';
+			assert.strictEqual(hasEditCodeblockUriTag(editTag), true);
+		});
+
+		test('returns false for non-edit codeblock URI tags', () => {
+			const nonEditTag = '<vscode_codeblock_uri>file:///test.ts</vscode_codeblock_uri>';
+			assert.strictEqual(hasEditCodeblockUriTag(nonEditTag), false);
+		});
+
+		test('returns true for edit codeblock URI tags with subAgentInvocationId', () => {
+			const editTagWithSubAgent = '<vscode_codeblock_uri isEdit subAgentInvocationId="agent-123">file:///test.ts</vscode_codeblock_uri>';
+			assert.strictEqual(hasEditCodeblockUriTag(editTagWithSubAgent), true);
+		});
+
+		test('returns false for non-edit codeblock URI tags with subAgentInvocationId', () => {
+			const nonEditTagWithSubAgent = '<vscode_codeblock_uri subAgentInvocationId="agent-123">file:///test.ts</vscode_codeblock_uri>';
+			assert.strictEqual(hasEditCodeblockUriTag(nonEditTagWithSubAgent), false);
+		});
+
+		test('returns false for text without codeblock URI tags', () => {
+			assert.strictEqual(hasEditCodeblockUriTag('some plain text'), false);
+		});
+
+		test('returns false for text with only partial tag prefix', () => {
+			assert.strictEqual(hasEditCodeblockUriTag('<vscode_codebloc'), false);
+		});
+
+		test('returns true for text containing multiple edit codeblock URI tags', () => {
+			const multipleEditTags = 'some text <vscode_codeblock_uri isEdit>file:///test.ts</vscode_codeblock_uri> more <vscode_codeblock_uri isEdit>file:///other.ts</vscode_codeblock_uri>';
+			assert.strictEqual(hasEditCodeblockUriTag(multipleEditTags), true);
+		});
+
+		test('returns false for text containing only non-edit codeblock URI tags', () => {
+			const multipleNonEditTags = 'some text <vscode_codeblock_uri>file:///test.ts</vscode_codeblock_uri> more <vscode_codeblock_uri>file:///other.ts</vscode_codeblock_uri>';
+			assert.strictEqual(hasEditCodeblockUriTag(multipleNonEditTags), false);
+		});
+
 	});
 });
