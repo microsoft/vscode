@@ -24,7 +24,7 @@ import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRe
 import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { ILanguageModelsService } from '../languageModels.js';
 
 //#region agent service, commands etc
@@ -162,7 +162,7 @@ export interface IChatAgentRequest {
 	 * - `'autoApprove'`: Auto-approve all tool calls and retry on errors.
 	 * - `'autopilot'`: Everything autoApprove does plus continues until the task is done.
 	 */
-	permissionLevel?: string;
+	permissionLevel?: ChatPermissionLevel;
 	/**
 	 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 	 */

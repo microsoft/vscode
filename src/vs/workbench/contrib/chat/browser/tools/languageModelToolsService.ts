@@ -445,7 +445,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let request: IChatRequestModel | undefined;
 		if (dto.context?.sessionResource) {
 			model = this._chatService.getSession(dto.context.sessionResource);
-			request = model?.getRequests().at(-1);
+			request = (dto.chatRequestId
+				? model?.getRequests().find(r => r.id === dto.chatRequestId)
+				: undefined) ?? model?.getRequests().at(-1);
 			if (request?.response?.isCanceled || request?.response?.isComplete) {
 				this._logService.debug(`[LanguageModelToolsService#invokeTool] Ignoring tool ${dto.toolId} for cancelled/complete request ${request.id}`);
 				throw new CancellationError();
