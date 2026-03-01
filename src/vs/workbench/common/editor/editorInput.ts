@@ -288,12 +288,6 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
-	 * Returns a new editor input that is the result of splitting this editor.
-	 * The default implementation will just open the same editor to the side.
-	 */
-	split?(): EditorInput | undefined;
-
-	/**
 	 * Indicates if this editor can be moved to another group. By default
 	 * editors can freely be moved around groups. If an editor cannot be
 	 * moved, a message should be returned to show to the user.
