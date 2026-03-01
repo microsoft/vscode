@@ -8,7 +8,7 @@ import { EditorActivation, IResourceEditorInput } from '../../../../../platform/
 import { URI } from '../../../../../base/common/uri.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorCloseContext, EditorsOrder, IEditorCloseEvent, EditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, IUntitledTextResourceEditorInput, IUntypedEditorInput, SideBySideEditor, isEditorInput, EditorInputCapabilities } from '../../../../common/editor.js';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestSingletonFileEditorInput, workbenchTeardown } from '../../../../test/browser/workbenchTestServices.js';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor, TestTextFileEditor, TestForceRevealFileEditorInput, workbenchTeardown } from '../../../../test/browser/workbenchTestServices.js';
 import { EditorService } from '../../browser/editorService.js';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from '../../common/editorGroupsService.js';
 import { EditorPart } from '../../../../browser/parts/editor/editorPart.js';
@@ -40,7 +40,7 @@ suite('EditorService', () => {
 	let testLocalInstantiationService: ITestInstantiationService | undefined = undefined;
 
 	setup(() => {
-		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(TestSingletonFileEditorInput)], TEST_EDITOR_INPUT_ID));
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput), new SyncDescriptor(TestForceRevealFileEditorInput)], TEST_EDITOR_INPUT_ID));
 		disposables.add(registerTestResourceEditor());
 		disposables.add(registerTestSideBySideEditor());
 	});
@@ -264,11 +264,11 @@ suite('EditorService', () => {
 		assert.strictEqual(editor2?.input, input);
 	});
 
-	test('openEditor() - singleton typed editors reveal instead of split', async () => {
+	test('openEditor() - force-reveal typed editors reveal instead of split', async () => {
 		const [part, service] = await createEditorService();
 
-		const input1 = disposables.add(new TestSingletonFileEditorInput(URI.parse('my://resource-basics1'), TEST_EDITOR_INPUT_ID));
-		const input2 = disposables.add(new TestSingletonFileEditorInput(URI.parse('my://resource-basics2'), TEST_EDITOR_INPUT_ID));
+		const input1 = disposables.add(new TestForceRevealFileEditorInput(URI.parse('my://resource-basics1'), TEST_EDITOR_INPUT_ID));
+		const input2 = disposables.add(new TestForceRevealFileEditorInput(URI.parse('my://resource-basics2'), TEST_EDITOR_INPUT_ID));
 
 		const input1Group = (await service.openEditor(input1, { pinned: true }))?.group;
 		const input2Group = (await service.openEditor(input2, { pinned: true }, SIDE_GROUP))?.group;
