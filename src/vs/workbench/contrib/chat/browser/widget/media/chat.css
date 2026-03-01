@@ -1441,6 +1441,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	outline: none;
 	box-shadow: none;
 	border-color: transparent;
+	background-color: transparent;
+}
+
+.action-widget .action-list-filter:has(.chat-model-picker-filter-input) {
+	margin-bottom: 4px;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {

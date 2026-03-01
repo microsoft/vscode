@@ -111,45 +111,45 @@
 
 		.chat-thinking-tool-wrapper {
 			.chat-used-context {
-					margin-bottom: 0px;
-					margin-left: 4px;
-					padding-left: 2px;
-				}
+				margin-bottom: 0px;
+				margin-left: 4px;
+				padding-left: 2px;
 
-				.chat-used-context {
-					.monaco-button.monaco-text-button {
-						color: var(--vscode-descriptionForeground);
+				.monaco-button.monaco-text-button {
+					color: var(--vscode-descriptionForeground);
+					display: flex;
+					align-items: center;
 
-						:hover {
-							color: var(--vscode-foreground);
-						}
-
-						.monaco-button:hover .chat-collapsible-hover-chevron {
-							opacity: 1;
-						}
-					}
-				}
-
-				.chat-used-context:not(.chat-used-context-collapsed) {
-					.monaco-button.monaco-text-button {
+					:hover {
 						color: var(--vscode-foreground);
 					}
-				}
 
-				.progress-container,
-				.chat-confirmation-widget-container {
-					margin: 0 0 2px 6px;
+					.monaco-button:hover .chat-collapsible-hover-chevron {
+						opacity: 1;
+					}
 				}
+			}
 
-				/* todo: ideally not !important, but the competing css has 14 specificity */
-				.codicon.codicon-check,
-				.codicon.codicon-loading {
-					display: none !important;
+			.chat-used-context:not(.chat-used-context-collapsed) {
+				.monaco-button.monaco-text-button {
+					color: var(--vscode-foreground);
 				}
+			}
 
-				.chat-collapsible-hover-chevron.codicon {
-					display: inline-flex;
-				}
+			.progress-container,
+			.chat-confirmation-widget-container {
+				margin: 0 0 2px 6px;
+			}
+
+			/* todo: ideally not !important, but the competing css has 14 specificity */
+			.codicon.codicon-check,
+			.codicon.codicon-loading {
+				display: none !important;
+			}
+
+			.chat-collapsible-hover-chevron.codicon {
+				display: inline-flex;
+			}
 
 			.show-checkmarks .chat-confirmation-widget-title > .codicon:first-child:not(.chat-collapsible-hover-chevron) {
 				display: inline-block;
@@ -297,6 +297,11 @@
 	display: flex;
 	flex-direction: column;
 	width: 100%;
+
+	.monaco-button.monaco-text-button {
+		display: flex;
+		align-items: center;
+	}
 
 	.chat-used-context-list.chat-terminal-thinking-content {
 		border: none;
