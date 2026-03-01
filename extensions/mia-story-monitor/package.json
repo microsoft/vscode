@@ -1,0 +1,24 @@
+{
+	"name": "mia-story-monitor",
+	"displayName": "Mia Story Monitor",
+	"description": "Live narrative event dashboard for Mia Code",
+	"version": "0.1.0",
+	"publisher": "mia",
+	"license": "MIT",
+	"engines": { "vscode": "^1.96.0" },
+	"activationEvents": ["onView:mia.sessionExplorer", "onCommand:mia.showDashboard"],
+	"main": "./src/extension.js",
+	"extensionDependencies": ["mia.three-universe"],
+	"contributes": {
+		"commands": [
+			{
+				"command": "mia.storyMonitor.open",
+				"title": "Mia: Open Story Monitor Dashboard"
+			},
+			{
+				"command": "mia.storyMonitor.toggleAmbient",
+				"title": "Mia: Toggle Ambient Story Indicators"
+			}
+		]
+	}
+}
