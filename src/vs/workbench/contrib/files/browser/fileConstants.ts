@@ -41,6 +41,9 @@ export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('res
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
+export const REMOVE_FILE_FROM_WORKSPACE_COMMAND_ID = 'removeFileFromWorkspace';
+export const REMOVE_FILE_FROM_WORKSPACE_LABEL = nls.localize('removeFileFromWorkspace', "Remove File from Workspace");
+
 export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
 export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
 export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
