@@ -202,7 +202,7 @@ function compile_giomodules {
   fi
 }
 if [ "$needs_update" = true ]; then
-  async_exec compile_giomodules "/snap/core24/current/usr/lib/$ARCH"
+  async_exec compile_giomodules "/snap/core22/current/usr/lib/$ARCH"
 fi
 
 # Setup compiled gsettings schema
