@@ -18,6 +18,7 @@ export interface IPluginInstallService {
 	 */
 	installPlugin(plugin: IMarketplacePlugin): Promise<void>;
 
+
 	/**
 	 * Removes the plugin from `chat.plugins.paths` config.
 	 */
