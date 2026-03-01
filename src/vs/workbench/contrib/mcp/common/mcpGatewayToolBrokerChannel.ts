@@ -102,18 +102,16 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 
 	private async _shouldUseCachedData(server: IMcpServer): Promise<boolean> {
 		const cacheState = server.cacheState.get();
-		if (cacheState === McpServerCacheState.Unknown) {
+		if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
 			// On first list call: wait up to the grace period for the server to start.
 			// On subsequent calls: the stored promise is already resolved, returns immediately.
+			// Outdated servers get the same grace period as Unknown — a prior fast startup
+			// does not guarantee a fast restart.
 			await this._waitForStartup(server);
 			const newState = server.cacheState.get();
 			return newState === McpServerCacheState.Live
 				|| newState === McpServerCacheState.Cached
 				|| newState === McpServerCacheState.RefreshingFromCached;
-		}
-		if (cacheState === McpServerCacheState.Outdated) {
-			// Has cached data — refresh in the background without blocking.
-			void this._ensureServerReady(server);
 		}
 		return cacheState === McpServerCacheState.Live
 			|| cacheState === McpServerCacheState.Cached

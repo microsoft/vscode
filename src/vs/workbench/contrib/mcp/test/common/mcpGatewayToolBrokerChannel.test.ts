@@ -140,6 +140,26 @@ suite('McpGatewayToolBrokerChannel', () => {
 		channel.dispose();
 	});
 
+	test('starts server and waits within grace period when cache state is outdated', async () => {
+		const mcpService = new TestMcpService();
+		const channel = new McpGatewayToolBrokerChannel(mcpService);
+
+		const server = createServer(
+			'collectionA',
+			'serverA',
+			[createTool('echo', async () => ({ content: [{ type: 'text', text: 'A' }] }))],
+			McpServerCacheState.Outdated,
+		);
+
+		mcpService.servers.set([server], undefined);
+		const tools = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+
+		// Outdated server gets the same grace period as Unknown — started and tools returned.
+		assert.strictEqual(server.startCalls, 1);
+		assert.deepStrictEqual(tools.map(t => t.name), ['echo']);
+		channel.dispose();
+	});
+
 	test('returns empty tools and does not re-wait if server does not start within grace period', async () => {
 		const mcpService = new TestMcpService();
 		// Use a very short grace period so the test does not take 5 s.
