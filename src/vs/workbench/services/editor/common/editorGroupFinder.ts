@@ -149,8 +149,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 		// We also try to reveal an editor if it has the `Singleton` capability which
 		// indicates that the same editor cannot be opened across groups.
 		if (!group) {
-			const isSingletonReveal = isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.Singleton) && !editor.hasCapability(EditorInputCapabilities.CanCreateForSplit);
-			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || isSingletonReveal) {
+			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.Singleton))) {
 				let groupWithInputActive: IEditorGroup | undefined = undefined;
 				let groupWithInputOpened: IEditorGroup | undefined = undefined;
 

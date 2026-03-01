@@ -371,8 +371,8 @@ class DropOverlay extends Themable {
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor?.editor.hasCapability(EditorInputCapabilities.Singleton) && !draggedEditor.editor.hasCapability(EditorInputCapabilities.CanCreateForSplit)) {
-			return false; // Singleton editors cannot be split unless they support CanCreateForSplit
+		if (draggedEditor?.editor.hasCapability(EditorInputCapabilities.Singleton)) {
+			return false; // Singleton editors cannot be split
 		}
 
 		return (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);

@@ -288,6 +288,12 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Returns a new editor input that is the result of splitting this editor.
+	 * The default implementation will just open the same editor to the side.
+	 */
+	split?(): EditorInput | undefined;
+
+	/**
 	 * Indicates if this editor can be moved to another group. By default
 	 * editors can freely be moved around groups. If an editor cannot be
 	 * moved, a message should be returned to show to the user.
@@ -308,15 +314,6 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 */
 	canReopen(): boolean {
 		return true;
-	}
-
-	/**
-	 * Creates a new editor input for use when splitting a singleton editor.
-	 * Subclasses with the CanCreateForSplit capability should override this to
-	 * return a new editor input to open in the split group. Returns `undefined` by default.
-	 */
-	createForSplit(): EditorInput | undefined {
-		return undefined;
 	}
 
 	/**

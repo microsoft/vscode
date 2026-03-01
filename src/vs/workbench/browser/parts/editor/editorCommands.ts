@@ -753,19 +753,10 @@ export function splitEditor(editorGroupsService: IEditorGroupsService, direction
 	const newGroup = editorGroupsService.addGroup(group, direction);
 
 	for (const editorToCopy of editors) {
-		if (!editorToCopy) {
-			continue;
-		}
 
 		// Split editor (if it can be split)
-		if (!editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
+		if (editorToCopy && (!editorToCopy.hasCapability(EditorInputCapabilities.Singleton) || typeof editorToCopy.copy === 'function')) {
 			group.copyEditor(editorToCopy, newGroup, { preserveFocus });
-		} else if (editorToCopy.hasCapability(EditorInputCapabilities.CanCreateForSplit)) {
-			// Singleton editor that supports creating a new input for split
-			const newEditor = editorToCopy.createForSplit();
-			if (newEditor) {
-				newGroup.openEditor(newEditor, { preserveFocus });
-			}
 		}
 	}
 

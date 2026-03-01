@@ -1438,8 +1438,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const keepCopy = internalOptions?.keepCopy;
 
 		// Validate that we can move
-		const isSingletonWithoutSplitSupport = editor.hasCapability(EditorInputCapabilities.Singleton) && !editor.hasCapability(EditorInputCapabilities.CanCreateForSplit);
-		if (!keepCopy || isSingletonWithoutSplitSupport /* singleton editors without split support will always move */) {
+		if (!keepCopy || (editor.hasCapability(EditorInputCapabilities.Singleton) && typeof editor.copy !== 'function' /* singleton editors will always move unless they can copy() */)) {
 			const canMoveVeto = editor.canMove(this.id, target.id);
 			if (typeof canMoveVeto === 'string') {
 				this.dialogService.error(canMoveVeto, localize('moveErrorDetails', "Try saving or reverting the editor first and then try again."));
@@ -1469,15 +1468,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// A move to another group is an open first...
 		let editorToOpen: EditorInput;
 		if (keepCopy) {
-			if (editor.hasCapability(EditorInputCapabilities.CanCreateForSplit)) {
-				const newEditor = editor.createForSplit();
-				if (!newEditor) {
-					return false;
-				}
-				editorToOpen = newEditor;
-			} else {
-				editorToOpen = editor.copy();
-			}
+			editorToOpen = editor.split?.() ?? editor.copy();
 		} else {
 			editorToOpen = editor;
 		}

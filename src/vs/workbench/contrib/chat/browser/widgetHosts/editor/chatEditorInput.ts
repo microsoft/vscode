@@ -108,10 +108,10 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor | EditorInputCapabilities.CanCreateForSplit;
+		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
 	}
 
-	override createForSplit(): EditorInput | undefined {
+	override copy(): EditorInput {
 		return this.instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), {});
 	}
 
