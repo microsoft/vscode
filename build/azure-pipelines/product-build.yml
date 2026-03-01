@@ -202,46 +202,6 @@ extends:
         jobs:
           - template: build/azure-pipelines/product-quality-checks.yml@self
 
-      - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-        - stage: node_modules
-          dependsOn: []
-          jobs:
-            - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm64
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm
-                VSCODE_ARCH: armhf
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
-
-      - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
-        - stage: APIScan
-          dependsOn: []
-          pool:
-            name: 1es-windows-2022-x64
-            os: windows
-          jobs:
-            - job: WindowsAPIScan
-              steps:
-                - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
-                  parameters:
-                    VSCODE_ARCH: x64
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
           dependsOn: []
@@ -778,3 +738,43 @@ extends:
                   - template: build/azure-pipelines/product-release.yml@self
                     parameters:
                       VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+
+      - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
+        - stage: node_modules
+          dependsOn: []
+          jobs:
+            - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+              parameters:
+                NPM_ARCH: arm64
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
+              parameters:
+                NPM_ARCH: arm
+                VSCODE_ARCH: armhf
+            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: arm64
+            - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
+              parameters:
+                VSCODE_ARCH: x64
+            - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
+
+      - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
+        - stage: APIScan
+          dependsOn: []
+          pool:
+            name: 1es-windows-2022-x64
+            os: windows
+          jobs:
+            - job: WindowsAPIScan
+              steps:
+                - template: build/azure-pipelines/win32/sdl-scan-win32.yml@self
+                  parameters:
+                    VSCODE_ARCH: x64
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
