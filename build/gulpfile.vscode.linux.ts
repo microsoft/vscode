@@ -276,7 +276,15 @@ function prepareSnapPackage(arch: string) {
 		const electronLaunch = gulp.src('resources/linux/snap/electron-launch', { base: '.' })
 			.pipe(rename('electron-launch'));
 
-		const all = es.merge(desktops, icon, code, snapcraft, electronLaunch);
+		const hookInstall = gulp.src('resources/linux/snap/hook-install', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('snap/hooks/install'));
+
+		const hookRemove = gulp.src('resources/linux/snap/hook-remove', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('snap/hooks/remove'));
+
+		const all = es.merge(desktops, icon, code, snapcraft, electronLaunch, hookInstall, hookRemove);
 
 		return all.pipe(vfs.dest(destination));
 	};
