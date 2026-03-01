@@ -19,6 +19,7 @@ import { IChatService } from '../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
+import { ManagePluginsAction } from './actions/chatPluginActions.js';
 import { ConfigureToolsAction } from './actions/chatToolActions.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { CONFIGURE_INSTRUCTIONS_ACTION_ID } from './promptSyntax/attachInstructionsAction.js';
@@ -86,6 +87,16 @@ export class ChatSlashCommandsContribution extends Disposable {
 			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(ConfigureToolsAction.ID);
+		}));
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'plugins',
+			detail: nls.localize('plugins', "Manage plugins"),
+			sortText: 'z3_plugins',
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat]
+		}, async () => {
+			await commandService.executeCommand(ManagePluginsAction.ID);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'debug',

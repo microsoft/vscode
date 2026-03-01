@@ -229,6 +229,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return undefined;
 	}
 
+	registerSessionResourceAlias(_untitledResource: URI, _realResource: URI): void {
+		// noop
+	}
+
 	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable {
 		// Store the emitter so tests can trigger it
 		this.onChange = onChange;

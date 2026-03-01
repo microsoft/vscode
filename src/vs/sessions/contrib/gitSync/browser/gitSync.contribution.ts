@@ -112,7 +112,9 @@ function registerSyncAction(behind: number, ahead: number): IDisposable {
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('git.sync');
+			const sessionManagementService = accessor.get(ISessionsManagementService);
+			const worktreeUri = sessionManagementService.getActiveSession()?.worktree;
+			await commandService.executeCommand('git.sync', worktreeUri);
 		}
 	}
 	return registerAction2(SynchronizeChangesAction);
