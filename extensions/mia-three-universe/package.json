@@ -1,0 +1,216 @@
+{
+	"name": "mia-three-universe",
+	"displayName": "Mia Three Universe",
+	"description": "Core extension for three-universe narrative intelligence in Mia Code",
+	"version": "0.1.0",
+	"publisher": "mia",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.96.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onStartupFinished"
+	],
+	"main": "./src/extension.js",
+	"enabledApiProposals": [
+		"chatParticipantAdditions"
+	],
+	"contributes": {
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "mia-three-universe",
+					"title": "Three Universe",
+					"icon": "icons/three-universe.svg"
+				},
+				{
+					"id": "mia-stc-dashboard",
+					"title": "STC Dashboard",
+					"icon": "icons/stc-dashboard.svg"
+				},
+				{
+					"id": "mia-story-monitor",
+					"title": "Story Monitor",
+					"icon": "icons/story-monitor.svg"
+				}
+			]
+		},
+		"views": {
+			"mia-three-universe": [
+				{
+					"id": "mia.universeExplorer",
+					"name": "Universe Explorer"
+				},
+				{
+					"id": "mia.beatTimeline",
+					"name": "Beat Timeline"
+				}
+			],
+			"mia-stc-dashboard": [
+				{
+					"id": "mia.chartExplorer",
+					"name": "Chart Explorer"
+				}
+			],
+			"mia-story-monitor": [
+				{
+					"id": "mia.sessionExplorer",
+					"name": "Session Explorer"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "mia.analyzeFile",
+				"title": "Mia: Analyze Current File",
+				"icon": "$(search)"
+			},
+			{
+				"command": "mia.showPanel",
+				"title": "Mia: Show Agent Panel",
+				"icon": "$(comment-discussion)"
+			},
+			{
+				"command": "mia.createChart",
+				"title": "Mia: Create STC Chart",
+				"icon": "$(graph)"
+			},
+			{
+				"command": "mia.createBeat",
+				"title": "Mia: Create Story Beat",
+				"icon": "$(pulse)"
+			},
+			{
+				"command": "mia.switchUniverse",
+				"title": "Mia: Switch Universe Focus",
+				"icon": "$(symbol-color)"
+			},
+			{
+				"command": "mia.showDashboard",
+				"title": "Mia: Show Dashboard",
+				"icon": "$(dashboard)"
+			},
+			{
+				"command": "mia.decompose",
+				"title": "Mia: Decompose Prompt",
+				"icon": "$(list-tree)"
+			},
+			{
+				"command": "mia.quickAnalysis",
+				"title": "Mia: Quick Analysis",
+				"icon": "$(zap)"
+			}
+		],
+		"keybindings": [
+			{ "command": "mia.analyzeFile", "key": "ctrl+shift+m a", "mac": "cmd+shift+m a" },
+			{ "command": "mia.showPanel", "key": "ctrl+shift+m p", "mac": "cmd+shift+m p" },
+			{ "command": "mia.createChart", "key": "ctrl+shift+m c", "mac": "cmd+shift+m c" },
+			{ "command": "mia.createBeat", "key": "ctrl+shift+m b", "mac": "cmd+shift+m b" },
+			{ "command": "mia.switchUniverse", "key": "ctrl+shift+m u", "mac": "cmd+shift+m u" },
+			{ "command": "mia.showDashboard", "key": "ctrl+shift+m d", "mac": "cmd+shift+m d" },
+			{ "command": "mia.decompose", "key": "ctrl+shift+m e", "mac": "cmd+shift+m e" },
+			{ "command": "mia.quickAnalysis", "key": "ctrl+shift+m q", "mac": "cmd+shift+m q" }
+		],
+		"configuration": {
+			"title": "Mia Three Universe",
+			"properties": {
+				"mia.serverUrl": {
+					"type": "string",
+					"default": "",
+					"description": "mia-code-server URL (e.g., http://localhost:8080)"
+				},
+				"mia.primaryUniverse": {
+					"type": "string",
+					"enum": ["balanced", "engineer", "ceremony", "story"],
+					"default": "balanced",
+					"description": "Primary universe focus for analysis and responses"
+				},
+				"mia.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Enable Mia three-universe features"
+				},
+				"mia.analysisDepth": {
+					"type": "string",
+					"enum": ["quick", "standard", "deep"],
+					"default": "standard",
+					"description": "Analysis depth for three-universe analysis"
+				},
+				"mia.decorations.enabled": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show inline narrative decorations in editor"
+				},
+				"mia.decorations.level": {
+					"type": "string",
+					"enum": ["minimal", "moderate", "rich"],
+					"default": "moderate",
+					"description": "Decoration density: minimal (functions only), moderate (functions + classes), rich (all blocks)"
+				},
+				"mia.telemetryNarrative": {
+					"type": "boolean",
+					"default": false,
+					"description": "Route telemetry events through narrative system"
+				},
+				"mia.autoAnalyze": {
+					"type": "boolean",
+					"default": false,
+					"description": "Automatically analyze files on save"
+				},
+				"mia.storyMonitor.ambient": {
+					"type": "boolean",
+					"default": false,
+					"description": "Enable ambient story monitor indicators"
+				}
+			}
+		},
+		"walkthroughs": [
+			{
+				"id": "mia.welcome",
+				"title": "Welcome to Mia Code",
+				"description": "Get started with narrative-driven development",
+				"steps": [
+					{
+						"id": "mia.welcome.intro",
+						"title": "Welcome to Mia Code",
+						"description": "Mia Code transforms your IDE into a narrative-aware development environment. Three universes guide your work:\n\n🔧 **Engineer** — Technical precision\n🌿 **Ceremony** — Relational accountability\n📖 **Story** — Narrative coherence",
+						"media": { "markdown": "" }
+					},
+					{
+						"id": "mia.welcome.connect",
+						"title": "Connect to Server",
+						"description": "Configure your mia-code-server URL to enable full three-universe intelligence.\n\n[Set Server URL](command:workbench.action.openSettings?%5B%22mia.serverUrl%22%5D)",
+						"media": { "markdown": "" }
+					},
+					{
+						"id": "mia.welcome.universe",
+						"title": "Choose Your Focus",
+						"description": "Select your primary universe affinity. This influences sidebar views, suggestions, and analysis weighting.\n\n[Choose Universe](command:mia.switchUniverse)",
+						"media": { "markdown": "" }
+					},
+					{
+						"id": "mia.welcome.panels",
+						"title": "Meet Your Panels",
+						"description": "Three activity bar icons provide narrative navigation:\n\n- **Three Universe** — Universe Explorer and Beat Timeline\n- **STC Dashboard** — Structural Tension Charts\n- **Story Monitor** — Live narrative events",
+						"media": { "markdown": "" }
+					},
+					{
+						"id": "mia.welcome.chart",
+						"title": "Create Your First Chart",
+						"description": "A Structural Tension Chart captures the gap between where you are and where you want to be.\n\n[Create STC Chart](command:mia.createChart)",
+						"media": { "markdown": "" }
+					},
+					{
+						"id": "mia.welcome.ready",
+						"title": "Ready to Create",
+						"description": "Keyboard shortcuts:\n\n- `Ctrl+Shift+M A` — Analyze file\n- `Ctrl+Shift+M P` — Agent panel\n- `Ctrl+Shift+M C` — Create chart\n- `Ctrl+Shift+M B` — Create beat\n\nYou're ready for narrative-driven development! 🔧🌿📖",
+						"media": { "markdown": "" }
+					}
+				]
+			}
+		]
+	}
+}
