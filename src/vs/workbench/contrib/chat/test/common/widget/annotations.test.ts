@@ -9,7 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatMarkdownContent, IChatResponseCodeblockUriPart } from '../../../common/chatService/chatService.js';
-import { annotateSpecialMarkdownContent, extractCodeblockUrisFromText, extractSubAgentInvocationIdFromText, extractVulnerabilitiesFromText, hasEditCodeblockUriTag, hasCodeblockUriTag, isInsideCodeContext } from '../../../common/widget/annotations.js';
+import { annotateSpecialMarkdownContent, extractCodeblockUrisFromText, extractSubAgentInvocationIdFromText, extractVulnerabilitiesFromText, hasEditCodeblockUriTag, isInsideCodeContext } from '../../../common/widget/annotations.js';
 
 function content(str: string): IChatMarkdownContent {
 	return { kind: 'markdownContent', content: new MarkdownString(str) };
@@ -314,14 +314,5 @@ suite('Annotations', function () {
 			assert.strictEqual(hasEditCodeblockUriTag(multipleNonEditTags), false);
 		});
 
-		test('matches hasCodeblockUriTag for edit tags', () => {
-			const editTag = '<vscode_codeblock_uri isEdit>file:///test.ts</vscode_codeblock_uri>';
-			assert.strictEqual(hasEditCodeblockUriTag(editTag), hasCodeblockUriTag(editTag));
-		});
-
-		test('differs from hasCodeblockUriTag for non-edit tags', () => {
-			const nonEditTag = '<vscode_codeblock_uri>file:///test.ts</vscode_codeblock_uri>';
-			assert.notStrictEqual(hasEditCodeblockUriTag(nonEditTag), hasCodeblockUriTag(nonEditTag));
-		});
 	});
 });
