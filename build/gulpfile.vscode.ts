@@ -244,17 +244,16 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 ));
 gulp.task(minifyVSCodeTask);
 
-const coreCIOld = task.define('core-ci-old', task.series(
+gulp.task(task.define('core-ci-old', task.series(
 	gulp.task('compile-build-with-mangling') as task.Task,
 	task.parallel(
 		gulp.task('minify-vscode') as task.Task,
 		gulp.task('minify-vscode-reh') as task.Task,
 		gulp.task('minify-vscode-reh-web') as task.Task,
 	)
-));
-gulp.task(coreCIOld);
+)));
 
-const coreCIEsbuild = task.define('core-ci-esbuild', task.series(
+gulp.task(task.define('core-ci', task.series(
 	copyCodiconsTask,
 	compileNonNativeExtensionsBuildTask,
 	compileExtensionMediaBuildTask,
@@ -269,10 +268,7 @@ const coreCIEsbuild = task.define('core-ci-esbuild', task.series(
 		task.define('esbuild-vscode-reh-min', () => runEsbuildBundle('out-vscode-reh-min', true, true, 'server', `${sourceMappingURLBase}/core`)),
 		task.define('esbuild-vscode-reh-web-min', () => runEsbuildBundle('out-vscode-reh-web-min', true, true, 'server-web', `${sourceMappingURLBase}/core`)),
 	)
-));
-gulp.task(coreCIEsbuild);
-
-gulp.task(task.define('core-ci', useEsbuildTranspile ? coreCIEsbuild : coreCIOld));
+)));
 
 const coreCIPR = task.define('core-ci-pr', task.series(
 	gulp.task('compile-build-without-mangling') as task.Task,
