@@ -5,7 +5,6 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { equals } from '../../../../base/common/objects.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,6 +23,7 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -39,9 +39,11 @@ const repositoryOptionId = 'repository';
  */
 export interface IActiveSessionItem {
 	readonly resource: URI;
+	readonly isUntitled: boolean;
 	readonly label: string | undefined;
 	readonly repository: URI | undefined;
 	readonly worktree: URI | undefined;
+	readonly providerType: string;
 }
 
 export interface ISessionsManagementService {
@@ -98,7 +100,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _activeSession = observableValue<IActiveSessionItem | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
-	private readonly _activeSessionDisposables = this._register(new DisposableStore());
+	private readonly _newActiveSessionDisposables = this._register(new DisposableStore());
 
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
 	private lastSelectedSession: URI | undefined;
@@ -151,10 +153,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const agentSession = this.agentSessionsService.model.getSession(currentActive.resource);
 		if (!agentSession) {
-			// Only switch sessions if the active session was a known agent session
-			// that got deleted. New session resources that aren't yet in the model
-			// should not trigger a switch.
-			if (isAgentSession(currentActive)) {
+			if (currentActive.isUntitled) {
+				// The untitled session was committed by the extension via
+				// onDidCommitChatSessionItem, which replaces the untitled
+				// resource with a new committed resource. The commit handler
+				// already swapped the ChatViewPane widget to the new resource,
+				// so find it by checking the widget's current session resource.
+				const chatViewWidgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
+				const committedResource = chatViewWidgets[0]?.viewModel?.sessionResource;
+				const committedSession = committedResource ? this.agentSessionsService.model.getSession(committedResource) : undefined;
+				if (committedSession) {
+					this.setActiveSession(committedSession);
+				}
+			} else {
 				this.showNextSession();
 			}
 			return;
@@ -176,9 +187,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private getRepositoryFromMetadata(metadata: { readonly [key: string]: unknown } | undefined): [URI | undefined, URI | undefined] {
+	private getRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined] {
+		const metadata = session.metadata;
 		if (!metadata) {
 			return [undefined, undefined];
+		}
+
+		if (session.providerType === AgentSessionProviders.Cloud) {
+			return [URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${metadata.owner}/${metadata.name}`), undefined];
+		}
+
+		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
+		if (workingDirectoryPath) {
+			return [URI.file(workingDirectoryPath), undefined];
 		}
 
 		const repositoryPath = metadata?.repositoryPath as string | undefined;
@@ -386,52 +407,79 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return;
 		}
 		this.isNewChatSessionContext.set(true);
-		this._activeSession.set(undefined, undefined);
+		this.setActiveSession(undefined);
 	}
 
 	private setActiveSession(session: IAgentSession | INewSession | undefined): void {
-		this._activeSessionDisposables.clear();
 		let activeSessionItem: IActiveSessionItem | undefined;
 		if (session) {
 			if (isAgentSession(session)) {
 				this.lastSelectedSession = session.resource;
-				const [repository, worktree] = this.getRepositoryFromMetadata(session.metadata);
+				const [repository, worktree] = this.getRepositoryFromMetadata(session);
 				activeSessionItem = {
+					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
 					label: session.label,
 					resource: session.resource,
 					repository,
 					worktree,
+					providerType: session.providerType,
 				};
 			} else {
 				activeSessionItem = {
+					isUntitled: true,
 					label: undefined,
 					resource: session.resource,
 					repository: session.repoUri,
 					worktree: undefined,
+					providerType: session.target,
 				};
-				this._activeSessionDisposables.add(session.onDidChange(e => {
+				this._newActiveSessionDisposables.clear();
+				this._newActiveSessionDisposables.add(session.onDidChange(e => {
 					if (e === 'repoUri') {
-						this._activeSession.set({
+						this.doSetActiveSession({
+							isUntitled: true,
 							label: undefined,
 							resource: session.resource,
 							repository: session.repoUri,
 							worktree: undefined,
-						}, undefined);
+							providerType: session.target,
+						});
 					}
 				}));
 			}
 		}
 
-		if (equals(this._activeSession.get(), activeSessionItem)) {
+		this.doSetActiveSession(activeSessionItem);
+	}
+
+	private doSetActiveSession(activeSessionItem: IActiveSessionItem | undefined): void {
+		if (this.equalsSessionItem(this._activeSession.get(), activeSessionItem)) {
 			return;
 		}
 
 		if (activeSessionItem) {
-			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}, repository: ${activeSessionItem.repository?.toString() ?? 'none'}`);
+			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}`);
+			this.logService.trace(`[ActiveSessionService] Active session details: ${JSON.stringify(activeSessionItem)}`);
 		} else {
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
+
 		this._activeSession.set(activeSessionItem, undefined);
+	}
+
+	private equalsSessionItem(a: IActiveSessionItem | undefined, b: IActiveSessionItem | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return (
+			a.label === b.label &&
+			a.resource.toString() === b.resource.toString() &&
+			a.repository?.toString() === b.repository?.toString() &&
+			a.worktree?.toString() === b.worktree?.toString()
+		);
 	}
 
 	async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void> {

@@ -1955,7 +1955,8 @@ export default tseslint.config(
 						'vs/workbench/browser/**',
 						'vs/workbench/contrib/**',
 						'vs/workbench/services/*/~',
-						'vs/sessions/~'
+						'vs/sessions/~',
+						'vs/sessions/services/*/~'
 					]
 				},
 				{
@@ -1972,6 +1973,30 @@ export default tseslint.config(
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/services/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						{
+							'when': 'test',
+							'pattern': 'vs/workbench/contrib/*/~'
+						}, // TODO@layers
+						'tas-client', // node module allowed even in /common/
+						'vscode-textmate', // node module allowed even in /common/
+						'@vscode/vscode-languagedetection', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // type import
+						{
+							'when': 'hasBrowser',
+							'pattern': '@xterm/xterm'
+						} // node module allowed even in /browser/
 					]
 				},
 			]

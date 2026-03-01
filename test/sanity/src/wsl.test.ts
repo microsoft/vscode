@@ -117,18 +117,20 @@ export function setup(context: TestContext) {
 
 				const url = context.getWebServerUrl(port, token, wslWorkspaceDir).toString();
 				const browser = await context.launchBrowser();
-				const page = await context.getPage(browser.newPage());
+				try {
+					const page = await context.getPage(browser.newPage());
 
-				context.log(`Navigating to ${url}`);
-				await page.goto(url, { waitUntil: 'networkidle' });
+					context.log(`Navigating to ${url}`);
+					await page.goto(url, { waitUntil: 'networkidle' });
 
-				context.log('Waiting for the workbench to load');
-				await page.waitForSelector('.monaco-workbench');
+					context.log('Waiting for the workbench to load');
+					await page.waitForSelector('.monaco-workbench');
 
-				await test.run(page);
-
-				context.log('Closing browser');
-				await browser.close();
+					await test.run(page);
+				} finally {
+					context.log('Closing browser');
+					await browser.close();
+				}
 
 				test.validate();
 				return true;
@@ -152,18 +154,20 @@ export function setup(context: TestContext) {
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
-		const window = await context.getPage(app.firstWindow());
+		try {
+			const window = await context.getPage(app.firstWindow());
 
-		context.log('Installing WSL extension');
-		await window.getByRole('button', { name: 'Install and Reload' }).click();
+			context.log('Installing WSL extension');
+			await window.getByRole('button', { name: 'Install and Reload' }).click();
 
-		context.log('Waiting for WSL connection');
-		await window.getByText(/WSL/).waitFor();
+			context.log('Waiting for WSL connection');
+			await window.getByText(/WSL/).waitFor();
 
-		await test.run(window);
-
-		context.log('Closing the application');
-		await app.close();
+			await test.run(window);
+		} finally {
+			context.log('Closing the application');
+			await app.close();
+		}
 
 		test.validate();
 	}

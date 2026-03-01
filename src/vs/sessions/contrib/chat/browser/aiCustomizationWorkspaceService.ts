@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { derived, IObservable } from '../../../../base/common/observable.js';
+import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 
 /**
  * Agent Sessions override of IAICustomizationWorkspaceService.
@@ -23,14 +24,32 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
 
-	readonly excludedUserFileRoots: readonly URI[];
+	/**
+	 * CLI-accessible user directories for customization file filtering and creation.
+	 */
+	private readonly _cliUserRoots: readonly URI[];
+
+	/**
+	 * Pre-built filter for types that should only show CLI-accessible user roots.
+	 */
+	private readonly _cliUserFilter: IStorageSourceFilter;
 
 	constructor(
 		@ISessionsManagementService private readonly sessionsService: ISessionsManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@IPathService pathService: IPathService,
 	) {
-		this.excludedUserFileRoots = [userDataProfilesService.defaultProfile.promptsHome];
+		const userHome = pathService.userHome({ preferLocal: true });
+		this._cliUserRoots = [
+			joinPath(userHome, '.copilot'),
+			joinPath(userHome, '.claude'),
+			joinPath(userHome, '.agents'),
+		];
+		this._cliUserFilter = {
+			sources: [PromptsStorage.local, PromptsStorage.user],
+			includedUserFileRoots: this._cliUserRoots,
+		};
+
 		this.activeProjectRoot = derived(reader => {
 			const session = this.sessionsService.activeSession.read(reader);
 			return session?.worktree ?? session?.repository;
@@ -52,19 +71,30 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		// AICustomizationManagementSection.McpServers,
 	];
 
-	readonly visibleStorageSources: readonly PromptsStorage[] = [
-		PromptsStorage.local,
-		PromptsStorage.user,
-	];
+	private static readonly _hooksFilter: IStorageSourceFilter = {
+		sources: [PromptsStorage.local],
+	};
 
-	getVisibleStorageSources(type: PromptsType): readonly PromptsStorage[] {
+	private static readonly _allUserRootsFilter: IStorageSourceFilter = {
+		sources: [PromptsStorage.local, PromptsStorage.user],
+	};
+
+	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
 		if (type === PromptsType.hook) {
-			return [PromptsStorage.local];
+			return SessionsAICustomizationWorkspaceService._hooksFilter;
 		}
-		return this.visibleStorageSources;
+		if (type === PromptsType.prompt) {
+			// Prompts are shown from all user roots (including VS Code profile)
+			return SessionsAICustomizationWorkspaceService._allUserRootsFilter;
+		}
+		// Other types only show user files from CLI-accessible roots (~/.copilot, ~/.claude, ~/.agents)
+		return this._cliUserFilter;
 	}
 
-	readonly preferManualCreation = true;
+	/**
+	 * Returns the CLI-accessible user directories (~/.copilot, ~/.claude, ~/.agents).
+	 */
+	readonly isSessionsWindow = true;
 
 	async commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void> {
 		const session = this.sessionsService.getActiveSession();

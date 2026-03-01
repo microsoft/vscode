@@ -17,7 +17,6 @@
 	background-color: var(--vscode-editorWidget-background);
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: var(--vscode-cornerRadius-medium);
-	z-index: 100;
 	transition: opacity 0.1s ease-in-out;
 }
 

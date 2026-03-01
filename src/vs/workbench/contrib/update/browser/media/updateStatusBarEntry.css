@@ -3,6 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .part.statusbar > .items-container > #status\.update > a > span {
+	color: var(--vscode-button-background);
+	font-size: 16px;
+}
+
 .update-status-tooltip {
 	display: flex;
 	flex-direction: column;

@@ -3,21 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		'chat.agentsControl.enabled': true,
 		'chat.agent.maxRequests': 1000,
-		'chat.restoreLastPanelSession': true,
-		'chat.unifiedAgentsBar.enabled': true,
+		'chat.customizationsMenu.userStoragePath': '~/.copilot',
 		'chat.viewSessions.enabled': false,
+		'chat.notifyWindowOnConfirmation': isMacintosh ? 'always' : 'windowNotFocused', // macOS can confirm from the toast so we show it always
+		'chat.implicitContext.suggestedContext': false,
 
 		'breadcrumbs.enabled': false,
 
 		'diffEditor.renderSideBySide': false,
 		'diffEditor.hideUnchangedRegions.enabled': true,
+
+		'extensions.ignoreRecommendations': true,
 
 		'files.autoSave': 'afterDelay',
 
@@ -30,10 +33,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'github.copilot.chat.languageContext.typescript.enabled': true,
 		'github.copilot.chat.cli.mcp.enabled': true,
 
-		'chat.customizationsMenu.userStoragePath': '~/.copilot',
-
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',
+
+		'terminal.integrated.initialHint': false,
 
 		'workbench.editor.restoreEditors': false,
 		'workbench.editor.showTabs': 'single',
@@ -41,12 +44,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
 		'workbench.editor.useModal': 'all',
-		'workbench.editor.labelFormat': 'short',
 		'workbench.panel.showLabels': false,
+
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',
-
-		'terminal.integrated.initialHint': false
 	},
 	donotCache: true,
 	preventExperimentOverride: true,
