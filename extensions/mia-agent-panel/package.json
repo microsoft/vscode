@@ -1,0 +1,20 @@
+{
+	"name": "mia-agent-panel",
+	"displayName": "Mia Agent Panel",
+	"description": "Three-universe agentic chat webview panel for Mia Code",
+	"version": "0.1.0",
+	"publisher": "mia",
+	"license": "MIT",
+	"engines": { "vscode": "^1.96.0" },
+	"activationEvents": ["onCommand:mia.showPanel"],
+	"main": "./src/extension.js",
+	"extensionDependencies": ["mia.three-universe"],
+	"contributes": {
+		"commands": [
+			{
+				"command": "mia.agentPanel.clear",
+				"title": "Mia: Clear Agent Chat"
+			}
+		]
+	}
+}
