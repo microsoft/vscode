@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { wrapTablesWithScrollable } from '../../../browser/widget/chatContentParts/chatMarkdownTableScrolling.js';
 
@@ -35,15 +34,10 @@ function buildContainer(tables: string[][][]): HTMLDivElement {
 suite('wrapTablesWithScrollable', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function wrap(container: HTMLDivElement): { disposables: DisposableStore; layoutParticipants: Set<() => void> } {
-		const disposables = store.add(new DisposableStore());
-		const orderedDisposablesList: { dispose(): void }[] = [];
+	function wrap(container: HTMLDivElement): { layoutParticipants: Set<() => void> } {
 		const layoutParticipants = new Set<() => void>();
-		wrapTablesWithScrollable(container, orderedDisposablesList, new Lazy(() => layoutParticipants));
-		for (const d of orderedDisposablesList) {
-			disposables.add(d);
-		}
-		return { disposables, layoutParticipants };
+		store.add(wrapTablesWithScrollable(container, new Lazy(() => layoutParticipants)));
+		return { layoutParticipants };
 	}
 
 	test('replaces each table with a scroll wrapper in the DOM', () => {
@@ -91,15 +85,16 @@ suite('wrapTablesWithScrollable', () => {
 		wrap(container);
 
 		const table = container.querySelector('table')!;
-		const allMinWidths = Array.from(table.rows).map(row =>
-			Array.from(row.cells).map(cell => cell.style.minWidth)
-		);
+		// min-width is set only on the first row; other rows are untouched
 		// col 0 max = 3 chars -> 3ch; col 1 max = 11 chars -> capped at 3ch
-		assert.deepStrictEqual(allMinWidths, [
-			['3ch', '3ch'],
-			['3ch', '3ch'],
-			['3ch', '3ch'],
-		]);
+		assert.deepStrictEqual(
+			Array.from(table.rows[0].cells).map(cell => cell.style.minWidth),
+			['3ch', '3ch']
+		);
+		assert.deepStrictEqual(
+			Array.from(table.rows[1].cells).map(cell => cell.style.minWidth),
+			['', '']
+		);
 	});
 
 	test('uses actual char count when below the 3ch cap', () => {
@@ -117,8 +112,7 @@ suite('wrapTablesWithScrollable', () => {
 		wrap(container);
 
 		const table = container.querySelector('table')!;
-		const col0Widths = Array.from(table.rows).map(row => row.cells[0].style.minWidth);
-		assert.ok(col0Widths.every(w => w === ''), 'single-char column should have no min-width');
+		assert.strictEqual(table.rows[0].cells[0].style.minWidth, '', 'single-char column should have no min-width');
 	});
 
 	test('handles multiple tables independently', () => {

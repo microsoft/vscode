@@ -6,7 +6,8 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 
 /**
@@ -21,7 +22,8 @@ import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js
  * like "001" from being squeezed to one character wide. Single-character columns
  * are left unchanged. This is layout-free: only `textContent` lengths are read.
  */
-export function wrapTablesWithScrollable(domNode: HTMLElement, orderedDisposablesList: IDisposable[], layoutParticipants: Lazy<Set<() => void>>): void {
+export function wrapTablesWithScrollable(domNode: HTMLElement, layoutParticipants: Lazy<Set<() => void>>): DisposableStore {
+	const store = new DisposableStore();
 	// eslint-disable-next-line no-restricted-syntax
 	for (const table of domNode.querySelectorAll('table')) {
 		if (!dom.isHTMLElement(table)) {
@@ -38,11 +40,10 @@ export function wrapTablesWithScrollable(domNode: HTMLElement, orderedDisposable
 		const nextSibling = table.nextSibling;
 		const tableContainer = document.createElement('div');
 		tableContainer.appendChild(table); // moves table out of DOM
-		const scrollable = new DomScrollableElement(tableContainer, { // moves tableContainer into scrollNode
+		const scrollable = store.add(new DomScrollableElement(tableContainer, { // moves tableContainer into scrollNode
 			vertical: ScrollbarVisibility.Hidden,
 			horizontal: ScrollbarVisibility.Auto,
-		});
-		orderedDisposablesList.push(scrollable);
+		}));
 		const scrollNode = scrollable.getDomNode();
 		scrollNode.classList.add('rendered-markdown-table-scroll-wrapper');
 		parent?.insertBefore(scrollNode, nextSibling);
@@ -50,6 +51,7 @@ export function wrapTablesWithScrollable(domNode: HTMLElement, orderedDisposable
 		layoutParticipants.value.add(() => { scrollable.scanDomNode(); });
 		scrollable.scanDomNode();
 	}
+	return store;
 }
 
 /** Maximum `min-width` (in `ch`) applied to any table column, regardless of its content length. */
@@ -66,11 +68,14 @@ function applyTableColumnMinWidths(table: HTMLTableElement): void {
 			}
 		}
 	}
-	for (const row of rows) {
-		for (let c = 0; c < row.cells.length; c++) {
+	// Apply min-width only to the first row's cells so each column width
+	// constraint is set once rather than touching every cell in the table.
+	const firstRow = rows[0];
+	if (firstRow) {
+		for (let c = 0; c < firstRow.cells.length; c++) {
 			const minCh = colMaxChars[c];
 			if (minCh !== undefined && minCh > 1) {
-				row.cells[c].style.minWidth = Math.min(minCh, TABLE_COLUMN_MIN_WIDTH_CAP_CH) + 'ch';
+				firstRow.cells[c].style.minWidth = Math.min(minCh, TABLE_COLUMN_MIN_WIDTH_CAP_CH) + 'ch';
 			}
 		}
 	}
