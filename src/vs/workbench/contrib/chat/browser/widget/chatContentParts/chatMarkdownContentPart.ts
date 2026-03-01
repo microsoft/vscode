@@ -375,7 +375,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				scrollable.scanDomNode();
 			}
 
-			wrapTablesWithScrollable(this.domNode, orderedDisposablesList, layoutParticipants);
+			orderedDisposablesList.push(wrapTablesWithScrollable(this.domNode, layoutParticipants));
 
 			orderedDisposablesList.reverse().forEach(d => store.add(d));
 		};
