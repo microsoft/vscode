@@ -1,0 +1,13 @@
+{
+	"name": "mia-chat-participant",
+	"displayName": "Mia Chat Participant",
+	"description": "VS Code Chat API three-universe participant for Mia Code",
+	"version": "0.1.0",
+	"publisher": "mia",
+	"license": "MIT",
+	"engines": { "vscode": "^1.96.0" },
+	"activationEvents": ["onChatParticipant:mia"],
+	"main": "./src/extension.js",
+	"extensionDependencies": ["mia.three-universe"],
+	"enabledApiProposals": ["chatParticipantAdditions"]
+}
