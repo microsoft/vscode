@@ -57,9 +57,25 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 					result.push({ content: new MarkdownString(markdownText), inlineReferences: annotationMetadata, kind: 'markdownContent' });
 				}
 			}
-		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && canMergeMarkdownStrings(previousItem.content, item.content)) {
-			const merged = appendMarkdownString(previousItem.content, item.content);
-			result[previousItemIndex] = { ...previousItem, content: merged };
+		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent') {
+			if (canMergeMarkdownStrings(previousItem.content, item.content)) {
+				const merged = appendMarkdownString(previousItem.content, item.content);
+				result[previousItemIndex] = { ...previousItem, content: merged };
+			} else if (previousItem.inlineReferences && isContentRefOnly(previousItem.content.value)) {
+				// The previous item is a standalone inline reference whose MarkdownString
+				// was synthesized with default properties that don't match the incoming
+				// markdown (e.g., different isTrusted). Prepend the reference text and
+				// adopt the incoming item's properties so they render together in one block.
+				result[previousItemIndex] = {
+					...previousItem,
+					content: {
+						...item.content,
+						value: previousItem.content.value + item.content.value,
+					},
+				};
+			} else {
+				result.push(item);
+			}
 		} else if (item.kind === 'markdownVuln') {
 			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
 			const markdownText = `<vscode_annotation details='${vulnText}'>${item.content.value}</vscode_annotation>`;
@@ -86,6 +102,18 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 	}
 
 	return result;
+}
+
+const contentRefPattern = new RegExp(`^(\\[.*?\\]\\(${contentRefUrl}/\\d+\\))+$`);
+
+/**
+ * Returns true when the text consists entirely of synthesized content-ref
+ * links (e.g. `[file.ts](http://_vscodecontentref_/0)`), with no other
+ * markdown text mixed in. Used to decide whether the MarkdownString
+ * properties are "synthetic defaults" that can safely be replaced.
+ */
+function isContentRefOnly(text: string): boolean {
+	return contentRefPattern.test(text);
 }
 
 /**

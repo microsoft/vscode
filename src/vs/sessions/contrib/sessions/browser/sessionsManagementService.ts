@@ -197,6 +197,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			return [URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${metadata.owner}/${metadata.name}`), undefined];
 		}
 
+		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
+		if (workingDirectoryPath) {
+			return [URI.file(workingDirectoryPath), undefined];
+		}
+
 		const repositoryPath = metadata?.repositoryPath as string | undefined;
 		const repositoryPathUri = typeof repositoryPath === 'string' ? URI.file(repositoryPath) : undefined;
 
