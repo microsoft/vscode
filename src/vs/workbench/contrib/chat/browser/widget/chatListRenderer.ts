@@ -50,7 +50,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
-import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag } from '../../common/widget/annotations.js';
+import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -1489,7 +1489,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (part.kind !== 'markdownContent') {
 			return false;
 		}
-		return hasCodeblockUriTag(part.content.value);
+		return hasEditCodeblockUriTag(part.content.value);
 	}
 
 	private isCodeblockComplete(part: IChatRendererContent, element: ChatTreeItem): boolean {
