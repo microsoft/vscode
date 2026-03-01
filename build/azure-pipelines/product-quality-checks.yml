@@ -1,14 +1,12 @@
 jobs:
-  - job: Compile
-    timeoutInMinutes: 60
-    templateContext:
-      outputs:
-        - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-          artifactName: Compilation
-          displayName: Publish compilation artifact
-          isProduction: false
-          sbomEnabled: false
+  - job: Quality
+    displayName: Quality Checks
+    timeoutInMinutes: 20
+    variables:
+      - name: skipComponentGovernanceDetection
+        value: true
+      - name: Codeql.SkipTaskAutoInjection
+        value: true
     steps:
       - template: ./common/checkout.yml@self
 
@@ -30,7 +28,7 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
+      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts quality $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
       - task: Cache@2
@@ -46,9 +44,6 @@ jobs:
 
       - script: |
           set -e
-          # Set the private NPM registry to the global npmrc file
-          # so that authentication works for subfolders like build/, remote/, extensions/ etc
-          # which does not have their own .npmrc file
           npm config set registry "$NPM_REGISTRY"
           echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
@@ -71,7 +66,38 @@ jobs:
             fi
             echo "Npm install failed $i, trying again..."
           done
+        workingDirectory: build
         env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Install build dependencies
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+      - script: |
+          set -e
+          export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0
+          SYSROOT_ARCH="amd64" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+        env:
+          VSCODE_ARCH: x64
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Download vscode sysroots
+
+      - script: |
+          set -e
+
+          source ./build/azure-pipelines/linux/setup-env.sh
+          node build/npm/preinstall.ts
+
+          for i in {1..5}; do # try 5 times
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          npm_config_arch: x64
+          VSCODE_ARCH: x64
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -93,43 +119,37 @@ jobs:
       - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
 
-      - template: common/install-builtin-extensions.yml@self
+      - script: node build/azure-pipelines/common/checkDistroCommit.ts
+        displayName: Check distro commit
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+          BUILD_SOURCEBRANCH: "$(Build.SourceBranch)"
+        continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
-      - script: npm exec -- npm-run-all2 -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+      - script: node build/azure-pipelines/common/checkCopilotChatCompatibility.ts --warn-only
+        displayName: Check Copilot Chat compatibility
+        continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
+
+      - script: npm exec -- npm-run-all2 -lp hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Compile & Hygiene
 
-      - script: |
-          set -e
+      - script: npm run download-builtin-extensions-cg
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Download component details of built-in extensions
+        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
-          [ -d "out-build" ] || { echo "ERROR: out-build folder is missing" >&2; exit 1; }
-          [ -n "$(find out-build -mindepth 1 2>/dev/null | head -1)" ] || { echo "ERROR: out-build folder is empty" >&2; exit 1; }
-          echo "out-build exists and is not empty"
-
-          ls -d out-vscode-* >/dev/null 2>&1 || { echo "ERROR: No out-vscode-* folders found" >&2; exit 1; }
-          for folder in out-vscode-*; do
-            [ -d "$folder" ] || { echo "ERROR: $folder is missing" >&2; exit 1; }
-            [ -n "$(find "$folder" -mindepth 1 2>/dev/null | head -1)" ] || { echo "ERROR: $folder is empty" >&2; exit 1; }
-            echo "$folder exists and is not empty"
-          done
-
-          echo "All required compilation folders checked."
-        displayName: Validate compilation folders
-
-      - script: |
-          set -e
-          npm run compile
-        displayName: Compile smoke test suites (non-OSS)
-        workingDirectory: test/smoke
-        condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-      - script: |
-          set -e
-          npm run compile
-        displayName: Compile integration test suites (non-OSS)
-        workingDirectory: test/integration/browser
-        condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+      - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
+        displayName: "Component Detection"
+        inputs:
+          sourceScanPath: $(Build.SourcesDirectory)
+          alertWarningLevel: Medium
+        continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
       - task: AzureCLI@2
         displayName: Fetch secrets
@@ -142,6 +162,7 @@ jobs:
             Write-Host "##vso[task.setvariable variable=AZURE_TENANT_ID]$env:tenantId"
             Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
             Write-Host "##vso[task.setvariable variable=AZURE_ID_TOKEN;issecret=true]$env:idToken"
+        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))
 
       - script: |
           set -e
@@ -151,21 +172,4 @@ jobs:
           AZURE_ID_TOKEN="$(AZURE_ID_TOKEN)" \
             node build/azure-pipelines/upload-sourcemaps.ts
         displayName: Upload sourcemaps to Azure
-
-      - script: ./build/azure-pipelines/common/extract-telemetry.sh
-        displayName: Generate lists of telemetry events
-
-      - script: tar -cz --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz $(ls -d .build out-* test/integration/browser/out test/smoke/out test/automation/out 2>/dev/null)
-        displayName: Compress compilation artifact
-
-      - script: npm run download-builtin-extensions-cg
-        env:
-          GITHUB_TOKEN: "$(github-distro-mixin-password)"
-        displayName: Download component details of built-in extensions
-
-      - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
-        displayName: "Component Detection"
-        inputs:
-          sourceScanPath: $(Build.SourcesDirectory)
-          alertWarningLevel: Medium
-        continueOnError: true
+        condition: and(succeeded(), eq(lower(variables['VSCODE_PUBLISH']), 'true'))

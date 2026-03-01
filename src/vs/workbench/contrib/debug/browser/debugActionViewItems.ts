@@ -198,12 +198,14 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let lastGroup: string | undefined;
 		const disabledIdxs: number[] = [];
+		const separatorIdxs: number[] = [];
 		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
 			if (lastGroup !== presentation?.group) {
 				lastGroup = presentation?.group;
 				if (this.debugOptions.length) {
 					this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
 					disabledIdxs.push(this.debugOptions.length - 1);
+					separatorIdxs.push(this.debugOptions.length - 1);
 				}
 			}
 			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
@@ -239,6 +241,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 
 		this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
 		disabledIdxs.push(this.debugOptions.length - 1);
+		separatorIdxs.push(this.debugOptions.length - 1);
 
 		this.providers.forEach(p => {
 
@@ -265,7 +268,11 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 })), this.selected);
+		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({
+			text: data.label,
+			isDisabled: disabledIdxs.indexOf(index) !== -1,
+			isSeparator: separatorIdxs.indexOf(index) !== -1,
+		})), this.selected);
 	}
 
 	private _setAriaLabel(title: string): void {

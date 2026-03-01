@@ -291,6 +291,9 @@
 	box-shadow: var(--shadow-lg);
 	border: none;
 	border-radius: var(--radius-lg);
+	background: color-mix(in srgb, var(--vscode-menu-background) 60%, transparent) !important;
+	backdrop-filter: var(--backdrop-blur-md);
+	-webkit-backdrop-filter: var(--backdrop-blur-md);
 }
 
 .monaco-workbench .monaco-select-box-dropdown-container {
@@ -300,6 +303,9 @@
 .monaco-workbench .monaco-menu-container > .monaco-scrollable-element {
 	border-radius: var(--radius-lg) !important;
 	box-shadow: var(--shadow-lg) !important;
+	background: color-mix(in srgb, var(--vscode-menu-background) 60%, transparent) !important;
+	backdrop-filter: var(--backdrop-blur-md);
+	-webkit-backdrop-filter: var(--backdrop-blur-md);
 }
 
 .monaco-workbench .action-widget {

@@ -37,7 +37,7 @@ In [gulpfile.vscode.ts](../gulpfile.vscode.ts#L228-L242), the `core-ci` task use
 - `runEsbuildTranspile()` → transpile command
 - `runEsbuildBundle()` → bundle command
 
-Old gulp-based bundling renamed to `core-ci-OLD`.
+Old gulp-based bundling renamed to `core-ci-old`.
 
 ---
 
@@ -134,7 +134,7 @@ npm run gulp vscode-reh-web-darwin-arm64-min
 
 1. **`BUILD_INSERT_PACKAGE_CONFIGURATION`** - Server bootstrap files ([bootstrap-meta.ts](../../src/bootstrap-meta.ts)) have this marker for package.json injection. Currently handled by [inlineMeta.ts](../lib/inlineMeta.ts) in the old build's packaging step.
 
-2. **Mangling** - The new build doesn't do TypeScript-based mangling yet. Old `core-ci` with mangling is now `core-ci-OLD`.
+2. **Mangling** - The new build doesn't do TypeScript-based mangling yet. Old `core-ci` with mangling is now `core-ci-old`.
 
 3. **Entry point duplication** - Entry points are duplicated between [buildfile.ts](../buildfile.ts) and [index.ts](index.ts). Consider consolidating.
 
