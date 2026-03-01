@@ -46,4 +46,22 @@ suite('Processes', () => {
 		assert.strictEqual(env['VSCODE_PYTHON_AUTOACTIVATE_GUARD'], undefined);
 		assert.strictEqual(Object.keys(env).length, 3);
 	});
+
+	test('sanitizeProcessEnvironment restores snap original values', () => {
+		const env: Record<string, string> = {
+			FOO: 'bar',
+			GTK_PATH: '/snap/code/191/usr/lib/x86_64-linux-gnu/gtk-3.0',
+			GTK_PATH_VSCODE_SNAP_ORIG: '/usr/lib/original-gtk',
+			GIO_MODULE_DIR: '/snap/code/191/usr/lib/gio',
+			GIO_MODULE_DIR_VSCODE_SNAP_ORIG: '',
+			GTK_EXE_PREFIX: '/snap/code/191/usr',
+			GTK_EXE_PREFIX_VSCODE_SNAP_ORIG: '/usr',
+		};
+		processes.sanitizeProcessEnvironment(env);
+		assert.deepStrictEqual(env, {
+			FOO: 'bar',
+			GTK_PATH: '/usr/lib/original-gtk',
+			GTK_EXE_PREFIX: '/usr',
+		});
+	});
 });

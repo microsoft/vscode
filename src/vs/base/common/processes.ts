@@ -123,6 +123,22 @@ export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve
 				}
 			}
 		});
+
+	// Restore original values from before the snap environment was set up.
+	// The electron-launch script saves pre-snap values as *_VSCODE_SNAP_ORIG.
+	// See https://github.com/microsoft/vscode/issues/241174
+	const suffix = '_VSCODE_SNAP_ORIG';
+	for (const key of envKeys) {
+		if (key.endsWith(suffix)) {
+			const originalKey = key.slice(0, -suffix.length);
+			if (env[key]) {
+				env[originalKey] = env[key];
+			} else {
+				delete env[originalKey];
+			}
+			delete env[key];
+		}
+	}
 }
 
 /**
