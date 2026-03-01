@@ -233,7 +233,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		let updateCountRequestId = 0;
 		const updateHeaderTotalCount = async () => {
 			const requestId = ++updateCountRequestId;
-			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService);
+			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService);
 			if (requestId !== updateCountRequestId) {
 				return;
 			}
@@ -247,6 +247,10 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => updateHeaderTotalCount()));
 		this._register(autorun(reader => {
 			this.mcpService.servers.read(reader);
+			updateHeaderTotalCount();
+		}));
+		this._register(autorun(reader => {
+			this.workspaceService.activeProjectRoot.read(reader);
 			updateHeaderTotalCount();
 		}));
 		updateHeaderTotalCount();

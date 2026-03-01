@@ -3905,7 +3905,7 @@ suite('LanguageModelToolsService', () => {
 
 			// Verify error result returned
 			assert.ok(result.toolResultError);
-			assert.ok(result.toolResultError.includes('Destructive operations require approval'));
+			assert.ok((result.toolResultError as string).includes('Destructive operations require approval'));
 			assert.strictEqual(result.content[0].kind, 'text');
 			assert.ok((result.content[0] as IToolResultTextPart).value.includes('Tool execution denied'));
 

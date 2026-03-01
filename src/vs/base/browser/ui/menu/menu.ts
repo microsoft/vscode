@@ -321,7 +321,7 @@ export class Menu extends ActionBar {
 		const fgColor = style.foregroundColor ?? '';
 		const bgColor = style.backgroundColor ?? '';
 		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
-		const borderRadius = '5px';
+		const borderRadius = 'var(--vscode-cornerRadius-large)';
 		const shadow = style.shadowColor ? `0 2px 8px ${style.shadowColor}` : '';
 
 		scrollElement.style.outline = border;
@@ -1022,7 +1022,7 @@ export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): s
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-large);
 	min-width: 160px;
 }
 
@@ -1137,11 +1137,11 @@ ${formatRule(Codicon.menuSubmenu)}
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
 	flex: 1 1 auto;
 	display: flex;
-	height: 2em;
+	height: 24px;
 	align-items: center;
 	position: relative;
 	margin: 0 4px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
@@ -1270,7 +1270,7 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 2em;
+	height: 24px;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),

@@ -159,11 +159,14 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 	}
 
 	private _getDropdownActions(): IActionWidgetDropdownAction[] {
+		const isSteerDefault = this._isSteerDefault();
+
 		const queueAction: IActionWidgetDropdownAction = {
 			id: ChatQueueMessageAction.ID,
 			label: localize('chat.queueMessage', "Add to Queue"),
 			tooltip: '',
 			enabled: true,
+			checked: !isSteerDefault,
 			icon: Codicon.add,
 			class: undefined,
 			hover: {
@@ -179,6 +182,7 @@ export class ChatQueuePickerActionItem extends BaseActionViewItem {
 			label: localize('chat.steerWithMessage', "Steer with Message"),
 			tooltip: '',
 			enabled: true,
+			checked: isSteerDefault,
 			icon: Codicon.arrowRight,
 			class: undefined,
 			hover: {

@@ -8,9 +8,11 @@ import { localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import './changesViewActions.js';
+import { ToggleChangesViewContribution } from './toggleChangesView.js';
 
 const changesViewIcon = registerIcon('changes-view-icon', Codicon.gitCompare, localize2('changesViewIcon', 'View icon for the Changes view.').value);
 
@@ -39,3 +41,5 @@ viewsRegistry.registerViews([{
 	order: 1,
 	windowVisibility: WindowVisibility.Sessions
 }], changesViewContainer);
+
+registerWorkbenchContribution2(ToggleChangesViewContribution.ID, ToggleChangesViewContribution, WorkbenchPhase.BlockRestore);

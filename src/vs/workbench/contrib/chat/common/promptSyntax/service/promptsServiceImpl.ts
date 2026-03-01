@@ -711,7 +711,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 				const visibility = {
 					userInvocable: ast.header.userInvocable !== false,
-					agentInvocable: ast.header.infer === true || ast.header.disableModelInvocation !== true,
+					agentInvocable: ast.header.infer !== undefined ? ast.header.infer === true : ast.header.disableModelInvocation !== true,
 				} satisfies ICustomAgentVisibility;
 
 				let model = ast.header.model;
