@@ -1,0 +1,23 @@
+{
+	"name": "mia-terminal",
+	"displayName": "Mia Terminal",
+	"description": "Terminal profile for miadi-code agent in Mia Code",
+	"version": "0.1.0",
+	"publisher": "mia",
+	"license": "MIT",
+	"engines": { "vscode": "^1.96.0" },
+	"activationEvents": ["onTerminalProfile:mia.agent"],
+	"main": "./src/extension.js",
+	"extensionDependencies": ["mia.three-universe"],
+	"contributes": {
+		"terminal": {
+			"profiles": [
+				{
+					"id": "mia.agent",
+					"title": "Mia Agent Terminal",
+					"icon": "$(comment-discussion)"
+				}
+			]
+		}
+	}
+}
