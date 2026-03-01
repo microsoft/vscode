@@ -9,7 +9,7 @@
 
 .monaco-editor .monaco-resizable-hover {
 	border: 1px solid var(--vscode-editorHoverWidget-border);
-	border-radius: 3px;
+	border-radius: 2px;
 	box-sizing: content-box;
 }
 
@@ -20,7 +20,7 @@
 
 .monaco-editor .monaco-hover {
 	border: 1px solid var(--vscode-editorHoverWidget-border);
-	border-radius: 3px;
+	border-radius: 2px;
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);
 }
@@ -89,7 +89,7 @@
 	top: 4px;
 	right: 4px;
 	padding: 2px 4px;
-	border-radius: 3px;
+	border-radius: 2px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
