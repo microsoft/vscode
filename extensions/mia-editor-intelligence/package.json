@@ -1,0 +1,20 @@
+{
+	"name": "mia-editor-intelligence",
+	"displayName": "Mia Editor Intelligence",
+	"description": "CodeLens, hover, decorations, inline suggestions, and diagnostics for narrative-aware editing",
+	"version": "0.1.0",
+	"publisher": "mia",
+	"license": "MIT",
+	"engines": { "vscode": "^1.96.0" },
+	"activationEvents": ["onStartupFinished"],
+	"main": "./src/extension.js",
+	"extensionDependencies": ["mia.three-universe"],
+	"contributes": {
+		"commands": [
+			{
+				"command": "mia.editorIntelligence.refreshDecorations",
+				"title": "Mia: Refresh Editor Decorations"
+			}
+		]
+	}
+}
