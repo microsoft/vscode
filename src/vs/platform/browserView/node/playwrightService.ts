@@ -10,7 +10,6 @@ import { ILogService } from '../../log/common/log.js';
 import { IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { PlaywrightTab } from './playwrightTab.js';
 
 // eslint-disable-next-line local/code-import-patterns
@@ -125,39 +124,38 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		return this._pages.getSummary(pageId, true);
 	}
 
+	async invokeFunctionRaw<T>(pageId: string, fnDef: string, ...args: unknown[]): Promise<T> {
+		await this.initialize();
+
+		const vm = await import('vm');
+		const fn = vm.compileFunction(`return (${fnDef})(page, ...args)`, ['page', 'args'], { parsingContext: vm.createContext() });
+
+		return this._pages.runAgainstPage(pageId, (page) => fn(page, args));
+	}
+
 	async invokeFunction(pageId: string, fnDef: string, ...args: unknown[]): Promise<{ result: unknown; summary: string }> {
 		this.logService.info(`[PlaywrightService] Invoking function on view ${pageId}`);
 
 		try {
-			await this.initialize();
-
-			const vm = await import('vm');
-			const fn = vm.compileFunction(`return (${fnDef})(page, ...args)`, ['page', 'args'], { parsingContext: vm.createContext() });
-
 			let result;
 			try {
-				result = await this._pages.runAgainstPage(pageId, (page) => fn(page, args));
+				result = await this.invokeFunctionRaw(pageId, fnDef, ...args);
 			} catch (err: unknown) {
 				result = err instanceof Error ? err.message : String(err);
 			}
 
-			const summary = await this._pages.getSummary(pageId);
+			let summary;
+			try {
+				summary = await this._pages.getSummary(pageId);
+			} catch (err: unknown) {
+				summary = err instanceof Error ? err.message : String(err);
+			}
 			return { result, summary };
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : String(err);
 			this.logService.error('[PlaywrightService] Script execution failed:', errorMessage);
 			throw err;
 		}
-	}
-
-	async captureScreenshot(pageId: string, selector?: string, fullPage?: boolean): Promise<VSBuffer> {
-		await this.initialize();
-		return this._pages.runAgainstPage(pageId, async page => {
-			const screenshotBuffer = selector
-				? await page.locator(selector).screenshot({ type: 'jpeg', quality: 80 })
-				: await page.screenshot({ type: 'jpeg', quality: 80, fullPage: fullPage ?? false });
-			return VSBuffer.wrap(screenshotBuffer);
-		});
 	}
 
 	async replyToFileChooser(pageId: string, files: string[]): Promise<{ summary: string }> {
@@ -232,6 +230,7 @@ class PlaywrightPageManager extends Disposable {
 	private readonly _initStore = this._register(new DisposableStore());
 	private _group: IBrowserViewGroup | undefined;
 	private _browser: Browser | undefined;
+	private _openContext: BrowserContext | undefined = undefined;
 
 	constructor(
 		private readonly logService: ILogService,
@@ -286,13 +285,18 @@ class PlaywrightPageManager extends Disposable {
 			throw new Error('PlaywrightPageManager has not been initialized');
 		}
 
-		const page = await this._browser.newPage();
+		if (!this._openContext) {
+			this._openContext = await this._browser.newContext();
+			this.onContextAdded(this._openContext);
+		}
+
+		const page = await this._openContext.newPage();
 		const viewId = await this.onPageAdded(page);
 
 		this._trackedPages.add(viewId);
 		this._fireTrackedPagesChanged();
 
-		await page.goto(url, { waitUntil: 'domcontentloaded' });
+		await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
 		return viewId;
 	}
@@ -434,12 +438,7 @@ class PlaywrightPageManager extends Disposable {
 			return queued.page.p;
 		}
 
-		if (this._trackedPages.has(viewId) && this._group) {
-			await this._addPageToGroup(viewId);
-			return this.getPage(viewId);
-		}
-
-		throw new Error(`Page "${viewId}" has not been added to the Playwright service`);
+		throw new Error(`Page "${viewId}" not found`);
 	}
 
 	/**
@@ -481,6 +480,8 @@ class PlaywrightPageManager extends Disposable {
 			this._pageToViewId.delete(page);
 		}
 		this._viewIdToPage.delete(viewId);
+		this._trackedPages.delete(viewId);
+		this._fireTrackedPagesChanged();
 	}
 
 	private onPageAdded(page: Page, timeoutMs = 10000): Promise<string> {
@@ -516,6 +517,8 @@ class PlaywrightPageManager extends Disposable {
 		const viewId = this._pageToViewId.get(page);
 		if (viewId) {
 			this._viewIdToPage.delete(viewId);
+			this._trackedPages.delete(viewId);
+			this._fireTrackedPagesChanged();
 		}
 		this._pageToViewId.delete(page);
 	}

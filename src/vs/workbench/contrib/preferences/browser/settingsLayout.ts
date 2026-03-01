@@ -209,7 +209,9 @@ export const tocData: ITOCEntry<string> = {
 						'chat.notifyWindow*',
 						'chat.statusWidget.*',
 						'chat.tips.*',
-						'chat.unifiedAgentsBar.*'
+						'chat.unifiedAgentsBar.*',
+						'accessibility.signals.chatUserActionRequired',
+						'accessibility.signals.chatResponseReceived'
 					]
 				},
 				{

@@ -23,7 +23,9 @@ import { IAction } from '../../../../base/common/actions.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { Downloading, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
+import { sessionsUpdateButtonDownloadingBackground, sessionsUpdateButtonDownloadedBackground } from '../../../common/theme.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = new MenuId('SessionsAccountMenu');
@@ -160,7 +162,7 @@ class AccountWidget extends ActionViewItem {
 	}
 }
 
-class UpdateWidget extends ActionViewItem {
+export class UpdateWidget extends ActionViewItem {
 
 	private updateButton: Button | undefined;
 	private readonly viewItemDisposables = this._register(new DisposableStore());
@@ -222,9 +224,51 @@ class UpdateWidget extends ActionViewItem {
 		if (this.isUpdatePending() && !this.isUpdateReady()) {
 			this.updateButton.enabled = false;
 			this.updateButton.label = `$(${Codicon.loading.id}~spin) ${this.getUpdateProgressMessage(state.type)}`;
+			this.updateDownloadProgress(state);
 		} else {
 			this.updateButton.enabled = true;
 			this.updateButton.label = `$(${Codicon.debugRestart.id}) ${localize('update', "Update")}`;
+
+			const el = this.updateButton.element;
+			if (state.type === StateType.Ready) {
+				const color = asCssVariable(sessionsUpdateButtonDownloadedBackground);
+				el.style.backgroundImage = `linear-gradient(to right, ${color} 100%, transparent 100%)`;
+			} else {
+				// Ensure non-update states (e.g. Idle, Disabled, Uninitialized) do not look like a completed download
+				el.style.backgroundImage = '';
+			}
+		}
+	}
+
+	private updateDownloadProgress(state: State): void {
+		if (!this.updateButton) {
+			return;
+		}
+
+		const el = this.updateButton.element;
+
+		if (state.type === StateType.Downloading) {
+			const { downloadedBytes, totalBytes } = state as Downloading;
+			if (downloadedBytes !== undefined && totalBytes && totalBytes > 0) {
+				const percent = Math.min(100, Math.round((downloadedBytes / totalBytes) * 100));
+				const color = asCssVariable(sessionsUpdateButtonDownloadingBackground);
+				el.style.backgroundImage = `linear-gradient(to right, ${color} ${percent}%, transparent ${percent}%)`;
+			} else {
+				// Indeterminate: show a subtle pulsing background
+				const color = asCssVariable(sessionsUpdateButtonDownloadingBackground);
+				el.style.backgroundImage = `linear-gradient(to right, ${color} 0%, transparent 100%)`;
+			}
+		} else if (state.type === StateType.Downloaded) {
+			const color = asCssVariable(sessionsUpdateButtonDownloadedBackground);
+			el.style.backgroundImage = `linear-gradient(to right, ${color} 100%, transparent 100%)`;
+		} else {
+			this.clearDownloadProgress();
+		}
+	}
+
+	private clearDownloadProgress(): void {
+		if (this.updateButton) {
+			this.updateButton.element.style.backgroundImage = '';
 		}
 	}
 

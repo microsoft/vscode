@@ -14,10 +14,11 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
+import { WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
+import { chatBarTitleBackground, chatBarTitleForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
 import { Color } from '../../../base/common/color.js';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -131,7 +132,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
-		this.rootContainer = append(parent, $('.titlebar-container.has-center'));
+		this.rootContainer = append(parent, $('.titlebar-container.sessions-titlebar-container.has-center'));
 
 		// Draggable region
 		prepend(this.rootContainer, $('div.titlebar-drag-region'));
@@ -227,7 +228,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		if (this.element) {
 			this.element.classList.toggle('inactive', this.isInactive);
 
-			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, (color, theme) => {
+			const titleBackground = this.getColor(chatBarTitleBackground, (color, theme) => {
 				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
 			}) || '';
 			this.element.style.backgroundColor = titleBackground;
@@ -238,11 +239,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				this.element.classList.remove('light');
 			}
 
-			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
+			const titleForeground = this.getColor(chatBarTitleForeground);
 			this.element.style.color = titleForeground || '';
-
-			const titleBorder = this.getColor(TITLE_BAR_BORDER);
-			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : '';
 		}
 	}
 
@@ -256,8 +254,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		});
 	}
 
-	private lastLayoutDimension: Dimension | undefined;
-
 	get hasZoomableElements(): boolean {
 		return true; // sessions titlebar always has command center and toolbar actions
 	}
@@ -270,7 +266,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	override layout(width: number, height: number): void {
-		this.lastLayoutDimension = new Dimension(width, height);
 		this.updateLayout();
 		super.layoutContents(width, height);
 	}
@@ -283,24 +278,6 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		const zoomFactor = getZoomFactor(getWindow(this.element));
 		this.element.style.setProperty('--zoom-factor', zoomFactor.toString());
 		this.rootContainer.classList.toggle('counter-zoom', this.preventZoom);
-
-		this.updateCenterOffset();
-	}
-
-	private updateCenterOffset(): void {
-		if (!this.centerContent || !this.lastLayoutDimension) {
-			return;
-		}
-
-		// Center the command center relative to the viewport.
-		// The titlebar only covers the right section (sidebar is to the left),
-		// so we shift the center content left by half the sidebar width
-		// using a negative margin.
-		const windowWidth = this.layoutService.mainContainerDimension.width;
-		const titlebarWidth = this.lastLayoutDimension.width;
-		const leftOffset = windowWidth - titlebarWidth;
-		this.centerContent.style.marginLeft = leftOffset > 0 ? `${-leftOffset / 2}px` : '';
-		this.centerContent.style.marginRight = leftOffset > 0 ? `${leftOffset / 2}px` : '';
 	}
 
 	focus(): void {

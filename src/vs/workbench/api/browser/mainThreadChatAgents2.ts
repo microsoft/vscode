@@ -207,6 +207,22 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 							if (newItem) {
 								chatSessionResource = newItem.resource;
 								isUntitled = false;
+
+								// Update the model's contributed session with the resolved resource
+								// so subsequent requests don't re-invoke newChatSessionItemHandler
+								// and getChatSessionFromInternalUri returns the real resource.
+								chatSession?.setContributedChatSession({
+									chatSessionType: contributedSession.chatSessionType,
+									chatSessionResource,
+									isUntitled: false,
+									initialSessionOptions: contributedSession.initialSessionOptions,
+								});
+
+								// Register alias so session-option lookups work with the new resource
+								this._chatSessionService.registerSessionResourceAlias(
+									contributedSession.chatSessionResource,
+									chatSessionResource
+								);
 							}
 						}
 
@@ -230,8 +246,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			setRequestTools: (requestId, tools) => {
 				this._proxy.$setRequestTools(requestId, tools);
 			},
-			setYieldRequested: (requestId) => {
-				this._proxy.$setYieldRequested(requestId);
+			setYieldRequested: (requestId, value) => {
+				this._proxy.$setYieldRequested(requestId, value);
 			},
 			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {

@@ -22,6 +22,7 @@ export const enum InlineChatConfigKeys {
 	DefaultModel = 'inlineChat.defaultModel',
 	Affordance = 'inlineChat.affordance',
 	RenderMode = 'inlineChat.renderMode',
+	FixDiagnostics = 'inlineChat.fixDiagnostics',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -83,6 +84,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 				mode: 'auto'
 			},
 			tags: ['experimental']
+		},
+		[InlineChatConfigKeys.FixDiagnostics]: {
+			description: localize('fixDiagnostics', "Controls whether the Fix action is shown for diagnostics in the editor."),
+			default: true,
+			type: 'boolean',
+			experiment: {
+				mode: 'auto'
+			},
+			tags: ['experimental']
 		}
 	}
 });
@@ -119,6 +129,7 @@ export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 export const CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT = new RawContextKey<boolean>('inlineChatFileBelongsToChat', false, localize('inlineChatFileBelongsToChat', "Whether the current file belongs to a chat editing session"));
+export const CTX_INLINE_CHAT_PENDING_CONFIRMATION = new RawContextKey<boolean>('inlineChatPendingConfirmation', false, localize('inlineChatPendingConfirmation', "Whether an inline chat request is pending user confirmation"));
 
 export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.or(
 	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)
@@ -130,6 +141,7 @@ export const CTX_INLINE_CHAT_V2_ENABLED = ContextKeyExpr.or(
 );
 
 export const CTX_HOVER_MODE = ContextKeyExpr.equals('config.inlineChat.renderMode', 'hover');
+export const CTX_FIX_DIAGNOSTICS_ENABLED = ContextKeyExpr.equals('config.inlineChat.fixDiagnostics', true);
 
 // --- (selected) action identifier
 

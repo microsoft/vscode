@@ -18,11 +18,12 @@ import { InstantiationType, registerSingleton } from '../../instantiation/common
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IInstallableMcpServer } from './mcpManagement.js';
-import { ICommonMcpServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
+import { ICommonMcpServerConfiguration, IMcpSandboxConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 
 interface IScannedMcpServers {
 	servers?: IStringDictionary<Mutable<IMcpServerConfiguration>>;
 	inputs?: IMcpServerVariable[];
+	sandbox?: IMcpSandboxConfiguration;
 }
 
 interface IOldScannedMcpServer {
@@ -77,7 +78,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 					updatedInputs = [...updatedInputs, ...newInputs];
 				}
 			}
-			return { servers: existingServers, inputs: updatedInputs };
+			return { servers: existingServers, inputs: updatedInputs, sandbox: scannedMcpServers.sandbox };
 		});
 	}
 
@@ -173,13 +174,14 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 	private fromUserMcpServers(scannedMcpServers: IScannedMcpServers): IScannedMcpServers {
 		const userMcpServers: IScannedMcpServers = {
-			inputs: scannedMcpServers.inputs
+			inputs: scannedMcpServers.inputs,
+			sandbox: scannedMcpServers.sandbox
 		};
 		const servers = Object.entries(scannedMcpServers.servers ?? {});
 		if (servers.length > 0) {
 			userMcpServers.servers = {};
 			for (const [serverName, server] of servers) {
-				userMcpServers.servers[serverName] = this.sanitizeServer(server);
+				userMcpServers.servers[serverName] = this.sanitizeServer(server, scannedMcpServers.sandbox);
 			}
 		}
 		return userMcpServers;
@@ -187,19 +189,20 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 	private fromWorkspaceFolderMcpServers(scannedWorkspaceFolderMcpServers: IScannedMcpServers): IScannedMcpServers {
 		const scannedMcpServers: IScannedMcpServers = {
-			inputs: scannedWorkspaceFolderMcpServers.inputs
+			inputs: scannedWorkspaceFolderMcpServers.inputs,
+			sandbox: scannedWorkspaceFolderMcpServers.sandbox
 		};
 		const servers = Object.entries(scannedWorkspaceFolderMcpServers.servers ?? {});
 		if (servers.length > 0) {
 			scannedMcpServers.servers = {};
 			for (const [serverName, config] of servers) {
-				scannedMcpServers.servers[serverName] = this.sanitizeServer(config);
+				scannedMcpServers.servers[serverName] = this.sanitizeServer(config, scannedWorkspaceFolderMcpServers.sandbox);
 			}
 		}
 		return scannedMcpServers;
 	}
 
-	private sanitizeServer(serverOrConfig: IOldScannedMcpServer | Mutable<IMcpServerConfiguration>): IMcpServerConfiguration {
+	private sanitizeServer(serverOrConfig: IOldScannedMcpServer | Mutable<IMcpServerConfiguration>, sandbox?: IMcpSandboxConfiguration): IMcpServerConfiguration {
 		let server: IMcpServerConfiguration;
 		if ((<IOldScannedMcpServer>serverOrConfig).config) {
 			const oldScannedMcpServer = <IOldScannedMcpServer>serverOrConfig;
@@ -214,6 +217,10 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 
 		if (server.type === undefined || (server.type !== McpServerType.REMOTE && server.type !== McpServerType.LOCAL)) {
 			(<Mutable<ICommonMcpServerConfiguration>>server).type = (<IMcpStdioServerConfiguration>server).command ? McpServerType.LOCAL : McpServerType.REMOTE;
+		}
+
+		if (sandbox && server.type === McpServerType.LOCAL && !(server as IMcpStdioServerConfiguration).sandbox && server.sandboxEnabled) {
+			(<Mutable<IMcpStdioServerConfiguration>>server).sandbox = sandbox;
 		}
 
 		return server;

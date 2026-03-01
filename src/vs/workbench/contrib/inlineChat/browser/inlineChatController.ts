@@ -51,7 +51,7 @@ import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../.
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
-import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_PENDING_CONFIRMATION, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { InlineChatAffordance } from './inlineChatAffordance.js';
 import { InlineChatInputWidget, InlineChatSessionOverlayWidget } from './inlineChatOverlayWidget.js';
 import { IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
@@ -68,6 +68,7 @@ export abstract class InlineChatRunOptions {
 	position?: IPosition;
 	modelSelector?: ILanguageModelChatSelector;
 	resolveOnResponse?: boolean;
+	attachDiagnostics?: boolean;
 
 	static isInlineChatRunOptions(options: unknown): options is InlineChatRunOptions {
 
@@ -75,7 +76,7 @@ export abstract class InlineChatRunOptions {
 			return false;
 		}
 
-		const { initialSelection, initialRange, message, autoSend, position, attachments, modelSelector, resolveOnResponse } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, attachments, modelSelector, resolveOnResponse, attachDiagnostics } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -85,6 +86,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
 			|| typeof modelSelector !== 'undefined' && !isILanguageModelChatSelector(modelSelector)
 			|| typeof resolveOnResponse !== 'undefined' && typeof resolveOnResponse !== 'boolean'
+			|| typeof attachDiagnostics !== 'undefined' && typeof attachDiagnostics !== 'boolean'
 		) {
 			return false;
 		}
@@ -149,11 +151,13 @@ export class InlineChatController implements IEditorContribution {
 		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
 		@ILogService private readonly _logService: ILogService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		const editorObs = observableCodeEditor(_editor);
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		const ctxFileBelongsToChat = CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.bindTo(contextKeyService);
+		const ctxPendingConfirmation = CTX_INLINE_CHAT_PENDING_CONFIRMATION.bindTo(contextKeyService);
 		const notebookAgentConfig = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, this._configurationService);
 		this._renderMode = observableConfigValue(InlineChatConfigKeys.RenderMode, 'zone', this._configurationService);
 
@@ -351,16 +355,19 @@ export class InlineChatController implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 			const renderMode = this._renderMode.read(r);
 			if (!session || renderMode !== 'hover') {
+				ctxPendingConfirmation.set(false);
 				sessionOverlayWidget.hide();
 				return;
 			}
 			const lastRequest = session.chatModel.lastRequestObs.read(r);
 			const isInProgress = lastRequest?.response?.isInProgress.read(r);
+			const isPendingConfirmation = !!lastRequest?.response?.isPendingConfirmation.read(r);
+			ctxPendingConfirmation.set(isPendingConfirmation);
 			const entry = session.editingSession.readEntry(session.uri, r);
 			// When there's no entry (no changes made) and the response is complete, the widget should be hidden.
 			// When there's an entry in Modified state, it needs to be settled (accepted/rejected).
 			const isNotSettled = entry ? entry.state.read(r) === ModifiedFileEntryState.Modified : false;
-			if (isInProgress || isNotSettled) {
+			if (isInProgress || isNotSettled || isPendingConfirmation) {
 				sessionOverlayWidget.show(session);
 			} else {
 				sessionOverlayWidget.hide();
@@ -506,22 +513,28 @@ export class InlineChatController implements IEditorContribution {
 		try {
 			await this._applyModelDefaults(session, sessionStore);
 
-			// ADD diagnostics
-			const entries: IChatRequestVariableEntry[] = [];
-			for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
-				if (range.intersectRanges(this._editor.getSelection())) {
-					const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
-					entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
-				}
+			if (arg) {
+				arg.attachDiagnostics ??= this._configurationService.getValue(InlineChatConfigKeys.RenderMode) === 'zone';
 			}
-			if (entries.length > 0) {
-				this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
-				this._zone.value.widget.chatWidget.input.setValue(entries.length > 1
-					? localize('fixN', "Fix the attached problems")
-					: localize('fix1', "Fix the attached problem"),
-					true
-				);
-				this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+
+			// ADD diagnostics (only when explicitly requested)
+			if (arg?.attachDiagnostics) {
+				const entries: IChatRequestVariableEntry[] = [];
+				for (const [range, marker] of this._markerDecorationsService.getLiveMarkers(uri)) {
+					if (range.intersectRanges(this._editor.getSelection())) {
+						const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
+						entries.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
+					}
+				}
+				if (entries.length > 0) {
+					this._zone.value.widget.chatWidget.attachmentModel.addContext(...entries);
+					const msg = entries.length > 1
+						? localize('fixN', "Fix the attached problems")
+						: localize('fix1', "Fix the attached problem");
+					this._zone.value.widget.chatWidget.input.setValue(msg, true);
+					arg.message = msg;
+					this._zone.value.widget.chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+				}
 			}
 
 			// Check args
@@ -591,6 +604,7 @@ export class InlineChatController implements IEditorContribution {
 		if (!session) {
 			return;
 		}
+		this._chatService.cancelCurrentRequestForSession(session.chatModel.sessionResource, 'inlineChatReject');
 		await session.editingSession.reject();
 		session.dispose();
 	}

@@ -111,6 +111,7 @@ export enum PromptFileSource {
 	ConfigPersonal = 'config-personal',
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
+	Plugin = 'plugin',
 }
 
 /**
@@ -184,6 +185,7 @@ export const DEFAULT_PROMPT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 export const DEFAULT_AGENT_SOURCE_FOLDERS: readonly IPromptSourceFolder[] = [
 	{ path: AGENTS_SOURCE_FOLDER, source: PromptFileSource.GitHubWorkspace, storage: PromptsStorage.local },
 	{ path: CLAUDE_AGENTS_SOURCE_FOLDER, source: PromptFileSource.ClaudeWorkspace, storage: PromptsStorage.local },
+	{ path: '~/' + CLAUDE_AGENTS_SOURCE_FOLDER, source: PromptFileSource.ClaudePersonal, storage: PromptsStorage.user },
 ];
 
 /**

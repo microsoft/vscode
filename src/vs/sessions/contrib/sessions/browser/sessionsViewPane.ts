@@ -18,15 +18,19 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
+import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../workbench/common/views.js';
+import { sessionsSidebarBackground } from '../../../common/theme.js';
+import { SessionsCategories } from '../../../common/categories.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { AgentSessionsControl } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsControl.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsFilter.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -41,6 +45,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../browser/menus.js';
 import { getCustomizationTotalCount } from './customizationCounts.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'agentic.workbench.view.sessionsView';
@@ -72,6 +77,8 @@ export class AgenticSessionsViewPane extends ViewPane {
 		@IMcpService private readonly mcpService: IMcpService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+		@IHostService private readonly hostService: IHostService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -85,13 +92,29 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this.createControls(parent);
 	}
 
+	protected override getLocationBasedColors(): IViewPaneLocationColors {
+		const colors = super.getLocationBasedColors();
+		return {
+			...colors,
+			background: sessionsSidebarBackground,
+			listOverrideStyles: {
+				...colors.listOverrideStyles,
+				listBackground: sessionsSidebarBackground,
+			}
+		};
+	}
+
 	private createControls(parent: HTMLElement): void {
 		const sessionsContainer = DOM.append(parent, $('.agent-sessions-container'));
 
 		// Sessions Filter (actions go to view title bar via menu registration)
 		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
 			filterMenuId: SessionsViewFilterSubMenu,
-			groupResults: () => AgentSessionsGrouping.Date
+			groupResults: () => AgentSessionsGrouping.Date,
+			allowedProviders: [AgentSessionProviders.Background, AgentSessionProviders.Cloud],
+			providerLabelOverrides: new Map([
+				[AgentSessionProviders.Background, localize('chat.session.providerLabel.local', "Local")],
+			]),
 		}));
 
 		// Sessions section (top, fills available space)
@@ -104,7 +127,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
 		const newSessionButton = this._register(new Button(newSessionButtonContainer, { ...defaultButtonStyles, secondary: true }));
 		newSessionButton.label = localize('newSession', "New Session");
-		this._register(newSessionButton.onDidClick(() => this.activeSessionService.openNewSession()));
+		this._register(newSessionButton.onDidClick(() => this.activeSessionService.openNewSessionView()));
 
 		// Keybinding hint inside the button
 		const keybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_CHAT);
@@ -126,6 +149,13 @@ export class AgenticSessionsViewPane extends ViewPane {
 			overrideSessionOpen: (resource, openOptions) => this.activeSessionService.openSession(resource, openOptions),
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
+
+		// Refresh sessions when window gets focus to compensate for missing events
+		this._register(this.hostService.onDidChangeFocus(hasFocus => {
+			if (hasFocus) {
+				sessionsControl.refresh();
+			}
+		}));
 
 		// Listen to tree updates and restore selection if nothing is selected
 		this._register(sessionsControl.onDidUpdate(() => {
@@ -203,7 +233,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 		let updateCountRequestId = 0;
 		const updateHeaderTotalCount = async () => {
 			const requestId = ++updateCountRequestId;
-			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService);
+			const totalCount = await getCustomizationTotalCount(this.promptsService, this.mcpService, this.workspaceService, this.workspaceContextService);
 			if (requestId !== updateCountRequestId) {
 				return;
 			}
@@ -217,6 +247,10 @@ export class AgenticSessionsViewPane extends ViewPane {
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => updateHeaderTotalCount()));
 		this._register(autorun(reader => {
 			this.mcpService.servers.read(reader);
+			updateHeaderTotalCount();
+		}));
+		this._register(autorun(reader => {
+			this.workspaceService.activeProjectRoot.read(reader);
 			updateHeaderTotalCount();
 		}));
 		updateHeaderTotalCount();
@@ -290,7 +324,7 @@ KeybindingsRegistry.registerKeybindingRule({
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	submenu: SessionsViewFilterSubMenu,
-	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
+	title: localize2('filterAgentSessions', "Filter Sessions"),
 	group: 'navigation',
 	order: 3,
 	icon: Codicon.filter,
@@ -301,10 +335,10 @@ registerAction2(class RefreshAgentSessionsViewerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.refresh',
-			title: localize2('refresh', "Refresh Agent Sessions"),
+			title: localize2('refresh', "Refresh Sessions"),
 			icon: Codicon.refresh,
 			f1: true,
-			category: localize2('sessionsViewCategory', "Agent Sessions"),
+			category: SessionsCategories.Sessions,
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -319,7 +353,7 @@ registerAction2(class FindAgentSessionInViewerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsView.find',
-			title: localize2('find', "Find Agent Session"),
+			title: localize2('find', "Find Session"),
 			icon: Codicon.search,
 			menu: [{
 				id: MenuId.ViewTitle,

@@ -3,8 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
+	display: flex;
+	height: 100%;
+	align-items: center;
+	order: 0;
+	flex-grow: 2;
+	justify-content: flex-start;
+}
+
 /* Left Tool Bar Container */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container {
 	display: none;
 	padding-left: 8px;
 	flex-grow: 0;
@@ -17,17 +26,17 @@
 	order: 2;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container:not(.has-no-actions) {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container:not(.has-no-actions) {
 	display: flex;
 	justify-content: center;
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container .codicon {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .codicon {
 	color: inherit;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item {
 	display: flex;
 }
 
@@ -35,11 +44,15 @@
  * The contribution swaps the menu item synchronously, but the toolbar
  * re-render is async, causing a brief flash. Hide the container via
  * CSS when sidebar is visible (nosidebar class is removed synchronously). */
-.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .titlebar-container > .titlebar-left > .left-toolbar-container {
+.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container {
 	display: none !important;
 }
 
 /* macOS native: the spacer uses window-controls-container but should not block dragging */
 .agent-sessions-workbench.mac .part.titlebar .window-controls-container {
 	-webkit-app-region: drag;
+}
+
+.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .sessions-titlebar-container > .titlebar-left .window-controls-container {
+	display: none !important;
 }

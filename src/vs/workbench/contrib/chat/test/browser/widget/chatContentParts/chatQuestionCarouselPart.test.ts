@@ -99,10 +99,29 @@ suite('ChatQuestionCarouselPart', () => {
 
 			const title = widget.domNode.querySelector('.chat-question-title');
 			assert.ok(title, 'title element should exist');
-			assert.ok(title?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
-			assert.strictEqual(title?.textContent?.includes('**details**'), false, 'markdown syntax should not be shown as raw text');
-			const link = title?.querySelector('a') as HTMLAnchorElement | null;
+			const messageEl = widget.domNode.querySelector('.chat-question-message');
+			assert.ok(messageEl, 'message element should exist');
+			assert.ok(messageEl?.querySelector('.rendered-markdown'), 'markdown content should be rendered');
+			assert.strictEqual(messageEl?.textContent?.includes('**details**'), false, 'markdown syntax should not be shown as raw text');
+			const link = messageEl?.querySelector('a') as HTMLAnchorElement | null;
 			assert.ok(link, 'markdown link should render as anchor');
+		});
+
+		test('renders plain string question message as text', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'text',
+					title: 'Question',
+					message: 'Please review **details** in [docs](https://example.com)'
+				}
+			]);
+			createWidget(carousel);
+
+			const messageEl = widget.domNode.querySelector('.chat-question-message');
+			assert.ok(messageEl, 'message element should exist');
+			assert.ok(messageEl?.textContent?.includes('details'), 'plain text content should be rendered');
+			assert.strictEqual(messageEl?.querySelector('.rendered-markdown'), null, 'plain string message should not use markdown renderer');
 		});
 
 		test('renders progress indicator correctly', () => {
@@ -264,16 +283,29 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(prevButton.classList.contains('disabled') || prevButton.disabled, 'Previous button should be disabled on first question');
 		});
 
-		test('next button shows submit icon on last question', () => {
+		test('next button stays as arrow and is disabled on last question', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Only Question' }
 			]);
 			createWidget(carousel);
 
 			// Use dedicated class selector for stability
-			const nextButton = widget.domNode.querySelector('.chat-question-nav-next') as HTMLElement;
+			const nextButton = widget.domNode.querySelector('.chat-question-nav-next') as HTMLButtonElement;
 			assert.ok(nextButton, 'Next button should exist');
-			assert.strictEqual(nextButton.getAttribute('aria-label'), 'Submit', 'Next button should have Submit aria-label on last question');
+			assert.strictEqual(nextButton.getAttribute('aria-label'), 'Next', 'Next button should preserve Next aria-label on last question');
+			assert.ok(nextButton.classList.contains('disabled') || nextButton.disabled, 'Next button should be disabled on last question');
+		});
+
+		test('submit button is shown on last question', () => {
+			const carousel = createMockCarousel([
+				{ id: 'q1', type: 'text', title: 'Only Question' }
+			]);
+			createWidget(carousel);
+
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
+			assert.ok(submitButton, 'Submit button should exist');
+			assert.strictEqual(submitButton.getAttribute('aria-label'), 'Submit');
+			assert.notStrictEqual(submitButton.style.display, 'none', 'Submit button should be visible on last question');
 		});
 	});
 

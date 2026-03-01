@@ -1304,6 +1304,12 @@ export class Repository implements Disposable {
 				this.closeDiffEditors([...resources.length !== 0 ?
 					resources.map(r => r.fsPath) :
 					this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)], []);
+
+				// Clear AI contribution tracking for reverted resources
+				const uris = resources.length !== 0
+					? resources
+					: this.indexGroup.resourceStates.map(r => r.resourceUri);
+				commands.executeCommand('_aiEdits.clearAiContributions', uris);
 			},
 			() => {
 				const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
@@ -1380,6 +1386,9 @@ export class Repository implements Disposable {
 						opts.requireUserConfig = config.get<boolean>('requireGitUserConfig');
 					}
 
+					// Add AI co-author trailer if applicable
+					message = await this.appendAICoAuthorTrailer(message, indexResources, workingGroupResources);
+
 					await this.repository.commit(message, opts);
 					await this.commitOperationCleanup(message, indexResources, workingGroupResources);
 				},
@@ -1403,6 +1412,55 @@ export class Repository implements Disposable {
 			? indexResources.map(r => Uri.file(r))
 			: workingGroupResources.map(r => Uri.file(r));
 		commands.executeCommand('_chat.editSessions.accept', resources);
+
+		// Clear AI contribution tracking for committed resources
+		commands.executeCommand('_aiEdits.clearAiContributions', resources);
+	}
+
+	private static readonly AI_CO_AUTHOR_TRAILER = 'Co-authored-by: Copilot <copilot@github.com>';
+
+	private async appendAICoAuthorTrailer(
+		message: string | undefined,
+		indexResources: string[],
+		workingGroupResources: string[]
+	): Promise<string | undefined> {
+		if (!message) {
+			return message;
+		}
+
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const addAICoAuthor = config.get<'off' | 'chatAndAgent' | 'all'>('addAICoAuthor', 'off');
+
+		if (addAICoAuthor === 'off') {
+			return message;
+		}
+
+		// Don't add if trailer is already present
+		if (message.includes(Repository.AI_CO_AUTHOR_TRAILER)) {
+			return message;
+		}
+
+		const resources = indexResources.length !== 0
+			? indexResources.map(r => Uri.file(r))
+			: workingGroupResources.map(r => Uri.file(r));
+
+		if (resources.length === 0) {
+			return message;
+		}
+
+		try {
+			const level = addAICoAuthor === 'all' ? 'all' : 'chatAndAgent';
+			const hasAiContributions = await commands.executeCommand<boolean>('_aiEdits.hasAiContributions', resources, level);
+			if (hasAiContributions) {
+				// Ensure proper trailer formatting: blank line before trailers
+				const trimmed = message.trimEnd();
+				return `${trimmed}\n\n${Repository.AI_CO_AUTHOR_TRAILER}`;
+			}
+		} catch {
+			// Command may not be available (e.g., in web environment)
+		}
+
+		return message;
 	}
 
 	private commitOperationGetOptimisticResourceGroups(opts: CommitOptions): GitResourceGroups {
@@ -1505,6 +1563,9 @@ export class Repository implements Disposable {
 				}
 
 				this.closeDiffEditors([], [...toClean, ...toCheckout]);
+
+				// Clear AI contribution tracking for discarded resources
+				commands.executeCommand('_aiEdits.clearAiContributions', resources);
 			},
 			() => {
 				const resourcePaths = resources.map(r => r.fsPath);
@@ -1980,12 +2041,20 @@ export class Repository implements Disposable {
 				}
 
 				await this.repository.checkout(treeish, [], opts);
+
+				// Clear all AI contribution tracking on branch switch
+				commands.executeCommand('_aiEdits.clearAllAiContributions');
 			});
 	}
 
 	async checkoutTracking(treeish: string, opts: { detached?: boolean } = {}): Promise<void> {
 		const refLabel = opts.detached ? getCommitShortHash(Uri.file(this.root), treeish) : treeish;
-		await this.run(Operation.CheckoutTracking(refLabel), () => this.repository.checkout(treeish, [], { ...opts, track: true }));
+		await this.run(Operation.CheckoutTracking(refLabel), async () => {
+			await this.repository.checkout(treeish, [], { ...opts, track: true });
+
+			// Clear all AI contribution tracking on branch switch
+			commands.executeCommand('_aiEdits.clearAllAiContributions');
+		});
 	}
 
 	async findTrackingBranches(upstreamRef: string): Promise<Branch[]> {
@@ -2014,7 +2083,14 @@ export class Repository implements Disposable {
 	}
 
 	async reset(treeish: string, hard?: boolean): Promise<void> {
-		await this.run(Operation.Reset, () => this.repository.reset(treeish, hard));
+		await this.run(Operation.Reset, async () => {
+			await this.repository.reset(treeish, hard);
+
+			if (hard) {
+				// Clear all AI contribution tracking on hard reset
+				commands.executeCommand('_aiEdits.clearAllAiContributions');
+			}
+		});
 	}
 
 	async deleteRef(ref: string): Promise<void> {

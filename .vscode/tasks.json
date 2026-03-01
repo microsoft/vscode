@@ -225,6 +225,20 @@
 			"windows": {
 				"command": ".\\scripts\\code.bat"
 			},
+			"problemMatcher": [],
+			"inSessions": true
+		},
+		{
+			"label": "Run Dev Sessions",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"args": [
+				"--sessions"
+			],
+			"inSessions": true,
 			"problemMatcher": []
 		},
 		{
@@ -357,6 +371,27 @@
 			"problemMatcher": [
 				"$tsc"
 			]
+		},
+		{
+			"label": "Launch Component Explorer",
+			"type": "shell",
+			"command": "npx component-explorer serve -c ./test/componentFixtures/component-explorer.json -vv",
+			"isBackground": true,
+			"problemMatcher": {
+				"owner": "component-explorer",
+				"fileLocation": "absolute",
+				"pattern": {
+					"regexp": "^\\s*at\\s+(.+?):(\\d+):(\\d+)\\s*$",
+					"file": 1,
+					"line": 2,
+					"column": 3
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": ".*Setting up sessions.*",
+					"endsPattern": "Redirection server listening on.*"
+				}
+			}
 		}
 	]
 }

@@ -18,6 +18,19 @@ import { IChatRequestHooks } from '../hookSchema.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 
 /**
+ * Entry emitted by the prompts service when discovery logging occurs.
+ * A debug bridge (e.g. contribution) can listen and forward these to IChatDebugService.
+ */
+export interface IPromptDiscoveryLogEntry {
+	readonly sessionResource: URI;
+	readonly name: string;
+	readonly details?: string;
+	readonly category?: string;
+	/** When present, the bridge should store this for later event resolution. */
+	readonly discoveryInfo?: IPromptDiscoveryInfo;
+}
+
+/**
  * Activation events for prompt file providers.
  */
 export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
@@ -59,7 +72,8 @@ export const IPromptsService = createDecorator<IPromptsService>('IPromptsService
 export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
-	extension = 'extension'
+	extension = 'extension',
+	plugin = 'plugin',
 }
 
 /**
@@ -74,7 +88,7 @@ export enum ExtensionAgentSourceType {
  * Represents a prompt path with its type.
  * This is used for both prompt files and prompt source folders.
  */
-export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath;
+export type IPromptPath = IExtensionPromptPath | ILocalPromptPath | IUserPromptPath | IPluginPromptPath;
 
 
 export interface IPromptPathBase {
@@ -118,12 +132,20 @@ export interface IUserPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.user;
 }
 
+export interface IPluginPromptPath extends IPromptPathBase {
+	readonly storage: PromptsStorage.plugin;
+	readonly pluginUri: URI;
+}
+
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
 	readonly type: ExtensionAgentSourceType;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
+} | {
+	readonly storage: PromptsStorage.plugin;
+	readonly pluginUri: URI;
 };
 
 /**
@@ -308,11 +330,27 @@ export interface IPromptFileDiscoveryResult {
 }
 
 /**
+ * Diagnostic information about a source folder that was searched during discovery.
+ */
+export interface IPromptSourceFolderResult {
+	readonly uri: URI;
+	readonly storage: PromptsStorage;
+	/** Whether the folder exists on disk */
+	readonly exists: boolean;
+	/** Number of matching files found in this folder */
+	readonly fileCount: number;
+	/** Error message if resolution failed */
+	readonly errorMessage?: string;
+}
+
+/**
  * Summary of prompt file discovery for a specific type.
  */
 export interface IPromptDiscoveryInfo {
 	readonly type: PromptsType;
 	readonly files: readonly IPromptFileDiscoveryResult[];
+	/** Source folders that were searched, with their existence and file count */
+	readonly sourceFolders?: readonly IPromptSourceFolderResult[];
 }
 
 export interface IConfiguredHooksInfo {
@@ -372,8 +410,9 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Returns a prompt command if the command name is valid.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
+	getPromptSlashCommands(token: CancellationToken, sessionResource?: URI): Promise<readonly IChatPromptSlashCommand[]>;
 
 	/**
 	 * Returns the prompt command name for the given URI.
@@ -387,8 +426,9 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Finds all available custom agents
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]>;
+	getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]>;
 
 	/**
 	 * Parses the provided URI
@@ -446,19 +486,34 @@ export interface IPromptsService extends IDisposable {
 
 	/**
 	 * Gets list of agent skills files.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined>;
+	findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined>;
 
 	/**
 	 * Gets detailed discovery information for a prompt type.
 	 * This includes all files found and their load/skip status with reasons.
 	 * Used for diagnostics and config-info displays.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo>;
+	getPromptDiscoveryInfo(type: PromptsType, token: CancellationToken, sessionResource?: URI): Promise<IPromptDiscoveryInfo>;
 
 	/**
 	 * Gets all hooks collected from hooks.json files.
 	 * The result is cached and invalidated when hook files change.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
-	getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined>;
+	getHooks(token: CancellationToken, sessionResource?: URI): Promise<IConfiguredHooksInfo | undefined>;
+
+	/**
+	 * Gets all instruction files, logging discovery info to the debug log.
+	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
+	 */
+	getInstructionFiles(token: CancellationToken, sessionResource?: URI): Promise<readonly IPromptPath[]>;
+
+	/**
+	 * Fired when a discovery-related log entry is produced.
+	 * Listeners (such as a debug bridge) can forward these to IChatDebugService.
+	 */
+	readonly onDidLogDiscovery: Event<IPromptDiscoveryLogEntry>;
 }

@@ -12,7 +12,7 @@ import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
-import { readUnifiedConfig } from '../utils/configuration';
+import { readUnifiedConfig, unifiedConfigSection } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import FileConfigurationManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
@@ -174,7 +174,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				return false;
 			}
 			case alwaysItem: {
-				const config = vscode.workspace.getConfiguration('js/ts');
+				const config = vscode.workspace.getConfiguration(unifiedConfigSection);
 				config.update(
 					updateImportsOnFileMoveName,
 					UpdateImportsOnFileMoveSetting.Always,
@@ -182,7 +182,7 @@ class UpdateImportsOnFileRenameHandler extends Disposable {
 				return true;
 			}
 			case neverItem: {
-				const config = vscode.workspace.getConfiguration('js/ts');
+				const config = vscode.workspace.getConfiguration(unifiedConfigSection);
 				config.update(
 					updateImportsOnFileMoveName,
 					UpdateImportsOnFileMoveSetting.Never,

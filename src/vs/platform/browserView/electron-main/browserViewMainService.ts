@@ -17,6 +17,8 @@ import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { BrowserSession } from './browserSession.js';
 import { IProductService } from '../../product/common/productService.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
+import { logBrowserOpen } from '../common/browserViewTelemetry.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -50,7 +52,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -161,6 +164,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 		// Create the browser view (fires onTargetCreated)
 		const view = this.createBrowserView(targetId, browserSession);
+
+		logBrowserOpen(this.telemetryService, 'cdpCreated');
 
 		// Request the workbench to open the editor
 		this.windowsMainService.sendToFocused('vscode:runAction', {
@@ -273,6 +278,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidClose;
 	}
 
+	async getState(id: string): Promise<IBrowserViewState> {
+		return this._getBrowserView(id).getState();
+	}
+
 	async destroyBrowserView(id: string): Promise<void> {
 		return this.browserViews.deleteAndDispose(id);
 	}
@@ -323,10 +332,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async dispatchKeyEvent(id: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
 		return this._getBrowserView(id).dispatchKeyEvent(keyEvent);
-	}
-
-	async setZoomFactor(id: string, zoomFactor: number): Promise<void> {
-		return this._getBrowserView(id).setZoomFactor(zoomFactor);
 	}
 
 	async focus(id: string): Promise<void> {

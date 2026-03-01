@@ -26,6 +26,7 @@ export const AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID = 'workbench.input.aiCu
  */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
+	ToggleDebug: 'aiCustomization.toggleDebugPanel',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',
 	CreateNewInstructions: 'aiCustomization.createNewInstructions',
@@ -38,7 +39,7 @@ export const AICustomizationManagementCommands = {
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR = new RawContextKey<boolean>(
 	'aiCustomizationManagementEditorFocused',
 	false,
-	localize('aiCustomizationManagementEditorFocused', "Whether the AI Customizations editor is focused")
+	localize('aiCustomizationManagementEditorFocused', "Whether the Chat Customizations editor is focused")
 );
 
 /**
@@ -47,7 +48,7 @@ export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR = new RawContextKey<bool
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION = new RawContextKey<string>(
 	'aiCustomizationManagementSection',
 	AICustomizationManagementSection.Agents,
-	localize('aiCustomizationManagementSection', "The currently selected section in the AI Customizations editor")
+	localize('aiCustomizationManagementSection', "The currently selected section in the Chat Customizations editor")
 );
 
 /**

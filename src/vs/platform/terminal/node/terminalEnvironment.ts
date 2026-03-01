@@ -18,15 +18,7 @@ import { MergedEnvironmentVariableCollection } from '../common/environmentVariab
 import { chmod, realpathSync, mkdirSync } from 'fs';
 import { promisify } from 'util';
 import { isString, SingleOrMany } from '../../../base/common/types.js';
-
-export function getWindowsBuildNumber(): number {
-	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
-	let buildNumber: number = 0;
-	if (osVersion && osVersion.length === 4) {
-		buildNumber = parseInt(osVersion[3]);
-	}
-	return buildNumber;
-}
+import { getWindowsBuildNumberAsync } from '../../../base/node/windowsVersion.js';
 
 export interface IShellIntegrationConfigInjection {
 	readonly type: 'injection';
@@ -83,7 +75,8 @@ export async function getShellIntegrationInjection(
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.IgnoreShellIntegrationFlag };
 	}
 	// Shell integration requires Windows 10 build 18309+ (ConPTY support)
-	if (isWindows && getWindowsBuildNumber() < 18309) {
+	const windowsBuildNumber = isWindows ? await getWindowsBuildNumberAsync() : 0;
+	if (isWindows && windowsBuildNumber < 18309) {
 		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedWindowsBuild };
 	}
 
@@ -103,7 +96,7 @@ export async function getShellIntegrationInjection(
 	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
 	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
 		if (isWindows) {
-			const enableWindowsEnvReporting = options.windowsUseConptyDll || getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
+			const enableWindowsEnvReporting = options.windowsUseConptyDll || windowsBuildNumber >= 22631 && shell !== 'bash.exe';
 			if (enableWindowsEnvReporting) {
 				envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 			}

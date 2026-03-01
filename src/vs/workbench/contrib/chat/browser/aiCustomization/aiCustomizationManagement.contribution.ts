@@ -6,6 +6,7 @@
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -22,6 +23,7 @@ import {
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
+	AICustomizationManagementSection,
 } from './aiCustomizationManagement.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -30,6 +32,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -42,7 +45,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		AICustomizationManagementEditor,
 		AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
-		localize('aiCustomizationManagementEditor', "AI Customizations Editor")
+		localize('aiCustomizationManagementEditor', "Chat Customizations Editor")
 	),
 	[
 		// Note: Using the class directly since we use a singleton pattern
@@ -193,8 +196,8 @@ registerAction2(class extends Action2 {
 		const fileName = basename(uri);
 		const storage = extractStorage(context);
 
-		// Extension files cannot be deleted
-		if (storage === PromptsStorage.extension) {
+		// Extension and plugin files cannot be deleted
+		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin) {
 			await dialogService.info(
 				localize('cannotDeleteExtension', "Cannot Delete Extension File"),
 				localize('cannotDeleteExtensionDetail', "Files provided by extensions cannot be deleted. You can disable the extension if you no longer want to use this customization.")
@@ -268,17 +271,42 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			constructor() {
 				super({
 					id: AICustomizationManagementCommands.OpenEditor,
-					title: localize2('openAICustomizations', "Open AI Customizations"),
+					title: localize2('openAICustomizations', "Open Customizations (Preview)"),
+					shortTitle: localize2('aiCustomizations', "Customizations (Preview)"),
 					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+					f1: true,
+				});
+			}
+
+			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const input = AICustomizationManagementEditorInput.getOrCreate();
+				const pane = await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+				if (section && pane instanceof AICustomizationManagementEditor) {
+					pane.selectSectionById(section);
+				}
+			}
+		}));
+
+		// Toggle Debug Panel in AI Customizations Editor
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.ToggleDebug,
+					title: localize2('toggleDebugPanel', "Customizations Debug"),
+					category: Categories.Developer,
 					f1: true,
 				});
 			}
 
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const editorService = accessor.get(IEditorService);
-				const input = AICustomizationManagementEditorInput.getOrCreate();
-				await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+				const pane = editorService.activeEditorPane;
+				if (pane instanceof AICustomizationManagementEditor) {
+					const report = await (pane as AICustomizationManagementEditor).generateDebugReport();
+					await editorService.openEditor({ resource: undefined, contents: report, options: { pinned: false } });
+				}
 			}
 		}));
 	}

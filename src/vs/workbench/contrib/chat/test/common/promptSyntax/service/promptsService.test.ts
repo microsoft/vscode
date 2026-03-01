@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
-import { observableValue } from '../../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { relativePath } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -53,7 +53,7 @@ import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { IAgentPluginService } from '../../../../common/plugins/agentPluginService.js';
+import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -63,6 +63,8 @@ suite('PromptsService', () => {
 	let workspaceContextService: TestContextService;
 	let testConfigService: TestConfigurationService;
 	let fileService: IFileService;
+	let testPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
+	let testAllPluginsObservable: ISettableObservable<readonly IAgentPlugin[]>;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -164,9 +166,12 @@ suite('PromptsService', () => {
 
 		instaService.stub(IContextKeyService, new MockContextKeyService());
 
+		testPluginsObservable = observableValue<readonly IAgentPlugin[]>('testPlugins', []);
+		testAllPluginsObservable = observableValue<readonly IAgentPlugin[]>('testAllPlugins', []);
+
 		instaService.stub(IAgentPluginService, {
-			plugins: observableValue('testPlugins', []),
-			allPlugins: observableValue('testAllPlugins', []),
+			plugins: testPluginsObservable,
+			allPlugins: testAllPluginsObservable,
 			setPluginEnabled: () => { },
 		});
 
@@ -483,7 +488,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -654,7 +659,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -728,7 +733,7 @@ suite('PromptsService', () => {
 			]);
 
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, undefined);
 			const context = new ChatRequestVariableSet();
 			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
 
@@ -1331,6 +1336,60 @@ suite('PromptsService', () => {
 				expected,
 				'Must get custom agents with agents, skills, and instructions attributes.',
 			);
+		});
+
+		test('header with infer: false sets agentInvocable to false', async () => {
+			const rootFolderName = 'custom-agents-infer-false';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-false.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: false.\'',
+						'infer: false',
+						'---',
+						'I should not be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-true.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: true.\'',
+						'infer: true',
+						'---',
+						'I should be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-no-infer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent without infer.\'',
+						'---',
+						'I should default to being invocable by the model.',
+					]
+				}
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+
+			const inferFalseAgent = result.find(a => a.name === 'agent-infer-false');
+			assert.ok(inferFalseAgent, 'Should find agent with infer: false');
+			assert.strictEqual(inferFalseAgent.visibility.agentInvocable, false, 'infer: false should set agentInvocable to false');
+
+			const inferTrueAgent = result.find(a => a.name === 'agent-infer-true');
+			assert.ok(inferTrueAgent, 'Should find agent with infer: true');
+			assert.strictEqual(inferTrueAgent.visibility.agentInvocable, true, 'infer: true should set agentInvocable to true');
+
+			const noInferAgent = result.find(a => a.name === 'agent-no-infer');
+			assert.ok(noInferAgent, 'Should find agent without infer');
+			assert.strictEqual(noInferAgent.visibility.agentInvocable, true, 'missing infer should default agentInvocable to true');
 		});
 
 		test('agents from user data folder', async () => {
@@ -3434,6 +3493,30 @@ suite('PromptsService', () => {
 	});
 
 	suite('hooks', () => {
+		const createTestPlugin = (path: string, initialHooks: readonly IAgentPluginHook[]): { plugin: IAgentPlugin; hooks: ISettableObservable<readonly IAgentPluginHook[]> } => {
+			const enabled = observableValue<boolean>('testPluginEnabled', true);
+			const hooks = observableValue<readonly IAgentPluginHook[]>('testPluginHooks', initialHooks);
+			const commands = observableValue<readonly IAgentPluginCommand[]>('testPluginCommands', []);
+			const skills = observableValue<readonly IAgentPluginSkill[]>('testPluginSkills', []);
+			const agents = observableValue<readonly IAgentPluginAgent[]>('testPluginAgents', []);
+			const mcpServerDefinitions = observableValue<readonly IAgentPluginMcpServerDefinition[]>('testPluginMcpServerDefinitions', []);
+
+			return {
+				plugin: {
+					uri: URI.file(path),
+					enabled,
+					setEnabled: () => { },
+					remove: () => { },
+					hooks,
+					commands,
+					skills,
+					agents,
+					mcpServerDefinitions,
+				},
+				hooks,
+			};
+		};
+
 		test('multi-root workspace resolves cwd to per-hook-file workspace folder', async function () {
 			const folder1Uri = URI.file('/workspace-a');
 			const folder2Uri = URI.file('/workspace-b');
@@ -3483,6 +3566,56 @@ suite('PromptsService', () => {
 
 			assert.strictEqual(hookA.cwd?.path, folder1Uri.path, 'Hook from folder-a should have cwd pointing to workspace-a');
 			assert.strictEqual(hookB.cwd?.path, folder2Uri.path, 'Hook from folder-b should have cwd pointing to workspace-b');
+		});
+
+		test('includes hooks from agent plugins', async function () {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, {});
+
+			const { plugin } = createTestPlugin('/plugins/test-plugin', [{
+				type: HookType.PreToolUse,
+				originalId: 'plugin-pre-tool-use',
+				hooks: [{ type: 'command', command: 'echo from-plugin' }],
+			}]);
+
+			testPluginsObservable.set([plugin], undefined);
+			testAllPluginsObservable.set([plugin], undefined);
+
+			const result = await service.getHooks(CancellationToken.None);
+			assert.ok(result, 'Expected hooks result');
+
+			assert.deepStrictEqual(result.hooks[HookType.PreToolUse], [{
+				type: 'command',
+				command: 'echo from-plugin',
+			}], 'Expected plugin hooks to be included in computed hooks');
+		});
+
+		test('recomputes hooks when agent plugin hooks change', async function () {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CHAT_HOOKS, true);
+			testConfigService.setUserConfiguration(PromptsConfig.HOOKS_LOCATION_KEY, {});
+
+			const { plugin, hooks } = createTestPlugin('/plugins/test-plugin', [{
+				type: HookType.PreToolUse,
+				originalId: 'plugin-pre-tool-use',
+				hooks: [{ type: 'command', command: 'echo before' }],
+			}]);
+
+			testPluginsObservable.set([plugin], undefined);
+			testAllPluginsObservable.set([plugin], undefined);
+
+			const before = await service.getHooks(CancellationToken.None);
+			assert.ok(before, 'Expected hooks result before plugin update');
+			assert.deepStrictEqual(before.hooks[HookType.PreToolUse], [{ type: 'command', command: 'echo before' }]);
+
+			hooks.set([{
+				type: HookType.PreToolUse,
+				originalId: 'plugin-pre-tool-use',
+				hooks: [{ type: 'command', command: 'echo after' }],
+			}], undefined);
+
+			const after = await service.getHooks(CancellationToken.None);
+			assert.ok(after, 'Expected hooks result after plugin update');
+			assert.deepStrictEqual(after.hooks[HookType.PreToolUse], [{ type: 'command', command: 'echo after' }]);
 		});
 	});
 });

@@ -263,6 +263,7 @@ export interface IChatWidgetViewOptions {
 	enableWorkingSet?: 'explicit' | 'implicit';
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
+	inputEditorMinLines?: number;
 	defaultMode?: IChatMode;
 	/**
 	 * Optional delegate for the session target picker.
@@ -343,6 +344,7 @@ export interface IChatWidget {
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
+	readonly onDidChangeActiveInputEditor: Event<void>;
 	readonly onDidFocus: Event<void>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
