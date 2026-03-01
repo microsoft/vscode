@@ -58,7 +58,7 @@ parts:
       - -usr/share/lintian
       - -usr/share/man
     override-build: |
-      craftctl default
+      if command -v craftctl >/dev/null 2>&1; then craftctl default; else snapcraftctl build; fi
       patchelf --force-rpath --set-rpath '$ORIGIN/../../lib/@@DEB_ARCHITECTURE@@:$ORIGIN:/snap/core22/current/lib/@@DEB_ARCHITECTURE@@' $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome_crashpad_handler
       chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
   cleanup:
