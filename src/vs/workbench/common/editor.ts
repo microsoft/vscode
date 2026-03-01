@@ -855,7 +855,7 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor should be revealed when being
 	 * opened if it is already opened in any editor group.
 	 */
-	ShouldReveal = 1 << 10
+	ForceReveal = 1 << 10
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
