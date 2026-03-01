@@ -1,0 +1,35 @@
+{
+	"name": "theme-mia",
+	"displayName": "Mia Three Universe Theme",
+	"description": "Three-universe dark/light theme and file icon theme for Mia Code",
+	"version": "0.1.0",
+	"publisher": "mia",
+	"license": "MIT",
+	"engines": {
+		"vscode": "^1.96.0"
+	},
+	"categories": [
+		"Themes"
+	],
+	"contributes": {
+		"themes": [
+			{
+				"label": "Mia Three Universe Dark",
+				"uiTheme": "vs-dark",
+				"path": "./themes/dark.json"
+			},
+			{
+				"label": "Mia Three Universe Light",
+				"uiTheme": "vs",
+				"path": "./themes/light.json"
+			}
+		],
+		"iconThemes": [
+			{
+				"id": "mia-icons",
+				"label": "Mia Icons",
+				"path": "./icons/mia-icon-theme.json"
+			}
+		]
+	}
+}

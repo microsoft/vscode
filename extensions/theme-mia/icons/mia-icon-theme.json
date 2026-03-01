@@ -1,0 +1,46 @@
+{
+	"hidesExplorerArrows": false,
+	"iconDefinitions": {
+		"_stc": {
+			"iconPath": "./stc.svg"
+		},
+		"_ncp": {
+			"iconPath": "./ncp.svg"
+		},
+		"_beat": {
+			"iconPath": "./beat.svg"
+		},
+		"_mia_config": {
+			"iconPath": "./mia-config.svg"
+		},
+		"_spec": {
+			"iconPath": "./spec.svg"
+		},
+		"_smdf": {
+			"iconPath": "./smdf.svg"
+		}
+	},
+	"folderNames": {
+		".stc": "_stc",
+		".mia": "_mia_config"
+	},
+	"folderNamesExpanded": {
+		".stc": "_stc",
+		".mia": "_mia_config"
+	},
+	"fileExtensions": {
+		"smdf.json": "_smdf"
+	},
+	"fileNames": {},
+	"languageIds": {},
+	"light": {
+		"folderNames": {
+			".stc": "_stc",
+			".mia": "_mia_config"
+		},
+		"fileExtensions": {
+			"smdf.json": "_smdf"
+		}
+	},
+	"highContrast": {}
+}
