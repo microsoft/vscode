@@ -1,0 +1,35 @@
+{
+	"name": "mia-stc-charts",
+	"displayName": "Mia STC Charts",
+	"description": "Structural Tension Chart management for Mia Code",
+	"version": "0.1.0",
+	"publisher": "mia",
+	"license": "MIT",
+	"engines": { "vscode": "^1.96.0" },
+	"activationEvents": ["onView:mia.chartExplorer", "onCommand:mia.createChart"],
+	"main": "./src/extension.js",
+	"extensionDependencies": ["mia.three-universe"],
+	"contributes": {
+		"commands": [
+			{
+				"command": "mia.stcCharts.review",
+				"title": "Mia: Review STC Chart"
+			},
+			{
+				"command": "mia.stcCharts.archive",
+				"title": "Mia: Archive STC Chart"
+			},
+			{
+				"command": "mia.stcCharts.export",
+				"title": "Mia: Export STC Chart"
+			}
+		],
+		"menus": {
+			"view/item/context": [
+				{ "command": "mia.stcCharts.review", "when": "viewItem == stcChart", "group": "navigation" },
+				{ "command": "mia.stcCharts.archive", "when": "viewItem == stcChart" },
+				{ "command": "mia.stcCharts.export", "when": "viewItem == stcChart" }
+			]
+		}
+	}
+}
