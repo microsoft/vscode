@@ -2394,7 +2394,7 @@ suite('FindModel', () => {
 
 			const findState = disposables.add(new FindReplaceState());
 			findState.change({ searchString: 'hello' }, false);
-			const findModel = disposables.add(new FindModelBoundToEditorModel(editor, findState));
+			disposables.add(new FindModelBoundToEditorModel(editor, findState));
 
 			assert.strictEqual(findState.matchesCount, 1001);
 			// With cursor selecting 'hello' at line 900, matchesPosition should be 900
