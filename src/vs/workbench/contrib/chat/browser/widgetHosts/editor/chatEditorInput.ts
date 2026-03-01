@@ -108,7 +108,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
+		return super.capabilities | EditorInputCapabilities.CanDropIntoEditor;
 	}
 
 	override copy(): EditorInput {

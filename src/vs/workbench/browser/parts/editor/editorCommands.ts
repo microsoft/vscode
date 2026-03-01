@@ -755,7 +755,7 @@ export function splitEditor(editorGroupsService: IEditorGroupsService, direction
 	for (const editorToCopy of editors) {
 
 		// Split editor (if it can be split)
-		if (editorToCopy && (!editorToCopy.hasCapability(EditorInputCapabilities.Singleton) || typeof editorToCopy.copy === 'function')) {
+		if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
 			group.copyEditor(editorToCopy, newGroup, { preserveFocus });
 		}
 	}

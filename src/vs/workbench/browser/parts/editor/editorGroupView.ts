@@ -1438,7 +1438,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const keepCopy = internalOptions?.keepCopy;
 
 		// Validate that we can move
-		if (!keepCopy || (editor.hasCapability(EditorInputCapabilities.Singleton) && typeof editor.copy !== 'function' /* singleton editors will always move unless they can copy() */)) {
+		if (!keepCopy || editor.hasCapability(EditorInputCapabilities.Singleton) /* singleton editors will always move */) {
 			const canMoveVeto = editor.canMove(this.id, target.id);
 			if (typeof canMoveVeto === 'string') {
 				this.dialogService.error(canMoveVeto, localize('moveErrorDetails', "Try saving or reverting the editor first and then try again."));
