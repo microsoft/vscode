@@ -107,6 +107,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			// Absolute paths (parsed as-is)
 			test('absolute path - /tmp - allow', () => t('echo hello > /tmp/file.txt', 'outsideWorkspace', true, 1));
 			test('absolute path - /private/tmp - allow', () => t('echo hello > /private/tmp/file.txt', 'outsideWorkspace', true, 1));
+			test('absolute path - /tmp traversal - block', () => t('echo hello > /tmp/../etc/config', 'outsideWorkspace', false, 1));
+			test('absolute path - /private/tmp traversal - block', () => t('echo hello > /private/tmp/../../../etc/passwd', 'outsideWorkspace', false, 1));
 			test('absolute path - /etc - block', () => t('echo hello > /etc/config.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
@@ -117,6 +119,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('no workspace folders - /dev/null allowed', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1, []));
 			test('no workspace folders - /tmp allowed', () => t('echo hello > /tmp/file.txt', 'outsideWorkspace', true, 1, []));
 			test('no workspace folders - /private/tmp allowed', () => t('echo hello > /private/tmp/file.txt', 'outsideWorkspace', true, 1, []));
+			test('no workspace folders - /tmp traversal - block', () => t('echo hello > /tmp/../etc/config', 'outsideWorkspace', false, 1, []));
+			test('no workspace folders - /tmp with variable - block', () => t('echo hello > /tmp/$FOO/out.txt', 'outsideWorkspace', false, 1, []));
 			test('no redirections - allow', () => t('echo hello', 'outsideWorkspace', true, 0));
 			test('variable in filename - block', () => t('echo hello > $HOME/file.txt', 'outsideWorkspace', false, 1));
 			test('command substitution - block', () => t('echo hello > $(pwd)/file.txt', 'outsideWorkspace', false, 1));
@@ -177,6 +181,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('tee to workspace - allow', () => t('echo hello | tee file.txt', 'outsideWorkspace', true, 1));
 			test('tee to outside workspace - block', () => t('echo hello | tee /etc/file.txt', 'outsideWorkspace', false, 1));
 			test('tee append to /tmp - allow', () => t('echo hello | tee -a /tmp/file.txt', 'outsideWorkspace', true, 1));
+			test('tee /tmp traversal - block', () => t('echo hello | tee /tmp/../etc/config', 'outsideWorkspace', false, 1));
+			test('tee with -- treats dash-args as files', () => t('echo hello | tee -- -file.txt', 'outsideWorkspace', true, 1));
 		});
 
 		suite('no cwd provided', () => {
@@ -208,7 +214,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 
 			// Absolute paths are converted to URIs and checked normally
 			test('absolute path inside workspace - outsideWorkspace setting - allow', () => tNoCwd('echo hello > /workspace/project/file.txt', 'outsideWorkspace', true, 1));
-			test('absolute path outside workspace - outsideWorkspace setting - block', () => tNoCwd('echo hello > /tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('absolute path /tmp - outsideWorkspace setting - allow', () => tNoCwd('echo hello > /tmp/file.txt', 'outsideWorkspace', true, 1));
+			test('absolute path outside workspace - outsideWorkspace setting - block', () => tNoCwd('echo hello > /etc/config.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - all setting - block', () => tNoCwd('echo hello > /tmp/file.txt', 'all', false, 1));
 		});
 	});

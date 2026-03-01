@@ -116,6 +116,18 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 			: rawFileWrite;
 	}
 
+	/**
+	 * Checks whether a file URI points to a safe temporary directory.
+	 * Normalizes the path first to prevent traversal bypasses like `/tmp/../etc/config`.
+	 */
+	private _isSafeTmpPath(os: OperatingSystem, fileUri: URI): boolean {
+		if (os === OperatingSystem.Windows) {
+			return false;
+		}
+		const normalized = posix.normalize(fileUri.path);
+		return normalized.startsWith('/tmp/') || normalized.startsWith('/private/tmp/');
+	}
+
 	private _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[]): ICommandLineAnalyzerResult {
 		let isAutoApproveAllowed = true;
 		if (fileWrites.length > 0) {
@@ -152,7 +164,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								break;
 							}
 							// Allow writes to /tmp (and /private/tmp on macOS)
-							if (options.os !== OperatingSystem.Windows && (fileUri.path.startsWith('/tmp/') || fileUri.path.startsWith('/private/tmp/'))) {
+							if (this._isSafeTmpPath(options.os, fileUri)) {
 								this._log('File write to tmp directory allowed', fileUri.toString());
 								continue;
 							}
@@ -172,9 +184,13 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							if (fw === nullDevice) {
 								return true;
 							}
-							if (options.os !== OperatingSystem.Windows) {
-								const fileUri = URI.isUri(fw) ? fw : isString(fw) ? URI.file(fw) : undefined;
-								if (fileUri && (fileUri.path.startsWith('/tmp/') || fileUri.path.startsWith('/private/tmp/'))) {
+							const fileUri = URI.isUri(fw) ? fw : isString(fw) ? URI.file(fw) : undefined;
+							if (fileUri) {
+								// Block paths likely containing variables or sub-commands
+								if (fileUri.fsPath.match(/[$\(\){}`]/)) {
+									return false;
+								}
+								if (this._isSafeTmpPath(options.os, fileUri)) {
 									return true;
 								}
 							}

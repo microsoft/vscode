@@ -40,9 +40,24 @@ export class TeeFileWriteParser implements ICommandFileWriteParser {
 
 		const files: string[] = [];
 		let i = 1; // Skip 'tee'
+		let endOfOptions = false;
 
 		while (i < tokens.length) {
 			const token = tokens[i];
+
+			// After --, all remaining tokens are file targets
+			if (endOfOptions) {
+				files.push(stripQuotes(token));
+				i++;
+				continue;
+			}
+
+			// End-of-options marker
+			if (token === '--') {
+				endOfOptions = true;
+				i++;
+				continue;
+			}
 
 			// Long options
 			if (token.startsWith('--')) {
