@@ -151,7 +151,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 								this._log('File write blocked due to likely containing a variable or sub-command', fileUri.toString());
 								break;
 							}
-
+							// Allow writes to /tmp (and /private/tmp on macOS)
+							if (options.os !== OperatingSystem.Windows && (fileUri.path.startsWith('/tmp/') || fileUri.path.startsWith('/private/tmp/'))) {
+								this._log('File write to tmp directory allowed', fileUri.toString());
+								continue;
+							}
 							const isInsideWorkspace = workspaceFolders.some(folder =>
 								folder.uri.scheme === fileUri.scheme &&
 								(fileUri.path.startsWith(folder.uri.path + '/') || fileUri.path === folder.uri.path)
@@ -163,9 +167,20 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							}
 						}
 					} else {
-						// No workspace folders, allow safe null device paths even without workspace
-						const hasOnlyNullDevices = fileWrites.every(fw => fw === nullDevice);
-						if (!hasOnlyNullDevices) {
+						// No workspace folders, allow safe null device and tmp paths even without workspace
+						const hasOnlySafeTargets = fileWrites.every(fw => {
+							if (fw === nullDevice) {
+								return true;
+							}
+							if (options.os !== OperatingSystem.Windows) {
+								const fileUri = URI.isUri(fw) ? fw : isString(fw) ? URI.file(fw) : undefined;
+								if (fileUri && (fileUri.path.startsWith('/tmp/') || fileUri.path.startsWith('/private/tmp/'))) {
+									return true;
+								}
+							}
+							return false;
+						});
+						if (!hasOnlySafeTargets) {
 							isAutoApproveAllowed = false;
 							this._log('File writes blocked - no workspace folders');
 						}

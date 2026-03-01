@@ -105,7 +105,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('relative path - grandparent directory - block', () => t('echo hello > ../../file.txt', 'outsideWorkspace', false, 1));
 
 			// Absolute paths (parsed as-is)
-			test('absolute path - /tmp - block', () => t('echo hello > /tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('absolute path - /tmp - allow', () => t('echo hello > /tmp/file.txt', 'outsideWorkspace', true, 1));
+			test('absolute path - /private/tmp - allow', () => t('echo hello > /private/tmp/file.txt', 'outsideWorkspace', true, 1));
 			test('absolute path - /etc - block', () => t('echo hello > /etc/config.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
@@ -114,6 +115,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			// Special cases
 			test('no workspace folders - block', () => t('echo hello > file.txt', 'outsideWorkspace', false, 1, []));
 			test('no workspace folders - /dev/null allowed', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1, []));
+			test('no workspace folders - /tmp allowed', () => t('echo hello > /tmp/file.txt', 'outsideWorkspace', true, 1, []));
+			test('no workspace folders - /private/tmp allowed', () => t('echo hello > /private/tmp/file.txt', 'outsideWorkspace', true, 1, []));
 			test('no redirections - allow', () => t('echo hello', 'outsideWorkspace', true, 0));
 			test('variable in filename - block', () => t('echo hello > $HOME/file.txt', 'outsideWorkspace', false, 1));
 			test('command substitution - block', () => t('echo hello > $(pwd)/file.txt', 'outsideWorkspace', false, 1));
@@ -129,7 +132,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 
 		suite('complex scenarios', () => {
 			test('pipeline with redirection inside workspace', () => t('cat file.txt | grep "test" > output.txt', 'outsideWorkspace', true, 1));
-			test('multiple redirections mixed inside/outside', () => t('echo hello > file.txt && echo world > /tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('multiple redirections mixed inside/outside', () => t('echo hello > file.txt && echo world > /tmp/file.txt', 'outsideWorkspace', true, 1));
 			test('here-document', () => t('cat > file.txt << EOF\nhello\nEOF', 'outsideWorkspace', true, 1));
 			test('error output to /dev/null - allow', () => t('cat missing.txt 2> /dev/null', 'outsideWorkspace', true, 1));
 		});
@@ -153,9 +156,9 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			test('sed -i multiple files inside workspace - allow', () => t('sed -i \'s/foo/bar/\' file1.txt file2.txt', 'outsideWorkspace', true, 1));
 
 			// Outside workspace
-			test('sed -i outside workspace - block', () => t('sed -i \'s/foo/bar/\' /tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('sed -i outside workspace /tmp - allow', () => t('sed -i \'s/foo/bar/\' /tmp/file.txt', 'outsideWorkspace', true, 1));
 			test('sed -i absolute path outside workspace - block', () => t('sed -i \'s/foo/bar/\' /etc/config', 'outsideWorkspace', false, 1));
-			test('sed -i mixed inside/outside - block', () => t('sed -i \'s/foo/bar/\' file.txt /tmp/other.txt', 'outsideWorkspace', false, 1));
+			test('sed -i mixed inside/outside /tmp - allow', () => t('sed -i \'s/foo/bar/\' file.txt /tmp/other.txt', 'outsideWorkspace', true, 1));
 
 			// With blockDetectedFileWrites: all
 			test('sed -i with all setting - block', () => t('sed -i \'s/foo/bar/\' file.txt', 'all', false, 1));
@@ -166,6 +169,14 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			// Without -i flag (should not detect as file write)
 			test('sed without -i - no file write detected', () => t('sed \'s/foo/bar/\' file.txt', 'outsideWorkspace', true, 0));
 			test('sed with pipe - no file write detected', () => t('cat file.txt | sed \'s/foo/bar/\'', 'outsideWorkspace', true, 0));
+		});
+
+		suite('tee', () => {
+			test('tee to /tmp - allow', () => t('echo hello | tee /tmp/file.txt', 'outsideWorkspace', true, 1));
+			test('tee to /private/tmp - allow', () => t('echo hello | tee /private/tmp/file.txt', 'outsideWorkspace', true, 1));
+			test('tee to workspace - allow', () => t('echo hello | tee file.txt', 'outsideWorkspace', true, 1));
+			test('tee to outside workspace - block', () => t('echo hello | tee /etc/file.txt', 'outsideWorkspace', false, 1));
+			test('tee append to /tmp - allow', () => t('echo hello | tee -a /tmp/file.txt', 'outsideWorkspace', true, 1));
 		});
 
 		suite('no cwd provided', () => {
@@ -318,7 +329,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			strictEqual(combinedDisclaimers.includes(expectedContains), true, `Expected disclaimer to contain "${expectedContains}" but got: ${combinedDisclaimers}`);
 		}
 
-		test('blocked disclaimer - absolute path outside workspace', () => checkDisclaimer('echo hello > /tmp/file.txt', 'outsideWorkspace', 'cannot be auto approved'));
+		test('blocked disclaimer - absolute path outside workspace', () => checkDisclaimer('echo hello > /etc/file.txt', 'outsideWorkspace', 'cannot be auto approved'));
 		test('allowed disclaimer - relative path inside workspace', () => checkDisclaimer('echo hello > file.txt', 'outsideWorkspace', 'File write operations detected'));
 		test('blocked disclaimer - all setting blocks everything', () => checkDisclaimer('echo hello > file.txt', 'all', 'cannot be auto approved'));
 	});
@@ -350,7 +361,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 
 		test('relative path in same workspace - allow', () => t(workspace1, 'echo hello > file.txt', true, 1));
 		test('absolute path to other workspace - allow', () => t(workspace1, 'echo hello > /workspace/project2/file.txt', true, 1));
-		test('absolute path outside all workspaces - block', () => t(workspace1, 'echo hello > /tmp/file.txt', false, 1));
+		test('absolute path outside all workspaces - block', () => t(workspace1, 'echo hello > /etc/file.txt', false, 1));
 		test('relative path to parent of workspace - block', () => t(workspace1, 'echo hello > ../file.txt', false, 1));
 	});
 
@@ -379,7 +390,7 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		test('file scheme - relative path inside workspace', () => t('file', undefined, 'file.txt', true));
 		test('vscode-remote scheme - relative path inside workspace', () => t('vscode-remote', 'wsl+debian', 'file.txt', true));
 		test('vscode-remote scheme - absolute path inside workspace', () => t('vscode-remote', 'wsl+debian', '/workspace/project/file.txt', true));
-		test('vscode-remote scheme - absolute path outside workspace', () => t('vscode-remote', 'wsl+debian', '/tmp/file.txt', false));
+		test('vscode-remote scheme - absolute path outside workspace', () => t('vscode-remote', 'wsl+debian', '/etc/file.txt', false));
 		test('vscode-remote scheme - absolute path to home directory outside workspace', () => t('vscode-remote', 'wsl+debian', '/home/user/file.txt', false));
 	});
 
@@ -410,13 +421,13 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		// Double-quoted paths
 		test('double-quoted relative path inside workspace - allow', () => t('echo hello > "file.txt"', 'outsideWorkspace', true, 1));
 		test('double-quoted relative path with spaces inside workspace - allow', () => t('echo hello > "file with spaces.txt"', 'outsideWorkspace', true, 1));
-		test('double-quoted absolute path outside workspace - block', () => t('echo hello > "/tmp/file.txt"', 'outsideWorkspace', false, 1));
+		test('double-quoted absolute path outside workspace - block', () => t('echo hello > "/etc/file.txt"', 'outsideWorkspace', false, 1));
 		test('double-quoted absolute path to home - block', () => t('echo hello > "/home/user/foo.txt"', 'outsideWorkspace', false, 1));
 
 		// Single-quoted paths
 		test('single-quoted relative path inside workspace - allow', () => t('echo hello > \'file.txt\'', 'outsideWorkspace', true, 1));
 		test('single-quoted relative path with spaces inside workspace - allow', () => t('echo hello > \'file with spaces.txt\'', 'outsideWorkspace', true, 1));
-		test('single-quoted absolute path outside workspace - block', () => t('echo hello > \'/tmp/file.txt\'', 'outsideWorkspace', false, 1));
+		test('single-quoted absolute path outside workspace - block', () => t('echo hello > \'/etc/file.txt\'', 'outsideWorkspace', false, 1));
 		test('single-quoted absolute path to home - block', () => t('echo hello > \'/home/user/foo.txt\'', 'outsideWorkspace', false, 1));
 
 		// Note: Backticks in bash are command substitution, not quoting, so no tests for backtick-quoted paths
