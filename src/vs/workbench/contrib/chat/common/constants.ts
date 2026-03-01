@@ -52,7 +52,6 @@ export enum ChatConfiguration {
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 	ExitAfterDelegation = 'chat.exitAfterDelegation',
-	AgentsControlClickBehavior = 'chat.agentsControl.clickBehavior',
 	ExplainChangesEnabled = 'chat.editing.explainChanges.enabled',
 	GrowthNotificationEnabled = 'chat.growthNotification.enabled',
 	ChatCustomizationMenuEnabled = 'chat.customizationsMenu.enabled',
@@ -99,11 +98,6 @@ export enum ChatNotificationMode {
 	Off = 'off',
 	WindowNotFocused = 'windowNotFocused',
 	Always = 'always',
-}
-
-export enum AgentsControlClickBehavior {
-	Default = 'default',
-	Cycle = 'cycle',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
