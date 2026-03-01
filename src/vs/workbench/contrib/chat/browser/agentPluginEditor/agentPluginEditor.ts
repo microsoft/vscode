@@ -3,41 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/agentPluginEditor.css';
-import { $, Dimension, append, setParentFlowTo, reset, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
+import { $, Dimension, EventType, addDisposableListener, append, reset, setParentFlowTo } from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../../base/common/actions.js';
 import * as arrays from '../../../../../base/common/arrays.js';
-import { autorun } from '../../../../../base/common/observable.js';
 import { Cache, CacheResult } from '../../../../../base/common/cache.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../../base/common/network.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { generateTokensCSSForColorMap } from '../../../../../editor/common/languages/supports/tokenization.js';
 import { localize } from '../../../../../nls.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IRequestService, asText } from '../../../../../platform/request/common/request.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
-import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../../markdown/browser/markdownDocumentRenderer.js';
-import { IWebview, IWebviewService } from '../../../webview/browser/webview.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
-import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
-import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginsView.js';
+import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../../markdown/browser/markdownDocumentRenderer.js';
+import { IWebview, IWebviewService } from '../../../webview/browser/webview.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { IRequestService, asText } from '../../../../../platform/request/common/request.js';
+import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginsView.js';
+import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
+import './media/agentPluginEditor.css';
 
 interface IAgentPluginEditorTemplate {
 	name: HTMLElement;
@@ -558,15 +558,12 @@ class DisablePluginEditorAction extends Action {
 class UninstallPluginEditorAction extends Action {
 	static readonly ID = 'agentPlugin.editor.uninstall';
 
-	constructor(
-		private readonly plugin: IAgentPlugin,
-		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
-	) {
+	constructor(private readonly plugin: IAgentPlugin) {
 		super(UninstallPluginEditorAction.ID, localize('uninstall', "Uninstall"), 'extension-action label uninstall');
 	}
 
 	override async run(): Promise<void> {
-		this.pluginInstallService.uninstallPlugin(this.plugin.uri);
+		this.plugin.remove();
 	}
 }
 
