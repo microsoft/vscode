@@ -57,6 +57,7 @@ import './services/extensionManagement/electron-browser/extensionManagementServi
 import './services/mcp/electron-browser/mcpGalleryManifestService.js';
 import './services/mcp/electron-browser/mcpWorkbenchManagementService.js';
 import './services/encryption/electron-browser/encryptionService.js';
+import './services/remoteControl/electron-browser/remoteControlService.js';
 import './services/imageResize/electron-browser/imageResizeService.js';
 import './services/browserElements/electron-browser/browserElementsService.js';
 import './services/secrets/electron-browser/secretStorageService.js';
@@ -178,6 +179,9 @@ import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
 import './contrib/chat/electron-browser/chat.contribution.js';
+
+// Remote Control
+import './contrib/chat/electron-browser/remoteControl/remoteControl.contribution.js';
 import './contrib/inlineChat/electron-browser/inlineChat.contribution.js';
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';

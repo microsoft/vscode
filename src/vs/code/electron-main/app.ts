@@ -35,6 +35,8 @@ import { DiagnosticsMainService, IDiagnosticsMainService } from '../../platform/
 import { DialogMainService, IDialogMainService } from '../../platform/dialogs/electron-main/dialogMainService.js';
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
+import { IRemoteControlMainService, remoteControlIpcChannelName } from '../../platform/remoteControl/common/remoteControl.js';
+import { RemoteControlMainService } from '../../platform/remoteControl/electron-main/remoteControlMainService.js';
 import { NativeBrowserElementsMainService, INativeBrowserElementsMainService } from '../../platform/browserElements/electron-main/nativeBrowserElementsMainService.js';
 import { ipcBrowserViewChannelName } from '../../platform/browserView/common/browserView.js';
 import { ipcBrowserViewGroupChannelName } from '../../platform/browserView/common/browserViewGroup.js';
@@ -1039,6 +1041,9 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
+		// Remote Control
+		services.set(IRemoteControlMainService, new SyncDescriptor(RemoteControlMainService));
+
 		// Browser Elements
 		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
 
@@ -1198,6 +1203,10 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
 		mainProcessElectronServer.registerChannel('encryption', encryptionChannel);
+
+		// Remote Control
+		const remoteControlChannel = ProxyChannel.fromService(accessor.get(IRemoteControlMainService), disposables);
+		mainProcessElectronServer.registerChannel(remoteControlIpcChannelName, remoteControlChannel);
 
 		// Browser Elements
 		const browserElementsChannel = ProxyChannel.fromService(accessor.get(INativeBrowserElementsMainService), disposables);
