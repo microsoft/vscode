@@ -42,11 +42,13 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { URI } from '../../../../base/common/uri.js';
 import { IModelService } from '../../../common/services/model.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { FoldingPreferencesCapabilities } from './preferences/capabilities.js';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
 export interface RangeProvider {
 	readonly id: string;
+	readonly capabilities: FoldingPreferencesCapabilities;
 	compute(cancelationToken: CancellationToken): Promise<FoldingRegions | null>;
 	dispose(): void;
 }
