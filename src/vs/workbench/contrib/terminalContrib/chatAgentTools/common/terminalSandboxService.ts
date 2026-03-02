@@ -134,7 +134,6 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		return `'${value.replace(/'/g, `'\\''`)}'`;
 	}
 
-
 	private async _resolveSrtPath(): Promise<void> {
 		if (this._srtPathResolved) {
 			return;
