@@ -99,6 +99,7 @@ suite('ChatTipService', () => {
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		contextKeyService = new MockContextKeyServiceWithRulesMatching();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 1);
 		configurationService = new TestConfigurationService();
 		commandExecutedEmitter = testDisposables.add(new Emitter<ICommandEvent>());
 		storageService = testDisposables.add(new InMemoryStorageService());
@@ -304,6 +305,7 @@ suite('ChatTipService', () => {
 		assert.strictEqual(firstTip.id, 'tip.switchToAuto');
 
 		const switchedContextKeyService = new MockContextKeyServiceWithRulesMatching();
+		switchedContextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 1);
 		switchedContextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
 		const nextTip = service.getWelcomeTip(switchedContextKeyService);
 
