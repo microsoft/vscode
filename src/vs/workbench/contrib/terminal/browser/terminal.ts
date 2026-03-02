@@ -1479,6 +1479,18 @@ export interface IXtermTerminal extends IDisposable {
 	refresh(): void;
 
 	getXtermTheme(theme?: IColorTheme): ITheme;
+
+	/**
+	 * Gets the original image canvas at a given buffer cell position using the ImageAddon.
+	 * Returns undefined if images are not enabled or no image exists at that cell.
+	 */
+	getImageAtBufferCell(x: number, y: number): HTMLCanvasElement | undefined;
+
+	/**
+	 * Gets all unique original image canvases within a buffer line range.
+	 * Deduplicates internally so each image is returned only once.
+	 */
+	getUniqueImagesInRange(startLine: number, endLine: number): HTMLCanvasElement[];
 }
 
 export interface IDetachedXtermTerminal extends IXtermTerminal {

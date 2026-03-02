@@ -301,6 +301,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._markNavigationAddon = this._instantiationService.createInstance(MarkNavigationAddon, options.capabilities);
 		this.raw.loadAddon(this._markNavigationAddon);
 		this._decorationAddon = this._instantiationService.createInstance(DecorationAddon, resource, this._capabilities);
+		this._decorationAddon.setImageProvider(this);
 		this._register(this._decorationAddon.onDidRequestRunCommand(e => this._onDidRequestRunCommand.fire(e)));
 		this._register(this._decorationAddon.onDidRequestCopyAsHtml(e => this._onDidRequestCopyAsHtml.fire(e)));
 		this.raw.loadAddon(this._decorationAddon);
@@ -925,6 +926,62 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 			this._imageAddon = undefined;
 		}
+	}
+
+	getImageAtBufferCell(x: number, y: number): HTMLCanvasElement | undefined {
+		return this._imageAddon?.getImageAtBufferCell(x, y);
+	}
+
+	getUniqueImagesInRange(startLine: number, endLine: number): HTMLCanvasElement[] {
+		if (!this._imageAddon) {
+			return [];
+		}
+		// Cap the scan range to avoid freezing the main thread on large buffers
+		const maxScanLines = 1000;
+		const effectiveEnd = Math.min(endLine, startLine + maxScanLines);
+		const maxImages = 10;
+
+		// getImageAtBufferCell returns the full original image canvas, but when
+		// the source is an ImageBitmap (always in Electron/Chromium) it creates
+		// a NEW canvas each call. So we cannot deduplicate by canvas identity.
+		// Instead we deduplicate by image dimensions + sampled pixel data,
+		// only checking column 0 of each row to avoid O(rows*cols) calls.
+		const seenKeys = new Set<string>();
+		const result: HTMLCanvasElement[] = [];
+		for (let y = startLine; y < effectiveEnd && result.length < maxImages; y++) {
+			const canvas = this._imageAddon.getImageAtBufferCell(0, y);
+			if (!canvas) {
+				continue;
+			}
+			const key = this._getCanvasKey(canvas);
+			if (!seenKeys.has(key)) {
+				seenKeys.add(key);
+				result.push(canvas);
+			}
+		}
+		return result;
+	}
+
+	private _getCanvasKey(canvas: HTMLCanvasElement): string {
+		const w = canvas.width;
+		const h = canvas.height;
+		const ctx = canvas.getContext('2d');
+		if (!ctx) {
+			return `${w}x${h}`;
+		}
+		// Sample a few pixels at fixed positions for a fast identity fingerprint
+		const positions = [
+			[0, 0],
+			[Math.floor(w / 2), Math.floor(h / 2)],
+			[w - 1, h - 1],
+			[Math.floor(w / 4), Math.floor(h / 4)],
+		];
+		let sample = `${w}x${h}`;
+		for (const [px, py] of positions) {
+			const pixel = ctx.getImageData(px, py, 1, 1).data;
+			sample += `:${pixel[0]},${pixel[1]},${pixel[2]}`;
+		}
+		return sample;
 	}
 
 	private _disposeOfWebglRenderer(): void {

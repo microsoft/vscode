@@ -35,7 +35,7 @@ import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js
 import type { ITerminalExecuteStrategy, ITerminalExecuteStrategyResult } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
-import { getOutput } from '../outputHelpers.js';
+import { getOutput, getImages } from '../outputHelpers.js';
 import { extractCdPrefix, isFish, isPowerShell, isWindowsPowerShell, isZsh } from '../runInTerminalHelpers.js';
 import type { ICommandLinePresenter } from './commandLinePresenter/commandLinePresenter.js';
 import { NodeCommandLinePresenter } from './commandLinePresenter/nodeCommandLinePresenter.js';
@@ -332,6 +332,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			throw new Error('Invalid terminal ID');
 		}
 		return execution.getOutput();
+	}
+
+	public static async getBackgroundImages(id: string): Promise<Awaited<ReturnType<typeof getImages>>> {
+		const execution = RunInTerminalTool._activeExecutions.get(id);
+		if (!execution) {
+			return [];
+		}
+		return getImages(execution.instance, execution.startMarker);
 	}
 
 	/**
@@ -735,6 +743,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		let timeoutPromise: CancelablePromise<void> | undefined;
 		let outputMonitor: OutputMonitor | undefined;
 		let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
+		let commandStartMarker: IXtermMarker | undefined;
 		const executeCancellation = store.add(new CancellationTokenSource(token));
 
 		// Set up timeout if provided and the setting is enabled (only for foreground)
@@ -794,6 +803,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Set up OutputMonitor when start marker is created
 			const startMarkerPromise = Event.toPromise(execution.strategy.onDidCreateStartMarker);
 			store.add(execution.strategy.onDidCreateStartMarker(startMarker => {
+				commandStartMarker = startMarker;
 				if (!outputMonitor) {
 					outputMonitor = store.add(this._instantiationService.createInstance(
 						OutputMonitor,
@@ -1011,6 +1021,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		resultText.push(terminalResult);
 
 		const isError = exitCode !== undefined && exitCode !== 0;
+
+		// Extract images from the terminal buffer
+		const imageDataParts: IToolResult['content'] = [];
+		try {
+			const images = await getImages(toolTerminal.instance, commandStartMarker);
+			for (const img of images) {
+				imageDataParts.push({
+					kind: 'data',
+					value: img,
+				});
+			}
+		} catch {
+			// Image extraction is best-effort; don't fail the tool result
+		}
+
 		return {
 			toolResultMessage,
 			toolMetadata: {
@@ -1021,10 +1046,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				output: [{ type: 'embed', isText: true, value: terminalResult }],
 				isError: true
 			} : undefined,
-			content: [{
-				kind: 'text',
-				value: resultText.join(''),
-			}]
+			content: [
+				{
+					kind: 'text',
+					value: resultText.join(''),
+				},
+				...imageDataParts,
+			]
 		};
 	}
 

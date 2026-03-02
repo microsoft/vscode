@@ -47,11 +47,24 @@ export class GetTerminalOutputTool extends Disposable implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTerminalOutputInputParams;
-		return {
-			content: [{
-				kind: 'text',
-				value: `Output of terminal ${args.id}:\n${RunInTerminalTool.getBackgroundOutput(args.id)}`
-			}]
-		};
+
+		const content: IToolResult['content'] = [{
+			kind: 'text',
+			value: `Output of terminal ${args.id}:\n${RunInTerminalTool.getBackgroundOutput(args.id)}`
+		}];
+
+		try {
+			const images = await RunInTerminalTool.getBackgroundImages(args.id);
+			for (const img of images) {
+				content.push({
+					kind: 'data',
+					value: img,
+				});
+			}
+		} catch {
+			// Image extraction is best-effort
+		}
+
+		return { content };
 	}
 }

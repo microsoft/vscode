@@ -35,6 +35,9 @@ import { getTerminalUri, parseTerminalUri } from '../terminalUri.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { isString } from '../../../../../base/common/types.js';
+import { resizeImage } from '../../../chat/browser/chatImageUtils.js';
+import { imageToHash } from '../../../chat/browser/widget/input/editor/chatPasteProviders.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; command?: ITerminalCommand; markProperties?: IMarkProperties }
 
@@ -46,6 +49,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	private _showGutterDecorations?: boolean;
 	private _showOverviewRulerDecorations?: boolean;
 	private readonly _registeredMenuItems: Map<ITerminalCommand, IAction[]> = new Map();
+	private _imageProvider?: { getImageAtBufferCell(x: number, y: number): HTMLCanvasElement | undefined; getUniqueImagesInRange(startLine: number, endLine: number): HTMLCanvasElement[] };
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -87,6 +91,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		this._register(this._capabilities.onDidAddCapability(c => this._createCapabilityDisposables(c.id)));
 		this._register(this._capabilities.onDidRemoveCapability(c => this._removeCapabilityDisposables(c.id)));
 		this._register(lifecycleService.onWillShutdown(() => this._disposeAllDecorations()));
+	}
+
+	setImageProvider(provider: { getImageAtBufferCell(x: number, y: number): HTMLCanvasElement | undefined; getUniqueImagesInRange(startLine: number, endLine: number): HTMLCanvasElement[] }): void {
+		this._imageProvider = provider;
 	}
 
 	private _createCapabilityDisposables(c: TerminalCapability): void {
@@ -434,7 +442,14 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 
 		const attachToChatAction = this._createAttachToChatAction(command);
 		if (attachToChatAction) {
-			actions.push(attachToChatAction, new Separator());
+			actions.push(attachToChatAction);
+		}
+		const attachImageToChatAction = this._createAttachImageToChatAction(command);
+		if (attachImageToChatAction) {
+			actions.push(attachImageToChatAction);
+		}
+		if (attachToChatAction || attachImageToChatAction) {
+			actions.push(new Separator());
 		}
 
 		if (command.command !== '') {
@@ -559,6 +574,70 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 					}
 					this._store.add(this._contextPickService.registerChatContextItem(terminalContext));
 				}
+			}
+		};
+	}
+
+	private _getImagesFromCommandOutput(command: ITerminalCommand): HTMLCanvasElement[] {
+		if (!this._imageProvider || !this._terminal || !command.executedMarker || !command.endMarker) {
+			return [];
+		}
+		const startLine = command.executedMarker.line;
+		const endLine = command.endMarker.line;
+		if (startLine >= endLine) {
+			return [];
+		}
+		return this._imageProvider.getUniqueImagesInRange(startLine, endLine);
+	}
+
+	private _createAttachImageToChatAction(command: ITerminalCommand): IAction | undefined {
+		const images = this._getImagesFromCommandOutput(command);
+		if (images.length === 0) {
+			return undefined;
+		}
+		const chatIsEnabled = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).some(w => w.attachmentCapabilities.supportsImageAttachments);
+		if (!chatIsEnabled) {
+			return undefined;
+		}
+		const labelAttachImageToChat = images.length === 1
+			? localize("terminal.attachImageToChat", 'Attach Image To Chat')
+			: localize("terminal.attachImagesToChat", 'Attach {0} Images To Chat', images.length);
+		return {
+			class: undefined, tooltip: labelAttachImageToChat, id: 'terminal.attachImageToChat', label: labelAttachImageToChat, enabled: true,
+			run: async () => {
+				let widget = this._chatWidgetService.lastFocusedWidget ?? this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)?.find(w => w.attachmentCapabilities.supportsImageAttachments);
+				if (!widget) {
+					widget = await this._chatWidgetService.revealWidget();
+				}
+				if (!widget) {
+					return;
+				}
+				for (const canvas of images) {
+					const pngBytes = await new Promise<Uint8Array | undefined>((resolve) => {
+						canvas.toBlob(async blob => {
+							if (!blob) {
+								resolve(undefined);
+								return;
+							}
+							const buffer = await blob.arrayBuffer();
+							resolve(new Uint8Array(buffer));
+						}, 'image/png');
+					});
+					if (!pngBytes) {
+						continue;
+					}
+					const resizedBytes = await resizeImage(pngBytes, 'image/png');
+					const id = await imageToHash(resizedBytes);
+					widget.attachmentModel.addContext({
+						kind: 'image',
+						value: resizedBytes,
+						id,
+						name: localize('terminalImage', 'Terminal Image'),
+						icon: Codicon.fileMedia,
+						mimeType: 'image/png',
+					});
+				}
+				widget.focusInput();
 			}
 		};
 	}
