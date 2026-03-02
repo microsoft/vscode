@@ -17,6 +17,7 @@ import { IMarkdownRendererService } from '../../../../../../platform/markdown/br
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../common/chatService/chatService.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -28,6 +29,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -67,6 +69,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _freeformTextareas: Map<string, HTMLTextAreaElement> = new Map();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
 	private readonly _questionRenderStore = this._register(new MutableDisposable<DisposableStore>());
+	private _inputScrollable: DomScrollableElement | undefined;
 
 	/**
 	 * Disposable store for interactive UI components (header, nav buttons, etc.)
@@ -74,6 +77,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 */
 	private readonly _interactiveUIStore: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 	private readonly _inChatQuestionCarouselContextKey: IContextKey<boolean>;
+	private static readonly MAX_INPUT_CAROUSEL_HEIGHT_PX = 420;
+	private static readonly MAX_INPUT_CAROUSEL_VIEWPORT_RATIO = 0.45;
 
 	constructor(
 		public readonly carousel: IChatQuestionCarousel,
@@ -321,6 +326,41 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._closeButtonContainer = undefined;
 		this._footerRow = undefined;
 		this._stepIndicator = undefined;
+		this._inputScrollable = undefined;
+	}
+
+	private layoutInputScrollable(inputScrollable: DomScrollableElement): void {
+		if (!this._questionContainer) {
+			return;
+		}
+
+		const scrollableNode = inputScrollable.getDomNode();
+		const scrollableContent = scrollableNode.firstElementChild;
+		if (!dom.isHTMLElement(scrollableContent)) {
+			return;
+		}
+		const maxContainerHeight = Math.min(
+			ChatQuestionCarouselPart.MAX_INPUT_CAROUSEL_HEIGHT_PX,
+			dom.getWindow(this.domNode).innerHeight * ChatQuestionCarouselPart.MAX_INPUT_CAROUSEL_VIEWPORT_RATIO
+		);
+
+		const computedStyle = dom.getWindow(this._questionContainer).getComputedStyle(this._questionContainer);
+		const contentVerticalPadding =
+			Number.parseFloat(computedStyle.paddingTop || '0') +
+			Number.parseFloat(computedStyle.paddingBottom || '0');
+
+		const nonScrollableContentHeight = Array.from(this._questionContainer.children)
+			.filter(child => child !== scrollableNode)
+			.reduce((sum, child) => sum + (child as HTMLElement).offsetHeight, 0);
+
+		const availableScrollableHeight = Math.floor(maxContainerHeight - contentVerticalPadding - nonScrollableContentHeight);
+		const constrainedScrollableHeight = Math.max(0, availableScrollableHeight);
+
+		scrollableNode.style.height = `${constrainedScrollableHeight}px`;
+		scrollableNode.style.maxHeight = `${constrainedScrollableHeight}px`;
+		scrollableContent.style.height = `${constrainedScrollableHeight}px`;
+		scrollableContent.style.maxHeight = `${constrainedScrollableHeight}px`;
+		inputScrollable.scanDomNode();
 	}
 
 	/**
@@ -490,6 +530,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		const questionRenderStore = new DisposableStore();
 		this._questionRenderStore.value = questionRenderStore;
+		this._inputScrollable = undefined;
 
 		// Clear previous input boxes and stale references
 		this._inputBoxes.clear();
@@ -573,7 +614,22 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Render input based on question type
 		const inputContainer = dom.$('.chat-question-input-container');
 		this.renderInput(inputContainer, question);
-		this._questionContainer.appendChild(inputContainer);
+
+		const inputScrollable = questionRenderStore.add(new DomScrollableElement(inputContainer, {
+			vertical: ScrollbarVisibility.Visible,
+			horizontal: ScrollbarVisibility.Hidden,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+			alwaysConsumeMouseWheel: true,
+		}));
+		this._inputScrollable = inputScrollable;
+		const inputScrollableNode = inputScrollable.getDomNode();
+		inputScrollableNode.classList.add('chat-question-input-scrollable');
+		this._questionContainer.appendChild(inputScrollableNode);
+
+		const inputResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver(() => this.layoutInputScrollable(inputScrollable)));
+		questionRenderStore.add(inputResizeObserver.observe(inputScrollableNode));
+		questionRenderStore.add(inputResizeObserver.observe(inputContainer));
+		questionRenderStore.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => this.layoutInputScrollable(inputScrollable)));
 
 		// Update navigation button states (prevButton and nextButton are guaranteed non-null from guard above)
 		this._prevButton!.enabled = this._currentIndex > 0;
@@ -605,6 +661,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._focusContainerAndAnnounce();
 		}
 
+		this.layoutInputScrollable(inputScrollable);
 		this._onDidChangeHeight.fire();
 	}
 
@@ -637,6 +694,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const autoResize = () => {
 			textarea.style.height = 'auto';
 			textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+			if (this._inputScrollable) {
+				this.layoutInputScrollable(this._inputScrollable);
+			}
 			this._onDidChangeHeight.fire();
 		};
 		this._inputBoxes.add(dom.addDisposableListener(textarea, dom.EventType.INPUT, autoResize));
