@@ -117,13 +117,8 @@ export class FoldingPreferencesCompatibility implements IDisposable {
 			return foldingRegions;
 		}
 
-		const regionsLength = foldingRegions.length;
-		const foldRanges = new Array<FoldRange>(regionsLength);
-		for (let i = 0; i < regionsLength; i++) {
-			foldRanges[i] = foldingRegions.toFoldRange(i);
-		}
-
 		let adjusted = false;
+		let foldRanges: FoldRange[] | undefined;
 		const preferences = this._preferences;
 		for (const adjuster of compatibilityPipeline) {
 			const preference = adjuster.preference;
@@ -136,12 +131,23 @@ export class FoldingPreferencesCompatibility implements IDisposable {
 				continue;
 			}
 
+			// Lazily create a mutable copy of fold ranges.
+			// Although _isAnyAdjusterActive is true, the provider may
+			// declare native support and bypass all compatibility adjustments
+			if (foldRanges === undefined) {
+				const regionsLength = foldingRegions.length;
+				foldRanges = new Array<FoldRange>(regionsLength);
+				for (let i = 0; i < regionsLength; i++) {
+					foldRanges[i] = foldingRegions.toFoldRange(i);
+				}
+			}
+
 			if (adjuster.apply(model, foldRanges, preferences)) {
 				adjusted = true;
 			}
 		}
 
-		return adjusted
+		return adjusted && foldRanges !== undefined
 			? FoldingRegions.fromFoldRanges(foldRanges)
 			: foldingRegions;
 	}
