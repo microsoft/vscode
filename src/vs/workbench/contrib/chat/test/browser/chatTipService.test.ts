@@ -368,6 +368,20 @@ suite('ChatTipService', () => {
 		}
 	});
 
+	test('dismissTipForSession hides tips until resetSession', () => {
+		const service = createService();
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		service.dismissTipForSession();
+
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'Tips should stay hidden for the current session after dismissing');
+
+		service.resetSession();
+		assert.ok(service.getWelcomeTip(contextKeyService), 'Tips should reappear after resetting the session');
+	});
+
 	test('navigateToNextTip keeps foundational tips before QoL tips', () => {
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
@@ -1352,6 +1366,9 @@ suite('ChatTipService', () => {
 			commandExecutedEmitter.fire({ commandId: 'workbench.action.openSettings', args: [] });
 
 			assert.strictEqual(dismissed, true, `${tipId} should dismiss when its settings command is clicked`);
+			assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'Tips should hide for the rest of the session after actioning a tip');
+
+			service.resetSession();
 			assertTipNeverShown(service, tipId);
 		});
 	}
