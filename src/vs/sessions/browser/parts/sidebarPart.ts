@@ -35,11 +35,12 @@ import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { Menus } from '../menus.js';
 import { $, append, getWindowId, prepend } from '../../../base/browser/dom.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
-import { isMacintosh, isNative } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, platformLocale } from '../../../base/common/platform.js';
 import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
+import { hasNativeTitlebar } from '../../../platform/window/common/window.js';
+import { safeIntl } from '../../../base/common/date.js';
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -154,24 +155,35 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		// macOS native: the sidebar spans full height and the traffic lights
 		// overlay the top-left corner. Add a fixed-width spacer inside the
 		// title area to push content horizontally past the traffic lights.
-		if (titleArea && isMacintosh && isNative && !hasNativeTitlebar(this.configurationService, getTitleBarStyle(this.configurationService))) {
-			const spacer = $('div.window-controls-container');
-			spacer.style.width = '70px';
-			spacer.style.height = '100%';
-			spacer.style.flexShrink = '0';
-			spacer.style.order = '-1'; // match global-actions-left order so DOM order is respected
-			prepend(titleArea, spacer);
+		// In RTL locales macOS moves traffic lights to the right, so the
+		// spacer is only needed when controls are on the left (LTR).
+		if (titleArea && isMacintosh && isNative && !hasNativeTitlebar(this.configurationService)) {
+			let primaryWindowControlsLocation: 'left' | 'right' = 'left';
+			const localeInfo = safeIntl.Locale(platformLocale).value;
+			const textInfo = (localeInfo as { textInfo?: unknown }).textInfo;
+			if (textInfo && typeof textInfo === 'object' && 'direction' in textInfo && textInfo.direction === 'rtl') {
+				primaryWindowControlsLocation = 'right';
+			}
 
-			// Hide spacer in fullscreen (traffic lights are not shown)
-			const updateSpacerVisibility = () => {
-				spacer.style.display = isFullscreen(mainWindow) ? 'none' : '';
-			};
-			updateSpacerVisibility();
-			this._register(onDidChangeFullscreen(windowId => {
-				if (windowId === getWindowId(mainWindow)) {
-					updateSpacerVisibility();
-				}
-			}));
+			if (primaryWindowControlsLocation === 'left') {
+				const spacer = $('div.window-controls-container');
+				spacer.style.width = '70px';
+				spacer.style.height = '100%';
+				spacer.style.flexShrink = '0';
+				spacer.style.order = '-1'; // match global-actions-left order so DOM order is respected
+				prepend(titleArea, spacer);
+
+				// Hide spacer in fullscreen (traffic lights are not shown)
+				const updateSpacerVisibility = () => {
+					spacer.style.display = isFullscreen(mainWindow) ? 'none' : '';
+				};
+				updateSpacerVisibility();
+				this._register(onDidChangeFullscreen(windowId => {
+					if (windowId === getWindowId(mainWindow)) {
+						updateSpacerVisibility();
+					}
+				}));
+			}
 		}
 
 		return titleArea;
