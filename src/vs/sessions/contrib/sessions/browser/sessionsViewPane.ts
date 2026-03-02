@@ -329,6 +329,7 @@ KeybindingsRegistry.registerKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	when: IsNewChatSessionContext.negate(),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
