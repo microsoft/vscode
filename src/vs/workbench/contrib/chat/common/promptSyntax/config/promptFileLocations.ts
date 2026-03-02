@@ -222,7 +222,7 @@ export function isInClaudeAgentsFolder(fileUri: URI): boolean {
 }
 
 /**
- * Helper function to check if a file is directly in the ~/.config/copilot/agents/ folder.
+ * Helper function to check if a file is directly in the ~/.copilot/agents/ folder.
  */
 export function isInCopilotAgentsFolder(fileUri: URI): boolean {
 	const dir = dirname(fileUri.path);
