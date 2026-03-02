@@ -194,7 +194,7 @@ suite('ChatTipService', () => {
 		assert.ok(!executedCommands.includes(FORK_CONVERSATION_TRACKING_COMMAND));
 	});
 
-	test('records create instructions tip usage for submitted /init command', () => {
+	test('records init tip usage for submitted /init command', () => {
 		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
 		instantiationService.stub(IChatService, {
 			onDidSubmitRequest: submitRequestEmitter.event,
