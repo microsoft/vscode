@@ -110,6 +110,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations, this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations)(() => this._onDidChangeRecommendations.fire()));
 
 		this.promptWorkspaceRecommendations();
+		this.promptStronglyRecommendedExtensions();
 	}
 
 	private isEnabled(): boolean {
@@ -271,6 +272,15 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		if (allowedRecommendations.length) {
 			await this._registerP(timeout(5000));
 			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
+		}
+	}
+
+	private async promptStronglyRecommendedExtensions(): Promise<void> {
+		const allowedRecommendations = this.workspaceRecommendations.stronglyRecommended
+			.filter(rec => !isString(rec) || this.isExtensionAllowedToBeRecommended(rec));
+
+		if (allowedRecommendations.length) {
+			await this.extensionRecommendationNotificationService.promptStronglyRecommendedExtensions(allowedRecommendations);
 		}
 	}
 

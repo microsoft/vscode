@@ -104,6 +104,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));
 			});
+			customOptions.renderBody?.(parent, dialogDisposables);
 		} : undefined;
 
 		const dialog = new Dialog(

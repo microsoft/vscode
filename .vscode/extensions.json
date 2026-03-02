@@ -8,7 +8,10 @@
 		"ms-vscode.vscode-github-issue-notebooks",
 		"ms-vscode.extension-test-runner",
 		"jrieken.vscode-pr-pinger",
-		"typescriptteam.native-preview",
-		"ms-vscode.ts-customized-language-service"
+		"typescriptteam.native-preview"
+	],
+	"stronglyRecommended": [
+		"ms-vscode.ts-customized-language-service",
+		"ms-vscode.vscode-extras"
 	]
 }

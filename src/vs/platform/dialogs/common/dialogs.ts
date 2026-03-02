@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../base/common/event.js';
+import { Event } from '../../../base/common/event.js';\nimport { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { basename } from '../../../base/common/resources.js';
@@ -275,6 +275,7 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 export interface ICustomDialogOptions {
 	readonly buttonDetails?: string[];
 	readonly markdownDetails?: ICustomDialogMarkdown[];
+	readonly renderBody?: (container: HTMLElement, disposables: DisposableStore) => void;
 	readonly classes?: string[];
 	readonly icon?: ThemeIcon;
 	readonly disableCloseAction?: boolean;
