@@ -1023,6 +1023,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const mode2 = this.chatModeService.findModeById(mode) ??
+			this.chatModeService.findModeByName(mode) ??
 			this.chatModeService.findModeById(ChatModeKind.Agent) ??
 			ChatMode.Ask;
 		this.setChatMode2(mode2, storeSelection);
