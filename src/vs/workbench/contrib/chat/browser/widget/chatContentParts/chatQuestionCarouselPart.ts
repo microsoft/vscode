@@ -132,7 +132,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._interactiveUIStore.value = interactiveStore;
 
 		// Question container
+		const questionPanelId = `question-panel-${this.carousel.questions[0]?.id ?? 'default'}`;
 		this._questionContainer = dom.$('.chat-question-carousel-content');
+		this._questionContainer.setAttribute('role', 'tabpanel');
+		this._questionContainer.id = questionPanelId;
 		this.domNode.append(this._questionContainer);
 
 		// Close/skip button (X) - placed in header row, only shown when allowSkip is true
@@ -165,6 +168,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				tab.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
 				tab.tabIndex = index === 0 ? 0 : -1;
 				tab.id = `question-tab-${question.id}-${index}`;
+				tab.setAttribute('aria-controls', questionPanelId);
 
 				const displayTitle = this.getQuestionText(question.title);
 				const tabIndicator = dom.$('.chat-question-tab-indicator.codicon');
@@ -191,6 +195,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			reviewTab.setAttribute('aria-selected', 'false');
 			reviewTab.tabIndex = -1;
 			reviewTab.id = 'question-tab-review';
+			reviewTab.setAttribute('aria-controls', questionPanelId);
 			const reviewLabel = localize('chat.questionCarousel.review', 'Review');
 			reviewTab.textContent = reviewLabel;
 			reviewTab.setAttribute('aria-label', reviewLabel);
@@ -412,6 +417,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._closeButtonContainer = undefined;
 		this._tabBar = undefined;
 		this._tabItems = [];
+		this._questionTabIndicators.clear();
 		this._reviewIndex = -1;
 		this._footerRow = undefined;
 		this._explicitlyAnsweredQuestionIds.clear();
@@ -612,6 +618,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				tab.setAttribute('aria-selected', String(isActive));
 				tab.tabIndex = isActive ? 0 : -1;
 			});
+			// Link the panel to the active tab for screen readers
+			const activeTab = this._tabItems[this._currentIndex];
+			if (activeTab) {
+				this._questionContainer.setAttribute('aria-labelledby', activeTab.id);
+			}
 			this.updateQuestionTabIndicators();
 		}
 
