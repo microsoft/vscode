@@ -55,7 +55,7 @@ import { ElicitationState, IChatService, IChatToolInvocation } from '../../commo
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
-import { AgentsControlClickBehavior, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
@@ -600,36 +600,14 @@ export function registerChatActions() {
 			const viewsService = accessor.get(IViewsService);
 			const viewDescriptorService = accessor.get(IViewDescriptorService);
 			const widgetService = accessor.get(IChatWidgetService);
-			const configurationService = accessor.get(IConfigurationService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 			const chatVisible = viewsService.isViewVisible(ChatViewId);
-			const clickBehavior = configurationService.getValue<AgentsControlClickBehavior>(ChatConfiguration.AgentsControlClickBehavior);
-			switch (clickBehavior) {
-				case AgentsControlClickBehavior.Cycle:
-					if (chatVisible) {
-						if (
-							chatLocation === ViewContainerLocation.AuxiliaryBar &&
-							!layoutService.isAuxiliaryBarMaximized()
-						) {
-							layoutService.setAuxiliaryBarMaximized(true);
-							(await widgetService.revealWidget())?.focusInput();
-						} else {
-							this.updatePartVisibility(layoutService, chatLocation, false);
-						}
-					} else {
-						this.updatePartVisibility(layoutService, chatLocation, true);
-						(await widgetService.revealWidget())?.focusInput();
-					}
-					break;
-				default:
-					if (chatVisible) {
-						this.updatePartVisibility(layoutService, chatLocation, false);
-					} else {
-						this.updatePartVisibility(layoutService, chatLocation, true);
-						(await widgetService.revealWidget())?.focusInput();
-					}
-					break;
+			if (chatVisible) {
+				this.updatePartVisibility(layoutService, chatLocation, false);
+			} else {
+				this.updatePartVisibility(layoutService, chatLocation, true);
+				(await widgetService.revealWidget())?.focusInput();
 			}
 		}
 

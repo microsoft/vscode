@@ -126,7 +126,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
+		return EditorInputCapabilities.ForceReveal | EditorInputCapabilities.Readonly;
 	}
 
 	override get resource(): URI {

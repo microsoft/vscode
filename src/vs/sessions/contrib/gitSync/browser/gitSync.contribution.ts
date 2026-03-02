@@ -48,13 +48,17 @@ class GitSyncContribution extends Disposable implements IWorkbenchContribution {
 				return;
 			}
 
+			const repoDisposables = this._gitRepoDisposables.add(new DisposableStore());
 			this.gitService.openRepository(worktreeUri).then(repository => {
+				if (repoDisposables.isDisposed) {
+					return;
+				}
 				if (!repository) {
 					this._syncActionDisposable.clear();
 					contextKey.set(false);
 					return;
 				}
-				this._gitRepoDisposables.add(autorun(innerReader => {
+				repoDisposables.add(autorun(innerReader => {
 					const state = repository.state.read(innerReader);
 					const head = state.HEAD;
 					if (!head?.upstream) {
@@ -66,7 +70,7 @@ class GitSyncContribution extends Disposable implements IWorkbenchContribution {
 					const behind = head.behind ?? 0;
 					const hasSyncChanges = ahead > 0 || behind > 0;
 					contextKey.set(hasSyncChanges);
-					this._syncActionDisposable.value = registerSyncAction(ahead, behind);
+					this._syncActionDisposable.value = registerSyncAction(behind, ahead);
 				}));
 			});
 		}));
@@ -108,7 +112,9 @@ function registerSyncAction(behind: number, ahead: number): IDisposable {
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('git.sync');
+			const sessionManagementService = accessor.get(ISessionsManagementService);
+			const worktreeUri = sessionManagementService.getActiveSession()?.worktree;
+			await commandService.executeCommand('git.sync', worktreeUri);
 		}
 	}
 	return registerAction2(SynchronizeChangesAction);
