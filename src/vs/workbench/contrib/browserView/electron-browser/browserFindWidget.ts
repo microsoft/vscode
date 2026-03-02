@@ -105,6 +105,7 @@ export class BrowserFindWidget extends SimpleFindWidget {
 
 		// Stop find and clear highlights in the browser view
 		this._model?.stopFindInPage(true);
+		this._model?.focus();
 		this._lastFindResult = undefined;
 		this._hasFoundMatch = false;
 	}

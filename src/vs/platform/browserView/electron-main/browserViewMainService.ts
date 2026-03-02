@@ -170,7 +170,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		// Request the workbench to open the editor
 		this.windowsMainService.sendToFocused('vscode:runAction', {
 			id: 'vscode.open',
-			args: [BrowserViewUri.forUrl(url, targetId)]
+			args: [BrowserViewUri.forUrl(url, targetId), { preserveFocus: true }]
 		});
 
 		return view;
