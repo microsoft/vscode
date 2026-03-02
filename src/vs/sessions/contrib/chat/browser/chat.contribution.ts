@@ -104,7 +104,7 @@ class OpenSessionWorktreeInVSCodeNotAvailableAction extends Action2 {
 			menu: [{
 				id: Menus.TitleBarRight,
 				group: 'navigation',
-				order: 9,
+				order: 10,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext.toNegated())
 			}]
 		});
