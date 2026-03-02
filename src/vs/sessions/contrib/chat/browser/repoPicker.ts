@@ -15,7 +15,6 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { INewSession } from './newSession.js';
 import { URI } from '../../../../base/common/uri.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 const OPEN_REPO_COMMAND = 'github.copilot.chat.cloudSessions.openRepository';
 const STORAGE_KEY_LAST_REPO = 'agentSessions.lastPickedRepo';
@@ -271,7 +270,7 @@ export class RepoPicker extends Disposable {
 	}
 
 	private _setRepo(repo: IRepoItem): void {
-		this._newSession?.setRepoUri(URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${repo.id}`));
+		this._newSession?.setRepoUri(URI.parse(`vscode-vfs://github/${repo.id}`));
 	}
 
 }

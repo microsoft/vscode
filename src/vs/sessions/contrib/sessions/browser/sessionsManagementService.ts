@@ -24,7 +24,6 @@ import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/brows
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatModeService, isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
@@ -198,7 +197,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
-			return [URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${metadata.owner}/${metadata.name}`), undefined];
+			return [URI.parse(`vscode-vfs://github/${metadata.owner}/${metadata.name}`), undefined];
 		}
 
 		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
