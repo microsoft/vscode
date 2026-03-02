@@ -559,19 +559,20 @@ suite('ChatQuestionCarouselPart', () => {
 			], true);
 
 			const firstWidget = createWidget(carousel);
-			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
-			assert.ok(nextButton, 'next button should exist');
-			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			// Click the second tab to navigate
+			const tabs = firstWidget.domNode.querySelectorAll('.chat-question-tab');
+			assert.ok(tabs.length >= 2, 'should have at least 2 tabs');
+			(tabs[1] as HTMLElement).click();
+
+			// Verify navigation happened
+			assert.strictEqual(tabs[1].getAttribute('aria-selected'), 'true', 'second tab should be selected after click');
 
 			firstWidget.dispose();
 			firstWidget.domNode.remove();
 
 			const recreatedWidget = createWidget(carousel);
-			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
-			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index after navigation');
-
-			const title = recreatedWidget.domNode.querySelector('.chat-question-title');
-			assert.ok(title?.textContent?.includes('Question 2'), 'should restore to the second question view');
+			const recreatedTabs = recreatedWidget.domNode.querySelectorAll('.chat-question-tab');
+			assert.strictEqual(recreatedTabs[1]?.getAttribute('aria-selected'), 'true', 'should restore to second tab after recreation');
 		});
 
 		test('retains draft answers and current question after widget recreation', () => {
@@ -586,9 +587,9 @@ suite('ChatQuestionCarouselPart', () => {
 			firstInput.value = 'first draft answer';
 			firstInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
-			assert.ok(nextButton, 'next button should exist');
-			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			// Click the second tab to navigate
+			const tabs = firstWidget.domNode.querySelectorAll('.chat-question-tab');
+			(tabs[1] as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 			const secondInput = firstWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
 			assert.ok(secondInput, 'second question input should exist');
@@ -599,16 +600,16 @@ suite('ChatQuestionCarouselPart', () => {
 			firstWidget.domNode.remove();
 
 			const recreatedWidget = createWidget(carousel);
-			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
-			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index');
+			const recreatedTabs = recreatedWidget.domNode.querySelectorAll('.chat-question-tab');
+			assert.strictEqual(recreatedTabs[1]?.getAttribute('aria-selected'), 'true', 'should restore the current question index');
 
 			const recreatedSecondInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
 			assert.ok(recreatedSecondInput, 'recreated second question input should exist');
 			assert.strictEqual(recreatedSecondInput.value, 'second draft answer', 'should restore draft input for current question');
 
-			const prevButton = recreatedWidget.domNode.querySelector('.chat-question-nav-prev') as HTMLElement | null;
-			assert.ok(prevButton, 'previous button should exist');
-			prevButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			// Click the first tab to go back
+			const recreatedTabsAgain = recreatedWidget.domNode.querySelectorAll('.chat-question-tab');
+			(recreatedTabsAgain[0] as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 			const recreatedFirstInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
 			assert.ok(recreatedFirstInput, 'recreated first question input should exist');
