@@ -673,6 +673,9 @@ export class ChangesViewPane extends ViewPane {
 		if (this.tree) {
 			const tree = this.tree;
 
+			// Re-layout when collapse state changes so the card height adjusts
+			this.renderDisposables.add(tree.onDidChangeContentHeight(() => this.layoutTree()));
+
 			const openFileItem = (item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean) => {
 				const { uri: modifiedFileUri, originalUri, isDeletion } = item;
 				const currentIndex = items.indexOf(item);
