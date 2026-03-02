@@ -406,6 +406,20 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 		// Return the already-shown tip for stable rerenders
 		if (this._tipRequestId === 'welcome' && this._shownTip) {
+			if (this._shownTip.id !== 'tip.switchToAuto') {
+				const switchToAutoTip = TIP_CATALOG.find(tip => tip.id === 'tip.switchToAuto');
+				if (switchToAutoTip) {
+					const dismissedIds = new Set(this._getDismissedTipIds());
+					if (!dismissedIds.has(switchToAutoTip.id) && this._isEligible(switchToAutoTip, contextKeyService)) {
+						this._shownTip = switchToAutoTip;
+						this._storageService.store(ChatTipStorageKeys.LastTipId, switchToAutoTip.id, StorageScope.APPLICATION, StorageTarget.USER);
+						const tip = this._createTip(switchToAutoTip);
+						this._onDidNavigateTip.fire(tip);
+						return tip;
+					}
+				}
+			}
+
 			if (!this._isEligible(this._shownTip, contextKeyService)) {
 				const nextTip = this._findNextEligibleTip(this._shownTip.id, contextKeyService);
 				if (nextTip) {
