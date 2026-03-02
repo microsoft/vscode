@@ -60,7 +60,7 @@
 }
 
 .monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
-	border-radius: 0px 0px 4px 4px; /* adopt the border radius at the end of the notifications center */
+	border-radius: 0px 0px var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small); /* adopt the border radius at the end of the notifications center */
 }
 
 /* Icons */
