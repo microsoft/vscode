@@ -7,7 +7,7 @@ import * as nls from '../../../../../nls.js';
 import { Target } from './promptTypes.js';
 
 /**
- * Enum of hook types across all targets. For the actual supported check HOOKS_BY_TARGET.
+ * Enum of hook types across all targets. For the set of supported hooks per target, see HOOKS_BY_TARGET.
  */
 export enum HookType {
 	SessionStart = 'SessionStart',
