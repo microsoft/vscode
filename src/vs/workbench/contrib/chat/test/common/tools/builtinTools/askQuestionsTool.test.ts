@@ -7,7 +7,7 @@ import assert from 'assert';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { AskQuestionsTool, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
+import { AskQuestionsTool, formatHeaderForDisplay, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 
 class TestableAskQuestionsTool extends AskQuestionsTool {
@@ -151,22 +151,18 @@ suite('AskQuestionsTool - convertCarouselAnswers', () => {
 	});
 
 	test('formats headers for carousel tab title display', () => {
-		const questions: IQuestion[] = [
-			{ header: 'FocusArea', question: 'Q1' },
-			{ header: 'UserValue', question: 'Q2' },
-			{ header: 'RiskLevel', question: 'Q3' },
-			{ header: 'Already Spaced', question: 'Q4' },
-			{ header: 'snake_case_header', question: 'Q5' }
-		];
-
-		const { carousel } = (tool as unknown as { toQuestionCarousel: (input: IQuestion[]) => { carousel: { questions: { title: string }[] } } }).toQuestionCarousel(questions);
-
-		assert.deepStrictEqual(carousel.questions.map(q => q.title), [
+		assert.deepStrictEqual([
+			formatHeaderForDisplay('FocusArea'),
+			formatHeaderForDisplay('UserValue'),
+			formatHeaderForDisplay('RiskLevel'),
+			formatHeaderForDisplay('Already Spaced'),
+			formatHeaderForDisplay('snake_case_header'),
+		], [
 			'Focus area',
 			'User value',
 			'Risk level',
 			'Already spaced',
-			'Snake case header'
+			'Snake case header',
 		]);
 	});
 });

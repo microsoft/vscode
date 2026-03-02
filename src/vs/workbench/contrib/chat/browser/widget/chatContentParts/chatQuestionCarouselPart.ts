@@ -150,8 +150,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				tab.tabIndex = index === 0 ? 0 : -1;
 				tab.id = `question-tab-${question.id}-${index}`;
 
-				const messageContent = this.getQuestionText(question.title);
-				const displayTitle = this.formatQuestionTabTitle(messageContent);
+				const displayTitle = this.getQuestionText(question.title);
 				const tabIndicator = dom.$('.chat-question-tab-indicator.codicon');
 				const tabLabel = dom.$('span.chat-question-tab-label');
 				tabLabel.textContent = displayTitle;
@@ -295,7 +294,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private handleNextOrSubmit(): void {
 		this.saveCurrentAnswer();
 		const currentQuestion = this.carousel.questions[this._currentIndex];
-		if (currentQuestion) {
+		if (currentQuestion && this.getCurrentAnswer() !== undefined) {
 			this._explicitlyAnsweredQuestionIds.add(currentQuestion.id);
 			this.updateQuestionTabIndicators();
 		}
@@ -671,7 +670,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	/**
-	 * Renders the review panel with a summary of all answers and Submit/Cancel footer.
+	 * Renders the review panel with a summary of all answers and a submit footer.
 	 */
 	private renderReviewPanel(questionRenderStore: DisposableStore): void {
 		if (!this._questionContainer) {
@@ -1405,21 +1404,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		return renderAsPlaintext(md);
 	}
 
-	private formatQuestionTabTitle(title: string): string {
-		const normalized = title
-			.trim()
-			.replace(/[_-]+/g, ' ')
-			.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-			.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-			.replace(/\s+/g, ' ')
-			.trim();
 
-		if (!normalized) {
-			return title;
-		}
-
-		return normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
-	}
 
 	private updateQuestionTabIndicators(): void {
 		for (const question of this.carousel.questions) {

@@ -53,7 +53,7 @@ function truncateToLimit(value: string | undefined, limit: number): string | und
 	return value;
 }
 
-function formatHeaderForDisplay(header: string): string {
+export function formatHeaderForDisplay(header: string): string {
 	const normalized = header
 		.trim()
 		.replace(/[_-]+/g, ' ')
