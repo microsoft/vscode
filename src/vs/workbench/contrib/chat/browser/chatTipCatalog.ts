@@ -318,6 +318,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.forkConversation',
+		tier: ChatTipTier.Qol,
 		buildMessage(ctx) {
 			const kb = formatKeybinding(ctx, INSERT_FORK_CONVERSATION_COMMAND_ID);
 			return new MarkdownString(
