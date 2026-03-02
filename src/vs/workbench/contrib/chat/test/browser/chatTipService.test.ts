@@ -451,6 +451,32 @@ suite('ChatTipService', () => {
 		assert.strictEqual(secondTip.id, 'tip.createAgent', 'Expected next tip to follow preferred onboarding order before QoL tips');
 	});
 
+	test('getNextEligibleTip picks next relative to current tip after dismissing from middle of order', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
+		contextKeyService.createKey(ChatContextKeys.chatModeName.key, 'Agent');
+		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
+		contextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
+
+		const firstTip = service.getWelcomeTip(contextKeyService);
+		assert.ok(firstTip);
+
+		const secondTip = service.navigateToNextTip();
+		assert.ok(secondTip);
+
+		const expectedNextAfterSecond = service.navigateToNextTip();
+		assert.ok(expectedNextAfterSecond, 'Expected at least three tips to validate relative ordering');
+
+		const backToSecond = service.navigateToPreviousTip();
+		assert.ok(backToSecond);
+		assert.strictEqual(backToSecond.id, secondTip.id);
+
+		service.dismissTip();
+		const actualNext = service.getNextEligibleTip();
+		assert.ok(actualNext);
+		assert.strictEqual(actualNext.id, expectedNextAfterSecond.id, 'Expected getNextEligibleTip to advance relative to current tip rather than restart from top priority tip');
+	});
+
 	test('dismissTip fires onDidDismissTip event', () => {
 		const service = createService();
 

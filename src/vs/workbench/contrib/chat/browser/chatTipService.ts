@@ -522,7 +522,14 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 		const contextKeyService = this._contextKeyService;
 		this._createSlashCommandsUsageTracker.syncContextKey(contextKeyService);
-		const candidate = this._getOrderedEligibleTips(contextKeyService, { excludeShownTip: true })[0];
+		const currentTipId = this._shownTip.id;
+		const orderedTips = this._getOrderedEligibleTips(contextKeyService, { includeTipId: currentTipId });
+		if (!orderedTips.length) {
+			return undefined;
+		}
+
+		const currentIndex = orderedTips.findIndex(tip => tip.id === currentTipId);
+		const candidate = this._getNextTipFromOrderedList(orderedTips, currentIndex, currentTipId);
 		if (candidate) {
 			// Found the next eligible tip - update state and return it
 			this._shownTip = candidate;
@@ -531,6 +538,24 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			this._logTipTelemetry(candidate.id, 'shown');
 			this._trackTipCommandClicks(candidate);
 			return this._createTip(candidate);
+		}
+
+		return undefined;
+	}
+
+	private _getNextTipFromOrderedList(orderedTips: readonly ITipDefinition[], startIndex: number, currentTipId: string): ITipDefinition | undefined {
+		if (!orderedTips.length) {
+			return undefined;
+		}
+
+		const fallbackIndex = 0;
+		const normalizedStartIndex = startIndex === -1 ? fallbackIndex : startIndex;
+		for (let i = 1; i <= orderedTips.length; i++) {
+			const index = (normalizedStartIndex + i) % orderedTips.length;
+			const candidate = orderedTips[index];
+			if (candidate.id !== currentTipId) {
+				return candidate;
+			}
 		}
 
 		return undefined;
@@ -597,9 +622,12 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		return orderedTips[0].id !== this._shownTip.id;
 	}
 
-	private _getOrderedEligibleTips(contextKeyService: IContextKeyService, options?: { excludeShownTip?: boolean }): ITipDefinition[] {
+	private _getOrderedEligibleTips(contextKeyService: IContextKeyService, options?: { excludeShownTip?: boolean; includeTipId?: string }): ITipDefinition[] {
 		const dismissedIds = new Set(this._getDismissedTipIds());
 		const eligibleTips = TIP_CATALOG.filter(tip => {
+			if (options?.includeTipId && tip.id === options.includeTipId) {
+				return true;
+			}
 			if (options?.excludeShownTip && this._shownTip && tip.id === this._shownTip.id) {
 				return false;
 			}
