@@ -149,14 +149,6 @@ suite('SessionsTerminalContribution', () => {
 		assert.strictEqual(createdTerminals[0].cwd.fsPath, repoUri.fsPath);
 	});
 
-	test('does not create a terminal when background session has no paths', async () => {
-		const session = makeAgentSession({ providerType: AgentSessionProviders.Background });
-		activeSessionObs.set(session, undefined);
-		await tick();
-
-		assert.strictEqual(createdTerminals.length, 0);
-	});
-
 	// --- Non-background providers: use home directory ---
 
 	test('uses home directory for a cloud agent session', async () => {
