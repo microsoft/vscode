@@ -234,6 +234,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 						}
 					}
 				}
+			} else if (event.keyCode === KeyCode.Enter && (event.metaKey || event.ctrlKey)) {
+				// Cmd/Ctrl+Enter submits immediately from anywhere
+				e.preventDefault();
+				e.stopPropagation();
+				this.submit();
 			} else if (event.keyCode === KeyCode.Enter && !event.shiftKey) {
 				// Handle Enter key for text inputs and freeform textareas, not radio/checkbox or buttons
 				// Buttons have their own Enter/Space handling via Button class
@@ -676,35 +681,23 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			for (const question of this.carousel.questions) {
 				const summaryItem = dom.$('.chat-question-summary-item');
 
-				const questionLabel = dom.$('span.chat-question-summary-label');
+				const questionRow = dom.$('div.chat-question-summary-label');
 				const questionText = question.message ?? question.title;
 				let labelText = typeof questionText === 'string' ? questionText : questionText.value;
 				labelText = labelText.replace(/[:\s]+$/, '');
-				questionLabel.textContent = labelText;
-				summaryItem.appendChild(questionLabel);
+				questionRow.textContent = localize('chat.questionCarousel.summaryQuestion', 'Q: {0}', labelText);
+				summaryItem.appendChild(questionRow);
 
 				const hasExplicitAnswer = this._explicitlyAnsweredQuestionIds.has(question.id);
 				const answer = this._answers.get(question.id);
 
 				if (hasExplicitAnswer && answer !== undefined) {
 					const formattedAnswer = this.formatAnswerForSummary(question, answer);
-					const separatorIndex = formattedAnswer.indexOf(' - ');
-
-					if (separatorIndex !== -1) {
-						const answerTitle = dom.$('span.chat-question-summary-answer-title');
-						answerTitle.textContent = formattedAnswer.substring(0, separatorIndex);
-						summaryItem.appendChild(answerTitle);
-
-						const answerDesc = dom.$('span.chat-question-summary-answer-desc');
-						answerDesc.textContent = ' - ' + formattedAnswer.substring(separatorIndex + 3);
-						summaryItem.appendChild(answerDesc);
-					} else {
-						const answerValue = dom.$('span.chat-question-summary-answer-title');
-						answerValue.textContent = formattedAnswer;
-						summaryItem.appendChild(answerValue);
-					}
+					const answerRow = dom.$('div.chat-question-summary-answer');
+					answerRow.textContent = localize('chat.questionCarousel.summaryAnswer', 'A: {0}', formattedAnswer);
+					summaryItem.appendChild(answerRow);
 				} else {
-					const unanswered = dom.$('span.chat-question-summary-unanswered');
+					const unanswered = dom.$('div.chat-question-summary-unanswered');
 					unanswered.textContent = localize('chat.questionCarousel.notAnsweredYet', 'Not answered yet');
 					summaryItem.appendChild(unanswered);
 				}
@@ -863,12 +856,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const label = dom.$('.chat-question-list-label');
 			const separatorIndex = option.label.indexOf(' - ');
 			if (separatorIndex !== -1) {
-				const titleSpan = dom.$('span.chat-question-list-label-title');
+				const titleSpan = dom.$('div.chat-question-list-label-title');
 				titleSpan.textContent = option.label.substring(0, separatorIndex);
 				label.appendChild(titleSpan);
 
-				const descSpan = dom.$('span.chat-question-list-label-desc');
-				descSpan.textContent = ': ' + option.label.substring(separatorIndex + 3);
+				const descSpan = dom.$('div.chat-question-list-label-desc');
+				descSpan.textContent = option.label.substring(separatorIndex + 3);
 				label.appendChild(descSpan);
 			} else {
 				label.textContent = option.label;
@@ -1076,12 +1069,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const label = dom.$('.chat-question-list-label');
 			const separatorIndex = option.label.indexOf(' - ');
 			if (separatorIndex !== -1) {
-				const titleSpan = dom.$('span.chat-question-list-label-title');
+				const titleSpan = dom.$('div.chat-question-list-label-title');
 				titleSpan.textContent = option.label.substring(0, separatorIndex);
 				label.appendChild(titleSpan);
 
-				const descSpan = dom.$('span.chat-question-list-label-desc');
-				descSpan.textContent = ': ' + option.label.substring(separatorIndex + 3);
+				const descSpan = dom.$('div.chat-question-list-label-desc');
+				descSpan.textContent = option.label.substring(separatorIndex + 3);
 				label.appendChild(descSpan);
 			} else {
 				label.textContent = option.label;
@@ -1328,35 +1321,19 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			const summaryItem = dom.$('.chat-question-summary-item');
 
-			// Category label (use same text as shown in question UI: message ?? title)
-			const questionLabel = dom.$('span.chat-question-summary-label');
+			// Question row with Q: prefix
+			const questionRow = dom.$('div.chat-question-summary-label');
 			const questionText = question.message ?? question.title;
 			let labelText = typeof questionText === 'string' ? questionText : questionText.value;
-			// Remove trailing colons and whitespace to avoid double colons (CSS adds ': ')
 			labelText = labelText.replace(/[:\s]+$/, '');
-			questionLabel.textContent = labelText;
-			summaryItem.appendChild(questionLabel);
+			questionRow.textContent = localize('chat.questionCarousel.summaryQuestion', 'Q: {0}', labelText);
+			summaryItem.appendChild(questionRow);
 
-			// Format answer with title and description parts
+			// Answer row with A: prefix
 			const formattedAnswer = this.formatAnswerForSummary(question, answer);
-			const separatorIndex = formattedAnswer.indexOf(' - ');
-
-			if (separatorIndex !== -1) {
-				// Answer title (bold)
-				const answerTitle = dom.$('span.chat-question-summary-answer-title');
-				answerTitle.textContent = formattedAnswer.substring(0, separatorIndex);
-				summaryItem.appendChild(answerTitle);
-
-				// Answer description (normal)
-				const answerDesc = dom.$('span.chat-question-summary-answer-desc');
-				answerDesc.textContent = ' - ' + formattedAnswer.substring(separatorIndex + 3);
-				summaryItem.appendChild(answerDesc);
-			} else {
-				// Just the answer value (bold)
-				const answerValue = dom.$('span.chat-question-summary-answer-title');
-				answerValue.textContent = formattedAnswer;
-				summaryItem.appendChild(answerValue);
-			}
+			const answerRow = dom.$('div.chat-question-summary-answer');
+			answerRow.textContent = localize('chat.questionCarousel.summaryAnswer', 'A: {0}', formattedAnswer);
+			summaryItem.appendChild(answerRow);
 
 			summaryContainer.appendChild(summaryItem);
 		}
