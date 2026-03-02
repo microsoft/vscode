@@ -20,7 +20,7 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../
 import { IChatModeService } from '../../../../common/chatModes.js';
 import { PromptHeaderAutocompletion } from '../../../../common/promptSyntax/languageProviders/promptHeaderAutocompletion.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
-import { Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
