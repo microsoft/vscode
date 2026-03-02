@@ -146,7 +146,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			return new MarkdownString(
 				localize(
 					'tip.init',
-					"Use [{0}](command:{1}){2} to generate or update workspace instructions file for AI coding agents",
+					"Use [{0}](command:{1}){2} to generate or update a workspace instructions file for AI coding agents.",
 					'/init',
 					GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
 					kb
