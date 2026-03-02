@@ -23,7 +23,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isMacintosh, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -1928,55 +1928,80 @@ export class Repository implements Disposable {
 			gitIgnoredFiles.delete(uri.fsPath);
 		}
 
-		// Add the folder paths for git ignored files
-		const gitIgnoredPaths = new Set(gitIgnoredFiles);
-
-		for (const filePath of gitIgnoredFiles) {
-			let dir = path.dirname(filePath);
-			while (dir !== this.root && !gitIgnoredFiles.has(dir)) {
-				gitIgnoredPaths.add(dir);
-				dir = path.dirname(dir);
-			}
-		}
-
-		return gitIgnoredPaths;
+		return gitIgnoredFiles;
 	}
 
 	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
-		const gitIgnoredPaths = await this._getWorktreeIncludePaths();
-		if (gitIgnoredPaths.size === 0) {
+		const gitIgnoredFiles = await this._getWorktreeIncludePaths();
+		if (gitIgnoredFiles.size === 0) {
 			return;
 		}
 
+		// On macOS, we can use the native copyfile syscall with the COPYFILE_FICLONE flag to
+		// perform a copy-on-write clone of the files. This is much faster and more efficient
+		// than copying the file contents, especially for large files.
+		let nativeCopyFile: ((src: string, dst: string, mode?: number) => Promise<void>) | undefined;
+		if (isMacintosh) {
+			try {
+				nativeCopyFile = (await import('@vscode/fs-copyfile')).copyFile;
+			} catch { } // Package not available, fall back to fsPromises.cp
+		}
+
 		try {
-			// Find minimal set of paths (folders and files) to copy.
-			// The goal is to reduce the number of copy operations
-			// needed.
-			const pathsToCopy = new Set<string>();
-			for (const filePath of gitIgnoredPaths) {
-				const relativePath = path.relative(this.root, filePath);
-				const firstSegment = relativePath.split(path.sep)[0];
-				pathsToCopy.add(path.join(this.root, firstSegment));
+			let files: string[];
+
+			if (!nativeCopyFile) {
+				// Add the folder paths for git ignored files. We do this so
+				// that when we copy, we can copy at the folder level instead
+				// of file level to reduce the number of copy operations needed.
+				const gitIgnoredPaths = new Set(gitIgnoredFiles);
+
+				for (const filePath of gitIgnoredFiles) {
+					let dir = path.dirname(filePath);
+					while (dir !== this.root && !gitIgnoredFiles.has(dir)) {
+						gitIgnoredPaths.add(dir);
+						dir = path.dirname(dir);
+					}
+				}
+
+				// Find minimal set of paths (folders and files) to copy.
+				// The goal is to reduce the number of copy operations
+				// needed.
+				const pathsToCopy = new Set<string>();
+				for (const filePath of gitIgnoredFiles) {
+					const relativePath = path.relative(this.root, filePath);
+					const firstSegment = relativePath.split(path.sep)[0];
+					pathsToCopy.add(path.join(this.root, firstSegment));
+				}
+
+				files = Array.from(pathsToCopy);
+			} else {
+				files = Array.from(gitIgnoredFiles);
 			}
 
 			const startTime = Date.now();
-			const limiter = new Limiter<void>(15);
-			const files = Array.from(pathsToCopy);
+			const limiter = new Limiter<void>(30);
 
-			// Copy files
-			const results = await Promise.allSettled(files.map(sourceFile =>
-				limiter.queue(async () => {
-					const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
-					await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
-					await fsPromises.cp(sourceFile, targetFile, {
-						filter: src => gitIgnoredPaths.has(src),
-						force: true,
-						mode: fs.constants.COPYFILE_FICLONE,
-						recursive: true,
-						verbatimSymlinks: true
-					});
-				})
-			));
+			const results = nativeCopyFile
+				? await Promise.allSettled(files.map(sourceFile =>
+					limiter.queue(async () => {
+						const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
+						await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
+						await nativeCopyFile(sourceFile, targetFile, fs.constants.COPYFILE_FICLONE);
+					})))
+				: await Promise.allSettled(files.map(sourceFile =>
+					limiter.queue(async () => {
+						const targetFile = path.join(worktreePath, relativePath(this.root, sourceFile));
+						await fsPromises.mkdir(path.dirname(targetFile), { recursive: true });
+						await fsPromises.cp(sourceFile, targetFile, {
+							filter: src => gitIgnoredFiles.has(src),
+							force: true,
+							mode: fs.constants.COPYFILE_FICLONE,
+							recursive: true,
+							verbatimSymlinks: true
+						});
+					})
+				));
 
 			// Log any failed operations
 			const failedOperations = results.filter(r => r.status === 'rejected');
