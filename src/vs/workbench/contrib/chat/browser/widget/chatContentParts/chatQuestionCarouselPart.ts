@@ -257,6 +257,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (newIndex >= 0 && newIndex < this.carousel.questions.length) {
 			this.saveCurrentAnswer();
 			this._currentIndex = newIndex;
+			this.persistDraftState();
 			this.renderCurrentQuestion(true);
 		}
 	}
@@ -271,6 +272,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (this._currentIndex < this.carousel.questions.length - 1) {
 			// Move to next question
 			this._currentIndex++;
+			this.persistDraftState();
 			this.renderCurrentQuestion(true);
 		} else {
 			// Submit

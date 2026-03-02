@@ -579,6 +579,28 @@ suite('ChatQuestionCarouselPart', () => {
 	});
 
 	suite('Used Carousel Summary', () => {
+		test('retains current question after navigation without editing', () => {
+			const carousel = new ChatQuestionCarouselData([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+
+			const firstWidget = createWidget(carousel);
+			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
+			assert.ok(nextButton, 'next button should exist');
+			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			firstWidget.dispose();
+			firstWidget.domNode.remove();
+
+			const recreatedWidget = createWidget(carousel);
+			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
+			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index after navigation');
+
+			const title = recreatedWidget.domNode.querySelector('.chat-question-title');
+			assert.ok(title?.textContent?.includes('Question 2'), 'should restore to the second question view');
+		});
+
 		test('retains draft answers and current question after widget recreation', () => {
 			const carousel = new ChatQuestionCarouselData([
 				{ id: 'q1', type: 'text', title: 'Question 1' },
