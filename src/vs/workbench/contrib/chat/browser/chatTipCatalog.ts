@@ -15,7 +15,7 @@ import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
 import { TipTrackingCommands } from './chatTipStorageKeys.js';
 import {
 	GENERATE_AGENT_COMMAND_ID,
-	GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
+	GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
 	INSERT_FORK_CONVERSATION_COMMAND_ID,
@@ -138,24 +138,24 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		onlyWhenModelIds: ['gpt-4.1'],
 	},
 	{
-		id: 'tip.createInstruction',
+		id: 'tip.init',
 		tier: ChatTipTier.Foundational,
 		priority: 50,
 		buildMessage(ctx) {
-			const kb = formatKeybinding(ctx, GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID);
+			const kb = formatKeybinding(ctx, GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID);
 			return new MarkdownString(
 				localize(
-					'tip.createInstruction',
-					"Use [{0}](command:{1}){2} to generate an on-demand instructions file with the agent.",
-					'/create-instructions',
-					GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
+					'tip.init',
+					"Use [{0}](command:{1}){2} to generate or update a workspace instructions file for AI coding agents.",
+					'/init',
+					GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
 					kb
 				)
 			);
 		},
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 		excludeWhenCommandsExecuted: [
-			GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
+			GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID,
 			TipTrackingCommands.CreateAgentInstructionsUsed,
 		],
 	},
