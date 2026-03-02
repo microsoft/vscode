@@ -7,7 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -27,6 +27,7 @@ const FILTER_THRESHOLD = 10;
 interface IFolderItem {
 	readonly uri: URI;
 	readonly label: string;
+	readonly checked?: boolean;
 }
 
 /**
@@ -218,40 +219,32 @@ export class FolderPicker extends Disposable {
 
 	private _buildItems(currentFolderUri: URI | undefined): IActionListItem<IFolderItem>[] {
 		const seenUris = new Set<string>();
-		if (currentFolderUri) {
-			seenUris.add(currentFolderUri.toString());
-		}
 
 		const items: IActionListItem<IFolderItem>[] = [];
 
-		// Currently selected folder (shown first, checked)
+		// Collect all folders (current + recently picked), deduplicated and sorted by name
+		const allFolders: { uri: URI; label: string }[] = [];
 		if (currentFolderUri) {
-			items.push({
-				kind: ActionListItemKind.Action,
-				label: basename(currentFolderUri),
-				group: { title: '', icon: Codicon.folder },
-				item: { uri: currentFolderUri, label: basename(currentFolderUri) },
-			});
+			seenUris.add(currentFolderUri.toString());
+			allFolders.push({ uri: currentFolderUri, label: basename(currentFolderUri) });
 		}
-
-		// Recently picked folders (sorted by name)
-		const dedupedFolders: { uri: URI; label: string }[] = [];
 		for (const folderUri of this._recentlyPickedFolders) {
 			const key = folderUri.toString();
 			if (seenUris.has(key)) {
 				continue;
 			}
 			seenUris.add(key);
-			dedupedFolders.push({ uri: folderUri, label: basename(folderUri) });
+			allFolders.push({ uri: folderUri, label: basename(folderUri) });
 		}
-		dedupedFolders.sort((a, b) => a.label.localeCompare(b.label));
-		for (const folder of dedupedFolders) {
+		allFolders.sort((a, b) => extUriBiasedIgnorePathCase.compare(a.uri, b.uri));
+		for (const folder of allFolders) {
+			const isCurrent = currentFolderUri && isEqual(folder.uri, currentFolderUri);
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: folder.label,
 				group: { title: '', icon: Codicon.folder },
-				item: { uri: folder.uri, label: folder.label },
-				onRemove: () => this._removeFolder(folder.uri),
+				item: { uri: folder.uri, label: folder.label, checked: isCurrent || false },
+				...(!isCurrent ? { onRemove: () => this._removeFolder(folder.uri) } : {}),
 			});
 		}
 
