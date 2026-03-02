@@ -256,7 +256,7 @@
 		"gauge.errorForeground": "#ad0707",
 		"gauge.errorBackground": "#ad070740",
 		"statusBarItem.prominentHoverForeground": "#FFFFFF",
-		"quickInputTitle.background": "#F0F0F3",
+		"quickInputTitle.background": "#FAFAFD",
 		"chat.requestBubbleBackground": "#EEF4FB",
 		"chat.requestBubbleHoverBackground": "#E6EDFA",
 		"chat.thinkingShimmer": "#999999",
