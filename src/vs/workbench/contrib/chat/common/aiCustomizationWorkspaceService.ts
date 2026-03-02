@@ -103,4 +103,22 @@ export interface IAICustomizationWorkspaceService {
 	 * Launches the AI-guided creation flow for the given customization type.
 	 */
 	generateCustomization(type: PromptsType): Promise<void>;
+
+	/**
+	 * Whether a transient project root override is currently active.
+	 */
+	readonly hasOverrideProjectRoot: IObservable<boolean>;
+
+	/**
+	 * Sets a transient override for the active project root.
+	 * While set, `activeProjectRoot` returns this value instead of the
+	 * session- or workspace-derived root. Call `clearOverrideProjectRoot()` to revert.
+	 */
+	setOverrideProjectRoot(root: URI): void;
+
+	/**
+	 * Clears the transient project root override, reverting to the
+	 * session-derived (or workspace-derived) root.
+	 */
+	clearOverrideProjectRoot(): void;
 }
