@@ -17,6 +17,7 @@ import { CharCode } from '../../../../base/common/charCode.js';
 import { Position } from '../../../common/core/position.js';
 import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { InlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 
 /**
  * The whitespace overlay will visual certain whitespace depending on the
@@ -28,6 +29,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 	private _options: WhitespaceOptions;
 	private _selection: Selection[];
 	private _renderResult: string[] | null;
+	private readonly _fontMetricsCache: FontMetricsCache;
 
 	constructor(context: ViewContext) {
 		super();
@@ -35,6 +37,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		this._options = new WhitespaceOptions(this._context.configuration);
 		this._selection = [];
 		this._renderResult = null;
+		this._fontMetricsCache = new FontMetricsCache();
 		this._context.addEventHandler(this);
 	}
 
@@ -52,6 +55,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			return e.hasChanged(EditorOption.layoutInfo);
 		}
 		this._options = newOptions;
+		this._fontMetricsCache.clear();
 		return true;
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
@@ -152,6 +156,27 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 
 		let result: string = '';
 
+		// Pre-compute font metrics for lines with variable fonts
+		let maxAscentMinusDescent = 0;
+		let fontDecorations: InlineDecoration[] | undefined;
+		if (lineData.hasVariableFonts && USE_SVG) {
+			const baseFontFamily = this._options.fontFamily;
+			const baseFontSize = this._options.fontSize;
+			const baseMetrics = this._fontMetricsCache.getMetrics(baseFontFamily, baseFontSize);
+			maxAscentMinusDescent = baseMetrics.ascent - baseMetrics.descent;
+
+			fontDecorations = [];
+			for (const dec of lineData.inlineDecorations) {
+				if (dec.fontSizeMultiplier !== undefined || dec.fontFamily !== undefined) {
+					fontDecorations.push(dec);
+					const fontFamily = dec.fontFamily ?? baseFontFamily;
+					const fontSize = dec.fontSizeMultiplier ? baseFontSize * dec.fontSizeMultiplier : baseFontSize;
+					const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
+					maxAscentMinusDescent = Math.max(maxAscentMinusDescent, metrics.ascent - metrics.descent);
+				}
+			}
+		}
+
 		let lineIsEmptyOrWhitespace = false;
 		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 		let lastNonWhitespaceIndex: number;
@@ -211,18 +236,28 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				continue;
 			}
 
+			let cy: number;
+			if (fontDecorations) {
+				// Variable fonts: cy_f = (H - (A_f - D_f) + max_i(A_i - D_i)) / 2
+				const font = getFontAtColumn(charIndex + 1, fontDecorations, this._options.fontFamily, this._options.fontSize);
+				const metrics = this._fontMetricsCache.getMetrics(font.fontFamily, font.fontSize);
+				cy = (lineHeight - (metrics.ascent - metrics.descent) + maxAscentMinusDescent) / 2;
+			} else {
+				cy = lineHeight / 2;
+			}
+
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);
 				if (chCode === CharCode.Tab) {
-					result += this._renderArrow(lineHeight, spaceWidth, visibleRange.left);
+					result += this._renderArrow(2 * cy, spaceWidth, visibleRange.left);
 				} else {
-					result += `<circle cx="${(visibleRange.left + spaceWidth / 2).toFixed(2)}" cy="${(lineHeight / 2).toFixed(2)}" r="${(spaceWidth / 7).toFixed(2)}" />`;
+					result += `<circle cx="${(visibleRange.left + spaceWidth / 2).toFixed(2)}" cy="${cy.toFixed(2)}" r="${(spaceWidth / 7).toFixed(2)}" />`;
 				}
 			} else {
 				if (chCode === CharCode.Tab) {
-					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
+					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${2 * cy}px;">${canUseHalfwidthRightwardsArrow ? String.fromCharCode(0xFFEB) : String.fromCharCode(0x2192)}</div>`;
 				} else {
-					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${lineHeight}px;">${String.fromCharCode(renderSpaceCharCode)}</div>`;
+					result += `<div class="mwh" style="left:${visibleRange.left}px;height:${2 * cy}px;">${String.fromCharCode(renderSpaceCharCode)}</div>`;
 				}
 			}
 		}
@@ -239,10 +274,10 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		return result;
 	}
 
-	private _renderArrow(lineHeight: number, spaceWidth: number, left: number): string {
+	private _renderArrow(lineHeight: number, spaceWidth: number, left: number, centerY?: number): string {
 		const strokeWidth = spaceWidth / 7;
 		const width = spaceWidth;
-		const dy = lineHeight / 2;
+		const dy = centerY ?? lineHeight / 2;
 		const dx = left;
 
 		const p1 = { x: 0, y: strokeWidth / 2 };
@@ -283,6 +318,8 @@ class WhitespaceOptions {
 	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
+	public readonly fontFamily: string;
+	public readonly fontSize: number;
 
 	constructor(config: IEditorConfiguration) {
 		const options = config.options;
@@ -305,6 +342,8 @@ class WhitespaceOptions {
 		this.canUseHalfwidthRightwardsArrow = fontInfo.canUseHalfwidthRightwardsArrow;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
+		this.fontFamily = fontInfo.fontFamily;
+		this.fontSize = fontInfo.fontSize;
 	}
 
 	public equals(other: WhitespaceOptions): boolean {
@@ -317,6 +356,64 @@ class WhitespaceOptions {
 			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
+			&& this.fontFamily === other.fontFamily
+			&& this.fontSize === other.fontSize
 		);
 	}
+}
+
+interface FontMetrics {
+	readonly ascent: number;
+	readonly descent: number;
+}
+
+class FontMetricsCache {
+	private readonly _cache = new Map<string, FontMetrics>();
+
+	getMetrics(fontFamily: string, fontSize: number): FontMetrics {
+		const key = `${fontFamily}|${fontSize}`;
+		let metrics = this._cache.get(key);
+		if (!metrics) {
+			const canvas = new OffscreenCanvas(1, 1);
+			const ctx = canvas.getContext('2d')!;
+			ctx.font = `${fontSize}px ${fontFamily}`;
+			const tm = ctx.measureText('A');
+			metrics = {
+				ascent: tm.fontBoundingBoxAscent,
+				descent: tm.fontBoundingBoxDescent
+			};
+			this._cache.set(key, metrics);
+		}
+		return metrics;
+	}
+
+	clear(): void {
+		this._cache.clear();
+	}
+}
+
+/**
+ * Returns the font info (fontFamily, fontSize) for a given column on a line,
+ * based on the inline decorations that affect font.
+ */
+function getFontAtColumn(
+	column: number,
+	inlineDecorations: InlineDecoration[],
+	baseFontFamily: string,
+	baseFontSize: number
+): { fontFamily: string; fontSize: number } {
+	for (const dec of inlineDecorations) {
+		if (dec.fontSizeMultiplier === undefined && dec.fontFamily === undefined) {
+			continue;
+		}
+		const startCol = dec.range.startColumn;
+		const endCol = dec.range.endColumn;
+		if (column >= startCol && column < endCol) {
+			return {
+				fontFamily: dec.fontFamily ?? baseFontFamily,
+				fontSize: dec.fontSizeMultiplier ? baseFontSize * dec.fontSizeMultiplier : baseFontSize
+			};
+		}
+	}
+	return { fontFamily: baseFontFamily, fontSize: baseFontSize };
 }

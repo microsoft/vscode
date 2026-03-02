@@ -309,6 +309,12 @@ export interface IModelDecorationOptions {
 	affectsFont?: boolean | null;
 
 	/**
+	 * Font size multiplier relative to the editor font size.
+	 * @internal
+	 */
+	fontSizeMultiplier?: number | null;
+
+	/**
 	 * The text direction of the decoration.
 	 */
 	textDirection?: TextDirection | null;
