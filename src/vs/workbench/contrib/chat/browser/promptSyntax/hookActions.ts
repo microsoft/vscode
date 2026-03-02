@@ -39,7 +39,7 @@ import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browse
 import { Range } from '../../../../../editor/common/core/range.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
-import { OS } from '../../../../../base/common/platform.js';
+import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 
 /**
  * Action ID for the `Configure Hooks` action.
@@ -384,23 +384,51 @@ export async function showConfigureHooksQuickPick(
 		switch (step) {
 			case Step.SelectHookType: {
 				// Step 1: Show lifecycle events with hook counts, filtered by target
-				const targetHookTypes = options?.target
-					? new Set(Object.values(HOOKS_BY_TARGET[options.target]))
-					: undefined;
-				const hookTypeItems: IHookTypeQuickPickItem[] = (Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][])
-					.filter(([hookType]) => !targetHookTypes || targetHookTypes.has(hookType))
-					.map(([hookType, meta]) => {
-						const count = hookCountByType.get(hookType) ?? 0;
-						const countLabel = count > 0 ? ` (${count})` : '';
-						return {
-							label: `${meta.label}${countLabel}`,
-							description: meta.description,
-							hookType,
-							hookTypeMeta: meta
-						};
-					});
+				const makeItem = ([hookType, meta]: [HookType, IHookTypeMeta]): IHookTypeQuickPickItem => {
+					const count = hookCountByType.get(hookType) ?? 0;
+					const countLabel = count > 0 ? ` (${count})` : '';
+					return {
+						label: `${meta.label}${countLabel}`,
+						description: meta.description,
+						hookType,
+						hookTypeMeta: meta
+					};
+				};
 
-				picker.items = hookTypeItems;
+				let pickerItems: (IHookTypeQuickPickItem | IQuickPickSeparator)[];
+
+				if (options?.target) {
+					// Filtered to a specific target
+					const targetHookTypes = new Set(Object.values(HOOKS_BY_TARGET[options.target]));
+					pickerItems = (Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][])
+						.filter(([hookType]) => targetHookTypes.has(hookType))
+						.map(makeItem);
+				} else {
+					// No target: group into Default (shared), VS Code Only, Copilot CLI Only
+					const vscodeTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.VSCode]));
+					const copilotTypes = new Set(Object.values(HOOKS_BY_TARGET[Target.GitHubCopilot]));
+					const allEntries = Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][];
+
+					const shared = allEntries.filter(([h]) => vscodeTypes.has(h) && copilotTypes.has(h));
+					const vscodeOnly = allEntries.filter(([h]) => vscodeTypes.has(h) && !copilotTypes.has(h));
+					const copilotOnly = allEntries.filter(([h]) => !vscodeTypes.has(h) && copilotTypes.has(h));
+
+					pickerItems = [];
+					if (shared.length > 0) {
+						pickerItems.push({ type: 'separator', label: localize('hookSection.default', "Local/Copilot CLI Agents") });
+						pickerItems.push(...shared.map(makeItem));
+					}
+					if (vscodeOnly.length > 0) {
+						pickerItems.push({ type: 'separator', label: localize('hookSection.vscodeOnly', "Local Agents") });
+						pickerItems.push(...vscodeOnly.map(makeItem));
+					}
+					if (copilotOnly.length > 0) {
+						pickerItems.push({ type: 'separator', label: localize('hookSection.copilotCliOnly', "Copilot CLI Agents") });
+						pickerItems.push(...copilotOnly.map(makeItem));
+					}
+				}
+
+				picker.items = pickerItems;
 				picker.value = '';
 				picker.placeholder = localize('commands.hooks.selectEvent.placeholder', 'Select a lifecycle event');
 				picker.title = localize('commands.hooks.title', 'Hooks');
@@ -721,13 +749,24 @@ export async function showConfigureHooksQuickPick(
 				// Detect if new file is a Claude hooks file based on its path
 				const newFileFormat = getHookSourceFormat(hookFileUri);
 				const isClaudeNewFile = newFileFormat === HookSourceFormat.Claude;
+				const isCopilotCliOnly = !isClaudeNewFile
+					&& !new Set(Object.values(HOOKS_BY_TARGET[Target.VSCode])).has(selectedHookType!.hookType)
+					&& new Set(Object.values(HOOKS_BY_TARGET[Target.GitHubCopilot])).has(selectedHookType!.hookType);
 				const hookTypeKey = isClaudeNewFile
 					? (getClaudeHookTypeName(selectedHookType!.hookType) ?? selectedHookType!.hookType)
-					: selectedHookType!.hookType;
-				const newFileHookEntry = buildNewHookEntry(newFileFormat);
+					: isCopilotCliOnly
+						? (getCopilotCliHookTypeName(selectedHookType!.hookType) ?? selectedHookType!.hookType)
+						: selectedHookType!.hookType;
+				const newFileHookEntry = isCopilotCliOnly
+					? { type: 'command', [targetOS === OperatingSystem.Windows ? 'powershell' : 'bash']: '' }
+					: buildNewHookEntry(newFileFormat);
+				const commandFieldKey = isCopilotCliOnly
+					? (targetOS === OperatingSystem.Windows ? 'powershell' : 'bash')
+					: 'command';
 
 				// Create new hook file with the selected hook type
-				const hooksContent = {
+				const hooksContent: Record<string, unknown> = {
+					...(isCopilotCliOnly ? { version: 1 } : {}),
 					hooks: {
 						[hookTypeKey]: [
 							newFileHookEntry
@@ -741,7 +780,7 @@ export async function showConfigureHooksQuickPick(
 				options?.onHookFileCreated?.(hookFileUri);
 
 				// Find the selection for the new hook's command field
-				const selection = findHookCommandSelection(jsonContent, hookTypeKey, 0, 'command');
+				const selection = findHookCommandSelection(jsonContent, hookTypeKey, 0, commandFieldKey);
 
 				// Open editor with selection
 				store.dispose();

@@ -61,7 +61,7 @@ export const HOOKS_BY_TARGET: Record<Target, Record<string, HookType>> = {
 		'SubagentStop': HookType.SubagentStop,
 		'Stop': HookType.Stop,
 	},
-	// If no target, just list all known hook types.
+	// if no target, just list all known hook types.
 	[Target.Undefined]: Object.fromEntries(
 		Object.values(HookType).map(h => [h, h])
 	) as Record<string, HookType>
@@ -113,10 +113,10 @@ export const HOOK_METADATA: { [key in HookType]: IHookTypeMeta } = {
 	},
 	[HookType.SessionEnd]: {
 		label: nls.localize('hookType.sessionEnd.label', "Session End"),
-		description: nls.localize('hookType.sessionEnd.description', "Executed when an agent session ends. Only used for Copilot CLI sessions.")
+		description: nls.localize('hookType.sessionEnd.description', "Executed when an agent session ends.")
 	},
 	[HookType.ErrorOccurred]: {
 		label: nls.localize('hookType.errorOccurred.label', "Error Occurred"),
-		description: nls.localize('hookType.errorOccurred.description', "Executed when an error occurs during the agent session. Only used for Copilot CLI sessions.")
+		description: nls.localize('hookType.errorOccurred.description', "Executed when an error occurs during the agent session.")
 	}
 };
