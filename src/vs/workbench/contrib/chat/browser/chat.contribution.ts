@@ -1016,7 +1016,7 @@ configurationRegistry.registerConfiguration({
 				patternErrorMessage: nls.localize('chat.hookFilesLocations.invalidPath', "Paths must be relative or start with '~/'. Absolute paths and '\\' separators are not supported."),
 			},
 			restricted: true,
-			tags: ['preview', 'prompts', 'hooks', 'agent'],
+			tags: ['prompts', 'hooks', 'agent'],
 			examples: [
 				{
 					[DEFAULT_HOOK_FILE_PATHS[0].path]: true,
@@ -1034,12 +1034,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
-			tags: ['preview', 'prompts', 'hooks', 'agent'],
+			tags: ['prompts', 'hooks', 'agent'],
 			policy: {
 				name: 'ChatHooks',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.109',
-				value: (policyData) => policyData.chat_preview_features_enabled === false ? false : undefined,
 				localization: {
 					description: {
 						key: 'chat.useHooks.description',
@@ -1055,7 +1054,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
-			tags: ['preview', 'prompts', 'hooks', 'agent']
+			tags: ['prompts', 'hooks', 'agent']
 		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',
