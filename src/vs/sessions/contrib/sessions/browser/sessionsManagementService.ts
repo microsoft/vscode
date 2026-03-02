@@ -264,7 +264,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		let newSession: INewSession;
-		if (target === AgentSessionProviders.Background || target === AgentSessionProviders.Local) {
+		if (target === AgentSessionProviders.Background) {
 			newSession = this.instantiationService.createInstance(LocalNewSession, sessionResource, defaultRepoUri);
 		} else {
 			newSession = this.instantiationService.createInstance(RemoteNewSession, sessionResource, target);
@@ -443,8 +443,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (this.isNewChatSessionContext.get()) {
 			return;
 		}
-		this.isNewChatSessionContext.set(true);
 		this.setActiveSession(undefined);
+		this.isNewChatSessionContext.set(true);
 	}
 
 	private setActiveSession(session: IAgentSession | INewSession | undefined): void {
