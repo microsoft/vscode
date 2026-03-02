@@ -667,7 +667,7 @@ export class PromptFilePickers {
 				// For skills, delete the parent folder (e.g. .github/skills/my-skill/)
 				// since each skill is a folder containing SKILL.md.
 				const deleteTarget = isSkill ? dirname(value) : value;
-				await this._fileService.del(deleteTarget, { recursive: isSkill });
+				await this._fileService.del(deleteTarget, { recursive: isSkill, useTrash: true });
 				return true;
 			});
 
