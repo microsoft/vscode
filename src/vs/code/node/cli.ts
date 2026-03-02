@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
-import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
+import { chmodSync, existsSync, readdirSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from '../../base/common/event.js';
@@ -499,8 +499,21 @@ export async function main(argv: string[]): Promise<void> {
 			//    This way, Mac does not automatically try to foreground the new instance, which causes
 			//    focusing issues when the new instance only sends data to a previous instance and then closes.
 			const spawnArgs = ['-n', '-g'];
-			// -a opens the given application.
-			spawnArgs.push('-a', process.execPath); // -a: opens a specific application
+
+			// Figure out the app to launch: with --sessions we try to launch the embedded app
+			let appToLaunch = process.execPath;
+			if (args['sessions']) {
+				// process.execPath is e.g. /Applications/Code.app/Contents/MacOS/Electron
+				// Embedded app is at /Applications/Code.app/Contents/Applications/<EmbeddedApp>.app
+				const contentsPath = dirname(dirname(process.execPath));
+				const applicationsPath = join(contentsPath, 'Applications');
+				const embeddedApp = existsSync(applicationsPath) && readdirSync(applicationsPath).find(f => f.endsWith('.app'));
+				if (embeddedApp) {
+					appToLaunch = join(applicationsPath, embeddedApp);
+					argv = argv.filter(arg => arg !== '--sessions');
+				}
+			}
+			spawnArgs.push('-a', appToLaunch); // -a opens the given application.
 
 			if (args.verbose || args.status) {
 				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)
