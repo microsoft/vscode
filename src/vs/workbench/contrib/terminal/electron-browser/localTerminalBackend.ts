@@ -296,7 +296,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	@memoize
 	async getShellEnvironment(): Promise<IProcessEnvironment> {
-		const env = await this._shellEnvironmentService.getShellEnv();
+		const env = { ... await this._shellEnvironmentService.getShellEnv() };
 
 		// If running in the context of an extension development host, include the environment derived from the launch configuration
 		if (this._environmentService.debugExtensionHost.env) {
