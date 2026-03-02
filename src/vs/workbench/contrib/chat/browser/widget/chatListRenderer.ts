@@ -50,7 +50,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchIssueService } from '../../../issue/common/issue.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
-import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasCodeblockUriTag } from '../../common/widget/annotations.js';
+import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, hasEditCodeblockUriTag } from '../../common/widget/annotations.js';
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -529,7 +529,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const footerToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, footerToolbarContainer, MenuId.ChatMessageFooter, {
-			eventDebounceDelay: 0,
 			menuOptions: { shouldForwardArgs: true, renderShortTitle: true },
 			toolbarOptions: { shouldInlineSubmenu: submenu => submenu.actions.length <= 1 },
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
@@ -754,6 +753,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isPendingRequest = isRequestVM(element) && !!element.pendingKind;
 
 		templateData.checkpointContainer.classList.toggle('hidden', isResponseVM(element) || isPendingRequest || !(checkpointEnabled));
+
+		// Force toolbars to synchronously re-evaluate after context key changes
+		// to avoid size measurement issues from the debounced menu update.
+		templateData.footerToolbar.refresh();
+		templateData.checkpointToolbar.refresh();
+		templateData.checkpointRestoreToolbar.refresh();
 
 		// Track response template data by request ID for cross-row hover effects
 		if (isResponseVM(element)) {
@@ -1021,7 +1026,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 
 		const hasRenderedThinkingPart = (templateData.renderedParts ?? []).some(part => part instanceof ChatThinkingContentPart);
-		const hasEditPillMarkdown = partsToRender.some(part => part.kind === 'markdownContent' && this.hasCodeblockUri(part));
+		const hasEditPillMarkdown = partsToRender.some(part => part.kind === 'markdownContent' && this.hasEditCodeblockUri(part));
 		if (hasRenderedThinkingPart && hasEditPillMarkdown) {
 			return false;
 		}
@@ -1471,11 +1476,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return !!dom.findParentWithClass(renderedPart.domNode, 'chat-thinking-box');
 	}
 
-	private hasCodeblockUri(part: IChatRendererContent): boolean {
+	private hasEditCodeblockUri(part: IChatRendererContent): boolean {
 		if (part.kind !== 'markdownContent') {
 			return false;
 		}
-		return hasCodeblockUriTag(part.content.value);
+		return hasEditCodeblockUriTag(part.content.value);
 	}
 
 	private isCodeblockComplete(part: IChatRendererContent, element: ChatTreeItem): boolean {
@@ -1512,7 +1517,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		// is an edit related part
-		if (this.hasCodeblockUri(part) || part.kind === 'textEditGroup') {
+		if (this.hasEditCodeblockUri(part) || part.kind === 'textEditGroup') {
 			return true;
 		}
 
@@ -2375,7 +2380,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const isFinalRenderPass = isResponseVM(element) && element.isComplete && !element.renderData;
 		const lastPinnedPartIndex = isFinalRenderPass ? context.content.findLastIndex(c => c.kind === 'thinking' || c.kind === 'toolInvocation' || c.kind === 'toolInvocationSerialized') : -1;
 		const isFinalAnswerPart = isFinalRenderPass && context.contentIndex > lastPinnedPartIndex;
-		if (!this.hasCodeblockUri(markdown) || isFinalAnswerPart) {
+		if (!this.hasEditCodeblockUri(markdown) || isFinalAnswerPart) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);

@@ -1671,7 +1671,7 @@ async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: Cancellation
 	const folderPicks: Item[] = shrinkedPairs.map(pair => {
 		const label = pair.folder.name;
 		const description = pair.isOverridden
-			? localize('workbench.action.terminal.overriddenCwdDescription', "(Overriden) {0}", labelService.getUriLabel(pair.cwd, { relative: !pair.isAbsolute }))
+			? localize('workbench.action.terminal.overriddenCwdDescription', "(Overridden) {0}", labelService.getUriLabel(pair.cwd, { relative: !pair.isAbsolute }))
 			: labelService.getUriLabel(dirname(pair.cwd), { relative: true });
 
 		return {

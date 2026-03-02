@@ -18,6 +18,7 @@ import {
 	GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID,
 	GENERATE_PROMPT_COMMAND_ID,
 	GENERATE_SKILL_COMMAND_ID,
+	INSERT_FORK_CONVERSATION_COMMAND_ID,
 } from './actions/chatActions.js';
 
 /**
@@ -286,6 +287,26 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		},
 		when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		excludeWhenCommandsExecuted: ['workbench.action.chat.queueMessage', 'workbench.action.chat.steerWithMessage'],
+	},
+	{
+		id: 'tip.forkConversation',
+		buildMessage(ctx) {
+			const kb = formatKeybinding(ctx, INSERT_FORK_CONVERSATION_COMMAND_ID);
+			return new MarkdownString(
+				localize(
+					'tip.forkConversation',
+					"Use [{0}](command:{1}){2} to branch the conversation. Explore a different approach without losing the original context.",
+					'/fork',
+					INSERT_FORK_CONVERSATION_COMMAND_ID,
+					kb
+				)
+			);
+		},
+		excludeWhenCommandsExecuted: [
+			INSERT_FORK_CONVERSATION_COMMAND_ID,
+			'workbench.action.chat.forkConversation',
+			TipTrackingCommands.ForkConversationUsed,
+		],
 	},
 	{
 		id: 'tip.yoloMode',

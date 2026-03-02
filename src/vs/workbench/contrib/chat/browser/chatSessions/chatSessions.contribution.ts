@@ -300,6 +300,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessionTypeInputPlaceholders: Map<string, string> = new Map();
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
+	private readonly _resourceAliases = new ResourceMap<URI>(); // real resource -> untitled resource
 
 	private readonly _hasCanDelegateProvidersKey: IContextKey<boolean>;
 
@@ -1078,18 +1079,31 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public hasAnySessionOptions(sessionResource: URI): boolean {
-		const session = this._sessions.get(sessionResource);
+		const session = this._sessions.get(this._resolveResource(sessionResource));
 		return !!session && !!session.options && Object.keys(session.options).length > 0;
 	}
 
 	public getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined {
-		const session = this._sessions.get(sessionResource);
+		const session = this._sessions.get(this._resolveResource(sessionResource));
 		return session?.getOption(optionId);
 	}
 
 	public setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
-		const session = this._sessions.get(sessionResource);
+		const session = this._sessions.get(this._resolveResource(sessionResource));
 		return !!session?.setOption(optionId, value);
+	}
+
+	/**
+	 * Resolve a resource through the alias map. If the resource is a real
+	 * resource that has been aliased to an untitled resource, return the
+	 * untitled resource (the canonical key in {@link _sessions}).
+	 */
+	private _resolveResource(resource: URI): URI {
+		return this._resourceAliases.get(resource) ?? resource;
+	}
+
+	public registerSessionResourceAlias(untitledResource: URI, realResource: URI): void {
+		this._resourceAliases.set(realResource, untitledResource);
 	}
 
 	/**
@@ -1134,7 +1148,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		for (const u of updates) {
 			this.setSessionOption(sessionResource, u.optionId, u.value);
 		}
-		this._onDidChangeSessionOptions.fire(sessionResource);
+		this._onDidChangeSessionOptions.fire(this._resolveResource(sessionResource));
 		this._logService.trace(`[ChatSessionsService] notifySessionOptionsChange: finished for ${sessionResource}`);
 	}
 

@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../../../base/common/buffer.js';
-import { joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -118,178 +116,13 @@ suite('PluginMarketplaceService', () => {
 suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const repoDir = URI.file('/cache/agentPlugins/github.com/microsoft/plugins');
 	const marketplaceRef = parseMarketplaceReference('microsoft/plugins')!;
 
-	function createMarketplaceJson(plugins: object[], metadata?: object): string {
-		return JSON.stringify({ metadata, plugins });
-	}
-
-	function createService(fileContents: Map<string, string>): PluginMarketplaceService {
+	function createService(): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
-		const configService = new TestConfigurationService({
-			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
-			[ChatConfiguration.PluginsEnabled]: true,
-		});
-
-		const fileService = {
-			readFile: async (uri: URI) => {
-				const content = fileContents.get(uri.path);
-				if (content !== undefined) {
-					return { value: VSBuffer.fromString(content) };
-				}
-				throw new Error('File not found');
-			},
-		} as unknown as IFileService;
-
-		const repositoryService = {
-			getRepositoryUri: () => repoDir,
-			getPluginInstallUri: (plugin: { source: string }) => joinPath(repoDir, plugin.source),
-		} as unknown as IAgentPluginRepositoryService;
-
-		instantiationService.stub(IConfigurationService, configService);
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IAgentPluginRepositoryService, repositoryService);
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
-		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
-
-		return instantiationService.createInstance(PluginMarketplaceService);
-	}
-
-	test('returns metadata for a plugin that matches by source', async () => {
-		const files = new Map<string, string>();
-		files.set(
-			joinPath(repoDir, '.github/plugin/marketplace.json').path,
-			createMarketplaceJson([
-				{ name: 'my-plugin', description: 'A test plugin', version: '2.0.0', source: 'plugins/my-plugin' },
-			]),
-		);
-
-		const service = createService(files);
-		const pluginUri = joinPath(repoDir, 'plugins/my-plugin');
-
-		const result = await service.getMarketplacePluginMetadata(pluginUri);
-
-		assert.deepStrictEqual(result && {
-			name: result.name,
-			description: result.description,
-			version: result.version,
-			source: result.source,
-			marketplace: result.marketplace,
-			marketplaceType: result.marketplaceType,
-		}, {
-			name: 'my-plugin',
-			description: 'A test plugin',
-			version: '2.0.0',
-			source: 'plugins/my-plugin',
-			marketplace: marketplaceRef.displayLabel,
-			marketplaceType: MarketplaceType.Copilot,
-		});
-	});
-
-	test('returns undefined for a URI outside all marketplace repos', async () => {
-		const files = new Map<string, string>();
-		files.set(
-			joinPath(repoDir, '.github/plugin/marketplace.json').path,
-			createMarketplaceJson([
-				{ name: 'my-plugin', version: '1.0.0', source: 'plugins/my-plugin' },
-			]),
-		);
-
-		const service = createService(files);
-		const unrelatedUri = URI.file('/some/other/path');
-
-		const result = await service.getMarketplacePluginMetadata(unrelatedUri);
-		assert.strictEqual(result, undefined);
-	});
-
-	test('returns undefined when plugin URI is in repo but no source matches', async () => {
-		const files = new Map<string, string>();
-		files.set(
-			joinPath(repoDir, '.github/plugin/marketplace.json').path,
-			createMarketplaceJson([
-				{ name: 'my-plugin', version: '1.0.0', source: 'plugins/my-plugin' },
-			]),
-		);
-
-		const service = createService(files);
-		const noMatchUri = joinPath(repoDir, 'plugins/other-plugin');
-
-		const result = await service.getMarketplacePluginMetadata(noMatchUri);
-		assert.strictEqual(result, undefined);
-	});
-
-	test('returns undefined when no marketplace.json files exist', async () => {
-		const service = createService(new Map());
-		const pluginUri = joinPath(repoDir, 'plugins/my-plugin');
-
-		const result = await service.getMarketplacePluginMetadata(pluginUri);
-		assert.strictEqual(result, undefined);
-	});
-
-	test('falls back to Claude marketplace.json when Copilot one is missing', async () => {
-		const files = new Map<string, string>();
-		files.set(
-			joinPath(repoDir, '.claude-plugin/marketplace.json').path,
-			createMarketplaceJson([
-				{ name: 'claude-plugin', version: '3.0.0', source: 'src/claude-plugin' },
-			]),
-		);
-
-		const service = createService(files);
-		const pluginUri = joinPath(repoDir, 'src/claude-plugin');
-
-		const result = await service.getMarketplacePluginMetadata(pluginUri);
-		assert.ok(result);
-		assert.strictEqual(result!.name, 'claude-plugin');
-		assert.strictEqual(result!.marketplaceType, MarketplaceType.Claude);
-	});
-
-	test('resolves source relative to pluginRoot metadata', async () => {
-		const files = new Map<string, string>();
-		files.set(
-			joinPath(repoDir, '.github/plugin/marketplace.json').path,
-			createMarketplaceJson(
-				[{ name: 'nested', version: '1.0.0', source: 'my-plugin' }],
-				{ pluginRoot: 'packages' },
-			),
-		);
-
-		const service = createService(files);
-		const pluginUri = joinPath(repoDir, 'packages/my-plugin');
-
-		const result = await service.getMarketplacePluginMetadata(pluginUri);
-		assert.ok(result);
-		assert.strictEqual(result!.name, 'nested');
-		assert.strictEqual(result!.source, 'packages/my-plugin');
-	});
-
-	test('selects the correct plugin among multiple entries', async () => {
-		const files = new Map<string, string>();
-		files.set(
-			joinPath(repoDir, '.github/plugin/marketplace.json').path,
-			createMarketplaceJson([
-				{ name: 'alpha', version: '1.0.0', source: 'plugins/alpha' },
-				{ name: 'beta', version: '2.0.0', source: 'plugins/beta' },
-				{ name: 'gamma', version: '3.0.0', source: 'plugins/gamma' },
-			]),
-		);
-
-		const service = createService(files);
-		const pluginUri = joinPath(repoDir, 'plugins/beta');
-
-		const result = await service.getMarketplacePluginMetadata(pluginUri);
-		assert.ok(result);
-		assert.strictEqual(result!.name, 'beta');
-		assert.strictEqual(result!.version, '2.0.0');
-	});
-
-	test('returns undefined when no marketplaces are configured', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
-			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.PluginMarketplaces]: ['microsoft/plugins'],
 			[ChatConfiguration.PluginsEnabled]: true,
 		}));
 		instantiationService.stub(IFileService, {} as unknown as IFileService);
@@ -298,25 +131,37 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 
-		const service = instantiationService.createInstance(PluginMarketplaceService);
-		const result = await service.getMarketplacePluginMetadata(URI.file('/any/path'));
+		return store.add(instantiationService.createInstance(PluginMarketplaceService));
+	}
+
+	test('returns metadata for an installed plugin', () => {
+		const service = createService();
+		const pluginUri = URI.file('/cache/agentPlugins/my-plugin');
+		const plugin = {
+			name: 'my-plugin',
+			description: 'A test plugin',
+			version: '2.0.0',
+			source: 'plugins/my-plugin',
+			marketplace: marketplaceRef.displayLabel,
+			marketplaceReference: marketplaceRef,
+			marketplaceType: MarketplaceType.Copilot,
+		};
+
+		service.addInstalledPlugin(pluginUri, plugin);
+		const result = service.getMarketplacePluginMetadata(pluginUri);
+
+		assert.deepStrictEqual(result, plugin);
+	});
+
+	test('returns undefined for a URI that is not installed', () => {
+		const service = createService();
+		const result = service.getMarketplacePluginMetadata(URI.file('/some/other/path'));
 		assert.strictEqual(result, undefined);
 	});
 
-	test('matches when pluginUri is a subdirectory inside a plugin source', async () => {
-		const files = new Map<string, string>();
-		files.set(
-			joinPath(repoDir, '.github/plugin/marketplace.json').path,
-			createMarketplaceJson([
-				{ name: 'my-plugin', version: '1.0.0', source: 'plugins/my-plugin' },
-			]),
-		);
-
-		const service = createService(files);
-		const nestedUri = joinPath(repoDir, 'plugins/my-plugin/src/tool.ts');
-
-		const result = await service.getMarketplacePluginMetadata(nestedUri);
-		assert.ok(result);
-		assert.strictEqual(result!.name, 'my-plugin');
+	test('returns undefined when no plugins are installed', () => {
+		const service = createService();
+		const result = service.getMarketplacePluginMetadata(URI.file('/any/path'));
+		assert.strictEqual(result, undefined);
 	});
 });
