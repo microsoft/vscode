@@ -148,6 +148,8 @@ import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepo
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginsViewsContribution } from './agentPluginsView.js';
+import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
+import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js';
 import { PluginInstallService } from './pluginInstallService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
@@ -1254,6 +1256,16 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	),
 	[
 		new SyncDescriptor(ChatDebugEditorInput)
+	]
+);
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		AgentPluginEditor,
+		AgentPluginEditor.ID,
+		nls.localize('agentPlugin', "Agent Plugin")
+	),
+	[
+		new SyncDescriptor(AgentPluginEditorInput)
 	]
 );
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([
