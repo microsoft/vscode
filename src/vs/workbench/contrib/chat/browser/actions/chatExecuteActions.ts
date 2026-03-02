@@ -194,7 +194,7 @@ const pendingToolCall = ContextKeyExpr.or(
 	ChatContextKeys.Editing.hasQuestionCarousel,
 );
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
-const whenNoRequestOrPendingToolCall = requestInProgressOrPendingToolCall.negate();
+const whenNoRequestOrPendingToolCall = requestInProgressOrPendingToolCall!.negate();
 
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';

@@ -31,8 +31,6 @@ import { IContextKey, IContextKeyService } from '../../../../../../platform/cont
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import './media/chatQuestionCarousel.css';
 
-const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
-const NEXT_QUESTION_ACTION_ID = 'workbench.action.chat.nextQuestion';
 export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, unknown> | undefined) => void;
 	shouldAutoFocus?: boolean;
