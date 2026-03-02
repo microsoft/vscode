@@ -35,5 +35,6 @@ run({
 	outdir: outDir,
 	additionalOptions: {
 		plugins: [platformModulesPlugin],
+		tsconfig: path.join(import.meta.dirname, 'tsconfig.browser.json'),
 	},
 }, process.argv);
