@@ -19,11 +19,11 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { HOOK_METADATA, HookType, IHookTypeMeta } from '../../common/promptSyntax/hookTypes.js';
+import { HOOK_METADATA, HOOKS_BY_TARGET, HookType, IHookTypeMeta } from '../../common/promptSyntax/hookTypes.js';
 import { getEffectiveCommandFieldKey } from '../../common/promptSyntax/hookSchema.js';
 import { getCopilotCliHookTypeName, resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
 import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../common/promptSyntax/hookCompatibility.js';
@@ -298,15 +298,17 @@ const enum Step {
 }
 
 /**
- * Optional callbacks for customizing the hook creation and opening behaviour.
+ * Optional callbacks and settings for customizing the hook creation and opening behaviour.
  * The agentic editor passes these to open hooks in the embedded editor and
  * track worktree files for auto-commit.
  */
-export interface IHookQuickPickCallbacks {
+export interface IHookQuickPickOptions {
 	/** Override how the hook file is opened. If not provided, uses editorService.openEditor. */
 	readonly openEditor?: (resource: URI, options?: { selection?: ITextEditorSelection }) => Promise<void>;
 	/** Called after a new hook file is created on disk. */
 	readonly onHookFileCreated?: (uri: URI) => void;
+	/** Filter the displayed hook types to those supported by the given target. */
+	readonly target?: Target;
 }
 
 /**
@@ -315,7 +317,7 @@ export interface IHookQuickPickCallbacks {
  */
 export async function showConfigureHooksQuickPick(
 	accessor: ServicesAccessor,
-	callbacks?: IHookQuickPickCallbacks,
+	options?: IHookQuickPickOptions,
 ): Promise<void> {
 	const promptsService = accessor.get(IPromptsService);
 	const quickInputService = accessor.get(IQuickInputService);
@@ -381,17 +383,22 @@ export async function showConfigureHooksQuickPick(
 	while (true) {
 		switch (step) {
 			case Step.SelectHookType: {
-				// Step 1: Show all lifecycle events with hook counts
-				const hookTypeItems: IHookTypeQuickPickItem[] = (Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][]).map(([hookType, meta]) => {
-					const count = hookCountByType.get(hookType) ?? 0;
-					const countLabel = count > 0 ? ` (${count})` : '';
-					return {
-						label: `${meta.label}${countLabel}`,
-						description: meta.description,
-						hookType,
-						hookTypeMeta: meta
-					};
-				});
+				// Step 1: Show lifecycle events with hook counts, filtered by target
+				const targetHookTypes = options?.target
+					? new Set(Object.values(HOOKS_BY_TARGET[options.target]))
+					: undefined;
+				const hookTypeItems: IHookTypeQuickPickItem[] = (Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][])
+					.filter(([hookType]) => !targetHookTypes || targetHookTypes.has(hookType))
+					.map(([hookType, meta]) => {
+						const count = hookCountByType.get(hookType) ?? 0;
+						const countLabel = count > 0 ? ` (${count})` : '';
+						return {
+							label: `${meta.label}${countLabel}`,
+							description: meta.description,
+							hookType,
+							hookTypeMeta: meta
+						};
+					});
 
 				picker.items = hookTypeItems;
 				picker.value = '';
@@ -491,8 +498,8 @@ export async function showConfigureHooksQuickPick(
 					}
 
 					picker.hide();
-					if (callbacks?.openEditor) {
-						await callbacks.openEditor(entry.fileUri, { selection });
+					if (options?.openEditor) {
+						await options.openEditor(entry.fileUri, { selection });
 					} else {
 						await editorService.openEditor({
 							resource: entry.fileUri,
@@ -574,7 +581,7 @@ export async function showConfigureHooksQuickPick(
 						editorService,
 						notificationService,
 						bulkEditService,
-						callbacks?.openEditor,
+						options?.openEditor,
 					);
 					return;
 				}
@@ -706,7 +713,7 @@ export async function showConfigureHooksQuickPick(
 						editorService,
 						notificationService,
 						bulkEditService,
-						callbacks?.openEditor,
+						options?.openEditor,
 					);
 					return;
 				}
@@ -731,15 +738,15 @@ export async function showConfigureHooksQuickPick(
 				const jsonContent = JSON.stringify(hooksContent, null, '\t');
 				await fileService.writeFile(hookFileUri, VSBuffer.fromString(jsonContent));
 
-				callbacks?.onHookFileCreated?.(hookFileUri);
+				options?.onHookFileCreated?.(hookFileUri);
 
 				// Find the selection for the new hook's command field
 				const selection = findHookCommandSelection(jsonContent, hookTypeKey, 0, 'command');
 
 				// Open editor with selection
 				store.dispose();
-				if (callbacks?.openEditor) {
-					await callbacks.openEditor(hookFileUri, { selection });
+				if (options?.openEditor) {
+					await options.openEditor(hookFileUri, { selection });
 				} else {
 					await editorService.openEditor({
 						resource: hookFileUri,
