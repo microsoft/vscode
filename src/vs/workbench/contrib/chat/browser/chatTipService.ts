@@ -405,7 +405,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 		// Only show tips when there is exactly one foreground chat session visible.
 		const foregroundSessionCount = contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key);
-		if (typeof foregroundSessionCount === 'number' && foregroundSessionCount !== 1) {
+		if (foregroundSessionCount !== 1) {
 			return undefined;
 		}
 
