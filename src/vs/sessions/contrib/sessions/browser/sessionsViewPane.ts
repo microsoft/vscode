@@ -13,6 +13,7 @@ import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ActiveEditorGroupEmptyContext } from '../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -327,7 +328,7 @@ KeybindingsRegistry.registerKeybindingRule({
 KeybindingsRegistry.registerKeybindingRule({
 	id: ACTION_ID_NEW_CHAT,
 	weight: KeybindingWeight.WorkbenchContrib + 1,
-	when: IsNewChatSessionContext.negate(),
+	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), ActiveEditorGroupEmptyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 });
