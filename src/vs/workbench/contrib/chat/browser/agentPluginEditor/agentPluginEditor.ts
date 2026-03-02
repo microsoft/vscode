@@ -35,8 +35,8 @@ import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../../markdo
 import { IWebview, IWebviewService } from '../../../webview/browser/webview.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from '../agentPluginsView.js';
 import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
+import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginItems.js';
 import './media/agentPluginEditor.css';
 
 interface IAgentPluginEditorTemplate {

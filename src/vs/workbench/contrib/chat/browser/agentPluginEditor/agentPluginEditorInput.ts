@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
 import { EditorInputCapabilities, IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
-import { IAgentPluginItem, AgentPluginItemKind } from '../agentPluginsView.js';
+import { AgentPluginItemKind, IAgentPluginItem } from './agentPluginItems.js';
 
 const AgentPluginEditorIcon = registerIcon('agent-plugin-editor-icon', Codicon.extensions, localize('agentPluginEditorLabelIcon', 'Icon of the Agent Plugin editor.'));
 
