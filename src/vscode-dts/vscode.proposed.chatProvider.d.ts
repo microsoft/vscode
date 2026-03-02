@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 4
+// version: 5
 
 declare module 'vscode' {
 
@@ -13,9 +13,10 @@ declare module 'vscode' {
 	export interface ProvideLanguageModelChatResponseOptions {
 
 		/**
-		 * What extension initiated the request to the language model
+		 * What extension initiated the request to the language model, or
+		 * `undefined` if the request was initiated by other functionality in the editor.
 		 */
-		readonly requestInitiator: string;
+		readonly requestInitiator: string | undefined;
 	}
 
 	/**
