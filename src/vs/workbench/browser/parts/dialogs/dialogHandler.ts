@@ -58,7 +58,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getConfirmationButtons(confirmation);
 
-		const { button, checkboxChecked } = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined);
+		const { button, checkboxChecked } = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined, confirmation.token);
 
 		return { confirmed: button === 0, checkboxChecked };
 	}
@@ -68,7 +68,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getInputButtons(input);
 
-		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs, typeof input.custom === 'object' ? input.custom : undefined);
+		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs, typeof input.custom === 'object' ? input.custom : undefined, input.token);
 
 		return { confirmed: button === 0, checkboxChecked, values };
 	}

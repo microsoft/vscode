@@ -41,8 +41,12 @@ export interface IBaseDialogOptions {
 
 	/**
 	 * An optional cancellation token that can be used to dismiss the dialog
-	 * programmatically. When cancelled, the dialog resolves as if the cancel
-	 * button was pressed.
+	 * programmatically for custom dialog implementations.
+	 *
+	 * When cancelled, the custom dialog resolves as if the cancel button was
+	 * pressed. Native dialog handlers cannot currently be dismissed
+	 * programmatically and ignore this option unless a custom dialog is
+	 * explicitly enforced via the {@link custom} option.
 	 */
 	readonly token?: CancellationToken;
 }
