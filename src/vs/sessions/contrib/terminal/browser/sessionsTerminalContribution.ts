@@ -141,7 +141,7 @@ class OpenSessionInTerminalAction extends Action2 {
 			title: localize2('openInTerminal', "Open Terminal"),
 			icon: Codicon.terminal,
 			menu: [{
-				id: Menus.TitleBarRight,
+				id: Menus.SessionTitleActions,
 				group: 'navigation',
 				order: 9,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())

@@ -285,7 +285,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 }
 
 // Register the Run split button submenu on the workbench title bar
-MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
+MenuRegistry.appendMenuItem(Menus.SessionTitleActions, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
 	title: localize2('run', "Run"),

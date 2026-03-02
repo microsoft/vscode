@@ -48,7 +48,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			title: localize2('openInVSCode', 'Open in VS Code'),
 			icon: Codicon.vscodeInsiders,
 			menu: [{
-				id: Menus.TitleBarRight,
+				id: Menus.SessionTitleActions,
 				group: 'navigation',
 				order: 10,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())

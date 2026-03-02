@@ -36,6 +36,7 @@ const openChangesViewActionOptions: IAction2Options = {
 	f1: false,
 	menu: {
 		id: Menus.SessionTitleActions,
+		group: 'navigation',
 		order: 1,
 		when: ContextKeyExpr.equals(activeSessionHasChangesContextKey.key, true),
 	},

@@ -179,7 +179,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			this._container.appendChild(sessionPill);
 
-			// Session title actions toolbar (rendered next to the session title)
+			// Session title actions toolbar (aligned to the right)
 			const actionsContainer = $('span.agent-sessions-titlebar-actions');
 			this._dynamicDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionTitleActions, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,

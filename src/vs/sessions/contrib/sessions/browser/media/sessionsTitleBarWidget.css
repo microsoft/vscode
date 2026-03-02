@@ -6,13 +6,11 @@
 /* Container - button style hover */
 .command-center .agent-sessions-titlebar-container {
 	display: flex;
-	width: 38vw;
-	max-width: 600px;
-	display: flex;
+	width: 100%;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
 	padding: 0 10px;
 	height: 22px;
 	border-radius: 4px;
@@ -30,17 +28,21 @@
 	padding: 0 4px;
 	border-radius: 4px;
 	min-width: 0;
+	width: 38vw;
+	max-width: 600px;
+	justify-content: space-between;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* Session title actions toolbar */
+/* Session title actions toolbar (aligned to the right) */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions {
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
+	margin-left: auto;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions .actions-container {
@@ -63,11 +65,9 @@
 	align-items: center;
 	gap: 6px;
 	min-width: 0;
-	justify-content: center;
+	justify-content: flex-start;
 	cursor: pointer;
 }
-
-/* Kind icon */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
 	display: flex;
 	align-items: center;
