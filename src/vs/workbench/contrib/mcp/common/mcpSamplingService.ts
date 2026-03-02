@@ -79,7 +79,6 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 		}
 
 		const model = await this._modelSequencer.queue(() => this._getMatchingModel(opts));
-		// todo@connor4312: nullExtensionDescription.identifier -> undefined with API update
 		const response = await this._languageModelsService.sendChatRequest(model, undefined, messages, {}, token);
 
 		let responseText = '';
