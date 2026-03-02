@@ -5789,7 +5789,7 @@ interface IEditorFoldingPreferencesShape {
 	 *
 	 * `true`: include closures in folding regions. *
 	 *
-	 * `false`: exclude closures from folding regions.
+	 * `false`: exclude closures from folding regions. *
 	 *
 	 * `'only'`: include closing delimiters if the last line
 	 * contains closing delimiters only.
@@ -5878,7 +5878,7 @@ export class FoldingPreferences extends BaseEditorOption<EditorOption.foldingPre
 										),
 										nls.localize(
 											'editor.foldingPreferences.includeClosures.false',
-											"Exclude the closing delimiter from folding regions."
+											"Exclude the closing delimiter from folding regions. *"
 										)
 									]
 								},

@@ -38,29 +38,46 @@ export class CompatibilityAdjusterIncludeClosures extends CompatibilityAdjuster<
 		super('includeClosures');
 	}
 	willModify(preferences: EditorFoldingPreferences): boolean {
-		return preferences[this.preference] === true;
+		const preferenceValue = preferences[this.preference];
+		return preferenceValue === true || preferenceValue === false;
 	}
 	apply(model: ITextModel, foldRanges: FoldRange[], preferences: EditorFoldingPreferences): boolean {
 		let adjusted = false;
 
 		const rangesLength = foldRanges.length;
+		switch (preferences[this.preference]) {
+			case true: {
+				const startLines = new Set<number>();
+				for (let i = 0; i < rangesLength; i++) {
+					startLines.add(foldRanges[i].startLineNumber);
+				}
 
-		const startLines = new Set<number>();
-		for (let i = 0; i < rangesLength; i++) {
-			startLines.add(foldRanges[i].startLineNumber);
-		}
-
-		const linesCount = model.getLineCount();
-		for (let i = 0; i < rangesLength; i++) {
-			const range = foldRanges[i];
-			const adjustedEndLine = range.endLineNumber + 1;
-			// Extend only if within document bounds and no region starts at the target line.
-			if (
-				adjustedEndLine <= linesCount &&
-				!startLines.has(adjustedEndLine)
-			) {
-				range.endLineNumber = adjustedEndLine;
-				adjusted = true;
+				const linesCount = model.getLineCount();
+				for (let i = 0; i < rangesLength; i++) {
+					const range = foldRanges[i];
+					const adjustedEndLine = range.endLineNumber + 1;
+					// Extend only if within document bounds and no region starts at the target line.
+					if (
+						adjustedEndLine <= linesCount &&
+						!startLines.has(adjustedEndLine)
+					) {
+						range.endLineNumber = adjustedEndLine;
+						adjusted = true;
+					}
+				}
+				break;
+			}
+			case false: {
+				for (let i = 0; i < rangesLength; i++) {
+					const range = foldRanges[i];
+					const adjustedEndLine = range.endLineNumber - 1;
+					// Shrink if target line is not before region start.
+					if (adjustedEndLine >= range.startLineNumber) {
+						range.endLineNumber = adjustedEndLine;
+						adjusted = true;
+					}
+				}
+				break;
 			}
 		}
 

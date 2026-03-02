@@ -5114,7 +5114,7 @@ declare namespace monaco.editor {
 		 *
 		 * `true`: include closures in folding regions. *
 		 *
-		 * `false`: exclude closures from folding regions.
+		 * `false`: exclude closures from folding regions. *
 		 *
 		 * `'only'`: include closing delimiters if the last line
 		 * contains closing delimiters only.
