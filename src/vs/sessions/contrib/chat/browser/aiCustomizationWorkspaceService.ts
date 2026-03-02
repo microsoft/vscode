@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { derived, IObservable } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, ISettableObservable } from '../../../../base/common/observable.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -23,6 +23,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	declare readonly _serviceBrand: undefined;
 
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+	readonly hasOverrideProjectRoot: IObservable<boolean>;
+
+	/**
+	 * Transient override for the project root. When set, `activeProjectRoot`
+	 * returns this value instead of the session-derived root.
+	 */
+	private readonly _overrideRoot: ISettableObservable<URI | undefined>;
 
 	/**
 	 * CLI-accessible user directories for customization file filtering and creation.
@@ -50,15 +57,37 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 			includedUserFileRoots: this._cliUserRoots,
 		};
 
+		this._overrideRoot = observableValue(this, undefined);
+
 		this.activeProjectRoot = derived(reader => {
+			const override = this._overrideRoot.read(reader);
+			if (override) {
+				return override;
+			}
 			const session = this.sessionsService.activeSession.read(reader);
 			return session?.worktree ?? session?.repository;
+		});
+
+		this.hasOverrideProjectRoot = derived(reader => {
+			return this._overrideRoot.read(reader) !== undefined;
 		});
 	}
 
 	getActiveProjectRoot(): URI | undefined {
+		const override = this._overrideRoot.get();
+		if (override) {
+			return override;
+		}
 		const session = this.sessionsService.getActiveSession();
 		return session?.worktree ?? session?.repository;
+	}
+
+	setOverrideProjectRoot(root: URI): void {
+		this._overrideRoot.set(root, undefined);
+	}
+
+	clearOverrideProjectRoot(): void {
+		this._overrideRoot.set(undefined, undefined);
 	}
 
 	readonly managementSections: readonly AICustomizationManagementSection[] = [

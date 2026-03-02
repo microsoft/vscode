@@ -1600,11 +1600,10 @@ export async function handleModeSwitch(
 		return { needToClearSession: false };
 	}
 
-	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
-	const needToClearEdits = (!configurationService.getValue(ChatConfiguration.Edits2Enabled) && (fromMode === ChatModeKind.Edit || toMode === ChatModeKind.Edit)) && requestCount > 0;
+	const needToClearEdits = (fromMode === ChatModeKind.Edit || toMode === ChatModeKind.Edit) && requestCount > 0;
 	if (needToClearEdits) {
-		// If not using edits2 and switching into or out of edit mode, ask to discard the session
+		// Switching into or out of edit mode, ask to discard the session
 		const phrase = localize('switchMode.confirmPhrase', "Switching agents will end your current edit session.");
 
 		const currentEdits = model.editingSession.entries.get();

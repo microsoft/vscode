@@ -2244,7 +2244,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		await this._applyPromptFileIfSet(requestInputs);
 		await this._autoAttachInstructions(requestInputs);
 
-		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit && !this.chatService.edits2Enabled) {
+		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 			const editingSessionAttachedContext: ChatRequestVariableSet = requestInputs.attachedContext;
 

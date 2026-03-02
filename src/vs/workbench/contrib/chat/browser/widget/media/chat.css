@@ -313,10 +313,13 @@
 	font-weight: 600;
 }
 
-.interactive-item-container .value .rendered-markdown table {
+.interactive-item-container .value .rendered-markdown .rendered-markdown-table-scroll-wrapper {
 	width: 100%;
-	text-align: left;
 	margin-bottom: 16px;
+}
+
+.interactive-item-container .value .rendered-markdown table {
+	text-align: left;
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 	border-collapse: separate;
@@ -330,6 +333,11 @@
 	border-top: none;
 	border-left: none;
 	padding: 4px 6px;
+}
+
+.interactive-item-container .value .rendered-markdown table th {
+	white-space: normal;
+	overflow-wrap: break-word;
 }
 
 .interactive-item-container .value .rendered-markdown table td:last-child,
