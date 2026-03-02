@@ -35,7 +35,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IEditorConstructionOptions } from '../../../../../../editor/browser/config/editorConfiguration.js';
 import { EditorExtensionsRegistry } from '../../../../../../editor/browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorLayoutInfo, EditorOptions, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
+import { EditorOptions, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { IDimension } from '../../../../../../editor/common/core/2d/dimension.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
@@ -209,6 +209,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private static _counter = 0;
 
 	private _workingSetCollapsed = observableValue('chatInputPart.workingSetCollapsed', true);
+	private _stableInputPartWidth = observableValue('chatInputPart.stableInputPartWidth', 0);
 	private readonly _chatInputTodoListWidget = this._register(new MutableDisposable<ChatTodoListWidget>());
 	private readonly _chatQuestionCarouselWidget = this._register(new MutableDisposable<ChatQuestionCarouselPart>());
 	private readonly _chatQuestionCarouselDisposables = this._register(new DisposableStore());
@@ -220,6 +221,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _onDidLoadInputState: Emitter<void> = this._register(new Emitter());
 	readonly onDidLoadInputState: Event<void> = this._onDidLoadInputState.event;
+	private readonly _toolbarRelayoutScheduler = this._register(new RunOnceScheduler(() => {
+		if (typeof this.cachedWidth === 'number') {
+			this.layout(this.cachedWidth);
+		}
+	}, 0));
 
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
@@ -2148,10 +2154,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const pickerOptions: IChatInputPickerOptions = {
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
-			onlyShowIconsForDefaultActions: observableFromEvent(
-				this._inputEditor.onDidLayoutChange,
-				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 650 /* This is a magical number based on testing*/
-			).recomputeInitiallyAndOnChange(this._store),
+			hideChevrons: derived(reader => this._stableInputPartWidth.read(reader) < 400),
 			hoverPosition: {
 				forcePosition: true,
 				hoverPosition: location === ChatWidgetLocation.SidebarRight && !isMaximized ? HoverPosition.LEFT : HoverPosition.RIGHT
@@ -2169,7 +2172,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				enabled: true,
 				kind: 'last',
 				minItems: 1,
-				actionMinWidth: 40
+				actionMinWidth: 22
 			},
 			actionViewItemProvider: (action, options) => {
 				if (action.id === OpenModelPickerAction.ID && action instanceof MenuItemAction) {
@@ -2230,17 +2233,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY && this.options.workspacePickerDelegate) {
 						return this.instantiationService.createInstance(WorkspacePickerActionItem, action, this.options.workspacePickerDelegate, pickerOptions);
 					} else {
-						const empty = new BaseActionViewItem(undefined, action);
-						if (empty.element) {
-							empty.element.style.display = 'none';
-						}
-						return empty;
+						return new HiddenActionViewItem(action);
 					}
 				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
 					// Create all pickers and return a container action view item
 					const widgets = this.createChatSessionPickerWidgets(action);
 					if (widgets.length === 0) {
-						return undefined;
+						return new HiddenActionViewItem(action);
 					}
 					// Create a container to hold all picker widgets
 					return this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
@@ -2258,7 +2257,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.chatSessionPickerContainer = container as HTMLElement | undefined;
 
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
-				this.layout(this.cachedWidth);
+				this._toolbarRelayoutScheduler.schedule();
 			}
 		}));
 		this.executeToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarsContainer, this.options.menus.executeToolbar, {
@@ -2273,7 +2272,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.executeToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.executeToolbar.onDidChangeMenuItems(() => {
 			if (this.cachedWidth && typeof this.cachedExecuteToolbarWidth === 'number' && this.cachedExecuteToolbarWidth !== this.executeToolbar.getItemsWidth()) {
-				this.layout(this.cachedWidth);
+				this._toolbarRelayoutScheduler.schedule();
 			}
 		}));
 		if (this.options.menus.inputSideToolbar) {
@@ -2994,6 +2993,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	layout(width: number) {
 		this.cachedWidth = width;
+		this._stableInputPartWidth.set(width, undefined);
 
 		return this._layout(width);
 	}
@@ -3037,10 +3037,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const inputSideToolbarWidth = this.inputSideToolbarContainer ? dom.getTotalWidth(this.inputSideToolbarContainer) : 0;
 
 		const getToolbarsWidthCompact = () => {
+			const toolbarItemGap = 4;
 			const executeToolbarWidth = this.cachedExecuteToolbarWidth = this.executeToolbar.getItemsWidth();
 			const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
-			const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * 4;
-			const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * 4 : 0;
+			const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * toolbarItemGap;
+			const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * toolbarItemGap : 0;
 			const contextUsageWidth = dom.getTotalWidth(this.contextUsageWidgetContainer);
 			const inputToolbarsPadding = 12; // pdading between input toolbar/execute toolbar/contextUsage.
 			return executeToolbarWidth + executeToolbarPadding + contextUsageWidth + (this.options.renderInputToolbarBelowInput ? 0 : inputToolbarWidth + inputToolbarPadding + inputToolbarsPadding);
@@ -3130,5 +3131,16 @@ class ChatSessionPickersContainerActionItem extends ActionViewItem {
 			widget.dispose();
 		}
 		super.dispose();
+	}
+}
+
+class HiddenActionViewItem extends BaseActionViewItem {
+	constructor(action: IAction) {
+		super(undefined, action);
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.style.display = 'none';
 	}
 }
