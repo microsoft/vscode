@@ -194,6 +194,31 @@ suite('ChatTipService', () => {
 		assert.ok(!executedCommands.includes(FORK_CONVERSATION_TRACKING_COMMAND));
 	});
 
+	test('records create instructions tip usage for submitted /init command', () => {
+		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
+		instantiationService.stub(IChatService, {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: () => undefined,
+		} as Partial<IChatService> as IChatService);
+
+		createService();
+
+		submitRequestEmitter.fire({
+			chatSessionResource: URI.parse('chat:session-init'),
+			message: {
+				text: '/init',
+				parts: [],
+			},
+		});
+
+		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
+		assert.ok(executedCommands.includes(CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_PROMPT_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_AGENT_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_SKILL_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(FORK_CONVERSATION_TRACKING_COMMAND));
+	});
+
 	test('records fork tip usage for submitted /fork command', () => {
 		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
 		instantiationService.stub(IChatService, {
@@ -1155,7 +1180,7 @@ suite('ChatTipService', () => {
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
 
-		const expectedCreateTips = new Set(['tip.createInstruction', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
+		const expectedCreateTips = new Set(['tip.init', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
 		const seenCreateTips = new Set<string>();
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
@@ -1177,7 +1202,7 @@ suite('ChatTipService', () => {
 	test('does not show create slash command tips in non-local chat sessions', () => {
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, 'cloud');
-		const createTipIds = new Set(['tip.createInstruction', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
+		const createTipIds = new Set(['tip.init', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
 
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
