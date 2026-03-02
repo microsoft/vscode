@@ -183,6 +183,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsSymbolAttachments: true,
 	supportsTerminalAttachments: true,
 	supportsPromptAttachments: true,
+	supportsHandOffs: true,
 };
 
 const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
@@ -1159,8 +1160,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		// Skip rendering in coding agent sessions
-		if (this.isLockedToCodingAgent) {
+		// Skip rendering in coding agent sessions unless the agent supports hand-offs
+		if (this.isLockedToCodingAgent && !this._attachmentCapabilities.supportsHandOffs) {
 			this.chatSuggestNextWidget.hide();
 			return;
 		}
