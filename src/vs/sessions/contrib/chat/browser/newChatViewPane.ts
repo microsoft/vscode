@@ -309,10 +309,16 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._newSession.value = session;
 
 		// Wire pickers to the new session
-		this._folderPicker.setNewSession(session);
-		this._repoPicker.setNewSession(session);
-		this._isolationModePicker.setNewSession(session);
-		this._branchPicker.setNewSession(session);
+		const target = this._targetPicker.selectedTarget;
+		if (target === AgentSessionProviders.Background) {
+			this._folderPicker.setNewSession(session);
+			this._isolationModePicker.setNewSession(session);
+			this._branchPicker.setNewSession(session);
+		}
+
+		if (target === AgentSessionProviders.Cloud) {
+			this._repoPicker.setNewSession(session);
+		}
 
 		// Set the current model on the session (for local sessions)
 		const currentModel = this._currentLanguageModel.get();

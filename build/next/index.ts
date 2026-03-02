@@ -7,11 +7,13 @@ import * as esbuild from 'esbuild';
 import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
+
 import glob from 'glob';
 import gulpWatch from '../lib/watch/index.ts';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from './nls-plugin.ts';
 import { convertPrivateFields, adjustSourceMap, type ConvertPrivateFieldsResult } from './private-to-property.ts';
 import { getVersion } from '../lib/getVersion.ts';
+import { getGitCommitDate } from '../lib/date.ts';
 import product from '../../product.json' with { type: 'json' };
 import packageJson from '../../package.json' with { type: 'json' };
 import { useEsbuildTranspile } from '../buildConfig.ts';
@@ -72,7 +74,8 @@ const extensionHostEntryPoints = [
 ];
 
 function isExtensionHostBundle(filePath: string): boolean {
-	return extensionHostEntryPoints.some(ep => filePath.endsWith(`${ep}.js`));
+	const normalized = filePath.replaceAll('\\', '/');
+	return extensionHostEntryPoints.some(ep => normalized.endsWith(`${ep}.js`));
 }
 
 // Workers - shared between targets
@@ -419,13 +422,13 @@ function scanBuiltinExtensions(extensionsRoot: string): Array<IScannedBuiltinExt
 }
 
 /**
- * Get the date from the out directory date file, or return current date.
+ * Get the date from the out directory date file, or return the git commit date.
  */
 function readISODate(outDir: string): string {
 	try {
 		return fs.readFileSync(path.join(REPO_ROOT, outDir, 'date'), 'utf8');
 	} catch {
-		return new Date().toISOString();
+		return getGitCommitDate();
 	}
 }
 
@@ -723,10 +726,19 @@ async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
 async function bundle(outDir: string, doMinify: boolean, doNls: boolean, doManglePrivates: boolean, target: BuildTarget, sourceMapBaseUrl?: string): Promise<void> {
 	await cleanDir(outDir);
 
-	// Write build date file (used by packaging to embed in product.json)
+	// Write build date file (used by packaging to embed in product.json).
+	// Reuse the date from out-build/date if it exists (written by the gulp
+	// writeISODate task) so that all parallel bundle outputs share the same
+	// timestamp - this is required for deterministic builds (e.g. macOS Universal).
 	const outDirPath = path.join(REPO_ROOT, outDir);
 	await fs.promises.mkdir(outDirPath, { recursive: true });
-	await fs.promises.writeFile(path.join(outDirPath, 'date'), new Date().toISOString(), 'utf8');
+	let buildDate: string;
+	try {
+		buildDate = await fs.promises.readFile(path.join(REPO_ROOT, 'out-build', 'date'), 'utf8');
+	} catch {
+		buildDate = getGitCommitDate();
+	}
+	await fs.promises.writeFile(path.join(outDirPath, 'date'), buildDate, 'utf8');
 
 	console.log(`[bundle] ${SRC_DIR} → ${outDir} (target: ${target})${doMinify ? ' (minify)' : ''}${doNls ? ' (nls)' : ''}${doManglePrivates ? ' (mangle-privates)' : ''}`);
 	const t1 = Date.now();
@@ -1128,7 +1140,7 @@ async function main(): Promise<void> {
 					// Write build date file (used by packaging to embed in product.json)
 					const outDirPath = path.join(REPO_ROOT, outDir);
 					await fs.promises.mkdir(outDirPath, { recursive: true });
-					await fs.promises.writeFile(path.join(outDirPath, 'date'), new Date().toISOString(), 'utf8');
+					await fs.promises.writeFile(path.join(outDirPath, 'date'), getGitCommitDate(), 'utf8');
 
 					console.log(`[transpile] ${SRC_DIR} → ${outDir}${options.excludeTests ? ' (excluding tests)' : ''}`);
 					const t1 = Date.now();

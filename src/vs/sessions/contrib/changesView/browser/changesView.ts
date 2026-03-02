@@ -661,11 +661,9 @@ export class ChangesViewPane extends ViewPane {
 					},
 					compressionEnabled: true,
 					twistieAdditionalCssClass: (e: unknown) => {
-						if (this.viewMode === ChangesViewMode.List) {
-							return 'force-no-twistie';
-						}
-						// In tree mode, hide twistie for file items (they are never collapsible)
-						return isChangesFileItem(e as ChangesTreeElement) ? 'force-no-twistie' : undefined;
+						return this.viewMode === ChangesViewMode.List
+							? 'force-no-twistie'
+							: undefined;
 					},
 				}
 			);

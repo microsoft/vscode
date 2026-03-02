@@ -74,7 +74,9 @@ export class ChatTipContentPart extends Disposable {
 		this._renderTip(tip);
 
 		this._register(this._chatTipService.onDidDismissTip(() => {
-			const nextTip = this._chatTipService.navigateToNextTip();
+			// Use getNextEligibleTip instead of navigateToNextTip to show the next
+			// available tip even if it's the only one left (no multiple-tip requirement)
+			const nextTip = this._chatTipService.getNextEligibleTip();
 			if (nextTip) {
 				this._renderTip(nextTip);
 				dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => this.focus());

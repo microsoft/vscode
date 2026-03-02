@@ -51,7 +51,7 @@ import { IOpenerService, OpenInternalOptions } from '../../../../../platform/ope
 import { FolderThemeIcon, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IFileLabelOptions, IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
-import { ResourceContextKey } from '../../../../common/contextkeys.js';
+import { StaticResourceContextKey } from '../../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { revealInSideBarCommand } from '../../../files/browser/fileActions.contribution.js';
@@ -1379,7 +1379,7 @@ export function hookUpResourceAttachmentDragAndContextMenu(accessor: ServicesAcc
 
 	// Context
 	const scopedContextKeyService = store.add(contextKeyService.createScoped(widget));
-	store.add(setResourceContext(accessor, scopedContextKeyService, resource));
+	setResourceContext(accessor, scopedContextKeyService, resource);
 
 	// Drag and drop
 	widget.draggable = true;
@@ -1422,7 +1422,7 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 	// but resource context and provider contexts are initialized lazily on first use)
 	const scopedContextKeyService = store.add(parentContextKeyService.createScoped(widget));
 	chatAttachmentResourceContextKey.bindTo(scopedContextKeyService).set(attachment.value.uri.toString());
-	store.add(setResourceContext(accessor, scopedContextKeyService, attachment.value.uri));
+	setResourceContext(accessor, scopedContextKeyService, attachment.value.uri);
 
 	let providerContexts: ReadonlyArray<[IContextKey<boolean>, LanguageFeatureRegistry<unknown>]> | undefined;
 
@@ -1473,14 +1473,13 @@ export function hookUpSymbolAttachmentDragAndContextMenu(accessor: ServicesAcces
 	return store;
 }
 
-function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService: IScopedContextKeyService, resource: URI) {
+function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService: IScopedContextKeyService, resource: URI): void {
 	const fileService = accessor.get(IFileService);
 	const languageService = accessor.get(ILanguageService);
 	const modelService = accessor.get(IModelService);
 
-	const resourceContextKey = new ResourceContextKey(scopedContextKeyService, fileService, languageService, modelService);
+	const resourceContextKey = new StaticResourceContextKey(scopedContextKeyService, fileService, languageService, modelService);
 	resourceContextKey.set(resource);
-	return resourceContextKey;
 }
 
 function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>): IDisposable {

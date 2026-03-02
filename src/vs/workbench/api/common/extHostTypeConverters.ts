@@ -3609,7 +3609,8 @@ export namespace ChatRequestModeInstructions {
 				name: mode.name,
 				content: mode.content,
 				toolReferences: ChatLanguageModelToolReferences.to(mode.toolReferences),
-				metadata: mode.metadata
+				metadata: mode.metadata,
+				isBuiltin: mode.isBuiltin,
 			};
 		}
 		return undefined;
@@ -3873,6 +3874,9 @@ export namespace LanguageModelToolResult {
 		if (result.toolMetadata !== undefined) {
 			toolResult.toolMetadata = result.toolMetadata;
 		}
+		if (result.toolResultError) {
+			toolResult.hasError = !!result.toolResultError;
+		}
 		return toolResult;
 	}
 
@@ -3938,6 +3942,7 @@ export namespace LanguageModelToolResult {
 			toolResultMessage: MarkdownString.fromStrict(result.toolResultMessage),
 			toolResultDetails: detailsDto,
 			toolMetadata: result.toolMetadata,
+			toolResultError: result.hasError,
 		};
 
 		return hasBuffers ? new SerializableObjectWithBuffers(dto) : dto;
