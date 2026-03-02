@@ -38,6 +38,8 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { isMacintosh, isNative } from '../../../base/common/platform.js';
 import { isFullscreen, onDidChangeFullscreen } from '../../../base/browser/browser.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { hasNativeTitlebar, getTitleBarStyle } from '../../../platform/window/common/window.js';
 
 /**
  * Sidebar part specifically for agent sessions workbench.
@@ -103,6 +105,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -151,7 +154,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		// macOS native: the sidebar spans full height and the traffic lights
 		// overlay the top-left corner. Add a fixed-width spacer inside the
 		// title area to push content horizontally past the traffic lights.
-		if (titleArea && isMacintosh && isNative) {
+		if (titleArea && isMacintosh && isNative && !hasNativeTitlebar(this.configurationService, getTitleBarStyle(this.configurationService))) {
 			const spacer = $('div.window-controls-container');
 			spacer.style.width = '70px';
 			spacer.style.height = '100%';
