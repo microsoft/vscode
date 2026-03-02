@@ -20,6 +20,8 @@ function isActionButtonStateEqual(state1: ActionButtonState, state2: ActionButto
 		state1.HEAD?.upstream?.name === state2.HEAD?.upstream?.name &&
 		state1.HEAD?.upstream?.remote === state2.HEAD?.upstream?.remote &&
 		state1.HEAD?.upstream?.commit === state2.HEAD?.upstream?.commit &&
+		state1.HEAD?.pushBranch?.name === state2.HEAD?.pushBranch?.name &&
+		state1.HEAD?.pushBranch?.remote === state2.HEAD?.pushBranch?.remote &&
 		state1.isCheckoutInProgress === state2.isCheckoutInProgress &&
 		state1.isCommitInProgress === state2.isCommitInProgress &&
 		state1.isMergeInProgress === state2.isMergeInProgress &&

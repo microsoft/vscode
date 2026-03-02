@@ -3206,6 +3206,25 @@ export class Repository {
 				} catch { }
 			}
 
+			if (branch.type === RefType.Head && branch.name && branch.upstream) {
+				try {
+					const pushResult = await this.exec(['rev-parse', '--abbrev-ref', `${branch.name}@{push}`]);
+					const pushRef = pushResult.stdout.trim();
+					if (pushRef && pushRef.includes('/')) {
+						const firstSlash = pushRef.indexOf('/');
+						const pushBranch = {
+							remote: pushRef.substring(0, firstSlash),
+							name: pushRef.substring(firstSlash + 1)
+						};
+						if (pushBranch.remote !== branch.upstream.remote || pushBranch.name !== branch.upstream.name) {
+							(branch as Mutable<Branch>).pushBranch = pushBranch;
+							const result = await this.exec(['rev-list', '--count', `${pushBranch.remote}/${pushBranch.name}..${branch.name}`]);
+							(branch as Mutable<Branch>).ahead = Number(result.stdout.trim()) || 0;
+						}
+					}
+				} catch { }
+			}
+
 			return branch;
 		}
 

@@ -697,6 +697,32 @@ export interface IRepositoryResolver {
 	getRepository(hint: SourceControl | SourceControlResourceGroup | Uri | string): Repository | undefined;
 }
 
+export function getSyncTooltip(HEAD: Branch | undefined, remotes: Remote[]): string {
+	if (!HEAD
+		|| !HEAD.name
+		|| !HEAD.commit
+		|| !HEAD.upstream
+		|| !(HEAD.ahead || HEAD.behind)
+	) {
+		return l10n.t('Synchronize Changes');
+	}
+
+	const remoteName = HEAD && HEAD.remote || HEAD.upstream.remote;
+	const remote = remotes.find(r => r.name === remoteName);
+	const pushRemoteName = HEAD.pushBranch?.remote;
+	const pushRemote = remotes.find(r => r.name === pushRemoteName);
+
+	if (remote && pushRemote && !pushRemote.isReadOnly && pushRemoteName && HEAD.ahead && HEAD.behind) {
+		return l10n.t('Pull {0} commits from {1}/{2} and push {3} commits to {4}/{5}', HEAD.behind, HEAD.upstream.remote, HEAD.upstream.name, HEAD.ahead, HEAD.pushBranch.remote, HEAD.pushBranch.name);
+	} else if ((pushRemote && pushRemote.isReadOnly) || !HEAD.ahead) {
+		return l10n.t('Pull {0} commits from {1}/{2}', HEAD.behind!, HEAD.upstream.remote, HEAD.upstream.name);
+	} else if (!HEAD.behind) {
+		return l10n.t('Push {0} commits to {1}/{2}', HEAD.ahead!, pushRemoteName ?? HEAD.upstream.name, HEAD.pushBranch?.name ?? HEAD.upstream.name);
+	} else {
+		return l10n.t('Pull {0} and push {1} commits between {2}/{3}', HEAD.behind!, HEAD.ahead!, HEAD.upstream.remote, HEAD.upstream.name);
+	}
+}
+
 export class Repository implements Disposable {
 	static readonly WORKTREE_ROOT_STORAGE_KEY = 'worktreeRoot';
 
@@ -2263,14 +2289,20 @@ export class Repository implements Disposable {
 	}
 
 	private async _sync(head: Branch, rebase: boolean): Promise<void> {
-		let remoteName: string | undefined;
+		let pullRemoteName: string | undefined;
 		let pullBranch: string | undefined;
+		let pushRemoteName: string | undefined;
 		let pushBranch: string | undefined;
 
 		if (head.name && head.upstream) {
-			remoteName = head.upstream.remote;
+			pullRemoteName = pushRemoteName = head.upstream.remote;
 			pullBranch = `${head.upstream.name}`;
 			pushBranch = `${head.name}:${head.upstream.name}`;
+		}
+
+		if (head.name && head.pushBranch) {
+			pushRemoteName = head.pushBranch.remote;
+			pushBranch = `${head.name}:${head.pushBranch.name}`;
 		}
 
 		await this.run(Operation.Sync, async () => {
@@ -2289,7 +2321,7 @@ export class Repository implements Disposable {
 					}
 
 					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken, autoStash });
+						await this._pullAndHandleTagConflict(rebase, pullRemoteName, pullBranch, { tags, cancellationToken, autoStash });
 					}
 				};
 
@@ -2305,16 +2337,16 @@ export class Repository implements Disposable {
 					await fn();
 				}
 
-				const remote = this.remotes.find(r => r.name === remoteName);
+				const pushRemote = this.remotes.find(r => r.name === pushRemoteName);
 
-				if (remote && remote.isReadOnly) {
+				if (pushRemote && pushRemote.isReadOnly) {
 					return;
 				}
 
 				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 				if (shouldPush) {
-					await this._push(remoteName, pushBranch, false, followTags);
+					await this._push(pushRemoteName, pushBranch, false, followTags);
 				}
 			});
 		});
@@ -3127,25 +3159,7 @@ export class Repository implements Disposable {
 	}
 
 	get syncTooltip(): string {
-		if (!this.HEAD
-			|| !this.HEAD.name
-			|| !this.HEAD.commit
-			|| !this.HEAD.upstream
-			|| !(this.HEAD.ahead || this.HEAD.behind)
-		) {
-			return l10n.t('Synchronize Changes');
-		}
-
-		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
-		const remote = this.remotes.find(r => r.name === remoteName);
-
-		if ((remote && remote.isReadOnly) || !this.HEAD.ahead) {
-			return l10n.t('Pull {0} commits from {1}/{2}', this.HEAD.behind!, this.HEAD.upstream.remote, this.HEAD.upstream.name);
-		} else if (!this.HEAD.behind) {
-			return l10n.t('Push {0} commits to {1}/{2}', this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
-		} else {
-			return l10n.t('Pull {0} and push {1} commits between {2}/{3}', this.HEAD.behind, this.HEAD.ahead, this.HEAD.upstream.remote, this.HEAD.upstream.name);
-		}
+		return getSyncTooltip(this.HEAD, this.remotes);
 	}
 
 	private updateInputBoxPlaceholder(): void {
@@ -3273,7 +3287,8 @@ export class Repository implements Disposable {
 			if (this.HEAD.ahead === 0) {
 				this.unpublishedCommits = new Set<string>();
 			} else {
-				const ref1 = `${this.HEAD.upstream.remote}/${this.HEAD.upstream.name}`;
+				const pushRef = this.HEAD.pushBranch ?? this.HEAD.upstream;
+				const ref1 = `${pushRef.remote}/${pushRef.name}`;
 				const ref2 = this.HEAD.name;
 
 				const revList = await this.repository.revList(ref1, ref2);
