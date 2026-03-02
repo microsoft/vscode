@@ -2190,10 +2190,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const pickerOptions: IChatInputPickerOptions = {
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
-			onlyShowIconsForDefaultActions: observableFromEvent(
-				this._inputEditor.onDidLayoutChange,
-				(l?: EditorLayoutInfo) => (l?.width ?? this._inputEditor.getLayoutInfo().width) < 300 /* Threshold for showing icon-only mode in primary toolbar pickers */
-			).recomputeInitiallyAndOnChange(this._store),
 			hideChevrons: derived(reader => this._stableInputPartWidth.read(reader) < 400),
 			hoverPosition: {
 				forcePosition: true,
