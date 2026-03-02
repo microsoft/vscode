@@ -140,6 +140,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	{
 		id: 'tip.init',
 		tier: ChatTipTier.Foundational,
+		priority: 50,
 		buildMessage(ctx) {
 			const kb = formatKeybinding(ctx, GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID);
 			return new MarkdownString(
