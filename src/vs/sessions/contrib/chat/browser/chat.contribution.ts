@@ -122,15 +122,22 @@ class NewChatInSessionsWindowAction extends Action2 {
 			id: 'workbench.action.sessions.newChat',
 			title: localize2('chat.newEdits.label', "New Chat"),
 			category: CHAT_CATEGORY,
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib + 2,
-				primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
-				mac: {
+			keybinding: [
+				{
+					weight: KeybindingWeight.WorkbenchContrib + 2,
 					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
-					secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
+					secondary: [KeyMod.CtrlCmd | KeyCode.KeyL],
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+						secondary: [KeyMod.WinCtrl | KeyCode.KeyL]
+					},
 				},
-			}
+				{
+					weight: KeybindingWeight.WorkbenchContrib + 2,
+					primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+					win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
+				}
+			]
 		});
 	}
 
