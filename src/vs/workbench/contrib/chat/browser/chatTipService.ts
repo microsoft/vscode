@@ -54,6 +54,8 @@ export const CREATE_PROMPT_TRACKING_COMMAND = TipTrackingCommands.CreatePromptUs
 export const CREATE_AGENT_TRACKING_COMMAND = TipTrackingCommands.CreateAgentUsed;
 /** @deprecated Use TipTrackingCommands.CreateSkillUsed */
 export const CREATE_SKILL_TRACKING_COMMAND = TipTrackingCommands.CreateSkillUsed;
+/** @deprecated Use TipTrackingCommands.ForkConversationUsed */
+export const FORK_CONVERSATION_TRACKING_COMMAND = TipTrackingCommands.ForkConversationUsed;
 
 export const IChatTipService = createDecorator<IChatTipService>('chatTipService');
 
@@ -216,9 +218,9 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				this._tracker.recordCommandExecuted(TipTrackingCommands.AttachFilesReferenceUsed);
 			}
 
-			const createCommandTrackingId = this._getCreateSlashCommandTrackingId(message);
-			if (createCommandTrackingId) {
-				this._tracker.recordCommandExecuted(createCommandTrackingId);
+			const slashCommandTrackingId = this._getSlashCommandTrackingId(message);
+			if (slashCommandTrackingId) {
+				this._tracker.recordCommandExecuted(slashCommandTrackingId);
 			}
 		}));
 
@@ -267,20 +269,20 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		});
 	}
 
-	private _getCreateSlashCommandTrackingId(message: IParsedChatRequest): string | undefined {
+	private _getSlashCommandTrackingId(message: IParsedChatRequest): string | undefined {
 		for (const part of message.parts) {
 			if (part.kind === ChatRequestSlashCommandPart.Kind) {
 				const slashCommand = (part as ChatRequestSlashCommandPart).slashCommand.command;
-				return this._toCreateSlashCommandTrackingId(slashCommand);
+				return this._toSlashCommandTrackingId(slashCommand);
 			}
 		}
 
 		const trimmed = message.text.trimStart();
-		const match = /^\/(create-(?:instructions|prompt|agent|skill))(?:\s|$)/.exec(trimmed);
-		return match ? this._toCreateSlashCommandTrackingId(match[1]) : undefined;
+		const match = /^\/(create-(?:instructions|prompt|agent|skill)|fork)(?:\s|$)/.exec(trimmed);
+		return match ? this._toSlashCommandTrackingId(match[1]) : undefined;
 	}
 
-	private _toCreateSlashCommandTrackingId(command: string): string | undefined {
+	private _toSlashCommandTrackingId(command: string): string | undefined {
 		switch (command) {
 			case 'create-instructions':
 				return CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND;
@@ -290,6 +292,8 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				return CREATE_AGENT_TRACKING_COMMAND;
 			case 'create-skill':
 				return CREATE_SKILL_TRACKING_COMMAND;
+			case 'fork':
+				return FORK_CONVERSATION_TRACKING_COMMAND;
 			default:
 				return undefined;
 		}
