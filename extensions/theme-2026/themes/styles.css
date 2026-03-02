@@ -330,7 +330,6 @@
 .monaco-workbench .defineKeybindingWidget {
 	border: 1px solid var(--vscode-editorWidget-border);
 	box-shadow: var(--shadow-lg) !important;
-	border-radius: var(--radius-lg);
 	backdrop-filter: var(--backdrop-blur-md);
 	-webkit-backdrop-filter: var(--backdrop-blur-md);
 	background-color: color-mix(in srgb, var(--vscode-editorHoverWidget-background) 60%, transparent) !important;
