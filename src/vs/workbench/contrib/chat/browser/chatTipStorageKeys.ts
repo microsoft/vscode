@@ -37,7 +37,7 @@ export const TipEligibilityStorageKeys = {
 export const TipTrackingCommands = {
 	/** Tracked when user attaches a file/folder reference with #. */
 	AttachFilesReferenceUsed: 'chat.tips.attachFiles.referenceUsed',
-	/** Tracked when user executes /create-instructions. */
+	/** Tracked when user executes /init or /create-instructions. */
 	CreateAgentInstructionsUsed: 'chat.tips.createAgentInstructions.commandUsed',
 	/** Tracked when user executes /create-prompt. */
 	CreatePromptUsed: 'chat.tips.createPrompt.commandUsed',

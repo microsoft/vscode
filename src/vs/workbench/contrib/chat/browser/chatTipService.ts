@@ -278,12 +278,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		const trimmed = message.text.trimStart();
-		const match = /^\/(create-(?:instructions|prompt|agent|skill)|fork)(?:\s|$)/.exec(trimmed);
+		const match = /^\/(init|create-(?:instructions|prompt|agent|skill)|fork)(?:\s|$)/.exec(trimmed);
 		return match ? this._toSlashCommandTrackingId(match[1]) : undefined;
 	}
 
 	private _toSlashCommandTrackingId(command: string): string | undefined {
 		switch (command) {
+			case 'init':
 			case 'create-instructions':
 				return CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND;
 			case 'create-prompt':
