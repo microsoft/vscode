@@ -31,7 +31,7 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { ISessionsManagementService } from './sessionsManagementService.js';
+import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -320,6 +320,15 @@ KeybindingsRegistry.registerKeybindingRule({
 	id: ACTION_ID_NEW_CHAT,
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+});
+
+// Register Cmd+W / Ctrl+W to open new session when the current session is non-empty,
+// mirroring how Cmd+W closes the active editor in the normal workbench.
+KeybindingsRegistry.registerKeybindingRule({
+	id: ACTION_ID_NEW_CHAT,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: IsNewChatSessionContext.negate(),
+	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
