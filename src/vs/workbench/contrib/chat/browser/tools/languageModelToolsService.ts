@@ -61,7 +61,7 @@ interface ITrackedCall {
 	store: IDisposable;
 }
 
-const enum AutoApproveStorageKeys {
+export const enum AutoApproveStorageKeys {
 	GlobalAutoApproveOptIn = 'chat.tools.global.autoApprove.optIn'
 }
 
@@ -109,6 +109,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	/** Pending tool calls in the streaming phase, keyed by toolCallId */
 	private readonly _pendingToolCalls = new Map<string, ChatToolInvocation>();
+
+	/** Deduplicates _checkGlobalAutoApprove calls within this window */
+	private _pendingGlobalAutoApproveCheck: Promise<boolean> | undefined;
 
 	private readonly _isAgentModeEnabled: IObservable<boolean>;
 
@@ -1092,34 +1095,68 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 
-		const promptResult = await this._dialogService.prompt({
-			type: Severity.Warning,
-			message: localize('autoApprove2.title', 'Enable global auto approve?'),
-			buttons: [
-				{
-					label: localize('autoApprove2.button.enable', 'Enable'),
-					run: () => true
-				},
-				{
-					label: localize('autoApprove2.button.disable', 'Disable'),
-					run: () => false
-				},
-			],
-			custom: {
-				icon: Codicon.warning,
-				markdownDetails: [{
-					markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
-				}],
-			}
-		});
-
-		if (promptResult.result !== true) {
-			await this._configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
-			return false;
+		if (this._pendingGlobalAutoApproveCheck) {
+			return this._pendingGlobalAutoApproveCheck;
 		}
 
-		this._storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
-		return true;
+		this._pendingGlobalAutoApproveCheck = this._doCheckGlobalAutoApprove();
+		try {
+			return await this._pendingGlobalAutoApproveCheck;
+		} finally {
+			this._pendingGlobalAutoApproveCheck = undefined;
+		}
+	}
+
+	private async _doCheckGlobalAutoApprove(): Promise<boolean> {
+		const store = new DisposableStore();
+		try {
+			// Dismiss the dialog automatically if another window stores the
+			// opt-in flag, avoiding duplicate approval prompts.
+			const cts = new CancellationTokenSource();
+			store.add(cts);
+			store.add(this._storageService.onDidChangeValue(StorageScope.APPLICATION, AutoApproveStorageKeys.GlobalAutoApproveOptIn, store)(() => {
+				if (this._storageService.getBoolean(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION, false)) {
+					cts.cancel();
+				}
+			}));
+
+			const promptResult = await this._dialogService.prompt({
+				type: Severity.Warning,
+				message: localize('autoApprove2.title', 'Enable global auto approve?'),
+				buttons: [
+					{
+						label: localize('autoApprove2.button.enable', 'Enable'),
+						run: () => true
+					},
+					{
+						label: localize('autoApprove2.button.disable', 'Disable'),
+						run: () => false
+					},
+				],
+				custom: {
+					icon: Codicon.warning,
+					markdownDetails: [{
+						markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
+					}],
+				},
+				token: cts.token,
+			});
+
+			// If cancelled by cross-window approval, treat as approved
+			if (cts.token.isCancellationRequested) {
+				return true;
+			}
+
+			if (promptResult.result !== true) {
+				await this._configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
+				return false;
+			}
+
+			this._storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
+			return true;
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private cleanupCallDisposables(requestId: string | undefined, store: DisposableStore): void {
