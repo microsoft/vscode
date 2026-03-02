@@ -59,7 +59,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 					{
 						...action,
 						id: 'chat.permissions.autoApprove',
-						label: localize('permissions.autoApprove', "Auto Approvals"),
+						label: localize('permissions.autoApprove', "Bypass Approvals"),
 						icon: ThemeIcon.fromId(Codicon.warning.id),
 						checked: currentLevel === ChatPermissionLevel.AutoApprove,
 						tooltip: '',
@@ -115,7 +115,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				break;
 			case ChatPermissionLevel.AutoApprove:
 				icon = Codicon.warning;
-				label = localize('permissions.autoApprove.label', "Auto Approvals");
+				label = localize('permissions.autoApprove.label', "Bypass Approvals");
 				break;
 			default:
 				icon = Codicon.shield;
