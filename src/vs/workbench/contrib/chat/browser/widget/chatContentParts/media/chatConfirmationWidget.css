@@ -104,6 +104,7 @@
 
 .chat-confirmation-widget-title small {
 	font-size: 1em;
+	opacity: 0.7;
 
 	&::before {
 		content: ' \2013  ';
