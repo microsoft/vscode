@@ -44,7 +44,7 @@ import { ChatTodoListService, IChatTodoListService } from '../common/tools/chatT
 import { ChatTransferService, IChatTransferService } from '../common/model/chatTransferService.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../common/widget/chatWidgetHistoryService.js';
-import { AgentsControlClickBehavior, ChatConfiguration, ChatNotificationMode } from '../common/constants.js';
+import { ChatConfiguration, ChatNotificationMode } from '../common/constants.js';
 import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } from '../common/ignoredFiles.js';
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
@@ -53,7 +53,7 @@ import { ILanguageModelToolsService } from '../common/tools/languageModelToolsSe
 import { agentPluginDiscoveryRegistry, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME, CLAUDE_AGENTS_SOURCE_FOLDER, DEFAULT_HOOK_FILE_PATHS, DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS, PromptFileSource } from '../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION, DEFAULT_SKILL_SOURCE_FOLDERS, AGENTS_SOURCE_FOLDER, AGENT_FILE_EXTENSION, SKILL_FILENAME, CLAUDE_AGENTS_SOURCE_FOLDER, DEFAULT_HOOK_FILE_PATHS, DEFAULT_INSTRUCTIONS_SOURCE_FOLDERS, PromptFileSource, COPILOT_USER_AGENTS_SOURCE_FOLDER } from '../common/promptSyntax/config/promptFileLocations.js';
 import { PromptLanguageFeaturesProvider } from '../common/promptSyntax/promptFileContributions.js';
 import { AGENT_DOCUMENTATION_URL, INSTRUCTIONS_DOCUMENTATION_URL, PROMPT_DOCUMENTATION_URL, SKILL_DOCUMENTATION_URL, HOOK_DOCUMENTATION_URL, PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { hookFileSchema, HOOK_SCHEMA_URI } from '../common/promptSyntax/hookSchema.js';
@@ -143,7 +143,7 @@ import './widget/input/editor/chatInputEditorContrib.js';
 import './widget/input/editor/chatInputEditorHover.js';
 import { LanguageModelToolsConfirmationService } from './tools/languageModelToolsConfirmationService.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './tools/languageModelToolsService.js';
-import { AgentPluginService, ConfiguredAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
+import { AgentPluginService, ConfiguredAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
@@ -217,20 +217,6 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.lineHeight', "Controls the line height in pixels in chat codeblocks. Use 0 to compute the line height from the font size."),
 			default: 0
-		},
-		[ChatConfiguration.AgentsControlClickBehavior]: {
-			type: 'string',
-			enum: [AgentsControlClickBehavior.Default, AgentsControlClickBehavior.Cycle],
-			enumDescriptions: [
-				nls.localize('chat.agentsControl.clickBehavior.default', "Clicking chat icon toggles chat visibility."),
-				nls.localize('chat.agentsControl.clickBehavior.cycle', "Clicking chat icon cycles through: show chat, maximize chat, hide chat. This requires chat to be contained in the secondary sidebar."),
-			],
-			markdownDescription: nls.localize('chat.agentsControl.clickBehavior', "Controls the behavior when clicking on the chat icon in the command center."),
-			default: AgentsControlClickBehavior.Default, // TODO@bpasero figure out the default
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
 		[ChatConfiguration.AgentStatusEnabled]: {
 			type: 'boolean',
@@ -635,11 +621,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
-		[ChatConfiguration.Edits2Enabled]: {
-			type: 'boolean',
-			description: nls.localize('chat.edits2Enabled', "Enable the new Edits mode that is based on tool-calling. When this is enabled, models that don't support tool-calling are unavailable for Edits mode."),
-			default: false,
-		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions."),
@@ -898,6 +879,7 @@ configurationRegistry.registerConfiguration({
 			default: {
 				[AGENTS_SOURCE_FOLDER]: true,
 				[CLAUDE_AGENTS_SOURCE_FOLDER]: true,
+				[COPILOT_USER_AGENTS_SOURCE_FOLDER]: true,
 			},
 			additionalProperties: { type: 'boolean' },
 			propertyNames: {
@@ -1715,6 +1697,7 @@ registerAction2(ConfigureToolSets);
 registerEditorFeature(ChatPasteProvidersFeature);
 
 agentPluginDiscoveryRegistry.register(new SyncDescriptor(ConfiguredAgentPluginDiscovery));
+agentPluginDiscoveryRegistry.register(new SyncDescriptor(MarketplaceAgentPluginDiscovery));
 
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);

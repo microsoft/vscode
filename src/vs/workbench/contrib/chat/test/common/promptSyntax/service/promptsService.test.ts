@@ -1177,6 +1177,56 @@ suite('PromptsService', () => {
 			);
 		});
 
+		test('copilot user agents from ~/.copilot/agents/ should have GitHubCopilot target', async () => {
+			const rootFolderName = 'copilot-user-agents';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					// Copilot user agent in ~/.copilot/agents/ (resolved from /home/user/.copilot/agents/)
+					path: '/home/user/.copilot/agents/copilot-user-agent.md',
+					contents: [
+						'---',
+						'description: \'Copilot user agent from home folder.\'',
+						'tools: [ read ]',
+						'---',
+						'I am a Copilot user agent.',
+					]
+				},
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'copilot-user-agent',
+					description: 'Copilot user agent from home folder.',
+					target: Target.GitHubCopilot,
+					tools: ['read'],
+					agentInstructions: {
+						content: 'I am a Copilot user agent.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
+					agents: undefined,
+					uri: URI.file('/home/user/.copilot/agents/copilot-user-agent.md'),
+					source: { storage: PromptsStorage.user }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Agents from ~/.copilot/agents/ must have Target.GitHubCopilot.',
+			);
+		});
+
 		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
 			const rootFolder = `/${rootFolderName}`;
@@ -1336,6 +1386,60 @@ suite('PromptsService', () => {
 				expected,
 				'Must get custom agents with agents, skills, and instructions attributes.',
 			);
+		});
+
+		test('header with infer: false sets agentInvocable to false', async () => {
+			const rootFolderName = 'custom-agents-infer-false';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-false.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: false.\'',
+						'infer: false',
+						'---',
+						'I should not be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-infer-true.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent with infer: true.\'',
+						'infer: true',
+						'---',
+						'I should be invocable by the model.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent-no-infer.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent without infer.\'',
+						'---',
+						'I should default to being invocable by the model.',
+					]
+				}
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+
+			const inferFalseAgent = result.find(a => a.name === 'agent-infer-false');
+			assert.ok(inferFalseAgent, 'Should find agent with infer: false');
+			assert.strictEqual(inferFalseAgent.visibility.agentInvocable, false, 'infer: false should set agentInvocable to false');
+
+			const inferTrueAgent = result.find(a => a.name === 'agent-infer-true');
+			assert.ok(inferTrueAgent, 'Should find agent with infer: true');
+			assert.strictEqual(inferTrueAgent.visibility.agentInvocable, true, 'infer: true should set agentInvocable to true');
+
+			const noInferAgent = result.find(a => a.name === 'agent-no-infer');
+			assert.ok(noInferAgent, 'Should find agent without infer');
+			assert.strictEqual(noInferAgent.visibility.agentInvocable, true, 'missing infer should default agentInvocable to true');
 		});
 
 		test('agents from user data folder', async () => {
@@ -3452,6 +3556,7 @@ suite('PromptsService', () => {
 					uri: URI.file(path),
 					enabled,
 					setEnabled: () => { },
+					remove: () => { },
 					hooks,
 					commands,
 					skills,

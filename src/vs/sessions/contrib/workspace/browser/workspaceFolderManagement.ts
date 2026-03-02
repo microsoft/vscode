@@ -58,7 +58,7 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	}
 
 	private getActiveSessionFolderData(session: IActiveSessionItem | undefined): IWorkspaceFolderCreationData | undefined {
-		if (session?.providerType !== AgentSessionProviders.Background) {
+		if (!session) {
 			return undefined;
 		}
 
@@ -70,7 +70,14 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		}
 
 		if (session.repository) {
-			return { uri: session.repository };
+			if (session.providerType === AgentSessionProviders.Background) {
+				return { uri: session.repository };
+			}
+			// if (session.providerType === AgentSessionProviders.Cloud) {
+			// 	return {
+			// 		uri: session.repository
+			// 	};
+			// }
 		}
 
 		return undefined;
