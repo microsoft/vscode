@@ -587,13 +587,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 					target: Target.GitHubCopilot,
 				});
 			} else {
-				// Core: show hooks filtered to VS Code hook types
+				// Core: use the default core behaviour
 				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
 					openEditor: async (resource) => {
 						await this.showEmbeddedEditor(resource, basename(resource), true);
 						return;
-					},
-					target: Target.VSCode,
+					}
 				});
 			}
 			return;
