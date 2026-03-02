@@ -414,6 +414,8 @@ export class ChatTipService extends Disposable implements IChatTipService {
 						this._shownTip = switchToAutoTip;
 						this._storageService.store(ChatTipStorageKeys.LastTipId, switchToAutoTip.id, StorageScope.APPLICATION, StorageTarget.USER);
 						const tip = this._createTip(switchToAutoTip);
+						this._logTipTelemetry(switchToAutoTip, 'shown');
+						this._trackTipCommandClicks(tip);
 						this._onDidNavigateTip.fire(tip);
 						return tip;
 					}
