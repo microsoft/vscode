@@ -19,6 +19,7 @@ interface PostinstallState {
 
 interface InstallState {
 	readonly root: string;
+	readonly stateContentsFile: string;
 	readonly current: PostinstallState;
 	readonly saved: PostinstallState | undefined;
 	readonly files: readonly string[];
@@ -29,6 +30,10 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 	private readonly _disposables: vscode.Disposable[] = [];
 	private _watchers: fs.FSWatcher[] = [];
 	private _terminal: vscode.Terminal | undefined;
+	private _stateContentsFile: string | undefined;
+	private _root: string | undefined;
+
+	private static readonly _scheme = 'npm-dep-state';
 
 	constructor(private readonly _output: vscode.LogOutputChannel) {
 		const disposables: vscode.Disposable[] = [];
@@ -49,7 +54,25 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		this._disposables.push(this._statusBarItem);
 
 		this._disposables.push(
+			vscode.workspace.registerTextDocumentContentProvider(NpmUpToDateFeature._scheme, {
+				provideTextDocumentContent: (uri) => {
+					const params = new URLSearchParams(uri.query);
+					const source = params.get('source');
+					const file = uri.path.slice(1); // strip leading /
+					if (source === 'saved') {
+						return this._readSavedContent(file);
+					}
+					return this._readCurrentContent(file);
+				}
+			})
+		);
+
+		this._disposables.push(
 			vscode.commands.registerCommand('vscode-extras.runNpmInstall', () => this._runNpmInstall())
+		);
+
+		this._disposables.push(
+			vscode.commands.registerCommand('vscode-extras.showDependencyDiff', (file: string) => this._showDiff(file))
 		);
 
 		this._disposables.push(
@@ -66,8 +89,7 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 
 	private _runNpmInstall(): void {
 		if (this._terminal) {
-			this._terminal.show();
-			return;
+			this._terminal.dispose();
 		}
 		const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
 		if (!workspaceRoot) {
@@ -113,6 +135,8 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 			return;
 		}
 
+		this._stateContentsFile = state.stateContentsFile;
+		this._root = state.root;
 		this._setupWatcher(state);
 
 		const changedFiles = this._getChangedFiles(state);
@@ -123,9 +147,16 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		} else {
 			this._statusBarItem.text = '$(warning) node_modules is stale - run npm i';
 			const tooltip = new vscode.MarkdownString();
-			tooltip.appendText('Dependencies are out of date. Click to run npm install.\n\nChanged files:\n');
-			for (const file of changedFiles) {
-				tooltip.appendText(`  • ${file}\n`);
+			tooltip.isTrusted = true;
+			tooltip.supportHtml = true;
+			tooltip.appendMarkdown('**Dependencies are out of date.** Click to run npm install.\n\nChanged files:\n\n');
+			for (const entry of changedFiles) {
+				if (entry.isFile) {
+					const args = encodeURIComponent(JSON.stringify(entry.label));
+					tooltip.appendMarkdown(`- [${entry.label}](command:vscode-extras.showDependencyDiff?${args})\n`);
+				} else {
+					tooltip.appendMarkdown(`- ${entry.label}\n`);
+				}
 			}
 			this._statusBarItem.tooltip = tooltip;
 			this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
@@ -133,18 +164,71 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		}
 	}
 
-	private _getChangedFiles(state: InstallState): string[] {
-		if (!state.saved) {
-			return ['(no postinstall state found)'];
+	private _showDiff(file: string): void {
+		const cacheBuster = Date.now().toString();
+		const savedUri = vscode.Uri.from({
+			scheme: NpmUpToDateFeature._scheme,
+			path: `/${file}`,
+			query: new URLSearchParams({ source: 'saved', t: cacheBuster }).toString(),
+		});
+		const currentUri = vscode.Uri.from({
+			scheme: NpmUpToDateFeature._scheme,
+			path: `/${file}`,
+			query: new URLSearchParams({ source: 'current', t: cacheBuster }).toString(),
+		});
+
+		vscode.commands.executeCommand('vscode.diff', savedUri, currentUri, `${file} (last install ↔ current)`);
+	}
+
+	private _readSavedContent(file: string): string {
+		if (!this._stateContentsFile) {
+			return '';
 		}
-		const changed: string[] = [];
+		try {
+			const contents: Record<string, string> = JSON.parse(fs.readFileSync(this._stateContentsFile, 'utf8'));
+			return contents[file] ?? '';
+		} catch {
+			return '';
+		}
+	}
+
+	private _readCurrentContent(file: string): string {
+		if (!this._root) {
+			return '';
+		}
+		try {
+			return this._normalizeFileContent(path.join(this._root, file));
+		} catch {
+			return '';
+		}
+	}
+
+	private _normalizeFileContent(filePath: string): string {
+		const raw = fs.readFileSync(filePath, 'utf8');
+		if (path.basename(filePath) === 'package.json') {
+			const json = JSON.parse(raw);
+			for (const key of NpmUpToDateFeature._packageJsonIgnoredKeys) {
+				delete json[key];
+			}
+			return JSON.stringify(json, null, '\t') + '\n';
+		}
+		return raw;
+	}
+
+	private static readonly _packageJsonIgnoredKeys = ['distro'];
+
+	private _getChangedFiles(state: InstallState): { readonly label: string; readonly isFile: boolean }[] {
+		if (!state.saved) {
+			return [{ label: '(no postinstall state found)', isFile: false }];
+		}
+		const changed: { readonly label: string; readonly isFile: boolean }[] = [];
 		if (state.saved.nodeVersion !== state.current.nodeVersion) {
-			changed.push(`Node.js version (${state.saved.nodeVersion} → ${state.current.nodeVersion})`);
+			changed.push({ label: `Node.js version (${state.saved.nodeVersion} → ${state.current.nodeVersion})`, isFile: false });
 		}
 		const allKeys = new Set([...Object.keys(state.current.fileHashes), ...Object.keys(state.saved.fileHashes)]);
 		for (const key of allKeys) {
 			if (state.current.fileHashes[key] !== state.saved.fileHashes[key]) {
-				changed.push(key);
+				changed.push({ label: key, isFile: true });
 			}
 		}
 		return changed;

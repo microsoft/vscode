@@ -17,7 +17,7 @@ import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensi
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
+import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
@@ -51,7 +51,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 				id: Menus.TitleBarRight,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext)
 			}]
 		});
 	}
@@ -91,6 +91,29 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	}
 }
 registerAction2(OpenSessionWorktreeInVSCodeAction);
+
+// Disabled placeholder shown in the titlebar when the active session does not support opening in VS Code
+class OpenSessionWorktreeInVSCodeNotAvailableAction extends Action2 {
+	constructor() {
+		super({
+			id: 'chat.openSessionWorktreeInVSCode.notAvailable',
+			title: localize2('openInVSCode', 'Open in VS Code'),
+			tooltip: localize('openInVSCodeNotAvailableTooltip', "Open in VS Code is not available for this session type"),
+			icon: Codicon.vscodeInsiders,
+			precondition: ContextKeyExpr.false(),
+			menu: [{
+				id: Menus.TitleBarRight,
+				group: 'navigation',
+				order: 10,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext.toNegated())
+			}]
+		});
+	}
+
+	override run(): void { }
+}
+
+registerAction2(OpenSessionWorktreeInVSCodeNotAvailableAction);
 
 class NewChatInSessionsWindowAction extends Action2 {
 

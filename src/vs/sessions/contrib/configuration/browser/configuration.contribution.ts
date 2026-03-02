@@ -8,12 +8,10 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		'chat.agentsControl.enabled': true,
 		'chat.agent.maxRequests': 1000,
 		'chat.customizationsMenu.userStoragePath': '~/.copilot',
-		'chat.restoreLastPanelSession': true,
-		'chat.unifiedAgentsBar.enabled': true,
 		'chat.viewSessions.enabled': false,
+		'chat.implicitContext.suggestedContext': false,
 
 		'breadcrumbs.enabled': false,
 

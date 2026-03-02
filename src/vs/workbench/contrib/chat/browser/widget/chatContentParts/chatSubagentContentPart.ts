@@ -379,6 +379,29 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		const labelElement = this._collapseButton.labelElement;
 
+		if (!this.isActive) {
+			labelElement.textContent = '';
+			this.titleShimmerSpan = undefined;
+
+			if (this.titleDetailRendered) {
+				this.titleDetailRendered.dispose();
+				this.titleDetailRendered = undefined;
+			}
+			this.titleDetailContainer = undefined;
+
+			const prefixSpan = $('span');
+			prefixSpan.textContent = `${prefix}:`;
+			labelElement.appendChild(prefixSpan);
+
+			const descSpan = $('span.chat-thinking-title-detail-text');
+			descSpan.textContent = ` ${this.description}`;
+			labelElement.appendChild(descSpan);
+
+			this._collapseButton.element.ariaLabel = shimmerText;
+			this._collapseButton.element.ariaExpanded = String(this.isExpanded());
+			return;
+		}
+
 		// Ensure the persistent shimmer span exists
 		if (!this.titleShimmerSpan || !this.titleShimmerSpan.parentElement) {
 			labelElement.textContent = '';
