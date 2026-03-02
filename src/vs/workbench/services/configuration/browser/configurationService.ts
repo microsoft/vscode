@@ -1111,7 +1111,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	// Filter out workspace folders which are files (not directories)
 	// Workspace folders those cannot be resolved are not filtered because they are handled by the Explorer.
 	private async toValidWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<WorkspaceFolder[]> {
-		const validWorkspaceFolders: WorkspaceFolder[] = []; 
+		const validWorkspaceFolders: WorkspaceFolder[] = [];
 		for (const workspaceFolder of workspaceFolders) {
 			try {
 				const result = await this.fileService.stat(workspaceFolder.uri);
