@@ -10,7 +10,7 @@
 	bottom: 25px; /* 22px status bar height + 3px */
 	display: none;
 	overflow: hidden;
-	box-shadow:  0 0 12px rgba(0, 0, 0, 0.14);
+	box-shadow: 0 0 12px var(--vscode-widget-shadow);
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
