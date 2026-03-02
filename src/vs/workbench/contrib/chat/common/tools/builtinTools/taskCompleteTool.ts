@@ -39,7 +39,7 @@ export const TaskCompleteToolData: IToolData = {
 export class TaskCompleteTool implements IToolImpl {
 	async prepareToolInvocation(_context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		return {
-			presentation: ToolInvocationPresentation.HiddenAfterComplete,
+			presentation: ToolInvocationPresentation.Hidden,
 		};
 	}
 

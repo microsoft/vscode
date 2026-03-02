@@ -445,9 +445,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		let request: IChatRequestModel | undefined;
 		if (dto.context?.sessionResource) {
 			model = this._chatService.getSession(dto.context.sessionResource);
-			request = (dto.chatRequestId
-				? model?.getRequests().find(r => r.id === dto.chatRequestId)
-				: undefined) ?? model?.getRequests().at(-1);
+			request = model?.getRequests().at(-1);
 			if (request?.response?.isCanceled || request?.response?.isComplete) {
 				this._logService.debug(`[LanguageModelToolsService#invokeTool] Ignoring tool ${dto.toolId} for cancelled/complete request ${request.id}`);
 				throw new CancellationError();
@@ -1048,9 +1046,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// Auto-Approve All permission level bypasses all tool confirmations
 		if (chatSessionResource) {
 			const model = this._chatService.getSession(chatSessionResource);
-			const request = chatRequestId
-				? model?.getRequests().find(r => r.id === chatRequestId)
-				: model?.getRequests().at(-1);
+			const request = model?.getRequests().at(-1);
 			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
@@ -1091,9 +1087,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// Auto-Approve All permission level bypasses all post-execution confirmations
 		if (chatSessionResource) {
 			const model = this._chatService.getSession(chatSessionResource);
-			const request = chatRequestId
-				? model?.getRequests().find(r => r.id === chatRequestId)
-				: model?.getRequests().at(-1);
+			const request = model?.getRequests().at(-1);
 			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
