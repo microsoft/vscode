@@ -229,7 +229,7 @@
 		"extensionButton.prominentHoverBackground": "#0064CC",
 		"pickerGroup.border": "#EEEEF1",
 		"pickerGroup.foreground": "#202020",
-		"quickInput.background": "#F0F0F3",
+		"quickInput.background": "#FAFAFD",
 		"quickInput.foreground": "#202020",
 		"quickInputList.focusBackground": "#0069CC1A",
 		"quickInputList.focusForeground": "#202020",
