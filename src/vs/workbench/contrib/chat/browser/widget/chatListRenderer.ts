@@ -2158,9 +2158,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const handleSubmit = async (answers: Map<string, unknown> | undefined, part: ChatQuestionCarouselPart) => {
 			// Mark the carousel as used and store the answers
 			const answersRecord = answers ? Object.fromEntries(answers) : undefined;
-			if (answersRecord) {
-				carousel.data = answersRecord;
-			}
+			carousel.data = answersRecord ?? {};
 			carousel.isUsed = true;
 			if (carousel instanceof ChatQuestionCarouselData) {
 				carousel.completion.complete({ answers: answersRecord });
@@ -2183,7 +2181,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const inputPartHasCarousel = widget?.input.questionCarousel !== undefined;
 
 		if (carousel.isUsed || responseIsComplete) {
-			if (responseIsComplete && !carousel.isUsed && isResponseVM(context.element) && carousel.resolveId && carousel.data === undefined) {
+			if (responseIsComplete && !carousel.isUsed && isResponseVM(context.element) && carousel.resolveId) {
 				carousel.data = {};
 				carousel.isUsed = true;
 				if (carousel instanceof ChatQuestionCarouselData) {
