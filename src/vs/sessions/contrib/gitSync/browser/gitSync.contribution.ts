@@ -73,6 +73,7 @@ class GitSyncContribution extends Disposable implements IWorkbenchContribution {
 					const behind = head.behind ?? 0;
 					const hasSyncChanges = ahead > 0 || behind > 0;
 					contextKey.set(hasSyncChanges);
+					this._syncActionDisposable.clear();
 					this._syncActionDisposable.value = registerSyncAction(behind, ahead, isSyncing, (syncing) => {
 						this._isSyncing.set(syncing, undefined);
 					});
