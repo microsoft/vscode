@@ -45,4 +45,6 @@ export const TipTrackingCommands = {
 	CreateAgentUsed: 'chat.tips.createAgent.commandUsed',
 	/** Tracked when user executes /create-skill. */
 	CreateSkillUsed: 'chat.tips.createSkill.commandUsed',
+	/** Tracked when user executes /fork. */
+	ForkConversationUsed: 'chat.tips.forkConversation.commandUsed',
 } as const;
