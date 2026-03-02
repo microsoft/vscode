@@ -233,6 +233,10 @@ export interface BranchQuery extends RefQuery {
 	readonly remote?: boolean;
 }
 
+export interface DiffWithOptions {
+	readonly noRenames?: boolean;
+}
+
 export interface Repository {
 
 	readonly rootUri: Uri;
@@ -266,8 +270,8 @@ export interface Repository {
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
 	diffWithHEADShortStats(path?: string): Promise<CommitShortStat>;
-	diffWith(ref: string): Promise<Change[]>;
-	diffWith(ref: string, path: string): Promise<string>;
+	diffWith(ref: string, options?: DiffWithOptions): Promise<Change[]>;
+	diffWith(ref: string, path: string, options?: DiffWithOptions): Promise<string>;
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
 	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat>;
