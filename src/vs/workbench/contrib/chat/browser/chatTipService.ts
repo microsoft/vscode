@@ -437,6 +437,12 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return undefined;
 		}
 
+		// Only show tips when there is exactly one foreground chat session visible.
+		const foregroundSessionCount = contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key);
+		if (foregroundSessionCount !== 1) {
+			return undefined;
+		}
+
 		// Don't show tips when chat quota is exceeded, the upgrade widget is more relevant
 		if (this._isChatQuotaExceeded(contextKeyService)) {
 			return undefined;
