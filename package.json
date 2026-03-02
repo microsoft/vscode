@@ -205,7 +205,7 @@
     "lazy.js": "^0.4.2",
     "merge-options": "^1.0.1",
     "mime": "^1.4.1",
-    "minimatch": "^3.0.4",
+    "minimatch": "^3.1.5",
     "mocha": "^10.8.2",
     "mocha-junit-reporter": "^2.2.1",
     "mocha-multi-reporters": "^1.5.1",
