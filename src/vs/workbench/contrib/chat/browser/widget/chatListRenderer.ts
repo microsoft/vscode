@@ -2161,6 +2161,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			carousel.data = answersRecord ?? {};
 			carousel.isUsed = true;
 			if (carousel instanceof ChatQuestionCarouselData) {
+				carousel.draftAnswers = undefined;
+				carousel.draftCurrentIndex = undefined;
 				carousel.completion.complete({ answers: answersRecord });
 			}
 
@@ -2185,6 +2187,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				carousel.data = {};
 				carousel.isUsed = true;
 				if (carousel instanceof ChatQuestionCarouselData) {
+					carousel.draftAnswers = undefined;
+					carousel.draftCurrentIndex = undefined;
 					carousel.completion.complete({ answers: undefined });
 				}
 				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, undefined);

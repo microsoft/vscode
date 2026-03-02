@@ -19,6 +19,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../common/chatService/chatService.js';
+import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -32,8 +33,6 @@ import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
 const NEXT_QUESTION_ACTION_ID = 'workbench.action.chat.nextQuestion';
-const DRAFT_CURRENT_INDEX_STORAGE_KEY = '__vscodeQuestionCarouselCurrentIndex';
-
 export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, unknown> | undefined) => void;
 	shouldAutoFocus?: boolean;
@@ -101,17 +100,22 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.setAttribute('aria-roledescription', localize('chat.questionCarousel.roleDescription', 'chat question'));
 		this._updateAriaLabel();
 
-		// Restore answers from carousel data if already submitted (e.g., after re-render due to virtualization)
-		if (carousel.data) {
-			const storedCurrentIndex = carousel.data[DRAFT_CURRENT_INDEX_STORAGE_KEY];
-			if (typeof storedCurrentIndex === 'number') {
-				this._currentIndex = Math.max(0, Math.min(storedCurrentIndex, carousel.questions.length - 1));
+		// Restore draft state from transient runtime fields when available.
+		if (carousel instanceof ChatQuestionCarouselData) {
+			if (typeof carousel.draftCurrentIndex === 'number') {
+				this._currentIndex = Math.max(0, Math.min(carousel.draftCurrentIndex, carousel.questions.length - 1));
 			}
 
-			for (const [key, value] of Object.entries(carousel.data)) {
-				if (key === DRAFT_CURRENT_INDEX_STORAGE_KEY) {
-					continue;
+			if (carousel.draftAnswers) {
+				for (const [key, value] of Object.entries(carousel.draftAnswers)) {
+					this._answers.set(key, value);
 				}
+			}
+		}
+
+		// Restore submitted answers for summary rendering.
+		if (carousel.data) {
+			for (const [key, value] of Object.entries(carousel.data)) {
 				this._answers.set(key, value);
 			}
 		}
@@ -236,13 +240,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private persistDraftState(): void {
-		if (this.carousel.isUsed) {
+		if (this.carousel.isUsed || !(this.carousel instanceof ChatQuestionCarouselData)) {
 			return;
 		}
 
-		const draftData: Record<string, unknown> = Object.fromEntries(this._answers.entries());
-		draftData[DRAFT_CURRENT_INDEX_STORAGE_KEY] = this._currentIndex;
-		this.carousel.data = draftData;
+		this.carousel.draftAnswers = Object.fromEntries(this._answers.entries());
+		this.carousel.draftCurrentIndex = this._currentIndex;
 	}
 
 	/**

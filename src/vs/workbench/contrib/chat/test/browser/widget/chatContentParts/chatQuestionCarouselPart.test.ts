@@ -11,6 +11,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
 	return {
@@ -579,7 +580,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 	suite('Used Carousel Summary', () => {
 		test('retains draft answers and current question after widget recreation', () => {
-			const carousel = createMockCarousel([
+			const carousel = new ChatQuestionCarouselData([
 				{ id: 'q1', type: 'text', title: 'Question 1' },
 				{ id: 'q2', type: 'text', title: 'Question 2' }
 			], true);
