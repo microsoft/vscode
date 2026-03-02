@@ -109,7 +109,7 @@ const hookArraySchema: IJSONSchema = {
 
 /**
  * Builds JSON Schema hook properties for a given target by looking up
- * the hook keys from HOOKS_BY_TARGET and descriptions from HOOK_TYPES.
+ * the hook keys from HOOKS_BY_TARGET and descriptions from HOOK_METADATA.
  */
 function buildHookProperties(target: Target, arraySchema: IJSONSchema): Record<string, IJSONSchema> {
 	return Object.fromEntries(
