@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 5
+// version: 4
 
 declare module 'vscode' {
 
@@ -16,7 +16,7 @@ declare module 'vscode' {
 		 * What extension initiated the request to the language model, or
 		 * `undefined` if the request was initiated by other functionality in the editor.
 		 */
-		readonly requestInitiator: string | undefined;
+		readonly requestInitiator: string;
 	}
 
 	/**
