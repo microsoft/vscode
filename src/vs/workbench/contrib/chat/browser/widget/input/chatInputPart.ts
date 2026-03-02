@@ -734,11 +734,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this._onDidChangeCurrentChatMode.event(() => {
 			this.checkModelSupported();
 		}));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.Edits2Enabled)) {
-				this.checkModelSupported();
-			}
-		}));
 	}
 
 	public setEditing(enabled: boolean, editingSentRequest: ChatContextKeys.EditingRequestType | undefined) {
@@ -1043,7 +1038,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentModeKind === ChatModeKind.Agent || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
+		if (this.currentModeKind === ChatModeKind.Agent) {
 			return ILanguageModelChatMetadata.suitableForAgentMode(model.metadata);
 		}
 

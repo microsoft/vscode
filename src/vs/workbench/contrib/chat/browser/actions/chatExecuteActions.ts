@@ -306,7 +306,6 @@ class ToggleChatModeAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const commandService = accessor.get(ICommandService);
-		const configurationService = accessor.get(IConfigurationService);
 		const instaService = accessor.get(IInstantiationService);
 		const modeService = accessor.get(IChatModeService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -326,7 +325,7 @@ class ToggleChatModeAction extends Action2 {
 
 		const chatSession = widget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, configurationService, modeService);
+		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, modeService);
 
 		const currentMode = widget.input.currentModeObs.get();
 		if (switchToMode.id === currentMode.id) {
@@ -365,11 +364,11 @@ class ToggleChatModeAction extends Action2 {
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService, modeService: IChatModeService): IChatMode {
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, modeService: IChatModeService): IChatMode {
 		const modes = modeService.getModes();
 		const flat = [
 			...modes.builtin.filter(mode => {
-				return mode.kind !== ChatModeKind.Edit || configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0;
+				return mode.kind !== ChatModeKind.Edit || requestCount === 0;
 			}),
 			...(modes.custom ?? []),
 		];

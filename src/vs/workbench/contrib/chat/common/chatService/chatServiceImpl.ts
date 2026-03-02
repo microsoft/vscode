@@ -48,7 +48,7 @@ import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { LocalChatSessionUri } from '../model/chatUri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
@@ -141,10 +141,6 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	waitForModelDisposals(): Promise<void> {
 		return this._sessionModels.waitForModelDisposals();
-	}
-
-	public get edits2Enabled(): boolean {
-		return this.configurationService.getValue(ChatConfiguration.Edits2Enabled);
 	}
 
 	private get isEmptyWindow(): boolean {
