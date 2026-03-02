@@ -488,7 +488,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			a.label === b.label &&
 			a.resource.toString() === b.resource.toString() &&
 			a.repository?.toString() === b.repository?.toString() &&
-			a.worktree?.toString() === b.worktree?.toString()
+			a.worktree?.toString() === b.worktree?.toString() &&
+			a.providerType === b.providerType
 		);
 	}
 

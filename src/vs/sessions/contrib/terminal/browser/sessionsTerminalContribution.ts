@@ -113,7 +113,9 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			return;
 		}
 
-		const targetPath = getSessionCwd(session) ?? await this._pathService.userHome();
+		const sessionCwd = getSessionCwd(session);
+
+		const targetPath = sessionCwd ?? await this._pathService.userHome();
 		const targetFsPath = targetPath.fsPath;
 		if (this._lastTargetFsPath?.toLowerCase() === targetFsPath.toLowerCase()) {
 			return;
@@ -149,7 +151,7 @@ class OpenSessionInTerminalAction extends Action2 {
 			menu: [{
 				id: Menus.TitleBarRight,
 				group: 'navigation',
-				order: 10,
+				order: 11,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 			}]
 		});
