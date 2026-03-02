@@ -103,7 +103,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 
 		try {
 			const actionLabel = isQuestionCarousel
-				? localize('openChatAction', "Open Chat")
+				? localize('openChatAction', "Open Session")
 				: localize('allowAction', "Allow");
 
 			const result = await this._hostService.showToast({
