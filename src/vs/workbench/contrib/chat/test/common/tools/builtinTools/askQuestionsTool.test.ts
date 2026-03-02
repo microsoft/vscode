@@ -149,4 +149,24 @@ suite('AskQuestionsTool - convertCarouselAnswers', () => {
 
 		assert.deepStrictEqual(result.answers['Case'], { selected: [], freeText: 'yes', skipped: false });
 	});
+
+	test('formats headers for carousel tab title display', () => {
+		const questions: IQuestion[] = [
+			{ header: 'FocusArea', question: 'Q1' },
+			{ header: 'UserValue', question: 'Q2' },
+			{ header: 'RiskLevel', question: 'Q3' },
+			{ header: 'Already Spaced', question: 'Q4' },
+			{ header: 'snake_case_header', question: 'Q5' }
+		];
+
+		const { carousel } = (tool as unknown as { toQuestionCarousel: (input: IQuestion[]) => { carousel: { questions: { title: string }[] } } }).toQuestionCarousel(questions);
+
+		assert.deepStrictEqual(carousel.questions.map(q => q.title), [
+			'Focus area',
+			'User value',
+			'Risk level',
+			'Already spaced',
+			'Snake case header'
+		]);
+	});
 });

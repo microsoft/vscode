@@ -155,7 +155,7 @@
 		flex-direction: column;
 		outline: none;
 		margin: 0 8px;
-		padding: 0 0 8px 0;
+		padding: 0 0 4px 0;
 
 		.chat-question-list-item {
 			display: flex;
@@ -343,6 +343,10 @@
 		color: var(--vscode-textLink-foreground);
 	}
 
+	.chat-question-tab.no-icon {
+		padding: 2px 8px;
+	}
+
 	.chat-question-tab:hover {
 		background: var(--vscode-list-hoverBackground);
 		color: var(--vscode-foreground);
@@ -402,10 +406,15 @@
 	display: flex;
 	justify-content: flex-end;
 	align-items: center;
-	gap: 4px;
+	gap: 8px;
 	padding: 4px 8px;
 	border-top: 1px solid var(--vscode-chat-requestBorder);
 	background: var(--vscode-chat-list-background);
+
+	.chat-question-submit-hint {
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+	}
 
 	.monaco-button.chat-question-submit-button {
 		background: var(--vscode-button-background) !important;

@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -150,11 +151,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				tab.id = `question-tab-${question.id}-${index}`;
 
 				const messageContent = this.getQuestionText(question.title);
+				const displayTitle = this.formatQuestionTabTitle(messageContent);
 				const tabIndicator = dom.$('.chat-question-tab-indicator.codicon');
 				const tabLabel = dom.$('span.chat-question-tab-label');
-				tabLabel.textContent = messageContent;
+				tabLabel.textContent = displayTitle;
 				tab.append(tabIndicator, tabLabel);
-				tab.setAttribute('aria-label', messageContent);
+				tab.setAttribute('aria-label', displayTitle);
 				this._questionTabIndicators.set(question.id, tabIndicator);
 
 				interactiveStore.add(dom.addDisposableListener(tab, dom.EventType.CLICK, () => {
@@ -169,7 +171,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			});
 
 			// Review tab
-			const reviewTab = dom.$('.chat-question-tab');
+			const reviewTab = dom.$('.chat-question-tab.no-icon');
 			reviewTab.setAttribute('role', 'tab');
 			reviewTab.setAttribute('aria-selected', 'false');
 			reviewTab.tabIndex = -1;
@@ -292,6 +294,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 */
 	private handleNextOrSubmit(): void {
 		this.saveCurrentAnswer();
+		const currentQuestion = this.carousel.questions[this._currentIndex];
+		if (currentQuestion) {
+			this._explicitlyAnsweredQuestionIds.add(currentQuestion.id);
+			this.updateQuestionTabIndicators();
+		}
 
 		if (this._currentIndex < this.carousel.questions.length - 1) {
 			// Move to next question
@@ -301,6 +308,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			// Multi-question: navigate to Review tab
 			this._currentIndex = this._reviewIndex;
 			this.renderCurrentQuestion(true);
+			this._tabItems[this._currentIndex]?.focus();
 		} else {
 			// Single question: submit directly
 			this._options.onSubmit(this._answers);
@@ -313,6 +321,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 */
 	private submit(): void {
 		this.saveCurrentAnswer();
+		const currentQuestion = this.carousel.questions[this._currentIndex];
+		if (currentQuestion) {
+			this._explicitlyAnsweredQuestionIds.add(currentQuestion.id);
+		}
 		this._options.onSubmit(this._answers);
 		this.hideAndShowSummary();
 	}
@@ -712,6 +724,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (answeredCount > 0) {
 			this._footerRow = dom.$('.chat-question-footer-row');
 
+			const hint = dom.$('span.chat-question-submit-hint');
+			hint.textContent = isMacintosh
+				? localize('chat.questionCarousel.submitHintMac', '\u2318\u23CE to submit')
+				: localize('chat.questionCarousel.submitHintOther', 'Ctrl+Enter to submit');
+			this._footerRow.appendChild(hint);
+
 			const submitButton = questionRenderStore.add(new Button(this._footerRow, { ...defaultButtonStyles }));
 			submitButton.element.classList.add('chat-question-submit-button');
 			submitButton.label = localize('submit', 'Submit');
@@ -764,10 +782,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		this._textInputBoxes.set(question.id, inputBox);
-		this._inputBoxes.add(inputBox.onDidChange(() => {
-			this._explicitlyAnsweredQuestionIds.add(question.id);
-			this.updateQuestionTabIndicators();
-		}));
 
 		// Focus on input when rendered using proper DOM scheduling
 		if (this._shouldAutoFocus()) {
@@ -827,7 +841,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				data.selectedIndex = newIndex;
 			}
 			if (isUserInitiated) {
-				this._explicitlyAnsweredQuestionIds.add(question.id);
 				this.updateQuestionTabIndicators();
 			}
 		};
@@ -1092,7 +1105,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._inputBoxes.add(checkbox.onChange(() => {
 				listItem.classList.toggle('checked', checkbox.checked);
 				listItem.setAttribute('aria-selected', String(checkbox.checked));
-				this._explicitlyAnsweredQuestionIds.add(question.id);
 				this.updateQuestionTabIndicators();
 			}));
 
@@ -1148,7 +1160,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}));
 		this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.INPUT, () => {
-			this._explicitlyAnsweredQuestionIds.add(question.id);
 			this.updateQuestionTabIndicators();
 		}));
 
@@ -1239,20 +1250,22 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				if (data && data.selectedIndex >= 0) {
 					selectedValue = question.options?.[data.selectedIndex]?.value;
 				}
-				// Find default option if nothing selected (defaultValue is the option id)
+
+				// For single-select: freeform takes priority over selection.
+				const freeformTextarea = this._freeformTextareas.get(question.id);
+				const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
+				if (freeformValue) {
+					return { selectedValue: undefined, freeformValue };
+				}
+
+				// Find default option if nothing selected and no freeform text (defaultValue is the option id)
 				if (selectedValue === undefined && typeof question.defaultValue === 'string') {
 					const defaultOption = question.options?.find(opt => opt.id === question.defaultValue);
 					selectedValue = defaultOption?.value;
 				}
 
-				// For single-select: selection takes priority over freeform draft text.
-				const freeformTextarea = this._freeformTextareas.get(question.id);
-				const freeformValue = freeformTextarea?.value !== '' ? freeformTextarea?.value : undefined;
 				if (selectedValue !== undefined) {
 					return { selectedValue, freeformValue: undefined };
-				}
-				if (freeformValue) {
-					return { selectedValue: undefined, freeformValue };
 				}
 				return undefined;
 			}
@@ -1390,6 +1403,22 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private getQuestionText(questionText: string | IMarkdownString): string {
 		const md = typeof questionText === 'string' ? new MarkdownString(questionText) : questionText;
 		return renderAsPlaintext(md);
+	}
+
+	private formatQuestionTabTitle(title: string): string {
+		const normalized = title
+			.trim()
+			.replace(/[_-]+/g, ' ')
+			.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+			.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+			.replace(/\s+/g, ' ')
+			.trim();
+
+		if (!normalized) {
+			return title;
+		}
+
+		return normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
 	}
 
 	private updateQuestionTabIndicators(): void {
