@@ -23,7 +23,8 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
-import { HOOK_TYPES, HookType, getEffectiveCommandFieldKey } from '../../common/promptSyntax/hookSchema.js';
+import { HOOK_METADATA, HookType, IHookTypeMeta } from '../../common/promptSyntax/hookTypes.js';
+import { getEffectiveCommandFieldKey } from '../../common/promptSyntax/hookSchema.js';
 import { getCopilotCliHookTypeName, resolveCopilotCliHookType } from '../../common/promptSyntax/hookCopilotCliCompat.js';
 import { getHookSourceFormat, HookSourceFormat, buildNewHookEntry } from '../../common/promptSyntax/hookCompatibility.js';
 import { getClaudeHookTypeName, resolveClaudeHookType } from '../../common/promptSyntax/hookClaudeCompat.js';
@@ -46,7 +47,8 @@ import { OS } from '../../../../../base/common/platform.js';
 const CONFIGURE_HOOKS_ACTION_ID = 'workbench.action.chat.configure.hooks';
 
 interface IHookTypeQuickPickItem extends IQuickPickItem {
-	readonly hookType: typeof HOOK_TYPES[number];
+	readonly hookType: HookType;
+	readonly hookTypeMeta: IHookTypeMeta;
 }
 
 interface IHookQuickPickItem extends IQuickPickItem {
@@ -380,13 +382,14 @@ export async function showConfigureHooksQuickPick(
 		switch (step) {
 			case Step.SelectHookType: {
 				// Step 1: Show all lifecycle events with hook counts
-				const hookTypeItems: IHookTypeQuickPickItem[] = HOOK_TYPES.map(hookType => {
-					const count = hookCountByType.get(hookType.id) ?? 0;
+				const hookTypeItems: IHookTypeQuickPickItem[] = (Object.entries(HOOK_METADATA) as [HookType, IHookTypeMeta][]).map(([hookType, meta]) => {
+					const count = hookCountByType.get(hookType) ?? 0;
 					const countLabel = count > 0 ? ` (${count})` : '';
 					return {
-						label: `${hookType.label}${countLabel}`,
-						description: hookType.description,
-						hookType
+						label: `${meta.label}${countLabel}`,
+						description: meta.description,
+						hookType,
+						hookTypeMeta: meta
 					};
 				});
 
@@ -411,7 +414,7 @@ export async function showConfigureHooksQuickPick(
 
 			case Step.SelectHook: {
 				// Filter hooks by the selected type
-				const hooksOfType = hookEntries.filter(h => h.hookType === selectedHookType!.hookType.id);
+				const hooksOfType = hookEntries.filter(h => h.hookType === selectedHookType!.hookType);
 
 				// Step 2: Show "Add new hook" + existing hooks of this type
 				const hookItems: (IHookQuickPickItem | IQuickPickSeparator)[] = [];
@@ -447,7 +450,7 @@ export async function showConfigureHooksQuickPick(
 					picker.items = hookItems;
 					picker.value = '';
 					picker.placeholder = localize('commands.hooks.selectHook.placeholder', 'Select a hook to open or add a new one');
-					picker.title = selectedHookType!.hookType.label;
+					picker.title = selectedHookType!.hookTypeMeta.label;
 					picker.buttons = [backButton];
 
 					const result = await awaitPick<IHookQuickPickItem>(picker, backButton);
@@ -566,7 +569,7 @@ export async function showConfigureHooksQuickPick(
 					picker.hide();
 					await addHookToFile(
 						selectedFile.fileUri,
-						selectedHookType!.hookType.id as HookType,
+						selectedHookType!.hookType,
 						fileService,
 						editorService,
 						notificationService,
@@ -698,7 +701,7 @@ export async function showConfigureHooksQuickPick(
 					store.dispose();
 					await addHookToFile(
 						hookFileUri,
-						selectedHookType!.hookType.id as HookType,
+						selectedHookType!.hookType,
 						fileService,
 						editorService,
 						notificationService,
@@ -712,8 +715,8 @@ export async function showConfigureHooksQuickPick(
 				const newFileFormat = getHookSourceFormat(hookFileUri);
 				const isClaudeNewFile = newFileFormat === HookSourceFormat.Claude;
 				const hookTypeKey = isClaudeNewFile
-					? (getClaudeHookTypeName(selectedHookType!.hookType.id as HookType) ?? selectedHookType!.hookType.id)
-					: selectedHookType!.hookType.id;
+					? (getClaudeHookTypeName(selectedHookType!.hookType) ?? selectedHookType!.hookType)
+					: selectedHookType!.hookType;
 				const newFileHookEntry = buildNewHookEntry(newFileFormat);
 
 				// Create new hook file with the selected hook type

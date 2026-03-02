@@ -65,7 +65,7 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { COPILOT_CLI_HOOK_TYPE_MAP } from '../../common/promptSyntax/hookSchema.js';
+import { HOOKS_BY_TARGET } from '../../common/promptSyntax/hookTypes.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -642,7 +642,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		} catch {
 			// Derive hook event names from the schema so new events are automatically included
 			const hooks: Record<string, { type: string; bash: string }[]> = {};
-			for (const eventName of Object.keys(COPILOT_CLI_HOOK_TYPE_MAP)) {
+			for (const eventName of Object.keys(HOOKS_BY_TARGET[Target.GitHubCopilot])) {
 				hooks[eventName] = [{ type: 'command', bash: '' }];
 			}
 			const hooksContent = { version: 1, hooks };

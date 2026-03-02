@@ -28,7 +28,7 @@ import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
 import { globalAutoApproveDescription } from './tools/languageModelToolsService.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { Target } from '../common/promptSyntax/service/promptsService.js';
+import { Target } from '../common/promptSyntax/promptTypes.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 

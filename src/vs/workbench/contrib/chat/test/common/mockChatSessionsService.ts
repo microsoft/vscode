@@ -13,7 +13,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../commo
 import { IChatModel } from '../../common/model/chatModel.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItem, IChatSessionOptionsWillNotifyExtensionEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { Target } from '../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
