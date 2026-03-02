@@ -29,7 +29,9 @@ const compatibilityPipeline = [
  */
 export class FoldingPreferencesCompatibility implements IDisposable {
 	private _preferences: EditorFoldingPreferences;
-	private _isAnyAdjusterWillModify: boolean;
+
+	// Avoids unnecessary allocations and loops
+	private _isAnyAdjusterActive: boolean;
 
 	private readonly _disposable: IDisposable;
 
@@ -38,12 +40,12 @@ export class FoldingPreferencesCompatibility implements IDisposable {
 		onPreferencesChanged: () => void
 	) {
 		this._preferences = this.editor.getOption(EditorOption.foldingPreferences);
-		this._isAnyAdjusterWillModify = this.computeIsAnyAdjusterWillModify();
+		this._isAnyAdjusterActive = this.isAnyAdjusterActive();
 
 		this._disposable = editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.foldingPreferences)) {
 				if (this.updatePreferences()) {
-					this._isAnyAdjusterWillModify = this.computeIsAnyAdjusterWillModify();
+					this._isAnyAdjusterActive = this.isAnyAdjusterActive();
 					onPreferencesChanged();
 				}
 			}
@@ -77,11 +79,11 @@ export class FoldingPreferencesCompatibility implements IDisposable {
 	}
 
 	/**
-	 * Computes whether any compatibility adjuster is enabled
+	 * Computes whether any compatibility adjuster is active
 	 * by the current preferences (i.e. set to a non-`'auto'`
 	 * value and willing to modify).
 	 */
-	private computeIsAnyAdjusterWillModify(): boolean {
+	private isAnyAdjusterActive(): boolean {
 		const preferences = this._preferences;
 		for (const adjuster of compatibilityPipeline) {
 			if (preferences[adjuster.preference] === 'auto') {
@@ -104,7 +106,7 @@ export class FoldingPreferencesCompatibility implements IDisposable {
 	 */
 	public apply(provider: RangeProvider, foldingRegions: FoldingRegions): FoldingRegions {
 		if (
-			!this._isAnyAdjusterWillModify ||
+			!this._isAnyAdjusterActive ||
 			foldingRegions.length === 0
 		) {
 			return foldingRegions;
@@ -115,9 +117,13 @@ export class FoldingPreferencesCompatibility implements IDisposable {
 			return foldingRegions;
 		}
 
-		let foldRanges: FoldRange[] | undefined;
-		let adjusted = false;
+		const regionsLength = foldingRegions.length;
+		const foldRanges = new Array<FoldRange>(regionsLength);
+		for (let i = 0; i < regionsLength; i++) {
+			foldRanges[i] = foldingRegions.toFoldRange(i);
+		}
 
+		let adjusted = false;
 		const preferences = this._preferences;
 		for (const adjuster of compatibilityPipeline) {
 			const preference = adjuster.preference;
@@ -130,21 +136,12 @@ export class FoldingPreferencesCompatibility implements IDisposable {
 				continue;
 			}
 
-			// Create copy once about to apply adjustments
-			if (foldRanges === undefined) {
-				const regionsLength = foldingRegions.length;
-				foldRanges = new Array<FoldRange>(regionsLength);
-				for (let i = 0; i < regionsLength; i++) {
-					foldRanges[i] = foldingRegions.toFoldRange(i);
-				}
-			}
-
 			if (adjuster.apply(model, foldRanges, preferences)) {
 				adjusted = true;
 			}
 		}
 
-		return adjusted && foldRanges !== undefined
+		return adjusted
 			? FoldingRegions.fromFoldRanges(foldRanges)
 			: foldingRegions;
 	}
