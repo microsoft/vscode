@@ -12,7 +12,7 @@ import { FileChangeType, FileChangesEvent, IFileService, whenProviderRegistered,
 import { ConfigurationModel, ConfigurationModelParser, ConfigurationParseOptions, UserSettings } from '../../../../platform/configuration/common/configurationModels.js';
 import { WorkspaceConfigurationModelParser, StandaloneConfigurationModelParser } from '../common/configurationModels.js';
 import { TASKS_CONFIGURATION_KEY, FOLDER_SETTINGS_NAME, LAUNCH_CONFIGURATION_KEY, IConfigurationCache, ConfigurationKey, REMOTE_MACHINE_SCOPES, FOLDER_SCOPES, WORKSPACE_SCOPES, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES, MCP_CONFIGURATION_KEY } from '../common/configuration.js';
-import { IStoredWorkspaceFolder } from '../../../../platform/workspaces/common/workspaces.js';
+import { IStoredWorkspaceFolder, IStoredWorkspaceFile } from '../../../../platform/workspaces/common/workspaces.js';
 import { WorkbenchState, IWorkspaceFolder, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -694,6 +694,18 @@ export class WorkspaceConfiguration extends Disposable {
 		return Promise.resolve();
 	}
 
+	getFiles(): IStoredWorkspaceFile[] {
+		return this._workspaceConfiguration.getFiles();
+	}
+
+	setFiles(files: IStoredWorkspaceFile[], jsonEditingService: IJSONEditingService): Promise<void> {
+		if (this._workspaceIdentifier) {
+			return jsonEditingService.write(this._workspaceIdentifier.configPath, [{ path: ['files'], value: files }], true)
+				.then(() => this.reload());
+		}
+		return Promise.resolve();
+	}
+
 	isTransient(): boolean {
 		return this._workspaceConfiguration.isTransient();
 	}
@@ -819,6 +831,10 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 		return this.workspaceConfigurationModelParser.folders;
 	}
 
+	getFiles(): IStoredWorkspaceFile[] {
+		return this.workspaceConfigurationModelParser.files;
+	}
+
 	isTransient(): boolean {
 		return this.workspaceConfigurationModelParser.transient;
 	}
@@ -886,6 +902,10 @@ class CachedWorkspaceConfiguration {
 
 	getFolders(): IStoredWorkspaceFolder[] {
 		return this.workspaceConfigurationModelParser.folders;
+	}
+
+	getFiles(): IStoredWorkspaceFile[] {
+		return this.workspaceConfigurationModelParser.files;
 	}
 
 	isTransient(): boolean {

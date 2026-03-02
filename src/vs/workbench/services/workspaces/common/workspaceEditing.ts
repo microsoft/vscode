@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
+import { IWorkspaceFolderCreationData, IWorkspaceFileCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 
@@ -51,6 +51,30 @@ export interface IWorkspaceEditingService {
 	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
 	 */
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void>;
+
+	/**
+	 * Add standalone files to the existing workspace.
+	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 */
+	addFiles(files: IWorkspaceFileCreationData[], donotNotifyError?: boolean): Promise<void>;
+
+	/**
+	 * Remove standalone files from the existing workspace.
+	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 */
+	removeFiles(files: URI[], donotNotifyError?: boolean): Promise<void>;
+
+	/**
+	 * Allows to add and remove standalone files from the existing workspace at once.
+	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 */
+	updateFiles(filesToAdd: IWorkspaceFileCreationData[], filesToRemove: URI[], donotNotifyError?: boolean): Promise<void>;
+
+	/**
+	 * Reorder standalone files in the existing workspace.
+	 * When `donotNotifyError` is `true`, error will be bubbled up otherwise, the service handles the error with proper message and action
+	 */
+	reorderFiles(files: IWorkspaceFileCreationData[], donotNotifyError?: boolean): Promise<void>;
 
 	/**
 	 * Enters the workspace with the provided path.

@@ -40,7 +40,7 @@ import { IDialogService, getFileNamesMessage } from '../../../../../platform/dia
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
+import { IWorkspaceFolderCreationData, IWorkspaceFileCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { findValidPasteFileTarget } from '../fileActions.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { Emitter, Event, EventMultiplexer } from '../../../../../base/common/event.js';
@@ -1450,7 +1450,24 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 			if (statB.isRoot) {
 				const workspaceA = this.contextService.getWorkspaceFolder(statA.resource);
 				const workspaceB = this.contextService.getWorkspaceFolder(statB.resource);
-				return workspaceA && workspaceB ? (workspaceA.index - workspaceB.index) : -1;
+
+				if (workspaceA && workspaceB) {
+					return workspaceA.index - workspaceB.index;
+				}
+
+				// File roots come after folder roots
+				if (workspaceA) {
+					return -1; // A is folder, B is file
+				}
+				if (workspaceB) {
+					return 1; // A is file, B is folder
+				}
+
+				// Both are file roots: use their index in the workspace files array
+				const files = this.contextService.getWorkspace().files ?? [];
+				const indexA = files.findIndex(f => f.uri.toString() === statA.resource.toString());
+				const indexB = files.findIndex(f => f.uri.toString() === statB.resource.toString());
+				return indexA - indexB;
 			}
 
 			return -1;
@@ -1686,7 +1703,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			if (items.some((source) => {
 				if (source.isRoot) {
-					return false; // Root folders are handled seperately
+					if (source.isDirectory) {
+						return false; // Root folders are handled seperately
+					}
+					// File roots participating in a root reorder are handled separately
+					if (isRootsReorder) {
+						return false;
+					}
 				}
 
 				if (this.uriIdentityService.extUri.isEqual(source.resource, target.resource)) {
@@ -1712,16 +1735,26 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					return false;
 				}
 
-				let dropEffectPosition: ListDragOverEffectPosition | undefined = undefined;
-				switch (targetSector) {
-					case ListViewTargetSector.TOP:
-					case ListViewTargetSector.CENTER_TOP:
-						dropEffectPosition = ListDragOverEffectPosition.Before; break;
-					case ListViewTargetSector.CENTER_BOTTOM:
-					case ListViewTargetSector.BOTTOM:
-						dropEffectPosition = ListDragOverEffectPosition.After; break;
+				// Only allow reordering among same root type (folders with folders, files with files)
+				const allSameType = items.every(item => item.isDirectory === target.isDirectory);
+				if (allSameType) {
+					let dropEffectPosition: ListDragOverEffectPosition | undefined = undefined;
+					switch (targetSector) {
+						case ListViewTargetSector.TOP:
+						case ListViewTargetSector.CENTER_TOP:
+							dropEffectPosition = ListDragOverEffectPosition.Before; break;
+						case ListViewTargetSector.CENTER_BOTTOM:
+						case ListViewTargetSector.BOTTOM:
+							dropEffectPosition = ListDragOverEffectPosition.After; break;
+					}
+					return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition } };
 				}
-				return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition } };
+
+				// File roots onto folder root: fall through to handle as move-into-folder
+				// Folder roots onto file root: reject
+				if (!target.isDirectory) {
+					return false;
+				}
 			}
 		}
 
@@ -1794,11 +1827,27 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Find parent to add to
 		if (!target) {
-			target = this.explorerService.roots[this.explorerService.roots.length - 1];
+			const roots = this.explorerService.roots;
+			// When reordering roots, resolve to the last root of the same type
+			if (!(data instanceof NativeDragAndDropData) && !(data instanceof ExternalElementsDragAndDropData)) {
+				const dragItems = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>);
+				if (dragItems.every(item => item.isRoot && item.isDirectory)) {
+					target = roots.filter(r => r.isDirectory).pop() ?? roots[roots.length - 1];
+				} else if (dragItems.every(item => item.isRoot && !item.isDirectory)) {
+					target = roots.filter(r => !r.isDirectory).pop() ?? roots[roots.length - 1];
+				} else {
+					target = roots[roots.length - 1];
+				}
+			} else {
+				target = roots[roots.length - 1];
+			}
 			targetSector = ListViewTargetSector.BOTTOM;
 		}
 		if (!target.isDirectory && target.parent) {
 			target = target.parent;
+		}
+		if (!target.isDirectory && !target.isRoot) {
+			return;
 		}
 		if (target.isReadonly) {
 			return;
@@ -1856,11 +1905,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Handle confirm setting
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
-			const message = items.length > 1 && items.every(s => s.isRoot) ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
+			const isRootReorder = (s: ExplorerItem) => s.isRoot && s.isDirectory === target.isDirectory && target.isRoot;
+			const message = items.length > 1 && items.every(s => s.isRoot) && target.isRoot ? localize('confirmRootsMove', "Are you sure you want to change the order of multiple root folders in your workspace?")
 				: items.length > 1 ? localize('confirmMultiMove', "Are you sure you want to move the following {0} files into '{1}'?", items.length, target.name)
-					: items[0].isRoot ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
+					: isRootReorder(items[0]) ? localize('confirmRootMove', "Are you sure you want to change the order of root folder '{0}' in your workspace?", items[0].name)
 						: localize('confirmMove', "Are you sure you want to move '{0}' into '{1}'?", items[0].name, target.name);
-			const detail = items.length > 1 && !items.every(s => s.isRoot) ? getFileNamesMessage(items.map(i => i.resource)) : undefined;
+			const detail = items.length > 1 && !items.every(s => s.isRoot && target.isRoot) ? getFileNamesMessage(items.map(i => i.resource)) : undefined;
 
 			const confirmation = await this.dialogService.confirm({
 				message,
@@ -1881,14 +1931,23 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 		}
 
-		await this.doHandleRootDrop(items.filter(s => s.isRoot), target, targetSector);
+		await this.doHandleRootDrop(items.filter(s => s.isRoot && s.isDirectory), target, targetSector);
 
-		const sources = items.filter(s => !s.isRoot);
-		if (isCopy) {
-			return this.doHandleExplorerDropOnCopy(sources, target);
+		// File roots dropped onto another file root: reorder workspace files
+		const fileRoots = items.filter(s => s.isRoot && !s.isDirectory);
+		if (fileRoots.length > 0 && target.isRoot && !target.isDirectory) {
+			return this.doHandleFileRootDrop(fileRoots, target, targetSector);
 		}
 
-		return this.doHandleExplorerDropOnMove(sources, target);
+		// File roots dropped onto a folder (or regular non-root files): move on disk
+		const sources = items.filter(s => !s.isRoot || !s.isDirectory);
+		if (sources.length > 0 && target.isDirectory) {
+			if (isCopy) {
+				return this.doHandleExplorerDropOnCopy(sources, target);
+			}
+
+			return this.doHandleExplorerDropOnMove(sources, target);
+		}
 	}
 
 	private async doHandleRootDrop(roots: ExplorerItem[], target: ExplorerItem, targetSector: ListViewTargetSector | undefined): Promise<void> {
@@ -1948,6 +2007,75 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		workspaceCreationData.splice(targetIndex, 0, ...rootsToMove);
 
 		return this.workspaceEditingService.updateFolders(0, workspaceCreationData.length, workspaceCreationData);
+	}
+
+	private async doHandleFileRootDrop(fileRoots: ExplorerItem[], target: ExplorerItem, targetSector: ListViewTargetSector | undefined): Promise<void> {
+		if (fileRoots.length === 0) {
+			return;
+		}
+
+		const currentFiles = this.contextService.getWorkspace().files ?? [];
+		if (currentFiles.length === 0) {
+			return;
+		}
+
+		let targetIndex: number | undefined;
+		const sourceIndices: number[] = [];
+		const filesToKeep: IWorkspaceFileCreationData[] = [];
+		const filesToMove: IWorkspaceFileCreationData[] = [];
+
+		for (let index = 0; index < currentFiles.length; index++) {
+			const data: IWorkspaceFileCreationData = {
+				uri: currentFiles[index].uri,
+				name: currentFiles[index].name
+			};
+
+			if (this.uriIdentityService.extUri.isEqual(currentFiles[index].uri, target.resource)) {
+				targetIndex = index;
+			}
+
+			for (const root of fileRoots) {
+				if (this.uriIdentityService.extUri.isEqual(currentFiles[index].uri, root.resource)) {
+					sourceIndices.push(index);
+					break;
+				}
+			}
+
+			if (fileRoots.every(r => r.resource.toString() !== currentFiles[index].uri.toString())) {
+				filesToKeep.push(data);
+			} else {
+				filesToMove.push(data);
+			}
+		}
+
+		if (targetIndex === undefined) {
+			targetIndex = filesToKeep.length;
+		} else {
+			switch (targetSector) {
+				case ListViewTargetSector.BOTTOM:
+				case ListViewTargetSector.CENTER_BOTTOM:
+					targetIndex++;
+					break;
+			}
+			for (const sourceIndex of sourceIndices) {
+				if (sourceIndex < targetIndex) {
+					targetIndex--;
+				}
+			}
+		}
+
+		filesToKeep.splice(targetIndex, 0, ...filesToMove);
+
+		// Check if the order actually changed
+		const orderChanged = filesToKeep.some((f, i) => !this.uriIdentityService.extUri.isEqual(f.uri, currentFiles[i].uri));
+		if (!orderChanged) {
+			return;
+		}
+
+		// Reorder by removing all files and adding them back in the new order
+		const allUris = currentFiles.map(f => f.uri);
+		await this.workspaceEditingService.removeFiles(allUris);
+		await this.workspaceEditingService.addFiles(filesToKeep);
 	}
 
 	private async doHandleExplorerDropOnCopy(sources: ExplorerItem[], target: ExplorerItem): Promise<void> {

@@ -385,6 +385,15 @@ export class ExplorerService implements IExplorerService {
 			const oldParentResource = dirname(oldResource);
 			const newParentResource = dirname(newElement.resource);
 			const modelElements = this.model.findAll(oldResource);
+
+			// File roots (standalone files in workspace) should not be moved in-place
+			// because mutating a root item breaks the explorer model. Instead, refresh
+			// the affected parents so the tree re-resolves correctly (including on undo).
+			if (modelElements.some(m => m.isRoot && !m.isDirectory)) {
+				await this.refresh(false);
+				return;
+			}
+
 			const sameParentMove = modelElements.every(e => !e.nestedParent) && this.uriIdentityService.extUri.isEqual(oldParentResource, newParentResource);
 
 			// Handle Rename

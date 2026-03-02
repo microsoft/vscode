@@ -8,7 +8,7 @@ import { Queue } from '../../../../base/common/async.js';
 import { removeTrailingPathSeparator } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFilesChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { getWorkspaceIdentifier } from '../../../../workbench/services/workspaces/browser/workspaces.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
@@ -27,6 +27,8 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 
 	private readonly _onDidChangeWorkspaceFolders = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 	readonly onDidChangeWorkspaceFolders = this._onDidChangeWorkspaceFolders.event;
+
+	readonly onDidChangeWorkspaceFiles = Event.None as Event<IWorkspaceFilesChangeEvent>;
 
 	private workspace: Workspace;
 	private readonly _updateFoldersQueue = this._register(new Queue<void>());
@@ -101,6 +103,14 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 	async copyWorkspaceSettings(_toWorkspace: IWorkspaceIdentifier): Promise<void> { }
 
 	async pickNewWorkspacePath(): Promise<URI | undefined> { return undefined; }
+
+	async addFiles(_files: { uri: URI; name?: string }[]): Promise<void> { }
+
+	async removeFiles(_files: URI[]): Promise<void> { }
+
+	async updateFiles(_filesToAdd: { uri: URI; name?: string }[], _filesToRemove: URI[]): Promise<void> { }
+
+	async reorderFiles(_files: { uri: URI; name?: string }[]): Promise<void> { }
 
 	private doUpdateFolders(foldersToAdd: IWorkspaceFolderCreationData[], foldersToRemove: URI[], index?: number): Promise<void> {
 		return this._updateFoldersQueue.queue(() => this._doUpdateFolders(foldersToAdd, foldersToRemove, index));

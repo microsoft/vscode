@@ -382,6 +382,40 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 				}]
 			}
 		},
+		'files': {
+			minItems: 0,
+			uniqueItems: true,
+			description: nls.localize('workspaceConfig.files.description', "List of individual files to be loaded in the workspace."),
+			items: {
+				type: 'object',
+				defaultSnippets: [{ body: { path: '$1' } }],
+				oneOf: [{
+					properties: {
+						path: {
+							type: 'string',
+							description: nls.localize('workspaceConfig.filePath.description', "A file path. e.g. `/root/file.txt` or `./file.txt` for a relative path that will be resolved against the location of the workspace file.")
+						},
+						name: {
+							type: 'string',
+							description: nls.localize('workspaceConfig.fileName.description', "An optional display name for the file.")
+						}
+					},
+					required: ['path']
+				}, {
+					properties: {
+						uri: {
+							type: 'string',
+							description: nls.localize('workspaceConfig.fileUri.description', "URI of the file")
+						},
+						name: {
+							type: 'string',
+							description: nls.localize('workspaceConfig.fileName.description', "An optional display name for the file.")
+						}
+					},
+					required: ['uri']
+				}]
+			}
+		},
 		'settings': {
 			type: 'object',
 			default: {},
