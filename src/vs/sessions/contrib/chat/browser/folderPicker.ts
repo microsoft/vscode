@@ -58,6 +58,9 @@ export class FolderPicker extends Disposable {
 	 */
 	setNewSession(session: INewSession | undefined): void {
 		this._newSession = session;
+		if (session && this._selectedFolderUri) {
+			session.setRepoUri(this._selectedFolderUri);
+		}
 	}
 
 	constructor(
