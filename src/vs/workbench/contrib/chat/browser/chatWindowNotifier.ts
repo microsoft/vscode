@@ -19,7 +19,6 @@ import { IChatService, IChatToolInvocation, ToolConfirmKind } from '../common/ch
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { ChatConfiguration, ChatNotificationMode } from '../common/constants.js';
 import { IChatWidgetService } from './chat.js';
-import { isMacintosh } from '../../../../base/common/platform.js';
 
 /**
  * Observes all live chat models and triggers OS notifications when any model
@@ -145,12 +144,12 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 	}
 
 	private _getNotificationBody(sessionResource: URI, info: IChatRequestNeedsInputInfo, isQuestionCarousel: boolean): string {
-		const terminalCommand = this._getPendingTerminalCommand(sessionResource);
 		if (isQuestionCarousel) {
 			return localize('questionCarouselDetail', "Questions need your input.");
 		}
-		if (isMacintosh && terminalCommand) {
-			return this._sanitizeOSToastText(terminalCommand); // prefer full command on macOS where you can approve from the toast
+		const terminalCommand = this._getPendingTerminalCommand(sessionResource);
+		if (terminalCommand) {
+			return this._sanitizeOSToastText(terminalCommand);
 		}
 		if (info.detail) {
 			return this._sanitizeOSToastText(info.detail);
