@@ -1177,6 +1177,56 @@ suite('PromptsService', () => {
 			);
 		});
 
+		test('copilot user agents from ~/.copilot/agents/ should have GitHubCopilot target', async () => {
+			const rootFolderName = 'copilot-user-agents';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					// Copilot user agent in ~/.copilot/agents/ (resolved from /home/user/.copilot/agents/)
+					path: '/home/user/.copilot/agents/copilot-user-agent.md',
+					contents: [
+						'---',
+						'description: \'Copilot user agent from home folder.\'',
+						'tools: [ read ]',
+						'---',
+						'I am a Copilot user agent.',
+					]
+				},
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'copilot-user-agent',
+					description: 'Copilot user agent from home folder.',
+					target: Target.GitHubCopilot,
+					tools: ['read'],
+					agentInstructions: {
+						content: 'I am a Copilot user agent.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					visibility: { userInvocable: true, agentInvocable: true },
+					agents: undefined,
+					uri: URI.file('/home/user/.copilot/agents/copilot-user-agent.md'),
+					source: { storage: PromptsStorage.user }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Agents from ~/.copilot/agents/ must have Target.GitHubCopilot.',
+			);
+		});
+
 		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';
 			const rootFolder = `/${rootFolderName}`;
