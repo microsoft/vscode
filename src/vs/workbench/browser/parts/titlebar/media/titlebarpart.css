@@ -172,7 +172,7 @@
 	border: 1px solid var(--vscode-commandCenter-border);
 	overflow: hidden;
 	margin: 0 6px;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-large);
 	height: 22px;
 	width: 38vw;
 	max-width: 600px;

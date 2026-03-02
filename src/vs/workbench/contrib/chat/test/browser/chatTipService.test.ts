@@ -17,7 +17,7 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
+import { ChatTipService, CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND, CREATE_AGENT_TRACKING_COMMAND, CREATE_PROMPT_TRACKING_COMMAND, CREATE_SKILL_TRACKING_COMMAND, FORK_CONVERSATION_TRACKING_COMMAND, IChatTip, ITipDefinition, TipEligibilityTracker } from '../../browser/chatTipService.js';
 import { AgentFileType, IPromptPath, IPromptsService, IResolvedAgentFile, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -187,6 +187,32 @@ suite('ChatTipService', () => {
 		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
 		assert.ok(executedCommands.includes(CREATE_PROMPT_TRACKING_COMMAND));
 		assert.ok(!executedCommands.includes(CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_AGENT_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_SKILL_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(FORK_CONVERSATION_TRACKING_COMMAND));
+	});
+
+	test('records fork tip usage for submitted /fork command', () => {
+		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
+		instantiationService.stub(IChatService, {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: () => undefined,
+		} as Partial<IChatService> as IChatService);
+
+		createService();
+
+		submitRequestEmitter.fire({
+			chatSessionResource: URI.parse('chat:session-fork'),
+			message: {
+				text: '/fork',
+				parts: [],
+			},
+		});
+
+		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
+		assert.ok(executedCommands.includes(FORK_CONVERSATION_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_PROMPT_TRACKING_COMMAND));
 		assert.ok(!executedCommands.includes(CREATE_AGENT_TRACKING_COMMAND));
 		assert.ok(!executedCommands.includes(CREATE_SKILL_TRACKING_COMMAND));
 	});

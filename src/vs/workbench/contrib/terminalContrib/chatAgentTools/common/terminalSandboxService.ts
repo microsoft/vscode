@@ -160,17 +160,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
 
-			const allowedDomainsSet = new Set(networkSetting.allowedDomains ?? []);
+			let allowedDomains = networkSetting.allowedDomains ?? [];
 			if (networkSetting.allowTrustedDomains) {
-				for (const domain of this._trustedDomainService.trustedDomains) {
-					// Filter out sole wildcard '*' as sandbox runtime doesn't allow it
-					// Wildcards like '*.github.com' are OK
-					if (domain !== '*') {
-						allowedDomainsSet.add(domain);
-					}
-				}
+				allowedDomains = this._addTrustedDomainsToAllowedDomains(allowedDomains);
 			}
-			const allowedDomains = Array.from(allowedDomainsSet);
 
 			const sandboxSettings = {
 				network: {
@@ -210,5 +203,20 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
 			}
 		}
+	}
+
+	private _addTrustedDomainsToAllowedDomains(allowedDomains: string[]): string[] {
+		const allowedDomainsSet = new Set(allowedDomains);
+		for (const domain of this._trustedDomainService.trustedDomains) {
+			try {
+				const uri = new URL(domain);
+				allowedDomainsSet.add(uri.hostname);
+			} catch {
+				if (domain !== '*') {
+					allowedDomainsSet.add(domain);
+				}
+			}
+		}
+		return Array.from(allowedDomainsSet);
 	}
 }

@@ -8,7 +8,7 @@
 .inline-chat-gutter-menu {
 	background: var(--vscode-panel-background);
 	border: 1px solid var(--vscode-menu-border, var(--vscode-widget-border));
-	border-radius: 8px;
+	border-radius: var(--vscode-cornerRadius-large);
 	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 	z-index: 100;
 }

@@ -2812,12 +2812,12 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 	}
 
 	getBackgroundColor(theme: IColorTheme) {
+		if (this._target.object === TerminalLocation.Editor) {
+			return theme.getColor(editorBackground);
+		}
 		const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
 		if (terminalBackground) {
 			return terminalBackground;
-		}
-		if (this._target.object === TerminalLocation.Editor) {
-			return theme.getColor(editorBackground);
 		}
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		if (location === ViewContainerLocation.Panel) {
