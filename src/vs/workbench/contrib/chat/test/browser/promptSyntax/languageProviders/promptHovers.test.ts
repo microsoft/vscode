@@ -19,7 +19,7 @@ import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { PromptHoverProvider } from '../../../../common/promptSyntax/languageProviders/promptHovers.js';
 import { IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
-import { Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { URI } from '../../../../../../../base/common/uri.js';
