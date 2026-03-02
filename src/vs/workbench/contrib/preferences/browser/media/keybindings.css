@@ -5,6 +5,7 @@
 
 .defineKeybindingWidget {
 	padding: 10px;
+	border-radius: var(--vscode-cornerRadius-large);
 	position: absolute;
 }
 

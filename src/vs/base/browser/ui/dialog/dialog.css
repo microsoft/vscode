@@ -30,7 +30,7 @@
 	min-height: 75px;
 	padding: 10px;
 	transform: translate3d(0px, 0px, 0px);
-	border-radius: 3px;
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
 .monaco-dialog-box.align-vertical {
@@ -237,4 +237,8 @@
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button-dropdown > .monaco-dropdown-button {
 	padding: 0 4px;
+}
+
+.monaco-dialog-modal-block .dialog-shadow {
+	border-radius: var(--vscode-cornerRadius-large);
 }

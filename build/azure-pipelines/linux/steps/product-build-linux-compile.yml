@@ -17,6 +17,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_RUN_CHECKS
+    type: boolean
+    default: false
 
 steps:
   - template: ../../common/checkout.yml@self
@@ -34,15 +37,6 @@ steps:
       azureSubscription: vscode
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
-
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
-
-  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-    displayName: Extract compilation output
 
   - script: |
       set -e
@@ -165,10 +159,33 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact (background)
+
   - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
+
+  - script: npm run gulp core-ci
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Compile
+
+  - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+    - script: node build/azure-pipelines/common/extract-telemetry.ts
+      displayName: Generate lists of telemetry events
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - script: |
+        set -e
+        npm run compile --prefix test/smoke
+        npm run compile --prefix test/integration/browser
+      displayName: Compile test suites (non-OSS)
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc linux
@@ -187,6 +204,11 @@ steps:
     displayName: Build client
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact
+
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli

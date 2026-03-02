@@ -10,6 +10,7 @@ import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { wrapTablesWithScrollable } from './chatMarkdownTableScrolling.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -373,6 +374,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				layoutParticipants.value.add(() => { scrollable.scanDomNode(); });
 				scrollable.scanDomNode();
 			}
+
+			orderedDisposablesList.push(wrapTablesWithScrollable(this.domNode, layoutParticipants));
 
 			orderedDisposablesList.reverse().forEach(d => store.add(d));
 		};

@@ -249,6 +249,10 @@ export class AgenticSessionsViewPane extends ViewPane {
 			this.mcpService.servers.read(reader);
 			updateHeaderTotalCount();
 		}));
+		this._register(autorun(reader => {
+			this.workspaceService.activeProjectRoot.read(reader);
+			updateHeaderTotalCount();
+		}));
 		updateHeaderTotalCount();
 
 		// Toggle collapse on header click

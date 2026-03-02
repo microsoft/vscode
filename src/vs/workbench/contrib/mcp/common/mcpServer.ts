@@ -1087,7 +1087,7 @@ export class McpTool implements IMcpTool {
 					arguments: params,
 					task: shouldUseTask ? {} : undefined,
 					_meta: meta,
-				}, token);
+				}, token, progress ? (message) => progress.report({ message }) : undefined);
 
 				// Wait for tools to refresh for dynamic servers (#261611)
 				await this._server.awaitToolRefresh();

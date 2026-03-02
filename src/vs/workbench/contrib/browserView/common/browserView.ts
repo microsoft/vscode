@@ -77,6 +77,14 @@ export interface IBrowserViewWorkbenchService {
 	getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel>;
 
 	/**
+	 * Get an existing browser view model for the given ID
+	 * @param id The browser view identifier
+	 * @returns A browser view model that proxies to the main process
+	 * @throws If no browser view exists for the given ID
+	 */
+	getBrowserViewModel(id: string): Promise<IBrowserViewModel>;
+
+	/**
 	 * Clear all storage data for the global browser session
 	 */
 	clearGlobalStorage(): Promise<void>;
@@ -105,9 +113,9 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly isDevToolsOpen: boolean;
 	readonly canGoForward: boolean;
 	readonly error: IBrowserViewLoadError | undefined;
-
 	readonly storageScope: BrowserViewStorageScope;
 	readonly sharedWithAgent: boolean;
+	readonly zoomFactor: number;
 
 	readonly onDidChangeSharedWithAgent: Event<boolean>;
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
@@ -123,7 +131,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidClose: Event<void>;
 	readonly onWillDispose: Event<void>;
 
-	initialize(): Promise<void>;
+	initialize(create: boolean): Promise<void>;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
@@ -156,6 +164,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
 	private _sharedWithAgent: boolean = false;
+	private _zoomFactor: number = 1;
 
 	private readonly _onDidChangeSharedWithAgent = this._register(new Emitter<boolean>());
 	readonly onDidChangeSharedWithAgent: Event<boolean> = this._onDidChangeSharedWithAgent.event;
@@ -190,6 +199,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 	get sharedWithAgent(): boolean { return this._sharedWithAgent; }
+	get zoomFactor(): number { return this._zoomFactor; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -236,9 +246,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	/**
-	 * Initialize the model with the current state from the main process
+	 * Initialize the model with the current state from the main process.
+	 * @param create Whether to create the browser view if it doesn't already exist.
+	 * @throws If the browser view doesn't exist and `create` is false, or if initialization fails
 	 */
-	async initialize(): Promise<void> {
+	async initialize(create: boolean): Promise<void> {
 		const dataStorageSetting = this.configurationService.getValue<BrowserViewStorageScope>(
 			'workbench.browser.dataStorage'
 		) ?? BrowserViewStorageScope.Global;
@@ -253,7 +265,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		const dataStorage = isWorkspaceUntrusted ? BrowserViewStorageScope.Ephemeral : dataStorageSetting;
 
 		const workspaceId = this.workspaceContextService.getWorkspace().id;
-		const state = await this.browserViewService.getOrCreateBrowserView(this.id, dataStorage, workspaceId);
+		const state = create
+			? await this.browserViewService.getOrCreateBrowserView(this.id, dataStorage, workspaceId)
+			: await this.browserViewService.getState(this.id);
 
 		this._url = state.url;
 		this._title = state.title;
@@ -268,6 +282,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._error = state.lastError;
 		this._storageScope = state.storageScope;
 		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
+		this._zoomFactor = state.zoomFactor;
 
 		// Set up state synchronization
 
@@ -314,6 +329,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
+		this._zoomFactor = bounds.zoomFactor;
 		return this.browserViewService.layout(this.id, bounds);
 	}
 
