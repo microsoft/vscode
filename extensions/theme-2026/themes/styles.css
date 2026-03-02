@@ -229,7 +229,6 @@
 }
 
 .monaco-workbench.vs-dark .monaco-editor .suggest-widget {
-	background: color-mix(in srgb, var(--vscode-editorSuggestWidget-background) 60%, transparent) !important;
 	border: 1px solid var(--vscode-editorWidget-border);
 }
 
@@ -472,10 +471,6 @@
 /* Command Center */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
 	box-shadow: inset var(--shadow-sm) !important;
-}
-
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center:hover {
-	background: color-mix(in srgb, var(--vscode-commandCenter-activeBackground) 60%, transparent) !important;
 }
 
 .monaco-workbench .part.titlebar .command-center .agent-status-pill {
