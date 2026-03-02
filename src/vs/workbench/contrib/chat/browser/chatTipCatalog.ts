@@ -20,6 +20,11 @@ import {
 	GENERATE_SKILL_COMMAND_ID,
 } from './actions/chatActions.js';
 
+export const enum ChatTipTier {
+	Foundational = 'foundational',
+	Qol = 'qol',
+}
+
 /**
  * Context provided to tip builders for dynamic message construction.
  */
@@ -74,6 +79,12 @@ export function extractCommandIds(markdown: string): string[] {
  */
 export interface ITipDefinition extends ITipExclusionConfig {
 	readonly id: string;
+	readonly tier: ChatTipTier;
+	/**
+	 * Optional priority for ordering tips within the same tier.
+	 * Lower values are shown first.
+	 */
+	readonly priority?: number;
 	/**
 	 * Builds the tip message dynamically at runtime.
 	 * This enables keybindings and command labels to be looked up fresh.
@@ -109,6 +120,8 @@ export interface ITipDefinition extends ITipExclusionConfig {
 export const TIP_CATALOG: readonly ITipDefinition[] = [
 	{
 		id: 'tip.switchToAuto',
+		tier: ChatTipTier.Foundational,
+		priority: 0,
 		buildMessage(ctx) {
 			const label = getCommandLabel('workbench.action.chat.openModelPicker');
 			const kb = formatKeybinding(ctx, 'workbench.action.chat.openModelPicker');
@@ -125,6 +138,8 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.createInstruction',
+		tier: ChatTipTier.Foundational,
+		priority: 50,
 		buildMessage(ctx) {
 			const kb = formatKeybinding(ctx, GENERATE_ON_DEMAND_INSTRUCTIONS_COMMAND_ID);
 			return new MarkdownString(
@@ -145,6 +160,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.createPrompt',
+		tier: ChatTipTier.Foundational,
 		buildMessage(ctx) {
 			const kb = formatKeybinding(ctx, GENERATE_PROMPT_COMMAND_ID);
 			return new MarkdownString(
@@ -165,6 +181,8 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.createAgent',
+		tier: ChatTipTier.Foundational,
+		priority: 30,
 		buildMessage(ctx) {
 			const kb = formatKeybinding(ctx, GENERATE_AGENT_COMMAND_ID);
 			return new MarkdownString(
@@ -185,6 +203,8 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.createSkill',
+		tier: ChatTipTier.Foundational,
+		priority: 40,
 		buildMessage(ctx) {
 			const kb = formatKeybinding(ctx, GENERATE_SKILL_COMMAND_ID);
 			return new MarkdownString(
@@ -205,6 +225,8 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.agentMode',
+		tier: ChatTipTier.Foundational,
+		priority: 10,
 		buildMessage(ctx) {
 			const label = getCommandLabel('workbench.action.chat.openEditSession');
 			const kb = formatKeybinding(ctx, 'workbench.action.chat.openEditSession');
@@ -222,6 +244,8 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.planMode',
+		tier: ChatTipTier.Foundational,
+		priority: 20,
 		buildMessage(ctx) {
 			const kb = formatKeybinding(ctx, 'workbench.action.chat.openPlan');
 			return new MarkdownString(
@@ -239,6 +263,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.attachFiles',
+		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize('tip.attachFiles', "Reference files or folders with # to give the agent more context about the task.")
@@ -254,6 +279,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.codeActions',
+		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize('tip.codeActions', "Select a code block in the editor and right-click to access more AI actions.")
@@ -263,6 +289,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.undoChanges',
+		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize('tip.undoChanges', "Select \"Restore Checkpoint\" to undo changes after that point in the chat conversation.")
@@ -279,6 +306,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.messageQueueing',
+		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize('tip.messageQueueing', "Steer the agent mid-task by sending follow-up messages. They queue and apply in order.")
@@ -289,6 +317,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.yoloMode',
+		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize(
@@ -308,6 +337,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.agenticBrowser',
+		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize(
@@ -326,6 +356,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.mermaid',
+		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize('tip.mermaid', "Ask the agent to draw an architectural diagram or flow chart; it can render Mermaid diagrams directly in chat.")
@@ -336,6 +367,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.subagents',
+		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize('tip.subagents', "Ask the agent to work in parallel to complete large tasks faster.")
@@ -346,6 +378,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 	},
 	{
 		id: 'tip.thinkingPhrases',
+		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize(
