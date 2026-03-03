@@ -144,7 +144,7 @@ suite('McpGatewayToolBrokerChannel', () => {
 
 	test('starts server and waits within grace period when cache state is outdated', async () => {
 		const mcpService = new TestMcpService();
-		const channel = new McpGatewayToolBrokerChannel(mcpService);
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
 
 		const server = createServer(
 			'collectionA',
@@ -165,7 +165,7 @@ suite('McpGatewayToolBrokerChannel', () => {
 	test('returns empty tools and does not re-wait if server does not start within grace period', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const mcpService = new TestMcpService();
-			const channel = new McpGatewayToolBrokerChannel(mcpService, 100);
+			const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService(), 100);
 
 			const server = createNeverStartingServer(
 				'collectionA',
@@ -190,7 +190,7 @@ suite('McpGatewayToolBrokerChannel', () => {
 	test('invalidates stale grace entry when cacheState regresses to Unknown after timeout', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const mcpService = new TestMcpService();
-			const channel = new McpGatewayToolBrokerChannel(mcpService, 100);
+			const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService(), 100);
 
 			const server = createNeverStartingServer(
 				'collectionA',
@@ -224,7 +224,7 @@ suite('McpGatewayToolBrokerChannel', () => {
 	test('does not invalidate grace entry when cacheState is not Unknown/Outdated', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const mcpService = new TestMcpService();
-			const channel = new McpGatewayToolBrokerChannel(mcpService, 100);
+			const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService(), 100);
 
 			const server = createServer(
 				'collectionA',
