@@ -690,6 +690,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Forward scroll events from the parent container margins (outside the max-width area) to the chat list
 		this._register(dom.addDisposableListener(parent, dom.EventType.MOUSE_WHEEL, (e: IMouseWheelEvent) => {
+			if (e.defaultPrevented) {
+				return;
+			}
+
+			if (dom.isAncestor(e.target as Node | null, this.container)) {
+				return;
+			}
+
 			this.listWidget.delegateScrollFromMouseWheelEvent(e);
 		}));
 
