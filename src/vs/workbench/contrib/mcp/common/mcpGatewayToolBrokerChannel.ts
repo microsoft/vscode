@@ -34,8 +34,13 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 	 * Per-server promise that races server startup against the grace period timeout.
 	 * Once set for a server, subsequent list calls await the already-resolved promise
 	 * and return immediately instead of waiting again.
+	 *
+	 * The `resolved` flag tracks whether the promise has settled. If a server's
+	 * cacheState regresses to Unknown/Outdated after the promise resolved (e.g.
+	 * after a cache reset), `_waitForStartup` discards the stale entry and creates
+	 * a fresh race so the server gets another chance to start.
 	 */
-	private readonly _startupGrace = new Map<string, Promise<boolean>>();
+	private readonly _startupGrace = new Map<string, { promise: Promise<boolean>; resolved: boolean }>();
 
 	constructor(
 		private readonly _mcpService: IMcpService,
@@ -68,18 +73,6 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 				resourcesInitialized = true;
 			}
 		}));
-
-		// Invalidate _startupGrace entries when a server's cacheState transitions
-		// back to Unknown or Outdated (e.g. after a cache reset), so the next list
-		// call will re-wait for the server instead of using a stale resolved promise.
-		this._register(autorun(reader => {
-			for (const server of this._mcpService.servers.read(reader)) {
-				const cacheState = server.cacheState.read(reader);
-				if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
-					this._startupGrace.delete(server.definition.id);
-				}
-			}
-		}));
 	}
 
 	private _getServerIndex(server: IMcpServer): number {
@@ -103,13 +96,28 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 
 	private _waitForStartup(server: IMcpServer): Promise<boolean> {
 		const id = server.definition.id;
-		if (!this._startupGrace.has(id)) {
-			this._startupGrace.set(id, Promise.race([
-				this._ensureServerReady(server),
-				new Promise<boolean>(resolve => setTimeout(() => resolve(false), this._startupGracePeriodMs)),
-			]));
+		const existing = this._startupGrace.get(id);
+		// If the previous grace promise already resolved but the server is still
+		// Unknown/Outdated, the entry is stale (e.g. caches were reset). Discard
+		// it so we create a fresh race below.
+		if (existing?.resolved) {
+			const state = server.cacheState.get();
+			if (state === McpServerCacheState.Unknown || state === McpServerCacheState.Outdated) {
+				this._startupGrace.delete(id);
+			}
 		}
-		return this._startupGrace.get(id)!;
+		if (!this._startupGrace.has(id)) {
+			const entry: { promise: Promise<boolean>; resolved: boolean } = {
+				promise: Promise.race([
+					this._ensureServerReady(server),
+					new Promise<boolean>(resolve => setTimeout(() => resolve(false), this._startupGracePeriodMs)),
+				]),
+				resolved: false,
+			};
+			entry.promise.then(() => { entry.resolved = true; });
+			this._startupGrace.set(id, entry);
+		}
+		return this._startupGrace.get(id)!.promise;
 	}
 
 	private async _shouldUseCachedData(server: IMcpServer): Promise<boolean> {
