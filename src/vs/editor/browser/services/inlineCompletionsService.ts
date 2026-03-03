@@ -214,13 +214,13 @@ export class SnoozeInlineCompletion extends Action2 {
 
 		const CUSTOM_SENTINEL = -1;
 		const items: (IQuickPickItem & { value: number })[] = [
-			{ label: '1 minute', id: '1', value: 60_000 },
-			{ label: '5 minutes', id: '5', value: 300_000 },
-			{ label: '10 minutes', id: '10', value: 600_000 },
-			{ label: '15 minutes', id: '15', value: 900_000 },
-			{ label: '30 minutes', id: '30', value: 1_800_000 },
-			{ label: '60 minutes', id: '60', value: 3_600_000 },
-			{ label: 'Custom...', id: 'custom', value: CUSTOM_SENTINEL },
+			{ label: localize('snooze.1minute', "1 minute"), id: '1', value: 60_000 },
+			{ label: localize('snooze.5minutes', "5 minutes"), id: '5', value: 300_000 },
+			{ label: localize('snooze.10minutes', "10 minutes"), id: '10', value: 600_000 },
+			{ label: localize('snooze.15minutes', "15 minutes"), id: '15', value: 900_000 },
+			{ label: localize('snooze.30minutes', "30 minutes"), id: '30', value: 1_800_000 },
+			{ label: localize('snooze.60minutes', "60 minutes"), id: '60', value: 3_600_000 },
+			{ label: localize('snooze.custom', "Custom..."), id: 'custom', value: CUSTOM_SENTINEL },
 		];
 
 		const picked = await quickInputService.pick(items, {
