@@ -2560,6 +2560,12 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_widt
     q_btn = f'<span snc-mouse-down="{html.escape(toggle_event)}" style="margin-left: 3px;{q_style}" title="Boolean queries">? \u25be</span>'
 
     if predicate_dropdown_open:
+        any_val, all_val = _compute_predicate_previews(
+            selection_regex, value, replace_visible, model.get('replace_text'), match_count, eval_in_scope
+        )
+        any_suffix = f' ({any_val})' if any_val is not None else ''
+        all_suffix = f' ({all_val})' if all_val is not None else ''
+
         # Build dropdown options
         dropdown_opts = []
         opt_style = 'padding: 3px 6px; display: flex; align-items: center; gap: 2px;'
@@ -2575,10 +2581,10 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_widt
                 f'</div>'
             )
 
-        dropdown_opts.append(dropdown_row('Any', 'any', has_search))
-        dropdown_opts.append(dropdown_row('All', 'all', has_search and has_replace))
-        dropdown_opts.append(dropdown_row('If Any', 'if_any', has_search))
-        dropdown_opts.append(dropdown_row('If All', 'if_all', has_search and has_replace))
+        dropdown_opts.append(dropdown_row(f'Any{any_suffix}', 'any', has_search))
+        dropdown_opts.append(dropdown_row(f'All{all_suffix}', 'all', has_search and has_replace))
+        dropdown_opts.append(dropdown_row(f'If Any{any_suffix}', 'if_any', has_search))
+        dropdown_opts.append(dropdown_row(f'If All{all_suffix}', 'if_all', has_search and has_replace))
 
         dropdown_panel = (
             '<div class="snc-dropdown-panel" snc-dropdown-align="left" style="'
@@ -2723,7 +2729,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
             f'border: 1px solid #3c3c3c;'
             f'{toggle_btn_style}'
             f'"'
-            f'>1st</span>'
+            f'>1<span style="font-size: 8px; vertical-align: 3px; display: inline-block; margin-top: -1em;">st</span></span>'
         )
         toggles_html = (
             f'<span style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px;">'
@@ -2757,7 +2763,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
                 f'<input type="text" tabindex="0"'
                 f' snc-input="{html.escape(replace_input_event)}"'
                 f' value="{html.escape(replace_text_value)}"'
-                f' placeholder="Replace"'
+                f' placeholder="Transform or Replace"'
                 f' spellcheck="false"'
                 f' style="'
                 f'background: #1e1e1e;'
@@ -2893,6 +2899,90 @@ def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope
         return len(list(re.finditer(pattern, string_value, flags=flags)))
     except Exception:
         return 0
+
+
+def _find_matches(selection_regex: str, string_value: str, eval_in_scope=None) -> list:
+    """Return match objects for the current search pattern."""
+    if not selection_regex or not string_value:
+        return []
+
+    ci = is_case_insensitive(selection_regex)
+    first = is_first_match_mode(selection_regex)
+
+    if is_string_search(selection_regex):
+        literal_str = eval_string_search(selection_regex)
+        if not literal_str:
+            return []
+        if ci:
+            compiled = re.compile(re.escape(literal_str), re.IGNORECASE)
+        else:
+            compiled = re.compile(re.escape(literal_str))
+        if first:
+            m = compiled.search(string_value)
+            return [m] if m else []
+        return list(compiled.finditer(string_value))
+
+    if is_expression_search(selection_regex):
+        expr_text = get_eval_expression(selection_regex)
+        if not expr_text:
+            return []
+        try:
+            result = eval_in_scope(expr_text) if eval_in_scope else eval(expr_text)
+        except Exception:
+            return []
+        if not isinstance(result, str):
+            return []
+        if ci:
+            compiled = re.compile(re.escape(result), re.IGNORECASE)
+        else:
+            compiled = re.compile(re.escape(result))
+        if first:
+            m = compiled.search(string_value)
+            return [m] if m else []
+        return list(compiled.finditer(string_value))
+
+    inner = get_regex_inner_pattern(selection_regex)
+    if not inner:
+        return []
+    pattern = strip_capturing_groups(inner)
+    flags = re.M | (re.I if ci else 0)
+    try:
+        if first:
+            m = re.search(pattern, string_value, flags=flags)
+            return [m] if m else []
+        return list(re.finditer(pattern, string_value, flags=flags))
+    except Exception:
+        return []
+
+
+def _compute_predicate_previews(selection_regex, value, replace_visible, replace_text, match_count, eval_in_scope):
+    """Compute (any_val, all_val) boolean previews for the predicate dropdown.
+
+    Returns (bool|None, bool|None). None means not applicable / not computable.
+    """
+    if not selection_regex:
+        return (None, None)
+
+    if not replace_visible or not replace_text:
+        return (match_count > 0, None)
+
+    # Replace mode: evaluate the replace expression against actual matches
+    matches = _find_matches(selection_regex, value, eval_in_scope)
+    if not matches:
+        return (False, True)  # any([])=False, all([])=True per Python semantics
+
+    replace_expr_raw = replace_text
+    if replace_expr_raw.startswith('`') and len(replace_expr_raw) >= 2:
+        end = replace_expr_raw.find('`', 1)
+        if end > 0:
+            replace_expr_raw = replace_expr_raw[1:end]
+    replace_expr = replace_caret_in_py_exp(replace_expr_raw, '_mtch')
+
+    try:
+        results = [eval(replace_expr, {'_mtch': m, '__builtins__': __builtins__}) for m in matches]
+        return (any(results), all(results))
+    except Exception:
+        return (None, None)
 
 
 def init_model(value, get_visualizer=None):

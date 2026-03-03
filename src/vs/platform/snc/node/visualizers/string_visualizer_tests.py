@@ -6891,6 +6891,67 @@ class TestActionButtonRendering(unittest.TestCase):
         html_output = visualize(self.value, model, None, None, max_width=400)
         self.assertIn('action-predicate', html_output)
 
+    def test_any_shows_true_when_match_exists(self):
+        """Any label shows (True) when search pattern matches."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        model['openDropdown'] = {'id': 'action-predicate'}
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('Any (True)', html_output)
+
+    def test_any_shows_false_when_no_match(self):
+        """Any label shows (False) when search pattern doesn't match."""
+        model = init_model(self.value)
+        model['search'] = '/xyz/'
+        model['openDropdown'] = {'id': 'action-predicate'}
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('Any (False)', html_output)
+
+    def test_if_any_shows_true_when_match_exists(self):
+        """If Any label shows (True) when search pattern matches."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        model['openDropdown'] = {'id': 'action-predicate'}
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('If Any (True)', html_output)
+
+    def test_if_any_shows_false_when_no_match(self):
+        """If Any label shows (False) when search pattern doesn't match."""
+        model = init_model(self.value)
+        model['search'] = '/xyz/'
+        model['openDropdown'] = {'id': 'action-predicate'}
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('If Any (False)', html_output)
+
+    def test_all_shows_preview_in_replace_mode(self):
+        """All label shows (True)/(False) in replace mode."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        model['replace_visible'] = True
+        model['replace_text'] = "^[0].upper()"
+        model['openDropdown'] = {'id': 'action-predicate'}
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('All (True)', html_output)
+
+    def test_if_all_shows_preview_in_replace_mode(self):
+        """If All label shows (True)/(False) in replace mode."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        model['replace_visible'] = True
+        model['replace_text'] = "^[0].upper()"
+        model['openDropdown'] = {'id': 'action-predicate'}
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('If All (True)', html_output)
+
+    def test_all_no_preview_when_disabled(self):
+        """All label has no preview when not in replace mode (it's disabled)."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        model['openDropdown'] = {'id': 'action-predicate'}
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertNotIn('All (True)', html_output)
+        self.assertNotIn('All (False)', html_output)
+
 
 if __name__ == '__main__':
     unittest.main()
