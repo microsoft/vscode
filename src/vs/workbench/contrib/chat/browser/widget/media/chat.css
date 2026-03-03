@@ -814,7 +814,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
-	padding: 0 6px 6px 6px;
+	padding: 0 0px 6px 6px;
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
@@ -1265,6 +1265,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	justify-content: space-between;
 	padding-bottom: 0;
+	/* no scrollbar */
+	padding-right: 6px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -1280,7 +1282,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-editor-container {
-	padding: 0 4px;
+	padding: 0 0 0 4px;
+}
+
+.interactive-session .interactive-input-part.compact .chat-editor-container {
+	/* No scrollbar */
+	padding-right: 4px;
 }
 
 .chat-editor-container .monaco-editor .mtk1 {
@@ -1323,6 +1330,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars :not(.responsive.chat-input-toolbar) .actions-container:first-child {
 	margin-right: auto;
+}
+
+.interactive-session .chat-input-toolbars > .chat-input-toolbar .actions-container:first-child {
+	margin-right: 0;
 }
 
 .interactive-session .chat-input-toolbars .tool-warning-indicator {
@@ -1402,10 +1413,40 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 0px 3px 6px;
+	padding: 3px 1px 3px 7px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
+}
+
+/* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)) {
+	width: 22px;
+	min-width: 22px;
+	height: 22px;
+	padding: 0;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	.codicon {
+		justify-content: center;
+	}
+}
+
+/* When chevrons are hidden but label is still shown (e.g. model picker), use equal padding */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:has(.chat-input-picker-label),
+.interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:has(.chat-input-picker-label),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:has(.chat-input-picker-label) {
+	padding: 3px 7px;
+}
+
+/* Hide the tools button when the toolbar is in collapsed state */
+.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-tools) {
+	display: none;
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,

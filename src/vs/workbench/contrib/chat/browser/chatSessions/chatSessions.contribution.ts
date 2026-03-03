@@ -172,6 +172,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 						supportsPromptAttachments: {
 							description: localize('chatSessionsExtPoint.supportsPromptAttachments', 'Whether this chat session supports attaching prompts.'),
 							type: 'boolean'
+						},
+						supportsHandOffs: {
+							description: localize('chatSessionsExtPoint.supportsHandOffs', 'Whether this chat session supports hand-off prompts.'),
+							type: 'boolean'
 						}
 					}
 				},

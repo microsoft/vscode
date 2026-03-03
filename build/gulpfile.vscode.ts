@@ -519,6 +519,11 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				darwinMiniAppName: embedded.nameShort,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
 				darwinMiniAppIcon: 'resources/darwin/sessions.icns',
+				darwinMiniAppBundleURLTypes: [{
+					role: 'Viewer',
+					name: embedded.nameLong,
+					urlSchemes: [embedded.urlProtocol]
+				}],
 				win32ProxyAppName: embedded.nameShort,
 				win32ProxyIcon: 'resources/win32/sessions.ico',
 			} : {})

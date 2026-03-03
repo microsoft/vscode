@@ -11,6 +11,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatQuestionCarousel } from '../../../../common/chatService/chatService.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
 function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
 	return {
@@ -578,6 +579,69 @@ suite('ChatQuestionCarouselPart', () => {
 	});
 
 	suite('Used Carousel Summary', () => {
+		test('retains current question after navigation without editing', () => {
+			const carousel = new ChatQuestionCarouselData([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+
+			const firstWidget = createWidget(carousel);
+			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
+			assert.ok(nextButton, 'next button should exist');
+			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			firstWidget.dispose();
+			firstWidget.domNode.remove();
+
+			const recreatedWidget = createWidget(carousel);
+			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
+			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index after navigation');
+
+			const title = recreatedWidget.domNode.querySelector('.chat-question-title');
+			assert.ok(title?.textContent?.includes('Question 2'), 'should restore to the second question view');
+		});
+
+		test('retains draft answers and current question after widget recreation', () => {
+			const carousel = new ChatQuestionCarouselData([
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
+			], true);
+
+			const firstWidget = createWidget(carousel);
+			const firstInput = firstWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
+			assert.ok(firstInput, 'first question input should exist');
+			firstInput.value = 'first draft answer';
+			firstInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
+			assert.ok(nextButton, 'next button should exist');
+			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			const secondInput = firstWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
+			assert.ok(secondInput, 'second question input should exist');
+			secondInput.value = 'second draft answer';
+			secondInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+			firstWidget.dispose();
+			firstWidget.domNode.remove();
+
+			const recreatedWidget = createWidget(carousel);
+			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
+			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index');
+
+			const recreatedSecondInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
+			assert.ok(recreatedSecondInput, 'recreated second question input should exist');
+			assert.strictEqual(recreatedSecondInput.value, 'second draft answer', 'should restore draft input for current question');
+
+			const prevButton = recreatedWidget.domNode.querySelector('.chat-question-nav-prev') as HTMLElement | null;
+			assert.ok(prevButton, 'previous button should exist');
+			prevButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			const recreatedFirstInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
+			assert.ok(recreatedFirstInput, 'recreated first question input should exist');
+			assert.strictEqual(recreatedFirstInput.value, 'first draft answer', 'should restore draft input for previous question');
+		});
+
 		test('shows summary with answers after skip()', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }

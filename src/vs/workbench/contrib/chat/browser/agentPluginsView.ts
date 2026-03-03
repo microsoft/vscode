@@ -8,9 +8,10 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
@@ -18,6 +19,7 @@ import { basename, dirname, joinPath } from '../../../../base/common/resources.j
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -25,7 +27,6 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -35,44 +36,21 @@ import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPan
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
+import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
 import { DefaultViewsContext, extensionsFilterSubMenu, IExtensionsWorkbenchService, SearchAgentPluginsContext } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceType } from '../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
+import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
+import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 
 export const HasInstalledAgentPluginsContext = new RawContextKey<boolean>('hasInstalledAgentPlugins', false);
 export const InstalledAgentPluginsViewId = 'workbench.views.agentPlugins.installed';
 
 //#region Item model
-
-const enum AgentPluginItemKind {
-	Installed = 'installed',
-	Marketplace = 'marketplace',
-}
-
-interface IInstalledPluginItem {
-	readonly kind: AgentPluginItemKind.Installed;
-	readonly name: string;
-	readonly description: string;
-	readonly marketplace?: string;
-	readonly plugin: IAgentPlugin;
-}
-
-interface IMarketplacePluginItem {
-	readonly kind: AgentPluginItemKind.Marketplace;
-	readonly name: string;
-	readonly description: string;
-	readonly source: string;
-	readonly marketplace: string;
-	readonly marketplaceReference: IMarketplaceReference;
-	readonly marketplaceType: MarketplaceType;
-	readonly readmeUri?: URI;
-}
-
-type IAgentPluginItem = IInstalledPluginItem | IMarketplacePluginItem;
 
 function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
 	const name = basename(plugin.uri);
@@ -326,6 +304,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -377,6 +356,14 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			}) as WorkbenchPagedList<IAgentPluginItem>);
 
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));
+
+		this._register(Event.debounce(Event.filter(this.list.onDidOpen, e => e.element !== null), (_, event) => event, 75, true)(options => {
+			this.editorService.openEditor(
+				this.instantiationService.createInstance(AgentPluginEditorInput, options.element!),
+				options.editorOptions,
+				MODAL_GROUP
+			);
+		}));
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IAgentPluginItem>): void {

@@ -15,7 +15,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ChatThinkingContentPart } from '../../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { IChatMarkdownContent, IChatThinkingPart } from '../../../../common/chatService/chatService.js';
-import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
+import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -49,6 +49,7 @@ suite('ChatThinkingContentPart', () => {
 
 		return {
 			element: mockElement as IChatResponseViewModel,
+			inlineTextModels: {} as InlineTextModelCollection,
 			elementIndex: 0,
 			container: mainWindow.document.createElement('div'),
 			content: [],
