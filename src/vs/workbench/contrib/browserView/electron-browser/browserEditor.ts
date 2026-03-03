@@ -391,7 +391,8 @@ export class BrowserEditor extends EditorPane {
 		this._inputDisposables.clear();
 
 		// Resolve the browser view model from the input
-		this._model = await input.resolve();
+		const model = await input.resolve();
+		this._model = model;
 		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
@@ -425,12 +426,16 @@ export class BrowserEditor extends EditorPane {
 		});
 		this.setBackgroundImage(this._model.screenshot);
 
-		if (context.newInGroup) {
-			if (this._model.url) {
-				this._browserContainer.focus();
-			} else {
-				this.focusUrlInput();
-			}
+		if (!options?.preserveFocus) {
+			setTimeout(() => {
+				if (this._model === model) {
+					if (this._model.url) {
+						this._browserContainer.focus();
+					} else {
+						this.focusUrlInput();
+					}
+				}
+			}, 0);
 		}
 
 		// Start / stop screenshots when the model visibility changes
