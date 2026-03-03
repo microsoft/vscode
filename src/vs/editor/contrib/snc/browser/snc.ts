@@ -1160,11 +1160,6 @@ export class SNCController extends Disposable implements IEditorContribution {
 				return;
 			}
 
-			// Record viewport position of trigger line before the edit
-			const triggerLineTop = this.editor.getTopForLineNumber(command.triggerLine);
-			const scrollTop = this.editor.getScrollTop();
-			const viewportOffset = triggerLineTop - scrollTop;
-
 			// Sort edits bottom-to-top so line numbers remain valid as we insert
 			const sortedEdits = [...command.edits].sort((a, b) => b.afterLine - a.afterLine);
 
@@ -1183,13 +1178,6 @@ export class SNCController extends Disposable implements IEditorContribution {
 			});
 
 			model.pushEditOperations([], editOperations, () => null);
-
-			// Scroll so the new visualizer line appears at the same viewport
-			// position as the triggering visualizer was before the edit.
-			const insertsAboveTrigger = command.edits.filter(e => e.afterLine < command.triggerLine).length;
-			const newVisualizerLine = command.triggerLine + insertsAboveTrigger + 1;
-			const newLineTop = this.editor.getTopForLineNumber(newVisualizerLine);
-			this.editor.setScrollTop(newLineTop - viewportOffset);
 		} else if (command.type === 'CopyToClipboard') {
 			navigator.clipboard.writeText(command.text).catch(() => { /* ignore clipboard errors */ });
 		}
