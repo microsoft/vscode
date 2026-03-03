@@ -977,7 +977,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 				// Decide first vs last iteration
 				const shouldUseFirst = items.some(item =>
 					item.last_line_in_containing_loop !== undefined &&
-					cursorLine <= item.last_line_in_containing_loop
+					cursorLine <= item.last_line_in_containing_loop + 1
 				);
 
 				// Group by execution step and pick one step
