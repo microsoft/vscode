@@ -193,7 +193,7 @@
 		border-radius: 4px;
 		border: 1px solid var(--vscode-editorWidget-border);
 		background-color: var(--vscode-editor-background);
-		box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+		box-shadow: var(--vscode-shadow-lg);
 		max-width: 80%;
 		text-align: center;
 		display: none;

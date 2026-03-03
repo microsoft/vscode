@@ -99,6 +99,7 @@ suite('ChatTipService', () => {
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		contextKeyService = new MockContextKeyServiceWithRulesMatching();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 1);
 		configurationService = new TestConfigurationService();
 		commandExecutedEmitter = testDisposables.add(new Emitter<ICommandEvent>());
 		storageService = testDisposables.add(new InMemoryStorageService());
@@ -304,6 +305,7 @@ suite('ChatTipService', () => {
 		assert.strictEqual(firstTip.id, 'tip.switchToAuto');
 
 		const switchedContextKeyService = new MockContextKeyServiceWithRulesMatching();
+		switchedContextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 1);
 		switchedContextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
 		const nextTip = service.getWelcomeTip(switchedContextKeyService);
 
@@ -363,6 +365,30 @@ suite('ChatTipService', () => {
 
 		const tip = service.getWelcomeTip(editorContextKeyService);
 		assert.strictEqual(tip, undefined, 'Should not return a tip in editor inline chat');
+	});
+
+	test('returns a tip when foreground session count is exactly one', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 1);
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip, 'Should return a tip when exactly one foreground chat session is visible');
+	});
+
+	test('returns undefined when foreground session count is zero', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 0);
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.strictEqual(tip, undefined, 'Should not return a tip when no foreground chat sessions are visible');
+	});
+
+	test('returns undefined when foreground session count is greater than one', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 2);
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.strictEqual(tip, undefined, 'Should not return a tip when multiple foreground chat sessions are visible');
 	});
 
 	test('dismissTip excludes the dismissed tip and allows a new one', () => {

@@ -814,7 +814,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
-	padding: 0 6px 6px 6px;
+	padding: 0 0px 6px 6px;
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
@@ -1265,6 +1265,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	justify-content: space-between;
 	padding-bottom: 0;
+	/* no scrollbar */
+	padding-right: 6px;
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
@@ -1280,7 +1282,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-editor-container {
-	padding: 0 4px;
+	padding: 0 0 0 4px;
+}
+
+.interactive-session .interactive-input-part.compact .chat-editor-container {
+	/* No scrollbar */
+	padding-right: 4px;
 }
 
 .chat-editor-container .monaco-editor .mtk1 {

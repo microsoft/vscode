@@ -445,8 +445,12 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	/**
 	 * Reload the current page
 	 */
-	reload(): void {
-		this._view.webContents.reload();
+	reload(hard?: boolean): void {
+		if (hard) {
+			this._view.webContents.reloadIgnoringCache();
+		} else {
+			this._view.webContents.reload();
+		}
 	}
 
 	/**

@@ -23,7 +23,7 @@ import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService, Target } from '../service/promptsService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { AGENTS_SOURCE_FOLDER, isInClaudeAgentsFolder, isInClaudeRulesFolder, isInCopilotAgentsFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, isInClaudeAgentsFolder, isInClaudeRulesFolder, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -1024,9 +1024,6 @@ export function getTarget(promptType: PromptsType, header: PromptHeader | URI): 
 	if (promptType === PromptsType.agent) {
 		if (isInClaudeAgentsFolder(uri)) {
 			return Target.Claude;
-		}
-		if (isInCopilotAgentsFolder(uri)) {
-			return Target.GitHubCopilot;
 		}
 		if (!(header instanceof URI)) {
 			const target = header.target;

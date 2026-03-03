@@ -66,3 +66,8 @@ export const extensionIcon = registerIcon('ai-customization-extension', Codicon.
  * Icon for plugin storage.
  */
 export const pluginIcon = registerIcon('ai-customization-plugin', Codicon.plug, localize('aiCustomizationPluginIcon', "Icon for plugin-contributed items."));
+
+/**
+ * Icon for MCP servers.
+ */
+export const mcpServerIcon = registerIcon('ai-customization-mcp-server', Codicon.server, localize('aiCustomizationMcpServerIcon', "Icon for MCP servers."));
