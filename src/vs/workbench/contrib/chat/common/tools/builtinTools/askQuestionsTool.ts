@@ -53,6 +53,22 @@ function truncateToLimit(value: string | undefined, limit: number): string | und
 	return value;
 }
 
+export function formatHeaderForDisplay(header: string): string {
+	const normalized = header
+		.trim()
+		.replace(/[_-]+/g, ' ')
+		.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+		.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+		.replace(/\s+/g, ' ')
+		.trim();
+
+	if (!normalized) {
+		return header;
+	}
+
+	return normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
+}
+
 export interface IQuestionOption {
 	readonly label: string;
 	readonly description?: string;
@@ -195,7 +211,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			throw new CancellationError();
 		}
 
-		progress.report({ message: localize('askQuestionsTool.progress', 'Analyzing your answers...') });
+		progress.report({ message: localize('askQuestionsTool.progress', 'Reviewing your answers') });
 
 		const converted = this.convertCarouselAnswers(questions, answerResult?.answers, idToHeaderMap);
 		const { answeredCount, skippedCount, freeTextCount, recommendedAvailableCount, recommendedSelectedCount } = this.collectMetrics(questions, converted);
@@ -300,8 +316,9 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		const internalId = generateUuid();
 		idToHeaderMap.set(internalId, question.header);
 
-		// Truncate header for display only
-		const displayTitle = truncateToLimit(question.header, HardLimits.header) ?? question.header;
+		// Format + truncate header for display only; preserve original header for answer correlation
+		const formattedHeader = formatHeaderForDisplay(question.header);
+		const displayTitle = truncateToLimit(formattedHeader, HardLimits.header) ?? formattedHeader;
 
 		return {
 			id: internalId,

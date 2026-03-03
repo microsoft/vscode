@@ -50,7 +50,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { Target } from '../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',

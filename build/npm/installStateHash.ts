@@ -36,14 +36,45 @@ export interface PostinstallState {
 	readonly fileHashes: Record<string, string>;
 }
 
-const packageJsonIgnoredKeys = new Set(['distro']);
+const packageJsonRelevantKeys = new Set([
+	'name',
+	'dependencies',
+	'devDependencies',
+	'optionalDependencies',
+	'peerDependencies',
+	'peerDependenciesMeta',
+	'overrides',
+	'engines',
+	'workspaces',
+	'bundledDependencies',
+	'bundleDependencies',
+]);
+
+const packageLockJsonIgnoredKeys = new Set(['version']);
 
 function normalizeFileContent(filePath: string): string {
 	const raw = fs.readFileSync(filePath, 'utf8');
-	if (path.basename(filePath) === 'package.json') {
+	const basename = path.basename(filePath);
+	if (basename === 'package.json') {
 		const json = JSON.parse(raw);
-		for (const key of packageJsonIgnoredKeys) {
+		const filtered: Record<string, unknown> = {};
+		for (const key of packageJsonRelevantKeys) {
+			// eslint-disable-next-line local/code-no-in-operator
+			if (key in json) {
+				filtered[key] = json[key];
+			}
+		}
+		return JSON.stringify(filtered, null, '\t') + '\n';
+	}
+	if (basename === 'package-lock.json') {
+		const json = JSON.parse(raw);
+		for (const key of packageLockJsonIgnoredKeys) {
 			delete json[key];
+		}
+		if (json.packages?.['']) {
+			for (const key of packageLockJsonIgnoredKeys) {
+				delete json.packages[''][key];
+			}
 		}
 		return JSON.stringify(json, null, '\t') + '\n';
 	}

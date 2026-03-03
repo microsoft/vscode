@@ -14,6 +14,7 @@
 	background-color: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	border-radius: var(--vscode-cornerRadius-large);
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .hc-black .monaco-editor .parameter-hints-widget,
