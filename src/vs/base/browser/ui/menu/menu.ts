@@ -1239,7 +1239,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	border: none;
 	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
-	box-shadow: var(--vscode-shadow-lg);
+	box-shadow: var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''});
 }
 
 .context-view.monaco-menu-container :focus,
