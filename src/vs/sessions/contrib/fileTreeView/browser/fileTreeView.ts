@@ -43,7 +43,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ISessionsManagementService, IActiveSessionItem } from '../../sessions/browser/sessionsManagementService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from './githubFileSystemProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME, getGitHubRemoteFileDisplayName } from './githubFileSystemProvider.js';
 import { basename } from '../../../../base/common/path.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
@@ -315,6 +315,8 @@ export class FileTreeViewPane extends ViewPane {
 	 * Extracts a github-remote-file:// URI from session metadata, trying various known fields.
 	 */
 	private extractRepoUriFromMetadata(metadata: { readonly [key: string]: unknown }): URI | undefined {
+		const ref = metadata?.branch || 'HEAD';
+
 		// repositoryNwo: "owner/repo"
 		const repositoryNwo = metadata.repositoryNwo as string | undefined;
 		if (repositoryNwo && repositoryNwo.includes('/')) {
@@ -322,7 +324,7 @@ export class FileTreeViewPane extends ViewPane {
 			return URI.from({
 				scheme: GITHUB_REMOTE_FILE_SCHEME,
 				authority: 'github',
-				path: `/${repositoryNwo}/HEAD`,
+				path: `/${repositoryNwo}/${ref}`,
 			});
 		}
 
@@ -335,7 +337,7 @@ export class FileTreeViewPane extends ViewPane {
 				return URI.from({
 					scheme: GITHUB_REMOTE_FILE_SCHEME,
 					authority: 'github',
-					path: `/${parsed.owner}/${parsed.repo}/HEAD`,
+					path: `/${parsed.owner}/${parsed.repo}/${ref}`,
 				});
 			}
 		}
@@ -349,7 +351,7 @@ export class FileTreeViewPane extends ViewPane {
 				return URI.from({
 					scheme: GITHUB_REMOTE_FILE_SCHEME,
 					authority: 'github',
-					path: `/${repository}/HEAD`,
+					path: `/${repository}/${ref}`,
 				});
 			}
 			const parsed = this.parseGitHubUrl(repository);
@@ -358,7 +360,7 @@ export class FileTreeViewPane extends ViewPane {
 				return URI.from({
 					scheme: GITHUB_REMOTE_FILE_SCHEME,
 					authority: 'github',
-					path: `/${parsed.owner}/${parsed.repo}/HEAD`,
+					path: `/${parsed.owner}/${parsed.repo}/${ref}`,
 				});
 			}
 		}
@@ -514,7 +516,7 @@ export class FileTreeViewPane extends ViewPane {
 
 			if (this.tree && rootUri && !isEqual(rootUri, lastRootUri)) {
 				lastRootUri = rootUri;
-				this.updateTitle(basename(rootUri.path) || rootUri.toString());
+				this.updateTitle(this.getTreeTitle(rootUri));
 				this.treeInputDisposable.clear();
 				this.tree.setInput(rootUri).then(() => {
 					this.layoutTree();
@@ -523,6 +525,10 @@ export class FileTreeViewPane extends ViewPane {
 				lastRootUri = undefined;
 			}
 		}));
+	}
+
+	private getTreeTitle(rootUri: URI): string {
+		return getGitHubRemoteFileDisplayName(rootUri) ?? (basename(rootUri.path) || rootUri.toString());
 	}
 
 	private layoutTree(): void {
