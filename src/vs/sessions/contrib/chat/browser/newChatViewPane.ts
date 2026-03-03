@@ -62,6 +62,7 @@ import { SyncIndicator } from './syncIndicator.js';
 import { INewSession, ISessionOptionGroup, RemoteNewSession } from './newSession.js';
 import { RepoPicker } from './repoPicker.js';
 import { CloudModelPicker } from './modelPicker.js';
+import { ModePicker } from './modePicker.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { SlashCommandHandler } from './slashCommands.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -141,6 +142,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private readonly _repoPicker: RepoPicker;
 	private _repoPickerContainer: HTMLElement | undefined;
 	private readonly _cloudModelPicker: CloudModelPicker;
+	private readonly _modePicker: ModePicker;
 	private readonly _toolbarPickerWidgets = new Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem>();
 	private readonly _toolbarPickerDisposables = this._register(new DisposableStore());
 	private readonly _optionEmitters = new Map<string, Emitter<IChatSessionProviderOptionItem>>();
@@ -177,6 +179,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._folderPicker = this._register(this.instantiationService.createInstance(FolderPicker));
 		this._repoPicker = this._register(this.instantiationService.createInstance(RepoPicker));
 		this._cloudModelPicker = this._register(this.instantiationService.createInstance(CloudModelPicker));
+		this._modePicker = this._register(this.instantiationService.createInstance(ModePicker));
 		this._targetPicker = this._register(new SessionTargetPicker(options.allowedTargets, this._resolveDefaultTarget(options)));
 		this._isolationModePicker = this._register(this.instantiationService.createInstance(IsolationModePicker));
 		this._branchPicker = this._register(this.instantiationService.createInstance(BranchPicker));
@@ -208,6 +211,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._isolationModePicker.onDidChange(() => {
+			this._focusEditor();
+		}));
+
+		// When mode changes, update the session
+		this._register(this._modePicker.onDidChange((mode) => {
+			this._newSession.value?.setMode(mode);
 			this._focusEditor();
 		}));
 
@@ -326,6 +335,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			session.setModelId(currentModel.identifier);
 		}
 
+		// Set the current mode on the session (for local sessions)
+		session.setMode(this._modePicker.selectedMode);
+
 		// Open repository for the session's repoUri
 		if (session.repoUri) {
 			this._openRepository(session.repoUri);
@@ -367,6 +379,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._branchPicker.setRepository(undefined);
 		this._isolationModePicker.setRepository(undefined);
 		this._syncIndicator.setRepository(undefined);
+		this._modePicker.setRepository(undefined);
 
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
@@ -377,6 +390,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
 			this._syncIndicator.setRepository(repository);
+			this._modePicker.setRepository(repository);
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -387,6 +401,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
 			this._syncIndicator.setRepository(undefined);
+			this._modePicker.setRepository(undefined);
 		});
 	}
 
@@ -570,6 +585,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._localModelPickerContainer = dom.append(toolbar, dom.$('.sessions-chat-model-picker'));
 		this._createLocalModelPicker(this._localModelPickerContainer);
 
+		// Local mode picker
+		this._modePicker.render(toolbar);
+		this._modePicker.setVisible(false);
+
 		// Remote model picker (action list dropdown)
 		this._cloudModelPicker.render(toolbar);
 		this._cloudModelPicker.setVisible(false);
@@ -691,10 +710,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		if (this._extensionPickersLeftContainer) {
 			this._extensionPickersLeftContainer.style.display = 'block';
 		}
-		// Show local model picker, hide remote
+		// Show local model and mode pickers, hide remote
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = '';
 		}
+		this._modePicker.setVisible(true);
 		this._cloudModelPicker.setVisible(false);
 	}
 
@@ -710,10 +730,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._folderPickerContainer.style.display = 'none';
 		}
 
-		// Show remote model picker, hide local
+		// Show remote model picker, hide local pickers
 		if (this._localModelPickerContainer) {
 			this._localModelPickerContainer.style.display = 'none';
 		}
+		this._modePicker.setVisible(false);
 		this._cloudModelPicker.setSession(session);
 		this._cloudModelPicker.setVisible(true);
 
