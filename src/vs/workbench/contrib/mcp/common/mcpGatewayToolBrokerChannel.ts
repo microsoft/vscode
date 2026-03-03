@@ -68,6 +68,18 @@ export class McpGatewayToolBrokerChannel extends Disposable implements IServerCh
 				resourcesInitialized = true;
 			}
 		}));
+
+		// Invalidate _startupGrace entries when a server's cacheState transitions
+		// back to Unknown or Outdated (e.g. after a cache reset), so the next list
+		// call will re-wait for the server instead of using a stale resolved promise.
+		this._register(autorun(reader => {
+			for (const server of this._mcpService.servers.read(reader)) {
+				const cacheState = server.cacheState.read(reader);
+				if (cacheState === McpServerCacheState.Unknown || cacheState === McpServerCacheState.Outdated) {
+					this._startupGrace.delete(server.definition.id);
+				}
+			}
+		}));
 	}
 
 	private _getServerIndex(server: IMcpServer): number {
