@@ -236,8 +236,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 */
 	private _getActiveSessionLabel(): string {
 		const activeSession = this.activeSessionService.getActiveSession();
-		if (activeSession?.label) {
-			return activeSession?.label; // prefer session label to support renamed sessions
+		const label = activeSession?.label;
+		if (label) {
+			return label; // prefer session label to support renamed sessions
 		}
 
 		if (activeSession) {
