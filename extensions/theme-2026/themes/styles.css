@@ -22,7 +22,6 @@
 }
 
 /* Quick Input (Command Palette) */
-
 .monaco-workbench.vs-dark .quick-input-widget {
 	border: 1px solid var(--vscode-menu-border) !important;
 }
@@ -103,17 +102,11 @@
 }
 
 /* Context Menus */
-
-.monaco-workbench .context-view .monaco-menu {
-	border: none;
-}
-
 .monaco-workbench .action-widget .action-widget-action-bar {
 	background: transparent;
 }
 
 /* Suggest Widget */
-
 .monaco-workbench.vs-dark .monaco-editor .suggest-widget {
 	border: 1px solid var(--vscode-editorWidget-border);
 }
@@ -124,7 +117,6 @@
 }
 
 /* Peek View */
-
 .monaco-workbench .monaco-editor .peekview-widget .head,
 .monaco-workbench .monaco-editor .peekview-widget .body {
 	background: transparent !important;
@@ -134,23 +126,18 @@
 	border: 1px solid var(--vscode-editorWidget-border);
 }
 
+/* Chat Editor Overlay */
 .monaco-workbench.vs-dark .chat-editor-overlay-widget,
 .monaco-workbench.vs-dark .chat-diff-change-content-widget {
 	border: 1px solid var(--vscode-editorWidget-border);
 }
 
 /* Settings */
-
 .monaco-workbench .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
 	border-radius: var(--radius-sm);
 	background: transparent !important;
 	color: var(--vscode-descriptionForeground) !important;
 	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent) !important;
-}
-
-/* Extensions */
-.monaco-workbench .extensions-list .extension-list-item {
-	border: none;
 }
 
 /* Breadcrumbs */
@@ -159,10 +146,7 @@
 	border-bottom: 1px solid var(--vscode-editorWidget-border);
 }
 
-/* Input Boxes */
-
-
-.monaco-inputbox .monaco-action-bar .action-item .codicon,
+/* Input Boxes */\n.monaco-inputbox .monaco-action-bar .action-item .codicon,
 .monaco-workbench .search-container .input-box,
 .monaco-custom-toggle {
 	color: var(--vscode-icon-foreground) !important;
@@ -273,7 +257,6 @@
 }
 
 /* Command Center */
-
 .monaco-workbench .part.titlebar .command-center .agent-status-pill {
 	border-color: var(--vscode-input-border);
 }
