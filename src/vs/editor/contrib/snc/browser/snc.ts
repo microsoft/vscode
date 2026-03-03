@@ -12,6 +12,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import * as dom from '../../../../base/browser/dom.js';
 import './snc.css';
 
@@ -638,6 +639,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IHostService private readonly hostService: IHostService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IClipboardService private readonly clipboardService: IClipboardService,
 	) {
 		super();
 
@@ -1179,7 +1181,7 @@ export class SNCController extends Disposable implements IEditorContribution {
 
 			model.pushEditOperations([], editOperations, () => null);
 		} else if (command.type === 'CopyToClipboard') {
-			navigator.clipboard.writeText(command.text).catch(() => { /* ignore clipboard errors */ });
+			this.clipboardService.writeText(command.text);
 		}
 	}
 
