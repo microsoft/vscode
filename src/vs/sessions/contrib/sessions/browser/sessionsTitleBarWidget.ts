@@ -6,25 +6,32 @@
 import './media/sessionsTitleBarWidget.css';
 import { $, addDisposableListener, EventType, reset } from '../../../../base/browser/dom.js';
 
+import { Separator } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { IMenuService } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { IMarshalledAgentSessionContext } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionsManagementService } from './sessionsManagementService.js';
 import { FocusAgentSessionsAction } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsPicker } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsPicker.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -65,6 +72,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
 		@IChatService private readonly chatService: IChatService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super(undefined, action, options);
 
@@ -187,6 +197,40 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			}));
 			this._container.appendChild(actionsContainer);
 
+			// Ellipsis "..." menu button (shows session context menu)
+			const activeSession = this.activeSessionService.getActiveSession();
+			if (activeSession) {
+				const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+				if (agentSession) {
+					const ellipsisButton = $('span.agent-sessions-titlebar-ellipsis' + ThemeIcon.asCSSSelector(Codicon.ellipsis));
+					ellipsisButton.setAttribute('role', 'button');
+					ellipsisButton.setAttribute('aria-label', localize('sessionActions', "Session Actions"));
+					ellipsisButton.tabIndex = 0;
+					this._dynamicDisposables.add(addDisposableListener(ellipsisButton, EventType.MOUSE_DOWN, e => {
+						e.preventDefault();
+						e.stopPropagation();
+					}));
+					this._dynamicDisposables.add(addDisposableListener(ellipsisButton, EventType.CLICK, e => {
+						e.preventDefault();
+						e.stopPropagation();
+						this._showSessionContextMenu(ellipsisButton);
+					}));
+					this._dynamicDisposables.add(addDisposableListener(ellipsisButton, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							e.stopPropagation();
+							this._showSessionContextMenu(ellipsisButton);
+						}
+					}));
+					this._dynamicDisposables.add(this.hoverService.setupManagedHover(
+						getDefaultHoverDelegate('mouse'),
+						ellipsisButton,
+						localize('sessionActions', "Session Actions")
+					));
+					this._container.appendChild(ellipsisButton);
+				}
+			}
+
 			// Hover
 			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
 				getDefaultHoverDelegate('mouse'),
@@ -291,6 +335,39 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		}
 
 		return basename(uri);
+	}
+
+	private _showSessionContextMenu(anchor: HTMLElement): void {
+		const activeSession = this.activeSessionService.getActiveSession();
+		if (!activeSession) {
+			return;
+		}
+
+		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+		if (!agentSession) {
+			return;
+		}
+
+		const contextOverlay: Array<[string, boolean | string]> = [
+			[ChatContextKeys.isArchivedAgentSession.key, agentSession.isArchived()],
+			[ChatContextKeys.isReadAgentSession.key, agentSession.isRead()],
+			[ChatContextKeys.agentSessionType.key, agentSession.providerType],
+		];
+
+		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
+		const marshalledContext: IMarshalledAgentSessionContext = {
+			session: agentSession,
+			sessions: [agentSession],
+			$mid: MarshalledId.AgentSessionContext,
+		};
+
+		this.contextMenuService.showContextMenu({
+			getActions: () => Separator.join(...menu.getActions({ arg: marshalledContext, shouldForwardArgs: true }).map(([, actions]) => actions)),
+			getAnchor: () => anchor,
+			getActionsContext: () => marshalledContext,
+		});
+
+		menu.dispose();
 	}
 
 	private _showSessionsPicker(): void {

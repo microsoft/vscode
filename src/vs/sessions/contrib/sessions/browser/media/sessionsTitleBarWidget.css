@@ -95,3 +95,21 @@
 	opacity: 0.5;
 	flex-shrink: 0;
 }
+
+/* Ellipsis "..." menu button */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-ellipsis {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	cursor: pointer;
+	border-radius: 4px;
+	padding: 0 2px;
+	font-size: 14px;
+	opacity: 0.7;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-ellipsis:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	opacity: 1;
+}
