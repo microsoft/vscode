@@ -18,7 +18,6 @@ import { IAction } from '../../../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
@@ -297,10 +296,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatWorkingSetMessages!: HTMLElement;
 	private chatWorkingSetFiles!: HTMLElement;
 	private chatWorkingSetTodos!: HTMLElement;
+	private chatWorkingSetQuestions!: HTMLElement;
 	private readonly _chatWorkingSetTabs = this._register(new MutableDisposable<ChatWorkingSetTabs>());
 	private readonly _chatQueuedPromptsWidget = this._register(new MutableDisposable<ChatQueuedPromptsWidget>());
 	private _todoDismissTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _lastPendingCount = 0;
+	private _lastHadQuestionCarousel = false;
 	private chatGettingStartedTipContainer!: HTMLElement;
 	private chatQuestionCarouselContainer!: HTMLElement;
 	private chatInputWidgetsContainer!: HTMLElement;
@@ -1949,12 +1950,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
 					dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
 					dom.h('.chat-working-set@chatWorkingSetContainer', [
-						dom.h('.chat-working-set-tab-bar@chatWorkingSetTabBar'),
 						dom.h('.chat-working-set-content@chatWorkingSetContent', [
 							dom.h('.chat-working-set-messages@chatWorkingSetMessages'),
 							dom.h('.chat-working-set-files.chat-editing-session@chatWorkingSetFiles'),
 							dom.h('.chat-working-set-todos.chat-todo-list-widget-container@chatWorkingSetTodos'),
+							dom.h('.chat-working-set-questions@chatWorkingSetQuestions'),
 						]),
+						dom.h('.chat-working-set-tab-bar@chatWorkingSetTabBar'),
 					]),
 					dom.h('.chat-getting-started-tip-container@chatGettingStartedTipContainer'),
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
@@ -1977,12 +1979,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.interactive-input-followups@followupsContainer'),
 				dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
 				dom.h('.chat-working-set@chatWorkingSetContainer', [
-					dom.h('.chat-working-set-tab-bar@chatWorkingSetTabBar'),
 					dom.h('.chat-working-set-content@chatWorkingSetContent', [
 						dom.h('.chat-working-set-messages@chatWorkingSetMessages'),
 						dom.h('.chat-working-set-files.chat-editing-session@chatWorkingSetFiles'),
 						dom.h('.chat-working-set-todos.chat-todo-list-widget-container@chatWorkingSetTodos'),
+						dom.h('.chat-working-set-questions@chatWorkingSetQuestions'),
 					]),
+					dom.h('.chat-working-set-tab-bar@chatWorkingSetTabBar'),
 				]),
 				dom.h('.chat-getting-started-tip-container@chatGettingStartedTipContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
@@ -2023,6 +2026,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatWorkingSetMessages = elements.chatWorkingSetMessages;
 		this.chatWorkingSetFiles = elements.chatWorkingSetFiles;
 		this.chatWorkingSetTodos = elements.chatWorkingSetTodos;
+		this.chatWorkingSetQuestions = elements.chatWorkingSetQuestions;
 
 		// Initialize working set tabs
 		const workingSetTabs = this.instantiationService.createInstance(ChatWorkingSetTabs);
@@ -2031,9 +2035,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(workingSetTabs.onDidSelect(kind => {
 			this._showWorkingSetPanel(kind);
 		}));
+		this._register(workingSetTabs.onDidToggle(() => {
+			this._toggleWorkingSetContent();
+		}));
 
 		// Hide all panels initially
 		this.chatWorkingSetContainer.style.display = 'none';
+		this.chatWorkingSetContent.style.display = 'none';
 
 		this.chatGettingStartedTipContainer = elements.chatGettingStartedTipContainer;
 		this.chatGettingStartedTipContainer.style.display = 'none';
@@ -2681,7 +2689,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._hasQuestionCarouselContextKey?.set(true);
 
 		dom.clearNode(this.chatQuestionCarouselContainer);
-		dom.append(this.chatQuestionCarouselContainer, part.domNode);
+
+		// Render into the working set questions panel and update tabs
+		dom.clearNode(this.chatWorkingSetQuestions);
+		dom.append(this.chatWorkingSetQuestions, part.domNode);
+		this._updateWorkingSetTabs();
 
 		return part;
 	}
@@ -2696,6 +2708,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentQuestionCarouselSessionResource = undefined;
 		this._hasQuestionCarouselContextKey?.set(false);
 		dom.clearNode(this.chatQuestionCarouselContainer);
+		dom.clearNode(this.chatWorkingSetQuestions);
+		this._updateWorkingSetTabs();
 	}
 	get questionCarouselResponseId(): string | undefined {
 		return this._currentQuestionCarouselResponseId;
@@ -2727,6 +2741,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatWorkingSetMessages.style.display = kind === ChatWorkingSetTabKind.Messages ? 'block' : 'none';
 		this.chatWorkingSetFiles.style.display = kind === ChatWorkingSetTabKind.Files ? 'block' : 'none';
 		this.chatWorkingSetTodos.style.display = kind === ChatWorkingSetTabKind.Todos ? 'block' : 'none';
+		this.chatWorkingSetQuestions.style.display = kind === ChatWorkingSetTabKind.Questions ? 'block' : 'none';
+
+		// Show content when switching to a new tab
+		this.chatWorkingSetContent.style.display = '';
+		this._workingSetCollapsed.set(false, undefined);
+		this._chatWorkingSetTabs.value?.setContentVisible(true);
+	}
+
+	/**
+	 * Switches the active panel child without changing content visibility.
+	 * Used internally by _updateWorkingSetTabs to avoid forcing content open.
+	 */
+	private _switchWorkingSetPanel(kind: ChatWorkingSetTabKind): void {
+		this.chatWorkingSetMessages.style.display = kind === ChatWorkingSetTabKind.Messages ? 'block' : 'none';
+		this.chatWorkingSetFiles.style.display = kind === ChatWorkingSetTabKind.Files ? 'block' : 'none';
+		this.chatWorkingSetTodos.style.display = kind === ChatWorkingSetTabKind.Todos ? 'block' : 'none';
+		this.chatWorkingSetQuestions.style.display = kind === ChatWorkingSetTabKind.Questions ? 'block' : 'none';
+	}
+
+	private _toggleWorkingSetContent(): void {
+		const isVisible = this.chatWorkingSetContent.style.display !== 'none';
+		this.chatWorkingSetContent.style.display = isVisible ? 'none' : '';
+		this._workingSetCollapsed.set(isVisible, undefined);
+		this._chatWorkingSetTabs.value?.setContentVisible(!isVisible);
 	}
 
 	private _updateWorkingSetTabs(): void {
@@ -2768,10 +2806,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 
-		if (fileCount > 0 || editingSession) {
-			const count = Math.max(fileCount, 1);
+		if (fileCount > 0) {
 			const diffStats = (totalAdded > 0 || totalRemoved > 0) ? { added: totalAdded, removed: totalRemoved } : undefined;
-			tabs.push({ kind: ChatWorkingSetTabKind.Files, count, diffStats });
+			tabs.push({ kind: ChatWorkingSetTabKind.Files, count: fileCount, diffStats });
 		}
 
 		// Todos tab -- show completed/total progress
@@ -2796,6 +2833,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._todoDismissTimeout = undefined;
 		}
 
+		// Questions tab -- show when a question carousel is active
+		const questionCarousel = this._chatQuestionCarouselWidget.value;
+		if (questionCarousel) {
+			const questionCount = questionCarousel.carousel.questions.length;
+			tabs.push({ kind: ChatWorkingSetTabKind.Questions, count: questionCount });
+		}
+
 		this._chatWorkingSetTabs.value?.setTabData(tabs);
 
 		// Only auto-switch tabs when the Messages tab newly appears (queue just got items)
@@ -2805,11 +2849,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (!currentTabStillAvailable) {
 			// Current tab gone -- pick best available
-			if (pendingCount > 0) {
+			if (questionCarousel) {
+				this._chatWorkingSetTabs.value?.setActiveTab(ChatWorkingSetTabKind.Questions);
+			} else if (pendingCount > 0) {
 				this._chatWorkingSetTabs.value?.setActiveTab(ChatWorkingSetTabKind.Messages);
 			} else if (tabs.some(t => t.kind === ChatWorkingSetTabKind.Files && t.count > 0)) {
 				this._chatWorkingSetTabs.value?.setActiveTab(ChatWorkingSetTabKind.Files);
 			}
+		} else if (questionCarousel && currentActiveTab !== ChatWorkingSetTabKind.Questions && !this._lastHadQuestionCarousel) {
+			// Questions tab just appeared -- switch to it
+			this._chatWorkingSetTabs.value?.setActiveTab(ChatWorkingSetTabKind.Questions);
 		} else if (pendingCount > 0 && this._lastPendingCount === 0) {
 			// Messages tab just appeared -- switch to it
 			this._chatWorkingSetTabs.value?.setActiveTab(ChatWorkingSetTabKind.Messages);
@@ -2820,19 +2869,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}
 		this._lastPendingCount = pendingCount;
+		this._lastHadQuestionCarousel = !!questionCarousel;
 
 		// Show/hide the whole container
 		const activeTabs = tabs.filter(t => t.count > 0);
 		const hasVisibleTabs = activeTabs.length > 0;
 		this.chatWorkingSetContainer.style.display = hasVisibleTabs ? '' : 'none';
 
-		// Hide the tab bar when there's only one active tab -- show content directly
-		this.chatWorkingSetTabBar.style.display = activeTabs.length > 1 ? '' : 'none';
+		// Always show the tab bar (no hiding for single tab)
+		this.chatWorkingSetTabBar.style.display = '';
 
-		// Show the active panel
+		// Switch the active panel content (without forcing content open)
 		const activeTab = this._chatWorkingSetTabs.value?.activeTab;
 		if (activeTab !== undefined) {
-			this._showWorkingSetPanel(activeTab);
+			this._switchWorkingSetPanel(activeTab);
 		}
 	}
 
@@ -3060,27 +3110,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		countsContainer.appendChild(this._workingSetLinesAddedSpan.value);
 		countsContainer.appendChild(this._workingSetLinesRemovedSpan.value);
 
-		const toggleWorkingSet = () => {
-			this._workingSetCollapsed.set(!this._workingSetCollapsed.get(), undefined);
-		};
-
-		this._chatEditsActionsDisposables.add(button.onDidClick(toggleWorkingSet));
-		this._chatEditsActionsDisposables.add(addDisposableListener(overviewRegion, 'click', e => {
-			if (e.defaultPrevented) {
-				return;
-			}
-			const target = e.target as HTMLElement;
-			if (target.closest('.monaco-button')) {
-				return;
-			}
-			toggleWorkingSet();
-		}));
-
-		this._chatEditsActionsDisposables.add(autorun(reader => {
-			const collapsed = this._workingSetCollapsed.read(reader);
-			button.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
-			workingSetContainer.classList.toggle('collapsed', collapsed);
-		}));
+		// allow-any-unicode-next-line
+		// No chevron toggle — collapse is now handled by the tab bar toggle
+		button.element.style.display = 'none';
+		overviewRegion.style.display = 'none';
 
 		if (!this._chatEditList) {
 			this._chatEditList = this._chatEditsListPool.get();
@@ -3142,7 +3175,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// entries, while background chat sessions use session file changes.
 			const allEntries = editEntries.concat(sessionFileEntries);
 
-			const maxItemsShown = 6;
+			const maxItemsShown = 4;
 			const itemsShown = Math.min(allEntries.length, maxItemsShown);
 			const height = itemsShown * 22;
 			const list = this._chatEditList!.object;

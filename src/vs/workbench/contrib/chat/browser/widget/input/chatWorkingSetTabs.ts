@@ -18,6 +18,7 @@ export const enum ChatWorkingSetTabKind {
 	Messages,
 	Files,
 	Todos,
+	Questions,
 }
 
 /**
@@ -41,10 +42,14 @@ export class ChatWorkingSetTabs extends Disposable {
 	private readonly _onDidSelect = this._register(new Emitter<ChatWorkingSetTabKind>());
 	readonly onDidSelect: Event<ChatWorkingSetTabKind> = this._onDidSelect.event;
 
+	private readonly _onDidToggle = this._register(new Emitter<ChatWorkingSetTabKind>());
+	readonly onDidToggle: Event<ChatWorkingSetTabKind> = this._onDidToggle.event;
+
 	private readonly _radioDisposables = this._register(new DisposableStore());
 	private _tabs: IChatWorkingSetTabData[] = [];
 	private _activeTabs: IChatWorkingSetTabData[] = [];
 	private _activeTabKind: ChatWorkingSetTabKind | undefined;
+	private _contentVisible = false;
 
 	constructor() {
 		super();
@@ -53,6 +58,13 @@ export class ChatWorkingSetTabs extends Disposable {
 
 	get activeTab(): ChatWorkingSetTabKind | undefined {
 		return this._activeTabKind;
+	}
+
+	setContentVisible(visible: boolean): void {
+		if (this._contentVisible !== visible) {
+			this._contentVisible = visible;
+			this.domNode.classList.toggle('content-hidden', !visible);
+		}
 	}
 
 	setActiveTab(kind: ChatWorkingSetTabKind): void {
@@ -100,6 +112,12 @@ export class ChatWorkingSetTabs extends Disposable {
 				this._onDidSelect.fire(selected.kind);
 			}
 		}));
+		this._radioDisposables.add(radio.onDidClickActive(index => {
+			const selected = this._activeTabs[index];
+			if (selected) {
+				this._onDidToggle.fire(selected.kind);
+			}
+		}));
 		append(this.domNode, radio.domNode);
 	}
 
@@ -117,6 +135,8 @@ export class ChatWorkingSetTabs extends Disposable {
 					return `$(record) ${tab.diffStats.added}/${tab.count}`;
 				}
 				return `$(checklist) ${tab.count}`;
+			case ChatWorkingSetTabKind.Questions:
+				return `$(question) ${tab.count}`;
 		}
 	}
 
@@ -165,6 +185,8 @@ export class ChatWorkingSetTabs extends Disposable {
 					return localize('chatWorkingSetTabs.todosProgress', "Todos ({0}/{1})", tab.diffStats.added, tab.count);
 				}
 				return localize('chatWorkingSetTabs.todos', "Todos ({0})", tab.count);
+			case ChatWorkingSetTabKind.Questions:
+				return localize('chatWorkingSetTabs.questions', "Questions ({0})", tab.count);
 		}
 	}
 }

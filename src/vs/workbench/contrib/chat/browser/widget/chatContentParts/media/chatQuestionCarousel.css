@@ -9,11 +9,12 @@
 }
 
 /* input specific styling */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container {
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container,
+.interactive-session .chat-working-set-questions .chat-question-carousel-container {
 	margin: 0;
-	border: 1px solid var(--vscode-input-border, transparent);
+	border: none;
 	background-color: var(--vscode-editor-background);
-	border-radius: 4px;
+	border-radius: 0;
 }
 
 /* general questions styling */
@@ -28,7 +29,8 @@
 }
 
 /* container and header */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container {
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container,
+.interactive-session .chat-working-set-questions {
 	width: 100%;
 	position: relative;
 
@@ -107,7 +109,8 @@
 }
 
 /* questions list and freeform area */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-input-container {
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-input-container,
+.interactive-session .chat-working-set-questions .chat-question-input-container {
 	display: flex;
 	flex-direction: column;
 	margin-top: 4px;
@@ -293,7 +296,8 @@
 }
 
 /* footer with step indicator and nav buttons */
-.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-footer-row {
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-footer-row,
+.interactive-session .chat-working-set-questions .chat-question-footer-row {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;

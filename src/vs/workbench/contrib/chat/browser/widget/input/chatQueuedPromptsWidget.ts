@@ -83,54 +83,14 @@ export class ChatQueuedPromptsWidget extends Disposable {
 			return;
 		}
 
-		// Header with expand/collapse toggle
-		const header = append(this.domNode, $('.chat-queued-prompts-header'));
+		// Always show the list directly (no header)
+		const listContainer = append(this.domNode, $('.chat-queued-prompts-list'));
+		listContainer.style.overflowY = 'auto';
+		listContainer.style.maxHeight = `${MAX_VISIBLE_ITEMS * ROW_HEIGHT}px`;
 
-		const toggleButton = append(header, $('a.chat-queued-prompts-toggle'));
-		toggleButton.tabIndex = 0;
-		toggleButton.role = 'button';
-		toggleButton.addEventListener('click', () => {
-			this._isExpanded = !this._isExpanded;
-			this._renderItems();
-		});
-
-		const chevron = append(toggleButton, $('span.chat-queued-prompts-chevron.codicon'));
-		chevron.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
-
-		if (this._isExpanded) {
-			// Expanded: show title with count
-			const headerLabel = append(toggleButton, $('span.chat-queued-prompts-header-label'));
-			headerLabel.textContent = localize('queuedPromptsCount', "Queued prompts ({0})", pendingRequests.length);
-		} else {
-			// Collapsed: show next prompt preview with position
-			const nextPrompt = pendingRequests[0];
-			const indicator = append(toggleButton, $('span.chat-queued-prompt-indicator'));
-			indicator.textContent = `1/${pendingRequests.length}`;
-			const previewText = append(toggleButton, $('span.chat-queued-prompt-preview'));
-			previewText.textContent = nextPrompt.request.message.text;
-		}
-
-		// Clear all button (always visible)
-		const clearAllButton = append(header, $('a.chat-queued-prompts-clear-all' + ThemeIcon.asCSSSelector(Codicon.clearAll)));
-		clearAllButton.title = localize('clearAll', "Remove All Queued");
-		clearAllButton.tabIndex = 0;
-		clearAllButton.role = 'button';
-		clearAllButton.addEventListener('click', () => {
-			for (const pending of pendingRequests) {
-				this.chatService.removePendingRequest(model.sessionResource, pending.request.id);
-			}
-		});
-
-		// Expanded list
-		if (this._isExpanded) {
-			const listContainer = append(this.domNode, $('.chat-queued-prompts-list'));
-			listContainer.style.overflowY = 'auto';
-			listContainer.style.maxHeight = `${MAX_VISIBLE_ITEMS * ROW_HEIGHT}px`;
-
-			let queuedIndex = 0;
-			for (const pending of pendingRequests) {
-				this._renderRow(listContainer, model, pending, pending.kind === ChatRequestQueueKind.Steering ? undefined : ++queuedIndex);
-			}
+		let queuedIndex = 0;
+		for (const pending of pendingRequests) {
+			this._renderRow(listContainer, model, pending, pending.kind === ChatRequestQueueKind.Steering ? undefined : ++queuedIndex);
 		}
 
 		this._onDidChangeHeight.fire();
@@ -142,7 +102,7 @@ export class ChatQueuedPromptsWidget extends Disposable {
 
 		const indicator = append(row, $('span.chat-queued-prompt-indicator'));
 		if (pending.kind === ChatRequestQueueKind.Steering) {
-			indicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.zap));
+			indicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowUp));
 		} else if (queuedIndex !== undefined) {
 			indicator.textContent = `${queuedIndex}.`;
 		}

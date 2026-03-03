@@ -42,6 +42,9 @@ export class Radio extends Widget {
 	private readonly _onDidSelect = this._register(new Emitter<number>());
 	readonly onDidSelect = this._onDidSelect.event;
 
+	private readonly _onDidClickActive = this._register(new Emitter<number>());
+	readonly onDidClickActive = this._onDidClickActive.event;
+
 	readonly domNode: HTMLElement;
 
 	private readonly hoverDelegate: IHoverDelegate;
@@ -80,6 +83,8 @@ export class Radio extends Widget {
 					this.activeItem = item;
 					this.updateButtons();
 					this._onDidSelect.fire(index);
+				} else {
+					this._onDidClickActive.fire(index);
 				}
 			}));
 			this.buttons.set(button, { item, dispose: () => disposables.dispose() });
