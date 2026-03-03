@@ -49,7 +49,7 @@ import os
 from dataclasses import dataclass
 from typing import List, Tuple, Any
 
-from visualizer_utils import ChildEvent, wrap_child_html, route_child_event, aggregate_handled_keys
+from visualizer_utils import ChildEvent, wrap_child_html, route_child_event, aggregate_handled_keys, replace_caret_in_py_exp, strip_leading_caret, eval_caret_expr
 
 # VS Code theme colors
 BLUE = "#569cd6"
@@ -114,7 +114,7 @@ class KeyDown:
 TRIVIAL_NAMES = set(dir(object()))
 
 DEFAULT_FIELDS_FOR_TYPE = {
-    're.Match': ['[0]', '.start(0)', '.end(0)'],
+    're.Match': ['^[0]', '^.start(0)', '^.end(0)'],
 }
 
 DOTFILE_NAME = '.snc_object_fields.json'
@@ -136,13 +136,6 @@ def get_fields(value):
     return list(fields)
 
 
-def get_field_value(value, field):
-    _placeholder_args, _val_str, raw_value, is_error = _eval_field(value, field)
-    if is_error:
-        return None
-    return raw_value
-
-
 # === Dotfile operations ===
 
 def _dotfile_path():
@@ -161,7 +154,7 @@ def load_fields_from_dotfile(full_class_name: str):
             data = json.load(f)
         fields = data.get(full_class_name)
         if isinstance(fields, list):
-            return fields
+            return [f if f.startswith('^') else f'^{f}' for f in fields]
         return None
     except (FileNotFoundError, json.JSONDecodeError, OSError, TypeError):
         return None
@@ -192,8 +185,8 @@ def _get_full_class_name(obj) -> str:
 
 
 def _get_non_trivial_names(obj) -> list:
-    """Return sorted list of attribute accessors (e.g. '.x') for non-trivial names."""
-    return sorted([f".{name}" for name in dir(obj) if name not in TRIVIAL_NAMES])
+    """Return sorted list of attribute accessors (e.g. '^.x') for non-trivial names."""
+    return sorted([f"^.{name}" for name in dir(obj) if name not in TRIVIAL_NAMES])
 
 
 def _get_autocomplete_suggestions(obj, current_fields: list, input_value: str) -> list:
@@ -209,7 +202,7 @@ def _get_autocomplete_suggestions(obj, current_fields: list, input_value: str) -
     return suggestions
 
 
-def _eval_field(obj, accessor_code: str):
+def _eval_field(obj, accessor_code: str, eval_in_scope=None, source_expr=None):
     """
     Evaluate an accessor code against an object.
 
@@ -219,7 +212,7 @@ def _eval_field(obj, accessor_code: str):
     is_error is True if evaluation raised an exception.
     """
     try:
-        val = eval(f"obj{accessor_code}")
+        val = eval_caret_expr(accessor_code, obj, eval_in_scope, source_expr)
         val_str = None
     except Exception as e:
         return ('', str(e), None, True)
@@ -240,7 +233,7 @@ def _eval_field(obj, accessor_code: str):
 
 # === Elm architecture functions ===
 
-def init_model(value, get_visualizer=None):
+def init_model(value, get_visualizer=None, eval_in_scope=None, source_expr=None):
     """
     Initialize the model state for a new visualization.
 
@@ -274,10 +267,12 @@ def init_model(value, get_visualizer=None):
     children = {}
     if get_visualizer is not None:
         for accessor_code in fields:
-            placeholder_args, val_str, raw_value, is_error = _eval_field(value, accessor_code)
+            placeholder_args, val_str, raw_value, is_error = _eval_field(value, accessor_code, eval_in_scope, source_expr)
             if not is_error and not placeholder_args and raw_value is not None:
                 child_vis = get_visualizer(raw_value)
-                children[accessor_code] = child_vis.init_model(raw_value, get_visualizer)
+                child_source_expr = replace_caret_in_py_exp(accessor_code, source_expr) if source_expr else None
+                children[accessor_code] = child_vis.init_model(raw_value, get_visualizer,
+                                                               eval_in_scope=eval_in_scope, source_expr=child_source_expr)
 
     handled_keys = aggregate_handled_keys(children, own_keys)
 
@@ -294,7 +289,7 @@ def init_model(value, get_visualizer=None):
     }
 
 
-def update(event, source_code: str, source_line: int, model: dict, value, get_visualizer=None) -> Tuple[dict, List[Any]]:
+def update(event, source_code: str, source_line: int, model: dict, value, get_visualizer=None, eval_in_scope=None, source_expr=None) -> Tuple[dict, List[Any]]:
     """
     Update model based on event. Returns (new_model, commands) tuple.
 
@@ -320,10 +315,12 @@ def update(event, source_code: str, source_line: int, model: dict, value, get_vi
     if isinstance(msg, ChildEvent) and get_visualizer is not None:
         _obj_ref = value
         def _child_value_getter(accessor_key, _obj=_obj_ref):
-            return eval(f"_obj{accessor_key}")
+            return eval_caret_expr(accessor_key, _obj, eval_in_scope, source_expr)
+        child_se_getter = (lambda key: replace_caret_in_py_exp(key, source_expr)) if source_expr else None
         new_model, child_cmds = route_child_event(
             event, model, value, _child_value_getter, get_visualizer,
             source_code=source_code, source_line=source_line,
+            eval_in_scope=eval_in_scope, child_source_expr_getter=child_se_getter,
         )
         own_keys = ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"]
         new_model['handledKeys'] = aggregate_handled_keys(new_model.get('children', {}), own_keys)
@@ -477,7 +474,7 @@ def update(event, source_code: str, source_line: int, model: dict, value, get_vi
     return (model, commands)
 
 
-def visualize(obj, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False):
+def visualize(obj, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False, source_expr=None):
     """
     Render the object as HTML with configurable field inspection.
 
@@ -497,7 +494,7 @@ def visualize(obj, model, get_visualizer, eval_in_scope, max_width=None, max_hei
             field_trs.append(_render_input_row(obj, model, is_editing=True, editing_index=i))
         else:
             # Normal display: double-clickable field name with remove/drag handles
-            placeholder_args, val_str, raw_value, is_error = _eval_field(obj, accessor_code)
+            placeholder_args, val_str, raw_value, is_error = _eval_field(obj, accessor_code, eval_in_scope, source_expr)
             click_event = repr(FieldClick(index=i))
             remove_event = repr(RemoveFieldClick(index=i))
             drag_start_event = repr(DragStart(index=i))
@@ -510,10 +507,12 @@ def visualize(obj, model, get_visualizer, eval_in_scope, max_width=None, max_hei
             if not is_error and not placeholder_args and raw_value is not None and get_visualizer is not None:
                 child_vis = get_visualizer(raw_value)
                 child_model = children.get(accessor_code)
+                child_source_expr = replace_caret_in_py_exp(accessor_code, source_expr) if source_expr else None
                 if child_model is None:
-                    child_model = child_vis.init_model(raw_value, get_visualizer)
+                    child_model = child_vis.init_model(raw_value, get_visualizer,
+                                                       eval_in_scope=eval_in_scope, source_expr=child_source_expr)
                 child_small = (accessor_code != focused_child)
-                child_html = child_vis.visualize(raw_value, child_model, get_visualizer, eval_in_scope, max_width=500, small=child_small)
+                child_html = child_vis.visualize(raw_value, child_model, get_visualizer, eval_in_scope, max_width=500, small=child_small, source_expr=child_source_expr)
                 value_td = f'<td>{wrap_child_html(child_html, accessor_code)}</td>'
             else:
                 value_td = f'<td>{html.escape(val_str)}</td>'
@@ -552,7 +551,7 @@ def visualize(obj, model, get_visualizer, eval_in_scope, max_width=None, max_hei
                 f'<span class="snc-hover-hidden">\u00d7</span></td>'
                 f'<td snc-mouse-down="{html.escape(click_event)}" '
                 f'style="color:{BLUE};opacity:0.7;cursor:pointer;padding-right:8px;">'
-                f'{html.escape(accessor_code)}<span style="opacity:0.4">{html.escape(placeholder_args)}</span></td>'
+                f'{html.escape(strip_leading_caret(accessor_code))}<span style="opacity:0.4">{html.escape(placeholder_args)}</span></td>'
                 f'{value_td}'
                 f'</tr>'
             )
@@ -644,7 +643,7 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
         f'<span class="snc-dropdown-trigger" style="position:relative;display:inline-block;">'
         f'<input type="text" snc-input="{html.escape(input_event)}" '
         f'value="{html.escape(input_value)}" '
-        f'placeholder=".field_name" '
+        f'placeholder="^.field_name" '
         f'spellcheck="false"'
         f'{extra_attrs} '
         f'style="background:{INPUT_BG};color:{BLUE};border:1px solid {INPUT_BORDER};'
@@ -668,4 +667,4 @@ def _render_input_row(obj, model, is_editing: bool, editing_index: int = -1):
 def field_to_tr(obj, accessor_code):
     """Legacy field rendering (kept for reference, used by visualize internally)."""
     placeholder_args, val_str, _, _ = _eval_field(obj, accessor_code)
-    return f'<tr><td style="color:{BLUE};opacity:0.7;">{html.escape(accessor_code)}<span style="opacity:0.4">{html.escape(placeholder_args)}</span></td><td>{html.escape(val_str)}</td></tr>\n'
+    return f'<tr><td style="color:{BLUE};opacity:0.7;">{html.escape(strip_leading_caret(accessor_code))}<span style="opacity:0.4">{html.escape(placeholder_args)}</span></td><td>{html.escape(val_str)}</td></tr>\n'

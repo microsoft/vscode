@@ -8,7 +8,7 @@ Run:
 import unittest
 import html
 
-from visualizer_utils import ChildEvent, wrap_child_html, wrap_child_html_parts, route_child_event, aggregate_handled_keys
+from visualizer_utils import ChildEvent, wrap_child_html, wrap_child_html_parts, route_child_event, aggregate_handled_keys, eval_caret_expr
 
 
 class TestChildEvent(unittest.TestCase):
@@ -115,11 +115,11 @@ class TestRouteChildEvent(unittest.TestCase):
         class MockVis:
             def can_visualize(self, value):
                 return True
-            def init_model(self, value, get_visualizer=None):
+            def init_model(self, value, get_visualizer=None, eval_in_scope=None, source_expr=None):
                 return {'mock': True}
             def visualize(self, value, model, get_visualizer):
                 return '<span>mock</span>'
-            def update(self, event, source_code, source_line, model, value, get_visualizer=None):
+            def update(self, event, source_code, source_line, model, value, get_visualizer=None, eval_in_scope=None, source_expr=None):
                 return (updated_model, commands or [])
         return MockVis()
 
@@ -188,11 +188,11 @@ class TestAggregateHandledKeys(unittest.TestCase):
         class Vis:
             def can_visualize(self, value):
                 return True
-            def init_model(self, value, get_visualizer=None):
+            def init_model(self, value, get_visualizer=None, eval_in_scope=None, source_expr=None):
                 return {'handledKeys': keys}
             def visualize(self, value, model, get_visualizer):
                 return ''
-            def update(self, event, source_code, source_line, model, value, get_visualizer=None):
+            def update(self, event, source_code, source_line, model, value, get_visualizer=None, eval_in_scope=None, source_expr=None):
                 return (model, [])
         return Vis()
 
@@ -233,6 +233,54 @@ class TestAggregateHandledKeys(unittest.TestCase):
         }
         result = aggregate_handled_keys(children_models, own_keys=['Enter'])
         self.assertEqual(result.count('Enter'), 1)
+
+
+class TestEvalCaretExpr(unittest.TestCase):
+    """Test eval_caret_expr: shared field evaluation using ^ expressions."""
+
+    def test_simple_attribute_fallback(self):
+        class Obj:
+            x = 42
+        self.assertEqual(eval_caret_expr('^.x', Obj()), 42)
+
+    def test_index_access_fallback(self):
+        self.assertEqual(eval_caret_expr('^[1]', [10, 20, 30]), 20)
+
+    def test_dict_key_access_fallback(self):
+        self.assertEqual(eval_caret_expr("^['name']", {'name': 'Alice'}), 'Alice')
+
+    def test_method_call_fallback(self):
+        self.assertEqual(eval_caret_expr('^.upper()', 'hello'), 'HELLO')
+
+    def test_chained_access_fallback(self):
+        class Inner:
+            val = 99
+        class Outer:
+            child = Inner()
+        self.assertEqual(eval_caret_expr('^.child.val', Outer()), 99)
+
+    def test_uses_eval_in_scope_when_both_provided(self):
+        _my_var = [10, 20, 30]
+        eis = lambda expr: eval(expr)
+        result = eval_caret_expr('^[2]', _my_var, eval_in_scope=eis, source_expr='_my_var')
+        self.assertEqual(result, 30)
+
+    def test_eval_in_scope_with_nested_source_expr(self):
+        _my_var = [[1, 2], [3, 4]]
+        eis = lambda expr: eval(expr)
+        result = eval_caret_expr('^[0]', _my_var[1], eval_in_scope=eis, source_expr='_my_var[1]')
+        self.assertEqual(result, 3)
+
+    def test_falls_back_when_eval_in_scope_none(self):
+        self.assertEqual(eval_caret_expr('^[0]', [42], eval_in_scope=None, source_expr='x'), 42)
+
+    def test_falls_back_when_source_expr_none(self):
+        eis = lambda expr: eval(expr)
+        self.assertEqual(eval_caret_expr('^[0]', [42], eval_in_scope=eis, source_expr=None), 42)
+
+    def test_error_propagates(self):
+        with self.assertRaises(Exception):
+            eval_caret_expr('^.nonexistent', 42)
 
 
 if __name__ == '__main__':

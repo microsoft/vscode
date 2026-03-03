@@ -98,13 +98,13 @@ class GenericVisualizer(Visualizer):
     def can_visualize(value) -> bool:
         return True
 
-    def init_model(value, get_visualizer) -> Any:
+    def init_model(value, get_visualizer, eval_in_scope=None, source_expr=None) -> Any:
         return None
 
-    def visualize(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> str:
+    def visualize(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False, source_expr=None) -> str:
         return html.escape(repr(value))
 
-    def update(event: Any, source_code: str, source_line: int, model: Any, value: str, get_visualizer=None) -> Tuple[Any, List[Any]]:
+    def update(event: Any, source_code: str, source_line: int, model: Any, value: str, get_visualizer=None, eval_in_scope=None, source_expr=None) -> Tuple[Any, List[Any]]:
         return (model, [])
 
 # Wrapper that adds dummy `init_model` and `update` functions to static visualizers
@@ -119,13 +119,13 @@ class VisualizerOfStaticVisualizer():
     def can_visualize(self, value) -> bool:
         return self.vis.can_visualize(value)
 
-    def init_model(self, value, get_visualizer) -> Any:
+    def init_model(self, value, get_visualizer, eval_in_scope=None, source_expr=None) -> Any:
         return GenericVisualizer.init_model(value, get_visualizer)
 
-    def visualize(self, value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> str:
+    def visualize(self, value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False, source_expr=None) -> str:
         return self.vis.visualize(value)
 
-    def update(self, event, source_code, source_line, model, value, get_visualizer=None) -> Tuple[Any, List[Any]]:
+    def update(self, event, source_code, source_line, model, value, get_visualizer=None, eval_in_scope=None, source_expr=None) -> Tuple[Any, List[Any]]:
         return GenericVisualizer.update(event, source_code, source_line, model, value, get_visualizer)
 
 
@@ -247,7 +247,7 @@ def _build_new_code_edits(source_code: str, line: int, suggest_var_name: Optiona
     return edits
 
 
-def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = None, eval_in_scope=None) -> None:
+def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = None, eval_in_scope=None, source_expr=None) -> None:
     """
     Log any runtime value for visualization using the custom visualizer system.
 
@@ -256,6 +256,7 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
         value: The value to be logged (can be any type including error messages)
         last_line_in_containing_loop: The last line of the loop containing this value (None if not in a loop)
         eval_in_scope: Optional callable to eval expressions in the user's code scope
+        source_expr: The variable name holding the value in the user's scope (e.g. '_snc_temp_1')
     """
     global execution_step, line_emit_counter
     execution_step += 1
@@ -288,19 +289,21 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
             if isinstance(model, dict):
                 del model['_type_fingerprint']
         else:
-            model = vis.init_model(value, get_visualizer)
+            model = vis.init_model(value, get_visualizer,
+                                   eval_in_scope=eval_in_scope, source_expr=source_expr)
 
         # Only replay events when the cached model was reused; if the type
         # changed the old events belong to a different visualizer.
         if fingerprint_matches and 'events' in item_model_and_events:
             for ev in item_model_and_events['events']:
-                model, cmds = vis.update(ev, _source_code, line, model, value, get_visualizer)
+                model, cmds = vis.update(ev, _source_code, line, model, value, get_visualizer,
+                                         eval_in_scope=eval_in_scope, source_expr=source_expr)
                 commands.extend(cmds)
 
         if isinstance(model, dict):
             model['_type_fingerprint'] = fingerprint
 
-        html_content = vis.visualize(value, model, get_visualizer, eval_in_scope=eval_in_scope)
+        html_content = vis.visualize(value, model, get_visualizer, eval_in_scope=eval_in_scope, source_expr=source_expr)
 
         assert isinstance(html_content, str)
 
@@ -356,7 +359,7 @@ def log_value(line: int, value: Any, last_line_in_containing_loop: int | None = 
         except Exception:
             pass
 
-def log_and_return(line: int, value: Any, last_line_in_containing_loop: int | None = None, eval_in_scope=None) -> Any:
+def log_and_return(line: int, value: Any, last_line_in_containing_loop: int | None = None, eval_in_scope=None, source_expr=None) -> Any:
     """
     Log a value for visualization and return it unchanged.
 
@@ -365,11 +368,12 @@ def log_and_return(line: int, value: Any, last_line_in_containing_loop: int | No
         value: The value to be logged and returned
         last_line_in_containing_loop: The last line of the loop containing this value (None if not in a loop)
         eval_in_scope: Optional callable to eval expressions in the user's code scope
+        source_expr: The variable name holding the value in the user's scope
 
     Returns:
         The same value that was passed in, unchanged
     """
-    log_value(line, value, last_line_in_containing_loop, eval_in_scope)
+    log_value(line, value, last_line_in_containing_loop, eval_in_scope, source_expr)
     return value
 
 def _emit_vis_load_warning(warning_msg: str) -> None:
@@ -497,6 +501,15 @@ def _eval_in_scope_keyword(lineno: int, col_offset: int) -> ast.keyword:
         body=body, lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset
     )
     return ast.keyword(arg='eval_in_scope', value=lam, lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset)
+
+
+def _source_expr_keyword(var_name: str, lineno: int, col_offset: int) -> ast.keyword:
+    """Build AST for the keyword argument: source_expr='<var_name>'"""
+    return ast.keyword(
+        arg='source_expr',
+        value=ast.Constant(value=var_name, lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset),
+        lineno=lineno, col_offset=col_offset, end_lineno=lineno, end_col_offset=col_offset
+    )
 
 
 class CodeTransformer(ast.NodeTransformer):
@@ -676,7 +689,10 @@ class CodeTransformer(ast.NodeTransformer):
         call_node = ast.Call(
             func=func_node,
             args=args,
-            keywords=[_eval_in_scope_keyword(lineno, col_offset)],
+            keywords=[
+                _eval_in_scope_keyword(lineno, col_offset),
+                _source_expr_keyword(var_name, lineno, col_offset),
+            ],
             lineno=lineno,
             col_offset=col_offset,
             end_lineno=lineno,

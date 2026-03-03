@@ -81,6 +81,8 @@ from re._constants import (  # type: ignore[import]
 from dataclasses import dataclass
 from typing import List, Tuple, Any
 
+from visualizer_utils import replace_caret_in_py_exp
+
 # === Command types (Elm-style commands for VS Code to execute) ===
 
 @dataclass(frozen=True, slots=True)
@@ -1213,11 +1215,53 @@ def is_backtick_search(search: str | None) -> bool:
     return _find_closing_delimiter(search) is not None
 
 
+def _is_valid_python_expression(s: str) -> bool:
+    """Check if s parses as a valid Python expression."""
+    try:
+        ast.parse(s, mode='eval')
+        return True
+    except SyntaxError:
+        return False
+
+
+def parse_slice_parts(search: str | None) -> tuple | None:
+    """Try to parse search as a slice expression (e.g. '5:', ':5', '5:10', 'x:10').
+
+    For each ':' in the search string, split into left/right. If both sides
+    are blank or parse as valid Python expressions, return (left, right).
+    Returns None if no valid slice split is found.
+
+    Uses the same guess-and-check approach as replace_caret_in_py_exp.
+    """
+    if not search:
+        return None
+    for i, ch in enumerate(search):
+        if ch == ':':
+            left = search[:i]
+            right = search[i + 1:]
+            left_ok = (left == '' or _is_valid_python_expression(left))
+            right_ok = (right == '' or _is_valid_python_expression(right))
+            if left_ok and right_ok:
+                return (left, right)
+    return None
+
+
+def is_slice_search(search: str | None) -> bool:
+    """Check if the search is a slice expression like '5:', ':10', '5:10', 'x:10'."""
+    if not search:
+        return False
+    if is_regex_search(search) or is_string_search(search):
+        return False
+    return parse_slice_parts(search) is not None
+
+
 def is_expression_search(search: str | None) -> bool:
     """Check if the search is an expression (backtick or bare text)."""
     if not search:
         return False
     if is_regex_search(search) or is_string_search(search):
+        return False
+    if is_slice_search(search):
         return False
     return True
 
@@ -1917,10 +1961,78 @@ def _string_search_highlights(search: str, string_value: str) -> list:
         re.I if is_case_insensitive(search) else 0)
 
 
+def _index_highlight(index_val: int, string_value: str) -> list:
+    """Produce a single highlight tuple for str[index_val].
+
+    Returns [] if index is out of bounds.
+    """
+    n = len(string_value)
+    if n == 0:
+        return []
+    if index_val < -n or index_val >= n:
+        return []
+    normalized = index_val % n
+    str_to_internal = build_string_to_internal_mapping(string_value)
+    internal_start = str_to_internal[normalized]
+    internal_end = internal_start + 1
+    if string_value[normalized] == '\n':
+        internal_end += 1
+    return [(internal_start, internal_end, 'literal', str(index_val), (1, 1), None)]
+
+
+def _slice_search_highlights(search: str, string_value: str, eval_in_scope) -> list:
+    """Produce highlight tuples for a slice search expression.
+
+    Evaluates slice bounds in the user's scope and highlights the resulting range.
+    """
+    parts = parse_slice_parts(search)
+    if parts is None:
+        return []
+    left, right = parts
+    try:
+        start = eval_in_scope(left) if left else None
+        stop = eval_in_scope(right) if right else None
+    except Exception:
+        return []
+    if start is not None and not isinstance(start, int):
+        return []
+    if stop is not None and not isinstance(stop, int):
+        return []
+
+    n = len(string_value)
+    sliced = string_value[start:stop]
+    if not sliced:
+        return []
+
+    actual_start = (start if start is not None else 0)
+    if actual_start < 0:
+        actual_start = max(actual_start + n, 0)
+    actual_stop = (stop if stop is not None else n)
+    if actual_stop < 0:
+        actual_stop = max(actual_stop + n, 0)
+    actual_stop = min(actual_stop, n)
+    actual_start = min(actual_start, n)
+    if actual_start >= actual_stop:
+        return []
+
+    str_to_internal = build_string_to_internal_mapping(string_value)
+    internal_start = str_to_internal[actual_start]
+    if actual_stop > 0 and actual_stop <= len(str_to_internal):
+        internal_end = str_to_internal[actual_stop - 1] + 1
+        if actual_stop - 1 < n and string_value[actual_stop - 1] == '\n':
+            internal_end += 1
+    else:
+        internal_end = str_to_internal[-1] if str_to_internal else 2
+
+    display = f'{left}:{right}'
+    return [(internal_start, internal_end, 'literal', display, (1, 1), None)]
+
+
 def _expression_search_highlights(search: str, string_value: str, eval_in_scope) -> list:
     """Produce highlight tuples for a backtick or bare expression search.
 
     Uses eval_in_scope to evaluate in the user's code scope.
+    If the expression evaluates to an int, treats it as an index search (str[N]).
     Returns no highlights if eval fails.
     """
     expr_text = get_eval_expression(search)
@@ -1930,6 +2042,8 @@ def _expression_search_highlights(search: str, string_value: str, eval_in_scope)
         result = eval_in_scope(expr_text)
     except Exception:
         return []
+    if isinstance(result, int) and not isinstance(result, bool):
+        return _index_highlight(result, string_value)
     if not isinstance(result, str):
         return []
     if not result:
@@ -1955,6 +2069,9 @@ def parse_regex_for_highlighting(selection_regex: str | None, string_value: str,
 
     if is_string_search(selection_regex):
         return _string_search_highlights(selection_regex, string_value)
+
+    if is_slice_search(selection_regex):
+        return _slice_search_highlights(selection_regex, string_value, eval_in_scope)
 
     if is_expression_search(selection_regex):
         return _expression_search_highlights(selection_regex, string_value, eval_in_scope)
@@ -2620,10 +2737,10 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
     )
 
 
-def visualize(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> str:
+def visualize(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False, source_expr=None) -> str:
     return ''.join(visualize_els(value, model, get_visualizer, eval_in_scope, max_width, max_height, small))
 
-def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> List[str]:
+def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False, source_expr=None) -> List[str]:
     if eval_in_scope is None:
         eval_in_scope = lambda _c: eval(_c)
 
@@ -2690,7 +2807,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         search_input_event = "lambda e: SearchBoxInput(value=e.get('value', ''))"
         search_svg_html = SEARCH_SVG.replace("stroke:#000000;", "stroke:#8C8C8C;").replace("<svg ", f'<svg style="position: absolute; margin-left: 5px; margin-top: 4px; width: 12px; height: 12px;"', 1)
         toggle_btn_style = (
-            'border-radius: 3px;'
+            'border-radius,: 3px;'
             'padding: 1px 3px;'
             'font-family: inherit;'
             'font-size: 10px;'
@@ -2698,22 +2815,40 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
             'line-height: 16px;'
             'user-select: none;'
         )
+        # Index/slice searches force 1st on and disable Aa
+        idx_slice = is_index_or_slice_search(selection_regex, eval_in_scope)
+
         # "Aa" toggle: on (highlighted) = case-sensitive (default), off = case-insensitive
+        # Dimmed and non-interactive for index/slice
         case_sensitive = not is_case_insensitive(selection_regex)
         cs_event = repr(CaseSensitiveToggle())
-        case_toggle_html = (
-            f'<span snc-mouse-down="{html.escape(cs_event)}"'
-            f' class="snc-hoverable"'
-            f' style="'
-            f'background: {"#264f78" if case_sensitive else "transparent"};'
-            f'color: {"#ccc" if case_sensitive else "#8C8C8C"};'
-            f'border: 1px solid {"#aaa" if case_sensitive else "#3c3c3c"};'
-            f'{toggle_btn_style}'
-            f'"'
-            f'>Aa</span>'
-        )
+        if idx_slice:
+            case_toggle_html = (
+                f'<span'
+                f' style="'
+                f'background: transparent;'
+                f'color: #555;'
+                f'border: 1px solid #2a2a2a;'
+                f'opacity: 0.5;'
+                f'{toggle_btn_style}'
+                f'"'
+                f'>Aa</span>'
+            )
+        else:
+            case_toggle_html = (
+                f'<span snc-mouse-down="{html.escape(cs_event)}"'
+                f' class="snc-hoverable"'
+                f' style="'
+                f'background: {"#264f78" if case_sensitive else "transparent"};'
+                f'color: {"#ccc" if case_sensitive else "#8C8C8C"};'
+                f'border: 1px solid {"#aaa" if case_sensitive else "#3c3c3c"};'
+                f'{toggle_btn_style}'
+                f'"'
+                f'>Aa</span>'
+            )
         # "1st" toggle: off by default, on = first-match
-        first_match = is_first_match_mode(selection_regex)
+        # Forced on for index/slice
+        first_match = is_first_match_mode(selection_regex) or idx_slice
         fm_event = repr(FirstMatchToggle())
         first_match_toggle_html = (
             f'<span snc-mouse-down="{html.escape(fm_event)}"'
@@ -2834,12 +2969,71 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
     ]
 
 
+def _eval_index_or_slice_match(selection_regex: str, string_value: str, eval_in_scope) -> str | None:
+    """Evaluate index or slice search and return the matched string, or None."""
+    if is_slice_search(selection_regex):
+        parts = parse_slice_parts(selection_regex)
+        if parts is None:
+            return None
+        left, right = parts
+        try:
+            start = eval_in_scope(left) if left else None
+            stop = eval_in_scope(right) if right else None
+        except Exception:
+            return None
+        sliced = string_value[start:stop]
+        return sliced if sliced else None
+
+    if is_expression_search(selection_regex):
+        expr_text = get_eval_expression(selection_regex)
+        if not expr_text:
+            return None
+        try:
+            result = eval_in_scope(expr_text)
+        except Exception:
+            return None
+        if isinstance(result, int) and not isinstance(result, bool):
+            n = len(string_value)
+            if n == 0 or result < -n or result >= n:
+                return None
+            return string_value[result]
+
+    return None
+
+
+def is_index_or_slice_search(selection_regex: str | None, eval_in_scope=None) -> bool:
+    """Check if the search is an index (expression->int) or slice search.
+
+    For slice, no eval needed. For index, eval_in_scope is required to check
+    if the expression evaluates to an int.
+    """
+    if not selection_regex:
+        return False
+    if is_slice_search(selection_regex):
+        return True
+    if eval_in_scope is not None and is_expression_search(selection_regex):
+        expr_text = get_eval_expression(selection_regex)
+        if expr_text:
+            try:
+                result = eval_in_scope(expr_text)
+                return isinstance(result, int) and not isinstance(result, bool)
+            except Exception:
+                pass
+    return False
+
+
 def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope) -> int:
     """Count the number of matches for the current search pattern.
 
     Used by the Count button to display the match count in its label.
     """
     if not selection_regex or not string_value:
+        return 0
+
+    matched = _eval_index_or_slice_match(selection_regex, string_value, eval_in_scope)
+    if matched is not None:
+        return 1
+    if is_slice_search(selection_regex) or is_index_or_slice_search(selection_regex, eval_in_scope):
         return 0
 
     ci = is_case_insensitive(selection_regex)
@@ -2893,8 +3087,14 @@ def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope
 
 
 def _find_matches(selection_regex: str, string_value: str, eval_in_scope) -> list:
-    """Return match objects for the current search pattern."""
+    """Return match objects (or matched strings for index/slice) for the current search pattern."""
     if not selection_regex or not string_value:
+        return []
+
+    matched = _eval_index_or_slice_match(selection_regex, string_value, eval_in_scope)
+    if matched is not None:
+        return [matched]
+    if is_slice_search(selection_regex) or is_index_or_slice_search(selection_regex, eval_in_scope):
         return []
 
     ci = is_case_insensitive(selection_regex)
@@ -2990,12 +3190,50 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
 
     Returns HTML string, or '' if preconditions are not met (replace not visible,
     no search, or no matches).
+
+    For index/slice searches, ^ is the matched string (not a match object),
+    so the preview shows ^ => 'str' instead of ^[0], ^.start(), ^.end().
     """
     if not model.get('replace_visible', False):
         return ''
     selection_regex = model.get('search')
     if not selection_regex:
         return ''
+
+    is_idx_slice = is_index_or_slice_search(selection_regex, eval_in_scope)
+
+    if is_idx_slice:
+        matched_str = _eval_index_or_slice_match(selection_regex, value, eval_in_scope)
+        if matched_str is None:
+            return ''
+
+        m_repr = html.escape(_trunc_repr(matched_str))
+        lbl = 'color: #dcdcaa;'
+        row1 = f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^</span> \u21d2 {m_repr}</span>'
+
+        result_str = ''
+        replace_text = model.get('replace_text')
+        if replace_text:
+            replace_expr_raw = replace_text
+            if replace_expr_raw.startswith('`') and len(replace_expr_raw) >= 2:
+                end = replace_expr_raw.find('`', 1)
+                if end > 0:
+                    replace_expr_raw = replace_expr_raw[1:end]
+            replace_expr = replace_caret_in_py_exp(replace_expr_raw, '_mtch')
+            try:
+                transform_fn = eval_in_scope(f"(lambda _mtch: {replace_expr})")
+                result = transform_fn(matched_str)
+                result_str = html.escape(_trunc_repr(result))
+            except Exception as e:
+                result_str = html.escape(str(e))
+        row2 = f'<div style="font-size: 11px;">Transform: {m_repr} \u21d2 {result_str}</div>' if result_str else ''
+
+        return (
+            f'<div style="margin-top: 2px; color: #8C8C8C; white-space: normal;">'
+            f'<div style="font-size: 7px; filter: saturate(0.75); opacity: 0.75;">Match: {row1}</div>'
+            f'{row2}'
+            f'</div>'
+        )
 
     matches = _find_matches(selection_regex, value, eval_in_scope)
     if not matches:
@@ -3008,9 +3246,9 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
 
     lbl = 'color: #dcdcaa;'
     row1 = (
-        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^[0]</span> ⇒ {m0}</span>'
-        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^.start()</span> ⇒ {mstart}</span>'
-        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^.end()</span> ⇒ {mend}</span>'
+        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^[0]</span> \u21d2 {m0}</span>'
+        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^.start()</span> \u21d2 {mstart}</span>'
+        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^.end()</span> \u21d2 {mend}</span>'
     )
 
     result_str = ''
@@ -3029,7 +3267,7 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
             result_str = html.escape(_trunc_repr(result))
         except Exception as e:
             result_str = html.escape(str(e))
-    row2 = f'<div style="font-size: 11px;">Transform: {m0} ⇒ {result_str}</div>' if result_str else ''
+    row2 = f'<div style="font-size: 11px;">Transform: {m0} \u21d2 {result_str}</div>' if result_str else ''
 
     return (
         f'<div style="margin-top: 2px; color: #8C8C8C; white-space: normal;">'
@@ -3039,7 +3277,7 @@ def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
     )
 
 
-def init_model(value, get_visualizer=None):
+def init_model(value, get_visualizer=None, eval_in_scope=None, source_expr=None):
     """
     Initialize the model state for a new visualization.
 
@@ -3126,34 +3364,6 @@ def finalize_handle_drag(model: dict, string_value: str) -> dict:
     model['handleDrag'] = None
     return model
 
-# ^ is a rare python infix operator, generally invalid in variable position.
-# replace only ^ that are invariable position (not in strings, etc)
-# does this by replace-and-check one by one to see if parse succeeds with the ^ retained
-ONE_CARET_RE = re.compile(r'(?<!\^)\^(?!\^)')
-def replace_caret_in_py_exp(py_exp: str, replace_exp) -> str:
-    # first change all ^ to _caret_N_
-    temp_names = []
-    def temp_replacer(m):
-        temp_name = f'_caret_{len(temp_names)}_'
-        temp_names.append(temp_name)
-        return temp_name
-    out = ONE_CARET_RE.sub(temp_replacer, py_exp)
-
-    # for each _mtch_N_, replace with ^ and see if python parsing fails. if so, it's a variable name; replace with replace_exp
-    # if not, it's a ^ in a string or something: let it be
-    for name in temp_names:
-        try:
-            temp_str = out.replace(name, '^')
-            ast.parse(temp_str)
-            # parsing okay, means it's a caret in a string or something. keep it.
-            out = temp_str
-        except SyntaxError:
-            # it's a variable, replace with replace_exp
-            out = out.replace(name, replace_exp)
-
-    return out
-
-
 # =============================================================================
 # Expression Builder Helpers for Action Buttons
 # =============================================================================
@@ -3171,6 +3381,53 @@ def _get_search_context(model: dict, source_code: str, source_line: int) -> dict
     expr, var_name = extract_expression_from_line(source_code, source_line)
     var_to_search = var_name if var_name else f"({expr})"
     suggest_base = var_name if var_name else "result"
+
+    is_idx = False
+    is_slc = is_slice_search(selection_regex)
+    slice_start = None
+    slice_stop = None
+    index_expr = None
+
+    if is_slc:
+        parts = parse_slice_parts(selection_regex)
+        if parts:
+            slice_start, slice_stop = parts
+    elif is_expression_search(selection_regex):
+        idx_expr = get_eval_expression(selection_regex)
+        if idx_expr:
+            try:
+                val = ast.literal_eval(idx_expr)
+                if isinstance(val, int) and not isinstance(val, bool):
+                    is_idx = True
+                    index_expr = idx_expr
+            except (ValueError, SyntaxError):
+                pass
+
+    if is_idx or is_slc:
+        replace_visible = model.get('replace_visible', False)
+        replace_text = model.get('replace_text')
+        replace_expr = None
+        if replace_visible and replace_text:
+            replace_expr_raw = replace_text
+            if replace_expr_raw.startswith('`') and len(replace_expr_raw) >= 2:
+                end = replace_expr_raw.find('`', 1)
+                if end > 0:
+                    replace_expr_raw = replace_expr_raw[1:end]
+            replace_expr = replace_caret_in_py_exp(replace_expr_raw, '_mtch')
+        return {
+            'selection_regex': selection_regex,
+            'var_to_search': var_to_search,
+            'var_name': var_name,
+            'suggest_base': suggest_base,
+            'is_index': is_idx,
+            'is_slice': is_slc,
+            'index_expr': index_expr,
+            'slice_start': slice_start,
+            'slice_stop': slice_stop,
+            'replace_visible': replace_visible,
+            'replace_text': replace_text,
+            'replace_expr': replace_expr,
+        }
 
     first = is_first_match_mode(selection_regex)
     ci = is_case_insensitive(selection_regex)
@@ -3221,6 +3478,8 @@ def _get_search_context(model: dict, source_code: str, source_line: int) -> dict
         'is_ci': ci,
         'is_string': is_str,
         'is_expr': is_expr,
+        'is_index': False,
+        'is_slice': False,
         'embed': embed,
         'regex_pattern': regex_pattern,
         'flags_str': flags_str,
@@ -3254,6 +3513,12 @@ def _build_get_expr(ctx: dict) -> tuple | None:
 
     Returns (suggest_name, expr_str) or None.
     """
+    if ctx.get('is_index'):
+        suggest_name = ctx['suggest_base'] if ctx['var_name'] else "result"
+        return (suggest_name, f"{ctx['var_to_search']}[{ctx['index_expr']}]")
+    if ctx.get('is_slice'):
+        suggest_name = ctx['suggest_base'] if ctx['var_name'] else "result"
+        return (suggest_name, f"{ctx['var_to_search']}[{ctx['slice_start']}:{ctx['slice_stop']}]")
     if ctx['is_first']:
         suggest_name = f"{ctx['suggest_base']}_match" if ctx['var_name'] else "result_match"
         return (suggest_name, _search_expr(ctx))
@@ -3267,9 +3532,18 @@ def _build_transform_expr(ctx: dict) -> tuple | None:
 
     Returns (suggest_name, expr_str) or None if no replace expression.
     """
-    if not ctx['replace_expr']:
+    if not ctx.get('replace_expr'):
         return None
     suggest_name = f"{ctx['suggest_base']}_transformed" if ctx['var_name'] else "result_transformed"
+    if ctx.get('is_index'):
+        v = ctx['var_to_search']
+        i = ctx['index_expr']
+        return (suggest_name, f"(lambda _mtch: {ctx['replace_expr']})({v}[{i}])")
+    if ctx.get('is_slice'):
+        v = ctx['var_to_search']
+        start = ctx['slice_start']
+        stop = ctx['slice_stop']
+        return (suggest_name, f"(lambda _mtch: {ctx['replace_expr']})({v}[{start}:{stop}])")
     if ctx['is_first']:
         return (suggest_name, f"next(({ctx['replace_expr']} for _mtch in {_finditer_expr(ctx)}), None)")
     else:
@@ -3278,6 +3552,10 @@ def _build_transform_expr(ctx: dict) -> tuple | None:
 
 def _build_get_or_transform_expr(ctx: dict) -> tuple | None:
     """Build Get when not in replace mode, Transform when in replace mode."""
+    if ctx.get('is_index') or ctx.get('is_slice'):
+        if ctx.get('replace_visible') and ctx.get('replace_expr'):
+            return _build_transform_expr(ctx)
+        return _build_get_expr(ctx)
     if ctx['replace_visible'] and ctx['replace_expr']:
         return _build_transform_expr(ctx)
     else:
@@ -3289,7 +3567,23 @@ def _build_replace_expr(ctx: dict) -> tuple | None:
 
     Returns (suggest_name, expr_str) or None if not in replace mode.
     """
-    if not ctx['replace_visible'] or not ctx['lambda_str']:
+    if ctx.get('is_index') or ctx.get('is_slice'):
+        if not ctx.get('replace_visible') or not ctx.get('replace_expr'):
+            return None
+        suggest_name = ctx['suggest_base'] if ctx['var_name'] else "result"
+        v = ctx['var_to_search']
+        repl = f"(lambda _mtch: {ctx['replace_expr']})"
+        if ctx.get('is_index'):
+            i = ctx['index_expr']
+            return (suggest_name, f"{v}[:{i}] + str({repl}({v}[{i}])) + {v}[{i} + 1:]")
+        else:
+            start = ctx['slice_start']
+            stop = ctx['slice_stop']
+            left = f"{v}[:{start}]" if start else "''"
+            right = f"{v}[{stop}:]" if stop else "''"
+            return (suggest_name, f"{left} + str({repl}({v}[{start}:{stop}])) + {right}")
+
+    if not ctx['replace_visible'] or not ctx.get('lambda_str'):
         return None
     suggest_name = ctx['suggest_base'] if ctx['var_name'] else "result"
     if ctx['is_string'] or ctx['is_expr']:
@@ -3304,6 +3598,17 @@ def _build_delete_expr(ctx: dict) -> tuple | None:
     Returns (suggest_name, expr_str).
     """
     suggest_name = ctx['suggest_base'] if ctx['var_name'] else "result"
+    if ctx.get('is_index'):
+        v = ctx['var_to_search']
+        i = ctx['index_expr']
+        return (suggest_name, f"{v}[:{i}] + {v}[{i} + 1:]")
+    if ctx.get('is_slice'):
+        v = ctx['var_to_search']
+        start = ctx['slice_start']
+        stop = ctx['slice_stop']
+        left = f"{v}[:{start}]" if start else "''"
+        right = f"{v}[{stop}:]" if stop else "''"
+        return (suggest_name, f"{left} + {right}")
     if ctx['is_string'] or ctx['is_expr']:
         embed = ctx['embed']
         if ctx['is_ci']:
@@ -3427,7 +3732,7 @@ def _get_copy_expr_for_if(action: str, ctx: dict) -> str | None:
     return None
 
 
-def update(event, source_code: str, source_line: int, model: dict, value: str, get_visualizer=None) -> Tuple[dict, List[Any]]:
+def update(event, source_code: str, source_line: int, model: dict, value: str, get_visualizer=None, eval_in_scope=None, source_expr=None) -> Tuple[dict, List[Any]]:
     """
     Update model based on event. Returns (new_model, commands) tuple.
 

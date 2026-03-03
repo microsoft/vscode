@@ -44,7 +44,7 @@ from dataclasses import dataclass
 from math import sqrt
 from typing import Any, List, Tuple
 
-from visualizer_utils import ChildEvent, wrap_child_html, route_child_event, aggregate_handled_keys, wrap_child_prefix, wrap_child_suffix
+from visualizer_utils import ChildEvent, wrap_child_html, route_child_event, aggregate_handled_keys, wrap_child_prefix, wrap_child_suffix, replace_caret_in_py_exp, strip_leading_caret, eval_caret_expr
 
 # VS Code theme colors
 BLUE = "#569cd6"
@@ -219,11 +219,7 @@ def can_visualize(value):
 
 
 def get_fields(value):
-    return [str(i) for i in range(len(value))]
-
-
-def get_field_value(value, field):
-    return value[int(field)]
+    return [f'^[{i}]' for i in range(len(value))]
 
 
 def _detect_table_columns(lst, get_visualizer):
@@ -269,7 +265,7 @@ _COLUMN_MGMT_DEFAULTS = {
 _OWN_KEYS = ["Enter", "Escape", "ArrowUp", "ArrowDown", "Tab"]
 
 
-def init_model(lst, get_visualizer=None):
+def init_model(lst, get_visualizer=None, eval_in_scope=None, source_expr=None):
     if get_visualizer is None:
         return {'children': {}, 'handledKeys': [], 'display_mode': 'list', 'columns': [],
                 **_COLUMN_MGMT_DEFAULTS}
@@ -285,16 +281,17 @@ def init_model(lst, get_visualizer=None):
     if columns is not None:
         children = {}
         for i, item in enumerate(lst):
-            vis = get_visualizer(item)
-            item_get_field_value = getattr(vis, 'get_field_value', None)
+            item_source_expr = f"{source_expr}[{i}]" if source_expr else None
             for col in columns:
                 try:
-                    cell_value = item_get_field_value(item, col) if item_get_field_value else None
+                    cell_value = eval_caret_expr(col, item, eval_in_scope, item_source_expr)
                 except Exception:
                     cell_value = None
                 if cell_value is not None:
                     cell_vis = get_visualizer(cell_value)
-                    children[f"{i}{CELL_KEY_SEP}{col}"] = cell_vis.init_model(cell_value, get_visualizer)
+                    cell_source_expr = replace_caret_in_py_exp(col, item_source_expr) if item_source_expr else None
+                    children[f"{i}{CELL_KEY_SEP}{col}"] = cell_vis.init_model(cell_value, get_visualizer,
+                                                                              eval_in_scope=eval_in_scope, source_expr=cell_source_expr)
 
         handled_keys = aggregate_handled_keys(children, _OWN_KEYS)
         return {
@@ -308,7 +305,9 @@ def init_model(lst, get_visualizer=None):
     children = {}
     for i, item in enumerate(lst):
         vis = get_visualizer(item)
-        children[str(i)] = vis.init_model(item, get_visualizer)
+        child_source_expr = f"{source_expr}[{i}]" if source_expr else None
+        children[f'^[{i}]'] = vis.init_model(item, get_visualizer,
+                                              eval_in_scope=eval_in_scope, source_expr=child_source_expr)
 
     handled_keys = aggregate_handled_keys(children)
     return {'children': children, 'handledKeys': handled_keys, 'display_mode': 'list', 'columns': [],
@@ -351,7 +350,7 @@ def _render_column_header(col, index, model):
         f'title="Remove column" class="snc-hover-hidden full-opacity-on-hover">\u00d7</span>'
         f'<span snc-mouse-down="{html.escape(click_event)}" '
         f'style="color:{BLUE};cursor:pointer;">'
-        f'{html.escape(col)}</span>'
+        f'{html.escape(strip_leading_caret(col))}</span>'
         f'</th>'
     )
 
@@ -415,7 +414,7 @@ def _render_column_input(lst, model, get_visualizer, is_editing, editing_index=-
     return f'<th style="padding:0 8px;">{input_html}</th>'
 
 
-def _visualize_table(lst, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False):
+def _visualize_table(lst, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False, source_expr=None):
     children = model.get('children', {})
     columns = model.get('columns', [])
     focused_child = model.get('focused_child')
@@ -452,32 +451,33 @@ def _visualize_table(lst, model, get_visualizer, eval_in_scope, max_width=None, 
     strs.append('</tr>')
 
     for i, item in enumerate(lst):
-        vis = get_visualizer(item)
-        item_get_field_value = getattr(vis, 'get_field_value', None)
-
         strs.append('<tr><td style="color:')
         strs.append(GRAY)
         strs.append(';padding:0 8px;text-align:right;">')
         strs.append(str(i))
         strs.append('</td>')
 
+        item_source_expr = f"{source_expr}[{i}]" if source_expr else None
+
         for col in columns:
             composite_key = f"{i}{CELL_KEY_SEP}{col}"
             try:
-                cell_value = item_get_field_value(item, col) if item_get_field_value else None
+                cell_value = eval_caret_expr(col, item, eval_in_scope, item_source_expr)
             except Exception:
                 cell_value = None
 
             if cell_value is not None:
                 cell_vis = get_visualizer(cell_value)
                 cell_model = children.get(composite_key)
+                cell_source_expr = replace_caret_in_py_exp(col, item_source_expr) if item_source_expr else None
                 if cell_model is None:
-                    cell_model = cell_vis.init_model(cell_value, get_visualizer)
+                    cell_model = cell_vis.init_model(cell_value, get_visualizer,
+                                                     eval_in_scope=eval_in_scope, source_expr=cell_source_expr)
                 child_small = (composite_key != focused_child)
                 if hasattr(cell_vis, 'visualize_els'):
-                    cell_htmls = cell_vis.visualize_els(cell_value, cell_model, get_visualizer, eval_in_scope, max_width=max_column_width, max_height=80, small=child_small)
+                    cell_htmls = cell_vis.visualize_els(cell_value, cell_model, get_visualizer, eval_in_scope, max_width=max_column_width, max_height=80, small=child_small, source_expr=cell_source_expr)
                 else:
-                    cell_htmls = [cell_vis.visualize(cell_value, cell_model, get_visualizer, eval_in_scope, max_width=max_column_width, max_height=80, small=child_small)]
+                    cell_htmls = [cell_vis.visualize(cell_value, cell_model, get_visualizer, eval_in_scope, max_width=max_column_width, max_height=80, small=child_small, source_expr=cell_source_expr)]
                 strs.append('<td style="padding:0 8px;">')
                 strs.append(wrap_child_prefix(composite_key))
                 strs.extend(cell_htmls)
@@ -493,39 +493,38 @@ def _visualize_table(lst, model, get_visualizer, eval_in_scope, max_width=None, 
     return ''.join(strs)
 
 
-def visualize(lst: list, model: dict, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False):
+def visualize(lst: list, model: dict, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False, source_expr=None):
     if model.get('display_mode') == 'table':
-        return _visualize_table(lst, model, get_visualizer, eval_in_scope, max_width=max_width, max_height=max_height, small=small)
+        return _visualize_table(lst, model, get_visualizer, eval_in_scope, max_width=max_width, max_height=max_height, small=small, source_expr=source_expr)
 
     children = model.get('children', {})
     focused_child = model.get('focused_child')
     items_html_parts = []
 
     for i, item in enumerate(lst):
-        key = str(i)
+        key = f'^[{i}]'
         vis = get_visualizer(item)
         child_model = children.get(key)
+        child_source_expr = f"{source_expr}[{i}]" if source_expr else None
         if child_model is None:
-            child_model = vis.init_model(item, get_visualizer)
+            child_model = vis.init_model(item, get_visualizer,
+                                         eval_in_scope=eval_in_scope, source_expr=child_source_expr)
         child_small = (key != focused_child)
-        child_html = vis.visualize(item, child_model, get_visualizer, eval_in_scope, small=child_small)
+        child_html = vis.visualize(item, child_model, get_visualizer, eval_in_scope, small=child_small, source_expr=child_source_expr)
         items_html_parts.append(wrap_child_html(child_html, key))
 
     items_html = '\n'.join(items_html_parts)
     return f'[{items_html}]'
 
 
-def _table_child_value_getter(key, lst, get_visualizer):
+def _table_child_value_getter(key, lst, eval_in_scope=None, source_expr=None):
     row_key, field_key = key.split(CELL_KEY_SEP, 1)
     item = lst[int(row_key)]
-    vis = get_visualizer(item)
-    item_get_field_value = getattr(vis, 'get_field_value', None)
-    if item_get_field_value is None:
-        return None
-    return item_get_field_value(item, field_key)
+    item_source_expr = f"{source_expr}[{row_key}]" if source_expr else None
+    return eval_caret_expr(field_key, item, eval_in_scope, item_source_expr)
 
 
-def update(event, source_code: str, source_line: int, model: Any, value, get_visualizer=None) -> Tuple[Any, List[Any]]:
+def update(event, source_code: str, source_line: int, model: Any, value, get_visualizer=None, eval_in_scope=None, source_expr=None) -> Tuple[Any, List[Any]]:
     if event is None or not isinstance(event, dict) or not event.get('pythonEventStr'):
         return (model, [])
 
@@ -548,9 +547,16 @@ def update(event, source_code: str, source_line: int, model: Any, value, get_vis
     if isinstance(msg, ChildEvent):
         is_table = model.get('display_mode') == 'table'
         if is_table:
-            child_value_getter = lambda key: _table_child_value_getter(key, value, get_visualizer)
+            child_value_getter = lambda key: _table_child_value_getter(key, value, eval_in_scope, source_expr)
+            def _table_child_se_getter(key):
+                if not source_expr:
+                    return None
+                row_key, field_key = key.split(CELL_KEY_SEP, 1)
+                return replace_caret_in_py_exp(field_key, f"{source_expr}[{row_key}]")
+            child_se_getter = _table_child_se_getter
         else:
-            child_value_getter = lambda key: value[int(key)]
+            child_value_getter = lambda key, _val=value: eval_caret_expr(key, _val, eval_in_scope, source_expr)
+            child_se_getter = (lambda key: replace_caret_in_py_exp(key, source_expr)) if source_expr else None
 
         new_model, commands = route_child_event(
             event, model, value,
@@ -558,6 +564,8 @@ def update(event, source_code: str, source_line: int, model: Any, value, get_vis
             get_visualizer=get_visualizer,
             source_code=source_code,
             source_line=source_line,
+            eval_in_scope=eval_in_scope,
+            child_source_expr_getter=child_se_getter,
         )
 
         if is_table:

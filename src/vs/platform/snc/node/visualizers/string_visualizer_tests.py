@@ -47,6 +47,8 @@ from string_visualizer import (
     is_string_search,
     is_backtick_search,
     is_expression_search,
+    is_slice_search,
+    parse_slice_parts,
     get_string_literal,
     get_eval_expression,
     eval_string_search,
@@ -7089,6 +7091,363 @@ class TestTransformPreview(unittest.TestCase):
         html_output = visualize(self.value, self.model, None, eis, max_width=400)
         import html as html_mod
         self.assertIn(html_mod.escape(repr('REPLACED')), html_output)
+
+
+# =============================================================================
+# Index and Slice Search Tests
+# =============================================================================
+
+class TestIsSliceSearch(unittest.TestCase):
+    """Test is_slice_search detects slice expressions."""
+
+    def test_start_only(self):
+        self.assertTrue(is_slice_search('5:'))
+
+    def test_stop_only(self):
+        self.assertTrue(is_slice_search(':5'))
+
+    def test_start_and_stop(self):
+        self.assertTrue(is_slice_search('5:10'))
+
+    def test_variable_start(self):
+        self.assertTrue(is_slice_search('x:10'))
+
+    def test_variable_both(self):
+        self.assertTrue(is_slice_search('x:y'))
+
+    def test_expression_start(self):
+        self.assertTrue(is_slice_search('len(s)-1:'))
+
+    def test_bare_text_no_colon(self):
+        self.assertFalse(is_slice_search('hello'))
+
+    def test_number_no_colon(self):
+        self.assertFalse(is_slice_search('5'))
+
+    def test_string_literal_with_colon(self):
+        self.assertFalse(is_slice_search("'a:b'"))
+
+    def test_regex_with_colon(self):
+        self.assertFalse(is_slice_search('/a:b/'))
+
+    def test_dict_literal_not_slice(self):
+        self.assertFalse(is_slice_search("{'a':1}"))
+
+    def test_lambda_not_slice(self):
+        self.assertFalse(is_slice_search('lambda x: x'))
+
+    def test_none(self):
+        self.assertFalse(is_slice_search(None))
+
+    def test_empty(self):
+        self.assertFalse(is_slice_search(''))
+
+    def test_colon_only(self):
+        self.assertTrue(is_slice_search(':'))
+
+    def test_negative_start(self):
+        self.assertTrue(is_slice_search('-3:'))
+
+
+class TestParseSliceParts(unittest.TestCase):
+    """Test parse_slice_parts returns correct (left, right) tuples."""
+
+    def test_start_only(self):
+        self.assertEqual(parse_slice_parts('5:'), ('5', ''))
+
+    def test_stop_only(self):
+        self.assertEqual(parse_slice_parts(':5'), ('', '5'))
+
+    def test_start_and_stop(self):
+        self.assertEqual(parse_slice_parts('5:10'), ('5', '10'))
+
+    def test_variable_start(self):
+        self.assertEqual(parse_slice_parts('x:10'), ('x', '10'))
+
+    def test_expression_start(self):
+        self.assertEqual(parse_slice_parts('len(s)-1:'), ('len(s)-1', ''))
+
+    def test_colon_only(self):
+        self.assertEqual(parse_slice_parts(':'), ('', ''))
+
+    def test_negative_start(self):
+        self.assertEqual(parse_slice_parts('-3:'), ('-3', ''))
+
+    def test_none_input(self):
+        self.assertIsNone(parse_slice_parts(None))
+
+    def test_empty_input(self):
+        self.assertIsNone(parse_slice_parts(''))
+
+    def test_no_colon(self):
+        self.assertIsNone(parse_slice_parts('hello'))
+
+    def test_dict_literal(self):
+        self.assertIsNone(parse_slice_parts("{'a':1}"))
+
+    def test_lambda(self):
+        self.assertIsNone(parse_slice_parts('lambda x: x'))
+
+
+class TestSliceNotExpression(unittest.TestCase):
+    """Slices should NOT be detected as expression searches."""
+
+    def test_slice_is_not_expression(self):
+        self.assertFalse(is_expression_search('5:10'))
+
+    def test_slice_start_only_is_not_expression(self):
+        self.assertFalse(is_expression_search('5:'))
+
+    def test_slice_stop_only_is_not_expression(self):
+        self.assertFalse(is_expression_search(':5'))
+
+
+class TestIndexSearchHighlighting(unittest.TestCase):
+    """Test highlighting when an expression evaluates to an int (index search)."""
+
+    def test_literal_int_one_highlight(self):
+        value = "hello world"
+        highlights = parse_regex_for_highlighting('5', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 1)
+
+    def test_literal_int_correct_position(self):
+        """Index 0 on 'hello' highlights the 'h' at internal index 2."""
+        value = "hello"
+        highlights = parse_regex_for_highlighting('0', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 1)
+        start, end = highlights[0][0], highlights[0][1]
+        self.assertEqual(start, 2)
+        self.assertEqual(end, 3)
+
+    def test_negative_index(self):
+        value = "hello"
+        highlights = parse_regex_for_highlighting('-1', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 1)
+        start, end = highlights[0][0], highlights[0][1]
+        self.assertEqual(start, 6)
+        self.assertEqual(end, 7)
+
+    def test_out_of_bounds_no_highlights(self):
+        value = "hello"
+        highlights = parse_regex_for_highlighting('100', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 0)
+
+    def test_variable_eval_to_int(self):
+        user_locals = {'idx': 2}
+        eis = lambda c, _l=user_locals: eval(c, {**_l, '__builtins__': __builtins__})
+        value = "hello"
+        highlights = parse_regex_for_highlighting('idx', value, eval_in_scope=eis)
+        self.assertEqual(len(highlights), 1)
+        self.assertEqual(highlights[0][0], 4)
+        self.assertEqual(highlights[0][1], 5)
+
+    def test_segment_index_is_none(self):
+        """Index search highlights should be display-only (segment_index=None)."""
+        value = "hello"
+        highlights = parse_regex_for_highlighting('0', value, eval_in_scope=lambda c: eval(c))
+        self.assertIsNone(highlights[0][5])
+
+
+class TestSliceSearchHighlighting(unittest.TestCase):
+    """Test highlighting for slice search expressions."""
+
+    def test_start_only(self):
+        """'5:' on 'hello world' highlights from index 5 to end."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting('5:', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 1)
+
+    def test_stop_only(self):
+        """':5' highlights first 5 characters."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting(':5', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 1)
+
+    def test_start_and_stop(self):
+        """'5:10' highlights characters 5 through 9."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting('5:10', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 1)
+
+    def test_variable_in_slice(self):
+        user_locals = {'x': 2}
+        eis = lambda c, _l=user_locals: eval(c, {**_l, '__builtins__': __builtins__})
+        value = "hello world"
+        highlights = parse_regex_for_highlighting('x:5', value, eval_in_scope=eis)
+        self.assertEqual(len(highlights), 1)
+
+    def test_empty_slice_no_highlights(self):
+        """A slice that yields an empty string produces no highlights."""
+        value = "hello"
+        highlights = parse_regex_for_highlighting('3:3', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 0)
+
+    def test_segment_index_is_none(self):
+        """Slice search highlights should be display-only."""
+        value = "hello world"
+        highlights = parse_regex_for_highlighting('0:5', value, eval_in_scope=lambda c: eval(c))
+        if highlights:
+            self.assertIsNone(highlights[0][5])
+
+    def test_stop_only_internal_positions(self):
+        """':3' on 'hello' highlights internal indices 2,3,4 (the first 3 chars)."""
+        value = "hello"
+        highlights = parse_regex_for_highlighting(':3', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 1)
+        self.assertEqual(highlights[0][0], 2)
+        self.assertEqual(highlights[0][1], 5)
+
+    def test_negative_start(self):
+        """'-3:' on 'hello' highlights last 3 chars."""
+        value = "hello"
+        highlights = parse_regex_for_highlighting('-3:', value, eval_in_scope=lambda c: eval(c))
+        self.assertEqual(len(highlights), 1)
+
+
+class TestIndexSliceTransformPreview(unittest.TestCase):
+    """Test transform preview for index/slice: ^ is the matched string, not a match object."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.eis = lambda c: eval(c)
+
+    def test_index_preview_no_start_end(self):
+        """Index search preview should NOT show ^.start() or ^.end()."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '0'
+        html_output = _render_transform_preview(model, self.value, self.eis)
+        self.assertNotIn('^.start()', html_output)
+        self.assertNotIn('^.end()', html_output)
+        self.assertNotIn('^[0]', html_output)
+
+    def test_index_preview_shows_caret(self):
+        """Index search preview should show ^ => the matched character."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '0'
+        html_output = _render_transform_preview(model, self.value, self.eis)
+        self.assertIn('^', html_output)
+        import html as html_mod
+        self.assertIn(html_mod.escape(repr('h')), html_output)
+
+    def test_index_transform_works_on_string(self):
+        """^.upper() should work because ^ is a string, not a match object."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '0'
+        model['replace_text'] = '^.upper()'
+        html_output = _render_transform_preview(model, self.value, self.eis)
+        import html as html_mod
+        self.assertIn(html_mod.escape(repr('H')), html_output)
+
+    def test_slice_preview_no_start_end(self):
+        """Slice search preview should NOT show ^.start() or ^.end()."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = ':5'
+        html_output = _render_transform_preview(model, self.value, self.eis)
+        self.assertNotIn('^.start()', html_output)
+        self.assertNotIn('^.end()', html_output)
+        self.assertNotIn('^[0]', html_output)
+
+    def test_slice_transform_works_on_string(self):
+        """^.upper() on slice ':5' should yield 'HELLO'."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = ':5'
+        model['replace_text'] = '^.upper()'
+        html_output = _render_transform_preview(model, self.value, self.eis)
+        import html as html_mod
+        self.assertIn(html_mod.escape(repr('HELLO')), html_output)
+
+
+class TestIndexSliceToggles(unittest.TestCase):
+    """Test that index/slice searches force 1st toggle and dim Aa."""
+
+    def test_index_search_shows_first_match_highlighted(self):
+        """Even without '1' flag, index search renders 1st as highlighted."""
+        value = "hello world"
+        model = init_model(value)
+        model['search'] = '0'
+        html_output = visualize(value, model, None, lambda c: eval(c), max_width=400)
+        # The 1st toggle should be highlighted (background: #264f78)
+        # Find the 1st toggle span - it should have the highlighted background
+        self.assertIn('#264f78', html_output.split('1<span')[0].split('snc-mouse-down')[-1] if '1<span' in html_output else '')
+
+    def test_slice_search_shows_first_match_highlighted(self):
+        """Slice search renders 1st as highlighted."""
+        value = "hello world"
+        model = init_model(value)
+        model['search'] = ':5'
+        html_output = visualize(value, model, None, lambda c: eval(c), max_width=400)
+        self.assertIn('#264f78', html_output.split('1<span')[0].split('snc-mouse-down')[-1] if '1<span' in html_output else '')
+
+
+class TestIndexSliceCodeGen(unittest.TestCase):
+    """Test Enter code generation for index/slice searches."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_index_enter_generates_indexing(self):
+        """Enter with index search '5' generates x[5]."""
+        self.model['search'] = '5'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('x[5]', expr)
+
+    def test_slice_enter_generates_slicing(self):
+        """Enter with slice search '5:10' generates x[5:10]."""
+        self.model['search'] = '5:10'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('x[5:10]', expr)
+
+    def test_slice_start_only_enter(self):
+        """Enter with slice '5:' generates x[5:]."""
+        self.model['search'] = '5:'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('x[5:]', expr)
+
+    def test_slice_stop_only_enter(self):
+        """Enter with slice ':5' generates x[:5]."""
+        self.model['search'] = ':5'
+        _, commands = update(make_key_down_event('Enter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('x[:5]', expr)
+
+    def test_index_delete_generates_concatenation(self):
+        """Backspace with index search '5' generates x[:5] + x[6:]."""
+        self.model['search'] = '5'
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('x[:5]', expr)
+        self.assertIn('x[5 + 1:]', expr)
+
+    def test_slice_delete_generates_concatenation(self):
+        """Backspace with slice '5:10' generates x[:5] + x[10:]."""
+        self.model['search'] = '5:10'
+        _, commands = update(make_key_down_event('Backspace', meta_key=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn('x[:5]', expr)
+        self.assertIn('x[10:]', expr)
 
 
 if __name__ == '__main__':
