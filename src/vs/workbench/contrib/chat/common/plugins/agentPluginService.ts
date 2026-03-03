@@ -10,7 +10,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { HookType, IHookCommand } from '../promptSyntax/hookSchema.js';
+import { IHookCommand } from '../promptSyntax/hookSchema.js';
+import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPluginService');
