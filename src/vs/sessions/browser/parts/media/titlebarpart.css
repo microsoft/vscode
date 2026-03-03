@@ -36,7 +36,6 @@
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
 	margin: unset;
-	flex: 1;
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
@@ -44,6 +43,36 @@
 	width: fit-content;
 	flex-grow: 0;
 	justify-content: flex-end;
+	margin-right: 10px;
+}
+
+/* Session Title Actions Container (before right toolbar) */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container {
+	display: none;
+	flex-shrink: 0;
+	-webkit-app-region: no-drag;
+	height: 100%;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions) {
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions):not(:last-child)::after {
+	content: '';
+	width: 1px;
+	height: 16px;
+	margin: 0 4px;
+	background-color: var(--vscode-disabledForeground);
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .codicon {
+	color: inherit;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .monaco-action-bar .action-item {
+	display: flex;
 }
 
 /* Left Tool Bar Container */

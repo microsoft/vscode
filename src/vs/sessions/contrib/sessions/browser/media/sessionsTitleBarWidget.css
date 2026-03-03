@@ -28,30 +28,11 @@
 	padding: 0 4px;
 	border-radius: 4px;
 	min-width: 0;
-	width: 38vw;
 	max-width: 600px;
-	justify-content: space-between;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-/* Session title actions toolbar (aligned to the right) */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	margin-left: auto;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions .actions-container {
-	height: auto;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions .action-item {
-	display: flex;
-	align-items: center;
 }
 
 .command-center .agent-sessions-titlebar-container:focus {
