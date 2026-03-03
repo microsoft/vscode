@@ -103,7 +103,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationInjected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the shell integration script was injected.' };
 			shellIntegrationInjectionFailureReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about shell integration injection.' };
 
-			imageAddonLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the xterm.js image addon was loaded, meaning enableImages is on and WebGL is active.' };
+			imageAddonLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the xterm.js image addon was loaded.' };
 
 			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
 		};
