@@ -11,6 +11,7 @@
 
 .monaco-editor .rename-box.preview {
 	padding: 4px 4px 0 4px;
+	box-shadow: var(--vscode-shadow-hover);
 }
 
 .monaco-editor .rename-box .rename-input-with-button {

@@ -17,7 +17,7 @@
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	border-radius: 5px;
 	color: var(--vscode-editorHoverWidget-foreground);
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-hover);
 }
 
 .monaco-hover.workbench-hover .monaco-action-bar .action-item .codicon {
