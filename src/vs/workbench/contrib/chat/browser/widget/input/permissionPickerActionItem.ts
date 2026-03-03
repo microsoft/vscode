@@ -15,8 +15,9 @@ import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { ChatPermissionLevel } from '../../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 
 export interface IPermissionPickerDelegate {
@@ -33,10 +34,13 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
+		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const currentLevel = delegate.currentPermissionLevel.get();
+				const policyRestricted = isAutoApprovePolicyRestricted();
 				return [
 					{
 						...action,
@@ -62,9 +66,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						label: localize('permissions.autoApprove', "Bypass Approvals"),
 						icon: ThemeIcon.fromId(Codicon.warning.id),
 						checked: currentLevel === ChatPermissionLevel.AutoApprove,
-						tooltip: '',
+						enabled: !policyRestricted,
+						tooltip: policyRestricted ? localize('permissions.autoApprove.policyDisabled', "Disabled by enterprise policy") : '',
 						hover: {
-							content: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
+							content: policyRestricted
+								? localize('permissions.autoApprove.policyDescription', "Disabled by enterprise policy")
+								: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
@@ -80,9 +87,12 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						label: localize('permissions.autopilot', "Autopilot"),
 						icon: ThemeIcon.fromId(Codicon.rocket.id),
 						checked: currentLevel === ChatPermissionLevel.Autopilot,
-						tooltip: '',
+						enabled: !policyRestricted,
+						tooltip: policyRestricted ? localize('permissions.autopilot.policyDisabled', "Disabled by enterprise policy") : '',
 						hover: {
-							content: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done"),
+							content: policyRestricted
+								? localize('permissions.autopilot.policyDescription', "Disabled by enterprise policy")
+								: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done"),
 							position: pickerOptions.hoverPosition
 						},
 						run: async () => {

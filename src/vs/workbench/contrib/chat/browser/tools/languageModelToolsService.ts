@@ -996,6 +996,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	/**
+	 * Returns true if enterprise policy has explicitly disabled the global auto-approve setting.
+	 * When this is the case, Bypass Approvals and Autopilot permission levels should not auto-approve tools.
+	 */
+	private _isAutoApprovePolicyRestricted(): boolean {
+		const inspected = this._configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove);
+		return inspected.policyValue === false;
+	}
+
 	private getEligibleForAutoApprovalSpecialCase(toolData: IToolData): string | undefined {
 		if (toolData.id === 'vscode_fetchWebPage_internal') {
 			return 'fetch';
@@ -1046,11 +1055,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return undefined;
 		}
 
-		// Auto-Approve All permission level bypasses all tool confirmations
+		// Auto-Approve All permission level bypasses all tool confirmations,
+		// unless enterprise policy has explicitly disabled global auto-approve.
 		if (chatSessionResource) {
 			const model = this._chatService.getSession(chatSessionResource);
 			const request = model?.getRequests().at(-1);
-			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) && !this._isAutoApprovePolicyRestricted()) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
 		}
@@ -1087,11 +1097,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async shouldAutoConfirmPostExecution(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined): Promise<ConfirmedReason | undefined> {
-		// Auto-Approve All permission level bypasses all post-execution confirmations
+		// Auto-Approve All permission level bypasses all post-execution confirmations,
+		// unless enterprise policy has explicitly disabled global auto-approve.
 		if (chatSessionResource) {
 			const model = this._chatService.getSession(chatSessionResource);
 			const request = model?.getRequests().at(-1);
-			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel)) {
+			if (isAutoApproveLevel(request?.modeInfo?.permissionLevel) && !this._isAutoApprovePolicyRestricted()) {
 				return { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 			}
 		}

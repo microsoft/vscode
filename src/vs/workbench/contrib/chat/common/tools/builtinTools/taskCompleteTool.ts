@@ -13,6 +13,8 @@ export const TaskCompleteToolId = 'task_complete';
  */
 export const AUTOPILOT_CONTINUATION_MESSAGE =
 	'You have not yet marked the task as complete using the task_complete tool. ' +
+	'You MUST call task_complete when done — whether the task involved code changes, answering a question, or any other interaction.\n\n' +
+	'Do NOT repeat or restate your previous response. Pick up where you left off.\n\n' +
 	'If you were planning, stop planning and start implementing. ' +
 	'You are not done until you have fully completed the task.\n\n' +
 	'IMPORTANT: Do NOT call task_complete if:\n' +
@@ -25,21 +27,20 @@ export const TaskCompleteToolData: IToolData = {
 	id: TaskCompleteToolId,
 	displayName: 'Task Complete',
 	modelDescription:
-		'Signal that the user\'s task is fully done. Call this only after you have fully completed the task, ' +
-		'verified the results, and are confident nothing remains. ' +
+		'Signal that the user\'s task is fully done. You MUST call this tool when your work is complete — ' +
+		'whether you made code changes, answered a question, or completed any other kind of task. ' +
 		'Provide a brief summary of what was accomplished. If the summary is trivial (e.g. answering a question), omit it. ' +
 		'Do not restate the summary in your message text — it is shown to the user directly.\n\n' +
 		'When to call:\n' +
+		'- After answering the user\'s question or completing a conversational request\n' +
 		'- After you have completed ALL requested changes\n' +
-		'- After verifying results: tests pass, terminal commands succeeded, tool calls returned expected output\n' +
-		'- After you have confirmed the solution works correctly\n\n' +
+		'- After verifying results: tests pass, terminal commands succeeded, tool calls returned expected output\n\n' +
 		'When NOT to call:\n' +
 		'- If a terminal command failed or produced unexpected output\n' +
 		'- If an MCP or external tool call returned an error\n' +
 		'- If you encountered errors you have not resolved\n' +
 		'- If there are remaining steps to complete\n' +
-		'- If you have not verified your changes work\n' +
-		'- If you are unsure whether the task is fully done',
+		'- If you have not verified your changes work',
 	source: ToolDataSource.Internal,
 	inputSchema: {
 		type: 'object',

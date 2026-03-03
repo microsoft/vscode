@@ -195,8 +195,13 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		}
 
 		// In autopilot mode, the user is not available — auto-respond instead of blocking.
+		// Still append a completed carousel so the user can see the auto-selected answers.
 		if (request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot) {
 			this.logService.info('[AskQuestionsTool] Autopilot mode: auto-responding to questions');
+			const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
+			carousel.data = this.buildAutopilotCarouselAnswers(questions, carousel, idToHeaderMap);
+			carousel.isUsed = true;
+			this.chatService.appendProgress(request, carousel);
 			return this.createAutopilotResult(questions);
 		}
 
@@ -506,6 +511,45 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		return {
 			content: [{ kind: 'text', value: JSON.stringify({ answers } satisfies IAnswerResult) }]
 		};
+	}
+
+	/**
+	 * Build carousel answer data keyed by carousel question IDs for rendering
+	 * the completed summary in the UI during autopilot mode.
+	 */
+	private buildAutopilotCarouselAnswers(questions: IQuestion[], carousel: ChatQuestionCarouselData, idToHeaderMap: Map<string, string>): Record<string, unknown> {
+		const data: Record<string, unknown> = {};
+		// Build reverse map: original header -> internal carousel question ID
+		const headerToIdMap = new Map<string, string>();
+		for (const [internalId, originalHeader] of idToHeaderMap) {
+			headerToIdMap.set(originalHeader, internalId);
+		}
+
+		for (const question of questions) {
+			const internalId = headerToIdMap.get(question.header);
+			if (!internalId) {
+				continue;
+			}
+
+			const chatQuestion = carousel.questions.find(q => q.id === internalId);
+			if (!chatQuestion) {
+				continue;
+			}
+
+			const recommended = question.options?.find(opt => opt.recommended);
+			const firstOption = question.options?.[0];
+			const selectedLabel = recommended?.label ?? firstOption?.label;
+
+			if (chatQuestion.type === 'text' || !selectedLabel) {
+				data[internalId] = AUTOPILOT_ASK_USER_RESPONSE;
+			} else if (chatQuestion.type === 'multiSelect') {
+				data[internalId] = { selectedValues: [selectedLabel] };
+			} else {
+				data[internalId] = { selectedValue: selectedLabel };
+			}
+		}
+
+		return data;
 	}
 
 	private sendTelemetry(requestId: string | undefined, questionCount: number, answeredCount: number, skippedCount: number, freeTextCount: number, recommendedAvailableCount: number, recommendedSelectedCount: number, duration: number): void {
