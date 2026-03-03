@@ -147,8 +147,13 @@ class SessionsWelcomeContribution extends Disposable implements IWorkbenchContri
 			return;
 		}
 
-		// Allow automated tests to skip the welcome overlay entirely
+		// Allow automated tests to skip the welcome overlay entirely.
+		// Desktop: --skip-sessions-welcome CLI flag
+		// Web: ?skip-sessions-welcome query parameter
 		if ('args' in this.environmentService && (this.environmentService as any).args?.['skip-sessions-welcome']) {
+			return;
+		}
+		if (typeof globalThis.location !== 'undefined' && new URLSearchParams(globalThis.location.search).has('skip-sessions-welcome')) {
 			return;
 		}
 
