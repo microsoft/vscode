@@ -347,6 +347,10 @@ export class ApiRepository implements Repository {
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
 		return this.#repository.migrateChanges(sourceRepositoryPath, options);
 	}
+
+	generateRandomBranchName(): Promise<string | undefined> {
+		return this.#repository.generateRandomBranchName();
+	}
 }
 
 export class ApiGit implements Git {

@@ -25,7 +25,7 @@ import { IPushErrorHandlerRegistry } from './pushError';
 import { IRemoteSourcePublisherRegistry } from './remotePublisher';
 import { StatusBarCommands } from './statusbar';
 import { toGitUri } from './uri';
-import { anyEvent, combinedDisposable, CopilotWorktreeBranchPrefix, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
+import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, getCommitShortHash, IDisposable, isCopilotWorktree, isDescendant, isLinuxSnap, isRemote, isWindows, Limiter, onceEvent, pathEquals, relativePath } from './util';
 import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
@@ -1862,14 +1862,6 @@ export class Repository implements Disposable {
 			let worktreeName: string | undefined;
 			let { path: worktreePath, commitish, branch } = options || {};
 
-			// Use random branch name for copilot worktree branches
-			if (branch && branch.indexOf(CopilotWorktreeBranchPrefix) !== -1) {
-				const randomBranchName = await this.generateRandomBranchName();
-				if (randomBranchName) {
-					branch = `${branch.substring(0, branch.indexOf(CopilotWorktreeBranchPrefix) + CopilotWorktreeBranchPrefix.length)}${randomBranchName}`;
-				}
-			}
-
 			// Create worktree path based on the branch name
 			if (worktreePath === undefined && branch !== undefined) {
 				worktreeName = branch.startsWith(branchPrefix)
@@ -3311,6 +3303,7 @@ export class Repository implements Disposable {
 			return undefined;
 		}
 
+		const branchPrefix = config.get<string>('branchPrefix', '');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
 		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
 
@@ -3343,9 +3336,9 @@ export class Repository implements Disposable {
 			});
 
 			// Check for local ref conflict
-			const refs = await this.getRefs({ pattern: `refs/heads/${randomName}` });
+			const refs = await this.getRefs({ pattern: `refs/heads/${branchPrefix}${randomName}` });
 			if (refs.length === 0) {
-				return randomName;
+				return `${branchPrefix}${randomName}`;
 			}
 		}
 
