@@ -14,6 +14,8 @@ import { IChatQuestion, IChatQuestionCarousel } from '../../chatService/chatServ
 export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 	public readonly kind = 'questionCarousel' as const;
 	public readonly completion = new DeferredPromise<{ answers: Record<string, unknown> | undefined }>();
+	public draftAnswers: Record<string, unknown> | undefined;
+	public draftCurrentIndex: number | undefined;
 
 	constructor(
 		public questions: IChatQuestion[],

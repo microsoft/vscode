@@ -239,6 +239,183 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.header.tools, ['search', 'terminal']);
 	});
 
+	test('ignores links and variables inside inline code and fenced code blocks', async () => {
+		const uri = URI.parse('file:///test/prompt3.md');
+		const content = [
+			'---',
+			`description: "Prompt with markdown code"`,
+			'---',
+			'Outside #tool:outside and [outside](./outside.md).',
+			'Inline code: `#tool:inline and [inline](./inline.md)` should be ignored.',
+			'```ts',
+			'#tool:block and #file:./inside-block.md and [block](./block.md)',
+			'```',
+			'After block #file:./after.md and [after](./after-link.md).',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.fileReferences.map(reference => ({ content: reference.content, isMarkdownLink: reference.isMarkdownLink })), [
+			{ content: './outside.md', isMarkdownLink: true },
+			{ content: './after.md', isMarkdownLink: false },
+			{ content: './after-link.md', isMarkdownLink: true }
+		]);
+		assert.deepEqual(result.body.variableReferences.map(reference => reference.name), ['outside']);
+	});
+
+	test('ignores references in multiple inline code spans on the same line', async () => {
+		const uri = URI.parse('file:///test/prompt-inline.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'Before `#tool:ignored1` middle #tool:visible `[link](./ignored.md)` after [real](./real.md).',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.fileReferences.map(r => ({ content: r.content, isMarkdownLink: r.isMarkdownLink })), [
+			{ content: './real.md', isMarkdownLink: true },
+		]);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
+	});
+
+	test('handles fenced code block without language specifier', async () => {
+		const uri = URI.parse('file:///test/prompt-fence.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'```',
+			'#file:./ignored.md',
+			'[link](./ignored-link.md)',
+			'```',
+			'#file:./visible.md',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.fileReferences.map(r => ({ content: r.content, isMarkdownLink: r.isMarkdownLink })), [
+			{ content: './visible.md', isMarkdownLink: false },
+		]);
+		assert.deepEqual(result.body.variableReferences, []);
+	});
+
+	test('handles multiple fenced code blocks', async () => {
+		const uri = URI.parse('file:///test/prompt-multi-fence.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'#tool:before',
+			'```js',
+			'#tool:ignored1',
+			'```',
+			'#tool:between',
+			'```python',
+			'#tool:ignored2',
+			'```',
+			'#tool:after',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['before', 'between', 'after']);
+	});
+
+	test('unclosed fenced code block ignores all remaining lines', async () => {
+		const uri = URI.parse('file:///test/prompt-unclosed.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'#tool:visible',
+			'```',
+			'#tool:ignored',
+			'#file:./ignored.md',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
+		assert.deepEqual(result.body.fileReferences, []);
+	});
+
+	test('adjacent inline code does not suppress outside references', async () => {
+		const uri = URI.parse('file:///test/prompt-adjacent.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'`code`#tool:attached `more`[link](./file.md)',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		// #tool:attached starts right after the closing backtick, so it's outside inline code
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['attached']);
+		// [link](./file.md) starts after the second inline code span
+		assert.deepEqual(result.body.fileReferences.map(r => ({ content: r.content, isMarkdownLink: r.isMarkdownLink })), [
+			{ content: './file.md', isMarkdownLink: true },
+		]);
+	});
+
+	test('indented fenced code block is still detected', async () => {
+		const uri = URI.parse('file:///test/prompt-indent.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'  ```ts',
+			'  #tool:ignored',
+			'  ```',
+			'#tool:visible',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
+	});
+
+	test('fenced code block with 4 backticks', async () => {
+		const uri = URI.parse('file:///test/prompt-4tick.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'````',
+			'#tool:ignored and [link](./ignored.md)',
+			'````',
+			'#tool:visible',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.variableReferences.map(r => r.name), ['visible']);
+		assert.deepEqual(result.body.fileReferences, []);
+	});
+
+	test('fenced code block with tilde fence (~~~)', async () => {
+		const uri = URI.parse('file:///test/prompt-tilde.md');
+		const content = [
+			'---',
+			'description: "test"',
+			'---',
+			'~~~',
+			'#file:./ignored.md and [link](./ignored-link.md)',
+			'#tool:ignored',
+			'~~~',
+			'[real](./real.md)',
+		].join('\n');
+
+		const result = new PromptFileParser().parse(uri, content);
+		assert.ok(result.body);
+		assert.deepEqual(result.body.fileReferences.map(r => ({ content: r.content, isMarkdownLink: r.isMarkdownLink })), [
+			{ content: './real.md', isMarkdownLink: true },
+		]);
+		assert.deepEqual(result.body.variableReferences, []);
+	});
+
 
 	test('agent with agents', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');

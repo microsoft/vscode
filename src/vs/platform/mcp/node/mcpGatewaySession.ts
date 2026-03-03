@@ -10,11 +10,18 @@ import {
 } from '../../../base/common/jsonRpcProtocol.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
-import { ILogService } from '../../log/common/log.js';
+import { ILogger } from '../../log/common/log.js';
 import { IMcpGatewayToolInvoker } from '../common/mcpGateway.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
 const MCP_LATEST_PROTOCOL_VERSION = '2025-11-25';
+const MCP_SUPPORTED_PROTOCOL_VERSIONS = [
+	'2025-11-25',
+	'2025-06-18',
+	'2025-03-26',
+	'2024-11-05',
+	'2024-10-07',
+];
 const MCP_INVALID_REQUEST = -32600;
 const MCP_METHOD_NOT_FOUND = -32601;
 const MCP_INVALID_PARAMS = -32602;
@@ -79,7 +86,7 @@ export class McpGatewaySession extends Disposable {
 
 	constructor(
 		public readonly id: string,
-		private readonly _logService: ILogService,
+		private readonly _logService: ILogger,
 		private readonly _onDidDispose: () => void,
 		private readonly _toolInvoker: IMcpGatewayToolInvoker,
 	) {
@@ -192,7 +199,7 @@ export class McpGatewaySession extends Disposable {
 
 	private async _handleRequest(request: IJsonRpcRequest): Promise<unknown> {
 		if (request.method === 'initialize') {
-			return this._handleInitialize();
+			return this._handleInitialize(request);
 		}
 
 		if (!this._isInitialized) {
@@ -225,9 +232,21 @@ export class McpGatewaySession extends Disposable {
 		}
 	}
 
-	private _handleInitialize(): MCP.InitializeResult {
+	private _handleInitialize(request: IJsonRpcRequest): MCP.InitializeResult {
+		const params = typeof request.params === 'object' && request.params ? request.params as Record<string, unknown> : undefined;
+		const clientVersion = typeof params?.protocolVersion === 'string' ? params.protocolVersion : undefined;
+		const clientInfo = params?.clientInfo as { name?: string; version?: string } | undefined;
+		const negotiatedVersion = clientVersion && MCP_SUPPORTED_PROTOCOL_VERSIONS.includes(clientVersion)
+			? clientVersion
+			: MCP_LATEST_PROTOCOL_VERSION;
+
+		this._logService.info(`[McpGateway] Initialize: client=${clientInfo?.name ?? 'unknown'}/${clientInfo?.version ?? '?'}, clientProtocol=${clientVersion ?? '(none)'}, negotiated=${negotiatedVersion}`);
+		if (clientVersion && clientVersion !== negotiatedVersion) {
+			this._logService.warn(`[McpGateway] Client requested unsupported protocol version '${clientVersion}', falling back to '${negotiatedVersion}'`);
+		}
+
 		return {
-			protocolVersion: MCP_LATEST_PROTOCOL_VERSION,
+			protocolVersion: negotiatedVersion,
 			capabilities: {
 				tools: {
 					listChanged: true,

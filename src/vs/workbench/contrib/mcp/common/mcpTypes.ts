@@ -62,6 +62,8 @@ export interface McpCollectionDefinition {
 	readonly scope: StorageScope;
 	/** Configuration target where configuration related to this server should be stored. */
 	readonly configTarget: ConfigurationTarget;
+	/** Root-level sandbox settings from the mcp config file. */
+	readonly sandbox?: IMcpSandboxConfiguration;
 
 	/** Resolves a server definition. If present, always called before a server starts. */
 	resolveServerLanch?(definition: McpServerDefinition): Promise<McpServerLaunch | undefined>;
@@ -112,7 +114,8 @@ export namespace McpCollectionDefinition {
 		return a.id === b.id
 			&& a.remoteAuthority === b.remoteAuthority
 			&& a.label === b.label
-			&& a.trustBehavior === b.trustBehavior;
+			&& a.trustBehavior === b.trustBehavior
+			&& objectsEqual(a.sandbox, b.sandbox);
 	}
 }
 
@@ -581,10 +584,18 @@ export namespace McpServerLaunch {
  * stopped, and restarted. Once started and in a running state, it will
  * eventually build a {@link IMcpServerConnection.handler}.
  */
+export interface IMcpPotentialSandboxBlock {
+	readonly kind: 'network' | 'filesystem';
+	readonly message: string;
+	readonly host?: string;
+	readonly path?: string;
+}
+
 export interface IMcpServerConnection extends IDisposable {
 	readonly definition: McpServerDefinition;
 	readonly state: IObservable<McpConnectionState>;
 	readonly handler: IObservable<McpServerRequestHandler | undefined>;
+	readonly onPotentialSandboxBlock: Event<IMcpPotentialSandboxBlock>;
 
 	/**
 	 * Resolved launch definition. Might not match the `definition.launch` due to

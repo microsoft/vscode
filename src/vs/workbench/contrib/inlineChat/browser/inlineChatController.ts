@@ -362,12 +362,13 @@ export class InlineChatController implements IEditorContribution {
 			const lastRequest = session.chatModel.lastRequestObs.read(r);
 			const isInProgress = lastRequest?.response?.isInProgress.read(r);
 			const isPendingConfirmation = !!lastRequest?.response?.isPendingConfirmation.read(r);
+			const isError = !!lastRequest?.response?.result?.errorDetails;
 			ctxPendingConfirmation.set(isPendingConfirmation);
 			const entry = session.editingSession.readEntry(session.uri, r);
 			// When there's no entry (no changes made) and the response is complete, the widget should be hidden.
 			// When there's an entry in Modified state, it needs to be settled (accepted/rejected).
 			const isNotSettled = entry ? entry.state.read(r) === ModifiedFileEntryState.Modified : false;
-			if (isInProgress || isNotSettled || isPendingConfirmation) {
+			if (isInProgress || isNotSettled || isPendingConfirmation || isError) {
 				sessionOverlayWidget.show(session);
 			} else {
 				sessionOverlayWidget.hide();

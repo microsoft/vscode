@@ -120,6 +120,10 @@ export class TestContextService implements IWorkspaceContextService {
 		return WorkbenchState.EMPTY;
 	}
 
+	hasWorkspaceData(): boolean {
+		return this.getWorkbenchState() !== WorkbenchState.EMPTY;
+	}
+
 	getCompleteWorkspace(): Promise<IWorkspace> {
 		return Promise.resolve(this.getWorkspace());
 	}

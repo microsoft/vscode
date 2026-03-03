@@ -13,7 +13,8 @@ import { EventEmitter } from 'events';
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter, Versions, isWindows, pathEquals, isMacintosh, isDescendant, relativePathWithNoFallback, Mutable } from './util';
 import { CancellationError, CancellationToken, ConfigurationChangeEvent, LogOutputChannel, Progress, Uri, workspace } from 'vscode';
-import { Commit as ApiCommit, Ref, RefType, Branch, Remote, ForcePushMode, GitErrorCodes, LogOptions, Change, Status, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
+import type { Commit as ApiCommit, Ref, Branch, Remote, LogOptions, Change, CommitOptions, RefQuery as ApiRefQuery, InitOptions, DiffChange, Worktree as ApiWorktree } from './api/git';
+import { RefType, ForcePushMode, GitErrorCodes, Status } from './api/git.constants';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -1073,7 +1074,7 @@ function parseGitChanges(repositoryRoot: string, raw: string): Change[] {
 
 		let uri = originalUri;
 		let renameUri = originalUri;
-		let status = Status.UNTRACKED;
+		let status: Status = Status.UNTRACKED;
 
 		// Copy or Rename status comes with a number (ex: 'R100').
 		// We don't need the number, we use only first character of the status.
@@ -1138,7 +1139,7 @@ function parseGitChangesRaw(repositoryRoot: string, raw: string): DiffChange[] {
 
 			let uri = originalUri;
 			let renameUri = originalUri;
-			let status = Status.UNTRACKED;
+			let status: Status = Status.UNTRACKED;
 
 			switch (change[0]) {
 				case 'A':

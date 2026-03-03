@@ -13,6 +13,7 @@ import { Action2, registerAction2 } from '../../../../platform/actions/common/ac
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
+import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
@@ -22,11 +23,15 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 
 /**
- * Returns the cwd URI for the given session: worktree for non-cloud agent
- * sessions, repository otherwise, or `undefined` when neither is available.
+ * Returns the cwd URI for the given session: worktree or repository path for
+ * background sessions only. Returns `undefined` for non-background sessions
+ * (Cloud, Local, etc.) which have no local worktree, or when no path is available.
  */
 function getSessionCwd(session: IActiveSessionItem | undefined): URI | undefined {
-	return session?.worktree ?? session?.repository;
+	if (session?.providerType !== AgentSessionProviders.Background) {
+		return undefined;
+	}
+	return session.worktree ?? session.repository;
 }
 
 /**
@@ -48,14 +53,14 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@ILogService private readonly _logService: ILogService,
+		@IPathService private readonly _pathService: IPathService,
 	) {
 		super();
 
-		// React to active session worktree/repository path changes
+		// React to active session changes — use worktree/repo for background sessions, home dir otherwise
 		this._register(autorun(reader => {
 			const session = this._sessionsManagementService.activeSession.read(reader);
-			const targetPath = getSessionCwd(session);
-			this._onActivePathChanged(targetPath);
+			this._onActiveSessionChanged(session);
 		}));
 
 		// When a session is archived, close all terminals for its worktree
@@ -103,11 +108,14 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
-	private async _onActivePathChanged(targetPath: URI | undefined): Promise<void> {
-		if (!targetPath) {
+	private async _onActiveSessionChanged(session: IActiveSessionItem | undefined): Promise<void> {
+		if (!session) {
 			return;
 		}
 
+		const sessionCwd = getSessionCwd(session);
+
+		const targetPath = sessionCwd ?? await this._pathService.userHome();
 		const targetFsPath = targetPath.fsPath;
 		if (this._lastTargetFsPath?.toLowerCase() === targetFsPath.toLowerCase()) {
 			return;
@@ -143,7 +151,7 @@ class OpenSessionInTerminalAction extends Action2 {
 			menu: [{
 				id: Menus.TitleBarRight,
 				group: 'navigation',
-				order: 9,
+				order: 11,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
 			}]
 		});

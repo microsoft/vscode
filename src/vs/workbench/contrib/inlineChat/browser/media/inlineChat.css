@@ -6,7 +6,7 @@
 
 .monaco-workbench .inline-chat {
 	color: inherit;
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-large);
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
 	background: var(--vscode-inlineChat-background);
