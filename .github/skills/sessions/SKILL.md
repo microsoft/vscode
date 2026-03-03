@@ -270,7 +270,7 @@ Views and contributions that should only appear in the agent sessions window (no
 
 ### 10.2 Validating Changes
 
-1. Run `npm run compile-check-ts-native` to check for TypeScript compilation errors in the `vs/sessions` layer. This is the fastest way to validate your changes compile correctly.
+1. Run `npm run compile-check-ts-native` to run a repo-wide TypeScript compilation check (including `src/vs/sessions/`). This is a fast way to catch TypeScript errors introduced by your changes.
 2. Run `npm run valid-layers-check` to verify layering rules are not violated.
 3. Run tests under `src/vs/sessions/test/` to confirm nothing is broken.
 
