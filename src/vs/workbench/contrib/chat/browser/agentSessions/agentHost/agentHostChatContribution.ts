@@ -48,6 +48,7 @@ export class CopilotAgentHostContribution extends Disposable implements IWorkben
 			displayName: 'Agent Host - Copilot',
 			description: 'Copilot SDK agent running in a dedicated process',
 			canDelegate: true,
+			requiresCustomModels: true,
 		}));
 
 		// Session list controller
@@ -122,6 +123,7 @@ export class ClaudeAgentHostContribution extends Disposable implements IWorkbenc
 			displayName: 'Agent Host - Claude',
 			description: 'Claude SDK agent running in a dedicated process',
 			canDelegate: true,
+			requiresCustomModels: true,
 		}));
 
 		// Session list controller
