@@ -677,7 +677,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	public override getDefaultKeybindingsContentForOS(os: OperatingSystem): string {
 		const items = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
-		const mapper = os === OS ? this._keyboardMapper : WorkbenchKeybindingService._createKeyboardMapperForOS(os);
+		const mapper = WorkbenchKeybindingService._createKeyboardMapperForOS(os);
 		const resolved = WorkbenchKeybindingService._resolveKeybindingItemsWithMapper(items, mapper);
 		const resolver = new KeybindingResolver(resolved, [], () => { });
 		const defaultKeybindings = resolver.getDefaultKeybindings();
