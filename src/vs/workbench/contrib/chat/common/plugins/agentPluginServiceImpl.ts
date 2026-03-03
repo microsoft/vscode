@@ -777,8 +777,7 @@ export class ConfiguredAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 	 */
 	private _resolvePluginPath(path: string, userHome: string): URI[] {
 		if (path.startsWith('~')) {
-			const expandedPath = untildify(path, userHome);
-			return [URI.file(expandedPath)];
+			path = untildify(path, userHome);
 		}
 
 		// Handle absolute paths
