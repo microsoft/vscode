@@ -115,6 +115,17 @@ declare module 'vscode' {
 		export const customAgents: readonly ChatResource[];
 
 		/**
+		 * An event that fires when the list of {@link instructions instructions} changes.
+		 */
+		export const onDidChangeInstructions: Event<void>;
+
+		/**
+		 * The list of currently available instructions. These are `.instructions.md` files
+		 * from all sources (workspace, user, and extension-provided).
+		 */
+		export const instructions: readonly ChatResource[];
+
+		/**
 		 * An event that fires when the list of {@link skills skills} changes.
 		 */
 		export const onDidChangeSkills: Event<void>;

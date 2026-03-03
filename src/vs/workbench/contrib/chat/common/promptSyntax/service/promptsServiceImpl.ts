@@ -151,6 +151,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly _contributedWhenKeys = new Set<string>();
 	private readonly _contributedWhenClauses = new Map<string, string>();
 	private readonly _onDidContributedWhenChange = this._register(new Emitter<void>());
+	private readonly _onDidChangeInstructions = this._register(new Emitter<void>());
 	private readonly _onDidPluginPromptFilesChange = this._register(new Emitter<void>());
 	private readonly _onDidPluginHooksChange = this._register(new Emitter<void>());
 	private _pluginPromptFilesByType = new Map<PromptsType, readonly IPluginPromptPath[]>();
@@ -416,6 +417,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.cachedCustomAgents.refresh();
 		} else if (type === PromptsType.instructions) {
 			this.cachedFileLocations[PromptsType.instructions] = undefined;
+			this._onDidChangeInstructions.fire();
 		} else if (type === PromptsType.prompt) {
 			this.cachedFileLocations[PromptsType.prompt] = undefined;
 			this.cachedSlashCommands.refresh();
@@ -641,6 +643,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public get onDidChangeCustomAgents(): Event<void> {
 		return this.cachedCustomAgents.onDidChange;
+	}
+
+	public get onDidChangeInstructions(): Event<void> {
+		return Event.any(
+			this.getFileLocatorEvent(PromptsType.instructions),
+			this._onDidContributedWhenChange.event,
+			this._onDidChangeInstructions.event,
+		);
 	}
 
 	public async getCustomAgents(token: CancellationToken, sessionResource?: URI): Promise<readonly ICustomAgent[]> {

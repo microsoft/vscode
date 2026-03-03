@@ -27,7 +27,7 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IMainContext, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentProgressShape, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IInstructionDto, IMainContext, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -489,10 +489,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
 	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
+	private readonly _onDidChangeInstructions = this._register(new Emitter<void>());
+	readonly onDidChangeInstructions = this._onDidChangeInstructions.event;
 	private readonly _onDidChangeSkills = this._register(new Emitter<void>());
 	readonly onDidChangeSkills = this._onDidChangeSkills.event;
 
 	private _customAgents: vscode.ChatResource[] = [];
+	private _instructions: vscode.ChatResource[] = [];
 	private _skills: vscode.ChatResource[] = [];
 
 	private _activeChatPanelSessionResource: URI | undefined;
@@ -508,6 +511,10 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._customAgents;
 	}
 
+	get instructions(): readonly vscode.ChatResource[] {
+		return this._instructions;
+	}
+
 	get skills(): readonly vscode.ChatResource[] {
 		return this._skills;
 	}
@@ -515,6 +522,11 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	$acceptCustomAgents(agents: ICustomAgentDto[]): void {
 		this._customAgents = agents.map(a => Object.freeze({ uri: URI.revive(a.uri) }));
 		this._onDidChangeCustomAgents.fire();
+	}
+
+	$acceptInstructions(instructions: IInstructionDto[]): void {
+		this._instructions = instructions.map(i => Object.freeze({ uri: URI.revive(i.uri) }));
+		this._onDidChangeInstructions.fire();
 	}
 
 	$acceptSkills(skills: ISkillDto[]): void {

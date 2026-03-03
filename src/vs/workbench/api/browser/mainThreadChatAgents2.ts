@@ -39,7 +39,7 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IInstructionDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 
 interface AgentData {
@@ -159,6 +159,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			void this._pushCustomAgents();
 		}));
 
+		// Push instructions to ext host
+		void this._pushInstructions();
+		this._register(this._promptsService.onDidChangeInstructions(() => {
+			void this._pushInstructions();
+		}));
+
 		// Push skills to ext host
 		void this._pushSkills();
 		this._register(this._promptsService.onDidChangeSkills(() => {
@@ -179,6 +185,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			this._proxy.$acceptCustomAgents(dtos);
 		} catch (error) {
 			this._logService.error('[chat] Failed to push custom agents to extension host', error);
+		}
+	}
+
+	private async _pushInstructions(): Promise<void> {
+		try {
+			const instructions = await this._promptsService.getInstructionFiles(CancellationToken.None);
+			const dtos: IInstructionDto[] = instructions.map(instruction => ({ uri: instruction.uri }));
+			this._proxy.$acceptInstructions(dtos);
+		} catch (error) {
+			this._logService.error('[chat] Failed to push instructions to extension host', error);
 		}
 	}
 

@@ -425,6 +425,11 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeCustomAgents: Event<void>;
 
 	/**
+	 * Event that is triggered when the list of instruction files changes.
+	 */
+	readonly onDidChangeInstructions: Event<void>;
+
+	/**
 	 * Finds all available custom agents
 	 * @param sessionResource Optional session resource to scope debug logging to a specific session.
 	 */
