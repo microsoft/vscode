@@ -24,6 +24,7 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
 
@@ -202,7 +203,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
-			return [URI.parse(`vscode-vfs://github/${metadata.owner}/${metadata.name}`), undefined];
+			//TODO: @osortega pass branch in metadata from extension
+			const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
+			const repositoryUri = URI.from({
+				scheme: GITHUB_REMOTE_FILE_SCHEME,
+				authority: 'github',
+				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
+			});
+			return [repositoryUri, undefined];
 		}
 
 		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;

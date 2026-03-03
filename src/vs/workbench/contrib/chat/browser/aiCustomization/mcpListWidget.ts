@@ -28,13 +28,14 @@ import { Delayer } from '../../../../../base/common/async.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { getContextMenuActions } from '../../../../contrib/mcp/browser/mcpServerActions.js';
 import { LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
-import { workspaceIcon, userIcon } from './aiCustomizationIcons.js';
+import { workspaceIcon, userIcon, extensionIcon } from './aiCustomizationIcons.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 
 const $ = DOM.$;
 
-const MCP_ITEM_HEIGHT = 60;
-const MCP_GROUP_HEADER_HEIGHT = 32;
+const MCP_ITEM_HEIGHT = 36;
+const MCP_GROUP_HEADER_HEIGHT = 36;
 const MCP_GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 
 /**
@@ -43,7 +44,7 @@ const MCP_GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 interface IMcpGroupHeaderEntry {
 	readonly type: 'group-header';
 	readonly id: string;
-	readonly scope: LocalMcpServerScope;
+	readonly scope: LocalMcpServerScope | 'builtin';
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly count: number;
@@ -60,7 +61,17 @@ interface IMcpServerItemEntry {
 	readonly server: IWorkbenchMcpServer;
 }
 
-type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry;
+/**
+ * Represents a built-in MCP server provided by an extension.
+ */
+interface IMcpBuiltinItemEntry {
+	readonly type: 'builtin-item';
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+}
+
+type IMcpListEntry = IMcpGroupHeaderEntry | IMcpServerItemEntry | IMcpBuiltinItemEntry;
 
 /**
  * Delegate for the MCP server list.
@@ -76,6 +87,9 @@ class McpServerItemDelegate implements IListVirtualDelegate<IMcpListEntry> {
 	getTemplateId(element: IMcpListEntry): string {
 		if (element.type === 'group-header') {
 			return 'mcpGroupHeader';
+		}
+		if (element.type === 'builtin-item') {
+			return 'mcpServerItem';
 		}
 		const server = element.server;
 		return server.gallery && !server.local ? 'mcpGalleryItem' : 'mcpServerItem';
@@ -151,7 +165,6 @@ class McpGroupHeaderRenderer implements IListRenderer<IMcpGroupHeaderEntry, IMcp
 
 interface IMcpServerItemTemplateData {
 	readonly container: HTMLElement;
-	readonly icon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
@@ -161,18 +174,16 @@ interface IMcpServerItemTemplateData {
 /**
  * Renderer for local MCP server list items.
  */
-class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpServerItemTemplateData> {
+class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry | IMcpBuiltinItemEntry, IMcpServerItemTemplateData> {
 	readonly templateId = 'mcpServerItem';
 
 	constructor(
 		@IMcpService private readonly mcpService: IMcpService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IMcpServerItemTemplateData {
 		container.classList.add('mcp-server-item');
-
-		const icon = DOM.append(container, $('.mcp-server-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.server));
 
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const name = DOM.append(details, $('.mcp-server-name'));
@@ -180,14 +191,33 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpSe
 
 		const status = DOM.append(container, $('.mcp-server-status'));
 
-		return { container, icon, name, description, status, disposables: new DisposableStore() };
+		return { container, name, description, status, disposables: new DisposableStore() };
 	}
 
-	renderElement(element: IMcpServerItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
+	renderElement(element: IMcpServerItemEntry | IMcpBuiltinItemEntry, index: number, templateData: IMcpServerItemTemplateData): void {
 		templateData.disposables.clear();
 
+		if (element.type === 'builtin-item') {
+			templateData.container.classList.add('builtin');
+			templateData.name.textContent = element.label;
+			if (element.description) {
+				templateData.description.textContent = element.description;
+				templateData.description.style.display = '';
+			} else {
+				templateData.description.style.display = 'none';
+			}
+			templateData.status.style.display = 'none';
+			return;
+		}
+
+		templateData.container.classList.remove('builtin');
 		templateData.name.textContent = element.server.label;
-		templateData.description.textContent = element.server.description || '';
+		if (element.server.description) {
+			templateData.description.textContent = element.server.description;
+			templateData.description.style.display = '';
+		} else {
+			templateData.description.style.display = 'none';
+		}
 
 		// Find the server from IMcpService to get connection state
 		const server = this.mcpService.servers.get().find(s => s.definition.id === element.server.id);
@@ -200,6 +230,13 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpSe
 	private updateStatus(statusElement: HTMLElement, state: McpConnectionState.Kind | undefined): void {
 		statusElement.className = 'mcp-server-status';
 
+		if (this.workspaceService.isSessionsWindow) {
+			// In sessions window, CLI manages MCP servers — hide status
+			statusElement.style.display = 'none';
+			return;
+		}
+
+		statusElement.style.display = '';
 		switch (state) {
 			case McpConnectionState.Kind.Running:
 				statusElement.textContent = localize('running', "Running");
@@ -228,7 +265,6 @@ class McpServerItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpSe
 
 interface IMcpGalleryItemTemplateData {
 	readonly container: HTMLElement;
-	readonly icon: HTMLElement;
 	readonly name: HTMLElement;
 	readonly publisher: HTMLElement;
 	readonly description: HTMLElement;
@@ -250,9 +286,6 @@ class McpGalleryItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpG
 	renderTemplate(container: HTMLElement): IMcpGalleryItemTemplateData {
 		container.classList.add('mcp-server-item', 'mcp-gallery-item');
 
-		const icon = DOM.append(container, $('.mcp-server-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.server));
-
 		const details = DOM.append(container, $('.mcp-server-details'));
 		const nameRow = DOM.append(details, $('.mcp-gallery-name-row'));
 		const name = DOM.append(nameRow, $('.mcp-server-name'));
@@ -266,7 +299,7 @@ class McpGalleryItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpG
 		const templateDisposables = new DisposableStore();
 		templateDisposables.add(installButton);
 
-		return { container, icon, name, publisher, description, installButton, elementDisposables: new DisposableStore(), templateDisposables };
+		return { container, name, publisher, description, installButton, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 
 	renderElement(element: IMcpServerItemEntry, _index: number, templateData: IMcpGalleryItemTemplateData): void {
@@ -346,7 +379,7 @@ export class McpListWidget extends Disposable {
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
-	private readonly collapsedGroups = new Set<LocalMcpServerScope>();
+	private readonly collapsedGroups = new Set<string>();
 	private galleryCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedGallerySearch = new Delayer<void>(400);
@@ -477,6 +510,9 @@ export class McpListWidget extends Disposable {
 						if (element.type === 'group-header') {
 							return localize('mcpGroupAriaLabel', "{0}, {1} items, {2}", element.label, element.count, element.collapsed ? localize('collapsed', "collapsed") : localize('expanded', "expanded"));
 						}
+						if (element.type === 'builtin-item') {
+							return element.label;
+						}
 						return element.server.label;
 					},
 					getWidgetAriaLabel() {
@@ -486,7 +522,13 @@ export class McpListWidget extends Disposable {
 				openOnSingleClick: true,
 				identityProvider: {
 					getId(element: IMcpListEntry) {
-						return element.type === 'group-header' ? element.id : element.server.id;
+						if (element.type === 'group-header') {
+							return element.id;
+						}
+						if (element.type === 'builtin-item') {
+							return element.id;
+						}
+						return element.server.id;
 					}
 				}
 			}
@@ -496,9 +538,10 @@ export class McpListWidget extends Disposable {
 			if (e.element) {
 				if (e.element.type === 'group-header') {
 					this.toggleGroup(e.element);
-				} else {
+				} else if (e.element.type === 'server-item') {
 					this._onDidSelectServer.fire(e.element.server);
 				}
+				// builtin-item: no action on click (read-only)
 			}
 		}));
 
@@ -619,8 +662,14 @@ export class McpListWidget extends Disposable {
 			this.filteredServers = [...this.mcpWorkbenchService.local];
 		}
 
+		// Find extension-provided servers not in the local list (e.g. GitHub MCP)
+		const localIds = new Set(this.filteredServers.map(s => s.id));
+		const builtinServers = this.mcpService.servers.get()
+			.filter(s => !localIds.has(s.definition.id))
+			.filter(s => !query || s.definition.label.toLowerCase().includes(query));
+
 		// Show empty state only when there are no servers at all (not when filtered to empty)
-		if (this.filteredServers.length === 0) {
+		if (this.filteredServers.length === 0 && builtinServers.length === 0) {
 			this.emptyContainer.style.display = 'flex';
 			this.listContainer.style.display = 'none';
 
@@ -681,6 +730,32 @@ export class McpListWidget extends Disposable {
 			isFirst = false;
 		}
 
+		// Add built-in / extension-provided servers
+		if (builtinServers.length > 0) {
+			const collapsed = this.collapsedGroups.has('builtin');
+			entries.push({
+				type: 'group-header',
+				id: 'mcp-group-builtin',
+				scope: 'builtin',
+				label: localize('builtInGroup', "Built-in"),
+				icon: extensionIcon,
+				count: builtinServers.length,
+				isFirst,
+				description: localize('builtInGroupDescription', "MCP servers built into VS Code. These are available automatically."),
+				collapsed,
+			});
+			if (!collapsed) {
+				for (const server of builtinServers) {
+					entries.push({
+						type: 'builtin-item',
+						id: `builtin-${server.definition.id}`,
+						label: server.definition.label,
+						description: '',
+					});
+				}
+			}
+		}
+
 		this.displayEntries = entries;
 		this.list.splice(0, this.list.length, this.displayEntries);
 	}
@@ -701,14 +776,28 @@ export class McpListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 100;
+		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 40;
 		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
-		const margins = 12;
-		const listHeight = height - sectionFooterHeight - searchBarHeight - backLinkHeight - margins;
+		const listHeight = height - sectionFooterHeight - searchBarHeight - backLinkHeight;
 
 		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
 		this.list.layout(Math.max(0, listHeight), width);
+
+		// Re-layout once after footer renders if we used a zero fallback
+		if (sectionFooterHeight === 0) {
+			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
+				if (this._store.isDisposed) {
+					return;
+				}
+				const actualFooterHeight = this.sectionHeader.offsetHeight;
+				if (actualFooterHeight > 0) {
+					const correctedHeight = height - actualFooterHeight - searchBarHeight - backLinkHeight;
+					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
+					this.list.layout(Math.max(0, correctedHeight), width);
+				}
+			});
+		}
 	}
 
 	/**

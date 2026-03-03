@@ -99,6 +99,7 @@ suite('ChatTipService', () => {
 	setup(() => {
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		contextKeyService = new MockContextKeyServiceWithRulesMatching();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 1);
 		configurationService = new TestConfigurationService();
 		commandExecutedEmitter = testDisposables.add(new Emitter<ICommandEvent>());
 		storageService = testDisposables.add(new InMemoryStorageService());
@@ -194,6 +195,31 @@ suite('ChatTipService', () => {
 		assert.ok(!executedCommands.includes(FORK_CONVERSATION_TRACKING_COMMAND));
 	});
 
+	test('records init tip usage for submitted /init command', () => {
+		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
+		instantiationService.stub(IChatService, {
+			onDidSubmitRequest: submitRequestEmitter.event,
+			getSession: () => undefined,
+		} as Partial<IChatService> as IChatService);
+
+		createService();
+
+		submitRequestEmitter.fire({
+			chatSessionResource: URI.parse('chat:session-init'),
+			message: {
+				text: '/init',
+				parts: [],
+			},
+		});
+
+		const executedCommands = JSON.parse(storageService.get('chat.tips.executedCommands', StorageScope.APPLICATION) ?? '[]') as string[];
+		assert.ok(executedCommands.includes(CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_PROMPT_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_AGENT_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(CREATE_SKILL_TRACKING_COMMAND));
+		assert.ok(!executedCommands.includes(FORK_CONVERSATION_TRACKING_COMMAND));
+	});
+
 	test('records fork tip usage for submitted /fork command', () => {
 		const submitRequestEmitter = testDisposables.add(new Emitter<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>());
 		instantiationService.stub(IChatService, {
@@ -279,6 +305,7 @@ suite('ChatTipService', () => {
 		assert.strictEqual(firstTip.id, 'tip.switchToAuto');
 
 		const switchedContextKeyService = new MockContextKeyServiceWithRulesMatching();
+		switchedContextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 1);
 		switchedContextKeyService.createKey(ChatContextKeys.chatModelId.key, 'auto');
 		const nextTip = service.getWelcomeTip(switchedContextKeyService);
 
@@ -340,6 +367,30 @@ suite('ChatTipService', () => {
 		assert.strictEqual(tip, undefined, 'Should not return a tip in editor inline chat');
 	});
 
+	test('returns a tip when foreground session count is exactly one', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 1);
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip, 'Should return a tip when exactly one foreground chat session is visible');
+	});
+
+	test('returns undefined when foreground session count is zero', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 0);
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.strictEqual(tip, undefined, 'Should not return a tip when no foreground chat sessions are visible');
+	});
+
+	test('returns undefined when foreground session count is greater than one', () => {
+		const service = createService();
+		contextKeyService.createKey(ChatContextKeys.foregroundSessionCount.key, 2);
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.strictEqual(tip, undefined, 'Should not return a tip when multiple foreground chat sessions are visible');
+	});
+
 	test('dismissTip excludes the dismissed tip and allows a new one', () => {
 		const service = createService();
 
@@ -366,6 +417,20 @@ suite('ChatTipService', () => {
 		if (tip2) {
 			assert.notStrictEqual(tip1.id, tip2.id, 'Dismissed tip should not be returned by next navigation');
 		}
+	});
+
+	test('dismissTipForSession hides tips until resetSession', () => {
+		const service = createService();
+
+		const tip = service.getWelcomeTip(contextKeyService);
+		assert.ok(tip);
+
+		service.dismissTipForSession();
+
+		assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'Tips should stay hidden for the current session after dismissing');
+
+		service.resetSession();
+		assert.ok(service.getWelcomeTip(contextKeyService), 'Tips should reappear after resetting the session');
 	});
 
 	test('navigateToNextTip keeps foundational tips before QoL tips', () => {
@@ -1155,7 +1220,7 @@ suite('ChatTipService', () => {
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, localChatSessionType);
 
-		const expectedCreateTips = new Set(['tip.createInstruction', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
+		const expectedCreateTips = new Set(['tip.init', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
 		const seenCreateTips = new Set<string>();
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
@@ -1177,7 +1242,7 @@ suite('ChatTipService', () => {
 	test('does not show create slash command tips in non-local chat sessions', () => {
 		const service = createService();
 		contextKeyService.createKey(ChatContextKeys.chatSessionType.key, 'cloud');
-		const createTipIds = new Set(['tip.createInstruction', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
+		const createTipIds = new Set(['tip.init', 'tip.createPrompt', 'tip.createAgent', 'tip.createSkill']);
 
 		for (let i = 0; i < 100; i++) {
 			const tip = service.getWelcomeTip(contextKeyService);
@@ -1352,6 +1417,9 @@ suite('ChatTipService', () => {
 			commandExecutedEmitter.fire({ commandId: 'workbench.action.openSettings', args: [] });
 
 			assert.strictEqual(dismissed, true, `${tipId} should dismiss when its settings command is clicked`);
+			assert.strictEqual(service.getWelcomeTip(contextKeyService), undefined, 'Tips should hide for the rest of the session after actioning a tip');
+
+			service.resetSession();
 			assertTipNeverShown(service, tipId);
 		});
 	}

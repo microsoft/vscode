@@ -107,10 +107,20 @@ export interface IChatTipService {
 	dismissTip(): void;
 
 	/**
+	 * Dismisses the current tip and hides all tips for the rest of the current chat session.
+	 */
+	dismissTipForSession(): void;
+
+	/**
 	 * Hides the tip widget without permanently dismissing the tip.
 	 * The tip may be shown again in a future session.
 	 */
 	hideTip(): void;
+
+	/**
+	 * Hides all tips for the rest of the current chat session.
+	 */
+	hideTipsForSession(): void;
 
 	/**
 	 * Disables tips permanently by setting the `chat.tips.enabled` configuration to false.
@@ -185,6 +195,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	private readonly _createSlashCommandsUsageTracker: CreateSlashCommandsUsageTracker;
 	private _yoloModeEverEnabled: boolean;
 	private _thinkingPhrasesEverModified: boolean;
+	private _tipsHiddenForSession = false;
 	private readonly _tipCommandListener = this._register(new MutableDisposable());
 
 	constructor(
@@ -278,12 +289,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		const trimmed = message.text.trimStart();
-		const match = /^\/(create-(?:instructions|prompt|agent|skill)|fork)(?:\s|$)/.exec(trimmed);
+		const match = /^\/(init|create-(?:instructions|prompt|agent|skill)|fork)(?:\s|$)/.exec(trimmed);
 		return match ? this._toSlashCommandTrackingId(match[1]) : undefined;
 	}
 
 	private _toSlashCommandTrackingId(command: string): string | undefined {
 		switch (command) {
+			case 'init':
 			case 'create-instructions':
 				return CREATE_AGENT_INSTRUCTIONS_TRACKING_COMMAND;
 			case 'create-prompt':
@@ -303,6 +315,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
+		this._tipsHiddenForSession = false;
 	}
 
 	dismissTip(): void {
@@ -318,12 +331,18 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._onDidDismissTip.fire();
 	}
 
+	dismissTipForSession(): void {
+		this.dismissTip();
+		this.hideTipsForSession();
+	}
+
 	clearDismissedTips(): void {
 		this._storageService.remove(ChatTipStorageKeys.DismissedTips, StorageScope.APPLICATION);
 		this._storageService.remove(ChatTipStorageKeys.DismissedTips, StorageScope.PROFILE);
 		this._shownTip = undefined;
 		this._tipRequestId = undefined;
 		this._contextKeyService = undefined;
+		this._tipsHiddenForSession = false;
 		this._onDidDismissTip.fire();
 	}
 
@@ -362,6 +381,17 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		this._onDidHideTip.fire();
 	}
 
+	hideTipsForSession(): void {
+		if (this._tipsHiddenForSession) {
+			return;
+		}
+
+		this._tipsHiddenForSession = true;
+		this._shownTip = undefined;
+		this._tipRequestId = undefined;
+		this._onDidHideTip.fire();
+	}
+
 	async disableTips(): Promise<void> {
 		if (this._shownTip) {
 			this._logTipTelemetry(this._shownTip.id, 'disabled');
@@ -385,6 +415,10 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return undefined;
 		}
 
+		if (this._tipsHiddenForSession) {
+			return undefined;
+		}
+
 		// Store the scoped context key service for later navigation calls
 		this._contextKeyService = contextKeyService;
 
@@ -400,6 +434,12 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 		// Only show tips in the main chat panel, not in terminal/editor inline chat
 		if (!this._isChatLocation(contextKeyService)) {
+			return undefined;
+		}
+
+		// Only show tips when there is exactly one foreground chat session visible.
+		const foregroundSessionCount = contextKeyService.getContextKeyValue<number>(ChatContextKeys.foregroundSessionCount.key);
+		if (foregroundSessionCount !== 1) {
 			return undefined;
 		}
 
@@ -802,6 +842,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 				if (dismissCommandSet.has(e.commandId)) {
 					this.dismissTip();
 				}
+				this.hideTipsForSession();
 			}
 		});
 	}

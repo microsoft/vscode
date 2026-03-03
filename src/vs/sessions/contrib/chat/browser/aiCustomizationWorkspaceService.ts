@@ -96,8 +96,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		AICustomizationManagementSection.Instructions,
 		AICustomizationManagementSection.Prompts,
 		AICustomizationManagementSection.Hooks,
-		// TODO: Re-enable MCP Servers once CLI MCP configuration is unified with VS Code
-		// AICustomizationManagementSection.McpServers,
+		AICustomizationManagementSection.McpServers,
 	];
 
 	private static readonly _hooksFilter: IStorageSourceFilter = {

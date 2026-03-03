@@ -26,7 +26,7 @@ import { IListVirtualDelegate, IListRenderer } from '../../../../../base/browser
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { basename, isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { registerColor } from '../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BORDER } from '../../../../common/theme.js';
@@ -47,7 +47,7 @@ import {
 } from './aiCustomizationManagement.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
+import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { INewPromptOptions, NEW_PROMPT_COMMAND_ID, NEW_INSTRUCTIONS_COMMAND_ID, NEW_AGENT_COMMAND_ID, NEW_SKILL_COMMAND_ID } from '../promptSyntax/newPromptFileActions.js';
 import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
@@ -60,12 +60,8 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { COPILOT_CLI_HOOK_TYPE_MAP } from '../../common/promptSyntax/hookSchema.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -194,7 +190,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IFileService private readonly fileService: IFileService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
@@ -583,15 +578,21 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		if (type === PromptsType.hook) {
 			if (this.workspaceService.isSessionsWindow) {
-				// Sessions: directly create a Copilot CLI format hooks file
-				await this.createCopilotCliHookFile();
-			} else {
-				// Core: show the configure hooks quick pick
+				// Sessions: show hooks filtered to Copilot CLI (GitHub Copilot) hook types
 				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
 					openEditor: async (resource) => {
 						await this.showEmbeddedEditor(resource, basename(resource), true);
 						return;
 					},
+					target: Target.GitHubCopilot,
+				});
+			} else {
+				// Core: use the default core behaviour
+				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
+					openEditor: async (resource) => {
+						await this.showEmbeddedEditor(resource, basename(resource), true);
+						return;
+					}
 				});
 			}
 			return;
@@ -621,36 +622,6 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		await this.commandService.executeCommand(commandId, options);
-		void this.listWidget.refresh();
-	}
-
-	/**
-	 * Ensures a Copilot CLI format hooks file exists (.github/hooks/hooks.json),
-	 * then opens the configure hooks quick pick.
-	 */
-	private async createCopilotCliHookFile(): Promise<void> {
-		const projectRoot = this.workspaceService.getActiveProjectRoot();
-		if (!projectRoot) {
-			return;
-		}
-
-		const hookFileUri = joinPath(projectRoot, HOOKS_SOURCE_FOLDER, 'hooks.json');
-
-		// Create the file with all hook events if it doesn't exist
-		try {
-			await this.fileService.stat(hookFileUri);
-		} catch {
-			// Derive hook event names from the schema so new events are automatically included
-			const hooks: Record<string, { type: string; bash: string }[]> = {};
-			for (const eventName of Object.keys(COPILOT_CLI_HOOK_TYPE_MAP)) {
-				hooks[eventName] = [{ type: 'command', bash: '' }];
-			}
-			const hooksContent = { version: 1, hooks };
-			const jsonContent = JSON.stringify(hooksContent, null, '\t');
-			await this.fileService.writeFile(hookFileUri, VSBuffer.fromString(jsonContent));
-		}
-
-		await this.showEmbeddedEditor(hookFileUri, basename(hookFileUri), true);
 		void this.listWidget.refresh();
 	}
 

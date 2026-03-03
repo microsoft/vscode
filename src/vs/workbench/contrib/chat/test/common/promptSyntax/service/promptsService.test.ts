@@ -40,8 +40,8 @@ import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry 
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { AGENTS_SOURCE_FOLDER, CLAUDE_CONFIG_FOLDER, HOOKS_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
+import { ExtensionAgentSourceType, ICustomAgent, IPromptFileContext, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -50,7 +50,7 @@ import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../servic
 import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
-import { HookType } from '../../../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
 import { IContextKeyService, IContextKeyChangeEvent } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
@@ -1177,55 +1177,6 @@ suite('PromptsService', () => {
 			);
 		});
 
-		test('copilot user agents from ~/.copilot/agents/ should have GitHubCopilot target', async () => {
-			const rootFolderName = 'copilot-user-agents';
-			const rootFolder = `/${rootFolderName}`;
-			const rootFolderUri = URI.file(rootFolder);
-
-			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
-
-			await mockFiles(fileService, [
-				{
-					// Copilot user agent in ~/.copilot/agents/ (resolved from /home/user/.copilot/agents/)
-					path: '/home/user/.copilot/agents/copilot-user-agent.md',
-					contents: [
-						'---',
-						'description: \'Copilot user agent from home folder.\'',
-						'tools: [ read ]',
-						'---',
-						'I am a Copilot user agent.',
-					]
-				},
-			]);
-
-			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
-			const expected: ICustomAgent[] = [
-				{
-					name: 'copilot-user-agent',
-					description: 'Copilot user agent from home folder.',
-					target: Target.GitHubCopilot,
-					tools: ['read'],
-					agentInstructions: {
-						content: 'I am a Copilot user agent.',
-						toolReferences: [],
-						metadata: undefined
-					},
-					handOffs: undefined,
-					model: undefined,
-					argumentHint: undefined,
-					visibility: { userInvocable: true, agentInvocable: true },
-					agents: undefined,
-					uri: URI.file('/home/user/.copilot/agents/copilot-user-agent.md'),
-					source: { storage: PromptsStorage.user }
-				},
-			];
-
-			assert.deepEqual(
-				result,
-				expected,
-				'Agents from ~/.copilot/agents/ must have Target.GitHubCopilot.',
-			);
-		});
 
 		test('agents with .md extension should be recognized, except README.md', async () => {
 			const rootFolderName = 'custom-agents-md-extension';

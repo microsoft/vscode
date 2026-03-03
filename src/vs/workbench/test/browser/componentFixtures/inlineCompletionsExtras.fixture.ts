@@ -276,17 +276,21 @@ function createLongDistanceEditor(options: {
 	controller?.model?.get();
 }
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	HintsToolbar: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderHintsToolbar(context),
 	}),
 	HintsToolbarHovered: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderHintsToolbar({ ...context, simulateHover: true }),
 	}),
 	JumpToHint: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: renderJumpToHint,
 	}),
 	LongDistanceHint: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (context) => createLongDistanceEditor({
 			...context,
 			code: LONG_DISTANCE_CODE,

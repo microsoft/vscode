@@ -18,14 +18,14 @@ import { ChatAgentLocation, ChatConfiguration } from '../../../../common/constan
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { PromptHoverProvider } from '../../../../common/promptSyntax/languageProviders/promptHovers.js';
-import { IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { getLanguageIdForPromptsType, PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { getLanguageIdForPromptsType, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 
 suite('PromptHoverProvider', () => {
