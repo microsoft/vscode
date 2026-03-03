@@ -11,6 +11,7 @@ import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../p
 import { $, append, EventHelper } from '../../../../../base/browser/dom.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
+import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -41,6 +42,7 @@ export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOption
 	readonly filter: IAgentSessionsFilter;
 	readonly source: string;
 	readonly disableHover?: boolean;
+	readonly enableApprovalRow?: boolean;
 
 	getHoverPosition(): HoverPosition;
 	trackActiveEditorSession(): boolean;
@@ -163,13 +165,15 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		};
 
 		const sorter = new AgentSessionsSorter(this.options);
+		const approvalModel = this.options.enableApprovalRow ? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel)) : undefined;
+		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, this.options, approvalModel));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			this.sessionsContainer,
-			new AgentSessionsListDelegate(),
+			new AgentSessionsListDelegate(approvalModel),
 			new AgentSessionsCompressionDelegate(),
 			[
-				this._register(this.instantiationService.createInstance(AgentSessionRenderer, this.options)),
+				sessionRenderer,
 				this.instantiationService.createInstance(AgentSessionSectionRenderer),
 			],
 			new AgentSessionsDataSource(this.options.filter, sorter),
@@ -190,6 +194,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore>;
 
 		ChatContextKeys.agentSessionsViewerFocused.bindTo(list.contextKeyService);
+
+		this._register(sessionRenderer.onDidChangeItemHeight(session => {
+			if (list.hasNode(session)) {
+				list.updateElementHeight(session, undefined);
+			}
+		}));
 
 		const model = this.agentSessionsService.model;
 
