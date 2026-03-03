@@ -15,6 +15,9 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { IChatDebugEvent, IChatDebugService } from '../common/chatDebugService.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
@@ -46,6 +49,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IChatService chatService: IChatService,
+		@IChatDebugService chatDebugService: IChatDebugService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
@@ -116,6 +121,28 @@ export class ChatSlashCommandsContribution extends Disposable {
 				await commandService.executeCommand('github.copilot.debug.showChatLogView');
 			}));
 		}
+		this._store.add(slashCommandService.registerSlashCommand({
+			command: 'troubleshoot',
+			detail: nls.localize('troubleshoot', "Troubleshoot the current conversation with debug events"),
+			sortText: 'z3_troubleshoot',
+			executeImmediately: false,
+			locations: [ChatAgentLocation.Chat],
+		}, async (_prompt, progress, _history, _location, sessionResource) => {
+			ChatContextKeys.troubleshootActive.bindTo(contextKeyService).set(true);
+			const events = chatDebugService.getEvents(sessionResource);
+			if (events.length === 0) {
+				progress.report({ content: new MarkdownString(nls.localize('troubleshoot.noEvents', "No debug events found for this conversation.")), kind: 'markdownContent' });
+				await timeout(200);
+				return;
+			}
+
+			progress.report({ content: new MarkdownString(nls.localize('troubleshoot.header', "## Debug Events for This Conversation\n\nFound {0} debug event(s). Use the `resolveDebugEventDetails` tool in follow-up messages to inspect specific events by ID.\n", events.length)), kind: 'markdownContent' });
+
+			const summary = formatDebugEventsForContext(events);
+			progress.report({ content: new MarkdownString('```\n' + summary + '\n```'), kind: 'markdownContent' });
+
+			await timeout(200);
+		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'agents',
 			detail: nls.localize('agents', "Configure custom agents"),
@@ -339,4 +366,33 @@ export class ChatSlashCommandsContribution extends Disposable {
 			await timeout(200);
 		}));
 	}
+}
+
+function formatDebugEventsForContext(events: readonly IChatDebugEvent[]): string {
+	const lines: string[] = [];
+	for (const event of events) {
+		const ts = event.created.toISOString();
+		const id = event.id ? ` [id=${event.id}]` : '';
+		switch (event.kind) {
+			case 'generic':
+				lines.push(`[${ts}]${id} ${event.level >= 3 ? 'ERROR' : event.level >= 2 ? 'WARN' : 'INFO'}: ${event.name}${event.details ? ' - ' + event.details : ''}${event.category ? ' (category: ' + event.category + ')' : ''}`);
+				break;
+			case 'toolCall':
+				lines.push(`[${ts}]${id} TOOL_CALL: ${event.toolName}${event.result ? ' result=' + event.result : ''}${event.durationInMillis !== undefined ? ' duration=' + event.durationInMillis + 'ms' : ''}`);
+				break;
+			case 'modelTurn':
+				lines.push(`[${ts}]${id} MODEL_TURN: ${event.requestName ?? 'unknown'}${event.model ? ' model=' + event.model : ''}${event.inputTokens !== undefined ? ' tokens(in=' + event.inputTokens + ',out=' + (event.outputTokens ?? '?') + ')' : ''}${event.durationInMillis !== undefined ? ' duration=' + event.durationInMillis + 'ms' : ''}`);
+				break;
+			case 'subagentInvocation':
+				lines.push(`[${ts}]${id} SUBAGENT: ${event.agentName}${event.status ? ' status=' + event.status : ''}${event.durationInMillis !== undefined ? ' duration=' + event.durationInMillis + 'ms' : ''}`);
+				break;
+			case 'userMessage':
+				lines.push(`[${ts}]${id} USER_MESSAGE: ${event.message.substring(0, 200)}${event.message.length > 200 ? '...' : ''} (${event.sections.length} sections)`);
+				break;
+			case 'agentResponse':
+				lines.push(`[${ts}]${id} AGENT_RESPONSE: ${event.message.substring(0, 200)}${event.message.length > 200 ? '...' : ''} (${event.sections.length} sections)`);
+				break;
+		}
+	}
+	return lines.join('\n');
 }
