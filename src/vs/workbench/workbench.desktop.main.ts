@@ -84,6 +84,7 @@ import './services/extensions/electron-sandbox/nativeExtensionService.js';
 import '../platform/userDataProfile/electron-sandbox/userDataProfileStorageService.js';
 import './services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-sandbox/extensionsProfileScannerService.js';
+import './services/previewCapture/electron-sandbox/previewCaptureService.js';
 
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
@@ -155,6 +156,12 @@ import './contrib/webview/electron-sandbox/webview.contribution.js';
 
 // Splash
 import './contrib/splash/electron-sandbox/splash.contribution.js';
+
+// Preview Capture (Autothropic)
+import './contrib/previewCapture/electron-sandbox/previewCapture.contribution.js';
+
+// Autothropic Layout (startup layout configuration)
+import './contrib/autothropic/browser/autothropic.contribution.js';
 
 // Local History
 import './contrib/localHistory/electron-sandbox/localHistory.contribution.js';

@@ -33,4 +33,8 @@
 **/test/unit/assert.js
 **/test/automation/out/**
 **/typings/**
+**/extensions/autothropic-agents/**
+**/extensions/autothropic-preview/**
+**/extensions/autothropic-graph/**
+**/extensions/theme-autothropic/**
 !.vscode

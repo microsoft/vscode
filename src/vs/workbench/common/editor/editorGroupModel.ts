@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from '../../../base/common/event.js';
-import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, IMatchEditorOptions, GroupModelChangeKind } from '../editor.js';
+import { IEditorFactoryRegistry, GroupIdentifier, EditorsOrder, EditorExtensions, IUntypedEditorInput, SideBySideEditor, EditorCloseContext, IMatchEditorOptions, GroupModelChangeKind, EditorInputCapabilities } from '../editor.js';
 import { EditorInput } from './editorInput.js';
 import { SideBySideEditorInput } from './sideBySideEditorInput.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
@@ -526,6 +526,11 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	}
 
 	closeEditor(candidate: EditorInput, context = EditorCloseContext.UNKNOWN, openNext = true): IEditorCloseResult | undefined {
+		// Permanent editors (e.g., Live Preview) cannot be closed
+		if (candidate.hasCapability(EditorInputCapabilities.Uncloseable)) {
+			return undefined;
+		}
+
 		const closeResult = this.doCloseEditor(candidate, context, openNext);
 
 		if (closeResult) {

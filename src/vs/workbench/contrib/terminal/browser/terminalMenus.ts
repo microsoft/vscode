@@ -8,6 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IMenu, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
@@ -679,14 +680,23 @@ export function setupTerminalMenus(): void {
 	});
 }
 
-export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], terminalService: ITerminalService, dropdownMenu: IMenu): {
+export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], terminalService: ITerminalService, dropdownMenu: IMenu, commandService?: ICommandService): {
 	dropdownAction: IAction;
 	dropdownMenuActions: IAction[];
 	className: string;
 	dropdownIcon?: string;
 } {
-	let dropdownActions: IAction[] = [];
-	let submenuActions: IAction[] = [];
+	const dropdownActions: IAction[] = [];
+	const submenuActions: IAction[] = [];
+
+	// Autothropic: "New Agent" is the primary entry
+	if (commandService) {
+		dropdownActions.push(new Action('autothropic.newAgent', localize('newAgent', "New Agent"), 'codicon-robot', true, async () => {
+			await commandService.executeCommand('autothropic.agents.spawn');
+		}));
+		dropdownActions.push(new Separator());
+	}
+
 	profiles = profiles.filter(e => !e.isAutoDetected);
 	const splitLocation = (location === TerminalLocation.Editor || (typeof location === 'object' && 'viewColumn' in location && location.viewColumn === ACTIVE_GROUP)) ? { viewColumn: SIDE_GROUP } : { splitActiveTerminal: true };
 	for (const p of profiles) {
@@ -694,7 +704,7 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		const options: ICreateTerminalOptions = { config: p, location };
 		const splitOptions: ICreateTerminalOptions = { config: p, location: splitLocation };
 		const sanitizedProfileName = p.profileName.replace(/[\n\r\t]/g, '');
-		dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, isDefault ? localize('defaultTerminalProfile', "{0} (Default)", sanitizedProfileName) : sanitizedProfileName, undefined, true, async () => {
+		dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, sanitizedProfileName, undefined, true, async () => {
 			const instance = await terminalService.createTerminal(options);
 			terminalService.setActiveInstance(instance);
 			await terminalService.focusActiveInstance();
@@ -727,24 +737,12 @@ export function getTerminalActionBarArgs(location: ITerminalLocationOptions, pro
 		})));
 	}
 
-	const defaultProfileAction = dropdownActions.find(d => d.label.endsWith('(Default)'));
-	if (defaultProfileAction) {
-		dropdownActions = dropdownActions.filter(d => d !== defaultProfileAction).sort((a, b) => a.label.localeCompare(b.label));
-		dropdownActions.unshift(defaultProfileAction);
-	}
-
-	if (dropdownActions.length > 0) {
+	if (submenuActions.length > 0) {
 		dropdownActions.push(new SubmenuAction('split.profile', localize('splitTerminal', 'Split Terminal'), submenuActions));
 		dropdownActions.push(new Separator());
 	}
 	const actions = dropdownMenu.getActions();
 	dropdownActions.push(...Separator.join(...actions.map(a => a[1])));
-
-	const defaultSubmenuProfileAction = submenuActions.find(d => d.label.endsWith('(Default)'));
-	if (defaultSubmenuProfileAction) {
-		submenuActions = submenuActions.filter(d => d !== defaultSubmenuProfileAction).sort((a, b) => a.label.localeCompare(b.label));
-		submenuActions.unshift(defaultSubmenuProfileAction);
-	}
 
 	const dropdownAction = new Action('refresh profiles', localize('launchProfile', 'Launch Profile...'), 'codicon-chevron-down', true);
 	return { dropdownAction, dropdownMenuActions: dropdownActions, className: `terminal-tab-actions-${terminalService.resolveLocation(location)}` };

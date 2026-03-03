@@ -1544,6 +1544,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return false;
 		}
 
+		// Permanent editors cannot be closed
+		if (editor.hasCapability(EditorInputCapabilities.Uncloseable)) {
+			return false;
+		}
+
 		// Check for confirmation and veto
 		const veto = await this.handleCloseConfirmation([editor]);
 		if (veto) {
@@ -1885,7 +1890,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private doGetEditorsToClose(args: EditorInput[] | ICloseEditorsFilter): EditorInput[] {
 		if (Array.isArray(args)) {
-			return args;
+			return args.filter(e => !e.hasCapability(EditorInputCapabilities.Uncloseable));
 		}
 
 		const filter = args;
@@ -1976,6 +1981,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (options?.excludeConfirming) {
 			editors = editors.filter(editor => !this.shouldConfirmClose(editor));
 		}
+
+		// Exclude permanent (Uncloseable) editors from close-all operations
+		editors = editors.filter(editor => !editor.hasCapability(EditorInputCapabilities.Uncloseable));
 
 		// Close all inactive editors first
 		const editorsToClose: EditorInput[] = [];

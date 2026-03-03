@@ -1,0 +1,80 @@
+{
+  "name": "autothropic-graph",
+  "displayName": "Autothropic Agent Graph",
+  "description": "Visual graph view of multi-agent Claude Code sessions",
+  "version": "1.0.0",
+  "publisher": "autothropic",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension",
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "autothropic-graph-panel",
+          "title": "Graph",
+          "icon": "media/graph-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "autothropic-graph-panel": [
+        {
+          "id": "autothropic.graphView",
+          "name": "Agent Graph",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "autothropic.graph.open",
+        "title": "Autothropic: Open Agent Graph",
+        "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "autothropic.graph.fitView",
+        "title": "Autothropic: Fit Graph to View"
+      },
+      {
+        "command": "autothropic.graph.addAgent",
+        "title": "Autothropic: Add Agent to Graph"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "autothropic.graph.open"
+        },
+        {
+          "command": "autothropic.graph.fitView"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "autothropic.graph.open",
+          "when": "view == autothropic.graphView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "autothropic.graph.open",
+        "key": "ctrl+shift+g",
+        "mac": "cmd+shift+g"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.35"
+  }
+}

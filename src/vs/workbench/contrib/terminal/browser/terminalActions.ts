@@ -41,17 +41,9 @@ import { IHistoryService } from '../../../services/history/common/history.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
-import { isAbsolute } from '../../../../base/common/path.js';
-import { AbstractVariableResolverService } from '../../../services/configurationResolver/common/variableResolver.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getIconId, getColorClass, getUriClasses } from './terminalIcon.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { dirname } from '../../../../base/common/resources.js';
-import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
-import { FileKind } from '../../../../platform/files/common/files.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -1038,6 +1030,25 @@ export function registerTerminalActions() {
 		}
 	});
 
+	// Internal: rename a terminal by its process ID (for extensions that track PID)
+	registerTerminalAction({
+		id: '_workbench.action.terminal.renameByPid' as any,
+		title: localize2('workbench.action.terminal.renameByPid', 'Rename Terminal by PID'),
+		f1: false,
+		run: async (c, _accessor, args) => {
+			const pid = isObject(args) && 'pid' in args ? (args as any).pid as number : undefined;
+			const name = isObject(args) && 'name' in args ? (args as any).name as string : undefined;
+			if (!pid || !name) { return; }
+			for (const instance of c.service.instances) {
+				const iPid = await instance.processId;
+				if (iPid === pid) {
+					instance.rename(name);
+					return;
+				}
+			}
+		}
+	});
+
 	registerActiveInstanceAction({
 		id: TerminalCommandId.Relaunch,
 		title: localize2('workbench.action.terminal.relaunch', 'Relaunch Active Terminal'),
@@ -1206,7 +1217,7 @@ export function registerTerminalActions() {
 
 	registerTerminalAction({
 		id: TerminalCommandId.New,
-		title: localize2('workbench.action.terminal.new', 'Create New Terminal'),
+		title: localize2('workbench.action.terminal.new', 'Spawn New Agent'),
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
 		icon: newTerminalIcon,
 		keybinding: {
@@ -1214,41 +1225,17 @@ export function registerTerminalActions() {
 			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Backquote },
 			weight: KeybindingWeight.WorkbenchContrib
 		},
-		run: async (c, accessor, args) => {
-			let eventOrOptions = isObject(args) ? args as MouseEvent | ICreateTerminalOptions : undefined;
-			const workspaceContextService = accessor.get(IWorkspaceContextService);
+		run: async (c, accessor) => {
+			// Autothropic: Primary "+" action spawns a new agent.
+			// Shell terminals are still available in the dropdown.
 			const commandService = accessor.get(ICommandService);
-			const folders = workspaceContextService.getWorkspace().folders;
-			if (eventOrOptions && isMouseEvent(eventOrOptions) && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
-				await c.service.createTerminal({ location: { splitActiveTerminal: true } });
-				return;
-			}
-
-			if (c.service.isProcessSupportRegistered) {
-				eventOrOptions = !eventOrOptions || isMouseEvent(eventOrOptions) ? {} : eventOrOptions;
-
-				let instance: ITerminalInstance | undefined;
-				if (folders.length <= 1) {
-					// Allow terminal service to handle the path when there is only a
-					// single root
-					instance = await c.service.createTerminal(eventOrOptions);
-				} else {
-					const cwd = (await pickTerminalCwd(accessor))?.cwd;
-					if (!cwd) {
-						// Don't create the instance if the workspace picker was canceled
-						return;
-					}
-					eventOrOptions.cwd = cwd;
-					instance = await c.service.createTerminal(eventOrOptions);
-				}
+			try {
+				await commandService.executeCommand('autothropic.agents.spawn');
+			} catch {
+				// Fallback: if agent extension isn't loaded, create a regular terminal
+				const instance = await c.service.createTerminal({});
 				c.service.setActiveInstance(instance);
 				await focusActiveTerminal(instance, c);
-			} else {
-				if (c.profileService.contributedProfiles.length > 0) {
-					commandService.executeCommand(TerminalCommandId.NewWithProfile);
-				} else {
-					commandService.executeCommand(TerminalCommandId.Toggle);
-				}
 			}
 		}
 	});
@@ -1625,64 +1612,6 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 
 function getResourceOrActiveInstance(c: ITerminalServicesCollection, resource: unknown): ITerminalInstance | undefined {
 	return c.service.getInstanceFromResource(toOptionalUri(resource)) || c.service.activeInstance;
-}
-
-async function pickTerminalCwd(accessor: ServicesAccessor, cancel?: CancellationToken): Promise<WorkspaceFolderCwdPair | undefined> {
-	const quickInputService = accessor.get(IQuickInputService);
-	const labelService = accessor.get(ILabelService);
-	const contextService = accessor.get(IWorkspaceContextService);
-	const modelService = accessor.get(IModelService);
-	const languageService = accessor.get(ILanguageService);
-	const configurationService = accessor.get(IConfigurationService);
-	const configurationResolverService = accessor.get(IConfigurationResolverService);
-
-	const folders = contextService.getWorkspace().folders;
-	if (!folders.length) {
-		return;
-	}
-
-	const folderCwdPairs = await Promise.all(folders.map(e => resolveWorkspaceFolderCwd(e, configurationService, configurationResolverService)));
-	const shrinkedPairs = shrinkWorkspaceFolderCwdPairs(folderCwdPairs);
-
-	if (shrinkedPairs.length === 1) {
-		return shrinkedPairs[0];
-	}
-
-	type Item = IQuickPickItem & { pair: WorkspaceFolderCwdPair };
-	const folderPicks: Item[] = shrinkedPairs.map(pair => {
-		const label = pair.folder.name;
-		const description = pair.isOverridden
-			? localize('workbench.action.terminal.overriddenCwdDescription', "(Overriden) {0}", labelService.getUriLabel(pair.cwd, { relative: !pair.isAbsolute }))
-			: labelService.getUriLabel(dirname(pair.cwd), { relative: true });
-
-		return {
-			label,
-			description: description !== label ? description : undefined,
-			pair: pair,
-			iconClasses: getIconClasses(modelService, languageService, pair.cwd, FileKind.ROOT_FOLDER)
-		};
-	});
-	const options: IPickOptions<Item> = {
-		placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal"),
-		matchOnDescription: true,
-		canPickMany: false,
-	};
-
-	const token: CancellationToken = cancel || CancellationToken.None;
-	const pick = await quickInputService.pick<Item>(folderPicks, options, token);
-	return pick?.pair;
-}
-
-async function resolveWorkspaceFolderCwd(folder: IWorkspaceFolder, configurationService: IConfigurationService, configurationResolverService: IConfigurationResolverService): Promise<WorkspaceFolderCwdPair> {
-	const cwdConfig = configurationService.getValue(TerminalSettingId.Cwd, { resource: folder.uri });
-	if (!isString(cwdConfig) || cwdConfig.length === 0) {
-		return { folder, cwd: folder.uri, isAbsolute: false, isOverridden: false };
-	}
-
-	const resolvedCwdConfig = await configurationResolverService.resolveAsync(folder, cwdConfig);
-	return isAbsolute(resolvedCwdConfig) || resolvedCwdConfig.startsWith(AbstractVariableResolverService.VARIABLE_LHS)
-		? { folder, isAbsolute: true, isOverridden: true, cwd: URI.from({ ...folder.uri, path: resolvedCwdConfig }) }
-		: { folder, isAbsolute: false, isOverridden: true, cwd: URI.joinPath(folder.uri, resolvedCwdConfig) };
 }
 
 /**

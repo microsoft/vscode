@@ -1,9 +1,0 @@
-[
-	"class", "function.member.declaration",
-			"parameterType.declaration",  "type", "parameterType.declaration", "type",
-				"variable.declaration", "parameterNames",
-		"function.member.declaration",
-	"interface.declaration",
-		"function.member.declaration", "function.notInLegend"
-
-]

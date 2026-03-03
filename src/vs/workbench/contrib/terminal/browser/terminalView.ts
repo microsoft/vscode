@@ -84,7 +84,8 @@ export class TerminalViewPane extends ViewPane {
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(options, keybindingService, _contextMenuService, _configurationService, _contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService, hoverService);
 		this._register(this._terminalService.onDidRegisterProcessSupport(() => {
@@ -275,7 +276,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 			case TerminalCommandId.New: {
 				if (action instanceof MenuItemAction) {
-					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+					const actions = getTerminalActionBarArgs(TerminalLocation.Panel, this._terminalProfileService.availableProfiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._commandService);
 					this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
 					this._newDropdown.value = new DropdownWithPrimaryActionViewItem(action, actions.dropdownAction, actions.dropdownMenuActions, actions.className, { hoverDelegate: options.hoverDelegate }, this._contextMenuService, this._keybindingService, this._notificationService, this._contextKeyService, this._themeService, this._accessibilityService);
 					this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
@@ -312,7 +313,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
-		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu);
+		const actions = getTerminalActionBarArgs(TerminalLocation.Panel, profiles, this._getDefaultProfileName(), this._terminalProfileService.contributedProfiles, this._terminalService, this._dropdownMenu, this._commandService);
 		this._registerDisposableActions(actions.dropdownAction, actions.dropdownMenuActions);
 		this._newDropdown.value?.update(actions.dropdownAction, actions.dropdownMenuActions);
 	}

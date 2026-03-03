@@ -1,0 +1,20 @@
+{
+  "name": "theme-autothropic",
+  "displayName": "Autothropic Dark",
+  "description": "The default dark theme for Autothropic IDE",
+  "categories": ["Themes"],
+  "version": "1.0.0",
+  "publisher": "autothropic",
+  "license": "MIT",
+  "engines": { "vscode": "*" },
+  "contributes": {
+    "themes": [
+      {
+        "id": "Autothropic Dark",
+        "label": "Autothropic Dark",
+        "uiTheme": "vs-dark",
+        "path": "./themes/autothropic-dark.json"
+      }
+    ]
+  }
+}

@@ -78,6 +78,8 @@ import { LinuxUpdateService } from '../../platform/update/electron-main/updateSe
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
 import { Win32UpdateService } from '../../platform/update/electron-main/updateService.win32.js';
 import { IOpenURLOptions, IURLService } from '../../platform/url/common/url.js';
+import { IPreviewCaptureService } from '../../platform/previewCapture/common/previewCapture.js';
+import { PreviewCaptureMainService } from '../../platform/previewCapture/electron-main/previewCaptureMainService.js';
 import { URLHandlerChannelClient, URLHandlerRouter } from '../../platform/url/common/urlIpc.js';
 import { NativeURLService } from '../../platform/url/common/urlService.js';
 import { ElectronURLListener } from '../../platform/url/electron-main/electronUrlListener.js';
@@ -1043,6 +1045,9 @@ export class CodeApplication extends Disposable {
 		// Webview Manager
 		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 
+		// Preview Capture (Autothropic)
+		services.set(IPreviewCaptureService, new SyncDescriptor(PreviewCaptureMainService, undefined, true));
+
 		// Menubar
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
@@ -1198,6 +1203,10 @@ export class CodeApplication extends Disposable {
 		// Webview Manager
 		const webviewChannel = ProxyChannel.fromService(accessor.get(IWebviewManagerService), disposables);
 		mainProcessElectronServer.registerChannel('webview', webviewChannel);
+
+		// Preview Capture (Autothropic)
+		const previewCaptureChannel = ProxyChannel.fromService(accessor.get(IPreviewCaptureService), disposables);
+		mainProcessElectronServer.registerChannel('previewCapture', previewCaptureChannel);
 
 		// Storage (main & shared process)
 		const storageChannel = disposables.add((new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService))));

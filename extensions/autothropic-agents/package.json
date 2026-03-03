@@ -1,0 +1,196 @@
+{
+  "name": "autothropic-agents",
+  "displayName": "Autothropic Agent Manager",
+  "description": "Multi-agent Claude Code orchestration, HITL approval, and session management",
+  "version": "1.0.0",
+  "publisher": "autothropic",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "enabledApiProposals": [
+    "terminalDataWriteEvent"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "autothropic-agents",
+          "title": "Autothropic",
+          "icon": "media/autothropic-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "autothropic-agents": [
+        {
+          "id": "autothropic.sessions",
+          "name": "Sessions"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "autothropic.agents.spawn",
+        "title": "Autothropic: Spawn New Agent",
+        "icon": "$(add)"
+      },
+      {
+        "command": "autothropic.agents.pauseAll",
+        "title": "Autothropic: Pause All Agents",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "autothropic.agents.resumeAll",
+        "title": "Autothropic: Resume All Agents",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "autothropic.agents.broadcast",
+        "title": "Autothropic: Broadcast to All Agents",
+        "icon": "$(broadcast)"
+      },
+      {
+        "command": "autothropic.agents.rename",
+        "title": "Rename Agent"
+      },
+      {
+        "command": "autothropic.agents.setRole",
+        "title": "Set Role / System Prompt"
+      },
+      {
+        "command": "autothropic.agents.setColor",
+        "title": "Set Color"
+      },
+      {
+        "command": "autothropic.agents.toggleHITL",
+        "title": "Toggle HITL"
+      },
+      {
+        "command": "autothropic.agents.restart",
+        "title": "Restart Agent",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "autothropic.agents.delete",
+        "title": "Delete Agent",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "autothropic.goal.start",
+        "title": "Autothropic: Start Goal",
+        "icon": "$(rocket)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "autothropic.agents.spawn"
+        },
+        {
+          "command": "autothropic.agents.pauseAll"
+        },
+        {
+          "command": "autothropic.agents.resumeAll"
+        },
+        {
+          "command": "autothropic.agents.broadcast"
+        },
+        {
+          "command": "autothropic.goal.start"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "autothropic.agents.spawn",
+          "when": "view == autothropic.sessions",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "autothropic.agents.restart",
+          "when": "view == autothropic.sessions && viewItem == agent-exited",
+          "group": "inline"
+        },
+        {
+          "command": "autothropic.agents.rename",
+          "when": "view == autothropic.sessions"
+        },
+        {
+          "command": "autothropic.agents.setRole",
+          "when": "view == autothropic.sessions"
+        },
+        {
+          "command": "autothropic.agents.setColor",
+          "when": "view == autothropic.sessions"
+        },
+        {
+          "command": "autothropic.agents.toggleHITL",
+          "when": "view == autothropic.sessions"
+        },
+        {
+          "command": "autothropic.agents.delete",
+          "when": "view == autothropic.sessions"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "autothropic.agents.spawn",
+        "key": "ctrl+shift+n",
+        "mac": "cmd+shift+n"
+      },
+      {
+        "command": "autothropic.goal.start",
+        "key": "ctrl+shift+g",
+        "mac": "cmd+shift+g"
+      }
+    ],
+    "configuration": {
+      "title": "Autothropic",
+      "properties": {
+        "autothropic.agents.maxConcurrent": {
+          "type": "number",
+          "default": 5,
+          "description": "Maximum number of concurrent Claude Code agents"
+        },
+        "autothropic.agents.autoOrchestrate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically orchestrate agent task distribution"
+        },
+        "autothropic.agents.sourceCooldownMs": {
+          "type": "number",
+          "default": 5000,
+          "description": "Per-source cooldown in milliseconds between forwards"
+        },
+        "autothropic.agents.targetCooldownMs": {
+          "type": "number",
+          "default": 10000,
+          "description": "Per-target cooldown in milliseconds between receiving forwards"
+        },
+        "autothropic.agents.maxForwardsPerMinute": {
+          "type": "number",
+          "default": 10,
+          "description": "Maximum number of forwards in a 60-second window"
+        },
+        "autothropic.agents.autoSpawn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically spawn a Claude agent when a workspace is opened"
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.35"
+  }
+}

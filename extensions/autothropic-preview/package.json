@@ -1,0 +1,77 @@
+{
+  "name": "autothropic-preview",
+  "displayName": "Autothropic Live Preview",
+  "description": "Device-emulated live preview panel with screenshot and clip recording",
+  "version": "1.0.0",
+  "publisher": "autothropic",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "enabledApiProposals": [
+    "terminalDataWriteEvent"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension",
+  "contributes": {
+    "commands": [
+      {
+        "command": "autothropic.preview.open",
+        "title": "Autothropic: Open Live Preview",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "autothropic.preview.refresh",
+        "title": "Autothropic: Refresh Preview"
+      },
+      {
+        "command": "autothropic.preview.screenshot",
+        "title": "Autothropic: Screenshot Preview",
+        "icon": "$(device-camera)"
+      },
+      {
+        "command": "autothropic.preview.startRecording",
+        "title": "Autothropic: Start Clip Recording"
+      },
+      {
+        "command": "autothropic.preview.stopRecording",
+        "title": "Autothropic: Stop Clip Recording"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "autothropic.preview.open"
+        },
+        {
+          "command": "autothropic.preview.refresh"
+        },
+        {
+          "command": "autothropic.preview.screenshot"
+        },
+        {
+          "command": "autothropic.preview.startRecording"
+        },
+        {
+          "command": "autothropic.preview.stopRecording"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "autothropic.preview.screenshot",
+        "key": "ctrl+shift+p",
+        "mac": "cmd+shift+p",
+        "when": "activeWebviewPanelId == 'autothropic.preview'"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.35"
+  }
+}

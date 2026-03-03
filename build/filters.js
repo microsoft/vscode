@@ -59,6 +59,12 @@ module.exports.unicodeFilter = [
 
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
+
+	// Autothropic custom extensions
+	'!extensions/autothropic-agents/**',
+	'!extensions/autothropic-preview/**',
+	'!extensions/autothropic-graph/**',
+	'!extensions/theme-autothropic/**',
 ];
 
 module.exports.indentationFilter = [
@@ -134,6 +140,12 @@ module.exports.indentationFilter = [
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/*.js',
 	'!extensions/simple-browser/media/*.js',
+
+	// Autothropic custom extensions
+	'!extensions/autothropic-agents/**',
+	'!extensions/autothropic-preview/**',
+	'!extensions/autothropic-graph/**',
+	'!extensions/theme-autothropic/**',
 ];
 
 module.exports.copyrightFilter = [
@@ -174,6 +186,12 @@ module.exports.copyrightFilter = [
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/editor/test/node/classification/typescript-test.ts',
+
+	// Autothropic custom extensions
+	'!extensions/autothropic-agents/**',
+	'!extensions/autothropic-preview/**',
+	'!extensions/autothropic-graph/**',
+	'!extensions/theme-autothropic/**',
 ];
 
 module.exports.tsFormattingFilter = [

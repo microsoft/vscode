@@ -32,7 +32,11 @@ export class WebviewInput extends EditorInput {
 	}
 
 	public override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
+		let caps = EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.CanDropIntoEditor;
+		if (this.viewType === 'mainThreadWebview-autothropic.preview') {
+			caps |= EditorInputCapabilities.Uncloseable;
+		}
+		return caps;
 	}
 
 	private readonly _resourceId = generateUuid();

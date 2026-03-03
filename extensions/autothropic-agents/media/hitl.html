@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0a;
+      color: #a3a3a3;
+      font-family: system-ui, -apple-system, sans-serif;
+      padding: 20px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .arrow { color: #737373; font-size: 14px; }
+    .summary {
+      background: #141414;
+      border: 1px solid #262626;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      margin-bottom: 16px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      white-space: pre-wrap;
+    }
+    .actions { display: flex; gap: 8px; margin-bottom: 16px; }
+    button {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid #262626;
+      background: #141414;
+      color: #a3a3a3;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button:hover { background: #1a1a1a; }
+    .btn-approve { background: #16a34a; color: white; border-color: #16a34a; }
+    .btn-approve:hover { background: #15803d; }
+    .btn-reject { background: #dc2626; color: white; border-color: #dc2626; }
+    .btn-reject:hover { background: #b91c1c; }
+    textarea {
+      width: 100%;
+      background: #141414;
+      border: 1px solid #262626;
+      border-radius: 6px;
+      color: #a3a3a3;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 12px;
+      resize: vertical;
+      min-height: 60px;
+    }
+    textarea:focus { outline: none; border-color: #f97316; }
+    .hint { font-size: 10px; color: #525252; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div id="content">
+    <!-- Dynamically populated by HITLManager -->
+  </div>
+</body>
+</html>

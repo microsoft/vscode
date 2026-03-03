@@ -965,6 +965,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (editor) {
+					if (editor.hasCapability(EditorInputCapabilities.Uncloseable)) {
+						return; // Permanent editor - cannot be closed
+					}
 					if (preventEditorClose(this.tabsModel, editor, EditorCloseMethod.MOUSE, this.groupsView.partOptions)) {
 						return;
 					}
@@ -1519,9 +1522,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Label
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
 
-		// Action
-		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
-		const hasCloseAction = !hasUnpinAction && options.tabActionCloseVisibility;
+		// Action - hide close button entirely for Uncloseable editors
+		const isUncloseable = !!(editor.capabilities & EditorInputCapabilities.Uncloseable);
+		const hasUnpinAction = !isUncloseable && isTabSticky && options.tabActionUnpinVisibility;
+		const hasCloseAction = !isUncloseable && !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
 
 		let tabAction;

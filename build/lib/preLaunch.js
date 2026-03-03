@@ -35,7 +35,7 @@ async function getElectron() {
     await runProcess(npm, ['run', 'electron']);
 }
 async function ensureCompiled() {
-    if (!(await exists('out'))) {
+    if (!(await exists('out/main.js'))) {
         await runProcess(npm, ['run', 'compile']);
     }
 }
