@@ -45,7 +45,7 @@ When proposing or implementing changes, follow these rules from the spec:
 4. **New parts go in the right section** — Any new parts should be added to the horizontal branch alongside Chat Bar and Auxiliary Bar
 5. **Preserve no-op methods** — Unsupported features (zen mode, centered layout, etc.) should remain as no-ops, not throw errors
 6. **Handle pane composite lifecycle** — When hiding/showing parts, manage the associated pane composites
-7. **Use agent session parts** — New part functionality goes in the agent session part classes (`SidebarPart`, `AuxiliaryBarPart`, `PanelPart`, `ChatBarPart`), not the standard workbench parts
+7. **Use agent session parts** — New part functionality goes in the agent session part classes (`SidebarPart`, `AuxiliaryBarPart`, `PanelPart`, `ChatBarPart`, `ProjectBarPart`), not the standard workbench parts
 8. **Use separate storage keys** — Agent session parts use their own storage keys (prefixed with `workbench.agentsession.` or `workbench.chatbar.`) to avoid conflicts with regular workbench state
 9. **Use agent session menu IDs** — Actions should use `Menus.*` menu IDs (from `sessions/browser/menus.ts`), not shared `MenuId.*` constants
 
@@ -53,20 +53,24 @@ When proposing or implementing changes, follow these rules from the spec:
 
 | File | Purpose |
 |------|---------|
-| `sessions/LAYOUT.md` | Authoritative specification |
+| `sessions/LAYOUT.md` | Authoritative layout specification |
 | `sessions/browser/workbench.ts` | Main layout implementation (`Workbench` class) |
 | `sessions/browser/menus.ts` | Agent sessions menu IDs (`Menus` export) |
 | `sessions/browser/layoutActions.ts` | Layout actions (toggle sidebar, panel, secondary sidebar) |
 | `sessions/browser/paneCompositePartService.ts` | `AgenticPaneCompositePartService` |
-| `sessions/browser/style.css` | Layout-specific styles |
-| `sessions/browser/parts/` | Agent session part implementations |
+| `sessions/browser/media/style.css` | Layout-specific styles |
+| `sessions/browser/parts/parts.ts` | `AgenticParts` enum |
 | `sessions/browser/parts/titlebarPart.ts` | Titlebar part, MainTitlebarPart, AuxiliaryTitlebarPart, TitleService |
-| `sessions/browser/parts/sidebarPart.ts` | Sidebar part (with footer) |
+| `sessions/browser/parts/sidebarPart.ts` | Sidebar part (with footer and macOS traffic light spacer) |
 | `sessions/browser/parts/chatBarPart.ts` | Chat Bar part |
-| `sessions/browser/widget/` | Agent sessions chat widget |
+| `sessions/browser/parts/auxiliaryBarPart.ts` | Auxiliary Bar part (with run script dropdown) |
+| `sessions/browser/parts/panelPart.ts` | Panel part |
+| `sessions/browser/parts/projectBarPart.ts` | Project Bar part (folder entries, icon customization) |
+| `sessions/contrib/configuration/browser/configuration.contribution.ts` | Sets `workbench.editor.useModal` to `'all'` for modal editor overlay |
 | `sessions/contrib/sessions/browser/sessionsTitleBarWidget.ts` | Title bar widget and session picker |
-| `sessions/contrib/chat/browser/runScriptAction.ts` | Run script contribution |
+| `sessions/contrib/chat/browser/runScriptAction.ts` | Run script split button for titlebar |
 | `sessions/contrib/accountMenu/browser/account.contribution.ts` | Account widget for sidebar footer |
+| `sessions/electron-browser/parts/titlebarPart.ts` | Desktop (Electron) titlebar part |
 
 ## 5. Testing Changes
 
