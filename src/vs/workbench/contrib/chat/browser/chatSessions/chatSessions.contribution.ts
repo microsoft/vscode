@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sep } from '../../../../../base/common/path.js';
-import { raceCancellationError } from '../../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { AsyncEmitter, Emitter, Event } from '../../../../../base/common/event.js';
@@ -812,6 +812,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}));
 	}
 
+	private static readonly PROVIDER_TIMEOUT = 5000;
+
 	public async getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }>> {
 		// First, make sure contributed controller are active
 		await this.tryActivateControllers(providersToResolve);
@@ -825,7 +827,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 
 			try {
-				await controllerEntry.initialRefresh; // Ensure initial refresh is complete before accessing items
+				// Use a timeout to prevent a slow provider from blocking the entire list
+				let timedOut = false;
+				await raceTimeout(controllerEntry.initialRefresh, ChatSessionsService.PROVIDER_TIMEOUT, () => {
+					timedOut = true;
+					this._logService.warn(`[ChatSessionsService] Timeout waiting for initial refresh of provider ${resolvedType}`);
+				});
+
+				if (timedOut) {
+					return; // timed out, skip this provider
+				}
 
 				const providerSessions = controllerEntry.controller.items;
 				this._logService.trace(`[ChatSessionsService] Resolved ${providerSessions.length} sessions for provider ${resolvedType}`);
@@ -846,7 +857,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		await Promise.all(Array.from(this._itemControllers).map(async ([chatSessionType, controllerEntry]) => {
 			try {
-				await controllerEntry.controller.refresh(token);
+				await raceTimeout(controllerEntry.controller.refresh(token), ChatSessionsService.PROVIDER_TIMEOUT, () => {
+					this._logService.warn(`[ChatSessionsService] Timeout waiting for refresh of provider ${chatSessionType}`);
+				});
 			} catch (err) {
 				if (!isCancellationError(err)) {
 					// Log error but continue with other providers
