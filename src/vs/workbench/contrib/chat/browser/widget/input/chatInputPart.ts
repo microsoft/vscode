@@ -2586,24 +2586,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
 
-		// If a carousel with the same resolveId already exists, return it
-		if (carousel.resolveId) {
-			const existing = this._chatQuestionCarouselWidgets.get(carousel.resolveId);
-			if (existing) {
-				return existing;
-			}
-		}
+		const carouselKey = carousel.resolveId ?? `${isResponseVM(context.element) ? context.element.requestId : ''}_${context.contentIndex}`;
 
-		const resolveId = carousel.resolveId ?? '';
+		// If a carousel with the same key already exists, return it
+		const existing = this._chatQuestionCarouselWidgets.get(carouselKey);
+		if (existing) {
+			return existing;
+		}
 
 		// Track the response id and session for this carousel
 		if (isResponseVM(context.element)) {
-			this._questionCarouselResponseIds.set(resolveId, context.element.requestId);
-			this._questionCarouselSessionResources.set(resolveId, context.element.sessionResource);
+			this._questionCarouselResponseIds.set(carouselKey, context.element.requestId);
+			this._questionCarouselSessionResources.set(carouselKey, context.element.sessionResource);
 		}
 
 		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, options);
-		this._chatQuestionCarouselWidgets.set(resolveId, part);
+		this._chatQuestionCarouselWidgets.set(carouselKey, part);
 		this._hasQuestionCarouselContextKey?.set(true);
 
 		dom.append(this.chatQuestionCarouselContainer, part.domNode);
