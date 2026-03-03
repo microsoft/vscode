@@ -46,34 +46,12 @@
 	padding: 0;
 }
 
-/* Peek View */
-.monaco-workbench .monaco-editor .peekview-widget .head,
-.monaco-workbench .monaco-editor .peekview-widget .body {
-	background: transparent !important;
-}
-
-.monaco-workbench .defineKeybindingWidget {
-	border: 1px solid var(--vscode-editorWidget-border);
-}
-
-/* Chat Editor Overlay */
-.monaco-workbench.vs-dark .chat-editor-overlay-widget,
-.monaco-workbench.vs-dark .chat-diff-change-content-widget {
-	border: 1px solid var(--vscode-editorWidget-border);
-}
-
 /* Settings */
 .monaco-workbench .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
 	border-radius: var(--radius-sm);
 	background: transparent !important;
 	color: var(--vscode-descriptionForeground) !important;
 	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent) !important;
-}
-
-/* Breadcrumbs */
-
-.monaco-workbench.vs .breadcrumbs-control {
-	border-bottom: 1px solid var(--vscode-editorWidget-border);
 }
 
 /* Input Boxes */
