@@ -10,6 +10,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -18,12 +19,13 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { generateUnifiedDiff } from '../../../../workbench/contrib/chat/browser/chatRepoInfo.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { isEqualOrParent, joinPath, relativePath } from '../../../../base/common/resources.js';
+import { isEqualOrParent, relativePath } from '../../../../base/common/resources.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { URI } from '../../../../base/common/uri.js';
 
@@ -89,6 +91,7 @@ class ApplyToParentRepoAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
+		const commandService = accessor.get(ICommandService);
 
 		const activeSession = sessionManagementService.getActiveSession();
 		if (!activeSession?.worktree || !activeSession?.repository) {
@@ -104,9 +107,9 @@ class ApplyToParentRepoAction extends Action2 {
 			return;
 		}
 
-		let copiedCount = 0;
-		let deletedCount = 0;
-		let errorCount = 0;
+		// Generate a combined unified diff patch from all changes
+		const patchParts: string[] = [];
+		let fileCount = 0;
 
 		for (const change of changes) {
 			try {
@@ -117,33 +120,53 @@ class ApplyToParentRepoAction extends Action2 {
 					? change.modifiedUri === undefined
 					: false;
 
+				const originalUri = change.originalUri;
+				let relPath: string | undefined;
+
 				if (isDeletion) {
-					const originalUri = change.originalUri;
 					if (originalUri && isEqualOrParent(toFileUri(originalUri), worktreeRoot)) {
-						const relPath = relativePath(worktreeRoot, toFileUri(originalUri));
-						if (relPath) {
-							const targetUri = joinPath(repoRoot, relPath);
-							if (await fileService.exists(targetUri)) {
-								await fileService.del(targetUri);
-								deletedCount++;
-							}
-						}
+						relPath = relativePath(worktreeRoot, toFileUri(originalUri));
 					}
 				} else {
 					if (isEqualOrParent(toFileUri(modifiedUri), worktreeRoot)) {
-						const relPath = relativePath(worktreeRoot, toFileUri(modifiedUri));
-						if (relPath) {
-							const targetUri = joinPath(repoRoot, relPath);
-							await fileService.copy(modifiedUri, targetUri, true);
-							copiedCount++;
-						}
+						relPath = relativePath(worktreeRoot, toFileUri(modifiedUri));
 					}
 				}
+
+				if (!relPath) {
+					continue;
+				}
+
+				const changeType: 'added' | 'modified' | 'deleted' = isDeletion
+					? 'deleted'
+					: originalUri ? 'modified' : 'added';
+
+				const diff = await generateUnifiedDiff(
+					fileService,
+					relPath,
+					originalUri,
+					modifiedUri,
+					changeType
+				);
+
+				if (diff) {
+					patchParts.push(diff);
+					fileCount++;
+				}
 			} catch (err) {
-				logService.error('[ApplyToParentRepo] Failed to apply change', err);
-				errorCount++;
+				logService.error('[ApplyToParentRepo] Failed to generate diff for change', err);
 			}
 		}
+
+		if (patchParts.length === 0) {
+			notificationService.notify({
+				severity: Severity.Info,
+				message: localize('applyToParentRepoNoDiffs', "No applicable changes to apply to parent repo."),
+			});
+			return;
+		}
+
+		const combinedPatch = patchParts.join('\n') + '\n';
 
 		const openFolderAction = toAction({
 			id: 'applyToParentRepo.openFolder',
@@ -168,21 +191,21 @@ class ApplyToParentRepoAction extends Action2 {
 			}
 		});
 
-		const totalApplied = copiedCount + deletedCount;
-		if (errorCount > 0) {
-			notificationService.notify({
-				severity: Severity.Warning,
-				message: totalApplied === 1
-					? localize('applyToParentRepoPartial1', "Applied 1 file to parent repo with {0} error(s).", errorCount)
-					: localize('applyToParentRepoPartialN', "Applied {0} files to parent repo with {1} error(s).", totalApplied, errorCount),
-				actions: { primary: [openFolderAction] }
-			});
-		} else if (totalApplied > 0) {
+		try {
+			await commandService.executeCommand('_git.applyPatch', repoRoot.fsPath, combinedPatch);
+
 			notificationService.notify({
 				severity: Severity.Info,
-				message: totalApplied === 1
+				message: fileCount === 1
 					? localize('applyToParentRepoSuccess1', "Applied 1 file to parent repo.")
-					: localize('applyToParentRepoSuccessN', "Applied {0} files to parent repo.", totalApplied),
+					: localize('applyToParentRepoSuccessN', "Applied {0} files to parent repo.", fileCount),
+				actions: { primary: [openFolderAction] }
+			});
+		} catch (err) {
+			logService.error('[ApplyToParentRepo] git apply failed', err);
+			notificationService.notify({
+				severity: Severity.Warning,
+				message: localize('applyToParentRepoConflict', "Failed to apply patch to parent repo. The parent repo may have diverged — resolve conflicts manually."),
 				actions: { primary: [openFolderAction] }
 			});
 		}
