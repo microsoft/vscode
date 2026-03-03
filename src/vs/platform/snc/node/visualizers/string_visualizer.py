@@ -2605,7 +2605,10 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_widt
     # 5. Delete + Copy
     parts.append(btn_group('Delete \u2318\u232b', 'delete', has_search, 'Delete matches (\u2318\u232b)'))
 
-    # 6. Count (N) + Copy
+    # 6. Split + Copy
+    parts.append(btn_group('Split', 'split', has_search, 'Split string at matches'))
+
+    # 7. Count (N) + Copy
     count_label = f'Count ({match_count})'
     parts.append(btn_group(count_label, 'count', has_search, 'Count of matches'))
 
@@ -3246,6 +3249,26 @@ def _build_count_expr(ctx: dict) -> tuple | None:
         return (suggest_name, f"sum(1 for _ in {_finditer_expr(ctx)})")
 
 
+def _build_split_expr(ctx: dict) -> tuple | None:
+    """Build Split expression: re.split or str.split.
+
+    Returns (suggest_name, expr_str).
+    """
+    suggest_name = f"{ctx['suggest_base']}_parts" if ctx['var_name'] else "result_parts"
+    maxsplit_str = ', maxsplit=1' if ctx['is_first'] else ''
+
+    if ctx['is_string'] or ctx['is_expr']:
+        embed = ctx['embed']
+        if not ctx['is_ci'] and not ctx['is_expr']:
+            if ctx['is_first']:
+                return (suggest_name, f"{ctx['var_to_search']}.split({embed}, 1)")
+            else:
+                return (suggest_name, f"{ctx['var_to_search']}.split({embed})")
+        return (suggest_name, f"re.split(re.escape({embed}), {ctx['var_to_search']}{maxsplit_str}{ctx['flags_str_kw']})")
+    else:
+        return (suggest_name, f"re.split(r'{ctx['regex_pattern']}', {ctx['var_to_search']}{maxsplit_str}, {ctx['flags_str']})")
+
+
 def _get_copy_expr_for_if(action: str, ctx: dict) -> str | None:
     """Get just the boolean expression for copy of if_any/if_all actions."""
     if action == 'if_any':
@@ -3626,6 +3649,8 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                             result = _build_if_all_code(ctx)
                     case 'count':
                         result = _build_count_expr(ctx)
+                    case 'split':
+                        result = _build_split_expr(ctx)
                 if result:
                     if copy:
                         _, expr = result

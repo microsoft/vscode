@@ -6707,6 +6707,93 @@ class TestActionButtonCount(unittest.TestCase):
 
 
 # =============================================================================
+# Action Button: Split Tests
+# =============================================================================
+
+class TestActionButtonSplit(unittest.TestCase):
+    """Test Split action button."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/hello/'
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_split_regex(self):
+        """Split with regex produces re.split(...)."""
+        _, commands = update(make_action_button_event('split'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_parts")
+        self.assertEqual(expr, "re.split(r'hello', x, flags=re.M)")
+
+    def test_split_first_match(self):
+        """Split with first-match uses maxsplit=1."""
+        self.model['search'] = '/hello/1'
+        _, commands = update(make_action_button_event('split'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertEqual(expr, "re.split(r'hello', x, maxsplit=1, flags=re.M)")
+
+    def test_split_string_search(self):
+        """Split with string search uses str.split()."""
+        self.model['search'] = "'hello'"
+        _, commands = update(make_action_button_event('split'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertEqual(expr, "x.split('hello')")
+
+    def test_split_string_search_first_match(self):
+        """Split with string search and first-match uses maxsplit=1."""
+        self.model['search'] = "'hello'1"
+        _, commands = update(make_action_button_event('split'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertEqual(expr, "x.split('hello', 1)")
+
+    def test_split_string_search_case_insensitive(self):
+        """Split with string search + case-insensitive uses re.split."""
+        self.model['search'] = "'hello'i"
+        _, commands = update(make_action_button_event('split'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertEqual(expr, "re.split(re.escape('hello'), x, flags=re.I)")
+
+    def test_split_case_insensitive(self):
+        """Split with regex + case-insensitive."""
+        self.model['search'] = '/hello/i'
+        _, commands = update(make_action_button_event('split'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertEqual(expr, "re.split(r'hello', x, flags=re.M|re.I)")
+
+    def test_copy_split(self):
+        """copy=True produces CopyToClipboard with split expr."""
+        _, commands = update(make_action_button_event('split', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        cmd = commands[0]
+        self.assertIsInstance(cmd, CopyToClipboard)
+        self.assertIn("split", cmd.text)
+
+    def test_split_suggest_name_no_var(self):
+        """Split without var name uses 'result_parts'."""
+        self.source_code = "f('hello world')"
+        _, commands = update(make_action_button_event('split'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, _ = commands[0]
+        self.assertEqual(suggest_name, "result_parts")
+
+
+# =============================================================================
 # Count Matches Helper Tests
 # =============================================================================
 
