@@ -364,7 +364,8 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 		if (this.options.disableHover) {
-			template.element.title = renderAsPlaintext(new MarkdownString(session.element.label));
+			const title = renderAsPlaintext(new MarkdownString(session.element.label));
+			template.elementDisposable.add(this.hoverService.setupDelayedHover(template.element, { content: title, position: { hoverPosition: this.options.getHoverPosition() } }));
 			return;
 		}
 
