@@ -10,9 +10,11 @@ import { EditorCommand, EditorContributionInstantiation, ServicesAccessor, regis
 import { registerEditorFeature } from '../../../common/editorFeatures.js';
 import { DefaultDropProvidersFeature } from './defaultProviders.js';
 import { DropIntoEditorController, changeDropTypeCommandId, dropWidgetVisibleCtx } from './dropIntoEditorController.js';
+import { PythonDropProvidersFeature } from './pythonDropProvider.js';
 
 registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorFeature(DefaultDropProvidersFeature);
+registerEditorFeature(PythonDropProvidersFeature);
 
 registerEditorCommand(new class extends EditorCommand {
 	constructor() {

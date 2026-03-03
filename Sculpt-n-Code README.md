@@ -12,6 +12,9 @@ npm install
 mkdir ~/.vscode-oss-dev
 ln -s ~/.vscode/extensions ~/.vscode-oss-dev/extensions
 
+# Python stuff
+pip install pytest
+
 # Build (first build takes 66sec)
 npm run watch-client
 npm run watch # if you are working on extensions
