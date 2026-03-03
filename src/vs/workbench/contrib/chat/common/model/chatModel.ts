@@ -313,6 +313,7 @@ export interface IChatRequestModeInfo {
 	isBuiltin: boolean;
 	modeInstructions: IChatRequestModeInstructions | undefined;
 	modeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
+	modeName?: string;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
 }
 
