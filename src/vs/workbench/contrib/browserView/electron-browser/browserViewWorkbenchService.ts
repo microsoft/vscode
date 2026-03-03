@@ -11,6 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 
 /** Command IDs whose accelerators are shown in browser view context menus. */
 const browserViewContextMenuCommands = [
@@ -19,7 +20,7 @@ const browserViewContextMenuCommands = [
 	BrowserViewCommandId.Reload,
 ];
 
-export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
+export class BrowserViewWorkbenchService extends Disposable implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _browserViewService: IBrowserViewService;
@@ -31,11 +32,12 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
+		super();
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 
 		this.sendKeybindings();
-		this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings());
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings()));
 	}
 
 	private sendKeybindings(): void {
@@ -47,7 +49,7 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 				keybindings[commandId] = accelerator;
 			}
 		}
-		this._browserViewService.updateKeybindings(keybindings);
+		void this._browserViewService.updateKeybindings(keybindings);
 	}
 
 	async getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel> {

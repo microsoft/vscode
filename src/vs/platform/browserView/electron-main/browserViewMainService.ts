@@ -394,11 +394,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (params.linkURL) {
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.openLinkInNewTab', 'Open Link in New Tab'),
-				click: () => { this.openNew(params.linkURL, view.session, { preserveFocus: true, inactive: true }, 'browserLinkBackground'); }
+				click: () => { void this.openNew(params.linkURL, view.session, { preserveFocus: true, inactive: true }, 'browserLinkBackground'); }
 			}));
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.openLinkInExternalBrowser', 'Open Link in External Browser'),
-				click: () => { this.nativeHostMainService.openExternal(undefined, params.linkURL); }
+				click: () => { void this.nativeHostMainService.openExternal(undefined, params.linkURL); }
 			}));
 			menu.append(new MenuItem({ type: 'separator' }));
 			menu.append(new MenuItem({
@@ -406,7 +406,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				click: () => {
 					clipboard.write({
 						text: params.linkURL,
-						html: `<a href="${params.linkURL}">${params.linkText || params.linkURL}</a>`
+						html: `<a href="${encodeURI(params.linkURL)}">${escapeHtmlText(params.linkText || params.linkURL)}</a>`
 					});
 				}
 			}));
@@ -418,7 +418,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			}
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.openImageInNewTab', 'Open Image in New Tab'),
-				click: () => { this.openNew(params.srcURL!, view.session, { preserveFocus: true, inactive: true }, 'browserLinkBackground'); }
+				click: () => { void this.openNew(params.srcURL!, view.session, { preserveFocus: true, inactive: true }, 'browserLinkBackground'); }
 			}));
 			menu.append(new MenuItem({
 				label: localize('browser.contextMenu.copyImage', 'Copy Image'),
@@ -477,4 +477,13 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			sourceType: params.menuSourceType
 		});
 	}
+}
+
+function escapeHtmlText(str: string): string {
+	return str
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
 }
