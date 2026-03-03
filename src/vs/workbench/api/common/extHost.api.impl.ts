@@ -1685,6 +1685,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeCustomAgents(listener, thisArgs, disposables);
 			},
+			get skills() {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.skills as readonly vscode.ChatResource[];
+			},
+			onDidChangeSkills: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.onDidChangeSkills(listener, thisArgs, disposables);
+			},
 		};
 
 		// namespace: lm

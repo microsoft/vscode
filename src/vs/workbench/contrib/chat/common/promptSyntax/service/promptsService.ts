@@ -491,6 +491,11 @@ export interface IPromptsService extends IDisposable {
 	findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined>;
 
 	/**
+	 * Event that is triggered when the list of skills changes.
+	 */
+	readonly onDidChangeSkills: Event<void>;
+
+	/**
 	 * Gets detailed discovery information for a prompt type.
 	 * This includes all files found and their load/skip status with reasons.
 	 * Used for diagnostics and config-info displays.

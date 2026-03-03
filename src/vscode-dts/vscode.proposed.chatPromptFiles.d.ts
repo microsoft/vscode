@@ -115,6 +115,17 @@ declare module 'vscode' {
 		export const customAgents: readonly ChatResource[];
 
 		/**
+		 * An event that fires when the list of {@link skills skills} changes.
+		 */
+		export const onDidChangeSkills: Event<void>;
+
+		/**
+		 * The list of currently available skills. These are `SKILL.md` files
+		 * from all sources (workspace, user, and extension-provided).
+		 */
+		export const skills: readonly ChatResource[];
+
+		/**
 		 * Register a provider for custom agents.
 		 * @param provider The custom agent provider.
 		 * @returns A disposable that unregisters the provider when disposed.

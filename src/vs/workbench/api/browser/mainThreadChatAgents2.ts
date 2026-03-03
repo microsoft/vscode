@@ -39,7 +39,7 @@ import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/lang
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 
 interface AgentData {
@@ -158,6 +158,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._register(this._promptsService.onDidChangeCustomAgents(() => {
 			void this._pushCustomAgents();
 		}));
+
+		// Push skills to ext host
+		void this._pushSkills();
+		this._register(this._promptsService.onDidChangeSkills(() => {
+			void this._pushSkills();
+		}));
 	}
 
 	private _acceptActiveChatSession(widget: IChatWidget | undefined): void {
@@ -173,6 +179,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			this._proxy.$acceptCustomAgents(dtos);
 		} catch (error) {
 			this._logService.error('[chat] Failed to push custom agents to extension host', error);
+		}
+	}
+
+	private async _pushSkills(): Promise<void> {
+		try {
+			const skills = await this._promptsService.findAgentSkills(CancellationToken.None) ?? [];
+			const dtos: ISkillDto[] = skills.map(skill => ({ uri: skill.uri }));
+			this._proxy.$acceptSkills(dtos);
+		} catch (error) {
+			this._logService.error('[chat] Failed to push skills to extension host', error);
 		}
 	}
 
