@@ -19,6 +19,7 @@ import { ClaudeHeaderAttributes, ISequenceValue, IValue, parseCommaSeparatedList
 import { getAttributeDescription, getTarget, getValidAttributeNames, claudeAgentAttributes, claudeRulesAttributes, knownClaudeTools, knownGithubCopilotTools, IValueEntry } from './promptValidator.js';
 import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
+import { HOOKS_BY_TARGET, HOOK_METADATA } from '../hookTypes.js';
 
 
 export class PromptHeaderAutocompletion implements CompletionItemProvider {
@@ -117,6 +118,11 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			if (colonPosition) {
 				return key;
 			}
+			// For map-valued attributes, insert a snippet with the nested structure
+			if (key === PromptHeaderAttributes.hooks && promptType === PromptsType.agent) {
+				const hookNames = Object.keys(HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined]);
+				return `${key}:\n  \${1|${hookNames.join(',')}|}:\n    - type: command\n      command: "$2"`;
+			}
 			const valueSuggestions = this.getValueSuggestions(promptType, key, target);
 			if (valueSuggestions.length > 0) {
 				return `${key}: \${0:${valueSuggestions[0].name}}`;
@@ -201,6 +207,12 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				});
 			}
 		}
+		if (attribute.key === PromptHeaderAttributes.hooks) {
+			if (attribute.value.type === 'map') {
+				// Inside the hooks map — suggest hook event type names as sub-keys
+				return this.provideHookEventCompletions(model, position, attribute.value, target);
+			}
+		}
 		const lineContent = model.getLineContent(attribute.range.startLineNumber);
 		const whilespaceAfterColon = (lineContent.substring(colonPosition.column).match(/^\s*/)?.[0].length) ?? 0;
 		const entries = this.getValueSuggestions(promptType, attribute.key, target);
@@ -230,6 +242,59 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 			};
 			suggestions.push(item);
 		}
+		if (attribute.key === PromptHeaderAttributes.hooks && promptType === PromptsType.agent) {
+			const hookSnippet = [
+				'',
+				'  ${1|' + Object.keys(HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined]).join(',') + '|}:',
+				'    - type: command',
+				'      command: "$2"'
+			].join('\n');
+			const item: CompletionItem = {
+				label: localize('promptHeaderAutocompletion.newHook', "New Hook"),
+				kind: CompletionItemKind.Snippet,
+				insertText: whilespaceAfterColon === 0 ? ` ${hookSnippet}` : hookSnippet,
+				insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
+				range: new Range(position.lineNumber, colonPosition.column + whilespaceAfterColon + 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
+			};
+			suggestions.push(item);
+		}
+		return { suggestions };
+	}
+
+	/**
+	 * Provides completions for hook event type names inside the `hooks:` map.
+	 * Suggests supported hook events for the agent's target, excluding already-defined ones.
+	 */
+	private provideHookEventCompletions(
+		model: ITextModel,
+		position: Position,
+		hooksMap: import('../promptFileParser.js').IMapValue,
+		target: Target,
+	): CompletionList | undefined {
+		const suggestions: CompletionItem[] = [];
+		const hooksByTarget = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
+		const existingKeys = new Set(hooksMap.properties.map(p => p.key.value));
+
+		for (const [hookName, hookType] of Object.entries(hooksByTarget)) {
+			if (existingKeys.has(hookName)) {
+				continue;
+			}
+			const meta = HOOK_METADATA[hookType];
+			const snippet = [
+				`${hookName}:`,
+				`  - type: command`,
+				`    command: "$1"`,
+			].join('\n  ');
+			suggestions.push({
+				label: hookName,
+				documentation: meta?.description,
+				kind: CompletionItemKind.Property,
+				insertText: snippet,
+				insertTextRules: CompletionItemInsertTextRule.InsertAsSnippet,
+				range: new Range(position.lineNumber, 1, position.lineNumber, model.getLineMaxColumn(position.lineNumber)),
+			});
+		}
+
 		return { suggestions };
 	}
 
