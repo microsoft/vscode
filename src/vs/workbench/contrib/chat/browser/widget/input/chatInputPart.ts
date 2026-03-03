@@ -2075,7 +2075,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			showStatusBar: false,
 			insertMode: 'insert',
 		};
-		options.scrollbar = { ...(options.scrollbar ?? {}), vertical: 'hidden' };
+		options.scrollbar = this.options.renderStyle === 'compact'
+			? { ...(options.scrollbar ?? {}), vertical: 'hidden' }
+			: {
+				...(options.scrollbar ?? {}),
+				vertical: 'auto',
+				verticalScrollbarSize: 7,
+			};
 		options.stickyScroll = { enabled: false };
 
 		this._inputEditorElement = dom.append(editorContainer, $(chatInputEditorContainerSelector));
@@ -3049,8 +3055,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		return {
 			editorBorder: 2,
-			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 32,
-			inputPartHorizontalPaddingInside: 12,
+			inputPartHorizontalPadding: this.options.renderStyle === 'compact' ? 16 : 24,
+			inputPartHorizontalPaddingInside: this.options.renderStyle === 'compact' ? 12 : 10,
 			toolbarsWidth: this.options.renderStyle === 'compact' ? getToolbarsWidthCompact() : 0,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,
 		};
