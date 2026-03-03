@@ -700,8 +700,8 @@ export class BrowserEditor extends EditorPane {
 		return this._model?.goForward();
 	}
 
-	async reload(): Promise<void> {
-		return this._model?.reload();
+	async reload(hard?: boolean): Promise<void> {
+		return this._model?.reload(hard);
 	}
 
 	async toggleDevTools(): Promise<void> {
