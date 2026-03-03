@@ -22,7 +22,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -89,7 +89,6 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } 
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
-import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -211,10 +210,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _workingSetCollapsed = observableValue('chatInputPart.workingSetCollapsed', true);
 	private _stableInputPartWidth = observableValue('chatInputPart.stableInputPartWidth', 0);
 	private readonly _chatInputTodoListWidget = this._register(new MutableDisposable<ChatTodoListWidget>());
-	private readonly _chatQuestionCarouselWidget = this._register(new MutableDisposable<ChatQuestionCarouselPart>());
-	private readonly _chatQuestionCarouselDisposables = this._register(new DisposableStore());
-	private _currentQuestionCarouselResponseId: string | undefined;
-	private _currentQuestionCarouselSessionResource: URI | undefined;
+	private readonly _chatQuestionCarouselWidgets = this._register(new DisposableMap<string, ChatQuestionCarouselPart>());
+	private readonly _questionCarouselResponseIds = new Map<string, string>();
+	private readonly _questionCarouselSessionResources = new Map<string, URI>();
 	private _hasQuestionCarouselContextKey: IContextKey<boolean> | undefined;
 	private readonly _chatEditingTodosDisposables = this._register(new DisposableStore());
 	private _lastEditingSessionResource: URI | undefined;
@@ -1919,7 +1917,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.refreshChatSessionPickers();
 			this.tryUpdateWidgetController();
 			this.updateContextUsageWidget();
-			if (this._currentQuestionCarouselSessionResource && (!e.currentSessionResource || !isEqual(this._currentQuestionCarouselSessionResource, e.currentSessionResource))) {
+			if (this._questionCarouselSessionResources.size > 0 && (!e.currentSessionResource || ![...this._questionCarouselSessionResources.values()].some(r => isEqual(r, e.currentSessionResource)))) {
 				this.clearQuestionCarousel();
 			}
 
@@ -2579,60 +2577,76 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
 
-		if (this._chatQuestionCarouselWidget.value) {
-			const existingCarousel = this._chatQuestionCarouselWidget.value;
-			const existingResolveId = existingCarousel.carousel.resolveId;
-			if (existingResolveId && carousel.resolveId && existingResolveId === carousel.resolveId) {
-				return existingCarousel;
+		// If a carousel with the same resolveId already exists, return it
+		if (carousel.resolveId) {
+			const existing = this._chatQuestionCarouselWidgets.get(carousel.resolveId);
+			if (existing) {
+				return existing;
 			}
-
-			// Complete the old carousel's completion promise as skipped before clearing
-			// This prevents the askQuestions tool from hanging when parallel subagents invoke it
-			const oldCarousel = existingCarousel.carousel;
-			if (oldCarousel instanceof ChatQuestionCarouselData && !oldCarousel.completion.isSettled) {
-				oldCarousel.completion.complete({ answers: undefined });
-			}
-
-			this.clearQuestionCarousel();
 		}
 
-		// track the response id and session
-		this._currentQuestionCarouselResponseId = isResponseVM(context.element) ? context.element.requestId : undefined;
-		this._currentQuestionCarouselSessionResource = isResponseVM(context.element) ? context.element.sessionResource : undefined;
+		const resolveId = carousel.resolveId ?? '';
 
-		const part = this._chatQuestionCarouselDisposables.add(
-			this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, options)
-		);
-		this._chatQuestionCarouselWidget.value = part;
+		// Track the response id and session for this carousel
+		if (isResponseVM(context.element)) {
+			this._questionCarouselResponseIds.set(resolveId, context.element.requestId);
+			this._questionCarouselSessionResources.set(resolveId, context.element.sessionResource);
+		}
+
+		const part = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, options);
+		this._chatQuestionCarouselWidgets.set(resolveId, part);
 		this._hasQuestionCarouselContextKey?.set(true);
 
-		dom.clearNode(this.chatQuestionCarouselContainer);
 		dom.append(this.chatQuestionCarouselContainer, part.domNode);
 
 		return part;
 	}
 
-	clearQuestionCarousel(responseId?: string): void {
-		if (responseId && this._currentQuestionCarouselResponseId !== responseId) {
-			return;
+	clearQuestionCarousel(responseId?: string, resolveId?: string): void {
+		if (resolveId !== undefined) {
+			// Remove a specific carousel by resolveId
+			const part = this._chatQuestionCarouselWidgets.get(resolveId);
+			if (part) {
+				part.domNode.remove();
+				this._chatQuestionCarouselWidgets.deleteAndDispose(resolveId);
+			}
+			this._questionCarouselResponseIds.delete(resolveId);
+			this._questionCarouselSessionResources.delete(resolveId);
+		} else if (responseId !== undefined) {
+			// Remove all carousels associated with a given responseId
+			for (const [key, rid] of this._questionCarouselResponseIds) {
+				if (rid === responseId) {
+					const part = this._chatQuestionCarouselWidgets.get(key);
+					if (part) {
+						part.domNode.remove();
+						this._chatQuestionCarouselWidgets.deleteAndDispose(key);
+					}
+					this._questionCarouselResponseIds.delete(key);
+					this._questionCarouselSessionResources.delete(key);
+				}
+			}
+		} else {
+			// Clear all carousels
+			this._chatQuestionCarouselWidgets.clearAndDisposeAll();
+			this._questionCarouselResponseIds.clear();
+			this._questionCarouselSessionResources.clear();
+			dom.clearNode(this.chatQuestionCarouselContainer);
 		}
-		this._chatQuestionCarouselDisposables.clear();
-		this._chatQuestionCarouselWidget.clear();
-		this._currentQuestionCarouselResponseId = undefined;
-		this._currentQuestionCarouselSessionResource = undefined;
-		this._hasQuestionCarouselContextKey?.set(false);
-		dom.clearNode(this.chatQuestionCarouselContainer);
-	}
-	get questionCarouselResponseId(): string | undefined {
-		return this._currentQuestionCarouselResponseId;
+		this._hasQuestionCarouselContextKey?.set(this._chatQuestionCarouselWidgets.size > 0);
 	}
 
 	get questionCarousel(): ChatQuestionCarouselPart | undefined {
-		return this._chatQuestionCarouselWidget.value;
+		// Return the focused carousel, or the first one
+		for (const part of this._chatQuestionCarouselWidgets.values()) {
+			if (part.hasFocus()) {
+				return part;
+			}
+		}
+		return this._chatQuestionCarouselWidgets.size > 0 ? this._chatQuestionCarouselWidgets.values().next().value : undefined;
 	}
 
 	focusQuestionCarousel(): boolean {
-		const carousel = this._chatQuestionCarouselWidget.value;
+		const carousel = this.questionCarousel;
 		if (carousel) {
 			carousel.focus();
 			return true;
@@ -2641,17 +2655,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	isQuestionCarouselFocused(): boolean {
-		const carousel = this._chatQuestionCarouselWidget.value;
-		return carousel?.hasFocus() ?? false;
+		for (const part of this._chatQuestionCarouselWidgets.values()) {
+			if (part.hasFocus()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	navigateToPreviousQuestion(): boolean {
-		const carousel = this._chatQuestionCarouselWidget.value;
+		const carousel = this.questionCarousel;
 		return carousel?.navigateToPreviousQuestion() ?? false;
 	}
 
 	navigateToNextQuestion(): boolean {
-		const carousel = this._chatQuestionCarouselWidget.value;
+		const carousel = this.questionCarousel;
 		return carousel?.navigateToNextQuestion() ?? false;
 	}
 

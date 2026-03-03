@@ -2178,8 +2178,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Remove from pending carousels
 			this.removeCarouselFromTracking(context, part);
 
-			// Clear from input part (always clear on submit, no response check needed)
-			widget?.input.clearQuestionCarousel();
+			// Clear from input part (clear only the submitted carousel by resolveId)
+			widget?.input.clearQuestionCarousel(undefined, carousel.resolveId);
 		};
 
 		// If carousel is already used or response is complete/canceled, render summary inline in the list
