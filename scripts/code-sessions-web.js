@@ -96,40 +96,40 @@ async function main() {
 
 function getSessionsHTML(host, port, cssModules) {
 	const baseUrl = `http://${host}:${port}`;
+	const fileRoot = `${baseUrl}/out`;
+
+	// Build the import map server-side. Each CSS file gets mapped to a
+	// data: URI containing a JS module that injects the stylesheet via
+	// a global helper function. This must be a static <script type="importmap">
+	// declared before any <script type="module"> tags.
+	const imports = {};
+	for (const cssModule of cssModules) {
+		const cssUrl = `${fileRoot}/${cssModule}`;
+		const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+		const encoded = Buffer.from(jsSrc).toString('base64');
+		imports[cssUrl] = `data:application/javascript;base64,${encoded}`;
+	}
+	const importMapJson = JSON.stringify({ imports }, null, 2);
+
 	return `<!DOCTYPE html>
 <html>
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>Sessions</title>
-	<link rel="stylesheet" href="${baseUrl}/out/vs/sessions/sessions.desktop.main.css">
 	<style id="vscode-css-modules"></style>
 	<script>
-		globalThis._VSCODE_FILE_ROOT = '${baseUrl}/out';
-		globalThis._VSCODE_CSS_MODULES = ${JSON.stringify(cssModules)};
-	</script>
-	<script>
-		// CSS import map for dev mode
+		globalThis._VSCODE_FILE_ROOT = '${fileRoot}';
 		const sheet = document.getElementById('vscode-css-modules').sheet;
 		globalThis._VSCODE_CSS_LOAD = function (url) { sheet.insertRule(\`@import url(\${url});\`); };
-		const importMap = { imports: {} };
-		for (const cssModule of (globalThis._VSCODE_CSS_MODULES || [])) {
-			const cssUrl = new URL(cssModule, globalThis._VSCODE_FILE_ROOT).href;
-			const jsSrc = \`globalThis._VSCODE_CSS_LOAD('\${cssUrl}');\\n\`;
-			const blob = new Blob([jsSrc], { type: 'application/javascript' });
-			importMap.imports[cssUrl] = URL.createObjectURL(blob);
-		}
-		if (Object.keys(importMap.imports).length > 0) {
-			const importMapElement = document.createElement('script');
-			importMapElement.type = 'importmap';
-			importMapElement.textContent = JSON.stringify(importMap, undefined, 2);
-			document.head.appendChild(importMapElement);
-		}
+	</script>
+	<script type="importmap">
+${importMapJson}
 	</script>
 </head>
 <body aria-label="">
 	<script type="module">
-		import { create } from '${baseUrl}/out/vs/sessions/sessions.web.main.internal.js';
+		import { create } from '${fileRoot}/vs/sessions/sessions.web.main.internal.js';
 		create(document.body, {
 			productConfiguration: {
 				nameShort: 'Sessions (Web)',
