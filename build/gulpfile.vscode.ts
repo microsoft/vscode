@@ -237,8 +237,9 @@ function runTsGoTypeCheck(): Promise<void> {
 }
 
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
-const useCdnSourceMapsForPackagingTasks = !!process.env['CI'];
-const stripSourceMapsInPackagingTasks = !!process.env['CI'];
+const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
+const useCdnSourceMapsForPackagingTasks = isCI;
+const stripSourceMapsInPackagingTasks = isCI;
 const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	bundleVSCodeTask,
 	util.rimraf('out-vscode-min'),
