@@ -88,6 +88,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		public readonly id: string,
 		public readonly session: BrowserSession,
 		createChildView: (options?: Electron.WebContentsViewConstructorOptions) => BrowserView,
+		openContextMenu: (view: BrowserView, params: Electron.ContextMenuParams) => void,
 		options: Electron.WebContentsViewConstructorOptions | undefined,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
@@ -148,6 +149,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 					return childView.webContents;
 				}
 			};
+		});
+
+		this._view.webContents.on('context-menu', (_event, params) => {
+			openContextMenu(this, params);
 		});
 
 		this._view.webContents.on('destroyed', () => {
@@ -572,6 +577,13 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 */
 	getWebContentsView(): WebContentsView {
 		return this._view;
+	}
+
+	/**
+	 * Get the parent window for this view, if any.
+	 */
+	getWindow(): Electron.BrowserWindow | null {
+		return this._window?.win ?? null;
 	}
 
 	// ============ ICDPTarget implementation ============

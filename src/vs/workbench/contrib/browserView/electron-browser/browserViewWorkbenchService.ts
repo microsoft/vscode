@@ -3,13 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBrowserViewService, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewCommandId, IBrowserViewService, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Event } from '../../../../base/common/event.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+
+/** Command IDs whose accelerators are shown in browser view context menus. */
+const browserViewContextMenuCommands = [
+	BrowserViewCommandId.GoBack,
+	BrowserViewCommandId.GoForward,
+	BrowserViewCommandId.Reload,
+];
 
 export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
@@ -20,10 +28,26 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
+
+		this.sendKeybindings();
+		this.keybindingService.onDidUpdateKeybindings(() => this.sendKeybindings());
+	}
+
+	private sendKeybindings(): void {
+		const keybindings: { [commandId: string]: string } = Object.create(null);
+		for (const commandId of browserViewContextMenuCommands) {
+			const binding = this.keybindingService.lookupKeybinding(commandId);
+			const accelerator = binding?.getElectronAccelerator();
+			if (accelerator) {
+				keybindings[commandId] = accelerator;
+			}
+		}
+		this._browserViewService.updateKeybindings(keybindings);
 	}
 
 	async getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel> {
