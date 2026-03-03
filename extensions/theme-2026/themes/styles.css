@@ -46,16 +46,6 @@
 	padding: 0;
 }
 
-/* Suggest Widget */
-.monaco-workbench.vs-dark .monaco-editor .suggest-widget {
-	border: 1px solid var(--vscode-editorWidget-border);
-}
-
-/* Dialog */
-.monaco-workbench .monaco-dialog-box {
-	border: 1px solid var(--vscode-dialog-border);
-}
-
 /* Peek View */
 .monaco-workbench .monaco-editor .peekview-widget .head,
 .monaco-workbench .monaco-editor .peekview-widget .body {
