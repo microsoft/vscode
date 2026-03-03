@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { localize } from '../../../../../../nls.js';
 import { IChatDebugResolvedEventContent, IChatDebugService } from '../../chatDebugService.js';
 import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../languageModelToolsService.js';
 
@@ -11,7 +12,7 @@ export const ResolveDebugEventDetailsToolId = 'vscode_resolveDebugEventDetails_i
 
 export const ResolveDebugEventDetailsToolData: IToolData = {
 	id: ResolveDebugEventDetailsToolId,
-	displayName: 'Resolve Debug Event Details',
+	displayName: localize('resolveDebugEventDetails.displayName', "Resolve Debug Event Details"),
 	canBeReferencedInPrompt: false,
 	modelDescription: 'Resolves the full details for a specific chat debug event by its event ID. Use this tool to get detailed information about a debug event such as tool call input/output, model turn details, user message sections, or file lists. The event ID can be found in the debug event log summary provided in the conversation context.',
 	source: ToolDataSource.Internal,
@@ -106,6 +107,20 @@ export class ResolveDebugEventDetailsTool implements IToolImpl {
 		if (!eventId) {
 			return {
 				content: [{ kind: 'text', value: 'Error: eventId parameter is required.' }],
+			};
+		}
+
+		const sessionResource = invocation.context?.sessionResource;
+		if (!sessionResource) {
+			return {
+				content: [{ kind: 'text', value: 'Error: no chat session context available.' }],
+			};
+		}
+
+		const sessionEvents = this.chatDebugService.getEvents(sessionResource);
+		if (!sessionEvents.some(e => e.id === eventId)) {
+			return {
+				content: [{ kind: 'text', value: `No event with ID "${eventId}" found in the current session.` }],
 			};
 		}
 
