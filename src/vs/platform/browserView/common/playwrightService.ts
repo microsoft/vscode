@@ -15,6 +15,8 @@ export const IPlaywrightService = createDecorator<IPlaywrightService>('playwrigh
  * {@link openPage}) before they can be interacted with.
  */
 export interface IPlaywrightService {
+	readonly _serviceBrand: undefined;
+
 	/**
 	 * Fires when the set of tracked pages changes.
 	 * The event value is the full list of currently tracked view IDs.

@@ -52,6 +52,9 @@ export class PlaywrightChannel extends Disposable implements IServerChannel<stri
 	call<T>(ctx: string, command: string, arg?: unknown): Promise<T> {
 		// Handle the one-time initialization call that creates the instance
 		if (command === '__initialize') {
+			if (typeof arg !== 'number') {
+				throw new Error(`Invalid argument for __initialize: expected window ID as number, got ${typeof arg}`);
+			}
 			if (!this._instances.has(ctx)) {
 				const windowId = arg as number;
 				this._instances.set(ctx, new PlaywrightService(windowId, this.browserViewGroupRemoteService, this.logService));

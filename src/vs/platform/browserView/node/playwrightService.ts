@@ -23,6 +23,8 @@ import type { Browser, BrowserContext, Page } from 'playwright-core';
  * only when an operation that requires it is called.
  */
 export class PlaywrightService extends Disposable implements IPlaywrightService {
+	declare readonly _serviceBrand: undefined;
+
 	private readonly _pages: PlaywrightPageManager;
 	readonly onDidChangeTrackedPages: Event<readonly string[]>;
 
