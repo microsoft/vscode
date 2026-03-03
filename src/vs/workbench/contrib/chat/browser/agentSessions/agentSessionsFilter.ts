@@ -332,4 +332,8 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	notifyResults(count: number): void {
 		this.options.notifyResults?.(count);
 	}
+
+	reset(): void {
+		this.storeExcludes({ ...DEFAULT_EXCLUDES });
+	}
 }

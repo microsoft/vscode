@@ -8,7 +8,8 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { $, append, EventHelper } from '../../../../../base/browser/dom.js';
+import { $, append, EventHelper, addDisposableListener, EventType, hide, setVisibility } from '../../../../../base/browser/dom.js';
+import { localize } from '../../../../../nls.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
@@ -71,6 +72,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private sessionsContainer: HTMLElement | undefined;
 	get element(): HTMLElement | undefined { return this.sessionsContainer; }
 
+	private emptyFilterMessage: HTMLElement | undefined;
+
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, AgentSessionListItem, FuzzyScore> | undefined;
 	private sessionsListFindIsOpen = false;
 
@@ -106,7 +109,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this.focusedAgentSessionTypeContextKey = ChatContextKeys.agentSessionType.bindTo(this.contextKeyService);
 		this.hasMultipleAgentSessionsSelectedContextKey = ChatContextKeys.hasMultipleAgentSessionsSelected.bindTo(this.contextKeyService);
 
-		this.createList(this.container);
+		this.create(this.container);
 
 		this.registerListeners();
 	}
@@ -140,9 +143,27 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 	}
 
-	private createList(container: HTMLElement): void {
+	private create(container: HTMLElement): void {
 		this.sessionsContainer = append(container, $('.agent-sessions-viewer'));
 
+		this.createEmptyFilterMessage(this.sessionsContainer);
+		this.createList(this.sessionsContainer);
+	}
+
+	private createEmptyFilterMessage(container: HTMLElement): void {
+		this.emptyFilterMessage = append(container, $('.agent-sessions-empty-filter-message'));
+		hide(this.emptyFilterMessage);
+
+		const span = append(this.emptyFilterMessage, $('span'));
+		span.textContent = localize('agentSessions.noFilterResults', "No sessions match the current filter.");
+
+		const link = append(this.emptyFilterMessage, $('a.reset-filter-link'));
+		link.textContent = localize('agentSessions.clearFilters', "Clear Filters");
+		link.tabIndex = 0;
+		this._register(addDisposableListener(link, EventType.CLICK, () => this.options.filter.reset()));
+	}
+
+	private createList(container: HTMLElement): void {
 		const collapseByDefault = (element: unknown) => {
 			if (isAgentSessionSection(element)) {
 				if (element.section === AgentSessionSection.More && !this.options.filter.getExcludes().read) {
@@ -168,16 +189,17 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		const sorter = new AgentSessionsSorter(this.options);
 		const approvalModel = this.options.enableApprovalRow ? this._register(this.instantiationService.createInstance(AgentSessionApprovalModel)) : undefined;
 		const sessionRenderer = this._register(this.instantiationService.createInstance(AgentSessionRenderer, this.options, approvalModel));
+		const sessionFilter = this._register(new AgentSessionsDataSource(this.options.filter, sorter));
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
-			this.sessionsContainer,
+			container,
 			new AgentSessionsListDelegate(approvalModel),
 			new AgentSessionsCompressionDelegate(),
 			[
 				sessionRenderer,
 				this.instantiationService.createInstance(AgentSessionSectionRenderer),
 			],
-			new AgentSessionsDataSource(this.options.filter, sorter),
+			sessionFilter,
 			{
 				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
@@ -200,6 +222,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			if (list.hasNode(session)) {
 				list.updateElementHeight(session, undefined);
 			}
+		}));
+
+		this._register(sessionFilter.onDidGetChildren(count => {
+			this.updateEmptyFilterMessage(count);
 		}));
 
 		const model = this.agentSessionsService.model;
@@ -249,6 +275,20 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 			this.updateSectionCollapseStates();
 		}));
+	}
+
+	private updateEmptyFilterMessage(visibleChildren: number): void {
+		if (!this.emptyFilterMessage || !this.sessionsList) {
+			return;
+		}
+
+		const model = this.agentSessionsService.model;
+		const hasSessionsInModel = model.sessions.length > 0;
+		const hasVisibleChildren = visibleChildren > 0;
+		const isFilterActive = !this.options.filter.isDefault();
+
+		const showMessage = hasSessionsInModel && !hasVisibleChildren && isFilterActive;
+		setVisibility(showMessage, this.emptyFilterMessage);
 	}
 
 	private hasTodaySessions(): boolean {
