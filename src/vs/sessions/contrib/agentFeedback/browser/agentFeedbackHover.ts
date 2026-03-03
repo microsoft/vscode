@@ -45,6 +45,7 @@ interface IFeedbackCommentElement {
 	readonly text: string;
 	readonly resourceUri: URI;
 	readonly range: IRange;
+	readonly codeSelection?: string;
 }
 
 type FeedbackTreeElement = IFeedbackFileElement | IFeedbackCommentElement;
@@ -224,15 +225,19 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		markdown.appendText(element.text);
 
-		// Try to get the code snippet synchronously from already-loaded models
-		const model = this._modelService.getModel(element.resourceUri);
-		if (model) {
-			const snippet = model.getValueInRange(element.range);
-			if (snippet) {
-				const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(element.resourceUri);
-				markdown.appendMarkdown('\n\n');
-				markdown.appendCodeblock(languageId ?? '', snippet);
+		// Use the pre-resolved code snippet from the variable entry, falling back to model service
+		let snippet = element.codeSelection;
+		if (!snippet) {
+			const model = this._modelService.getModel(element.resourceUri);
+			if (model) {
+				snippet = model.getValueInRange(element.range);
 			}
+		}
+
+		if (snippet) {
+			const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(element.resourceUri);
+			markdown.appendMarkdown('\n\n');
+			markdown.appendCodeblock(languageId ?? '', snippet);
 		}
 
 		return {
@@ -385,6 +390,7 @@ export class AgentFeedbackHover extends Disposable {
 				text: item.text,
 				resourceUri: item.resourceUri,
 				range: item.range,
+				codeSelection: item.codeSelection,
 			});
 		}
 
