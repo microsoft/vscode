@@ -60,12 +60,15 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { HOOKS_SOURCE_FOLDER } from '../../common/promptSyntax/config/promptFileLocations.js';
+import { COPILOT_CLI_HOOK_TYPE_MAP } from '../../common/promptSyntax/hookSchema.js';
 import { McpServerEditorInput } from '../../../mcp/browser/mcpServerEditorInput.js';
 import { McpServerEditor } from '../../../mcp/browser/mcpServerEditor.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IWorkbenchMcpServer } from '../../../mcp/common/mcpTypes.js';
 
 const $ = DOM.$;
@@ -166,6 +169,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private selectedSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
 
 	private readonly editorDisposables = this._register(new DisposableStore());
+	private _editorContentChanged = false;
+
+	// Folder picker (sessions window only)
+	private folderPickerContainer: HTMLElement | undefined;
+	private folderPickerLabel: HTMLElement | undefined;
+	private folderPickerClearButton: HTMLElement | undefined;
 
 	private readonly inEditorContextKey: IContextKey<boolean>;
 	private readonly sectionContextKey: IContextKey<string>;
@@ -185,8 +194,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IPathService private readonly pathService: IPathService,
 		@IFileService private readonly fileService: IFileService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -264,7 +274,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 			layout: (width, _, height) => {
 				this.sidebarContainer.style.width = `${width}px`;
 				if (height !== undefined) {
-					const listHeight = height - 8;
+					const footerHeight = this.folderPickerContainer?.offsetHeight ?? 0;
+					const listHeight = height - 8 - footerHeight;
 					this.sectionsList.layout(listHeight, width);
 				}
 			},
@@ -350,6 +361,72 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.selectSection(e.elements[0].id);
 			}
 		}));
+
+		// Folder picker (sessions window only)
+		if (this.workspaceService.isSessionsWindow) {
+			this.createFolderPicker(sidebarContent);
+		}
+	}
+
+	private createFolderPicker(sidebarContent: HTMLElement): void {
+		const footer = this.folderPickerContainer = DOM.append(sidebarContent, $('.sidebar-folder-picker'));
+
+		const button = DOM.append(footer, $('button.folder-picker-button'));
+		button.setAttribute('aria-label', localize('browseFolder', "Browse folder"));
+
+		const folderIcon = DOM.append(button, $(`.codicon.codicon-${Codicon.folder.id}`));
+		folderIcon.classList.add('folder-picker-icon');
+
+		this.folderPickerLabel = DOM.append(button, $('span.folder-picker-label'));
+
+		this.folderPickerClearButton = DOM.append(footer, $('button.folder-picker-clear'));
+		this.folderPickerClearButton.setAttribute('aria-label', localize('clearFolderOverride', "Reset to session folder"));
+		DOM.append(this.folderPickerClearButton, $(`.codicon.codicon-${Codicon.close.id}`));
+
+		// Clicking the main button opens the folder dialog
+		this.editorDisposables.add(DOM.addDisposableListener(button, 'click', () => {
+			this.browseForFolder();
+		}));
+
+		// Clear button resets to session default
+		this.editorDisposables.add(DOM.addDisposableListener(this.folderPickerClearButton, 'click', () => {
+			this.workspaceService.clearOverrideProjectRoot();
+		}));
+
+		// Hover showing full path
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, () => {
+			const root = this.workspaceService.getActiveProjectRoot();
+			return root?.fsPath ?? '';
+		}));
+
+		// Keep label and clear button in sync with the active root
+		this.editorDisposables.add(autorun(reader => {
+			const root = this.workspaceService.activeProjectRoot.read(reader);
+			const hasOverride = this.workspaceService.hasOverrideProjectRoot.read(reader);
+			this.updateFolderPickerLabel(root, hasOverride);
+		}));
+	}
+
+	private updateFolderPickerLabel(root: URI | undefined, hasOverride: boolean): void {
+		if (this.folderPickerLabel) {
+			this.folderPickerLabel.textContent = root ? basename(root) : localize('noFolder', "No folder");
+		}
+		if (this.folderPickerClearButton) {
+			this.folderPickerClearButton.style.display = hasOverride ? '' : 'none';
+		}
+	}
+
+	private async browseForFolder(): Promise<void> {
+		const result = await this.fileDialogService.showOpenDialog({
+			canSelectFolders: true,
+			canSelectFiles: false,
+			canSelectMany: false,
+			title: localize('selectFolder', "Select Folder to Explore"),
+			defaultUri: this.workspaceService.getActiveProjectRoot(),
+		});
+		if (result?.[0]) {
+			this.workspaceService.setOverrideProjectRoot(result[0]);
+		}
 	}
 
 	private createContent(): void {
@@ -505,7 +582,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private async createNewItemManual(type: PromptsType, target: 'workspace' | 'user'): Promise<void> {
 
 		if (type === PromptsType.hook) {
-			if (this.workspaceService.preferManualCreation) {
+			if (this.workspaceService.isSessionsWindow) {
 				// Sessions: directly create a Copilot CLI format hooks file
 				await this.createCopilotCliHookFile();
 			} else {
@@ -522,7 +599,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		const targetDir = target === 'workspace'
 			? resolveWorkspaceTargetDirectory(this.workspaceService, type)
-			: await resolveUserTargetDirectory(this.promptsService, type, this.configurationService, this.pathService);
+			: await resolveUserTargetDirectory(this.promptsService, type);
 
 		const options: INewPromptOptions = {
 			targetFolder: targetDir,
@@ -563,22 +640,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		try {
 			await this.fileService.stat(hookFileUri);
 		} catch {
-			const hooksContent = {
-				hooks: {
-					sessionStart: [
-						{ type: 'command', command: '' }
-					],
-					userPromptSubmitted: [
-						{ type: 'command', command: '' }
-					],
-					preToolUse: [
-						{ type: 'command', command: '' }
-					],
-					postToolUse: [
-						{ type: 'command', command: '' }
-					],
-				}
-			};
+			// Derive hook event names from the schema so new events are automatically included
+			const hooks: Record<string, { type: string; bash: string }[]> = {};
+			for (const eventName of Object.keys(COPILOT_CLI_HOOK_TYPE_MAP)) {
+				hooks[eventName] = [{ type: 'command', bash: '' }];
+			}
+			const hooksContent = { version: 1, hooks };
 			const jsonContent = JSON.stringify(hooksContent, null, '\t');
 			await this.fileService.writeFile(hookFileUri, VSBuffer.fromString(jsonContent));
 		}
@@ -595,6 +662,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	override async setInput(input: AICustomizationManagementEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		// On (re)open, clear any override so the root comes from the default source
+		this.workspaceService.clearOverrideProjectRoot();
+
 		this.inEditorContextKey.set(true);
 		this.sectionContextKey.set(this.selectedSection);
 
@@ -613,6 +683,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		if (this.viewMode === 'mcpDetail') {
 			this.goBackFromMcpDetail();
 		}
+		// Clear transient folder override on close
+		this.workspaceService.clearOverrideProjectRoot();
 		super.clearInput();
 	}
 
@@ -646,6 +718,22 @@ export class AICustomizationManagementEditor extends EditorPane {
 	public selectSectionById(sectionId: AICustomizationManagementSection): void {
 		const index = this.sections.findIndex(s => s.id === sectionId);
 		if (index >= 0) {
+			// Directly update state and UI, bypassing the early-return guard in selectSection
+			// to handle the case where the editor just opened with a persisted section that
+			// matches the requested one (content might not be loaded yet).
+			if (this.viewMode === 'editor') {
+				this.goBackToList();
+			}
+			if (this.viewMode === 'mcpDetail') {
+				this.goBackFromMcpDetail();
+			}
+			this.selectedSection = sectionId;
+			this.sectionContextKey.set(sectionId);
+			this.storageService.store(AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY, sectionId, StorageScope.PROFILE, StorageTarget.USER);
+			this.updateContentVisibility();
+			if (this.isPromptsSection(sectionId)) {
+				void this.listWidget.setSection(sectionId);
+			}
 			this.sectionsList.setFocus([index]);
 			this.sectionsList.setSelection([index]);
 		}
@@ -656,6 +744,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 	 */
 	public refreshList(): void {
 		void this.listWidget.refresh();
+	}
+
+	/**
+	 * Generates a debug report for the current section.
+	 */
+	public async generateDebugReport(): Promise<string> {
+		return this.listWidget.generateDebugReport();
 	}
 
 	//#region Embedded Editor
@@ -727,8 +822,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.embeddedEditor!.focus();
 
 			this.editorModelChangeDisposables.clear();
+			this._editorContentChanged = false;
 			const saveDelayer = this.editorModelChangeDisposables.add(new Delayer<void>(500));
 			this.editorModelChangeDisposables.add(ref.object.textEditorModel.onDidChangeContent(() => {
+				this._editorContentChanged = true;
 				this.editorSaveIndicator.className = 'editor-save-indicator visible';
 				this.editorSaveIndicator.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
 				this.editorSaveIndicator.title = localize('saving', "Saving...");
@@ -757,10 +854,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private goBackToList(): void {
-		// Auto-commit workspace files when leaving the embedded editor
+		// Auto-commit workspace files when leaving the embedded editor (only if modified)
 		const fileUri = this.currentEditingUri;
 		const projectRoot = this.currentEditingProjectRoot;
-		if (fileUri && projectRoot) {
+		if (fileUri && projectRoot && this._editorContentChanged) {
 			this.workspaceService.commitFiles(projectRoot, [fileUri]);
 		}
 
@@ -774,6 +871,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.embeddedEditor?.setModel(null);
 		this.viewMode = 'list';
 		this.updateContentVisibility();
+
+		// Refresh the list to pick up newly created/edited files
+		void this.listWidget?.refresh();
 
 		if (this.dimension) {
 			this.layout(this.dimension);

@@ -206,12 +206,15 @@ import './contrib/chat/browser/chat.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changesView/browser/changesView.contribution.js';
+import './contrib/files/browser/files.contribution.js';
 import './contrib/gitSync/browser/gitSync.contribution.js';
+import './contrib/applyToParentRepo/browser/applyToParentRepo.contribution.js';
 import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
 import './contrib/configuration/browser/configuration.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/logs/browser/logs.contribution.js';
+import './contrib/workspace/browser/workspace.contribution.js';
 import './contrib/welcome/browser/welcome.contribution.js';
 
 //#endregion

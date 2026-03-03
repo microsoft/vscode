@@ -313,10 +313,13 @@
 	font-weight: 600;
 }
 
-.interactive-item-container .value .rendered-markdown table {
+.interactive-item-container .value .rendered-markdown .rendered-markdown-table-scroll-wrapper {
 	width: 100%;
-	text-align: left;
 	margin-bottom: 16px;
+}
+
+.interactive-item-container .value .rendered-markdown table {
+	text-align: left;
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 	border-collapse: separate;
@@ -330,6 +333,11 @@
 	border-top: none;
 	border-left: none;
 	padding: 4px 6px;
+}
+
+.interactive-item-container .value .rendered-markdown table th {
+	white-space: normal;
+	overflow-wrap: break-word;
 }
 
 .interactive-item-container .value .rendered-markdown table td:last-child,
@@ -616,7 +624,7 @@
 	}
 
 	&:not(:last-child) {
-		margin-bottom: 12px;
+		margin-bottom: 16px;
 	}
 }
 
@@ -1317,6 +1325,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-right: auto;
 }
 
+.interactive-session .chat-input-toolbars > .chat-input-toolbar .actions-container:first-child {
+	margin-right: 0;
+}
+
 .interactive-session .chat-input-toolbars .tool-warning-indicator {
 	position: absolute;
 	bottom: 0;
@@ -1394,10 +1406,40 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label,
 .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label {
 	height: 16px;
-	padding: 3px 0px 3px 6px;
+	padding: 3px 1px 3px 7px;
 	display: flex;
 	align-items: center;
 	color: var(--vscode-icon-foreground);
+}
+
+/* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)) {
+	width: 22px;
+	min-width: 22px;
+	height: 22px;
+	padding: 0;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	.codicon {
+		justify-content: center;
+	}
+}
+
+/* When chevrons are hidden but label is still shown (e.g. model picker), use equal padding */
+.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:has(.chat-input-picker-label),
+.interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:has(.chat-input-picker-label),
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:has(.chat-input-picker-label) {
+	padding: 3px 7px;
+}
+
+/* Hide the tools button when the toolbar is in collapsed state */
+.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-tools) {
+	display: none;
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
@@ -1434,6 +1476,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .action-widget .monaco-list-row.chat-model-picker-unavailable .description a:hover,
 .action-widget .monaco-list-row.chat-model-picker-unavailable .description a:active {
 	color: var(--vscode-textLink-activeForeground);
+}
+
+.action-widget .action-list-filter-input.chat-model-picker-filter-input,
+.action-widget .action-list-filter-input.chat-model-picker-filter-input:focus {
+	outline: none;
+	box-shadow: none;
+	border-color: transparent;
+	background-color: transparent;
+}
+
+.action-widget .action-list-filter:has(.chat-model-picker-filter-input) {
+	margin-bottom: 4px;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {
@@ -2726,14 +2780,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.interactive-request .header.partially-disabled .detail-container {
-		margin-left: 4px;
+		margin-left: 0px;
 	}
 
 	.interactive-item-container .header .detail .codicon-check {
 		margin-right: 7px;
 		vertical-align: middle;
 		font-size: 11px;
+		display: none;
 	}
+
+	.interactive-item-container .header.partially-disabled .detail.show-checkmarks {
+		margin-left: 4px;
+
+		.codicon-check {
+			display: inline;
+		}
+	}
+
 
 	.request-hover {
 		position: absolute;

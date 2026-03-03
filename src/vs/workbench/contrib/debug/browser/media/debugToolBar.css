@@ -9,7 +9,7 @@
 	height: 28px;
 	display: flex;
 	padding-left: 2px;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-large);
 	left: 0;
 	top: 0;
 	-webkit-app-region: no-drag;

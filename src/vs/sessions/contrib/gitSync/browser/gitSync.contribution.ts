@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -27,6 +28,7 @@ class GitSyncContribution extends Disposable implements IWorkbenchContribution {
 
 	private readonly _syncActionDisposable = this._register(new MutableDisposable());
 	private readonly _gitRepoDisposables = this._register(new DisposableStore());
+	private readonly _isSyncing = observableValue<boolean>(this, false);
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -48,14 +50,19 @@ class GitSyncContribution extends Disposable implements IWorkbenchContribution {
 				return;
 			}
 
+			const repoDisposables = this._gitRepoDisposables.add(new DisposableStore());
 			this.gitService.openRepository(worktreeUri).then(repository => {
+				if (repoDisposables.isDisposed) {
+					return;
+				}
 				if (!repository) {
 					this._syncActionDisposable.clear();
 					contextKey.set(false);
 					return;
 				}
-				this._gitRepoDisposables.add(autorun(innerReader => {
+				repoDisposables.add(autorun(innerReader => {
 					const state = repository.state.read(innerReader);
+					const isSyncing = this._isSyncing.read(innerReader);
 					const head = state.HEAD;
 					if (!head?.upstream) {
 						this._syncActionDisposable.clear();
@@ -66,14 +73,16 @@ class GitSyncContribution extends Disposable implements IWorkbenchContribution {
 					const behind = head.behind ?? 0;
 					const hasSyncChanges = ahead > 0 || behind > 0;
 					contextKey.set(hasSyncChanges);
-					this._syncActionDisposable.value = registerSyncAction(ahead, behind);
+					this._syncActionDisposable.value = registerSyncAction(behind, ahead, isSyncing, (syncing) => {
+						this._isSyncing.set(syncing, undefined);
+					});
 				}));
 			});
 		}));
 	}
 }
 
-function registerSyncAction(behind: number, ahead: number): IDisposable {
+function registerSyncAction(behind: number, ahead: number, isSyncing: boolean, setSyncing: (syncing: boolean) => void): IDisposable {
 	if (behind === 0 && ahead === 0) {
 		return Disposable.None;
 	}
@@ -85,6 +94,8 @@ function registerSyncAction(behind: number, ahead: number): IDisposable {
 		title += `${ahead}↑`;
 	}
 
+	const icon = isSyncing ? ThemeIcon.modify(Codicon.sync, 'spin') : Codicon.sync;
+
 	class SynchronizeChangesAction extends Action2 {
 		static readonly ID = 'chatEditing.synchronizeChanges';
 
@@ -93,7 +104,7 @@ function registerSyncAction(behind: number, ahead: number): IDisposable {
 				id: SynchronizeChangesAction.ID,
 				title,
 				tooltip: localize('synchronizeChanges', "Synchronize Changes with Git (Behind {0}, Ahead {1})", behind, ahead),
-				icon: Codicon.sync,
+				icon,
 				category: CHAT_CATEGORY,
 				menu: [
 					{
@@ -108,7 +119,14 @@ function registerSyncAction(behind: number, ahead: number): IDisposable {
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const commandService = accessor.get(ICommandService);
-			await commandService.executeCommand('git.sync');
+			const sessionManagementService = accessor.get(ISessionsManagementService);
+			const worktreeUri = sessionManagementService.getActiveSession()?.worktree;
+			setSyncing(true);
+			try {
+				await commandService.executeCommand('git.sync', worktreeUri);
+			} finally {
+				setSyncing(false);
+			}
 		}
 	}
 	return registerAction2(SynchronizeChangesAction);

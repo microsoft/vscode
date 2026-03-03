@@ -185,6 +185,14 @@ const requestInProgressOrPendingToolCall = ContextKeyExpr.or(
 	ChatContextKeys.Editing.hasToolConfirmation,
 	ChatContextKeys.Editing.hasQuestionCarousel,
 );
+const requestInProgressWithoutInput = ContextKeyExpr.and(
+	ChatContextKeys.requestInProgress,
+	ChatContextKeys.inputHasText.negate(),
+);
+const pendingToolCall = ContextKeyExpr.or(
+	ChatContextKeys.Editing.hasToolConfirmation,
+	ChatContextKeys.Editing.hasQuestionCarousel,
+);
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
 
 export class ChatSubmitAction extends SubmitAction {
@@ -298,7 +306,6 @@ class ToggleChatModeAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const commandService = accessor.get(ICommandService);
-		const configurationService = accessor.get(IConfigurationService);
 		const instaService = accessor.get(IInstantiationService);
 		const modeService = accessor.get(IChatModeService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -318,7 +325,7 @@ class ToggleChatModeAction extends Action2 {
 
 		const chatSession = widget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, configurationService, modeService);
+		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, modeService);
 
 		const currentMode = widget.input.currentModeObs.get();
 		if (switchToMode.id === currentMode.id) {
@@ -357,11 +364,11 @@ class ToggleChatModeAction extends Action2 {
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService, modeService: IChatModeService): IChatMode {
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, modeService: IChatModeService): IChatMode {
 		const modes = modeService.getModes();
 		const flat = [
 			...modes.builtin.filter(mode => {
-				return mode.kind !== ChatModeKind.Edit || configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0;
+				return mode.kind !== ChatModeKind.Edit || requestCount === 0;
 			}),
 			...(modes.custom ?? []),
 		];
@@ -469,9 +476,10 @@ export class OpenModePickerAction extends Action2 {
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.chatSessionHasCustomAgentTarget),
-						// Hide in welcome view when session type is not local
+						// Show in welcome view for local sessions or sessions with custom agent target
 						ContextKeyExpr.or(
 							ChatContextKeys.inAgentSessionsWelcome.negate(),
+							ChatContextKeys.chatSessionHasCustomAgentTarget,
 							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))),
 					group: 'navigation',
 				},
@@ -838,7 +846,7 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					requestInProgressOrPendingToolCall,
+					ContextKeyExpr.or(requestInProgressWithoutInput, pendingToolCall),
 					ChatContextKeys.remoteJobCreating.negate(),
 					ChatContextKeys.currentlyEditing.negate(),
 				),

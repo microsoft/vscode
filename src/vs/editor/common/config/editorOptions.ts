@@ -2322,6 +2322,11 @@ export interface IEditorHoverOptions {
 	 * Defaults to false.
 	 */
 	above?: boolean;
+	/**
+	 * Should long line warning hovers be shown (tokenization skipped, rendering paused)?
+	 * Defaults to true.
+	 */
+	showLongLineWarning?: boolean;
 }
 
 /**
@@ -2338,6 +2343,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			hidingDelay: 300,
 			sticky: true,
 			above: true,
+			showLongLineWarning: true,
 		};
 		super(
 			EditorOption.hover, 'hover', defaults,
@@ -2376,6 +2382,11 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.above,
 					description: nls.localize('hover.above', "Prefer showing hovers above the line, if there's space.")
 				},
+				'editor.hover.showLongLineWarning': {
+					type: 'boolean',
+					default: defaults.showLongLineWarning,
+					description: nls.localize('hover.showLongLineWarning', "Controls whether long line warning hovers are shown, such as when tokenization is skipped or rendering is paused.")
+				},
 			}
 		);
 	}
@@ -2391,6 +2402,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
+			showLongLineWarning: boolean(input.showLongLineWarning, this.defaultValue.showLongLineWarning),
 		};
 	}
 }

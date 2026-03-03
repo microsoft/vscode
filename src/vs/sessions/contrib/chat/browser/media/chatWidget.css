@@ -8,6 +8,7 @@
 	flex-direction: column;
 	height: 100%;
 	width: 100%;
+	position: relative;
 }
 
 /* Welcome container fills available space and centers content */
@@ -250,17 +251,37 @@
 }
 
 /* Drag and drop */
-.sessions-chat-drop-overlay {
-	display: none;
+.sessions-chat-dnd-overlay {
 	position: absolute;
 	top: 0;
 	left: 0;
-	right: 0;
-	bottom: 0;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	display: none;
 	z-index: 10;
+	background-color: var(--vscode-sideBar-dropBackground, var(--vscode-list-dropBackground));
 }
 
-.sessions-chat-input-area.sessions-chat-drop-active {
-	border-color: var(--vscode-focusBorder);
-	background-color: var(--vscode-list-dropBackground);
+.sessions-chat-dnd-overlay.visible {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.sessions-chat-dnd-overlay .attach-context-overlay-text {
+	padding: 0.6em;
+	margin: 0.2em;
+	line-height: 12px;
+	height: 12px;
+	display: flex;
+	align-items: center;
+	text-align: center;
+	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.sessions-chat-dnd-overlay .attach-context-overlay-text .codicon {
+	height: 12px;
+	font-size: 12px;
+	margin-right: 3px;
 }

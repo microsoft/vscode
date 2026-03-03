@@ -1919,10 +1919,10 @@
             "markdownDeprecationMessage": "%configuration.suggest.paths.unifiedDeprecationMessage%",
             "scope": "resource"
           },
-          "js/ts.suggest.completeJSDocs": {
+          "js/ts.suggest.jsdoc.enabled": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "scope": "language-overridable",
             "keywords": [
               "JavaScript",
@@ -1932,14 +1932,14 @@
           "javascript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },
           "typescript.suggest.completeJSDocs": {
             "type": "boolean",
             "default": true,
-            "description": "%configuration.suggest.completeJSDocs%",
+            "description": "%configuration.suggest.jsdoc.enabled%",
             "markdownDeprecationMessage": "%configuration.suggest.completeJSDocs.unifiedDeprecationMessage%",
             "scope": "language-overridable"
           },

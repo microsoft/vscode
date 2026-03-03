@@ -34,29 +34,13 @@ export class ChatBarPart extends AbstractPaneCompositePart {
 	static readonly placeholderViewContainersKey = 'workbench.chatbar.placeholderPanels';
 	static readonly viewContainersWorkspaceStateKey = 'workbench.chatbar.viewContainersWorkspaceState';
 
-	// Use the side bar dimensions
-	override readonly minimumWidth: number = 170;
+	override readonly minimumWidth: number = 300;
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
 
 	get preferredHeight(): number | undefined {
 		return this.layoutService.mainContainerDimension.height * 0.4;
-	}
-
-	get preferredWidth(): number | undefined {
-		const activeComposite = this.getActivePaneComposite();
-
-		if (!activeComposite) {
-			return undefined;
-		}
-
-		const width = activeComposite.getOptimalWidth();
-		if (typeof width !== 'number') {
-			return undefined;
-		}
-
-		return Math.max(width, 300);
 	}
 
 	readonly priority = LayoutPriority.High;

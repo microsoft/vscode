@@ -45,6 +45,8 @@ export interface IAgentPlugin {
 	readonly uri: URI;
 	readonly enabled: IObservable<boolean>;
 	setEnabled(enabled: boolean): void;
+	/** Removes this plugin from its discovery source (config or installed storage). */
+	remove(): void;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;

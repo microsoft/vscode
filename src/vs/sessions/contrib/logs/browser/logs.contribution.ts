@@ -18,6 +18,7 @@ import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensi
 import { OutputViewPane } from '../../../../workbench/contrib/output/browser/outputView.js';
 import { OUTPUT_VIEW_ID } from '../../../../workbench/services/output/common/output.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 const SESSIONS_LOGS_CONTAINER_ID = 'workbench.sessions.panel.logsContainer';
 
@@ -29,7 +30,11 @@ class RegisterLogsViewContainerContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.registerLogsViewContainer';
 
-	constructor() {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEnvironmentService environmentService: IEnvironmentService,
+	) {
+		CONTEXT_SESSIONS_SHOW_LOGS.bindTo(contextKeyService).set(!environmentService.isBuilt);
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
