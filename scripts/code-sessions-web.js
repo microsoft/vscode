@@ -32,14 +32,17 @@ async function main() {
 	const HOST = args['host'] ?? 'localhost';
 	const PORT = parseInt(args['port'] ?? '8081', 10);
 
-	// Read CSS modules list for dev mode (same as code-web does)
+	// Collect CSS module paths from the compiled output (same as @vscode/test-web does).
+	// These are turned into an import map so the browser can load `import './foo.css'`
+	// statements as JavaScript shims that inject the CSS via `_VSCODE_CSS_LOAD`.
 	let cssModules = [];
 	try {
-		const cssModulesPath = path.join(APP_ROOT, '.build', 'cssDevModules.json');
-		if (fs.existsSync(cssModulesPath)) {
-			cssModules = JSON.parse(fs.readFileSync(cssModulesPath, 'utf-8'));
-		}
-	} catch { /* ignore */ }
+		const { glob } = require('tinyglobby');
+		cssModules = await glob('**/*.css', { cwd: path.join(APP_ROOT, 'out') });
+	} catch {
+		// tinyglobby may not be installed; fall back to a recursive fs walk
+		cssModules = collectCssFiles(path.join(APP_ROOT, 'out'), '');
+	}
 
 	const server = http.createServer((req, res) => {
 		const url = new URL(req.url, `http://${HOST}:${PORT}`);
@@ -137,6 +140,20 @@ function getSessionsHTML(host, port, cssModules) {
 	</script>
 </body>
 </html>`;
+}
+
+/** Recursively collect *.css paths relative to `dir`. */
+function collectCssFiles(dir, prefix) {
+	let results = [];
+	for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+		const rel = prefix ? prefix + '/' + entry.name : entry.name;
+		if (entry.isDirectory()) {
+			results = results.concat(collectCssFiles(path.join(dir, entry.name), rel));
+		} else if (entry.name.endsWith('.css')) {
+			results.push(rel);
+		}
+	}
+	return results;
 }
 
 main();
