@@ -619,7 +619,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		};
 
 		const pickerOptions: IChatInputPickerOptions = {
-			onlyShowIconsForDefaultActions: observableValue('onlyShowIcons', false),
+			hideChevrons: observableValue('hideChevrons', false),
 			hoverPosition: { hoverPosition: HoverPosition.ABOVE },
 		};
 

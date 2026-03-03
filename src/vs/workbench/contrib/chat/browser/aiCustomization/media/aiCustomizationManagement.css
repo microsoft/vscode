@@ -195,7 +195,8 @@
 
 .ai-customization-list-widget .list-container {
 	flex: 1;
-	overflow: hidden;
+	min-height: 0;
+	overflow: auto;
 }
 
 .ai-customization-list-widget .list-empty-message {
@@ -251,11 +252,9 @@
 	border-radius: 4px;
 }
 
-/* Separator line above non-first group headers */
+/* Spacing above non-first group headers */
 .ai-customization-group-header.has-previous-group {
-	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border));
 	margin-top: 4px;
-	padding-top: 12px;
 }
 
 .ai-customization-group-header:hover {
@@ -648,7 +647,8 @@
 
 .mcp-list-widget .mcp-list-container {
 	flex: 1;
-	overflow: hidden;
+	min-height: 0;
+	overflow: auto;
 }
 
 /* MCP Empty State */
@@ -690,15 +690,21 @@
 .mcp-server-item {
 	display: flex;
 	align-items: center;
-	padding: 8px 12px;
+	padding: 6px 8px 6px 24px;
 	cursor: pointer;
 	border-radius: 4px;
 	margin: 2px 0;
-	gap: 12px;
+	min-height: 32px;
+	gap: 10px;
 }
 
 .mcp-server-item:hover {
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+.mcp-server-item.builtin {
+	cursor: default;
+	opacity: 0.85;
 }
 
 .mcp-server-item .mcp-server-icon {
@@ -721,10 +727,10 @@
 
 .mcp-server-item .mcp-server-name {
 	font-size: 13px;
-	font-weight: 500;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	line-height: 18px;
 }
 
 .mcp-server-item .mcp-server-description {
@@ -733,6 +739,7 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	line-height: 14px;
 }
 
 .mcp-server-item .mcp-server-status {

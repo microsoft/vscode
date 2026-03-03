@@ -408,7 +408,11 @@ export class CodeApplication extends Disposable {
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows) {
-				await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
+				if ((process as INodeProcess).isEmbeddedApp || (this.environmentMainService.args['sessions'] && this.productService.quality !== 'stable')) {
+					await this.windowsMainService?.openSessionsWindow({ context: OpenContext.DOCK });
+				} else {
+					await this.windowsMainService?.openEmptyWindow({ context: OpenContext.DOCK });
+				}
 			}
 		});
 

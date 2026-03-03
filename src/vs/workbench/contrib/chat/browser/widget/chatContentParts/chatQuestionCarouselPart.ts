@@ -19,6 +19,7 @@ import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../common/chatService/chatService.js';
+import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -32,7 +33,6 @@ import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
 const NEXT_QUESTION_ACTION_ID = 'workbench.action.chat.nextQuestion';
-
 export interface IChatQuestionCarouselOptions {
 	onSubmit: (answers: Map<string, unknown> | undefined) => void;
 	shouldAutoFocus?: boolean;
@@ -100,7 +100,20 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.setAttribute('aria-roledescription', localize('chat.questionCarousel.roleDescription', 'chat question'));
 		this._updateAriaLabel();
 
-		// Restore answers from carousel data if already submitted (e.g., after re-render due to virtualization)
+		// Restore draft state from transient runtime fields when available.
+		if (carousel instanceof ChatQuestionCarouselData) {
+			if (typeof carousel.draftCurrentIndex === 'number') {
+				this._currentIndex = Math.max(0, Math.min(carousel.draftCurrentIndex, carousel.questions.length - 1));
+			}
+
+			if (carousel.draftAnswers) {
+				for (const [key, value] of Object.entries(carousel.draftAnswers)) {
+					this._answers.set(key, value);
+				}
+			}
+		}
+
+		// Restore submitted answers for summary rendering.
 		if (carousel.data) {
 			for (const [key, value] of Object.entries(carousel.data)) {
 				this._answers.set(key, value);
@@ -219,7 +232,20 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const answer = this.getCurrentAnswer();
 		if (answer !== undefined) {
 			this._answers.set(currentQuestion.id, answer);
+		} else {
+			this._answers.delete(currentQuestion.id);
 		}
+
+		this.persistDraftState();
+	}
+
+	private persistDraftState(): void {
+		if (this.carousel.isUsed || !(this.carousel instanceof ChatQuestionCarouselData)) {
+			return;
+		}
+
+		this.carousel.draftAnswers = Object.fromEntries(this._answers.entries());
+		this.carousel.draftCurrentIndex = this._currentIndex;
 	}
 
 	/**
@@ -231,6 +257,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (newIndex >= 0 && newIndex < this.carousel.questions.length) {
 			this.saveCurrentAnswer();
 			this._currentIndex = newIndex;
+			this.persistDraftState();
 			this.renderCurrentQuestion(true);
 		}
 	}
@@ -245,6 +272,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (this._currentIndex < this.carousel.questions.length - 1) {
 			// Move to next question
 			this._currentIndex++;
+			this.persistDraftState();
 			this.renderCurrentQuestion(true);
 		} else {
 			// Submit
@@ -648,6 +676,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			placeholder: localize('chat.questionCarousel.enterText', 'Enter your answer'),
 			inputBoxStyles: defaultInputBoxStyles,
 		}));
+		this._inputBoxes.add(inputBox.onDidChange(() => this.saveCurrentAnswer()));
 
 		// Restore previous answer if exists
 		const previousAnswer = this._answers.get(question.id);
@@ -716,6 +745,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			if (data) {
 				data.selectedIndex = newIndex;
 			}
+
+			this.saveCurrentAnswer();
 		};
 
 		options.forEach((option, index) => {
@@ -810,6 +841,8 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.INPUT, () => {
 			if (freeformTextarea.value.length > 0) {
 				updateSelection(-1);
+			} else {
+				this.saveCurrentAnswer();
 			}
 		}));
 
@@ -963,6 +996,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._inputBoxes.add(checkbox.onChange(() => {
 				listItem.classList.toggle('checked', checkbox.checked);
 				listItem.setAttribute('aria-selected', String(checkbox.checked));
+				this.saveCurrentAnswer();
 			}));
 
 			// Click handler for the entire row (toggle checkbox)
@@ -1007,6 +1041,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Setup auto-resize behavior
 		const autoResize = this.setupTextareaAutoResize(freeformTextarea);
+		this._inputBoxes.add(dom.addDisposableListener(freeformTextarea, dom.EventType.INPUT, () => this.saveCurrentAnswer()));
 
 		freeformContainer.appendChild(freeformTextarea);
 		container.appendChild(freeformContainer);
@@ -1271,5 +1306,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 	addDisposable(disposable: { dispose(): void }): void {
 		this._register(disposable);
+	}
+
+	override dispose(): void {
+		if (!this._isSkipped && !this.carousel.isUsed) {
+			this.saveCurrentAnswer();
+		}
+
+		super.dispose();
 	}
 }

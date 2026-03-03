@@ -37,7 +37,6 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { Action, Separator } from '../../../../../base/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { ISCMService } from '../../../scm/common/scm.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -51,7 +50,7 @@ import { OS } from '../../../../../base/common/platform.js';
 const $ = DOM.$;
 
 const ITEM_HEIGHT = 44;
-const GROUP_HEADER_HEIGHT = 32;
+const GROUP_HEADER_HEIGHT = 36;
 const GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
 
 /**
@@ -65,7 +64,6 @@ export interface IAICustomizationListItem {
 	readonly description?: string;
 	readonly storage: PromptsStorage;
 	readonly promptType: PromptsType;
-	gitStatus?: 'uncommitted' | 'committed';
 	nameMatches?: IMatch[];
 	descriptionMatches?: IMatch[];
 }
@@ -116,8 +114,6 @@ interface IAICustomizationItemTemplateData {
 	readonly actionsContainer: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly description: HighlightedLabel;
-	readonly storageBadge: HTMLElement;
-	readonly gitStatusBadge: HTMLElement;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -213,14 +209,9 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		container.classList.add('ai-customization-list-item');
 
 		const leftSection = DOM.append(container, $('.item-left'));
-		// Storage badge on left (shows workspace/user/extension)
-		const storageBadge = DOM.append(leftSection, $('.storage-badge'));
 		const textContainer = DOM.append(leftSection, $('.item-text'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-name'))));
 		const description = disposables.add(new HighlightedLabel(DOM.append(textContainer, $('.item-description'))));
-
-		// Git status badge (always visible, outside item-right hover container)
-		const gitStatusBadge = DOM.append(container, $('.git-status-badge'));
 
 		// Right section for actions (hover-visible)
 		const actionsContainer = DOM.append(container, $('.item-right'));
@@ -230,8 +221,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			actionsContainer,
 			nameLabel,
 			description,
-			storageBadge,
-			gitStatusBadge,
 			disposables,
 			elementDisposables,
 		};
@@ -266,45 +255,6 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		} else {
 			templateData.description.set('', undefined);
 			templateData.description.element.style.display = 'none';
-		}
-
-		// Storage badge
-		let storageBadgeIcon: ThemeIcon;
-		let storageBadgeLabel: string;
-		switch (element.storage) {
-			case PromptsStorage.local:
-				storageBadgeIcon = workspaceIcon;
-				storageBadgeLabel = localize('workspace', "Workspace");
-				break;
-			case PromptsStorage.user:
-				storageBadgeIcon = userIcon;
-				storageBadgeLabel = localize('user', "User");
-				break;
-			case PromptsStorage.extension:
-				storageBadgeIcon = extensionIcon;
-				storageBadgeLabel = localize('extension', "Extension");
-				break;
-			case PromptsStorage.plugin:
-				storageBadgeIcon = pluginIcon;
-				storageBadgeLabel = localize('plugin', "Plugin");
-				break;
-		}
-
-		templateData.storageBadge.className = 'storage-badge';
-		templateData.storageBadge.classList.add(...ThemeIcon.asClassNameArray(storageBadgeIcon));
-		templateData.storageBadge.title = storageBadgeLabel;
-
-		// Git status badge
-		const gitBadge = templateData.gitStatusBadge;
-		gitBadge.className = 'git-status-badge';
-		if (element.gitStatus === 'committed') {
-			gitBadge.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
-			gitBadge.classList.add('committed');
-			gitBadge.textContent = '';
-			gitBadge.title = localize('committedStatus', "Committed");
-			gitBadge.style.display = '';
-		} else {
-			gitBadge.style.display = 'none';
 		}
 	}
 
@@ -389,7 +339,6 @@ export class AICustomizationListWidget extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
-		@ISCMService private readonly scmService: ISCMService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
@@ -404,18 +353,6 @@ export class AICustomizationListWidget extends Disposable {
 			this.updateAddButton();
 			this.refresh();
 		}));
-
-		// Re-filter when SCM repositories change (updates git status badges after commits)
-		const trackRepoChanges = (repo: { provider: { onDidChangeResources: Event<void> } }) => {
-			this._register(repo.provider.onDidChangeResources(() => {
-				this.updateGitStatus(this.allItems);
-				this.filterItems();
-			}));
-		};
-		for (const repo of [...this.scmService.repositories]) {
-			trackRepoChanges(repo);
-		}
-		this._register(this.scmService.onDidAddRepository(repo => trackRepoChanges(repo)));
 
 	}
 
@@ -948,34 +885,9 @@ export class AICustomizationListWidget extends Disposable {
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
 
-		// Set git status for workspace (local) items
-		this.updateGitStatus(items);
-
 		this.allItems = items;
 		this.filterItems();
 		this._onDidChangeItemCount.fire(items.length);
-	}
-
-	/**
-	 * Updates git status on local workspace items by checking SCM resource groups.
-	 * Files found in resource groups have uncommitted changes; others are committed.
-	 */
-	private updateGitStatus(items: IAICustomizationListItem[]): void {
-		// Build a set of URIs that have uncommitted changes in SCM
-		const uncommittedUris = new Set<string>();
-		for (const repo of [...this.scmService.repositories]) {
-			for (const group of repo.provider.groups) {
-				for (const resource of group.resources) {
-					uncommittedUris.add(resource.sourceUri.toString());
-				}
-			}
-		}
-
-		for (const item of items) {
-			if (item.storage === PromptsStorage.local) {
-				item.gitStatus = uncommittedUris.has(item.uri.toString()) ? 'uncommitted' : 'committed';
-			}
-		}
 	}
 
 	/**
@@ -1201,14 +1113,28 @@ export class AICustomizationListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 100;
+		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 40;
-		const margins = 12; // search margin (6+6), not included in offsetHeight
-		const listHeight = height - sectionFooterHeight - searchBarHeight - margins;
+		const listHeight = height - sectionFooterHeight - searchBarHeight;
 
 		this.searchInput.layout();
 		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
 		this.list.layout(Math.max(0, listHeight), width);
+
+		// Re-layout once after footer renders if we used a zero fallback
+		if (sectionFooterHeight === 0) {
+			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
+				if (this._store.isDisposed) {
+					return;
+				}
+				const actualFooterHeight = this.sectionHeader.offsetHeight;
+				if (actualFooterHeight > 0) {
+					const correctedHeight = height - actualFooterHeight - searchBarHeight;
+					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
+					this.list.layout(Math.max(0, correctedHeight), width);
+				}
+			});
+		}
 	}
 
 	/**

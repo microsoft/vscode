@@ -18,6 +18,7 @@ export interface IPluginInstallService {
 	 */
 	installPlugin(plugin: IMarketplacePlugin): Promise<void>;
 
+
 	/**
 	 * Pulls the latest changes for an already-cloned marketplace repository.
 	 */

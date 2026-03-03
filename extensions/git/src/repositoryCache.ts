@@ -5,7 +5,7 @@
 
 import { LogOutputChannel, Memento, Uri, workspace } from 'vscode';
 import { LRUCache } from './cache';
-import { Remote, RepositoryAccessDetails } from './api/git';
+import type { Remote, RepositoryAccessDetails } from './api/git';
 import { isDescendant } from './util';
 
 export interface RepositoryCacheInfo {
