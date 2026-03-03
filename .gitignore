@@ -28,3 +28,4 @@ vscode-telemetry-docs/
 test-output.json
 test/componentFixtures/.screenshots/*
 !test/componentFixtures/.screenshots/baseline/
+dist

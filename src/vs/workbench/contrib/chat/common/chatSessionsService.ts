@@ -287,6 +287,9 @@ export interface IChatSessionsService {
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
+
+	getNewSessionOptionsForSessionType(chatSessionType: string): Record<string, string | IChatSessionProviderOptionItem> | undefined;
+	setNewSessionOptionsForSessionType(chatSessionType: string, options: Record<string, string | IChatSessionProviderOptionItem>): void;
 	/**
 	 * Event fired when session options change and need to be sent to the extension.
 	 * MainThreadChatSessions subscribes to this to forward changes to the extension host.
@@ -303,6 +306,12 @@ export interface IChatSessionsService {
 	 * Returns undefined if the controller doesn't have a handler or if no controller is registered.
 	 */
 	createNewChatSessionItem(chatSessionType: string, request: IChatAgentRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	/**
+	 * Registers an alias so that session-option lookups by the real resource
+	 * are redirected to the canonical (untitled) resource in the internal session map.
+	 */
+	registerSessionResourceAlias(untitledResource: URI, realResource: URI): void;
 }
 
 export function isSessionInProgressStatus(state: ChatSessionStatus): boolean {

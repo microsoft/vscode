@@ -186,7 +186,7 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`. - "src/**/*.ts"`,
 					`---`,
 					``,
-					`<!-- Tip: Use /create-instruction in chat to generate content with agent assistance -->`,
+					`<!-- Tip: Use /create-instructions in chat to generate content with agent assistance -->`,
 					``,
 					`\${2:Provide coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 				].join('\n');
@@ -197,7 +197,7 @@ function getDefaultContentSnippet(promptType: PromptsType, name: string | undefi
 					`# applyTo: '\${1|**,**/*.ts|}' # when provided, instructions will automatically be added to the request context when the pattern matches an attached file`,
 					`---`,
 					``,
-					`<!-- Tip: Use /create-instruction in chat to generate content with agent assistance -->`,
+					`<!-- Tip: Use /create-instructions in chat to generate content with agent assistance -->`,
 					``,
 					`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
 				].join('\n');

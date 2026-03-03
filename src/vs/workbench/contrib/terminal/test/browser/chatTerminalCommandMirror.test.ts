@@ -261,10 +261,8 @@ suite('Workbench - ChatTerminalCommandMirror', () => {
 			// Boundary should NOT match because the prefix diverged
 			strictEqual(boundaryMatches, false, 'Boundary check should detect divergence');
 
-			// When boundary doesn't match, the fix does a full reset + rewrite
-			// instead of corrupting the output by blind slicing
-			mirror.raw.reset();
-			await write(mirror, vt2);
+			// Use \x1bc (RIS) + new content in one write to avoid a blank frame
+			await write(mirror, `\x1bc${vt2}`);
 
 			// Final content should be the complete new VT, not corrupted
 			strictEqual(getBufferText(mirror), 'DifferentPrefixLine3');

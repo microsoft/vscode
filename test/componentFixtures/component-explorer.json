@@ -1,10 +1,14 @@
 {
+	"$schema": "./component-explorer-config.schema.json",
 	"screenshotDir": ".screenshots",
 	"sessions": [
 		{
 			"name": "current"
 		}
 	],
+	"redirection": {
+		"port": 5337
+	},
 	"viteConfig": "../../build/vite/vite.config.ts",
 	"vite": {
 		"hmr": {

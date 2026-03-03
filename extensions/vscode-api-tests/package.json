@@ -18,7 +18,6 @@
     "documentFiltersExclusive",
     "editorInsets",
     "embeddings",
-    "envIsAppPortable",
     "envIsConnectionMetered",
     "extensionRuntime",
     "extensionsAny",

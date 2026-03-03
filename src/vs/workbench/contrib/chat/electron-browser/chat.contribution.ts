@@ -24,7 +24,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { IChatWidgetService } from '../browser/chat.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
 import { AgentSessionProviders } from '../browser/agentSessions/agentSessions.js';
 import { isSessionInProgressStatus } from '../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
@@ -47,7 +47,8 @@ class ChatCommandLineHandler extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		super();
 
@@ -60,6 +61,14 @@ class ChatCommandLineHandler extends Disposable {
 			this.logService.trace('vscode:handleChatRequest', chatArgs);
 
 			this.prompt(chatArgs);
+		});
+
+		ipcRenderer.on('vscode:openChatSession', (_, ...args: unknown[]) => {
+			const sessionUriString = args[0] as string;
+			this.logService.trace('vscode:openChatSession', sessionUriString);
+
+			const sessionResource = URI.parse(sessionUriString);
+			this.chatWidgetService.openSession(sessionResource, ChatViewPaneTarget);
 		});
 	}
 
@@ -137,7 +146,7 @@ class ChatLifecycleHandler extends Disposable {
 		}));
 
 		this._register(extensionService.onWillStop(e => {
-			e.veto(this.hasNonCloudSessionInProgress(), localize('chatRequestInProgress', "A chat request is in progress."));
+			e.veto(this.hasNonCloudSessionInProgress(), localize('chatRequestInProgress', "A session is in progress."));
 		}));
 	}
 
@@ -173,20 +182,20 @@ class ChatLifecycleHandler extends Disposable {
 		let detail: string;
 		switch (reason) {
 			case ShutdownReason.CLOSE:
-				message = localize('closeTheWindow.message', "A chat request is in progress. Are you sure you want to close the window?");
-				detail = localize('closeTheWindow.detail', "The chat request will stop if you close the window.");
+				message = localize('closeTheWindow.message', "A session is in progress. Are you sure you want to close the window?");
+				detail = localize('closeTheWindow.detail', "The session will stop if you close the window.");
 				break;
 			case ShutdownReason.LOAD:
-				message = localize('changeWorkspace.message', "A chat request is in progress. Are you sure you want to change the workspace?");
-				detail = localize('changeWorkspace.detail', "The chat request will stop if you change the workspace.");
+				message = localize('changeWorkspace.message', "A session is in progress. Are you sure you want to change the workspace?");
+				detail = localize('changeWorkspace.detail', "The session will stop if you change the workspace.");
 				break;
 			case ShutdownReason.RELOAD:
-				message = localize('reloadTheWindow.message', "A chat request is in progress. Are you sure you want to reload the window?");
-				detail = localize('reloadTheWindow.detail', "The chat request will stop if you reload the window.");
+				message = localize('reloadTheWindow.message', "A session is in progress. Are you sure you want to reload the window?");
+				detail = localize('reloadTheWindow.detail', "The session will stop if you reload the window.");
 				break;
 			default:
-				message = isMacintosh ? localize('quit.message', "A chat request is in progress. Are you sure you want to quit?") : localize('exit.message', "A chat request is in progress. Are you sure you want to exit?");
-				detail = isMacintosh ? localize('quit.detail', "The chat request will stop if you quit.") : localize('exit.detail', "The chat request will stop if you exit.");
+				message = isMacintosh ? localize('quit.message', "A session is in progress. Are you sure you want to quit?") : localize('exit.message', "A session is in progress. Are you sure you want to exit?");
+				detail = isMacintosh ? localize('quit.detail', "The session will stop if you quit.") : localize('exit.detail', "The session will stop if you exit.");
 				break;
 		}
 

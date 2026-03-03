@@ -145,7 +145,8 @@ export function createAskQuestionsToolData(): IToolData {
 	return {
 		id: AskQuestionsToolId,
 		toolReferenceName: 'askQuestions',
-		canBeReferencedInPrompt: true,
+		legacyToolReferenceFullNames: [AskQuestionsToolId, 'vscode/askQuestions'],
+		canBeReferencedInPrompt: false,
 		icon: ThemeIcon.fromId(Codicon.question.id),
 		displayName: localize('tool.askQuestions.displayName', 'Ask Clarifying Questions'),
 		userDescription: localize('tool.askQuestions.userDescription', 'Ask structured clarifying questions using single select, multi-select, or freeform inputs to collect task requirements before proceeding.'),

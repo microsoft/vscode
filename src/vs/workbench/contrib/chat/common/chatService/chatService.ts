@@ -1345,7 +1345,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionResource: URI | undefined;
 
-	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
+	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI; readonly message?: IParsedChatRequest }>;
 
 	readonly onDidCreateModel: Event<IChatModel>;
 
@@ -1409,7 +1409,7 @@ export interface IChatService {
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
-	cancelCurrentRequestForSession(sessionResource: URI): void;
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void;
 	/**
 	 * Sets yieldRequested on the active request for the given session.
 	 */
@@ -1453,8 +1453,6 @@ export interface IChatService {
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
-	readonly edits2Enabled: boolean;
-
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	/**
@@ -1485,10 +1483,12 @@ export interface IChatSessionStartOptions {
 export const ChatStopCancellationNoopEventName = 'chat.stopCancellationNoop';
 
 export type ChatStopCancellationNoopEvent = {
-	source: 'cancelAction' | 'chatService';
+	source: string;
 	reason: 'noWidget' | 'noViewModel' | 'noPendingRequest' | 'requestAlreadyCanceled' | 'requestIdUnavailable';
 	requestInProgress: 'true' | 'false' | 'unknown';
 	pendingRequests: number;
+	sessionScheme?: string;
+	lastRequestId?: string;
 };
 
 export type ChatStopCancellationNoopClassification = {
@@ -1496,6 +1496,8 @@ export type ChatStopCancellationNoopClassification = {
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The no-op reason when stop cancellation did not dispatch fully.' };
 	requestInProgress: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether request-in-progress was true, false, or unknown at no-op time.' };
 	pendingRequests: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of queued pending requests at no-op time when known.'; isMeasurement: true };
+	sessionScheme?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The URI scheme of the session resource (e.g. vscodeLocalChatSession vs remote).' };
+	lastRequestId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the last request in the session, for correlating with tool invocations.' };
 	owner: 'roblourens';
 	comment: 'Tracks possible no-op stop cancellation paths.';
 };
@@ -1504,7 +1506,7 @@ export const ChatPendingRequestChangeEventName = 'chat.pendingRequestChange';
 
 export type ChatPendingRequestChangeEvent = {
 	action: 'add' | 'remove' | 'notCancelable';
-	source: 'sendRequest' | 'sendRequestComplete' | 'removeRequest' | 'cancelRequest' | 'adoptRequest' | 'remoteSession';
+	source: string;
 };
 
 export type ChatPendingRequestChangeClassification = {

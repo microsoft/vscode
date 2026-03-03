@@ -26,16 +26,15 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IUserDataSyncEnablementService, IUserDataSyncService, IUserDataSyncStoreManagementService, SyncStatus, UserDataSyncStoreType } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys.js';
-import { Promises } from '../../../../base/common/async.js';
+import { Promises, Throttler } from '../../../../base/common/async.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { Event } from '../../../../base/common/event.js';
 import { toAction } from '../../../../base/common/actions.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
-export const RELEASE_NOTES_URL = new RawContextKey<string>('releaseNotesUrl', '');
-export const DOWNLOAD_URL = new RawContextKey<string>('downloadUrl', '');
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -184,17 +183,7 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 		@IProductService productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		if (productService.releaseNotesUrl) {
-			const releaseNotesUrlKey = RELEASE_NOTES_URL.bindTo(contextKeyService);
-			releaseNotesUrlKey.set(productService.releaseNotesUrl);
-		}
-		if (productService.downloadUrl) {
-			const downloadUrlKey = DOWNLOAD_URL.bindTo(contextKeyService);
-			downloadUrlKey.set(productService.downloadUrl);
-		}
-
 		if (isWeb) {
 			return;
 		}
@@ -687,9 +676,14 @@ export class SwitchProductQualityContribution extends Disposable implements IWor
 
 export class DefaultAccountUpdateContribution extends Disposable implements IWorkbenchContribution {
 
+	private static readonly STORAGE_KEY = 'update/internalOrg';
+	#internalOrg: string | undefined = undefined;
+	private throttler: Throttler = this._register(new Throttler());
+
 	constructor(
 		@IUpdateService private readonly updateService: IUpdateService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
@@ -697,25 +691,36 @@ export class DefaultAccountUpdateContribution extends Disposable implements IWor
 			return; // Electron only
 		}
 
+		this.#internalOrg = this.storageService.get(DefaultAccountUpdateContribution.STORAGE_KEY, StorageScope.APPLICATION, undefined);
+		this.throttler.queue(() => this.updateService.setInternalOrg(this.#internalOrg));
+
 		// Check on startup
-		this.checkDefaultAccount();
+		this.refresh();
 
 		// Listen for account changes
-		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
-			this.checkDefaultAccount();
-		}));
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => this.refresh()));
 	}
 
-	private async checkDefaultAccount(): Promise<void> {
+	private refresh(): void {
+		this.throttler.queue(() => this.doRefresh());
+	}
+
+	private async doRefresh(): Promise<void> {
 		try {
 			const defaultAccount = await this.defaultAccountService.getDefaultAccount();
-			const shouldDisable = defaultAccount?.entitlementsData?.organization_login_list?.some(
-				org => org.toLowerCase() === 'visual-studio-code'
-			) ?? false;
+			const internalOrg = getInternalOrg(defaultAccount?.entitlementsData?.organization_login_list);
 
-			if (shouldDisable) {
-				await this.updateService.disableProgressiveReleases();
-				this.dispose();
+			if (internalOrg === this.#internalOrg) {
+				return;
+			}
+
+			this.#internalOrg = internalOrg;
+			await this.updateService.setInternalOrg(this.#internalOrg);
+
+			if (this.#internalOrg) {
+				this.storageService.store(DefaultAccountUpdateContribution.STORAGE_KEY, internalOrg, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			} else {
+				this.storageService.remove(DefaultAccountUpdateContribution.STORAGE_KEY, StorageScope.APPLICATION);
 			}
 		} catch (error) {
 			// Silently ignore errors - if we can't get the account, we don't disable background updates

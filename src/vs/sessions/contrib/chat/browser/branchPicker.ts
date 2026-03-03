@@ -31,11 +31,15 @@ interface IBranchItem {
 export class BranchPicker extends Disposable {
 
 	private _selectedBranch: string | undefined;
+	private _preferredBranch: string | undefined;
 	private _newSession: INewSession | undefined;
 	private _branches: string[] = [];
 
 	private readonly _onDidChange = this._register(new Emitter<string | undefined>());
 	readonly onDidChange: Event<string | undefined> = this._onDidChange.event;
+
+	private readonly _onDidChangeLoading = this._register(new Emitter<boolean>());
+	readonly onDidChangeLoading: Event<boolean> = this._onDidChangeLoading.event;
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _slotElement: HTMLElement | undefined;
@@ -43,6 +47,13 @@ export class BranchPicker extends Disposable {
 
 	get selectedBranch(): string | undefined {
 		return this._selectedBranch;
+	}
+
+	/**
+	 * Sets a preferred branch to select when branches are loaded.
+	 */
+	setPreferredBranch(branch: string | undefined): void {
+		this._preferredBranch = branch;
 	}
 
 	constructor(
@@ -68,26 +79,35 @@ export class BranchPicker extends Disposable {
 
 		if (!repository) {
 			this._newSession?.setBranch(undefined);
+			this._setLoading(false);
 			this._updateTriggerLabel();
 			return;
 		}
 
-		const refs = await repository.getRefs({ pattern: 'refs/heads' });
-		this._branches = refs
-			.map(ref => ref.name)
-			.filter((name): name is string => !!name)
-			.filter(name => !name.includes(COPILOT_WORKTREE_PATTERN));
+		this._setLoading(true);
 
-		// Select active branch, main, master, or the first branch by default
-		const defaultBranch = this._branches.find(b => b === repository.state.get().HEAD?.name)
-			?? this._branches.find(b => b === 'main')
-			?? this._branches.find(b => b === 'master')
-			?? this._branches[0];
-		if (defaultBranch) {
-			this._selectBranch(defaultBranch);
+		try {
+			const refs = await repository.getRefs({ pattern: 'refs/heads' });
+			this._branches = refs
+				.map(ref => ref.name)
+				.filter((name): name is string => !!name)
+				.filter(name => !name.includes(COPILOT_WORKTREE_PATTERN));
+
+			// Select preferred branch (from draft), active branch, main, master, or the first branch
+			const preferred = this._preferredBranch;
+			this._preferredBranch = undefined;
+			const defaultBranch = (preferred ? this._branches.find(b => b === preferred) : undefined)
+				?? this._branches.find(b => b === repository.state.get().HEAD?.name)
+				?? this._branches.find(b => b === 'main')
+				?? this._branches.find(b => b === 'master')
+				?? this._branches[0];
+			if (defaultBranch) {
+				this._selectBranch(defaultBranch);
+			}
+		} finally {
+			this._setLoading(false);
+			this._updateTriggerLabel();
 		}
-
-		this._updateTriggerLabel();
 	}
 
 	/**
@@ -168,7 +188,7 @@ export class BranchPicker extends Disposable {
 		return this._branches.map(branch => ({
 			kind: ActionListItemKind.Action,
 			label: branch,
-			group: { title: '', icon: this._selectedBranch === branch ? Codicon.check : Codicon.blank },
+			group: { title: '', icon: Codicon.gitBranch },
 			item: { name: branch },
 		}));
 	}
@@ -194,5 +214,9 @@ export class BranchPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 		this._slotElement?.classList.toggle('disabled', isDisabled);
+	}
+
+	private _setLoading(loading: boolean): void {
+		this._onDidChangeLoading.fire(loading);
 	}
 }

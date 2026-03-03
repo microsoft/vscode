@@ -15,7 +15,7 @@ import { Iterable } from '../../../base/common/iterator.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { createActionViewItem, getActionBarActions } from './menuEntryActionViewItem.js';
-import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
+import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../common/actions.js';
 import { createConfigureKeybindingAction } from '../common/menuService.js';
 import { ICommandService } from '../../commands/common/commands.js';
 import { IContextKeyService } from '../../contextkey/common/contextkey.js';
@@ -332,6 +332,11 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 	private readonly _onDidChangeMenuItems = this._store.add(new Emitter<this>());
 	get onDidChangeMenuItems() { return this._onDidChangeMenuItems.event; }
 
+	private readonly _menu: IMenu;
+	private readonly _menuOptions: IMenuActionOptions | undefined;
+	private readonly _toolbarOptions: IToolBarRenderOptions | undefined;
+	private readonly _container: HTMLElement;
+
 	constructor(
 		container: HTMLElement,
 		menuId: MenuId,
@@ -361,30 +366,44 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 			}
 		}, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
-		// update logic
-		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: options?.eventDebounceDelay }));
-		const updateToolbar = () => {
-			const { primary, secondary } = getActionBarActions(
-				menu.getActions(options?.menuOptions),
-				options?.toolbarOptions?.primaryGroup,
-				options?.toolbarOptions?.shouldInlineSubmenu,
-				options?.toolbarOptions?.useSeparatorsInPrimaryActions
-			);
-			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
-			super.setActions(primary, secondary);
-		};
+		this._container = container;
+		this._menuOptions = options?.menuOptions;
+		this._toolbarOptions = options?.toolbarOptions;
 
-		this._store.add(menu.onDidChange(() => {
-			updateToolbar();
+		// update logic
+		this._menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: options?.eventDebounceDelay }));
+
+		this._store.add(this._menu.onDidChange(() => {
+			this._updateToolbar();
 			this._onDidChangeMenuItems.fire(this);
 		}));
 
 		this._store.add(actionViewService.onDidChange(e => {
 			if (e === menuId) {
-				updateToolbar();
+				this._updateToolbar();
 			}
 		}));
-		updateToolbar();
+		this._updateToolbar();
+	}
+
+	private _updateToolbar(): void {
+		const { primary, secondary } = getActionBarActions(
+			this._menu.getActions(this._menuOptions),
+			this._toolbarOptions?.primaryGroup,
+			this._toolbarOptions?.shouldInlineSubmenu,
+			this._toolbarOptions?.useSeparatorsInPrimaryActions
+		);
+		this._container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
+		super.setActions(primary, secondary);
+	}
+
+	/**
+	 * Force the toolbar to immediately re-evaluate its menu actions.
+	 * Use this after synchronously updating context keys to avoid
+	 * layout shifts caused by the debounced menu change event.
+	 */
+	refresh(): void {
+		this._updateToolbar();
 	}
 
 	/**

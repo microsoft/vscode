@@ -14,19 +14,19 @@
 	justify-content: center;
 	gap: 4px;
 	z-index: 10;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-md);
 	overflow: hidden;
 }
 
 @keyframes pulse {
 	0% {
-		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
+		box-shadow: var(--vscode-shadow-md);
 	}
 	50% {
-		box-shadow: 0 2px 8px 4px var(--vscode-widget-shadow);
+		box-shadow: var(--vscode-shadow-lg);
 	}
 	100% {
-		box-shadow: 0 2px 8px 0 var(--vscode-widget-shadow);
+		box-shadow: var(--vscode-shadow-md);
 	}
 }
 

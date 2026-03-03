@@ -66,6 +66,7 @@ import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	/**
@@ -126,6 +127,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ICommandService private readonly commandService: ICommandService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -397,6 +399,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		sessionsToolbar.context = sessionsControl;
 
+		// Refresh sessions when window gets focus to compensate for missing events
+		this._register(this.hostService.onDidChangeFocus(hasFocus => {
+			if (hasFocus) {
+				sessionsControl.refresh();
+			}
+		}));
+
 		// Deal with orientation configuration
 		this._register(Event.runAndSubscribe(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsOrientation)), e => {
 			const newSessionsViewerOrientationConfiguration = this.configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
@@ -530,6 +539,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					: 'explicit',
 				supportsChangingModes: true,
 				dndContainer: parent,
+				inputEditorMinLines: this.workbenchEnvironmentService.isSessionsWindow ? 2 : undefined,
 			},
 			{
 				listForeground: SIDE_BAR_FOREGROUND,

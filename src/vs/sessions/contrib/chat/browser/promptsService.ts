@@ -13,15 +13,46 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { HOOKS_SOURCE_FOLDER } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
+import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { IPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { ISearchService } from '../../../../workbench/services/search/common/search.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 export class AgenticPromptsService extends PromptsService {
+	private _copilotRoot: URI | undefined;
+
 	protected override createPromptFilesLocator(): PromptFilesLocator {
 		return this.instantiationService.createInstance(AgenticPromptFilesLocator);
+	}
+
+	private getCopilotRoot(): URI {
+		if (!this._copilotRoot) {
+			const pathService = this.instantiationService.invokeFunction(accessor => accessor.get(IPathService));
+			this._copilotRoot = joinPath(pathService.userHome({ preferLocal: true }), '.copilot');
+		}
+		return this._copilotRoot;
+	}
+
+	/**
+	 * Override to use ~/.copilot as the user-level source folder for creation,
+	 * instead of the VS Code profile's promptsHome.
+	 */
+	public override async getSourceFolders(type: PromptsType): Promise<readonly IPromptPath[]> {
+		const folders = await super.getSourceFolders(type);
+		const copilotRoot = this.getCopilotRoot();
+		// Replace any user-storage folders with the CLI-accessible ~/.copilot root
+		return folders.map(folder => {
+			if (folder.storage === PromptsStorage.user) {
+				const subfolder = getCliUserSubfolder(type);
+				return subfolder
+					? { ...folder, uri: joinPath(copilotRoot, subfolder) }
+					: folder;
+			}
+			return folder;
+		});
 	}
 }
 
@@ -36,7 +67,7 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 		@IUserDataProfileService userDataService: IUserDataProfileService,
 		@ILogService logService: ILogService,
 		@IPathService pathService: IPathService,
-		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+		@IAICustomizationWorkspaceService private readonly customizationWorkspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(
 			fileService,
@@ -64,7 +95,7 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 	}
 
 	protected override onDidChangeWorkspaceFolders(): Event<void> {
-		return Event.fromObservableLight(this.activeSessionService.activeSession);
+		return Event.fromObservableLight(this.customizationWorkspaceService.activeProjectRoot);
 	}
 
 	public override async getHookSourceFolders(): Promise<readonly URI[]> {
@@ -77,8 +108,7 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 	}
 
 	private getActiveWorkspaceFolder(): IWorkspaceFolder | undefined {
-		const session = this.activeSessionService.getActiveSession();
-		const root = session?.worktree ?? session?.repository;
+		const root = this.customizationWorkspaceService.getActiveProjectRoot();
 		if (!root) {
 			return undefined;
 		}
@@ -88,6 +118,20 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 			index: 0,
 			toResource: relativePath => joinPath(root, relativePath),
 		};
+	}
+}
+
+/**
+ * Returns the subfolder name under ~/.copilot/ for a given customization type.
+ * Used to determine the CLI-accessible user creation target.
+ */
+function getCliUserSubfolder(type: PromptsType): string | undefined {
+	switch (type) {
+		case PromptsType.instructions: return 'instructions';
+		case PromptsType.skill: return 'skills';
+		case PromptsType.agent: return 'agents';
+		case PromptsType.prompt: return 'prompts';
+		default: return undefined;
 	}
 }
 

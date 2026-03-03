@@ -105,8 +105,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 		// Use ELECTRON_RUN_AS_NODE=1 to make Electron executable behave as Node.js
 		// TMPDIR must be set as environment variable before the command
-		// Use -c to pass the command string directly (like sh -c), avoiding argument parsing issues
-		const wrappedCommand = `PATH=$PATH:${dirname(this._rgPath)} "${this._execPath}" "${this._srtPath}" TMPDIR=${this._tempDir.path} --settings "${this._sandboxConfigPath}" -c "${command}"`;
+		// Quote shell arguments so the wrapped command cannot break out of the outer shell.
+		const wrappedCommand = `PATH="$PATH:${dirname(this._rgPath)}" TMPDIR="${this._tempDir.path}" "${this._execPath}" "${this._srtPath}" --settings "${this._sandboxConfigPath}" -c ${this._quoteShellArgument(command)}`;
 		if (this._remoteEnvDetails) {
 			return `${wrappedCommand}`;
 		}
@@ -128,6 +128,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			this._needsForceUpdateConfigFile = false;
 		}
 		return this._sandboxConfigPath;
+	}
+
+	private _quoteShellArgument(value: string): string {
+		return `'${value.replace(/'/g, `'\\''`)}'`;
 	}
 
 	private async _resolveSrtPath(): Promise<void> {
@@ -160,17 +164,10 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				: {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
 
-			const allowedDomainsSet = new Set(networkSetting.allowedDomains ?? []);
+			let allowedDomains = networkSetting.allowedDomains ?? [];
 			if (networkSetting.allowTrustedDomains) {
-				for (const domain of this._trustedDomainService.trustedDomains) {
-					// Filter out sole wildcard '*' as sandbox runtime doesn't allow it
-					// Wildcards like '*.github.com' are OK
-					if (domain !== '*') {
-						allowedDomainsSet.add(domain);
-					}
-				}
+				allowedDomains = this._addTrustedDomainsToAllowedDomains(allowedDomains);
 			}
-			const allowedDomains = Array.from(allowedDomainsSet);
 
 			const sandboxSettings = {
 				network: {
@@ -210,5 +207,20 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				this._logService.warn('TerminalSandboxService: Cannot create sandbox settings file because no tmpDir is available in this environment');
 			}
 		}
+	}
+
+	private _addTrustedDomainsToAllowedDomains(allowedDomains: string[]): string[] {
+		const allowedDomainsSet = new Set(allowedDomains);
+		for (const domain of this._trustedDomainService.trustedDomains) {
+			try {
+				const uri = new URL(domain);
+				allowedDomainsSet.add(uri.hostname);
+			} catch {
+				if (domain !== '*') {
+					allowedDomainsSet.add(domain);
+				}
+			}
+		}
+		return Array.from(allowedDomainsSet);
 	}
 }

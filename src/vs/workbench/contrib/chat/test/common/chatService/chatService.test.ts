@@ -49,7 +49,11 @@ import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
+import { IChatDebugService } from '../../../common/chatDebugService.js';
+import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
+import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -163,6 +167,7 @@ suite('ChatService', () => {
 			[IWorkbenchAssignmentService, new NullWorkbenchAssignmentService()],
 			[IMcpService, new TestMcpService()],
 			[IPromptsService, new MockPromptsService()],
+			[ILanguageModelToolsService, testDisposables.add(new MockLanguageModelToolsService())]
 		)));
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
@@ -179,6 +184,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl()));
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
@@ -440,7 +446,7 @@ suite('ChatService', () => {
 				await completeRequest.p;
 				return {};
 			},
-			setYieldRequested(requestId: string) {
+			setYieldRequested(requestId: string, value: boolean) {
 				setYieldRequestedCalled = true;
 			},
 		};
