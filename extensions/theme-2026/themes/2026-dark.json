@@ -430,7 +430,8 @@
 			"settings": {
 				"foreground": "#CDD9E5",
 				"background": "#F47067",
-				"fontStyle": "italic underline"
+				"fontStyle": "italic underline",
+				"content": "^M"
 			}
 		},
 		{
