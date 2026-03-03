@@ -212,7 +212,7 @@ jobs:
         if: always()
 
       - name: Publish Crash Reports
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         continue-on-error: true
         with:
@@ -223,7 +223,7 @@ jobs:
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         continue-on-error: true
         with:
@@ -232,7 +232,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Log Files
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         continue-on-error: true
         with:

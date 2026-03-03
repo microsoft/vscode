@@ -23,9 +23,9 @@ import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptValidator } from '../../../../common/promptSyntax/languageProviders/promptValidator.js';
-import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { PromptsType, Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
-import { ICustomAgent, IPromptsService, PromptsStorage, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../common/mockChatModeService.js';
 import { MockPromptsService } from '../../../common/promptSyntax/service/mockPromptsService.js';
 

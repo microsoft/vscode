@@ -4,23 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { HookType, IHookCommand, toHookType, resolveHookCommand } from './hookSchema.js';
-
-/**
- * Maps Claude hook type names to our abstract HookType.
- * Claude uses PascalCase and slightly different names.
- * @see https://docs.anthropic.com/en/docs/claude-code/hooks
- */
-export const CLAUDE_HOOK_TYPE_MAP: Record<string, HookType> = {
-	'SessionStart': HookType.SessionStart,
-	'UserPromptSubmit': HookType.UserPromptSubmit,
-	'PreToolUse': HookType.PreToolUse,
-	'PostToolUse': HookType.PostToolUse,
-	'PreCompact': HookType.PreCompact,
-	'SubagentStart': HookType.SubagentStart,
-	'SubagentStop': HookType.SubagentStop,
-	'Stop': HookType.Stop,
-};
+import { toHookType, resolveHookCommand, IHookCommand } from './hookSchema.js';
+import { HOOKS_BY_TARGET, HookType } from './hookTypes.js';
+import { Target } from './promptTypes.js';
 
 /**
  * Cached inverse mapping from HookType to Claude hook type name.
@@ -31,7 +17,7 @@ let _hookTypeToClaudeName: Map<HookType, string> | undefined;
 function getHookTypeToClaudeNameMap(): Map<HookType, string> {
 	if (!_hookTypeToClaudeName) {
 		_hookTypeToClaudeName = new Map();
-		for (const [claudeName, hookType] of Object.entries(CLAUDE_HOOK_TYPE_MAP)) {
+		for (const [claudeName, hookType] of Object.entries(HOOKS_BY_TARGET[Target.Claude])) {
 			_hookTypeToClaudeName.set(hookType, claudeName);
 		}
 	}
@@ -42,7 +28,7 @@ function getHookTypeToClaudeNameMap(): Map<HookType, string> {
  * Resolves a Claude hook type name to our abstract HookType.
  */
 export function resolveClaudeHookType(name: string): HookType | undefined {
-	return CLAUDE_HOOK_TYPE_MAP[name];
+	return HOOKS_BY_TARGET[Target.Claude][name];
 }
 
 /**

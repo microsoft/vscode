@@ -897,6 +897,13 @@ ${tslib}`,
 	const mangleStats: { file: string; result: ConvertPrivateFieldsResult }[] = [];
 	// Map from JS file path to pre-mangle content + edits, for source map adjustment
 	const mangleEdits = new Map<string, { preMangleCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
+	// Map from JS file path to pre-NLS content + edits, for source map adjustment
+	const nlsEdits = new Map<string, { preNLSCode: string; edits: readonly import('./private-to-property.ts').TextEdit[] }>();
+	// Defer .map files until all .js files are processed, because esbuild may
+	// emit the .map file in a different build result than the .js file (e.g.
+	// code-split chunks), and we need the NLS/mangle edits from the .js pass
+	// to be available when adjusting the .map.
+	const deferredMaps: { path: string; text: string; contents: Uint8Array }[] = [];
 	for (const { result } of buildResults) {
 		if (!result.outputFiles) {
 			continue;
@@ -925,7 +932,12 @@ ${tslib}`,
 
 				// Apply NLS post-processing if enabled (JS only)
 				if (file.path.endsWith('.js') && doNls && indexMap.size > 0) {
-					content = postProcessNLS(content, indexMap, preserveEnglish);
+					const preNLSCode = content;
+					const nlsResult = postProcessNLS(content, indexMap, preserveEnglish);
+					content = nlsResult.code;
+					if (nlsResult.edits.length > 0) {
+						nlsEdits.set(file.path, { preNLSCode, edits: nlsResult.edits });
+					}
 				}
 
 				// Rewrite sourceMappingURL to CDN URL if configured
@@ -943,22 +955,35 @@ ${tslib}`,
 
 				await fs.promises.writeFile(file.path, content);
 			} else if (file.path.endsWith('.map')) {
-				// Source maps may need adjustment if private fields were mangled
-				const jsPath = file.path.replace(/\.map$/, '');
-				const editInfo = mangleEdits.get(jsPath);
-				if (editInfo) {
-					const mapJson = JSON.parse(file.text);
-					const adjusted = adjustSourceMap(mapJson, editInfo.preMangleCode, editInfo.edits);
-					await fs.promises.writeFile(file.path, JSON.stringify(adjusted));
-				} else {
-					await fs.promises.writeFile(file.path, file.contents);
-				}
+				// Defer .map processing until all .js files have been handled
+				deferredMaps.push({ path: file.path, text: file.text, contents: file.contents });
 			} else {
 				// Write other files (assets, etc.) as-is
 				await fs.promises.writeFile(file.path, file.contents);
 			}
 		}
 		bundled++;
+	}
+
+	// Second pass: process deferred .map files now that all mangle/NLS edits
+	// have been collected from .js processing above.
+	for (const mapFile of deferredMaps) {
+		const jsPath = mapFile.path.replace(/\.map$/, '');
+		const mangle = mangleEdits.get(jsPath);
+		const nls = nlsEdits.get(jsPath);
+
+		if (mangle || nls) {
+			let mapJson = JSON.parse(mapFile.text);
+			if (mangle) {
+				mapJson = adjustSourceMap(mapJson, mangle.preMangleCode, mangle.edits);
+			}
+			if (nls) {
+				mapJson = adjustSourceMap(mapJson, nls.preNLSCode, nls.edits);
+			}
+			await fs.promises.writeFile(mapFile.path, JSON.stringify(mapJson));
+		} else {
+			await fs.promises.writeFile(mapFile.path, mapFile.contents);
+		}
 	}
 
 	// Log mangle-privates stats
