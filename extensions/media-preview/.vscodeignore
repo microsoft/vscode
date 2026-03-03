@@ -7,4 +7,3 @@ out/**
 cgmanifest.json
 package-lock.json
 preview-src/**
-webpack.config.js

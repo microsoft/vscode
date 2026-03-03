@@ -19,8 +19,7 @@
   "extensionDependencies": [
     "vscode.git-base"
   ],
-  "main": "./out/extension.js",
-  "type": "module",
+  "main": "./dist/extension.js",
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
