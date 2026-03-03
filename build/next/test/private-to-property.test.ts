@@ -439,6 +439,41 @@ suite('adjustSourceMap', () => {
 		assert.strictEqual(pos.column, origGetValueCol, 'getValue column should match original');
 	});
 
+	test('multi-line edit: removing newlines shifts subsequent lines up', () => {
+		// Simulates the NLS scenario: a template literal with embedded newlines
+		// is replaced with `null`, collapsing 3 lines into 1.
+		const code = [
+			'var a = "hello";',          // line 0 (0-based)
+			'var b = `line1',             // line 1
+			'line2',                      // line 2
+			'line3`;',                    // line 3
+			'var c = "world";',           // line 4
+		].join('\n');
+		const map = createIdentitySourceMap(code, 'test.js');
+
+		// Replace the template literal `line1\nline2\nline3` with `null`
+		// (keeps `var b = ` and `;` intact)
+		const tplStart = code.indexOf('`line1');
+		const tplEnd = code.indexOf('line3`') + 'line3`'.length;
+		const edits = [{ start: tplStart, end: tplEnd, newText: 'null' }];
+
+		const result = adjustSourceMap(map, code, edits);
+		const consumer = new SourceMapConsumer(result);
+
+		// After edit, code is:
+		// "var a = \"hello\";\nvar b = null;\nvar c = \"world\";"
+		// "var c" was on line 5 (1-based), now on line 3 (1-based) since 2 newlines removed
+
+		// 'var c' at original line 5, col 0 should now map at generated line 3
+		const pos = consumer.originalPositionFor({ line: 3, column: 0 });
+		assert.strictEqual(pos.line, 5, 'var c should map to original line 5');
+		assert.strictEqual(pos.column, 0, 'var c column should be 0');
+
+		// 'var a' on line 1 should be unaffected
+		const posA = consumer.originalPositionFor({ line: 1, column: 0 });
+		assert.strictEqual(posA.line, 1, 'var a should still map to original line 1');
+	});
+
 	test('brand check: #field in obj -> string replacement adjusts map', () => {
 		const code = 'class C { #x; check(o) { return #x in o; } }';
 		const map = createIdentitySourceMap(code, 'test.js');

@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IGatewayCallToolResult } from '../../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { McpGatewayToolBrokerChannel } from '../../common/mcpGatewayToolBrokerChannel.js';
@@ -19,7 +20,7 @@ suite('McpGatewayToolBrokerChannel', () => {
 
 	test('lists model-visible tools with namespaced identities', async () => {
 		const mcpService = new TestMcpService();
-		const channel = new McpGatewayToolBrokerChannel(mcpService);
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
 
 		const serverA = createServer('collectionA', 'serverA', [
 			createTool('mcp_serverA_echo', async () => ({ content: [{ type: 'text', text: 'A' }] })),
@@ -44,7 +45,7 @@ suite('McpGatewayToolBrokerChannel', () => {
 
 	test('routes tool calls by namespaced identity', async () => {
 		const mcpService = new TestMcpService();
-		const channel = new McpGatewayToolBrokerChannel(mcpService);
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
 
 		const invoked: string[] = [];
 		const serverA = createServer('collectionA', 'serverA', [
@@ -80,7 +81,7 @@ suite('McpGatewayToolBrokerChannel', () => {
 
 	test('emits onDidChangeTools when tool lists change', async () => {
 		const mcpService = new TestMcpService();
-		const channel = new McpGatewayToolBrokerChannel(mcpService);
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
 		const server = createServer('collectionA', 'serverA', [
 			createTool('echo', async () => ({ content: [{ type: 'text', text: 'A' }] })),
 		]);
@@ -105,7 +106,7 @@ suite('McpGatewayToolBrokerChannel', () => {
 
 	test('does not start server when cache state is live', async () => {
 		const mcpService = new TestMcpService();
-		const channel = new McpGatewayToolBrokerChannel(mcpService);
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
 
 		const server = createServer(
 			'collectionA',
@@ -123,7 +124,7 @@ suite('McpGatewayToolBrokerChannel', () => {
 
 	test('starts server when cache state is unknown', async () => {
 		const mcpService = new TestMcpService();
-		const channel = new McpGatewayToolBrokerChannel(mcpService);
+		const channel = new McpGatewayToolBrokerChannel(mcpService, new NullLogService());
 
 		const server = createServer(
 			'collectionA',

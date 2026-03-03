@@ -47,6 +47,7 @@ export interface IMcpResourceScannerService {
 	readonly _serviceBrand: undefined;
 	scanMcpServers(mcpResource: URI, target?: McpResourceTarget): Promise<IScannedMcpServers>;
 	addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
+	updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget): Promise<void>;
 	removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget): Promise<void>;
 }
 
@@ -80,6 +81,10 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 			}
 			return { servers: existingServers, inputs: updatedInputs, sandbox: scannedMcpServers.sandbox };
 		});
+	}
+
+	async updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget): Promise<void> {
+		await this.withProfileMcpServers(mcpResource, target, updateFn);
 	}
 
 	async removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget): Promise<void> {
@@ -139,7 +144,9 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 	}
 
 	private async writeScannedMcpServers(mcpResource: URI, scannedMcpServers: IScannedMcpServers): Promise<void> {
-		if ((scannedMcpServers.servers && Object.keys(scannedMcpServers.servers).length > 0) || (scannedMcpServers.inputs && scannedMcpServers.inputs.length > 0)) {
+		if ((scannedMcpServers.servers && Object.keys(scannedMcpServers.servers).length > 0)
+			|| (scannedMcpServers.inputs && scannedMcpServers.inputs.length > 0)
+			|| scannedMcpServers.sandbox !== undefined) {
 			await this.fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify(scannedMcpServers, null, '\t')));
 		} else {
 			await this.fileService.del(mcpResource);
@@ -196,7 +203,8 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		if (servers.length > 0) {
 			scannedMcpServers.servers = {};
 			for (const [serverName, config] of servers) {
-				scannedMcpServers.servers[serverName] = this.sanitizeServer(config, scannedWorkspaceFolderMcpServers.sandbox);
+				const serverConfig = this.sanitizeServer(config, scannedMcpServers.sandbox);
+				scannedMcpServers.servers[serverName] = serverConfig;
 			}
 		}
 		return scannedMcpServers;
@@ -219,7 +227,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 			(<Mutable<ICommonMcpServerConfiguration>>server).type = (<IMcpStdioServerConfiguration>server).command ? McpServerType.LOCAL : McpServerType.REMOTE;
 		}
 
-		if (sandbox && server.type === McpServerType.LOCAL && !(server as IMcpStdioServerConfiguration).sandbox && server.sandboxEnabled) {
+		if (sandbox && server.type === McpServerType.LOCAL) {
 			(<Mutable<IMcpStdioServerConfiguration>>server).sandbox = sandbox;
 		}
 

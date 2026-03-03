@@ -322,13 +322,11 @@ export class Menu extends ActionBar {
 		const bgColor = style.backgroundColor ?? '';
 		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
 		const borderRadius = 'var(--vscode-cornerRadius-large)';
-		const shadow = style.shadowColor ? `0 2px 8px ${style.shadowColor}` : '';
 
 		scrollElement.style.outline = border;
 		scrollElement.style.borderRadius = borderRadius;
 		scrollElement.style.color = fgColor;
 		scrollElement.style.backgroundColor = bgColor;
-		scrollElement.style.boxShadow = shadow;
 	}
 
 	override getContainer(): HTMLElement {
@@ -1241,6 +1239,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	border: none;
 	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
+	box-shadow: var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''});
 }
 
 .context-view.monaco-menu-container :focus,

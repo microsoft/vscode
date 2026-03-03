@@ -23,7 +23,7 @@ import { ILanguageModelsService } from '../../languageModels.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
-import { IChatRequestHooks } from '../../promptSyntax/hookSchema.js';
+import { ChatRequestHooks } from '../../promptSyntax/hookSchema.js';
 import { ICustomAgent, IPromptsService } from '../../promptSyntax/service/promptsService.js';
 import { isBuiltinAgent } from '../../promptSyntax/utils/promptsServiceUtils.js';
 import {
@@ -252,7 +252,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			await computer.collect(variableSet, token);
 
 			// Collect hooks from hook .json files
-			let collectedHooks: IChatRequestHooks | undefined;
+			let collectedHooks: ChatRequestHooks | undefined;
 			try {
 				const info = await this.promptsService.getHooks(token, invocation.context.sessionResource);
 				collectedHooks = info?.hooks;

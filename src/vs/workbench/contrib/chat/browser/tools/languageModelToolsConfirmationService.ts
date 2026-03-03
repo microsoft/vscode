@@ -424,7 +424,15 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		};
 	}
 
-	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
+	toolCanManageConfirmation(tool: IToolData): boolean {
+		return !!tool.canRequestPreApproval
+			|| !!tool.canRequestPostApproval
+			|| this._contributions.has(tool.id)
+			|| !!this._preExecutionToolConfirmStore.checkAutoConfirmation(tool.id)
+			|| !!this._postExecutionToolConfirmStore.checkAutoConfirmation(tool.id);
+	}
+
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session'; focusToolId?: string }): void {
 		interface IToolTreeItem extends IQuickTreeItem {
 			type: 'tool' | 'server' | 'tool-pre' | 'tool-post' | 'server-pre' | 'server-post' | 'manage';
 			toolId?: string;
@@ -690,7 +698,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					description,
 					checked,
 					pickable,
-					collapsed: true,
+					collapsed: tools.length > 1,
 					children: toolChildren.length > 0 ? toolChildren : undefined
 				});
 			}
@@ -773,12 +781,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			}
 		}));
 
-		disposables.add(quickTree.onDidAccept(() => {
-			for (const item of quickTree.activeItems) {
-				if (item.type === 'manage') {
-					(item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidOpen?.();
-					quickTree.hide();
-				}
+		disposables.add(quickTree.onDidAccept(async () => {
+			const manageItem = quickTree.activeItems.find(i => i.type === 'manage');
+			if (manageItem) {
+				quickTree.hide();
+				await (manageItem as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidOpen?.();
+				this.manageConfirmationPreferences(tools, options);
 			}
 		}));
 
@@ -787,6 +795,23 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		}));
 
 		quickTree.show();
+
+		// If a focus tool was specified, expand its parent and set it as active.
+		// Must happen after show() since the tree data is applied via autorun on visibility.
+		if (options?.focusToolId) {
+			const focusToolId = options.focusToolId;
+			for (const serverItem of quickTree.itemTree) {
+				const serverItemTyped = serverItem as IToolTreeItem;
+				if (serverItemTyped.children) {
+					const toolItem = (serverItemTyped.children as IToolTreeItem[]).find(c => c.type === 'tool' && c.toolId === focusToolId);
+					if (toolItem) {
+						quickTree.expand(serverItem);
+						quickTree.reveal(toolItem);
+						break;
+					}
+				}
+			}
+		}
 	}
 
 	public resetToolAutoConfirmation(): void {

@@ -13,7 +13,6 @@ import { Disposable, MutableDisposable, type IDisposable } from '../../../../../
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
-import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/model/chatModel.js';
@@ -473,7 +472,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		const response = await this._languageModelsService.sendChatRequest(
 			model,
-			new ExtensionIdentifier('core'),
+			undefined,
 			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: `Evaluate this terminal output to determine if there were errors. If there are errors, return them. Otherwise, return undefined: ${buffer}.` }] }],
 			{},
 			token
@@ -546,7 +545,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			${lastLines}
 			`;
 
-		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, undefined, [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
 		const responseText = await getTextResponseFromStream(response);
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
@@ -652,7 +651,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (model) {
 			try {
 				const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
-				const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), [
+				const response = await this._languageModelsService.sendChatRequest(model, undefined, [
 					{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 				], {}, token);
 

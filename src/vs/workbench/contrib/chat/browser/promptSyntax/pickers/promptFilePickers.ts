@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { AgentFileType, IExtensionPromptPath, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, extUri, joinPath } from '../../../../../../base/common/resources.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -651,16 +651,23 @@ export class PromptFilePickers {
 			// don't close the main prompt selection dialog by the confirmation dialog
 			return await this.keepQuickPickOpen(quickPick, async () => {
 
-				const filename = getCleanPromptName(value);
-				const message = localize('commands.prompts.use.select-dialog.delete-prompt.confirm.message', "Are you sure you want to delete '{0}'?", filename);
+				const isSkill = options.type === PromptsType.skill;
+				// For skills, use the parent folder name as the display name
+				// since skills are structured as <skillname>/SKILL.md.
+				const filename = isSkill ? basename(dirname(value)) : item.label;
+				const message = isSkill
+					? localize('commands.prompts.use.select-dialog.delete-skill.confirm.message', "Are you sure you want to delete skill '{0}' and its folder?", filename)
+					: localize('commands.prompts.use.select-dialog.delete-prompt.confirm.message', "Are you sure you want to delete '{0}'?", filename);
 				const { confirmed } = await this._dialogService.confirm({ message });
 				// if prompt deletion was not confirmed, nothing to do
 				if (!confirmed) {
 					return false;
 				}
 
-				// prompt deletion was confirmed so delete the prompt file
-				await this._fileService.del(value);
+				// For skills, delete the parent folder (e.g. .github/skills/my-skill/)
+				// since each skill is a folder containing SKILL.md.
+				const deleteTarget = isSkill ? dirname(value) : value;
+				await this._fileService.del(deleteTarget, { recursive: isSkill, useTrash: true });
 				return true;
 			});
 
