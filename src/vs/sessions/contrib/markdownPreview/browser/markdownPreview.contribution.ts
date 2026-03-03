@@ -10,7 +10,8 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 
 // Show a floating "Open Preview" button in the editor content
-// area when editing markdown files in the sessions window.
+// area when editing markdown or related prompt/instructions/chatagent/skill
+// language content in the sessions window.
 MenuRegistry.appendMenuItem(MenuId.EditorContent, {
 	command: {
 		id: 'markdown.showPreviewToSide',
