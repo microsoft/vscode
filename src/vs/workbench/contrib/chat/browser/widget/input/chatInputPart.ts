@@ -2179,7 +2179,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputActionsToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.options.renderInputToolbarBelowInput ? this.attachmentsContainer : toolbarsContainer, MenuId.ChatInput, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			hoverDelegate,
 			responsiveBehavior: {
 				enabled: true,
