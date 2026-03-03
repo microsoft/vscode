@@ -57,6 +57,7 @@ import { IExtensionService } from '../../../../workbench/services/extensions/com
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 const $ = dom.$;
 
@@ -125,17 +126,33 @@ function buildTreeChildren(items: IChangesFileItem[]): IObjectTreeElement<Change
 	const root: FolderNode = { name: '', uri: URI.file('/'), children: new Map(), files: [] };
 
 	for (const item of items) {
-		const dirPath = dirname(item.uri.path);
-		const segments = dirPath.split('/').filter(Boolean);
+		const fullDirPath = dirname(item.uri.path);
+
+		// For github-remote-file URIs, strip the /{owner}/{repo}/{ref} prefix
+		// so the tree shows repo-relative paths instead of internal URI segments.
+		let displayDirPath = fullDirPath;
+		let uriBasePrefix = '';
+		if (item.uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			const parts = fullDirPath.split('/').filter(Boolean);
+			if (parts.length >= 3) {
+				uriBasePrefix = '/' + parts.slice(0, 3).join('/');
+				displayDirPath = '/' + parts.slice(3).join('/');
+			} else {
+				uriBasePrefix = '/' + parts.join('/');
+				displayDirPath = '/';
+			}
+		}
+
+		const segments = displayDirPath.split('/').filter(Boolean);
 
 		let current = root;
-		let currentPath = '';
+		let currentFullPath = uriBasePrefix;
 		for (const segment of segments) {
-			currentPath += '/' + segment;
+			currentFullPath += '/' + segment;
 			if (!current.children.has(segment)) {
 				current.children.set(segment, {
 					name: segment,
-					uri: item.uri.with({ path: currentPath }),
+					uri: item.uri.with({ path: currentFullPath }),
 					children: new Map(),
 					files: []
 				});
