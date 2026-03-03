@@ -13,6 +13,9 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { agentSessionContainsResource, editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -65,6 +68,11 @@ export interface IAgentFeedbackService {
 	getMostRecentSessionForResource(resourceUri: URI): URI | undefined;
 
 	/**
+	 * Set the navigation anchor to a specific feedback item, open its editor, and fire a navigation event.
+	 */
+	revealFeedback(sessionResource: URI, feedbackId: string): Promise<void>;
+
+	/**
 	 * Navigate to next/previous feedback item in a session.
 	 */
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined;
@@ -78,6 +86,12 @@ export interface IAgentFeedbackService {
 	 * Clear all feedback items for a session (e.g., after sending).
 	 */
 	clearFeedback(sessionResource: URI): void;
+
+	/**
+	 * Add a feedback item and then submit the feedback. Waits for the
+	 * attachment to be updated in the chat widget before submitting.
+	 */
+	addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string): Promise<void>;
 }
 
 // --- Implementation -----------------------------------------------------------
@@ -100,6 +114,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 	constructor(
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IEditorService private readonly _editorService: IEditorService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 	}
@@ -119,7 +136,35 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			range,
 			sessionResource,
 		};
-		feedbackItems.push(feedback);
+
+		// Insert at the correct sorted position.
+		// Files are grouped by recency: first feedback for a new file appears after
+		// all existing files. Within a file, items are sorted by startLineNumber.
+		const resourceStr = resourceUri.toString();
+		const hasExistingForFile = feedbackItems.some(f => f.resourceUri.toString() === resourceStr);
+
+		if (!hasExistingForFile) {
+			// New file — append at the end
+			feedbackItems.push(feedback);
+		} else {
+			// Find insertion point: after the last item for a different file that
+			// precedes this file's block, then within this file's block by line number.
+			let insertIdx = feedbackItems.length;
+			for (let i = 0; i < feedbackItems.length; i++) {
+				if (feedbackItems[i].resourceUri.toString() === resourceStr
+					&& feedbackItems[i].range.startLineNumber > range.startLineNumber) {
+					insertIdx = i;
+					break;
+				}
+				// If we passed the last item for this file without finding a larger
+				// line number, insert right after the file's block.
+				if (feedbackItems[i].resourceUri.toString() === resourceStr) {
+					insertIdx = i + 1;
+				}
+			}
+			feedbackItems.splice(insertIdx, 0, feedback);
+		}
+
 		this._sessionUpdatedOrder.set(key, ++this._sessionUpdatedSequence);
 		this._onDidChangeNavigation.fire(sessionResource);
 
@@ -208,6 +253,26 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return false;
 	}
 
+	async revealFeedback(sessionResource: URI, feedbackId: string): Promise<void> {
+		const key = sessionResource.toString();
+		const feedbackItems = this._feedbackBySession.get(key);
+		const feedback = feedbackItems?.find(f => f.id === feedbackId);
+		if (!feedback) {
+			return;
+		}
+		await this._editorService.openEditor({
+			resource: feedback.resourceUri,
+			options: {
+				preserveFocus: false,
+				revealIfVisible: true,
+			}
+		});
+		setTimeout(() => {
+			this._navigationAnchorBySession.set(key, feedbackId);
+			this._onDidChangeNavigation.fire(sessionResource);
+		}, 50); // delay to ensure editor has revealed the correct position before firing navigation event
+	}
+
 	getNextFeedback(sessionResource: URI, next: boolean): IAgentFeedback | undefined {
 		const key = sessionResource.toString();
 		const feedbackItems = this._feedbackBySession.get(key);
@@ -248,5 +313,27 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this._navigationAnchorBySession.delete(key);
 		this._onDidChangeNavigation.fire(sessionResource);
 		this._onDidChangeFeedback.fire({ sessionResource, feedbackItems: [] });
+	}
+
+	async addFeedbackAndSubmit(sessionResource: URI, resourceUri: URI, range: IRange, text: string): Promise<void> {
+		this.addFeedback(sessionResource, resourceUri, range, text);
+
+		// Wait for the attachment contribution to update the chat widget's attachment model
+		const widget = this._chatWidgetService.getWidgetBySessionResource(sessionResource);
+		if (widget) {
+			const attachmentId = 'agentFeedback:' + sessionResource.toString();
+			const hasAttachment = () => widget.attachmentModel.attachments.some(a => a.id === attachmentId);
+
+			if (!hasAttachment()) {
+				await Event.toPromise(
+					Event.filter(widget.attachmentModel.onDidChange, () => hasAttachment())
+				);
+			}
+		} else {
+			// This should not normally happen, but if the widget isn't found, wait a bit to give it a chance to initialize before submitting.
+			await new Promise(resolve => setTimeout(resolve, 100));
+		}
+
+		await this._commandService.executeCommand('agentFeedbackEditor.action.submit');
 	}
 }

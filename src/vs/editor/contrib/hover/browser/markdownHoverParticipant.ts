@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { IMarkdownString, isEmptyMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
-import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID } from './hoverActionIds.js';
+import { DECREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID } from './hoverActionIds.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
@@ -115,17 +115,32 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		const maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength', {
 			overrideIdentifier: languageId
 		});
+		const showLongLineWarning = this._editor.getOption(EditorOption.hover).showLongLineWarning;
 		let stopRenderingMessage = false;
 		if (stopRenderingLineAfter >= 0 && lineLength > stopRenderingLineAfter && anchor.range.startColumn >= stopRenderingLineAfter) {
 			stopRenderingMessage = true;
-			result.push(new MarkdownHover(this, anchor.range, [{
-				value: nls.localize('stopped rendering', "Rendering paused for long line for performance reasons. This can be configured via `editor.stopRenderingLineAfter`.")
-			}], false, index++));
+			if (showLongLineWarning) {
+				result.push(new MarkdownHover(this, anchor.range, [{
+					value: nls.localize(
+						{ key: 'stopped rendering', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] },
+						"Rendering paused for long line for performance reasons. This can be configured via `editor.stopRenderingLineAfter`. [Don't Show Again](command:{0})",
+						HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID
+					),
+					isTrusted: true
+				}], false, index++));
+			}
 		}
 		if (!stopRenderingMessage && typeof maxTokenizationLineLength === 'number' && lineLength >= maxTokenizationLineLength) {
-			result.push(new MarkdownHover(this, anchor.range, [{
-				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
-			}], false, index++));
+			if (showLongLineWarning) {
+				result.push(new MarkdownHover(this, anchor.range, [{
+					value: nls.localize(
+						{ key: 'too many characters', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] },
+						"Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`. [Don't Show Again](command:{0})",
+						HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID
+					),
+					isTrusted: true
+				}], false, index++));
+			}
 		}
 
 		let isBeforeContent = false;

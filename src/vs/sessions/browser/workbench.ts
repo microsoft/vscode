@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../../workbench/browser/style.js';
-import './style.css';
+import './media/style.css';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
 import { getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
@@ -398,15 +398,6 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Wrap up
 		instantiationService.invokeFunction(accessor => {
 			const lifecycleService = accessor.get(ILifecycleService);
-
-			// TODO@Sandeep debt around cyclic dependencies
-			const configurationService = accessor.get(IConfigurationService);
-			// eslint-disable-next-line local/code-no-in-operator
-			if (configurationService && 'acquireInstantiationService' in configurationService) {
-				(configurationService as { acquireInstantiationService: (instantiationService: unknown) => void }).acquireInstantiationService(instantiationService);
-			}
-
-			// Signal to lifecycle that services are set
 			lifecycleService.phase = LifecyclePhase.Ready;
 		});
 
@@ -1065,9 +1056,15 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!hidden,
 		);
 
+		// If sidebar becomes hidden, also hide the current active pane composite
+		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Sidebar);
+		}
+
 		// If sidebar becomes visible, show last active Viewlet or default viewlet
 		if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar)) {
-			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar);
+			const viewletToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Sidebar) ??
+				this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id;
 			if (viewletToOpen) {
 				this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar);
 			}
@@ -1088,9 +1085,15 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!hidden,
 		);
 
-		// If auxiliary bar becomes visible, show last active pane composite
+		// If auxiliary bar becomes hidden, also hide the current active pane composite
+		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.AuxiliaryBar);
+		}
+
+		// If auxiliary bar becomes visible, show last active pane composite or default
 		if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)) {
-			const paneCompositeToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar);
+			const paneCompositeToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar) ??
+				this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id;
 			if (paneCompositeToOpen) {
 				this.paneCompositeService.openPaneComposite(paneCompositeToOpen, ViewContainerLocation.AuxiliaryBar);
 			}
@@ -1125,9 +1128,15 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			!hidden,
 		);
 
-		// If panel becomes visible, show last active panel
+		// If panel becomes hidden, also hide the current active pane composite
+		if (hidden && this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
+			this.paneCompositeService.hideActivePaneComposite(ViewContainerLocation.Panel);
+		}
+
+		// If panel becomes visible, show last active panel or default
 		if (!hidden && !this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel)) {
-			const panelToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel);
+			const panelToOpen = this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.Panel) ??
+				this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Panel)?.id;
 			if (panelToOpen) {
 				this.paneCompositeService.openPaneComposite(panelToOpen, ViewContainerLocation.Panel);
 			}

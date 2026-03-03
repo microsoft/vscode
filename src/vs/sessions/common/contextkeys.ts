@@ -13,3 +13,9 @@ export const ChatBarFocusContext = new RawContextKey<boolean>('chatBarFocus', fa
 export const ChatBarVisibleContext = new RawContextKey<boolean>('chatBarVisible', false, localize('chatBarVisible', "Whether the chat bar is visible"));
 
 //#endregion
+
+//#region < --- Welcome --- >
+
+export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('sessionsWelcomeVisible', false, localize('sessionsWelcomeVisible', "Whether the sessions welcome overlay is visible"));
+
+//#endregion

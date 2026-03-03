@@ -828,6 +828,36 @@ export default tseslint.config(
 			]
 		}
 	},
+	// git extension - ban non-type imports from git.d.ts (use git.constants for runtime values)
+	{
+		files: [
+			'extensions/git/src/**/*.ts',
+		],
+		ignores: [
+			'extensions/git/src/api/git.constants.ts',
+		],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+		plugins: {
+			'@typescript-eslint': tseslint.plugin,
+		},
+		rules: {
+			'no-restricted-imports': 'off',
+			'@typescript-eslint/no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['*/api/git'],
+							'allowTypeImports': true,
+							'message': 'Use \'import type\' for types from git.d.ts and import runtime const enum values from git.constants instead'
+						},
+					]
+				}
+			]
+		}
+	},
 	// vscode API
 	{
 		files: [
@@ -1955,7 +1985,8 @@ export default tseslint.config(
 						'vs/workbench/browser/**',
 						'vs/workbench/contrib/**',
 						'vs/workbench/services/*/~',
-						'vs/sessions/~'
+						'vs/sessions/~',
+						'vs/sessions/services/*/~'
 					]
 				},
 				{
@@ -1972,6 +2003,30 @@ export default tseslint.config(
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/~',
 						'vs/sessions/contrib/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/sessions/services/*/~',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/~',
+						'vs/editor/contrib/*/~',
+						'vs/workbench/~',
+						'vs/workbench/services/*/~',
+						{
+							'when': 'test',
+							'pattern': 'vs/workbench/contrib/*/~'
+						}, // TODO@layers
+						'tas-client', // node module allowed even in /common/
+						'vscode-textmate', // node module allowed even in /common/
+						'@vscode/vscode-languagedetection', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm', // type import
+						{
+							'when': 'hasBrowser',
+							'pattern': '@xterm/xterm'
+						} // node module allowed even in /browser/
 					]
 				},
 			]

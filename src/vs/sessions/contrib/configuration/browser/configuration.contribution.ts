@@ -8,14 +8,20 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultConfigurations([{
 	overrides: {
-		'chat.agentsControl.enabled': true,
+		'chat.experimentalSessionsWindowOverride': true,
 		'chat.agent.maxRequests': 1000,
-		'chat.restoreLastPanelSession': true,
-		'chat.unifiedAgentsBar.enabled': true,
+		'chat.customizationsMenu.userStoragePath': '~/.copilot',
 		'chat.viewSessions.enabled': false,
+		'chat.implicitContext.suggestedContext': false,
+		'chat.implicitContext.enabled': { 'panel': 'never' },
+		'chat.tools.terminal.enableAutoApprove': true,
+
+		'breadcrumbs.enabled': false,
 
 		'diffEditor.renderSideBySide': false,
 		'diffEditor.hideUnchangedRegions.enabled': true,
+
+		'extensions.ignoreRecommendations': true,
 
 		'files.autoSave': 'afterDelay',
 
@@ -31,17 +37,20 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',
 
+		'terminal.integrated.initialHint': false,
+
 		'workbench.editor.restoreEditors': false,
 		'workbench.editor.showTabs': 'single',
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
-		'workbench.editor.useModal': 'on',
-		'workbench.editor.labelFormat': 'short',
+		'workbench.editor.useModal': 'all',
+		'workbench.panel.showLabels': false,
+
 		'window.menuStyle': 'custom',
 		'window.dialogStyle': 'custom',
-
-		'terminal.integrated.initialHint': false
 	},
-	donotCache: true
+	donotCache: true,
+	preventExperimentOverride: true,
+	source: 'sessionsDefaults'
 }]);

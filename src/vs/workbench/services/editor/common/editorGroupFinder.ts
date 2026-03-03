@@ -38,7 +38,7 @@ export function findGroup(accessor: ServicesAccessor, editor: EditorInputWithOpt
 function handleGroupResult(group: IEditorGroup, editor: EditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined, editorGroupService: IEditorGroupsService, configurationService: IConfigurationService): [IEditorGroup, EditorActivation | undefined] {
 	const modalEditorPart = editorGroupService.activeModalEditorPart;
 	const modalEditorMode = configurationService.getValue<string>('workbench.editor.useModal');
-	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'on') {
+	if (modalEditorPart && preferredGroup !== MODAL_GROUP && modalEditorMode !== 'all') {
 		// Only allow to open in modal group if MODAL_GROUP is explicitly requested
 		group = handleModalEditorPart(group, editor, modalEditorPart, editorGroupService);
 	}
@@ -146,10 +146,10 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 
 		// Respect option to reveal an editor if it is open (not necessarily visible)
 		// Still prefer to reveal an editor in a group where the editor is active though.
-		// We also try to reveal an editor if it has the `Singleton` capability which
-		// indicates that the same editor cannot be opened across groups.
+		// We also try to reveal an editor if it has the `ForceReveal` or `Singleton`
+		// capability which indicates that editor prefers to be revealed.
 		if (!group) {
-			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || (isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.Singleton))) {
+			if (options?.revealIfOpened || configurationService.getValue<boolean>('workbench.editor.revealIfOpen') || (isEditorInput(editor) && (editor.hasCapability(EditorInputCapabilities.ForceReveal) || editor.hasCapability(EditorInputCapabilities.Singleton)))) {
 				let groupWithInputActive: IEditorGroup | undefined = undefined;
 				let groupWithInputOpened: IEditorGroup | undefined = undefined;
 
@@ -176,7 +176,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 	}
 
 	// Force modal editor part: redirect to the modal group when setting is 'on'
-	if (!group && configurationService.getValue<string>('workbench.editor.useModal') === 'on') {
+	if (!group && configurationService.getValue<string>('workbench.editor.useModal') === 'all') {
 		group = editorGroupService.createModalEditorPart(options?.modal)
 			.then(part => part.activeGroup);
 	}

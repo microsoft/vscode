@@ -25,6 +25,8 @@ import { untar } from './lib/util.ts';
 import File from 'vinyl';
 import * as fs from 'fs';
 import glob from 'glob';
+import { promisify } from 'util';
+import rceditCallback from 'rcedit';
 import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
@@ -34,6 +36,8 @@ import buildfile from './buildfile.ts';
 import { fetchUrls, fetchGithub } from './lib/fetch.ts';
 import jsonEditor from 'gulp-json-editor';
 
+
+const rcedit = promisify(rceditCallback);
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
 const commit = getVersion(REPO_ROOT);
@@ -422,6 +426,40 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 	};
 }
 
+function patchWin32DependenciesTask(destinationFolderName: string) {
+	const cwd = path.join(BUILD_ROOT, destinationFolderName);
+
+	return async () => {
+		const deps = (await Promise.all([
+			promisify(glob)('**/*.node', { cwd }),
+			promisify(glob)('**/rg.exe', { cwd }),
+		])).flatMap(o => o);
+		const packageJsonContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'package.json'), 'utf8'));
+		const productContents = JSON.parse(await fs.promises.readFile(path.join(cwd, 'product.json'), 'utf8'));
+		const baseVersion = packageJsonContents.version.replace(/-.*$/, '');
+
+		const patchPromises = deps.map<Promise<unknown>>(async dep => {
+			const basename = path.basename(dep);
+
+			await rcedit(path.join(cwd, dep), {
+				'file-version': baseVersion,
+				'version-string': {
+					'CompanyName': 'Microsoft Corporation',
+					'FileDescription': productContents.nameLong,
+					'FileVersion': packageJsonContents.version,
+					'InternalName': basename,
+					'LegalCopyright': 'Copyright (C) 2026 Microsoft. All rights reserved',
+					'OriginalFilename': basename,
+					'ProductName': productContents.nameLong,
+					'ProductVersion': packageJsonContents.version,
+				}
+			});
+		});
+
+		await Promise.all(patchPromises);
+	};
+}
+
 /**
  * @param product The parsed product.json file contents
  */
@@ -466,12 +504,18 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			const sourceFolderName = `out-vscode-${type}${dashed(minified)}`;
 			const destinationFolderName = `vscode-${type}${dashed(platform)}${dashed(arch)}`;
 
-			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
+			const packageTasks: task.Task[] = [
 				compileNativeExtensionsBuildTask,
 				gulp.task(`node-${platform}-${arch}`) as task.Task,
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
-			));
+			];
+
+			if (platform === 'win32') {
+				packageTasks.push(patchWin32DependenciesTask(destinationFolderName));
+			}
+
+			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...packageTasks));
 			gulp.task(serverTaskCI);
 
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(

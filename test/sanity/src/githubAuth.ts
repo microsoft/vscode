@@ -17,7 +17,7 @@ export class GitHubAuth {
 
 	/**
 	 * Runs GitHub device authentication flow in a browser.
-	 * @param browser Browser to use.
+	 * @param page Page to use.
 	 * @param code Device authentication code to use.
 	 */
 	public async runDeviceCodeFlow(page: Page, code: string) {
@@ -37,7 +37,7 @@ export class GitHubAuth {
 		await page.getByRole('button', { name: 'Continue' }).click();
 
 		this.context.log('Entering device code');
-		const codeChars = code.replace('-', '');
+		const codeChars = code.replace(/-/g, '');
 		for (let i = 0; i < codeChars.length; i++) {
 			await page.getByRole('textbox').nth(i).fill(codeChars[i]);
 		}
@@ -48,15 +48,11 @@ export class GitHubAuth {
 	}
 
 	/**
-	 * Handles the GitHub "Authorize" dialog in a popup.
-	 * Clicks "Continue" to authorize the app with the already signed-in account.
-	 * @param page Main page that triggers the GitHub OAuth popup.
+	 * Handles the GitHub "Authorize" popup dialog.
+	 * @param page Page to use.
 	 */
 	public async runAuthorizeFlow(page: Page) {
-		this.context.log('Waiting for GitHub OAuth popup');
-		const popup = await page.waitForEvent('popup');
-
-		this.context.log(`Authorizing app at ${popup.url()}`);
-		await popup.getByRole('button', { name: 'Continue' }).click();
+		this.context.log(`Authorizing app at ${page.url()}`);
+		await page.getByRole('button', { name: 'Continue' }).click();
 	}
 }

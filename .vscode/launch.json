@@ -279,6 +279,51 @@
 			},
 		},
 		{
+			"type": "chrome",
+			"request": "launch",
+			"name": "Launch VS Sessions Internal",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
+			},
+			"osx": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceFolder}/scripts/code.sh"
+			},
+			"port": 9222,
+			"timeout": 0,
+			"env": {
+				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
+				"VSCODE_SKIP_PRELAUNCH": "1",
+				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
+			},
+			"cleanUp": "wholeBrowser",
+			"killBehavior": "polite",
+			"runtimeArgs": [
+				"--inspect-brk=5875",
+				"--no-cached-data",
+				"--crash-reporter-directory=${workspaceFolder}/.profile-oss/crashes",
+				// for general runtime freezes: https://github.com/microsoft/vscode/issues/127861#issuecomment-904144910
+				"--disable-features=CalculateNativeWinOcclusion",
+				"--disable-extension=vscode.vscode-api-tests",
+				"--sessions"
+			],
+			"userDataDir": "${userHome}/.vscode-oss-sessions-dev",
+			"webRoot": "${workspaceFolder}",
+			"cascadeTerminateToConfigurations": [
+				"Attach to Extension Host"
+			],
+			"pauseForSourceMap": false,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"browserLaunchLocation": "workspace",
+			"presentation": {
+				"hidden": true,
+			},
+		},
+		{
 			// To debug observables you also need the extension "ms-vscode.debug-value-editor"
 			"type": "chrome",
 			"request": "launch",
@@ -603,13 +648,24 @@
 			}
 		},
 		{
-			"name": "Component Explorer",
+			"name": "Component Explorer (Edge)",
+			"type": "msedge",
+			"request": "launch",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Launch Component Explorer",
+			"presentation": {
+				"group": "1_component_explorer",
+				"order": 4
+			}
+		},
+		{
+			"name": "Component Explorer (Chrome)",
 			"type": "chrome",
 			"request": "launch",
-			"url": "http://localhost:5199/___explorer",
-			"preLaunchTask": "Launch Monaco Editor Vite",
+			"url": "http://localhost:5337/___explorer",
+			"preLaunchTask": "Launch Component Explorer",
 			"presentation": {
-				"group": "monaco",
+				"group": "1_component_explorer",
 				"order": 4
 			}
 		},
@@ -642,6 +698,21 @@
 			"stopAll": true,
 			"configurations": [
 				"Launch VS Code Internal",
+				"Attach to Main Process",
+				"Attach to Extension Host",
+				"Attach to Shared Process",
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"group": "0_vscode",
+				"order": 1
+			}
+		},
+		{
+			"name": "VS Sessions",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Sessions Internal",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",

@@ -61,7 +61,7 @@ interface ITrackedCall {
 	store: IDisposable;
 }
 
-const enum AutoApproveStorageKeys {
+export const enum AutoApproveStorageKeys {
 	GlobalAutoApproveOptIn = 'chat.tools.global.autoApprove.optIn'
 }
 
@@ -79,10 +79,10 @@ export const globalAutoApproveDescription = localize2(
 			'{Locked=\'](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)\'}',
 			'{Locked=\'](https://code.visualstudio.com/docs/copilot/security)\'}',
 			'{Locked=\'**\'}',
-			'{Locked=\'`#chat.autoReply#`\'}',
+			'{Locked=\'[`chat.autoReply`](command:workbench.action.openSettings?%5B%22chat.autoReply%22%5D)\'}',
 		]
 	},
-	'Global auto approve also known as "YOLO mode" disables manual approval completely for _all tools in all workspaces_, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like [Codespaces](https://github.com/features/codespaces) and [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) have user keys forwarded into the container that could be compromised.\n\n**This feature disables [critical security protections](https://code.visualstudio.com/docs/copilot/security) and makes it much easier for an attacker to compromise the machine.**\n\nNote: This setting only controls tool approval and does not prevent the agent from asking questions. To automatically answer agent questions, use `#chat.autoReply#`.'
+	'Global auto approve also known as "YOLO mode" disables manual approval completely for _all tools in all workspaces_, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like [Codespaces](https://github.com/features/codespaces) and [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) have user keys forwarded into the container that could be compromised.\n\n**This feature disables [critical security protections](https://code.visualstudio.com/docs/copilot/security) and makes it much easier for an attacker to compromise the machine.**\n\nNote: This setting only controls tool approval and does not prevent the agent from asking questions. To automatically answer agent questions, use the [`chat.autoReply`](command:workbench.action.openSettings?%5B%22chat.autoReply%22%5D) setting.'
 );
 
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
@@ -109,6 +109,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	/** Pending tool calls in the streaming phase, keyed by toolCallId */
 	private readonly _pendingToolCalls = new Map<string, ChatToolInvocation>();
+
+	/** Deduplicates _checkGlobalAutoApprove calls within this window */
+	private _pendingGlobalAutoApproveCheck: Promise<boolean> | undefined;
 
 	private readonly _isAgentModeEnabled: IObservable<boolean>;
 
@@ -1092,35 +1095,68 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 
-		const promptResult = await this._dialogService.prompt({
-			type: Severity.Warning,
-			message: localize('autoApprove2.title', 'Enable global auto approve?'),
-			buttons: [
-				{
-					label: localize('autoApprove2.button.enable', 'Enable'),
-					run: () => true
-				},
-				{
-					label: localize('autoApprove2.button.disable', 'Disable'),
-					run: () => false
-				},
-			],
-			custom: {
-				icon: Codicon.warning,
-				disableCloseAction: true,
-				markdownDetails: [{
-					markdown: new MarkdownString(globalAutoApproveDescription.value),
-				}],
-			}
-		});
-
-		if (promptResult.result !== true) {
-			await this._configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
-			return false;
+		if (this._pendingGlobalAutoApproveCheck) {
+			return this._pendingGlobalAutoApproveCheck;
 		}
 
-		this._storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
-		return true;
+		this._pendingGlobalAutoApproveCheck = this._doCheckGlobalAutoApprove();
+		try {
+			return await this._pendingGlobalAutoApproveCheck;
+		} finally {
+			this._pendingGlobalAutoApproveCheck = undefined;
+		}
+	}
+
+	private async _doCheckGlobalAutoApprove(): Promise<boolean> {
+		const store = new DisposableStore();
+		try {
+			// Dismiss the dialog automatically if another window stores the
+			// opt-in flag, avoiding duplicate approval prompts.
+			const cts = new CancellationTokenSource();
+			store.add(cts);
+			store.add(this._storageService.onDidChangeValue(StorageScope.APPLICATION, AutoApproveStorageKeys.GlobalAutoApproveOptIn, store)(() => {
+				if (this._storageService.getBoolean(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION, false)) {
+					cts.cancel();
+				}
+			}));
+
+			const promptResult = await this._dialogService.prompt({
+				type: Severity.Warning,
+				message: localize('autoApprove2.title', 'Enable global auto approve?'),
+				buttons: [
+					{
+						label: localize('autoApprove2.button.enable', 'Enable'),
+						run: () => true
+					},
+					{
+						label: localize('autoApprove2.button.disable', 'Disable'),
+						run: () => false
+					},
+				],
+				custom: {
+					icon: Codicon.warning,
+					markdownDetails: [{
+						markdown: new MarkdownString(globalAutoApproveDescription.value, { isTrusted: { enabledCommands: ['workbench.action.openSettings'] } }),
+					}],
+				},
+				token: cts.token,
+			});
+
+			// If cancelled by cross-window approval, treat as approved
+			if (cts.token.isCancellationRequested) {
+				return true;
+			}
+
+			if (promptResult.result !== true) {
+				await this._configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
+				return false;
+			}
+
+			this._storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
+			return true;
+		} finally {
+			store.dispose();
+		}
 	}
 
 	private cleanupCallDisposables(requestId: string | undefined, store: DisposableStore): void {
@@ -1150,6 +1186,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		// Clean up any pending tool calls that belong to this request
 		for (const [toolCallId, invocation] of this._pendingToolCalls) {
 			if (invocation.chatRequestId === requestId) {
+				invocation.cancelFromStreaming(ToolConfirmKind.Skipped);
 				this._pendingToolCalls.delete(toolCallId);
 			}
 		}

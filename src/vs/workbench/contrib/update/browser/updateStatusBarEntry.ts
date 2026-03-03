@@ -77,7 +77,6 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 			return;
 		}
 
-		const productIcon = this.productService.quality === 'insider' ? '$(vscode-insiders)' : '$(vscode)';
 		switch (state.type) {
 			case StateType.Uninitialized:
 			case StateType.Idle:
@@ -97,9 +96,8 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 
 			case StateType.AvailableForDownload:
 				this.updateStatusBarEntry({
-					kind: 'prominent',
 					name: UpdateStatusBarEntryContribution.NAME,
-					text: nls.localize('updateStatus.updateAvailableStatus', "{0} Update available, click to download.", productIcon),
+					text: nls.localize('updateStatus.updateAvailableStatus', "$(circle-filled) Update available, click to download."),
 					ariaLabel: nls.localize('updateStatus.updateAvailableAria', "Update available, click to download."),
 					tooltip: this.getAvailableTooltip(state.update),
 					command: 'update.downloadNow'
@@ -118,9 +116,8 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 
 			case StateType.Downloaded:
 				this.updateStatusBarEntry({
-					kind: 'prominent',
 					name: UpdateStatusBarEntryContribution.NAME,
-					text: nls.localize('updateStatus.updateReadyStatus', "{0} Update downloaded, click to install.", productIcon),
+					text: nls.localize('updateStatus.updateReadyStatus', "$(circle-filled) Update downloaded, click to install."),
 					ariaLabel: nls.localize('updateStatus.updateReadyAria', "Update downloaded, click to install."),
 					tooltip: this.getReadyToInstallTooltip(state.update),
 					command: 'update.install'
@@ -140,9 +137,8 @@ export class UpdateStatusBarEntryContribution extends Disposable implements IWor
 			case StateType.Ready: {
 
 				this.updateStatusBarEntry({
-					kind: 'prominent',
 					name: UpdateStatusBarEntryContribution.NAME,
-					text: nls.localize('updateStatus.restartToUpdateStatus', "{0} Update is ready, click to restart.", productIcon),
+					text: nls.localize('updateStatus.restartToUpdateStatus', "$(circle-filled) Update is ready, click to restart."),
 					ariaLabel: nls.localize('updateStatus.restartToUpdateAria', "Update is ready, click to restart."),
 					tooltip: this.getRestartToUpdateTooltip(state.update),
 					command: 'update.restart'

@@ -7,7 +7,8 @@ import * as os from 'os';
 import { IntervalTimer, timeout } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { isMacintosh } from '../../../base/common/platform.js';
+import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { getWindowsReleaseSync } from '../../../base/node/windowsVersion.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -19,6 +20,7 @@ import { AvailableForDownload, DisablementReason, IUpdateService, State, StateTy
 
 export interface IUpdateURLOptions {
 	readonly background?: boolean;
+	readonly internalOrg?: string;
 }
 
 export function createUpdateURL(baseUpdateUrl: string, platform: string, quality: string, commit: string, options?: IUpdateURLOptions): string {
@@ -28,14 +30,19 @@ export function createUpdateURL(baseUpdateUrl: string, platform: string, quality
 		url.searchParams.set('bg', 'true');
 	}
 
+	url.searchParams.set('u', options?.internalOrg ?? 'none');
+
 	return url.toString();
 }
 
 /**
- * Builds common headers for macOS update requests, including those issued
+ * Builds common headers for update requests, including those issued
  * via Electron's auto-updater (e.g. setFeedURL({ url, headers })) and
- * manual HTTP requests that bypass the auto-updater. On macOS, this includes
- * the Darwin kernel version which the update server uses for EOL detection.
+ * manual HTTP requests that bypass the auto-updater. The headers include
+ * OS version information which the update server uses for EOL detection.
+ *
+ * On macOS, the User-Agent includes the Darwin kernel version.
+ * On Windows, the User-Agent includes accurate Windows version from the registry.
  */
 export function getUpdateRequestHeaders(productVersion: string): Record<string, string> | undefined {
 	if (isMacintosh) {
@@ -43,6 +50,15 @@ export function getUpdateRequestHeaders(productVersion: string): Record<string, 
 		return {
 			'User-Agent': `Code/${productVersion} Darwin/${darwinVersion}`
 		};
+	}
+
+	if (isWindows) {
+		const match = getWindowsReleaseSync().match(/^(\d+\.\d+)/);
+		if (match) {
+			return {
+				'User-Agent': `Code/${productVersion} Electron/${process.versions.electron} Windows NT ${match[1]}`
+			};
+		}
 	}
 
 	return undefined;
@@ -64,7 +80,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	protected _overwrite: boolean = false;
 	private _hasCheckedForOverwriteOnQuit: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
-	private _disableProgressiveReleases: boolean = false;
+	private _internalOrg: string | undefined = undefined;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
@@ -329,13 +345,17 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	async disableProgressiveReleases(): Promise<void> {
-		this.logService.info('update#disableProgressiveReleases');
-		this._disableProgressiveReleases = true;
+	async setInternalOrg(internalOrg: string | undefined): Promise<void> {
+		if (this._internalOrg === internalOrg) {
+			return;
+		}
+
+		this.logService.info('update#setInternalOrg', internalOrg);
+		this._internalOrg = internalOrg;
 	}
 
-	protected shouldDisableProgressiveReleases(): boolean {
-		return this._disableProgressiveReleases;
+	protected getInternalOrg(): string | undefined {
+		return this._internalOrg;
 	}
 
 	protected getUpdateType(): UpdateType {

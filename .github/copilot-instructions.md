@@ -58,6 +58,7 @@ MANDATORY: Always check the `VS Code - Build` watch task output via #runTasks/ge
 - Monitor the `VS Code - Build` task outputs for real-time compilation errors as you make changes
 - This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions
 - Start the task if it's not already running in the background
+- For TypeScript changes in the `build` folder, you can simply run `npm run typecheck` in the `build` folder.
 
 ### TypeScript validation steps
 - Use the run test tool if you need to run tests. If that tool is not available, then you can use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests) or `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests (integration tests end with .integrationTest.ts or are in /extensions/).
@@ -141,6 +142,7 @@ function f(x: number, y: string): void { }
 - You MUST deal with disposables by registering them immediately after creation for later disposal. Use helpers such as `DisposableStore`, `MutableDisposable` or `DisposableMap`. Do NOT register a disposable to the containing class if the object is created within a method that is called repeadedly to avoid leaks. Instead, return a `IDisposable` from such method and let the caller register it.
 - You MUST NOT use storage keys of another component only to make changes to that component. You MUST come up with proper API to change another component.
 - Use `IEditorService` to open editors instead of `IEditorGroupsService.activeGroup.openEditor` to ensure that the editor opening logic is properly followed and to avoid bypassing important features such as `revealIfOpened` or `preserveFocus`.
+- Avoid using `bind()`, `call()` and `apply()` solely to control `this` or partially apply arguments; prefer arrow functions or closures to capture the necessary context, and use these methods only when required by an API or interoperability.
 
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.
