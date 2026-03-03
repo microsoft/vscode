@@ -68,7 +68,7 @@ function wrapAsTreeNode<T>(element: T): ITreeNode<T, FuzzyScore> {
 }
 
 const rendererOptions: IAgentSessionRendererOptions = {
-	disableHover: true,
+	useSimpleHover: true,
 	getHoverPosition: () => HoverPosition.BELOW,
 };
 
