@@ -656,10 +656,4 @@ export const codiconsLibrary = {
 	claude: register('claude', 0xec82),
 	openInWindow: register('open-in-window', 0xec83),
 	newSession: register('new-session', 0xec84),
-	symbolHeaderOne: register('symbol-header-one', 0xec85),
-	symbolHeaderTwo: register('symbol-header-two', 0xec86),
-	symbolHeaderThree: register('symbol-header-three', 0xec87),
-	symbolHeaderFour: register('symbol-header-four', 0xec88),
-	symbolHeaderFive: register('symbol-header-five', 0xec89),
-	symbolHeaderSix: register('symbol-header-six', 0xec8a),
 } as const;
