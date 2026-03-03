@@ -73,8 +73,8 @@ export class PromptFilesLocator {
 		const userStorageFolders = await this.getUserStorageFolders(type);
 		const paths = new ResourceSet();
 
-		for (const { uri } of userStorageFolders) {
-			const files = await this.resolveFilesAtLocation(uri, type, token);
+		for (const { uri, isDefault } of userStorageFolders) {
+			const files = await this.resolveFilesAtLocation(uri, type, isDefault ?? false, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
 					paths.add(file);
@@ -95,7 +95,8 @@ export class PromptFilesLocator {
 	private async getUserStorageFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
 		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome);
+		const defaultFolders = getPromptFileDefaultLocations(type);
+		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome, defaultFolders);
 
 		// Filter to only user storage locations
 		const result = absoluteLocations.filter(loc => loc.storage === PromptsStorage.user);
@@ -384,9 +385,9 @@ export class PromptFilesLocator {
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
 
-		for (const { parent, filePattern } of this.getLocalParentFolders(type)) {
+		for (const { parent, filePattern, isDefault } of this.getLocalParentFolders(type)) {
 			const files = (filePattern === undefined)
-				? await this.resolveFilesAtLocation(parent, type, token) // if the location does not contain a glob pattern, resolve the location directly
+				? await this.resolveFilesAtLocation(parent, type, isDefault, token) // if the location does not contain a glob pattern, resolve the location directly
 				: await this.searchFilesInLocation(parent, filePattern, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
@@ -401,10 +402,14 @@ export class PromptFilesLocator {
 		return [...paths];
 	}
 
-	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
+	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string; isDefault: boolean }[] {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, undefined);
-		return absoluteLocations.map((location) => firstNonGlobParentAndPattern(location.uri));
+		const defaultFolders = getPromptFileDefaultLocations(type);
+		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, undefined, defaultFolders);
+		return absoluteLocations.map((location) => ({
+			...firstNonGlobParentAndPattern(location.uri),
+			isDefault: location.isDefault ?? false,
+		}));
 	}
 
 	/**
@@ -492,14 +497,15 @@ export class PromptFilesLocator {
 
 	/**
 	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
-	 * For instruction folders (including .github/instructions and .claude/rules), this searches recursively to support subdirectories.
+	 * For default instruction folders (including .github/instructions and .claude/rules), this searches recursively to support subdirectories.
+	 * User-configured instruction locations are not searched recursively to avoid accidentally broad traversal.
 	 */
-	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken): Promise<URI[]> {
+	private async resolveFilesAtLocation(location: URI, type: PromptsType, isDefaultLocation: boolean, token: CancellationToken): Promise<URI[]> {
 		if (type === PromptsType.skill) {
 			return this.findAgentSkillsInFolder(location, token);
 		}
-		// All instruction folders support subdirectories, so search recursively
-		const recursive = type === PromptsType.instructions;
+		// Default instruction folders support subdirectories, so search recursively
+		const recursive = type === PromptsType.instructions && isDefaultLocation;
 		try {
 			const info = await this.fileService.resolve(location);
 			if (token.isCancellationRequested) {
@@ -514,7 +520,7 @@ export class PromptFilesLocator {
 						result.push(child.resource);
 					} else if (recursive && child.isDirectory) {
 						// Recursively search subdirectories for instructions
-						const subFiles = await this.resolveFilesAtLocation(child.resource, type, token);
+						const subFiles = await this.resolveFilesAtLocation(child.resource, type, isDefaultLocation, token);
 						result.push(...subFiles);
 					}
 				}
