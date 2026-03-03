@@ -208,6 +208,6 @@ suite('AgentPluginRepositoryService', () => {
 			marketplaceType: MarketplaceType.Copilot,
 		});
 
-		assert.deepStrictEqual(commands, ['git.openRepository', 'git.fetch', 'git.openRepository', 'git.checkoutDetached']);
+		assert.deepStrictEqual(commands, ['git.openRepository', 'git.fetch', '_git.checkout']);
 	});
 });

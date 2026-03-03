@@ -186,7 +186,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 				},
 				async () => {
 					await this._fileService.createFolder(dirname(repoDir));
-					await this._commandService.executeCommand('_git.cloneRepository', cloneUrl, repoDir.fsPath);
+					await this._commandService.executeCommand('_git.cloneRepository', cloneUrl, repoDir.fsPath, ref);
 				}
 			);
 		} catch (err) {

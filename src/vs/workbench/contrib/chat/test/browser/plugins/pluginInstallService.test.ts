@@ -13,10 +13,9 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
-import { IPluginMarketplaceService, IMarketplacePlugin, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { PluginInstallService } from '../../../browser/pluginInstallService.js';
-import { IMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, IPluginSourceDescriptor, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('PluginInstallService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -114,11 +113,11 @@ suite('PluginInstallService', () => {
 			createTerminal: async () => {
 				let finishedCallback: ((cmd: { id: string; exitCode: number }) => void) | undefined;
 				return {
-					runCommand: (command: string, _addNewLine?: boolean, commandId?: string) => {
+					runCommand: (command: string, _addNewLine?: boolean) => {
 						state.terminalCommands.push(command);
 						// Simulate command completing after runCommand is called
-						if (finishedCallback && commandId) {
-							finishedCallback({ id: commandId, exitCode: state.terminalExitCode });
+						if (finishedCallback) {
+							finishedCallback({ id: 'command', exitCode: state.terminalExitCode });
 						}
 					},
 					capabilities: {

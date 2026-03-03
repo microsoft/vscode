@@ -1040,7 +1040,7 @@ export class CommandCenter {
 	}
 
 	@command('_git.cloneRepository')
-	async cloneRepository(url: string, localPath: string): Promise<void> {
+	async cloneRepository(url: string, localPath: string, ref?: string): Promise<void> {
 		const opts = {
 			location: ProgressLocation.Notification,
 			title: l10n.t('Cloning git repository "{0}"...', url),
@@ -1052,7 +1052,7 @@ export class CommandCenter {
 
 		await window.withProgress(
 			opts,
-			(progress, token) => this.model.git.clone(url, { parentPath, targetName, progress }, token)
+			(progress, token) => this.model.git.clone(url, { parentPath, targetName, progress, ref }, token)
 		);
 	}
 

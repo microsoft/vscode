@@ -55,12 +55,12 @@ export class PluginInstallService implements IPluginInstallService {
 					marketplaceType: plugin.marketplaceType,
 				});
 			case PluginSourceKind.GitHub:
-				case PluginSourceKind.GitUrl:
-					return this._pluginRepositoryService.updatePluginSource(plugin, {
-						pluginName: plugin.name,
-						failureLabel: plugin.name,
-						marketplaceType: plugin.marketplaceType,
-					});
+			case PluginSourceKind.GitUrl:
+				return this._pluginRepositoryService.updatePluginSource(plugin, {
+					pluginName: plugin.name,
+					failureLabel: plugin.name,
+					marketplaceType: plugin.marketplaceType,
+				});
 			case PluginSourceKind.Npm:
 				return this._installNpmPlugin(plugin, plugin.sourceDescriptor);
 			case PluginSourceKind.Pip:
