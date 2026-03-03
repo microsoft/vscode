@@ -203,6 +203,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
+			//TODO: @osortega pass branch in metadata from extension
 			const ref = metadata?.branch || 'HEAD';
 			return [URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${metadata.owner}/${metadata.name}/${ref}`), undefined];
 		}
