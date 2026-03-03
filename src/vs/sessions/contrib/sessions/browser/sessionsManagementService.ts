@@ -23,7 +23,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChatModeService, isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
+import { isBuiltinChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
@@ -128,7 +128,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
-		@IChatModeService private readonly chatModeService: IChatModeService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 	) {
 		super();
@@ -326,14 +325,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		const contribution = this.chatSessionsService.getChatSessionContribution(session.target);
 
 		// Resolve mode from session's modeId (falls back to Agent)
-		const resolvedMode = session.modeId ? this.chatModeService.findModeById(session.modeId) : undefined;
-		const modeKind = resolvedMode?.kind ?? ChatModeKind.Agent;
-		const modeIsBuiltin = resolvedMode ? isBuiltinChatMode(resolvedMode) : true;
+		const modeKind = session.mode?.kind ?? ChatModeKind.Agent;
+		const modeIsBuiltin = session.mode ? isBuiltinChatMode(session.mode) : true;
 		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = modeIsBuiltin ? modeKind : 'custom';
 
-		const rawModeInstructions = resolvedMode?.modeInstructions?.get();
+		const rawModeInstructions = session.mode?.modeInstructions?.get();
 		const modeInstructions = rawModeInstructions ? {
-			name: resolvedMode!.name.get(),
+			name: session.mode!.name.get(),
 			content: rawModeInstructions.content,
 			toolReferences: this.toolsService.toToolReferences(rawModeInstructions.toolReferences),
 			metadata: rawModeInstructions.metadata,
@@ -383,13 +381,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 
 			// Set the selected mode on the input model so the mode picker reflects it
-			if (session.modeId) {
-				const resolvedMode = this.chatModeService.findModeById(session.modeId);
-				if (resolvedMode) {
-					model.inputModel.setState({
-						mode: { id: resolvedMode.id, kind: resolvedMode.kind }
-					});
-				}
+			if (session.mode) {
+				model.inputModel.setState({
+					mode: { id: session.mode.id, kind: session.mode.kind }
+				});
 			}
 
 			// Apply selected options (repository, branch, etc.) to the contributed session

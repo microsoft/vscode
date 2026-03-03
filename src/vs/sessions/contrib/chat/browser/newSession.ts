@@ -13,8 +13,9 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { IChatMode } from '../../../../workbench/contrib/chat/common/chatModes.js';
 
-export type NewSessionChangeType = 'repoUri' | 'isolationMode' | 'branch' | 'options' | 'disabled';
+export type NewSessionChangeType = 'repoUri' | 'isolationMode' | 'branch' | 'options' | 'disabled' | 'agent';
 
 /**
  * Represents a resolved option group with its current selected value.
@@ -36,7 +37,7 @@ export interface INewSession extends IDisposable {
 	readonly isolationMode: IsolationMode;
 	readonly branch: string | undefined;
 	readonly modelId: string | undefined;
-	readonly modeId: string | undefined;
+	readonly mode: IChatMode | undefined;
 	readonly query: string | undefined;
 	readonly attachedContext: IChatRequestVariableEntry[] | undefined;
 	readonly selectedOptions: ReadonlyMap<string, IChatSessionProviderOptionItem>;
@@ -46,7 +47,7 @@ export interface INewSession extends IDisposable {
 	setIsolationMode(mode: IsolationMode): void;
 	setBranch(branch: string | undefined): void;
 	setModelId(modelId: string | undefined): void;
-	setModeId(modeId: string | undefined): void;
+	setMode(mode: IChatMode | undefined): void;
 	setQuery(query: string): void;
 	setAttachedContext(context: IChatRequestVariableEntry[] | undefined): void;
 	setOption(optionId: string, value: IChatSessionProviderOptionItem | string): void;
@@ -55,6 +56,7 @@ export interface INewSession extends IDisposable {
 const REPOSITORY_OPTION_ID = 'repository';
 const BRANCH_OPTION_ID = 'branch';
 const ISOLATION_OPTION_ID = 'isolation';
+const AGENT_OPTION_ID = 'agent';
 
 /**
  * Local new session for Background agent sessions.
@@ -67,7 +69,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 	private _isolationMode: IsolationMode = 'worktree';
 	private _branch: string | undefined;
 	private _modelId: string | undefined;
-	private _modeId: string | undefined;
+	private _mode: IChatMode | undefined;
 	private _query: string | undefined;
 	private _attachedContext: IChatRequestVariableEntry[] | undefined;
 
@@ -81,7 +83,7 @@ export class LocalNewSession extends Disposable implements INewSession {
 	get isolationMode(): IsolationMode { return this._isolationMode; }
 	get branch(): string | undefined { return this._branch; }
 	get modelId(): string | undefined { return this._modelId; }
-	get modeId(): string | undefined { return this._modeId; }
+	get mode(): IChatMode | undefined { return this._mode; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 	get disabled(): boolean {
@@ -138,8 +140,13 @@ export class LocalNewSession extends Disposable implements INewSession {
 		this._modelId = modelId;
 	}
 
-	setModeId(modeId: string | undefined): void {
-		this._modeId = modeId;
+	setMode(mode: IChatMode | undefined): void {
+		if (this._mode?.id !== mode?.id) {
+			this._mode = mode;
+			this._onDidChange.fire('agent');
+			const modeName = mode?.isBuiltin ? undefined : mode?.name.get();
+			this.setOption(AGENT_OPTION_ID, modeName ?? '');
+		}
 	}
 
 	setQuery(query: string): void {
@@ -187,7 +194,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 	get isolationMode(): IsolationMode { return 'worktree'; }
 	get branch(): string | undefined { return undefined; }
 	get modelId(): string | undefined { return this._modelId; }
-	get modeId(): string | undefined { return undefined; }
+	get mode(): IChatMode | undefined { return undefined; }
 	get query(): string | undefined { return this._query; }
 	get attachedContext(): IChatRequestVariableEntry[] | undefined { return this._attachedContext; }
 	get disabled(): boolean {
@@ -239,7 +246,7 @@ export class RemoteNewSession extends Disposable implements INewSession {
 		this._modelId = modelId;
 	}
 
-	setModeId(_modeId: string | undefined): void {
+	setMode(_mode: IChatMode | undefined): void {
 		// No-op for remote sessions
 	}
 

@@ -216,7 +216,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		// When mode changes, update the session
 		this._register(this._modePicker.onDidChange((mode) => {
-			this._newSession.value?.setModeId(mode.id);
+			this._newSession.value?.setMode(mode);
 			this._focusEditor();
 		}));
 
@@ -336,7 +336,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 
 		// Set the current mode on the session (for local sessions)
-		session.setModeId(this._modePicker.selectedMode.id);
+		session.setMode(this._modePicker.selectedMode);
 
 		// Open repository for the session's repoUri
 		if (session.repoUri) {
@@ -379,6 +379,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._branchPicker.setRepository(undefined);
 		this._isolationModePicker.setRepository(undefined);
 		this._syncIndicator.setRepository(undefined);
+		this._modePicker.setRepository(undefined);
 
 		this.gitService.openRepository(folderUri).then(repository => {
 			if (cts.token.isCancellationRequested) {
@@ -389,6 +390,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._isolationModePicker.setRepository(repository);
 			this._branchPicker.setRepository(repository);
 			this._syncIndicator.setRepository(repository);
+			this._modePicker.setRepository(repository);
 		}).catch(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -399,6 +401,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._isolationModePicker.setRepository(undefined);
 			this._branchPicker.setRepository(undefined);
 			this._syncIndicator.setRepository(undefined);
+			this._modePicker.setRepository(undefined);
 		});
 	}
 

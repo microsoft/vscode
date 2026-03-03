@@ -12,6 +12,7 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../../workbench/contrib/chat/common/chatModes.js';
+import { IGitRepository } from '../../../../workbench/contrib/git/common/gitService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -57,6 +58,15 @@ export class ModePicker extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
+	}
+
+	/**
+	 * Sets the git repository. When the repository changes, resets the selected mode
+	 * back to the default Agent mode.
+	 */
+	setRepository(repository: IGitRepository | undefined): void {
+		this._selectedMode = ChatMode.Agent;
+		this._updateTriggerLabel();
 	}
 
 	/**
