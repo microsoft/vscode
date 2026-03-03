@@ -41,7 +41,8 @@ import {
 	inputForeground,
 	quickInputListFocusBackground,
 	quickInputListFocusForeground,
-	widgetBorder
+	widgetBorder,
+	widgetShadow
 } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
@@ -242,8 +243,10 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			return;
 		}
 
+		const widgetShadowColor = theme.getColor(widgetShadow);
 		const widgetBorderColor = theme.getColor(widgetBorder);
 		this._domNode.style.backgroundColor = String(theme.getColor(editorWidgetBackground) ?? '');
+		this._domNode.style.boxShadow = widgetShadowColor ? ` 0 0 8px 2px ${widgetShadowColor}` : '';
 		this._domNode.style.border = widgetBorderColor ? `1px solid ${widgetBorderColor}` : '';
 		this._domNode.style.color = String(theme.getColor(inputForeground) ?? '');
 
