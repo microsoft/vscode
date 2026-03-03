@@ -27,6 +27,11 @@ import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 
 /**
+ * Maximum recursion depth when traversing subdirectories for instruction files.
+ */
+const MAX_INSTRUCTIONS_RECURSION_DEPTH = 5;
+
+/**
  * Utility class to locate prompt files.
  */
 export class PromptFilesLocator {
@@ -73,8 +78,8 @@ export class PromptFilesLocator {
 		const userStorageFolders = await this.getUserStorageFolders(type);
 		const paths = new ResourceSet();
 
-		for (const { uri, isDefault } of userStorageFolders) {
-			const files = await this.resolveFilesAtLocation(uri, type, isDefault ?? false, token);
+		for (const { uri } of userStorageFolders) {
+			const files = await this.resolveFilesAtLocation(uri, type, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
 					paths.add(file);
@@ -95,8 +100,7 @@ export class PromptFilesLocator {
 	private async getUserStorageFolders(type: PromptsType): Promise<readonly IResolvedPromptSourceFolder[]> {
 		const userHome = await this.pathService.userHome();
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const defaultFolders = getPromptFileDefaultLocations(type);
-		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome, defaultFolders);
+		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, userHome);
 
 		// Filter to only user storage locations
 		const result = absoluteLocations.filter(loc => loc.storage === PromptsStorage.user);
@@ -385,9 +389,9 @@ export class PromptFilesLocator {
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
 
-		for (const { parent, filePattern, isDefault } of this.getLocalParentFolders(type)) {
+		for (const { parent, filePattern } of this.getLocalParentFolders(type)) {
 			const files = (filePattern === undefined)
-				? await this.resolveFilesAtLocation(parent, type, isDefault, token) // if the location does not contain a glob pattern, resolve the location directly
+				? await this.resolveFilesAtLocation(parent, type, token) // if the location does not contain a glob pattern, resolve the location directly
 				: await this.searchFilesInLocation(parent, filePattern, token);
 			for (const file of files) {
 				if (getPromptFileType(file) === type) {
@@ -402,14 +406,10 @@ export class PromptFilesLocator {
 		return [...paths];
 	}
 
-	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string; isDefault: boolean }[] {
+	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
 		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
-		const defaultFolders = getPromptFileDefaultLocations(type);
-		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, undefined, defaultFolders);
-		return absoluteLocations.map((location) => ({
-			...firstNonGlobParentAndPattern(location.uri),
-			isDefault: location.isDefault ?? false,
-		}));
+		const absoluteLocations = this.toAbsoluteLocations(type, configuredLocations, undefined);
+		return absoluteLocations.map((location) => firstNonGlobParentAndPattern(location.uri));
 	}
 
 	/**
@@ -497,15 +497,23 @@ export class PromptFilesLocator {
 
 	/**
 	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
-	 * For default instruction folders (including .github/instructions and .claude/rules), this searches recursively to support subdirectories.
-	 * User-configured instruction locations are not searched recursively to avoid accidentally broad traversal.
+	 * For instruction folders, this searches recursively (up to {@link MAX_INSTRUCTIONS_RECURSION_DEPTH} levels deep) provided
+	 * the location is not a workspace folder root and does not contain wildcards, to support subdirectories while avoiding
+	 * accidentally broad traversal.
 	 */
-	private async resolveFilesAtLocation(location: URI, type: PromptsType, isDefaultLocation: boolean, token: CancellationToken): Promise<URI[]> {
+	private async resolveFilesAtLocation(location: URI, type: PromptsType, token: CancellationToken, depth: number = 0): Promise<URI[]> {
 		if (type === PromptsType.skill) {
 			return this.findAgentSkillsInFolder(location, token);
 		}
-		// Default instruction folders support subdirectories, so search recursively
-		const recursive = type === PromptsType.instructions && isDefaultLocation;
+		// Recurse into subdirectories for instruction folders, but only if:
+		// - the location is not a workspace folder root (to avoid full workspace traversal)
+		// - the path does not contain wildcards (already filtered upstream, but guard here too)
+		// - the recursion depth hasn't exceeded the limit
+		const isWorkspaceRoot = depth === 0 && this.getWorkspaceFolders().some(f => f.uri.toString() === location.toString());
+		const recursive = type === PromptsType.instructions
+			&& !isWorkspaceRoot
+			&& !hasGlobPattern(location.path)
+			&& depth < MAX_INSTRUCTIONS_RECURSION_DEPTH;
 		try {
 			const info = await this.fileService.resolve(location);
 			if (token.isCancellationRequested) {
@@ -520,7 +528,7 @@ export class PromptFilesLocator {
 						result.push(child.resource);
 					} else if (recursive && child.isDirectory) {
 						// Recursively search subdirectories for instructions
-						const subFiles = await this.resolveFilesAtLocation(child.resource, type, isDefaultLocation, token);
+						const subFiles = await this.resolveFilesAtLocation(child.resource, type, token, depth + 1);
 						result.push(...subFiles);
 					}
 				}
