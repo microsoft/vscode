@@ -364,7 +364,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		for (const [modelIdentifier, modelData] of this._localModels) {
-			if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat]) {
+			if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat] && !modelData.metadata.targetChatSessionType) {
 				defaultModelId = modelIdentifier;
 				break;
 			}

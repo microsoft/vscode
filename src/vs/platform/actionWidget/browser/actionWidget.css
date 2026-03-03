@@ -15,7 +15,7 @@
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
 	padding: 4px;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .context-view-block {

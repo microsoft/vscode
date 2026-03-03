@@ -15,7 +15,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './participa
 import { IChatEditingSession } from './editing/chatEditingService.js';
 import { IChatModel, IChatRequestVariableData, ISerializableChatModelInputState } from './model/chatModel.js';
 import { IChatProgress, IChatService, IChatSessionTiming } from './chatService/chatService.js';
-import { Target } from './promptSyntax/service/promptsService.js';
+import { Target } from './promptSyntax/promptTypes.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,

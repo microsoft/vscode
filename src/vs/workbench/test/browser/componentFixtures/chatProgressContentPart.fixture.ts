@@ -101,8 +101,9 @@ function renderProgressPart(
 	container.appendChild(itemContainer);
 }
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	WithSpinner: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Searching workspace for relevant files...'),
@@ -112,6 +113,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	Completed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Found 12 relevant files'),
@@ -121,6 +123,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	WithCustomIcon: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Running tests...'),
@@ -130,6 +133,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	WithInlineCode: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Reading `src/vs/workbench/contrib/chat/browser/chatWidget.ts`'),
@@ -139,6 +143,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	LongMessage: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Searching across multiple workspace folders for TypeScript files matching the pattern you described, including test files and configuration'),

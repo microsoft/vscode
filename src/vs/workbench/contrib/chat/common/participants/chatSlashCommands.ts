@@ -13,7 +13,7 @@ import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from 
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Target } from '../promptSyntax/service/promptsService.js';
+import { Target } from '../promptSyntax/promptTypes.js';
 
 //#region slash service, commands etc
 

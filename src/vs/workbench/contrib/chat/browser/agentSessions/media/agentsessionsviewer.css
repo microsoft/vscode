@@ -251,6 +251,54 @@
 				}
 			}
 		}
+		.agent-session-approval-row {
+			display: none;
+			align-items: center;
+			gap: 8px;
+			margin-top: 4px;
+			padding: 4px 8px;
+			box-sizing: border-box;
+			height: 36px; /* 36px + 4px margin-top = APPROVAL_ROW_HEIGHT (40px) */
+			border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+			border-radius: 4px;
+			background-color: var(--vscode-editor-background);
+			color: var(--vscode-editor-foreground);
+
+			&.visible {
+				display: flex;
+			}
+
+			.agent-session-approval-label {
+				flex: 1;
+				overflow: hidden;
+				min-width: 0;
+
+				& > .rendered-markdown,
+				& > .rendered-markdown > .code,
+				& > .rendered-markdown > .code > span {
+					display: block;
+					overflow: hidden;
+				}
+
+				.monaco-tokenized-source {
+					display: block;
+					overflow: hidden;
+					white-space: nowrap;
+					text-overflow: ellipsis;
+					font-size: 12px;
+				}
+			}
+
+			.agent-session-approval-button {
+				flex-shrink: 0;
+
+				.monaco-button {
+					padding: 2px 10px;
+					font-size: 12px;
+					white-space: nowrap;
+				}
+			}
+		}
 	}
 
 	.agent-session-section {
@@ -296,5 +344,28 @@
 
 	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-section-label {
 		color: var(--vscode-list-inactiveSelectionForeground);
+	}
+
+	.agent-sessions-empty-filter-message {
+		padding: 8px 12px;
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+
+		.reset-filter-link {
+			margin-left: 4px;
+			color: var(--vscode-textLink-foreground);
+			cursor: pointer;
+			text-decoration: none;
+
+			&:hover {
+				text-decoration: underline;
+			}
+
+			&:focus-visible {
+				text-decoration: underline;
+				outline: 1px solid var(--vscode-focusBorder);
+				outline-offset: 1px;
+			}
+		}
 	}
 }
