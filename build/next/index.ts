@@ -260,7 +260,7 @@ const desktopResourcePatterns = [
 	'vs/workbench/contrib/terminal/common/scripts/*.psm1',
 	'vs/workbench/contrib/terminal/common/scripts/*.fish',
 	'vs/workbench/contrib/terminal/common/scripts/*.zsh',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/**',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/**/*',
 	'vs/workbench/contrib/externalTerminal/**/*.scpt',
 
 	// Media - audio
@@ -295,7 +295,7 @@ const serverResourcePatterns = [
 	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
 	'vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
 	'vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
-	'vs/workbench/contrib/terminal/common/scripts/psreadline/**',
+	'vs/workbench/contrib/terminal/common/scripts/psreadline/**/*',
 ];
 
 // Resources for server-web target (server + web UI)
