@@ -1184,7 +1184,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const modeInfo = lastItem.model.request?.modeInfo;
 		let responseMode: IChatMode | undefined;
 		if (modeInfo?.modeId === 'custom' && modeInfo.modeInstructions?.name) {
-			responseMode = this.chatModeService.findModeByName(modeInfo.modeInstructions.name);
+			// Search custom modes directly to avoid collisions with builtin mode names
+			responseMode = this.chatModeService.getModes().custom.find(mode => mode.name.get() === modeInfo.modeInstructions!.name);
 		} else if (modeInfo?.modeId) {
 			responseMode = this.chatModeService.findModeById(modeInfo.modeId);
 		} else {
