@@ -28,6 +28,7 @@
 	flex-direction: column;
 	overflow: hidden;
 	container-type: inline-size;
+	max-height: min(420px, 45vh);
 }
 
 /* input part wrapper */
@@ -52,6 +53,8 @@
 .interactive-session .chat-question-carousel-container .chat-question-carousel-content {
 	display: flex;
 	flex-direction: column;
+	flex: 1;
+	min-height: 0;
 	background: var(--vscode-chat-requestBackground);
 	padding: 8px 16px 10px 16px;
 	overflow: hidden;
@@ -162,8 +165,15 @@
 	display: flex;
 	flex-direction: column;
 	margin-top: 4px;
-	padding-bottom: 8px;
+	padding-right: 14px;
 	min-width: 0;
+
+	&::after {
+		content: '';
+		display: block;
+		height: 8px;
+		flex-shrink: 0;
+	}
 
 	/* some hackiness to get the focus looking right */
 	.chat-question-list-item:focus:not(.selected),

@@ -77,8 +77,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 */
 	private readonly _interactiveUIStore: MutableDisposable<DisposableStore> = this._register(new MutableDisposable());
 	private readonly _inChatQuestionCarouselContextKey: IContextKey<boolean>;
-	private static readonly MAX_INPUT_CAROUSEL_HEIGHT_PX = 420;
-	private static readonly MAX_INPUT_CAROUSEL_VIEWPORT_RATIO = 0.45;
 
 	constructor(
 		public readonly carousel: IChatQuestionCarousel,
@@ -339,10 +337,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (!dom.isHTMLElement(scrollableContent)) {
 			return;
 		}
-		const maxContainerHeight = Math.min(
-			ChatQuestionCarouselPart.MAX_INPUT_CAROUSEL_HEIGHT_PX,
-			dom.getWindow(this.domNode).innerHeight * ChatQuestionCarouselPart.MAX_INPUT_CAROUSEL_VIEWPORT_RATIO
-		);
+
+		// Use the flex-resolved container height (constrained by CSS max-height)
+		// instead of window.innerHeight, so the scroll viewport tracks actual chat space.
+		const maxContainerHeight = this._questionContainer.clientHeight;
 
 		const computedStyle = dom.getWindow(this._questionContainer).getComputedStyle(this._questionContainer);
 		const contentVerticalPadding =
@@ -356,8 +354,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		const availableScrollableHeight = Math.floor(maxContainerHeight - contentVerticalPadding - nonScrollableContentHeight);
 		const constrainedScrollableHeight = Math.max(0, availableScrollableHeight);
 
-		scrollableNode.style.height = `${constrainedScrollableHeight}px`;
-		scrollableNode.style.maxHeight = `${constrainedScrollableHeight}px`;
+		// Constrain the content element (DomScrollableElement._element) so that
+		// scanDomNode sees clientHeight < scrollHeight and enables scrolling.
+		// The wrapper inherits the same constraint via CSS flex.
 		scrollableContent.style.height = `${constrainedScrollableHeight}px`;
 		scrollableContent.style.maxHeight = `${constrainedScrollableHeight}px`;
 		inputScrollable.scanDomNode();
