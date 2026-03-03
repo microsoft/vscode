@@ -13,6 +13,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.customizationsMenu.userStoragePath': '~/.copilot',
 		'chat.viewSessions.enabled': false,
 		'chat.implicitContext.suggestedContext': false,
+		'chat.implicitContext.enabled': { 'panel': 'never' },
 
 		'breadcrumbs.enabled': false,
 
