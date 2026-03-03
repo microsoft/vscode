@@ -233,20 +233,18 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 	/**
 	 * Get the label of the active chat session.
-	 * Prefers the live model title over the snapshot label from the active session service.
-	 * Falls back to a generic label if no active session is found.
 	 */
 	private _getActiveSessionLabel(): string {
 		const activeSession = this.activeSessionService.getActiveSession();
-		if (activeSession?.resource) {
-			const model = this.chatService.getSession(activeSession.resource);
-			if (model?.title) {
-				return model.title;
-			}
+		if (activeSession?.label) {
+			return activeSession?.label; // prefer session label to support renamed sessions
 		}
 
-		if (activeSession?.label) {
-			return activeSession.label;
+		if (activeSession) {
+			const activeModel = this.chatService.getSession(activeSession.resource);
+			if (activeModel?.title) {
+				return activeModel.title; // fall back to chat model title if available
+			}
 		}
 
 		return localize('agentSessions.newSession', "New Session");
