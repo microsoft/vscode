@@ -85,7 +85,7 @@ class ApplyChangesToParentRepoAction extends Action2 {
 	constructor() {
 		super({
 			id: ApplyChangesToParentRepoAction.ID,
-			title: localize2('applyChangesToParentRepo', 'Apply Changes to Parent Repo'),
+			title: localize2('applyChangesToParentRepo', 'Apply Changes to Parent Repository'),
 			icon: Codicon.desktopDownload,
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
