@@ -1180,12 +1180,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Derive handoffs from the mode that generated the last response, not the current UI selection.
 		// This ensures handoffs reflect what the response agent offers, regardless of mode picker state.
+		// Fall back to the current mode picker for old sessions where modeInfo was not persisted.
 		const modeInfo = lastItem.model.request?.modeInfo;
 		let responseMode: IChatMode | undefined;
 		if (modeInfo?.modeId === 'custom' && modeInfo.modeInstructions?.name) {
 			responseMode = this.chatModeService.findModeByName(modeInfo.modeInstructions.name);
 		} else if (modeInfo?.modeId) {
 			responseMode = this.chatModeService.findModeById(modeInfo.modeId);
+		} else {
+			responseMode = this.input.currentModeObs.get();
 		}
 
 		const handoffs = responseMode?.handOffs?.get();
@@ -1827,6 +1830,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderWelcomeViewContentIfNeeded();
 			this.refreshParsedInput();
 			this.renderFollowups();
+			this.renderChatSuggestNextWidget();
 		}));
 		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		this._register(this.contextKeyService.onDidChangeContext(e => {
