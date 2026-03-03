@@ -50,8 +50,9 @@ class FixtureQuickInputService extends QuickInputService {
 	}
 }
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	PromptFiles: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: context => renderPromptFilePickerFixture({
 			...context,
 			type: PromptsType.prompt,
@@ -69,6 +70,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	InstructionFilesWithAgentInstructions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: context => renderPromptFilePickerFixture({
 			...context,
 			type: PromptsType.instructions,
