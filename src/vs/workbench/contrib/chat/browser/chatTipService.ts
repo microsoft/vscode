@@ -227,12 +227,12 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			}
 
 			if (this._hasFileOrFolderReference(message)) {
-				this._tracker.value?.recordCommandExecuted(TipTrackingCommands.AttachFilesReferenceUsed);
+				this._ensureTracker().recordCommandExecuted(TipTrackingCommands.AttachFilesReferenceUsed);
 			}
 
 			const slashCommandTrackingId = this._getSlashCommandTrackingId(message);
 			if (slashCommandTrackingId) {
-				this._tracker.value?.recordCommandExecuted(slashCommandTrackingId);
+				this._ensureTracker().recordCommandExecuted(slashCommandTrackingId);
 			}
 		}));
 	}
@@ -288,13 +288,15 @@ export class ChatTipService extends Disposable implements IChatTipService {
 
 	registerTip(tip: ITipDefinition): IDisposable {
 		this._tips.push(tip);
-		// Rebuild the tracker so it picks up the new tip's exclusion criteria
-		this._rebuildTracker();
+		// Invalidate the tracker so it gets rebuilt with the new tip on next use.
+		// We clear lazily rather than rebuilding eagerly to avoid creating many
+		// short-lived trackers when multiple tips are registered in sequence.
+		this._tracker.clear();
 		return toDisposable(() => {
 			const idx = this._tips.indexOf(tip);
 			if (idx >= 0) {
 				this._tips.splice(idx, 1);
-				this._rebuildTracker();
+				this._tracker.clear();
 				// If the unregistered tip was the currently shown tip, clear it
 				// so the next getWelcomeTip call picks a new one.
 				if (this._shownTip === tip) {
@@ -305,15 +307,11 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		});
 	}
 
-	private _rebuildTracker(): void {
-		this._tracker.value = this._instantiationService.createInstance(TipEligibilityTracker, this._tips);
-	}
-
 	private _ensureTracker(): TipEligibilityTracker {
 		if (!this._tracker.value) {
-			this._rebuildTracker();
+			this._tracker.value = this._instantiationService.createInstance(TipEligibilityTracker, this._tips);
 		}
-		return this._tracker.value!;
+		return this._tracker.value;
 	}
 
 	dismissTip(): void {
