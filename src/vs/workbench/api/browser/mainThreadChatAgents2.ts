@@ -169,8 +169,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private async _pushCustomAgents(): Promise<void> {
 		try {
 			const customAgents = await this._promptsService.getCustomAgents(CancellationToken.None);
-			const dtos: ICustomAgentDto[] = customAgents
-				.map(agent => ({ uri: agent.uri }));
+			const dtos: ICustomAgentDto[] = customAgents.map(agent => ({ uri: agent.uri }));
 			this._proxy.$acceptCustomAgents(dtos);
 		} catch (error) {
 			this._logService.error('[chat] Failed to push custom agents to extension host', error);
