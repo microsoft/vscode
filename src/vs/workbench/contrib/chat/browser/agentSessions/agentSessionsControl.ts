@@ -42,6 +42,7 @@ export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOption
 	readonly filter: IAgentSessionsFilter;
 	readonly source: string;
 	readonly disableHover?: boolean;
+	readonly showIsolationIcon?: boolean;
 	readonly enableApprovalRow?: boolean;
 
 	getHoverPosition(): HoverPosition;
