@@ -231,13 +231,13 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			// determine icon based on node depth
 			const kindIcon = SymbolKinds.toIcon(element.symbol.kind);
 			const depth = node.depth;
-			const level = Math.min(Math.max(depth + 1, 1), 6);
+			const level = Math.min(Math.max(depth, 1), 6);
 			const levelMap = ['one', 'two', 'three', 'four', 'five', 'six'];
-			let iconId = `${kindIcon.id}-${levelMap[level - 2]}`; // -1 for 1-index counting, -1 to translate "header 1" to index zero
+			let iconId = `${kindIcon.id}-${levelMap[level - 1]}`;
 
 			// patch: markdown (avoids modifications to the language server)
 			if (this.languageId === 'markdown' && element.symbol.kind === SymbolKind.String) {
-				iconId = `symbol-header-${levelMap[level - 2]}`;
+				iconId = `symbol-header-${levelMap[level - 1]}`;
 			}
 
 			let icon;
