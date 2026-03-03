@@ -30,6 +30,7 @@ import { listErrorForeground, listWarningForeground } from '../../../../../platf
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IOutlineComparator, OutlineConfigKeys, OutlineTarget } from '../../../../services/outline/browser/outline.js';
+import { getIconRegistry } from '../../../../../platform/theme/common/iconRegistry.js';
 import './documentSymbolsTree.css';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
@@ -191,13 +192,17 @@ export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, 
 export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, DocumentSymbolTemplate> {
 
 	readonly templateId: string = DocumentSymbolTemplate.id;
+	readonly languageId: string | null;
 
 	constructor(
 		private _renderMarker: boolean,
 		target: OutlineTarget,
+		languageId: string | null,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
-	) { }
+	) {
+		this.languageId = languageId;
+	}
 
 	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {
 		container.classList.add('outline-element');
@@ -221,7 +226,28 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
 			// add styles for the icons
 			template.iconClass.className = '';
-			template.iconClass.classList.add('outline-element-icon', 'inline', 'codicon-colored', ...ThemeIcon.asClassNameArray(SymbolKinds.toIcon(element.symbol.kind)));
+			template.iconClass.classList.add('outline-element-icon', 'inline', 'codicon-colored');
+
+			// determine icon based on node depth
+			const kindIcon = SymbolKinds.toIcon(element.symbol.kind);
+			const depth = node.depth;
+			const level = Math.min(Math.max(depth + 1, 1), 6);
+			const levelMap = ['one', 'two', 'three', 'four', 'five', 'six'];
+			let iconId = `${kindIcon.id}-${levelMap[level - 2]}`; // -1 for 1-index counting, -1 to translate "header 1" to index zero
+
+			// patch: markdown (avoids modifications to the language server)
+			if (this.languageId === 'markdown' && element.symbol.kind === SymbolKind.String) {
+				iconId = `symbol-header-${levelMap[level - 2]}`;
+			}
+
+			let icon;
+			if (getIconRegistry().getIcon(`${iconId}`)) {
+				icon = ThemeIcon.fromId(iconId);
+			} else {
+				// fallback to non-levelled icon
+				icon = kindIcon;
+			}
+			template.iconClass.classList.add(...ThemeIcon.asClassNameArray(icon));
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
 			extraClasses.push(`deprecated`);
