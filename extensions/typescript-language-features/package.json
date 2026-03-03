@@ -30,7 +30,9 @@
         "typescript.npm",
         "js/ts.tsserver.npm.path",
         "typescript.tsserver.nodePath",
-        "js/ts.tsserver.node.path"
+        "js/ts.tsserver.node.path",
+        "js/ts.tsserver.diagnosticDir",
+        "js/ts.tsserver.heapProfile"
       ]
     }
   },
@@ -2559,7 +2561,7 @@
           "js/ts.tsserver.diagnosticDir": {
             "type": "string",
             "markdownDescription": "%configuration.tsserver.diagnosticDir%",
-            "scope": "window",
+            "scope": "machine",
             "keywords": [
               "TypeScript",
               "diagnostic",
@@ -2591,7 +2593,7 @@
               "enabled": false
             },
             "markdownDescription": "%configuration.tsserver.heapProfile%",
-            "scope": "window",
+            "scope": "machine",
             "properties": {
               "enabled": {
                 "type": "boolean",
