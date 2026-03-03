@@ -9,6 +9,8 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append, EventHelper, addDisposableListener, EventType, hide, setVisibility } from '../../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection, IAgentSessionsModel, IMarshalledAgentSessionContext, isAgentSession, isAgentSessionSection } from './agentSessionsModel.js';
 import { AgentSessionListItem, AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionSectionRenderer, AgentSessionsSorter, IAgentSessionsFilter, IAgentSessionsSorterOptions } from './agentSessionsViewer.js';
@@ -155,12 +157,20 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		hide(this.emptyFilterMessage);
 
 		const span = append(this.emptyFilterMessage, $('span'));
-		span.textContent = localize('agentSessions.noFilterResults', "No sessions match the current filter.");
+		span.textContent = localize('agentSessions.noFilterResults', "No matching sessions.");
 
-		const link = append(this.emptyFilterMessage, $('a.reset-filter-link'));
-		link.textContent = localize('agentSessions.clearFilters', "Clear Filters");
+		const link = append(this.emptyFilterMessage, $('span.reset-filter-link'));
+		link.textContent = localize('agentSessions.clearFilters', "Clear Filter");
 		link.tabIndex = 0;
+		link.setAttribute('role', 'button');
 		this._register(addDisposableListener(link, EventType.CLICK, () => this.options.filter.reset()));
+		this._register(addDisposableListener(link, EventType.KEY_DOWN, (e) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
+				event.preventDefault();
+				this.options.filter.reset();
+			}
+		}));
 	}
 
 	private createList(container: HTMLElement): void {

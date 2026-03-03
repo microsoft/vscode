@@ -287,7 +287,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				});
 			}
 			run(): void {
-				that.storeExcludes({ ...DEFAULT_EXCLUDES });
+				that.reset();
 			}
 		}));
 	}
