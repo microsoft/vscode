@@ -176,23 +176,25 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 }
 
 if ($Global:__VSCodeState.IsA11yMode -eq "1") {
-	# PS 7.5+ may leave a degraded PSReadLine loaded after detecting a screen reader, remove it
-	# first so we can import a version with EnableScreenReaderMode support
-	if (Get-Module -Name PSReadLine) {
-		Remove-Module PSReadLine -Force
-	}
-	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-	$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
-	if (Test-Path $specialPsrlPath) {
-		Import-Module $specialPsrlPath
-	}
-	if (-not (Get-Module -Name PSReadLine)) {
-		if (Get-Module -Name PSReadLine -ListAvailable) {
-			Import-Module PSReadLine
+	# Check if the loaded PSReadLine already supports EnableScreenReaderMode
+	$hasScreenReaderParam = (Get-Module -Name PSReadLine) -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')
+
+	if (-not $hasScreenReaderParam) {
+		# Remove any loaded PSReadLine (PS 7.5+ loads a degraded 2.3.6 copy for screen readers)
+		if (Get-Module -Name PSReadLine) {
+			Remove-Module PSReadLine -Force
 		}
+
+		# Try VS Code's bundled PSReadLine 2.4.3 which has EnableScreenReaderMode
+		$specialPsrlPath = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'psreadline'
+		if (Test-Path $specialPsrlPath) {
+			Import-Module $specialPsrlPath
+		}
+
+		$hasScreenReaderParam = (Get-Module -Name PSReadLine) -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')
 	}
-	$psrl = Get-Module -Name PSReadLine
-	if ($psrl -and $psrl.ExportedCommands.ContainsKey('Set-PSReadLineOption') -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')) {
+
+	if ($hasScreenReaderParam) {
 		Set-PSReadLineOption -EnableScreenReaderMode
 	}
 }
