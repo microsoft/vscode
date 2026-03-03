@@ -6,151 +6,166 @@ For design decisions, see [design.md](design.md). For the task backlog, see [bac
 
 ## Overview
 
-The agent host is a dedicated Electron **utility process** that runs the [Copilot SDK](https://github.com/github/copilot-sdk) (`@github/copilot-sdk`) in isolation. It follows the same pattern as the **pty host** (`src/vs/platform/terminal/`), communicating over **MessagePort** via the standard `ProxyChannel` IPC infrastructure.
+The agent host is a dedicated Electron **utility process** that runs the [Copilot SDK](https://github.com/github/copilot-sdk) (`@github/copilot-sdk`) and the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk) (`@anthropic-ai/claude-agent-sdk`) in isolation. It follows the same pattern as the **pty host** (`src/vs/platform/terminal/`), communicating over **MessagePort** via the standard `ProxyChannel` IPC infrastructure.
 
-The workbench connects the agent host to VS Code's chat UI by registering a dynamic chat agent, a session item controller, and a session content provider — all from a single desktop-only workbench contribution.
+The renderer connects **directly** to the utility process via MessagePort (bypassing the main process for all agent service calls). Each agent provider (Copilot, Claude) has its own independent workbench contribution that registers a dynamic chat agent, session item controller, session content provider, and language model provider.
+
+The entire feature is gated behind the `chat.agentHost.enabled` setting (default `false`). When disabled, the process is not spawned and no agents are registered.
 
 ## Process Model
 
 ```
-┌──────────────────────────┐
-│    Renderer Window       │
-│    (workbench UI)        │
-│                          │
-│  AgentHostChat-          │
-│    Contribution          │──── registers dynamic chat agent,
-│      │                   │     session item controller,
-│      │                   │     session content provider
-│      ▼                   │
-│  IAgentHostService       │◄── channel proxy via main process
-└──────────┬───────────────┘
-           │ Electron IPC
-┌──────────▼───────────────┐
-│    Main Process          │
-│                          │
-│  AgentHostService        │◄── proxies to utility process
-│  ElectronAgentHost-      │    via MessagePort
-│    Starter               │
-└──────────┬───────────────┘
-           │ MessagePort
-┌──────────▼───────────────┐
-│  Agent Host Process      │
-│  (utility process)       │
-│                          │
-│  AgentService            │
-│    └─ CopilotClient      │◄── @github/copilot-sdk
-│       └─ CopilotSession  │    (spawns copilot CLI via JSON-RPC)
-└──────────────────────────┘
++--------------------------------------------------------------+
+|  Renderer Window                                              |
+|                                                               |
+|  CopilotAgentHostContribution    ClaudeAgentHostContribution  |
+|    +-- AgentHostSessionHandler     +-- AgentHostSessionHandler |
+|    +-- AgentHostSessionListCtrl    +-- AgentHostSessionListCtrl|
+|    +-- AgentHostLMProvider         +-- AgentHostLMProvider     |
+|                                                               |
+|  AgentHostServiceClient (IAgentHostService singleton)         |
+|    +-- ProxyChannel over delayed MessagePort                  |
+|        (URI.revive() applied to event payloads)               |
++---------------- MessagePort (direct) -------------------------+
+|  Agent Host Utility Process (agentHostMain.ts)                |
+|                                                               |
+|  AgentService (IAgentService)                                 |
+|    +-- CopilotAgent (id='copilot')                            |
+|    |     +-- CopilotClient (@github/copilot-sdk)              |
+|    +-- ClaudeAgent  (id='claude')                             |
+|          +-- ClaudeSession (@anthropic-ai/claude-agent-sdk)   |
+|                                                               |
+|  Exposed via ProxyChannel on AgentHostIpcChannels.AgentHost   |
++---------------- UtilityProcess lifecycle ---------------------+
+|  Main Process                                                 |
+|                                                               |
+|  ElectronAgentHostStarter (IAgentHostStarter)                 |
+|    +-- Spawns utility process, brokers MessagePort to windows |
+|  AgentHostProcessManager                                      |
+|    +-- Lazy start on first window connection, crash recovery  |
++---------------------------------------------------------------+
 ```
 
 ## File Layout
 
 ```
 src/vs/platform/agent/
-├── common/
-│   ├── agent.ts              # IAgentHostStarter, IAgentHostConnection (starter contract)
-│   └── agentService.ts       # IAgentService, IAgentHostService interfaces, IPC data types
-├── electron-browser/
-│   └── agentHostService.ts   # registerMainProcessRemoteService (renderer proxy)
-├── electron-main/
-│   └── electronAgentHostStarter.ts  # Spawns utility process, brokers MessagePort connections
-└── node/
-    ├── agentHostMain.ts      # Entry point inside the utility process
-    ├── agentService.ts       # AgentService — Copilot SDK wrapper (runs in utility process)
-    └── agentHostService.ts   # AgentHostService — main process wrapper, proxies via MessagePort
++-- common/
+|   +-- agent.ts              # IAgentHostStarter, IAgentHostConnection (starter contract)
+|   +-- agentService.ts       # IAgent, IAgentService, IAgentHostService interfaces,
+|                              # IPC data types, AgentSession namespace (URI helpers),
+|                              # AgentHostEnabledSettingId
++-- electron-browser/
+|   +-- agentHostService.ts   # AgentHostServiceClient (renderer singleton, direct MessagePort)
++-- electron-main/
+|   +-- electronAgentHostStarter.ts  # Spawns utility process, brokers MessagePort connections
++-- node/
+    +-- agentHostMain.ts      # Entry point inside the utility process
+    +-- agentService.ts       # AgentService: dispatches to registered IAgent providers
+    +-- agentHostService.ts   # AgentHostProcessManager: lifecycle, crash recovery
+    +-- copilot/
+    |   +-- copilotAgent.ts       # CopilotAgent: IAgent backed by Copilot SDK
+    |   +-- copilotSessionWrapper.ts
+    |   +-- copilotToolDisplay.ts # Copilot-specific tool name -> display string mapping
+    +-- claude/
+        +-- claudeAgent.ts        # ClaudeAgent: IAgent backed by Claude Agent SDK
+        +-- claudeSession.ts      # Claude SDK session wrapper
+        +-- claudeToolDisplay.ts  # Claude-specific tool display mapping
 
-src/vs/workbench/contrib/chat/browser/agentSessions/
-└── agentHostChatContribution.ts  # Workbench contribution: auth, chat agent, session controller/provider
+src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/
++-- agentHostChatContribution.ts      # CopilotAgentHostContribution + ClaudeAgentHostContribution
++-- agentHostConstants.ts             # Session type, agent ID, model vendor constants
++-- agentHostLanguageModelProvider.ts # ILanguageModelChatProvider for SDK models
++-- agentHostSessionHandler.ts        # AgentHostSessionHandler: generic, config-driven
++-- agentHostSessionListController.ts # Lists persisted sessions from agent host
 
 src/vs/workbench/contrib/chat/electron-browser/
-└── chat.contribution.ts      # Desktop-only: registers AgentHostChatContribution + new session command
++-- chat.contribution.ts      # Desktop-only: registers both contributions
 ```
+
+## Session URIs
+
+Sessions are identified by URIs where the **scheme is the provider name** and the **path is the raw session ID**: `copilot:/<uuid>` or `claude:/<uuid>`. Helper functions in the `AgentSession` namespace:
+
+| Helper | Purpose |
+|---|---|
+| `AgentSession.uri(provider, rawId)` | Create a session URI |
+| `AgentSession.id(session)` | Extract raw session ID from URI |
+| `AgentSession.provider(session)` | Extract provider name from URI scheme |
+
+The renderer uses UI resource schemes (`agent-host`, `agent-host-claude`) for session resources. The `AgentHostSessionHandler` converts these to provider URIs before IPC calls.
 
 ## IPC Contract (`IAgentService`)
 
-Methods proxied across MessagePort via `ProxyChannel`:
+Methods proxied across MessagePort via `ProxyChannel`. URI arguments are auto-marshalled; event payload URIs require manual `URI.revive()` on the renderer side.
 
 | Method | Description |
 |---|---|
 | `setAuthToken(token)` | Push GitHub OAuth token for Copilot SDK auth |
-| `listSessions()` | List all sessions from the Copilot CLI |
-| `createSession(config?)` | Create a new SDK session (returns session ID) |
-| `sendMessage(sessionId, prompt)` | Send a user message into a session |
-| `getSessionMessages(sessionId)` | Get session history (user + assistant messages) |
-| `disposeSession(sessionId)` | Dispose a session and free resources |
+| `listModels()` | List available models from all providers |
+| `listSessions()` | List all persisted sessions from all providers |
+| `createSession(config?)` | Create a new session (returns session URI) |
+| `sendMessage(session, prompt)` | Send a user message into a session |
+| `getSessionMessages(session)` | Get session history for reconstruction |
+| `disposeSession(session)` | Dispose a session and free resources |
+| `shutdown()` | Gracefully shut down all sessions |
 
 Events:
-- `onDidSessionProgress` — streaming progress from the SDK (`delta`, `message`, `idle`, `tool_start`, `tool_complete`)
+- `onDidSessionProgress`: streaming progress (`delta`, `message`, `idle`, `tool_start`, `tool_complete`). Each event carries a `session: URI`.
 
 ## How It Works
 
+### Setting Gate
+
+The `chat.agentHost.enabled` setting (default `false`) controls the entire feature:
+- **Main process** (`app.ts`): skips creating `ElectronAgentHostStarter` + `AgentHostProcessManager`
+- **Renderer proxy** (`AgentHostServiceClient`): skips MessagePort connection
+- **Contributions** (`CopilotAgentHostContribution`, `ClaudeAgentHostContribution`): return early without registering
+
 ### Startup (lazy)
 
-1. `ElectronAgentHostStarter` is created in `app.ts` → `initServices()` and hands to `AgentHostService`.
-2. The utility process is **not** spawned until the first IPC call (e.g., `createSession()`).
-3. On start, `ElectronAgentHostStarter.start()` calls `UtilityProcess.fork()` with entry point `vs/platform/agent/node/agentHostMain`, then `utilityProcess.connect()` to get a `MessagePortMain`.
-4. The port is wrapped in a `MessagePortClient` which gives us an `IChannelClient`.
+1. `ElectronAgentHostStarter` is created in `app.ts` (if setting enabled) and handed to `AgentHostProcessManager`.
+2. The utility process is **not** spawned until the first window requests a MessagePort connection.
+3. On start, the starter spawns the utility process with entry point `vs/platform/agent/node/agentHostMain`.
+4. Each renderer window gets its own MessagePort via `acquirePort('vscode:createAgentHostMessageChannel', ...)`.
 
-### End-to-End Message Flow
+### Per-Provider Contributions
 
-When a user types a message in the chat UI with "Agent Host" selected:
+Each provider has its own independent contribution class:
 
-```
-Chat UI → user submits message
-  → ChatService.sendRequest(resource, message, { agentIdSilent: 'agent-host' })
-  → ChatAgentService.invokeAgent('agent-host', request)
-  → AgentHostChatContribution._invokeAgent()
-     → creates/reuses SDK session (resource→sessionId map)
-     → IAgentHostService.sendMessage(sessionId, prompt)           [renderer → main]
-     → AgentHostService._proxy.sendMessage(sessionId, prompt)     [main → utility]
-     → AgentService.sendMessage()                                  [utility process]
-        → CopilotSession.send({ prompt })                          [@github/copilot-sdk]
-        → SDK events stream back:
-           assistant.message_delta → onDidSessionProgress({type:'delta'})
-           session.idle           → onDidSessionProgress({type:'idle'})
-     ← events flow back over MessagePort                           [utility → main → renderer]
-     → progress([{ kind: 'markdownContent', content }])
-  → Chat UI renders streaming response
-```
+| Contribution | Provider | Registers |
+|---|---|---|
+| `CopilotAgentHostContribution` | `copilot` | Session handler, list controller, model provider, auth token push |
+| `ClaudeAgentHostContribution` | `claude` | Session handler, list controller, model provider |
 
-### Session Routing
-
-The chat widget locks to the `agent-host` agent via `lockToCodingAgent()`. This sets `agentIdSilent` on every request, ensuring messages go to our agent instead of the default.
-
-For **new sessions** (URI path starts with `/untitled-`): a fresh SDK session is created via `createSession()` and mapped to the chat resource URI.
-
-For **existing sessions** (opened from session list): the SDK session is either in memory or resumed via `resumeSession()`.
+The `AgentHostSessionHandler` is generic: it receives all provider-specific details via `IAgentHostSessionHandlerConfig` (`provider`, `agentId`, `sessionType`, `fullName`, `description`). No provider-specific branching in the handler.
 
 ### Auth Token Flow
 
-1. `AgentHostChatContribution` injects `IDefaultAccountService` + `IAuthenticationService`
-2. On startup and on account/session changes, it retrieves the GitHub OAuth token
-3. Pushes it to the agent host via `IAgentHostService.setAuthToken(token)`
-4. The `AgentService` passes it to `CopilotClient({ githubToken })` on next client creation
-
-### Chat Integration
-
-`AgentHostChatContribution` (desktop-only workbench contribution) registers:
-
-1. **Dynamic chat agent** via `IChatAgentService.registerDynamicAgent()` — `id: 'agent-host'`, shows in agent picker
-2. **Session item controller** via `IChatSessionsService.registerChatSessionItemController()` — lists SDK sessions
-3. **Session content provider** via `IChatSessionsService.registerChatSessionContentProvider()` — loads history, provides `requestHandler`
-4. **Session type picker entry** — added in `sessionTargetPickerActionItem.ts` as a built-in item
-5. **New session command** — `workbench.action.chat.openNewChatSessionInPlace.agent-host` registered in desktop contribution
+Only `CopilotAgentHostContribution` handles auth (Claude uses its own API key):
+1. On startup and on account/session changes, retrieves the GitHub OAuth token
+2. Pushes it to the agent host via `IAgentHostService.setAuthToken(token)`
+3. `CopilotAgent` passes it to `CopilotClient({ githubToken })` on next client creation
 
 ### Crash Recovery
 
-`AgentHostService` monitors the utility process exit. On unexpected termination, it automatically restarts (up to 5 times). The proxy is rebuilt on each restart.
+`AgentHostProcessManager` monitors the utility process exit. On unexpected termination, it automatically restarts (up to 5 times).
 
-### Logging
+## Build / Packaging
 
-- **Output channel**: "Agent Host" in the Output panel — shows session lifecycle, message routing, streaming events
-- **Utility process console**: `[AgentHost][level]` prefix — CopilotClient lifecycle, SDK events, errors
+| File | Purpose |
+|---|---|
+| `build/next/index.ts` | Agent host entry point in esbuild config |
+| `build/buildfile.ts` | Agent host entry point in legacy bundler config |
+| `build/gulpfile.vscode.ts` | Strip wrong-arch copilot packages; ASAR unpack copilot binaries |
+| `build/.moduleignore` | Strip unnecessary copilot prebuilds/ripgrep/clipboard |
+| `build/darwin/create-universal-app.ts` | macOS universal binary support for copilot CLI |
+| `build/darwin/verify-macho.ts` | Skip copilot binaries in Mach-O verification |
 
 ## Closest Analogs
 
 | Component | Pattern | Key Difference |
 |---|---|---|
-| **Pty Host** | Singleton utility process, MessagePort, lazy start, heartbeat | Pty host also has heartbeat monitoring and reconnect logic |
-| **Shared Process** | Singleton utility process, MessagePort | Much heavier, hosts many services, tightly coupled to app lifecycle |
-| **Extension Host** | Per-window utility process (`WindowUtilityProcess`), custom `RPCProtocol` | Uses custom RPC, not standard channels; tied to window lifecycle |
+| **Pty Host** | Singleton utility process, MessagePort, lazy start, crash recovery | Also has heartbeat monitoring and reconnect logic |
+| **Shared Process** | Singleton utility process, MessagePort | Much heavier, hosts many services |
+| **Extension Host** | Per-window utility process, custom `RPCProtocol` | Uses custom RPC, not standard channels |

@@ -4,6 +4,15 @@
 
 Remaining work to bring the agent-host to feature parity with VS Code's native chat agent. For design decisions, see [design.md](design.md). For process architecture, see [architecture.md](architecture.md).
 
+## Completed
+
+- **Model selection** -- SDK models exposed in the picker via `AgentHostLanguageModelProvider`. Selected model passed to `createSession({ model })`.
+- **Session URIs** -- Sessions identified by URIs (`copilot:/<id>`, `claude:/<id>`) instead of raw string IDs. `AgentSession` namespace provides helpers.
+- **Multi-provider support** -- Separate `CopilotAgent` and `ClaudeAgent` implementations. Generic `AgentHostSessionHandler` configured via `IAgentHostSessionHandlerConfig`.
+- **Separate contributions** -- `CopilotAgentHostContribution` and `ClaudeAgentHostContribution` are independent.
+- **Setting gate** -- `chat.agentHost.enabled` (default `false`) controls process spawn, renderer connection, and contribution registration.
+- **Build infrastructure** -- esbuild entry point, ASAR unpack, platform binary filtering, macOS universal app support.
+
 ## Blocked (SDK gaps)
 
 These items cannot be implemented without changes to `@github/copilot` itself.
@@ -71,10 +80,6 @@ The SDK fires `tool.execution_start` and `tool.execution_complete`, but we don't
 ### Edit session integration (free with plugging in VS Code tools)
 
 File edits proposed by the agent aren't plumbed through VS Code's editing service (diff view, accept/reject, etc.). Free once VS Code tools are plugged in -- the tool implementations already create edits through `IChatEditingService`.
-
-### Model selection
-
-**Done.** The model picker is now visible for agent-host sessions. The selected model ID is passed through `createSession({ model })`. SDK models are exposed in the picker via a registered `ILanguageModelChatProvider`. Note: the SDK only accepts model at session creation time; changing models mid-session requires a new session.
 
 ### References and citations (free with plugging in VS Code tools)
 
