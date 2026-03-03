@@ -27,6 +27,7 @@
 	width: min-content;
 	min-width: 500px;
 	max-width: 90vw;
+	max-height: 90vh;
 	min-height: 75px;
 	padding: 10px;
 	transform: translate3d(0px, 0px, 0px);
@@ -55,10 +56,16 @@
 	flex-grow: 1;
 	align-items: center;
 	padding: 0 10px;
+	min-height: 0; /* allow flex item to shrink below content size */
+	overflow: hidden;
 }
 
 .monaco-dialog-box.align-vertical .dialog-message-row {
 	flex-direction: column;
+}
+
+.monaco-dialog-box.align-vertical .dialog-message-row .dialog-message-container {
+	min-height: 0; /* allow flex item to shrink below content size in column layout */
 }
 
 .monaco-dialog-box .dialog-message-row > .dialog-icon.codicon {
@@ -77,12 +84,17 @@
 	align-self: baseline;
 }
 
+.monaco-dialog-box:not(.align-vertical) .dialog-message-row .dialog-message-container {
+	align-self: stretch; /* fill row height so overflow-y scrolling works */
+}
+
 /** Dialog: Message/Footer Container */
 .monaco-dialog-box .dialog-message-row .dialog-message-container,
 .monaco-dialog-box .dialog-footer-row {
 	display: flex;
 	flex-direction: column;
-	overflow: hidden;
+	overflow-y: auto;
+	overflow-x: hidden;
 	text-overflow: ellipsis;
 	user-select: text;
 	-webkit-user-select: text;

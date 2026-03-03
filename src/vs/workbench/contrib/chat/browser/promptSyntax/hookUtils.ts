@@ -10,7 +10,8 @@ import { IPromptsService } from '../../common/promptSyntax/service/promptsServic
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { formatHookCommandLabel, HOOK_TYPES, HookType, IHookCommand } from '../../common/promptSyntax/hookSchema.js';
+import { formatHookCommandLabel, IHookCommand } from '../../common/promptSyntax/hookSchema.js';
+import { HOOK_METADATA, HookType } from '../../common/promptSyntax/hookTypes.js';
 import { parseHooksFromFile, parseHooksIgnoringDisableAll } from '../../common/promptSyntax/hookCompatibility.js';
 import * as nls from '../../../../../nls.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
@@ -161,7 +162,7 @@ export async function parseAllHookFiles(
 			const { hooks } = parseHooksFromFile(hookFile.uri, json, workspaceRootUri, userHome);
 
 			for (const [hookType, { hooks: commands, originalId }] of hooks) {
-				const hookTypeMeta = HOOK_TYPES.find(h => h.id === hookType);
+				const hookTypeMeta = HOOK_METADATA[hookType];
 				if (!hookTypeMeta) {
 					continue;
 				}
@@ -199,7 +200,7 @@ export async function parseAllHookFiles(
 				const { hooks } = parseHooksIgnoringDisableAll(uri, json, workspaceRootUri, userHome);
 
 				for (const [hookType, { hooks: commands, originalId }] of hooks) {
-					const hookTypeMeta = HOOK_TYPES.find(h => h.id === hookType);
+					const hookTypeMeta = HOOK_METADATA[hookType];
 					if (!hookTypeMeta) {
 						continue;
 					}

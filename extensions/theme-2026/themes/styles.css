@@ -81,6 +81,22 @@
 
 /* Chat Widget */
 
+.monaco-workbench .interactive-session .chat-question-carousel-container {
+	border-radius: var(--radius-lg);
+}
+
+.monaco-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
+.monaco-workbench .interactive-session .chat-editing-session .chat-editing-session-container {
+	border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.monaco-workbench .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container {
+	border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.monaco-workbench.vs .interactive-session .chat-input-container {
+	box-shadow: inset var(--shadow-sm);
+}
 .monaco-workbench .part.panel .interactive-session,
 .monaco-workbench .part.auxiliarybar .interactive-session {
 	position: relative;

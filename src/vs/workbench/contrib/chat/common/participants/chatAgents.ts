@@ -21,7 +21,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatContextKeys } from '../actions/chatContextKeys.js';
 import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestModeInstructions, IChatRequestVariableData, ISerializableChatAgentData } from '../model/chatModel.js';
-import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
+import { ChatRequestHooks } from '../promptSyntax/hookSchema.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from '../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
@@ -153,7 +153,7 @@ export interface IChatAgentRequest {
 	 * Collected hooks configuration for this request.
 	 * Contains all hooks defined in hooks .json files, organized by hook type.
 	 */
-	hooks?: IChatRequestHooks;
+	hooks?: ChatRequestHooks;
 	/**
 	 * Whether any hooks are enabled for this request.
 	 */
