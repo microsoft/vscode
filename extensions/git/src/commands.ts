@@ -1075,6 +1075,22 @@ export class CommandCenter {
 		}
 	}
 
+	@command('_git.revParseAbbrevRef')
+	async revParseAbbrevRef(repositoryPath: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-parse', '--abbrev-ref', 'HEAD']);
+		return result.stdout.trim();
+	}
+
+	@command('_git.mergeBranch')
+	async mergeBranch(repositoryPath: string, branch: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['merge', branch, '--no-edit']);
+		return result.stdout.trim();
+	}
+
 	@command('git.init')
 	async init(skipFolderPrompt = false): Promise<void> {
 		let repositoryPath: string | undefined = undefined;
@@ -5653,15 +5669,14 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hint = (err.stderr || err.message || String(err))
+						const hint = (err.stderr || err.stdout || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter((line: string) => !!line)
-						[0];
+							.filter((line: string) => !!line);
 
 						message = hint
-							? l10n.t('Git: {0}', hint)
+							? l10n.t('Git: {0}', err.stdout ? hint[hint.length - 1] : hint[0])
 							: l10n.t('Git error');
 
 						break;
