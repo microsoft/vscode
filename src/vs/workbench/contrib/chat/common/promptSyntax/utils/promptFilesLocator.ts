@@ -509,7 +509,7 @@ export class PromptFilesLocator {
 		// - the location is not a workspace folder root (to avoid full workspace traversal)
 		// - the path does not contain wildcards (already filtered upstream, but guard here too)
 		// - the recursion depth hasn't exceeded the limit
-		const isWorkspaceRoot = depth === 0 && this.getWorkspaceFolders().some(f => f.uri.toString() === location.toString());
+		const isWorkspaceRoot = depth === 0 && this.getWorkspaceFolders().some(f => isEqual(f.uri, location));
 		const recursive = type === PromptsType.instructions
 			&& !isWorkspaceRoot
 			&& !hasGlobPattern(location.path)
