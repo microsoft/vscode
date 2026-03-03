@@ -331,9 +331,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			getActions: () => Separator.join(...menu.getActions({ arg: marshalledContext, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => new StandardMouseEvent(getActiveWindow(), e),
 			getActionsContext: () => marshalledContext,
+			onHide: () => {
+				menu.dispose();
+			}
 		});
-
-		menu.dispose();
 	}
 
 	private _showSessionsPicker(): void {
