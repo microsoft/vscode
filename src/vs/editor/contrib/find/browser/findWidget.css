@@ -15,7 +15,7 @@
 	margin-top: 4px;
 	box-sizing: border-box;
 	transform: translateY(calc(-100% - 10px)); /* shadow (10px) */
-	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	color: var(--vscode-editorWidget-foreground);
 	border: 1px solid var(--vscode-widget-border);
 	border-radius: var(--vscode-cornerRadius-large);

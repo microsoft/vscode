@@ -6,13 +6,11 @@
 /* Container - button style hover */
 .command-center .agent-sessions-titlebar-container {
 	display: flex;
-	width: 38vw;
-	max-width: 600px;
-	display: flex;
+	width: 100%;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
-	justify-content: center;
+	justify-content: flex-start;
 	padding: 0 10px;
 	height: 22px;
 	border-radius: 4px;
@@ -30,26 +28,11 @@
 	padding: 0 4px;
 	border-radius: 4px;
 	min-width: 0;
+	max-width: 600px;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-/* Session title actions toolbar */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions .actions-container {
-	height: auto;
-}
-
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-actions .action-item {
-	display: flex;
-	align-items: center;
 }
 
 .command-center .agent-sessions-titlebar-container:focus {
@@ -63,11 +46,9 @@
 	align-items: center;
 	gap: 6px;
 	min-width: 0;
-	justify-content: center;
+	justify-content: flex-start;
 	cursor: pointer;
 }
-
-/* Kind icon */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
 	display: flex;
 	align-items: center;

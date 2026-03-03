@@ -68,8 +68,9 @@ function renderCodeEditor({ container, disposableStore, theme }: ComponentFixtur
 	editor.setModel(model);
 }
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	CodeEditor: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderCodeEditor(context),
 	}),
 });

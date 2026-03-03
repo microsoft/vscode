@@ -299,6 +299,7 @@
 	display: block;
 	position: absolute;
 	pointer-events: none;
+	box-shadow: inset var(--vscode-shadow-sm);
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-insertion-indicator-top {
@@ -383,6 +384,7 @@
 
 .notebookOverlay .monaco-list-row .cell-title-toolbar {
 	border-radius: var(--vscode-cornerRadius-medium);
+	box-shadow: var(--vscode-shadow-sm);
 }
 
 .notebookOverlay .monaco-list-row .cell-title-toolbar,

@@ -7,6 +7,7 @@
 .monaco-workbench .part.titlebar {
 	display: flex;
 	flex-direction: row;
+	box-shadow: var(--vscode-shadow-md);
 }
 
 .monaco-workbench.mac .part.titlebar {
@@ -176,6 +177,7 @@
 	height: 22px;
 	width: 38vw;
 	max-width: 600px;
+	box-shadow: inset var(--vscode-shadow-sm);
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center .action-item.command-center-quick-pick {

@@ -14,7 +14,7 @@ import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -179,14 +179,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			this._container.appendChild(sessionPill);
 
-			// Session title actions toolbar (rendered next to the session title)
-			const actionsContainer = $('span.agent-sessions-titlebar-actions');
-			this._dynamicDisposables.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, actionsContainer, Menus.SessionTitleActions, {
-				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				toolbarOptions: { primaryGroup: () => true },
-			}));
-			this._container.appendChild(actionsContainer);
-
 			// Hover
 			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
 				getDefaultHoverDelegate('mouse'),
@@ -233,20 +225,19 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 	/**
 	 * Get the label of the active chat session.
-	 * Prefers the live model title over the snapshot label from the active session service.
-	 * Falls back to a generic label if no active session is found.
 	 */
 	private _getActiveSessionLabel(): string {
 		const activeSession = this.activeSessionService.getActiveSession();
-		if (activeSession?.resource) {
-			const model = this.chatService.getSession(activeSession.resource);
-			if (model?.title) {
-				return model.title;
-			}
+		const label = activeSession?.label;
+		if (label) {
+			return label; // prefer session label to support renamed sessions
 		}
 
-		if (activeSession?.label) {
-			return activeSession.label;
+		if (activeSession) {
+			const activeModel = this.chatService.getSession(activeSession.resource);
+			if (activeModel?.title) {
+				return activeModel.title; // fall back to chat model title if available
+			}
 		}
 
 		return localize('agentSessions.newSession', "New Session");
@@ -318,14 +309,14 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 
 		// Register the submenu item in the Agent Sessions command center
 		this._register(MenuRegistry.appendMenuItem(Menus.CommandCenter, {
-			submenu: Menus.TitleBarControlMenu,
+			submenu: Menus.TitleBarSessionTitle,
 			title: localize('agentSessionsControl', "Agent Sessions"),
 			order: 101,
 			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
 		}));
 
 		// Register a placeholder action so the submenu appears
-		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarControlMenu, {
+		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarSessionTitle, {
 			command: {
 				id: FocusAgentSessionsAction.id,
 				title: localize('showSessions', "Show Sessions"),
@@ -335,7 +326,7 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 			when: IsAuxiliaryWindowContext.negate()
 		}));
 
-		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarControlMenu, (action, options) => {
+		this._register(actionViewItemService.register(Menus.CommandCenter, Menus.TitleBarSessionTitle, (action, options) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}

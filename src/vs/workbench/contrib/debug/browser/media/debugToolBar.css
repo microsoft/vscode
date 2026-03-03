@@ -13,6 +13,7 @@
 	left: 0;
 	top: 0;
 	-webkit-app-region: no-drag;
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-workbench .debug-toolbar .monaco-action-bar .action-item {
