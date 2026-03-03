@@ -191,12 +191,15 @@ export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, 
 
 export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, DocumentSymbolTemplate> {
 
+	private readonly _iconLevelMap = ['one', 'two', 'three', 'four', 'five', 'six'];
+	private readonly _iconExistsCache = new Map<string, boolean>();
+
 	readonly templateId: string = DocumentSymbolTemplate.id;
 
 	constructor(
 		private _renderMarker: boolean,
 		target: OutlineTarget,
-		private readonly _getLanugageId: () => string | null,
+		private readonly _getLanguageId: () => string | null,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
@@ -221,30 +224,28 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			title: localize('title.template', "{0} ({1})", element.symbol.name, symbolKindNames[element.symbol.kind])
 		};
 		if (this._configurationService.getValue(OutlineConfigKeys.icons)) {
-			// add styles for the icons
 			template.iconClass.className = '';
 			template.iconClass.classList.add('outline-element-icon', 'inline', 'codicon-colored');
 
-			// determine icon based on node depth
+			// feature: depth-based leveled icons. additional languages may opt into leveled icons via this branch.
 			const kindIcon = SymbolKinds.toIcon(element.symbol.kind);
-			const depth = node.depth;
-			const level = Math.min(Math.max(depth, 1), 6);
-			const levelMap = ['one', 'two', 'three', 'four', 'five', 'six'];
-			let iconId = `${kindIcon.id}-${levelMap[level - 1]}`;
-
-			// patch: markdown (avoids modifications to the language server)
-
-			if (this._getLanugageId() === 'markdown' && element.symbol.kind === SymbolKind.String) {
-				iconId = `symbol-header-${levelMap[level - 1]}`;
+			let icon: ThemeIcon = kindIcon;
+			const languageId = this._getLanguageId();
+			if ((languageId === 'markdown' && element.symbol.kind === SymbolKind.String)) {
+				const depth = node.depth;
+				const level = Math.min(Math.max(depth, 1), this._iconLevelMap.length);
+				let iconId;
+				if (languageId === 'markdown') {
+					// patch: markdown (avoids modifications to the language server)
+					iconId = `symbol-header-${this._iconLevelMap[level - 1]}`;
+				} else {
+					iconId = `${kindIcon.id}-${this._iconLevelMap[level - 1]}`;
+				}
+				if (this._doesIconExist(iconId)) {
+					icon = ThemeIcon.fromId(iconId);
+				}
 			}
 
-			let icon;
-			if (getIconRegistry().getIcon(`${iconId}`)) {
-				icon = ThemeIcon.fromId(iconId);
-			} else {
-				// fallback to non-levelled icon
-				icon = kindIcon;
-			}
 			template.iconClass.classList.add(...ThemeIcon.asClassNameArray(icon));
 		}
 		if (element.symbol.tags.indexOf(SymbolTag.Deprecated) >= 0) {
@@ -302,6 +303,16 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			template.decoration.title = localize('deep.problem', "Contains elements with problems");
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
+	}
+
+	private _doesIconExist(iconId: string): boolean {
+		const cached = this._iconExistsCache.get(iconId);
+		if (cached !== undefined) {
+			return cached;
+		}
+		const exists = !!getIconRegistry().getIcon(iconId);
+		this._iconExistsCache.set(iconId, exists);
+		return exists;
 	}
 
 	disposeTemplate(_template: DocumentSymbolTemplate): void {
