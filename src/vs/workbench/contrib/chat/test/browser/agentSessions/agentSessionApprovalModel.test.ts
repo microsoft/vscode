@@ -471,7 +471,7 @@ suite('AgentSessionApprovalModel', () => {
 			language: result?.languageId,
 		}, {
 			label: 'legacy-cmd',
-			language: 'bash',
+			language: 'sh',
 		});
 	});
 
