@@ -130,6 +130,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
 		}, async (prompt, _progress, _history, _location, sessionResource) => {
+			await chatDebugService.invokeProviders(sessionResource);
 			const events = chatDebugService.getEvents(sessionResource);
 			const summary = events.length > 0
 				? formatDebugEventsForContext(events)
