@@ -162,6 +162,24 @@ function getExecArgv(kind: TsServerProcessKind, configuration: TypeScriptService
 		args.push(`--max-old-space-size=${configuration.maxTsServerMemory}`);
 	}
 
+	if (configuration.diagnosticDir) {
+		args.push(`--diagnostic-dir=${configuration.diagnosticDir}`);
+	}
+
+	if (configuration.heapSnapshot > 0) {
+		args.push(`--heapsnapshot-near-heap-limit=${configuration.heapSnapshot}`);
+	}
+
+	if (configuration.heapProfile.enabled) {
+		args.push('--heap-prof');
+		if (configuration.heapProfile.dir) {
+			args.push(`--heap-prof-dir=${configuration.heapProfile.dir}`);
+		}
+		if (configuration.heapProfile.interval) {
+			args.push(`--heap-prof-interval=${configuration.heapProfile.interval}`);
+		}
+	}
+
 	return args;
 }
 
