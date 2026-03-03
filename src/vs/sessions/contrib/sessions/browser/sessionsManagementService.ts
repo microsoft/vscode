@@ -204,8 +204,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		if (session.providerType === AgentSessionProviders.Cloud) {
 			//TODO: @osortega pass branch in metadata from extension
-			const ref = metadata?.branch || 'HEAD';
-			return [URI.parse(`${GITHUB_REMOTE_FILE_SCHEME}://github/${metadata.owner}/${metadata.name}/${ref}`), undefined];
+			const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
+			const repositoryUri = URI.from({
+				scheme: GITHUB_REMOTE_FILE_SCHEME,
+				authority: 'github',
+				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
+			});
+			return [repositoryUri, undefined];
 		}
 
 		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;

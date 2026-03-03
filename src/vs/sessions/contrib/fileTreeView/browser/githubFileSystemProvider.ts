@@ -23,10 +23,15 @@ export function getGitHubRemoteFileDisplayName(uri: URI): string | undefined {
 		return undefined;
 	}
 	const parts = uri.path.split('/').filter(Boolean);
-	// path = /{owner}/{repo}/{ref}
+	// path = /{owner}/{repo}/{ref}/...
 	if (parts.length >= 3) {
-		const [, ref,] = parts;
-		return ref;
+		const [, repo, ref] = parts;
+		const decodedRepo = decodeURIComponent(repo);
+		const decodedRef = decodeURIComponent(ref);
+		if (decodedRef === 'HEAD') {
+			return decodedRepo;
+		}
+		return `${decodedRepo} (${decodedRef})`;
 	}
 	return undefined;
 }
@@ -118,10 +123,10 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 			throw createFileSystemProviderError('Invalid github-remote-file URI: expected /{owner}/{repo}/{ref}/...', FileSystemProviderErrorCode.FileNotFound);
 		}
 
-		const owner = parts[0];
-		const repo = parts[1];
-		const ref = parts[2];
-		const path = parts.slice(3).join('/');
+		const owner = decodeURIComponent(parts[0]);
+		const repo = decodeURIComponent(parts[1]);
+		const ref = decodeURIComponent(parts[2]);
+		const path = parts.slice(3).map(decodeURIComponent).join('/');
 
 		return { owner, repo, ref, path };
 	}
@@ -133,15 +138,8 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 	// --- GitHub API
 
 	private async getAuthToken(): Promise<string> {
-		// Try to get an existing session silently before prompting the user
-		const sessions = await this.authenticationService.getSessions('github', ['repo'], {}, true);
-		if (sessions.length > 0) {
-			return sessions[0].accessToken;
-		}
-
-		// No existing session found — create one (may prompt the user)
-		const session = await this.authenticationService.createSession('github', ['repo']);
-		return session.accessToken;
+		const sessions = await this.authenticationService.getSessions('github', ['repo'], { silent: true }) ?? await this.authenticationService.getSessions('github', ['repo'], { createIfNone: true });
+		return sessions[0].accessToken ?? '';
 	}
 
 	private fetchTree(owner: string, repo: string, ref: string): Promise<ITreeCacheEntry> {
@@ -187,17 +185,13 @@ export class GitHubFileSystemProvider extends Disposable implements IFileSystemP
 			},
 		}, CancellationToken.None);
 
-		let data: IGitHubTreeResponse | null;
-		try {
-			data = await asJson<IGitHubTreeResponse>(response);
-		} catch (err) {
-			// Cache 404s so we don't keep re-fetching missing trees
-			if (err instanceof Error && err.message.includes('404')) {
-				this.notFoundCache.set(cacheKey, Date.now());
-				throw createFileSystemProviderError(`Tree not found for ${owner}/${repo}@${ref}`, FileSystemProviderErrorCode.FileNotFound);
-			}
-			throw err;
+		// Cache 404s so we don't keep re-fetching missing trees
+		if (response.res.statusCode === 404) {
+			this.notFoundCache.set(cacheKey, Date.now());
+			throw createFileSystemProviderError(`Tree not found for ${owner}/${repo}@${ref}`, FileSystemProviderErrorCode.FileNotFound);
 		}
+
+		const data = await asJson<IGitHubTreeResponse>(response);
 
 		if (!data) {
 			throw createFileSystemProviderError(`Failed to fetch tree for ${owner}/${repo}@${ref}`, FileSystemProviderErrorCode.Unavailable);

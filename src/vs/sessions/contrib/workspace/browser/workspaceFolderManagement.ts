@@ -102,6 +102,4 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 	private isUriTrusted(uri: URI): boolean {
 		return this.workspaceTrustManagementService.getTrustedUris().some(trustedUri => this.uriIdentityService.extUri.isEqual(trustedUri, uri));
 	}
-
-
 }

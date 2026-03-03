@@ -315,7 +315,8 @@ export class FileTreeViewPane extends ViewPane {
 	 * Extracts a github-remote-file:// URI from session metadata, trying various known fields.
 	 */
 	private extractRepoUriFromMetadata(metadata: { readonly [key: string]: unknown }): URI | undefined {
-		const ref = metadata?.branch || 'HEAD';
+		const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
+		const encodedRef = encodeURIComponent(branch);
 
 		// repositoryNwo: "owner/repo"
 		const repositoryNwo = metadata.repositoryNwo as string | undefined;
@@ -324,7 +325,7 @@ export class FileTreeViewPane extends ViewPane {
 			return URI.from({
 				scheme: GITHUB_REMOTE_FILE_SCHEME,
 				authority: 'github',
-				path: `/${repositoryNwo}/${ref}`,
+				path: `/${repositoryNwo}/${encodedRef}`,
 			});
 		}
 
@@ -337,7 +338,7 @@ export class FileTreeViewPane extends ViewPane {
 				return URI.from({
 					scheme: GITHUB_REMOTE_FILE_SCHEME,
 					authority: 'github',
-					path: `/${parsed.owner}/${parsed.repo}/${ref}`,
+					path: `/${parsed.owner}/${parsed.repo}/${encodedRef}`,
 				});
 			}
 		}
@@ -351,7 +352,7 @@ export class FileTreeViewPane extends ViewPane {
 				return URI.from({
 					scheme: GITHUB_REMOTE_FILE_SCHEME,
 					authority: 'github',
-					path: `/${repository}/${ref}`,
+					path: `/${repository}/${encodedRef}`,
 				});
 			}
 			const parsed = this.parseGitHubUrl(repository);
@@ -360,7 +361,7 @@ export class FileTreeViewPane extends ViewPane {
 				return URI.from({
 					scheme: GITHUB_REMOTE_FILE_SCHEME,
 					authority: 'github',
-					path: `/${parsed.owner}/${parsed.repo}/${ref}`,
+					path: `/${parsed.owner}/${parsed.repo}/${encodedRef}`,
 				});
 			}
 		}
