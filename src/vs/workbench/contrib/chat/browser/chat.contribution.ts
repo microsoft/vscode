@@ -1746,9 +1746,9 @@ registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguage
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AgentPluginsViewsContribution.ID, AgentPluginsViewsContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(YoloModeTipContribution.ID, YoloModeTipContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(ThinkingPhrasesTipContribution.ID, ThinkingPhrasesTipContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(ChatTipsContribution.ID, ChatTipsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(YoloModeTipContribution.ID, YoloModeTipContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ThinkingPhrasesTipContribution.ID, ThinkingPhrasesTipContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatTipsContribution.ID, ChatTipsContribution, WorkbenchPhase.AfterRestored);
 
 registerChatActions();
 registerChatAccessibilityActions();

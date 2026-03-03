@@ -88,6 +88,8 @@ suite('ChatTipService', () => {
 	}
 
 	function createServiceWithoutTips(...excludeTipIds: string[]): ChatTipService {
+		instantiationService.stub(IProductService, createProductService(true));
+		configurationService.setUserConfiguration('chat.tips.enabled', true);
 		const excluded = new Set(excludeTipIds);
 		const service = testDisposables.add(instantiationService.createInstance(ChatTipService));
 		for (const tip of getStandardTipDefinitions()) {
