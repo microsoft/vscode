@@ -24,6 +24,7 @@ export const EXTENSIONS_CONFIG = '.vscode/extensions.json';
 
 export interface IExtensionsConfigContent {
 	recommendations?: string[];
+	stronglyRecommended?: string[];
 	unwantedRecommendations?: string[];
 }
 
@@ -35,6 +36,7 @@ export interface IWorkspaceExtensionsConfigService {
 	readonly onDidChangeExtensionsConfigs: Event<void>;
 	getExtensionsConfigs(): Promise<IExtensionsConfigContent[]>;
 	getRecommendations(): Promise<string[]>;
+	getStronglyRecommended(): Promise<string[]>;
 	getUnwantedRecommendations(): Promise<string[]>;
 
 	toggleRecommendation(extensionId: string): Promise<void>;
@@ -82,6 +84,11 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	async getRecommendations(): Promise<string[]> {
 		const configs = await this.getExtensionsConfigs();
 		return distinct(configs.flatMap(c => c.recommendations ? c.recommendations.map(c => c.toLowerCase()) : []));
+	}
+
+	async getStronglyRecommended(): Promise<string[]> {
+		const configs = await this.getExtensionsConfigs();
+		return distinct(configs.flatMap(c => c.stronglyRecommended ? c.stronglyRecommended.map(c => c.toLowerCase()) : []));
 	}
 
 	async getUnwantedRecommendations(): Promise<string[]> {
@@ -296,6 +303,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 	private parseExtensionConfig(extensionsConfigContent: IExtensionsConfigContent): IExtensionsConfigContent {
 		return {
 			recommendations: distinct((extensionsConfigContent.recommendations || []).map(e => e.toLowerCase())),
+			stronglyRecommended: distinct((extensionsConfigContent.stronglyRecommended || []).map(e => e.toLowerCase())),
 			unwantedRecommendations: distinct((extensionsConfigContent.unwantedRecommendations || []).map(e => e.toLowerCase()))
 		};
 	}
