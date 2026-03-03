@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor .snc-visualization-widget {
+.editor-instance .snc-visualization-widget {
 	position: absolute;
 	display: inline-block;
 	margin-left: 8px;
@@ -31,38 +31,42 @@
 	user-select: text;
 }
 
-.monaco-editor .snc-visualization-widget.snc-visualization-widget-block-layout {
+.editor-instance .snc-visualization-widget.snc-visualization-widget-block-layout {
 	display: block;
 	margin-left: 0;
 	margin-top: 0;
 }
 
-.monaco-editor .snc-visualization-widget.snc-syntax-error {
+.editor-instance .snc-visualization-widget.snc-syntax-error {
 	filter: grayscale(1.0);
 	opacity: 0.8;
 	pointer-events: none;
 }
 
-/* Dropdown option hover effect (matches both in-widget and hoisted dropdown panels) */
-.monaco-editor .snc-dropdown-option:hover {
+/* hide .snc-hover-hidden until .snc-hover-hidden-parent is hovered */
+.editor-instance .snc-hover-hidden-parent .snc-hover-hidden {
+	visibility: hidden;
+}
+.editor-instance .snc-hover-hidden-parent:not(:hover) .snc-hover-hide-border {
+	border-color: transparent !important;
+}
+.editor-instance .snc-hover-hidden-parent:hover .snc-hover-hidden {
+	visibility: visible;
+}
+.editor-instance .snc-hover-hidden:hover {
+	visibility: visible;
+}
+
+.editor-instance .full-opacity-on-hover:hover {
+	opacity: 1.0 !important;
+}
+
+.editor-instance .snc-dropdown-option:hover {
 	background-color: #094771;
 }
 
-/* hide .snc-hover-hidden until .snc-hover-hidden-parent is hovered */
-/* used to show/hide property rows on the generic object visualizer */
-.monaco-editor .snc-hover-hidden-parent .snc-hover-hidden {
-	visibility: hidden;
-}
-.monaco-editor .snc-hover-hidden-parent:not(:hover) .snc-hover-hide-border {
-	border-color: transparent !important;
-}
-.monaco-editor .snc-hover-hidden-parent:hover .snc-hover-hidden {
-	visibility: visible;
-}
-.monaco-editor .snc-hover-hidden:hover {
-	visibility: visible;
-}
-
-.monaco-editor .full-opacity-on-hover:hover {
-	opacity: 1.0 !important;
+.editor-instance .snc-hoverable:hover {
+	border-color: white !important;
+	color: white !important;
+	cursor: pointer !important;
 }

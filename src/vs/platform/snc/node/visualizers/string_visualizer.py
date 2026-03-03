@@ -2520,12 +2520,12 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
         style = btn_with_copy + ('' if enabled else disabled_style) + extra_style
         event = repr(ActionButtonClick(action=action, copy=False))
         title_attr = f' title="{html.escape(title)}"' if title else ''
-        return f'<span snc-mouse-down="{html.escape(event)}" style="margin-left: 3px;{style}"{title_attr}>{label}</span>'
+        return f'<span class="snc-hoverable" snc-mouse-down="{html.escape(event)}" style="margin-left: 3px;{style}"{title_attr}>{label}</span>'
 
     def copy_btn(action: str, enabled: bool = True) -> str:
         style = copy_base + ('' if enabled else disabled_style)
         event = repr(ActionButtonClick(action=action, copy=True))
-        return f'<span snc-mouse-down="{html.escape(event)}" style="{style}" title="Copy to clipboard">\u29C9</span>'
+        return f'<span class="snc-hoverable" snc-mouse-down="{html.escape(event)}" style="{style}" title="Copy to clipboard">\u29C9</span>'
 
     def btn_group(label: str, action: str, enabled: bool = True, title: str = '', extra_btn_style: str = '') -> str:
         return f'<span>{action_btn(label, action, enabled, title, extra_btn_style)}{copy_btn(action, enabled)}</span>'
@@ -2551,8 +2551,8 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
 
     # Build ? button with dropdown
     toggle_event = repr(DropdownToggle('action-predicate'))
-    q_style = btn_base + ('background: #264f78; color: #dcdcaa;' if predicate_dropdown_open else '')
-    q_btn = f'<span snc-mouse-down="{html.escape(toggle_event)}" style="margin-left: 3px;{q_style}" title="Boolean queries">? \u25be</span>'
+    q_style = btn_base + ('background: #264f78; color: #ccc; border-color: #aaa;' if predicate_dropdown_open else '')
+    q_btn = f'<span class="snc-hoverable" snc-mouse-down="{html.escape(toggle_event)}" style="margin-left: 3px;{q_style}" title="Boolean queries">? \u25be</span>'
 
     if predicate_dropdown_open:
         any_val, all_val = _compute_predicate_previews(
@@ -2571,8 +2571,8 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
             cp_event = repr(ActionButtonClick(action=action, copy=True))
             return (
                 f'<div style="{row_style}" class="snc-dropdown-option">'
-                f'<span snc-mouse-down="{html.escape(act_event)}" style="cursor:pointer;flex:1;">{label}</span>'
-                f'<span snc-mouse-down="{html.escape(cp_event)}" style="cursor:pointer;font-size:10px;color:#8C8C8C;" title="Copy to clipboard">\u29C9</span>'
+                f'<span class="snc-hoverable" snc-mouse-down="{html.escape(act_event)}" style="flex:1;">{label}</span>'
+                f'<span class="snc-hoverable" snc-mouse-down="{html.escape(cp_event)}" style="font-size:10px;color:#8C8C8C;" title="Copy to clipboard">\u29C9</span>'
                 f'</div>'
             )
 
@@ -2701,14 +2701,13 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         # "Aa" toggle: on (highlighted) = case-sensitive (default), off = case-insensitive
         case_sensitive = not is_case_insensitive(selection_regex)
         cs_event = repr(CaseSensitiveToggle())
-        cs_bg = '#264f78' if case_sensitive else 'transparent'
-        cs_color = '#dcdcaa' if case_sensitive else '#8C8C8C'
         case_toggle_html = (
             f'<span snc-mouse-down="{html.escape(cs_event)}"'
+            f' class="snc-hoverable"'
             f' style="'
-            f'background: {cs_bg};'
-            f'color: {cs_color};'
-            f'border: 1px solid #3c3c3c;'
+            f'background: {"#264f78" if case_sensitive else "transparent"};'
+            f'color: {"#ccc" if case_sensitive else "#8C8C8C"};'
+            f'border: 1px solid {"#aaa" if case_sensitive else "#3c3c3c"};'
             f'{toggle_btn_style}'
             f'"'
             f'>Aa</span>'
@@ -2716,14 +2715,13 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         # "1st" toggle: off by default, on = first-match
         first_match = is_first_match_mode(selection_regex)
         fm_event = repr(FirstMatchToggle())
-        fm_bg = '#264f78' if first_match else 'transparent'
-        fm_color = '#dcdcaa' if first_match else '#8C8C8C'
         first_match_toggle_html = (
             f'<span snc-mouse-down="{html.escape(fm_event)}"'
+            f' class="snc-hoverable"'
             f' style="'
-            f'background: {fm_bg};'
-            f'color: {fm_color};'
-            f'border: 1px solid #3c3c3c;'
+            f'background: {"#264f78" if first_match else "transparent"};'
+            f'color: {"#ccc" if first_match else "#8C8C8C"};'
+            f'border: 1px solid {"#aaa" if first_match else "#3c3c3c"};'
             f'{toggle_btn_style}'
             f'"'
             f'>1<span style="font-size: 8px; vertical-align: 3px; display: inline-block; margin-top: -1em;">st</span></span>'
@@ -2738,7 +2736,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         replace_toggle_event = repr(ReplaceToggle())
         triangle_char = '\u25be' if replace_visible else '\u25b8'
         disclosure_html = (
-            f'<span snc-mouse-down="{html.escape(replace_toggle_event)}"'
+            f'<span snc-mouse-down="{html.escape(replace_toggle_event)}" class="snc-hoverable"'
             f' style="'
             f'cursor: pointer;'
             f'color: #8C8C8C;'
