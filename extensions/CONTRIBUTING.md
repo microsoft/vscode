@@ -4,15 +4,15 @@ This directory contains built-in extensions that ship with VS Code.
 
 ## Basic Structure
 
-A typical built-in extension has the following structure:
+A typical TypeScript-based built-in extension has the following structure:
 
 - `package.json`: extension manifest.
-- `src/`: Main directory for source code
+- `src/`: Main directory for TypeScript source code.
 - `tsconfig.json`: primary TypeScript config. This should inherit from `tsconfig.base.json`.
 - `esbuild.mts`: Esbuild build script used for production builds.
 - `.vscodeignore`: Ignore file list. You can copy this from an existing extension.
 
-Extensions have the following output structure:
+TypeScript-based extensions have the following output structure:
 
 - `out`: Output directory for development builds
 - `dist`: Output directory for production builds.
