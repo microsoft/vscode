@@ -10,6 +10,7 @@
 	left: 50%;
 	-webkit-app-region: no-drag;
 	border-radius: var(--vscode-cornerRadius-xLarge);
+	box-shadow: var(--vscode-shadow-xl);
 }
 
 .quick-input-titlebar {

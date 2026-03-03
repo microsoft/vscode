@@ -16,14 +16,13 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { isDefined, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { DefaultEndOfLine, EndOfLinePreference, ITextModel, ValidAnnotatedEditOperation } from '../../../../../editor/common/model.js';
+import { createTextBuffer } from '../../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { CellEditType, CellUri, INotebookTextModel } from '../../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
@@ -71,6 +70,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	private readonly _operations = observableValueOpts<FileOperation[]>({ equalsFn: () => false }, []); // mutable
 	private readonly _fileBaselines = new Map<string, IFileBaseline>(); // key: `${uri}::${requestId}`
 	private readonly _refCountedDiffs = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
+	private readonly _finalizedDiffCache = new Map<string, IEditSessionEntryDiff>();
 
 	/** Gets the checkpoint, if any, we can 'undo' to. */
 	private readonly _willUndoToCheckpoint = derived(reader => {
@@ -192,8 +192,6 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		private readonly _delegate: IChatEditingTimelineFsDelegate,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
 		@INotebookService private readonly _notebookService: INotebookService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
@@ -711,28 +709,15 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	}
 
 	private _applyTextEditsToContent(content: string, edits: readonly TextEdit[]): string {
-		// Use the example pattern provided by the user
-		const makeModel = (uri: URI, contents: string) => this._instantiationService.createInstance(TextModel, contents, '', this._modelService.getCreationOptions('', uri, true), uri);
-
-		// Create a temporary URI for the model
-		const tempUri = URI.from({ scheme: 'temp', path: `/temp-${Date.now()}.txt` });
-		const model = makeModel(tempUri, content);
-
+		const { textBuffer, disposable } = createTextBuffer(content, DefaultEndOfLine.LF);
 		try {
-			// Apply edits
-			model.applyEdits(edits.map(edit => ({
-				range: {
-					startLineNumber: edit.range.startLineNumber,
-					startColumn: edit.range.startColumn,
-					endLineNumber: edit.range.endLineNumber,
-					endColumn: edit.range.endColumn
-				},
-				text: edit.text
-			})));
-
-			return model.getValue();
+			textBuffer.applyEdits(edits.map(edit =>
+				new ValidAnnotatedEditOperation(null, Range.lift(edit.range), edit.text, false, false, false)
+			), false, false);
+			const fullRange = textBuffer.getRangeAt(0, textBuffer.getLength());
+			return textBuffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
 		} finally {
-			model.dispose();
+			disposable.dispose();
 		}
 	}
 
@@ -772,11 +757,18 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 	private _getEntryDiffBetweenEpochs(uri: URI, cacheKey: string, epochs: IObservable<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>): IObservable<IEditSessionEntryDiff | undefined> {
 		const key = `${uri.toString()}\0${cacheKey}`;
+
+		const cached = this._finalizedDiffCache.get(key);
+		if (cached) {
+			return constObservable(cached);
+		}
+
 		let obs = this._refCountedDiffs.get(key);
 
 		if (!obs) {
 			obs = this._getEntryDiffBetweenEpochsInner(
 				uri,
+				key,
 				epochs,
 				() => this._refCountedDiffs.delete(key),
 			);
@@ -788,6 +780,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 	private _getEntryDiffBetweenEpochsInner(
 		uri: URI,
+		cacheKey: string,
 		epochs: IObservable<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>,
 		onLastObserverRemoved: () => void,
 	): IObservable<IEditSessionEntryDiff | undefined> {
@@ -859,6 +852,9 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 			const promised = result.promise?.promiseResult.read(reader);
 			if (promised?.data) {
+				if (promised.data.isFinal) {
+					this._finalizedDiffCache.set(cacheKey, promised.data);
+				}
 				return promised.data;
 			}
 

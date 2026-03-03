@@ -93,7 +93,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 		}
 
 		// Create OS notification
-		const notificationTitle = info.title ? localize('chatTitle', "Chat: {0}", info.title) : localize('chat.untitledChat', "Untitled Chat");
+		const notificationTitle = info.title ? localize('chatTitle', "Session: {0}", info.title) : localize('chat.untitledChat', "Untitled Session");
 
 		const cts = new CancellationTokenSource();
 		this._activeNotifications.set(sessionResource, toDisposable(() => cts.dispose(true)));
@@ -103,7 +103,7 @@ export class ChatWindowNotifier extends Disposable implements IWorkbenchContribu
 
 		try {
 			const actionLabel = isQuestionCarousel
-				? localize('openChatAction', "Open Chat")
+				? localize('openChatAction', "Open Session")
 				: localize('allowAction', "Allow");
 
 			const result = await this._hostService.showToast({

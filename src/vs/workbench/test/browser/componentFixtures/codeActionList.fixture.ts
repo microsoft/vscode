@@ -92,11 +92,13 @@ const simpleFixes: IActionListItem<string>[] = [
 	{ kind: ActionListItemKind.Action, item: 'fix-3', label: 'Add \'await\' to async call', group: { title: 'Quick Fix', icon: Codicon.lightBulb } },
 ];
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	GroupedCodeActions: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (context) => renderCodeActionList({ ...context, items: quickFixItems }),
 	}),
 	SimpleQuickFixes: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderCodeActionList({ ...context, items: simpleFixes }),
 	}),
 });

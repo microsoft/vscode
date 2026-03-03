@@ -193,6 +193,23 @@
 	}
 }
 
+.mcp-app-downloads {
+	margin-top: 8px;
+
+	.chat-collapsible-io-resource-group {
+		animation: mcpDownloadFadeIn 300ms ease-in;
+	}
+}
+
+.mcp-app-downloads:empty {
+	display: none;
+}
+
+@keyframes mcpDownloadFadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
 .chat-confirmation-widget2 {
 	margin-bottom: 8px;
 	border: 1px solid var(--vscode-chat-requestBorder);

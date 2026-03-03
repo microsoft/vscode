@@ -4,7 +4,19 @@
 		"sessionStart": [
 			{
 				"type": "command",
-				"bash": "if [ -f ~/.vscode-worktree-setup ]; then nohup npm ci > /tmp/npm-ci-$(date +%Y-%m-%d_%H-%M-%S).log 2>&1 & fi"
+				"bash": "if [ -f ~/.vscode-worktree-setup ]; then nohup bash -c 'npm ci && npm run compile' > /tmp/worktree-setup-$(date +%Y-%m-%d_%H-%M-%S).log 2>&1 & fi"
+			}
+		],
+		"sessionEnd": [
+			{
+				"type": "command",
+				"bash": ""
+			}
+		],
+		"agentStop": [
+			{
+				"type": "command",
+				"bash": ""
 			}
 		],
 		"userPromptSubmitted": [

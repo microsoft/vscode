@@ -9,11 +9,11 @@ import { Event } from '../../../../base/common/event.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { mock } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { ChatProgressContentPart } from '../../../contrib/chat/browser/widget/chatContentParts/chatProgressContentPart.js';
 import { ChatContentMarkdownRenderer } from '../../../contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
-import { IChatContentPartRenderContext } from '../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
+import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../../../contrib/chat/browser/widget/chatContentParts/chatMarkdownAnchorService.js';
 import { IChatProgressMessage } from '../../../contrib/chat/common/chatService/chatService.js';
 import { IChatResponseViewModel } from '../../../contrib/chat/common/model/chatViewModel.js';
@@ -27,6 +27,7 @@ function createMockContext(opts?: { isComplete?: boolean; hasFollowingContent?: 
 	}();
 	return {
 		element,
+		inlineTextModels: upcastPartial<InlineTextModelCollection>({}),
 		elementIndex: 0,
 		container: document.createElement('div'),
 		content: opts?.hasFollowingContent ? [{ kind: 'progressMessage', content: new MarkdownString('test') }] : [],
@@ -100,8 +101,9 @@ function renderProgressPart(
 	container.appendChild(itemContainer);
 }
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	WithSpinner: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Searching workspace for relevant files...'),
@@ -111,6 +113,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	Completed: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Found 12 relevant files'),
@@ -120,6 +123,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	WithCustomIcon: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Running tests...'),
@@ -129,6 +133,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	WithInlineCode: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Reading `src/vs/workbench/contrib/chat/browser/chatWidget.ts`'),
@@ -138,6 +143,7 @@ export default defineThemedFixtureGroup({
 	}),
 
 	LongMessage: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderProgressPart(
 			ctx,
 			createProgressMessage('Searching across multiple workspace folders for TypeScript files matching the pattern you described, including test files and configuration'),

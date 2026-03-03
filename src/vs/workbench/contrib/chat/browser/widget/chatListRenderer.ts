@@ -78,7 +78,7 @@ import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitation
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
 import { DiffEditorPool, EditorPool } from './chatContentParts/chatContentCodePools.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts/chatContentParts.js';
+import { IChatContentPart, IChatContentPartRenderContext, InlineTextModelCollection } from './chatContentParts/chatContentParts.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 import { ChatErrorConfirmationContentPart } from './chatContentParts/chatErrorConfirmationPart.js';
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
@@ -243,6 +243,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * TODO@roblourens shouldn't use the CodeBlockModelCollection at all
 	 */
 	private readonly _toolInvocationCodeBlockCollection: CodeBlockModelCollection;
+	private readonly _inlineTextModels: InlineTextModelCollection;
 
 	/**
 	 * Prevents re-announcement of already rendered chat progress
@@ -282,6 +283,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined, undefined));
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
+		this._inlineTextModels = this._register(this.instantiationService.createInstance(InlineTextModelCollection));
 		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
 		this._autoReply = this._register(this.instantiationService.createInstance(ChatQuestionCarouselAutoReply));
 
@@ -1139,6 +1141,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				codeBlockModelCollection: this.codeBlockModelCollection,
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
+				inlineTextModels: this._inlineTextModels,
 				get codeBlockStartIndex() {
 					return parts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
 				},
@@ -1285,6 +1288,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				codeBlockModelCollection: this.codeBlockModelCollection,
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
+				inlineTextModels: this._inlineTextModels,
 				get codeBlockStartIndex() {
 					return preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
 				},
@@ -2158,11 +2162,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const handleSubmit = async (answers: Map<string, unknown> | undefined, part: ChatQuestionCarouselPart) => {
 			// Mark the carousel as used and store the answers
 			const answersRecord = answers ? Object.fromEntries(answers) : undefined;
-			if (answersRecord) {
-				carousel.data = answersRecord;
-			}
+			carousel.data = answersRecord ?? {};
 			carousel.isUsed = true;
 			if (carousel instanceof ChatQuestionCarouselData) {
+				carousel.draftAnswers = undefined;
+				carousel.draftCurrentIndex = undefined;
 				carousel.completion.complete({ answers: answersRecord });
 			}
 
@@ -2183,10 +2187,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const inputPartHasCarousel = widget?.input.questionCarousel !== undefined;
 
 		if (carousel.isUsed || responseIsComplete) {
-			if (responseIsComplete && !carousel.isUsed && isResponseVM(context.element) && carousel.resolveId && carousel.data === undefined) {
+			if (responseIsComplete && !carousel.isUsed && isResponseVM(context.element) && carousel.resolveId) {
 				carousel.data = {};
 				carousel.isUsed = true;
 				if (carousel instanceof ChatQuestionCarouselData) {
+					carousel.draftAnswers = undefined;
+					carousel.draftCurrentIndex = undefined;
 					carousel.completion.complete({ answers: undefined });
 				}
 				this.chatService.notifyQuestionCarouselAnswer(context.element.requestId, carousel.resolveId, undefined);

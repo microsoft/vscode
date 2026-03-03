@@ -325,6 +325,8 @@ export interface Repository {
 	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
 
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;
+
+	generateRandomBranchName(): Promise<string | undefined>;
 }
 
 export interface RemoteSource {

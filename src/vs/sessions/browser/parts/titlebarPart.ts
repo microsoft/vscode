@@ -185,7 +185,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 		// Left toolbar (driven by Menus.TitleBarLeft, rendered after window controls via CSS order)
 		const leftToolbarContainer = append(this.leftContent, $('div.left-toolbar-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, leftToolbarContainer, Menus.TitleBarLeft, {
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, leftToolbarContainer, Menus.TitleBarLeftLayout, {
 			contextMenu: Menus.TitleBarContext,
 			telemetrySource: 'titlePart.left',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -204,10 +204,19 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}));
 
 		// Right toolbar (driven by Menus.TitleBarRight - includes account submenu)
-		const rightToolbarContainer = prepend(this.rightContent, $('div.action-toolbar-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRight, {
+		const rightToolbarContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-layout-actions-container'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRightLayout, {
 			contextMenu: Menus.TitleBarContext,
 			telemetrySource: 'titlePart.right',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
+		// Session title actions toolbar (before right toolbar)
+		const sessionActionsContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-session-actions-container'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, sessionActionsContainer, Menus.TitleBarSessionMenu, {
+			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'titlePart.sessionActions',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 

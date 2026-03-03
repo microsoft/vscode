@@ -93,8 +93,9 @@ function renderRenameWidget(options: RenameFixtureOptions): void {
 	);
 }
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	RenameVariable: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (context) => renderRenameWidget({
 			...context,
 			cursorLine: 4,
@@ -105,6 +106,7 @@ export default defineThemedFixtureGroup({
 		}),
 	}),
 	RenameClass: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (context) => renderRenameWidget({
 			...context,
 			cursorLine: 1,
