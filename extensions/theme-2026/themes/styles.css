@@ -22,9 +22,6 @@
 }
 
 /* Quick Input (Command Palette) */
-.monaco-workbench.vs-dark .quick-input-widget {
-	border: 1px solid var(--vscode-menu-border) !important;
-}
 
 .monaco-workbench .quick-input-widget .quick-input-header,
 .monaco-workbench .quick-input-widget .quick-input-list,
