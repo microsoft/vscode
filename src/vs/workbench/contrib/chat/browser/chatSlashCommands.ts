@@ -15,12 +15,11 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatDebugEvent, IChatDebugService } from '../common/chatDebugService.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
-import { IChatService } from '../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService } from '../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
 import { ManagePluginsAction } from './actions/chatPluginActions.js';
@@ -50,7 +49,6 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatDebugService chatDebugService: IChatDebugService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
@@ -126,22 +124,26 @@ export class ChatSlashCommandsContribution extends Disposable {
 			detail: nls.localize('troubleshoot', "Troubleshoot the current conversation with debug events"),
 			sortText: 'z3_troubleshoot',
 			executeImmediately: false,
+			silent: true,
 			locations: [ChatAgentLocation.Chat],
-		}, async (_prompt, progress, _history, _location, sessionResource) => {
-			ChatContextKeys.troubleshootActive.bindTo(contextKeyService).set(true);
+		}, async (prompt, _progress, _history, _location, sessionResource) => {
 			const events = chatDebugService.getEvents(sessionResource);
-			if (events.length === 0) {
-				progress.report({ content: new MarkdownString(nls.localize('troubleshoot.noEvents', "No debug events found for this conversation.")), kind: 'markdownContent' });
-				await timeout(200);
-				return;
-			}
+			const summary = events.length > 0
+				? formatDebugEventsForContext(events)
+				: nls.localize('troubleshoot.noEvents', "No debug events found for this conversation.");
 
-			progress.report({ content: new MarkdownString(nls.localize('troubleshoot.header', "## Debug Events for This Conversation\n\nFound {0} debug event(s). Use the `resolveDebugEventDetails` tool in follow-up messages to inspect specific events by ID.\n", events.length)), kind: 'markdownContent' });
+			const attachedContext: IChatRequestVariableEntry[] = [{
+				id: 'chatDebugEvents',
+				name: nls.localize('troubleshoot.contextName', "Debug Events"),
+				kind: 'generic',
+				value: summary,
+				modelDescription: 'These are the debug event logs from the current chat conversation. Use them to help answer the user\'s troubleshooting question. You can invoke the resolveDebugEventDetails tool with an event ID to get full details for a specific event.',
+			}];
 
-			const summary = formatDebugEventsForContext(events);
-			progress.report({ content: new MarkdownString('```\n' + summary + '\n```'), kind: 'markdownContent' });
-
-			await timeout(200);
+			chatService.sendRequest(sessionResource, prompt, {
+				attachedContext,
+				queue: ChatRequestQueueKind.Queued,
+			});
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'agents',

@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../actions/chatContextKeys.js';
 import { IChatDebugResolvedEventContent, IChatDebugService } from '../../chatDebugService.js';
 import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../languageModelToolsService.js';
 
@@ -17,7 +15,6 @@ export const ResolveDebugEventDetailsToolData: IToolData = {
 	canBeReferencedInPrompt: false,
 	modelDescription: 'Resolves the full details for a specific chat debug event by its event ID. Use this tool to get detailed information about a debug event such as tool call input/output, model turn details, user message sections, or file lists. The event ID can be found in the debug event log summary provided in the conversation context.',
 	source: ToolDataSource.Internal,
-	when: ContextKeyExpr.equals(ChatContextKeys.troubleshootActive.key, true),
 	inputSchema: {
 		type: 'object',
 		properties: {
