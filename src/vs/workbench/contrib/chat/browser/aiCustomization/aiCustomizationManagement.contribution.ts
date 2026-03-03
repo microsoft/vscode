@@ -34,7 +34,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { ChatConfiguration } from '../../common/constants.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows, isMacintosh } from '../../../../../base/common/platform.js';
 
@@ -118,6 +118,16 @@ function extractStorage(context: AICustomizationContext): PromptsStorage | undef
 	return context.storage;
 }
 
+/**
+ * Extracts prompt type from context.
+ */
+function extractPromptType(context: AICustomizationContext): PromptsType | undefined {
+	if (URI.isUri(context) || typeof context === 'string') {
+		return undefined;
+	}
+	return context.promptType;
+}
+
 // Open file action
 const OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID = 'aiCustomizationManagement.openFile';
 registerAction2(class extends Action2 {
@@ -192,8 +202,11 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 
 		const uri = extractURI(context);
-		const fileName = basename(uri);
 		const storage = extractStorage(context);
+		const promptType = extractPromptType(context);
+		const isSkill = promptType === PromptsType.skill;
+		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
+		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
 		// Extension and plugin files cannot be deleted
 		if (storage === PromptsStorage.extension || storage === PromptsStorage.plugin) {
@@ -205,15 +218,21 @@ registerAction2(class extends Action2 {
 		}
 
 		// Confirm deletion
+		const message = isSkill
+			? localize('confirmDeleteSkill', "Are you sure you want to delete skill '{0}' and its folder?", fileName)
+			: localize('confirmDelete', "Are you sure you want to delete '{0}'?", fileName);
 		const confirmation = await dialogService.confirm({
-			message: localize('confirmDelete', "Are you sure you want to delete '{0}'?", fileName),
+			message,
 			detail: localize('confirmDeleteDetail', "This action cannot be undone."),
 			primaryButton: localize('delete', "Delete"),
 			type: 'warning',
 		});
 
 		if (confirmation.confirmed) {
-			await fileService.del(uri, { useTrash: true });
+			// For skills, delete the parent folder (e.g. .github/skills/my-skill/)
+			// since each skill is a folder containing SKILL.md.
+			const deleteTarget = isSkill ? dirname(uri) : uri;
+			await fileService.del(deleteTarget, { useTrash: true, recursive: isSkill });
 		}
 	}
 });
@@ -270,8 +289,8 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			constructor() {
 				super({
 					id: AICustomizationManagementCommands.OpenEditor,
-					title: localize2('openAICustomizations', "Open Chat Customizations (Preview)"),
-					shortTitle: localize2('aiCustomizations', "Chat Customizations (Preview)"),
+					title: localize2('openAICustomizations', "Open Customizations (Preview)"),
+					shortTitle: localize2('aiCustomizations', "Customizations (Preview)"),
 					category: CHAT_CATEGORY,
 					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
 					f1: true,
@@ -287,6 +306,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				}
 			}
 		}));
+
 	}
 }
 

@@ -19,10 +19,9 @@
   "extensionDependencies": [
     "vscode.git-base"
   ],
-  "main": "./out/extension.js",
-  "type": "module",
+  "main": "./dist/extension.js",
   "capabilities": {
-    "virtualWorkspaces": false,
+    "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": true
     }
@@ -74,6 +73,11 @@
         "command": "github.createPullRequest",
         "title": "%command.createPullRequest%",
         "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "github.openPullRequest",
+        "title": "%command.openPullRequest%",
+        "icon": "$(git-pull-request)"
       }
     ],
     "continueEditSession": [
@@ -93,6 +97,10 @@
         },
         {
           "command": "github.createPullRequest",
+          "when": "false"
+        },
+        {
+          "command": "github.openPullRequest",
           "when": "false"
         },
         {
@@ -179,7 +187,13 @@
           "command": "github.createPullRequest",
           "group": "navigation",
           "order": 1,
-          "when": "isSessionsWindow && agentSessionHasChanges && chatSessionType == copilotcli"
+          "when": "isSessionsWindow && agentSessionHasChanges && chatSessionType == copilotcli && !github.hasOpenPullRequest"
+        },
+        {
+          "command": "github.openPullRequest",
+          "group": "navigation",
+          "order": 1,
+          "when": "isSessionsWindow && agentSessionHasChanges && chatSessionType == copilotcli && github.hasOpenPullRequest"
         }
       ]
     },

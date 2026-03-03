@@ -27,12 +27,15 @@ import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { agentIcon, extensionIcon, instructionsIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
+import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
@@ -95,7 +98,18 @@ interface IAICustomizationFileItem {
 	readonly promptType: PromptsType;
 }
 
-type AICustomizationTreeItem = IAICustomizationTypeItem | IAICustomizationGroupItem | IAICustomizationFileItem;
+/**
+ * Represents a link item that navigates to the management editor.
+ */
+interface IAICustomizationLinkItem {
+	readonly type: 'link';
+	readonly id: string;
+	readonly label: string;
+	readonly icon: ThemeIcon;
+	readonly section: AICustomizationManagementSection;
+}
+
+type AICustomizationTreeItem = IAICustomizationTypeItem | IAICustomizationGroupItem | IAICustomizationFileItem | IAICustomizationLinkItem;
 
 //#endregion
 
@@ -109,6 +123,7 @@ class AICustomizationTreeDelegate implements IListVirtualDelegate<AICustomizatio
 	getTemplateId(element: AICustomizationTreeItem): string {
 		switch (element.type) {
 			case 'category':
+			case 'link':
 				return 'category';
 			case 'group':
 				return 'group';
@@ -135,7 +150,7 @@ interface IFileTemplateData {
 	readonly name: HTMLElement;
 }
 
-class AICustomizationCategoryRenderer implements ITreeRenderer<IAICustomizationTypeItem, FuzzyScore, ICategoryTemplateData> {
+class AICustomizationCategoryRenderer implements ITreeRenderer<IAICustomizationTypeItem | IAICustomizationLinkItem, FuzzyScore, ICategoryTemplateData> {
 	readonly templateId = 'category';
 
 	renderTemplate(container: HTMLElement): ICategoryTemplateData {
@@ -145,7 +160,7 @@ class AICustomizationCategoryRenderer implements ITreeRenderer<IAICustomizationT
 		return { container: element, icon, label };
 	}
 
-	renderElement(node: ITreeNode<IAICustomizationTypeItem, FuzzyScore>, _index: number, templateData: ICategoryTemplateData): void {
+	renderElement(node: ITreeNode<IAICustomizationTypeItem | IAICustomizationLinkItem, FuzzyScore>, _index: number, templateData: ICategoryTemplateData): void {
 		templateData.icon.className = 'icon';
 		templateData.icon.classList.add(...ThemeIcon.asClassNameArray(node.element.icon));
 		templateData.label.textContent = node.element.label;
@@ -248,6 +263,9 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		if (element === ROOT_ELEMENT) {
 			return true;
 		}
+		if (element.type === 'link') {
+			return false;
+		}
 		return element.type === 'category' || element.type === 'group';
 	}
 
@@ -272,7 +290,7 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 		}
 	}
 
-	private getTypeCategories(): IAICustomizationTypeItem[] {
+	private getTypeCategories(): (IAICustomizationTypeItem | IAICustomizationLinkItem)[] {
 		return [
 			{
 				type: 'category',
@@ -301,6 +319,13 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				label: localize('prompts', "Prompts"),
 				promptType: PromptsType.prompt,
 				icon: promptIcon,
+			},
+			{
+				type: 'link',
+				id: 'link-mcp-servers',
+				label: localize('mcpServers', "MCP Servers"),
+				icon: mcpServerIcon,
+				section: AICustomizationManagementSection.McpServers,
 			},
 		];
 	}
@@ -549,7 +574,7 @@ export class AICustomizationViewPane extends ViewPane {
 				},
 				accessibilityProvider: {
 					getAriaLabel: (element: AICustomizationTreeItem) => {
-						if (element.type === 'category') {
+						if (element.type === 'category' || element.type === 'link') {
 							return element.label;
 						}
 						if (element.type === 'group') {
@@ -573,12 +598,18 @@ export class AICustomizationViewPane extends ViewPane {
 			}
 		));
 
-		// Handle double-click to open file
-		this.treeDisposables.add(this.tree.onDidOpen(e => {
+		// Handle double-click to open file or navigate to section
+		this.treeDisposables.add(this.tree.onDidOpen(async e => {
 			if (e.element && e.element.type === 'file') {
 				this.editorService.openEditor({
 					resource: e.element.uri
 				});
+			} else if (e.element && e.element.type === 'link') {
+				const input = AICustomizationManagementEditorInput.getOrCreate();
+				const editor = await this.editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+				if (editor instanceof AICustomizationManagementEditor) {
+					editor.selectSectionById(e.element.section);
+				}
 			}
 		}));
 

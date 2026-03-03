@@ -29,7 +29,10 @@ class RegisterLogsViewContainerContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.registerLogsViewContainer';
 
-	constructor() {
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		CONTEXT_SESSIONS_SHOW_LOGS.bindTo(contextKeyService).set(true);
 		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 

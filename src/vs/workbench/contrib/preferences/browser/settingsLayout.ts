@@ -232,8 +232,7 @@ export const tocData: ITOCEntry<string> = {
 					label: localize('chatTools', "Tools"),
 					settings: [
 						'chat.tools.*',
-						'chat.extensionTools.*',
-						'chat.edits2.enabled'
+						'chat.extensionTools.*'
 					]
 				},
 				{
