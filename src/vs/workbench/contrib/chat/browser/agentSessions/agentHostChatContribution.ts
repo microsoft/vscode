@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IAgentHostService } from '../../../../../platform/agent/common/agentService.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IAgentHostService, AgentHostEnabledSettingId } from '../../../../../platform/agent/common/agentService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -32,8 +33,13 @@ export class CopilotAgentHostContribution extends Disposable implements IWorkben
 		@ILogService logService: ILogService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+			return;
+		}
 
 		// Session list controller
 		const listController = this._register(this._instantiationService.createInstance(AgentHostSessionListController));
@@ -87,8 +93,13 @@ export class ClaudeAgentHostContribution extends Disposable implements IWorkbenc
 		@ILogService logService: ILogService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+			return;
+		}
 
 		// Session list controller
 		const listController = this._register(this._instantiationService.createInstance(AgentHostSessionListController));

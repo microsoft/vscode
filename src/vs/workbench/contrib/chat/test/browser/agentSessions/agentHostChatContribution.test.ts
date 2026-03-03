@@ -11,6 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentHostService, IAgentMessageEvent, IAgentProgressEvent, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -119,6 +120,7 @@ function createTestServices(disposables: DisposableStore) {
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 	});
+	instantiationService.stub(IConfigurationService, { getValue: () => true });
 
 	return { instantiationService, agentHostService, chatAgentService };
 }

@@ -11,8 +11,9 @@ import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../common/agentService.js';
 
 /**
  * Renderer-side implementation of {@link IAgentHostService} that connects
@@ -36,6 +37,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -45,7 +47,9 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.AgentHost)))
 		);
 
-		this._connect();
+		if (configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
+			this._connect();
+		}
 	}
 
 	private async _connect(): Promise<void> {

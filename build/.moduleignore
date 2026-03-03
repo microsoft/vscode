@@ -188,3 +188,13 @@ zone.js/dist/**
 @xterm/xterm-addon-*/fixtures/**
 @xterm/xterm-addon-*/out/**
 @xterm/xterm-addon-*/out-test/**
+
+# @github/copilot - strip cross-platform binaries
+@github/copilot/prebuilds/**
+@github/copilot/ripgrep/**
+@github/copilot/clipboard/node_modules/@teddyzhu/clipboard-darwin-x64/**
+@github/copilot/clipboard/node_modules/@teddyzhu/clipboard-darwin-arm64/**
+@github/copilot/clipboard/node_modules/@teddyzhu/clipboard-linux-x64-gnu/**
+@github/copilot/clipboard/node_modules/@teddyzhu/clipboard-linux-arm64-gnu/**
+@github/copilot/clipboard/node_modules/@teddyzhu/clipboard-win32-x64-msvc/**
+@github/copilot/clipboard/node_modules/@teddyzhu/clipboard-win32-arm64-msvc/**

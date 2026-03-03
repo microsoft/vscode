@@ -14,6 +14,9 @@ export const enum AgentHostIpcChannels {
 	Logger = 'agentHostLogger',
 }
 
+/** Configuration key that controls whether the agent host process is spawned. */
+export const AgentHostEnabledSettingId = 'chat.agentHost.enabled';
+
 // ---- IPC data types (serializable across MessagePort) -----------------------
 
 export interface IAgentSessionMetadata {
