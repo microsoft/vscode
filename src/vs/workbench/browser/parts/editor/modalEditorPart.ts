@@ -119,7 +119,6 @@ export class ModalEditorPart {
 			role: 'dialog',
 			'aria-modal': 'true',
 			'aria-labelledby': titleId,
-			tabIndex: -1
 		});
 		shadowElement.appendChild(editorPartContainer);
 
@@ -230,6 +229,12 @@ export class ModalEditorPart {
 			editorPart.toggleMaximized();
 		}));
 
+		// Focus active editor when clicking into the title area with no other click target
+		disposables.add(addDisposableListener(headerElement, EventType.CLICK, e => {
+			EventHelper.stop(e);
+
+			editorPart.activeGroup.focus();
+		}));
 
 		// Layout the modal editor part
 		const layoutModal = () => {
@@ -270,8 +275,8 @@ export class ModalEditorPart {
 		this.hostService.setWindowDimmed(mainWindow, true);
 		disposables.add(toDisposable(() => this.hostService.setWindowDimmed(mainWindow, false)));
 
-		// Focus the modal
-		editorPartContainer.focus();
+		// Focus
+		editorPart.activeGroup.focus();
 
 		return {
 			part: editorPart,
