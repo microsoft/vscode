@@ -2691,7 +2691,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         search_svg_html = SEARCH_SVG.replace("stroke:#000000;", "stroke:#8C8C8C;").replace("<svg ", f'<svg style="position: absolute; margin-left: 5px; margin-top: 4px; width: 12px; height: 12px;"', 1)
         toggle_btn_style = (
             'border-radius: 3px;'
-            'padding: 0px 3px;'
+            'padding: 1px 3px;'
             'font-family: inherit;'
             'font-size: 10px;'
             'cursor: pointer;'
@@ -2720,6 +2720,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
             f' class="snc-hoverable"'
             f' style="'
             f'background: {"#264f78" if first_match else "transparent"};'
+            f'margin-left: 2px;'
             f'color: {"#ccc" if first_match else "#8C8C8C"};'
             f'border: 1px solid {"#aaa" if first_match else "#3c3c3c"};'
             f'{toggle_btn_style}'
@@ -2727,7 +2728,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
             f'>1<span style="font-size: 8px; vertical-align: 3px; display: inline-block; margin-top: -1em;">st</span></span>'
         )
         toggles_html = (
-            f'<span style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px;">'
+            f'<span style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%);">'
             f'{case_toggle_html}'
             f'{first_match_toggle_html}'
             f'</span>'
