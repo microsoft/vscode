@@ -122,9 +122,9 @@ function getTargetLabel(provider: AgentSessionProviders): string {
 		case AgentSessionProviders.Growth:
 			return 'Growth';
 		case AgentSessionProviders.AgentHost:
-			return localize('chat.session.providerLabel.agentHost', "Agent Host - Copilot");
+			return 'Agent Host - Copilot';
 		case AgentSessionProviders.AgentHostClaude:
-			return localize('chat.session.providerLabel.agentHostClaude', "Agent Host - Claude");
+			return 'Agent Host - Claude';
 	}
 }
 
