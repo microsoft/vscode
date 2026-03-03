@@ -212,13 +212,15 @@ export class SnoozeInlineCompletion extends Action2 {
 	private async getDurationFromUser(quickInputService: IQuickInputService, storageService: IStorageService): Promise<number | undefined> {
 		const lastSelectedDuration = storageService.getNumber(LAST_SNOOZE_DURATION_KEY, StorageScope.PROFILE, 300_000);
 
+		const CUSTOM_SENTINEL = -1;
 		const items: (IQuickPickItem & { value: number })[] = [
 			{ label: '1 minute', id: '1', value: 60_000 },
 			{ label: '5 minutes', id: '5', value: 300_000 },
 			{ label: '10 minutes', id: '10', value: 600_000 },
 			{ label: '15 minutes', id: '15', value: 900_000 },
 			{ label: '30 minutes', id: '30', value: 1_800_000 },
-			{ label: '60 minutes', id: '60', value: 3_600_000 }
+			{ label: '60 minutes', id: '60', value: 3_600_000 },
+			{ label: 'Custom...', id: 'custom', value: CUSTOM_SENTINEL },
 		];
 
 		const picked = await quickInputService.pick(items, {
@@ -227,8 +229,33 @@ export class SnoozeInlineCompletion extends Action2 {
 		});
 
 		if (picked) {
+			if (picked.value === CUSTOM_SENTINEL) {
+				return this.getCustomDurationFromUser(quickInputService, storageService);
+			}
 			storageService.store(LAST_SNOOZE_DURATION_KEY, picked.value, StorageScope.PROFILE, StorageTarget.USER);
 			return picked.value;
+		}
+
+		return undefined;
+	}
+
+	private async getCustomDurationFromUser(quickInputService: IQuickInputService, storageService: IStorageService): Promise<number | undefined> {
+		const customMinutes = await quickInputService.input({
+			placeHolder: localize('snooze.customPlaceholder', "Duration in minutes (e.g. 90)"),
+			prompt: localize('snooze.customPrompt', "Enter snooze duration in minutes"),
+			validateInput: async (value) => {
+				const n = Number(value);
+				if (isNaN(n) || n <= 0 || !Number.isFinite(n)) {
+					return localize('snooze.invalidInput', "Please enter a positive number");
+				}
+				return undefined;
+			}
+		});
+
+		if (customMinutes) {
+			const ms = Number(customMinutes) * 60_000;
+			storageService.store(LAST_SNOOZE_DURATION_KEY, ms, StorageScope.PROFILE, StorageTarget.USER);
+			return ms;
 		}
 
 		return undefined;

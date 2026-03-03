@@ -671,10 +671,10 @@ export class ChatStatusDashboard extends DomWidget {
 
 			const timeLeftMs = this.inlineCompletionsService.snoozeTimeLeft;
 			if (!isEnabled || timeLeftMs <= 0) {
-				timerDisplay.textContent = localize('completions.snooze5minutesTitle', "Hide suggestions for 5 min");
+				timerDisplay.textContent = localize('completions.snoozeTitle', "Hide suggestions temporarily");
 				timerDisplay.title = '';
 				button.label = label;
-				button.setTitle(localize('completions.snooze5minutes', "Hide inline suggestions for 5 min"));
+				button.setTitle(localize('completions.snooze', "Hide inline suggestions"));
 				return true;
 			}
 
@@ -710,7 +710,13 @@ export class ChatStatusDashboard extends DomWidget {
 		updateIntervalTimer();
 
 		disposables.add(button.onDidClick(() => {
-			this.inlineCompletionsService.snooze();
+			if (this.inlineCompletionsService.isSnoozing()) {
+				// Extend by 5 min when already snoozing
+				this.inlineCompletionsService.snooze();
+			} else {
+				// Show the duration picker when starting a new snooze
+				this.commandService.executeCommand('editor.action.inlineSuggest.snooze');
+			}
 			update(isEnabled());
 		}));
 
