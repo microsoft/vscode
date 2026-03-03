@@ -7,6 +7,7 @@ import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../base/common/observable.js';
 import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -14,7 +15,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IChatAgentService } from '../common/participants/chatAgents.js';
+import { IChatAgentService, UserSelectedTools } from '../common/participants/chatAgents.js';
 import { IChatDebugEvent, IChatDebugService } from '../common/chatDebugService.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { ChatRequestQueueKind, IChatService } from '../common/chatService/chatService.js';
@@ -31,8 +32,9 @@ import { CONFIGURE_PROMPTS_ACTION_ID } from './promptSyntax/runPromptAction.js';
 import { CONFIGURE_SKILLS_ACTION_ID } from './promptSyntax/skillActions.js';
 import {
 	AutoApproveStorageKeys,
-	globalAutoApproveDescription
+	globalAutoApproveDescription,
 } from './tools/languageModelToolsService.js';
+import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { Target } from '../common/promptSyntax/service/promptsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -49,6 +51,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatDebugService chatDebugService: IChatDebugService,
+		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
@@ -137,12 +140,26 @@ export class ChatSlashCommandsContribution extends Disposable {
 				name: nls.localize('troubleshoot.contextName', "Debug Events"),
 				kind: 'generic',
 				value: summary,
-				modelDescription: 'These are the debug event logs from the current chat conversation. Use them to help answer the user\'s troubleshooting question. You can invoke the resolveDebugEventDetails tool with an event ID to get full details for a specific event.',
+				modelDescription: 'These are the debug event logs from the current chat conversation. Analyze them to help answer the user\'s troubleshooting question.\n'
+					+ '\n'
+					+ 'CRITICAL INSTRUCTION: You MUST call the resolveDebugEventDetails tool on relevant events BEFORE answering. The log lines below are only summaries — they do NOT contain the actual data (file paths, prompt content, tool I/O, etc.). The real information is only available by resolving events. Never answer based solely on the summary lines. Always resolve first, then answer.\n'
+					+ '\n'
+					+ 'Call resolveDebugEventDetails in parallel on all events that could be relevant to the user\'s question. When in doubt, resolve more events rather than fewer.\n'
+					+ '\n'
+					+ 'Event types and what resolving them returns:\n'
+					+ '- generic (category: "discovery"): File discovery for instructions, skills, agents, hooks. Resolving returns a fileList with full file paths, load status, skip reasons, and source folders. Always resolve these for questions about customization files.\n'
+					+ '- userMessage: The full prompt sent to the model. Resolving returns the complete message and all prompt sections (system prompt, instructions, context). Essential for understanding what the model received.\n'
+					+ '- agentResponse: The model\'s response. Resolving returns the full response text and sections.\n'
+					+ '- modelTurn: An LLM round-trip. Resolving returns model name, token usage, timing, errors, and prompt sections.\n'
+					+ '- toolCall: A tool invocation. Resolving returns tool name, input, output, status, and duration.\n'
+					+ '- subagentInvocation: A sub-agent spawn. Resolving returns agent name, status, duration, and counts.\n'
+					+ '- generic (other): Miscellaneous logs. Resolving returns additional text details.',
 			}];
 
 			chatService.sendRequest(sessionResource, prompt, {
 				attachedContext,
 				queue: ChatRequestQueueKind.Queued,
+				userSelectedTools: constObservable(snapshotUserSelectedTools(toolsService)),
 			});
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -397,4 +414,12 @@ function formatDebugEventsForContext(events: readonly IChatDebugEvent[]): string
 		}
 	}
 	return lines.join('\n');
+}
+
+function snapshotUserSelectedTools(toolsService: ILanguageModelToolsService): UserSelectedTools {
+	const result: UserSelectedTools = {};
+	for (const tool of toolsService.getTools(undefined)) {
+		result[tool.id] = true;
+	}
+	return result;
 }
