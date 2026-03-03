@@ -59,7 +59,8 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions):not(:last-child)::after {
+/* Separator between session actions and layout actions toolbar */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-layout-actions-container:not(.has-no-actions)::before {
 	content: '';
 	width: 1px;
 	height: 16px;
