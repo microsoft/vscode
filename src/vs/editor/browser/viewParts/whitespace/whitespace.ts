@@ -169,7 +169,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 
 			for (const dec of modelFontDecorations) {
 				const fontFamily = dec.options.fontFamily ?? baseFontFamily;
-				const fontSize = dec.options.fontSize ?? baseFontSize;
+				const fontSize = dec.options.fontSize ? dec.options.fontSize * baseFontSize : baseFontSize;
 				const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
 				maxAscentMinusDescent = Math.max(maxAscentMinusDescent, metrics.ascent - metrics.descent);
 			}
@@ -239,7 +239,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				// Variable fonts: cy_f = (H - (A_f - D_f) + max_i(A_i - D_i)) / 2
 				const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
 				const fontFamily = fontInfo?.fontFamily ?? this._options.fontFamily;
-				const fontSize = fontInfo?.fontSize ? this._options.fontSize * fontInfo.fontSize : this._options.fontSize;
+				const fontSize = fontInfo?.fontSize ?? this._options.fontSize;
 				const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
 				cy = (lineHeight - (metrics.ascent - metrics.descent) + maxAscentMinusDescent) / 2;
 			} else {

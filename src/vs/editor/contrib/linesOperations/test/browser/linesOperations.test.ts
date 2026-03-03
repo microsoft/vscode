@@ -1706,7 +1706,6 @@ suite('Editor Contrib - Line Operations', () => {
 			]);
 			const deleteLinesAction = new DeleteLinesAction();
 			executeAction(deleteLinesAction, editor);
-			console.log('editor.getModel().getLineCount() : ', editor.getModel().getLineCount());
 
 			assert.strictEqual(editor.getValue(), 'a\nc');
 		});
