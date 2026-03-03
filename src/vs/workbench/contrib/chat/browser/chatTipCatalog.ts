@@ -123,15 +123,11 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		id: 'tip.switchToAuto',
 		tier: ChatTipTier.Foundational,
 		priority: 0,
-		buildMessage(ctx) {
-			const label = getCommandLabel('workbench.action.chat.openModelPicker');
-			const kb = formatKeybinding(ctx, 'workbench.action.chat.openModelPicker');
+		buildMessage(_ctx) {
 			return new MarkdownString(
 				localize(
 					'tip.switchToAuto',
-					"Using gpt-4.1? Try switching to [{0}](command:workbench.action.chat.openModelPicker){1} for better coding performance.",
-					label,
-					kb
+					"Using gpt-4.1? Try switching to [Auto](command:workbench.action.chat.openModelPicker) in the model picker for better coding performance."
 				)
 			);
 		},
