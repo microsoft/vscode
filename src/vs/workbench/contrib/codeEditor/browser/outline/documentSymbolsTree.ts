@@ -311,7 +311,9 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			return cached;
 		}
 		const exists = !!getIconRegistry().getIcon(iconId);
-		this._iconExistsCache.set(iconId, exists);
+		if (exists) {
+			this._iconExistsCache.set(iconId, true);
+		}
 		return exists;
 	}
 
