@@ -6,8 +6,9 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent } from '../../common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession } from '../../common/agentService.js';
 import { ClaudeSession } from './claudeSession.js';
 
 /**
@@ -45,34 +46,36 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return [];
 	}
 
-	async createSession(config?: IAgentCreateSessionConfig): Promise<string> {
-		const sessionId = config?.sessionId ?? generateUuid();
-		this._logService.info(`[Claude] Creating session ${sessionId}${config?.model ? ` model=${config.model}` : ''}`);
-		const session = new ClaudeSession(sessionId, config?.model, process.cwd(), this._logService);
+	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		const rawId = config?.session ? AgentSession.id(config.session) : generateUuid();
+		this._logService.info(`[Claude] Creating session ${rawId}${config?.model ? ` model=${config.model}` : ''}`);
+		const session = new ClaudeSession(rawId, config?.model, process.cwd(), this._logService);
 		session.onProgress(e => this._onDidSessionProgress.fire(e));
 		await session.start();
-		this._sessions.set(sessionId, session);
-		this._logService.info(`[Claude] Session created: ${sessionId}`);
-		return sessionId;
+		this._sessions.set(rawId, session);
+		const sessionUri = AgentSession.uri(this.id, rawId);
+		this._logService.info(`[Claude] Session created: ${sessionUri.toString()}`);
+		return sessionUri;
 	}
 
-	async sendMessage(sessionId: string, prompt: string): Promise<void> {
-		const session = this._sessions.get(sessionId);
-		if (!session) {
-			throw new Error(`[Claude] Unknown session: ${sessionId}`);
+	async sendMessage(session: URI, prompt: string): Promise<void> {
+		const rawId = AgentSession.id(session);
+		const sess = this._sessions.get(rawId);
+		if (!sess) {
+			throw new Error(`[Claude] Unknown session: ${session.toString()}`);
 		}
-		this._logService.info(`[Claude:${sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
-		await session.send(prompt);
-		this._logService.info(`[Claude:${sessionId}] send() returned`);
+		this._logService.info(`[Claude:${rawId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
+		await sess.send(prompt);
+		this._logService.info(`[Claude:${rawId}] send() returned`);
 	}
 
-	async getSessionMessages(_sessionId: string): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
 		// Claude SDK doesn't support message history retrieval.
 		return [];
 	}
 
-	async disposeSession(sessionId: string): Promise<void> {
-		this._sessions.deleteAndDispose(sessionId);
+	async disposeSession(session: URI): Promise<void> {
+		this._sessions.deleteAndDispose(AgentSession.id(session));
 	}
 
 	async shutdown(): Promise<void> {
@@ -83,7 +86,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	/**
 	 * Returns true if this provider owns the given session ID.
 	 */
-	hasSession(sessionId: string): boolean {
-		return this._sessions.has(sessionId);
+	hasSession(session: URI): boolean {
+		return this._sessions.has(AgentSession.id(session));
 	}
 }

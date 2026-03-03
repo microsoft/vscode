@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const enum AgentHostIpcChannels {
@@ -16,7 +17,7 @@ export const enum AgentHostIpcChannels {
 // ---- IPC data types (serializable across MessagePort) -----------------------
 
 export interface IAgentSessionMetadata {
-	readonly sessionId: string;
+	readonly session: URI;
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
@@ -27,7 +28,7 @@ export type AgentProvider = 'copilot' | 'claude';
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: string;
-	readonly sessionId?: string;
+	readonly session?: URI;
 }
 
 /** Serializable model information from the agent host. */
@@ -46,7 +47,7 @@ export interface IAgentModelInfo {
 // ---- Progress events (discriminated union by `type`) ------------------------
 
 interface IAgentProgressEventBase {
-	readonly sessionId: string;
+	readonly session: URI;
 }
 
 /** Streaming text delta from the assistant (`assistant.message_delta`). */
@@ -134,6 +135,37 @@ export type IAgentProgressEvent =
 	| IAgentToolStartEvent
 	| IAgentToolCompleteEvent;
 
+// ---- Session URI helpers ----------------------------------------------------
+
+export namespace AgentSession {
+
+	/**
+	 * Creates a session URI from a provider name and raw session ID.
+	 * The URI scheme is the provider name (e.g., `copilot:/<rawId>`).
+	 */
+	export function uri(provider: AgentProvider, rawSessionId: string): URI {
+		return URI.from({ scheme: provider, path: `/${rawSessionId}` });
+	}
+
+	/**
+	 * Extracts the raw session ID from a session URI (the path without leading slash).
+	 */
+	export function id(session: URI): string {
+		return session.path.substring(1);
+	}
+
+	/**
+	 * Extracts the provider name from a session URI scheme.
+	 */
+	export function provider(session: URI): AgentProvider | undefined {
+		const scheme = session.scheme;
+		if (scheme === 'copilot' || scheme === 'claude') {
+			return scheme;
+		}
+		return undefined;
+	}
+}
+
 // ---- Agent provider interface -----------------------------------------------
 
 /**
@@ -148,17 +180,17 @@ export interface IAgent {
 	/** Fires when the provider streams progress for a session. */
 	readonly onDidSessionProgress: Event<IAgentProgressEvent>;
 
-	/** Create a new session. Returns the session ID. */
-	createSession(config?: IAgentCreateSessionConfig): Promise<string>;
+	/** Create a new session. Returns the session URI. */
+	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
 	/** Send a user message into an existing session. */
-	sendMessage(sessionId: string, prompt: string): Promise<void>;
+	sendMessage(session: URI, prompt: string): Promise<void>;
 
 	/** Retrieve all session events/messages for reconstruction. */
-	getSessionMessages(sessionId: string): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
+	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
 
 	/** Dispose a session, freeing resources. */
-	disposeSession(sessionId: string): Promise<void>;
+	disposeSession(session: URI): Promise<void>;
 
 	/** List available models from this provider. */
 	listModels(): Promise<IAgentModelInfo[]>;
@@ -199,17 +231,17 @@ export interface IAgentService {
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
-	/** Create a new Copilot SDK session. Returns the session ID. */
-	createSession(config?: IAgentCreateSessionConfig): Promise<string>;
+	/** Create a new session. Returns the session URI. */
+	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
 	/** Send a user message into an existing session. */
-	sendMessage(sessionId: string, prompt: string): Promise<void>;
+	sendMessage(session: URI, prompt: string): Promise<void>;
 
 	/** Retrieve all session events/messages for reconstruction, including tool invocations. */
-	getSessionMessages(sessionId: string): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
+	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
 
 	/** Dispose a session in the agent host, freeing SDK resources. */
-	disposeSession(sessionId: string): Promise<void>;
+	disposeSession(session: URI): Promise<void>;
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;

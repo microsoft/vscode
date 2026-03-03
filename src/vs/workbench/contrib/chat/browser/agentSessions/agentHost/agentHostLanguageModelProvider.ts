@@ -5,20 +5,22 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentHostService } from '../../../../../../platform/agent/common/agentService.js';
 import { ILanguageModelChatProvider, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { AGENT_HOST_MODEL_VENDOR } from './agentHostConstants.js';
 
-export class AgentHostLanguageModelProvider implements ILanguageModelChatProvider {
-	private readonly _onDidChange = new Emitter<void>();
+export class AgentHostLanguageModelProvider extends Disposable implements ILanguageModelChatProvider {
+	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		private readonly _agentHostService: IAgentHostService,
 		private readonly _logService: ILogService,
 	) {
+		super();
 	}
 
 	refresh(): void {
@@ -63,9 +65,5 @@ export class AgentHostLanguageModelProvider implements ILanguageModelChatProvide
 
 	async provideTokenCount(): Promise<number> {
 		return 0;
-	}
-
-	dispose(): void {
-		this._onDidChange.dispose();
 	}
 }

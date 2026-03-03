@@ -11,7 +11,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { IAgentHostService, IAgentMessageEvent, IAgentProgressEvent, IAgentSessionMetadata } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentHostService, IAgentMessageEvent, IAgentProgressEvent, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -22,7 +22,7 @@ import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { AgentHostChatContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { CopilotAgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -37,7 +37,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	private readonly _sessionMessages = new Map<string, IAgentMessageEvent[]>();
-	public sendMessageCalls: { sessionId: string; prompt: string }[] = [];
+	public sendMessageCalls: { session: URI; prompt: string }[] = [];
 
 	override async setAuthToken(_token: string): Promise<void> { }
 
@@ -45,21 +45,22 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return [...this._sessions.values()];
 	}
 
-	override async createSession(): Promise<string> {
+	override async createSession(): Promise<URI> {
 		const id = `sdk-session-${this._nextId++}`;
-		this._sessions.set(id, { sessionId: id, startTime: Date.now(), modifiedTime: Date.now() });
-		return id;
+		const session = AgentSession.uri('copilot', id);
+		this._sessions.set(id, { session, startTime: Date.now(), modifiedTime: Date.now() });
+		return session;
 	}
 
-	override async sendMessage(sessionId: string, prompt: string): Promise<void> {
-		this.sendMessageCalls.push({ sessionId, prompt });
+	override async sendMessage(session: URI, prompt: string): Promise<void> {
+		this.sendMessageCalls.push({ session, prompt });
 	}
 
-	override async getSessionMessages(sessionId: string): Promise<IAgentMessageEvent[]> {
-		return this._sessionMessages.get(sessionId) ?? [];
+	override async getSessionMessages(session: URI): Promise<IAgentMessageEvent[]> {
+		return this._sessionMessages.get(AgentSession.id(session)) ?? [];
 	}
 
-	override async disposeSession(_sessionId: string): Promise<void> { }
+	override async disposeSession(_session: URI): Promise<void> { }
 	override async shutdown(): Promise<void> { }
 	override async restartAgentHost(): Promise<void> { }
 
@@ -73,7 +74,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	addSession(meta: IAgentSessionMetadata): void {
-		this._sessions.set(meta.sessionId, meta);
+		this._sessions.set(AgentSession.id(meta.session), meta);
 	}
 
 	dispose(): void {
@@ -126,8 +127,14 @@ function createContribution(disposables: DisposableStore) {
 	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController));
-	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, { provider: 'copilot' as const }));
-	const contribution = disposables.add(instantiationService.createInstance(AgentHostChatContribution));
+	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+		provider: 'copilot' as const,
+		agentId: 'agent-host',
+		sessionType: 'agent-host',
+		fullName: 'Agent Host - Copilot',
+		description: 'Copilot SDK agent running in a dedicated process',
+	}));
+	const contribution = disposables.add(instantiationService.createInstance(CopilotAgentHostContribution));
 
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService };
 }
@@ -176,8 +183,8 @@ suite('AgentHostChatContribution', () => {
 		test('refresh populates items from agent host', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 
-			agentHostService.addSession({ sessionId: 'aaa', startTime: 1000, modifiedTime: 2000, summary: 'My session' });
-			agentHostService.addSession({ sessionId: 'bbb', startTime: 3000, modifiedTime: 4000 });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'aaa'), startTime: 1000, modifiedTime: 2000, summary: 'My session' });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'bbb'), startTime: 3000, modifiedTime: 4000 });
 
 			await listController.refresh(CancellationToken.None);
 
@@ -194,7 +201,7 @@ suite('AgentHostChatContribution', () => {
 			let fired = false;
 			disposables.add(listController.onDidChangeChatSessionItems(() => { fired = true; }));
 
-			agentHostService.addSession({ sessionId: 'x', startTime: 1000, modifiedTime: 2000 });
+			agentHostService.addSession({ session: AgentSession.uri('copilot', 'x'), startTime: 1000, modifiedTime: 2000 });
 			await listController.refresh(CancellationToken.None);
 
 			assert.ok(fired);
@@ -221,9 +228,9 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 
 			const origSend = agentHostService.sendMessage.bind(agentHostService);
-			agentHostService.sendMessage = async (sessionId: string, prompt: string) => {
-				await origSend(sessionId, prompt);
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI, prompt: string) => {
+				await origSend(session, prompt);
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -233,7 +240,7 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
 			assert.strictEqual(agentHostService.sendMessageCalls[0].prompt, 'Hello');
-			assert.ok(agentHostService.sendMessageCalls[0].sessionId.startsWith('sdk-session-'));
+			assert.ok(AgentSession.id(agentHostService.sendMessageCalls[0].session).startsWith('sdk-session-'));
 		});
 
 		test('reuses SDK session for same resource on second message', async () => {
@@ -242,9 +249,9 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const resource = URI.from({ scheme: 'untitled', path: '/chat-reuse' });
 
-			agentHostService.sendMessage = async (sessionId: string, prompt: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI, prompt: string) => {
+				agentHostService.sendMessageCalls.push({ session, prompt });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -258,7 +265,7 @@ suite('AgentHostChatContribution', () => {
 			);
 
 			assert.strictEqual(agentHostService.sendMessageCalls.length, 2);
-			assert.strictEqual(agentHostService.sendMessageCalls[0].sessionId, agentHostService.sendMessageCalls[1].sessionId);
+			assert.strictEqual(agentHostService.sendMessageCalls[0].session.toString(), agentHostService.sendMessageCalls[1].session.toString());
 		});
 
 		test('uses sessionId from agent-host scheme resource', async () => {
@@ -267,9 +274,9 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const resource = URI.from({ scheme: 'agent-host', path: '/existing-session-42' });
 
-			agentHostService.sendMessage = async (sessionId: string, prompt: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI, prompt: string) => {
+				agentHostService.sendMessageCalls.push({ session, prompt });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -277,7 +284,7 @@ suite('AgentHostChatContribution', () => {
 				() => { }, [], CancellationToken.None,
 			);
 
-			assert.strictEqual(agentHostService.sendMessageCalls[0].sessionId, 'existing-session-42');
+			assert.strictEqual(AgentSession.id(agentHostService.sendMessageCalls[0].session), 'existing-session-42');
 		});
 
 		test('agent-host scheme with untitled path creates new session via mapping', async () => {
@@ -286,9 +293,9 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const resource = URI.from({ scheme: 'agent-host', path: '/untitled-abc123' });
 
-			agentHostService.sendMessage = async (sessionId: string, prompt: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI, prompt: string) => {
+				agentHostService.sendMessageCalls.push({ session, prompt });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -297,7 +304,7 @@ suite('AgentHostChatContribution', () => {
 			);
 
 			// Should create a new SDK session, not use "untitled-abc123" literally
-			assert.ok(agentHostService.sendMessageCalls[0].sessionId.startsWith('sdk-session-'));
+			assert.ok(AgentSession.id(agentHostService.sendMessageCalls[0].session).startsWith('sdk-session-'));
 		});
 	});
 
@@ -311,11 +318,11 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
-				agentHostService.fireProgress({ sessionId, type: 'delta', messageId: 'msg-1', content: 'hello ' });
-				agentHostService.fireProgress({ sessionId, type: 'delta', messageId: 'msg-1', content: 'world' });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'hello ' });
+				agentHostService.fireProgress({ session, type: 'delta', messageId: 'msg-1', content: 'world' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -337,10 +344,10 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
-				agentHostService.fireProgress({ sessionId, type: 'tool_start', toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file' });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File', invocationMessage: 'Reading file' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -359,11 +366,11 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
-				agentHostService.fireProgress({ sessionId, type: 'tool_start', toolCallId: 'tc-2', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
-				agentHostService.fireProgress({ sessionId, type: 'tool_complete', toolCallId: 'tc-2', success: true, pastTenseMessage: 'Ran Bash command' });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-2', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
+				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-2', success: true, pastTenseMessage: 'Ran Bash command' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -385,11 +392,11 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
-				agentHostService.fireProgress({ sessionId, type: 'tool_start', toolCallId: 'tc-3', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
-				agentHostService.fireProgress({ sessionId, type: 'tool_complete', toolCallId: 'tc-3', success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found', error: { message: 'command not found' } });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-3', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
+				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-3', success: false, pastTenseMessage: '"Bash" failed', toolOutput: 'command not found', error: { message: 'command not found' } });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -410,10 +417,10 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
-				agentHostService.fireProgress({ sessionId, type: 'tool_start', toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', toolArguments: '{not valid json' });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command', toolArguments: '{not valid json' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -432,11 +439,11 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
 				// tool_start without tool_complete
-				agentHostService.fireProgress({ sessionId, type: 'tool_start', toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -457,11 +464,11 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
-				agentHostService.fireProgress({ sessionId: 'other-session', type: 'delta', messageId: 'msg-x', content: 'wrong' });
-				agentHostService.fireProgress({ sessionId, type: 'delta', messageId: 'msg-y', content: 'right' });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({ session: AgentSession.uri('copilot', 'other-session'), type: 'delta', messageId: 'msg-x', content: 'wrong' });
+				agentHostService.fireProgress({ session, type: 'delta', messageId: 'msg-y', content: 'right' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(
@@ -486,8 +493,8 @@ suite('AgentHostChatContribution', () => {
 			const cts = new CancellationTokenSource();
 			disposables.add(cts);
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
 				cts.cancel();
 			};
 
@@ -507,9 +514,9 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(cts);
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
-				agentHostService.fireProgress({ sessionId, type: 'tool_start', toolCallId: 'tc-cancel', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({ session, type: 'tool_start', toolCallId: 'tc-cancel', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running Bash command' });
 				cts.cancel();
 			};
 
@@ -534,8 +541,8 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			agentHostService.setSessionMessages('sess-1', [
-				{ sessionId: 'sess-1', type: 'message', messageId: 'msg-u1', content: 'What is 2+2?', role: 'user' },
-				{ sessionId: 'sess-1', type: 'message', messageId: 'msg-a1', content: '4', role: 'assistant' },
+				{ session: AgentSession.uri('copilot', 'sess-1'), type: 'message', messageId: 'msg-u1', content: 'What is 2+2?', role: 'user' },
+				{ session: AgentSession.uri('copilot', 'sess-1'), type: 'message', messageId: 'msg-a1', content: '4', role: 'assistant' },
 			]);
 
 			const sessionResource = URI.from({ scheme: 'agent-host', path: '/sess-1' });
@@ -578,16 +585,16 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
 				agentHostService.fireProgress({
-					sessionId, type: 'tool_start', toolCallId: 'tc-shell', toolName: 'bash',
+					session, type: 'tool_start', toolCallId: 'tc-shell', toolName: 'bash',
 					displayName: 'Bash', invocationMessage: 'Running `echo hello`',
 					toolInput: 'echo hello', toolKind: 'terminal',
 					toolArguments: JSON.stringify({ command: 'echo hello' }),
 				});
-				agentHostService.fireProgress({ sessionId, type: 'tool_complete', toolCallId: 'tc-shell', success: true, pastTenseMessage: 'Ran `echo hello`', toolOutput: 'hello\n', result: { content: 'hello\n' } });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-shell', success: true, pastTenseMessage: 'Ran `echo hello`', toolOutput: 'hello\n', result: { content: 'hello\n' } });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);
@@ -621,20 +628,20 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
 				agentHostService.fireProgress({
-					sessionId, type: 'tool_start', toolCallId: 'tc-fail', toolName: 'bash',
+					session, type: 'tool_start', toolCallId: 'tc-fail', toolName: 'bash',
 					displayName: 'Bash', invocationMessage: 'Running `bad_cmd`',
 					toolInput: 'bad_cmd', toolKind: 'terminal',
 					toolArguments: JSON.stringify({ command: 'bad_cmd' }),
 				});
 				agentHostService.fireProgress({
-					sessionId, type: 'tool_complete', toolCallId: 'tc-fail', success: false,
+					session, type: 'tool_complete', toolCallId: 'tc-fail', success: false,
 					pastTenseMessage: '"Bash" failed', toolOutput: 'command not found: bad_cmd',
 					error: { message: 'command not found: bad_cmd' },
 				});
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);
@@ -658,15 +665,15 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
 				agentHostService.fireProgress({
-					sessionId, type: 'tool_start', toolCallId: 'tc-gen', toolName: 'custom_tool',
+					session, type: 'tool_start', toolCallId: 'tc-gen', toolName: 'custom_tool',
 					displayName: 'custom_tool', invocationMessage: 'Using "custom_tool"',
 					toolArguments: JSON.stringify({ input: 'data' }),
 				});
-				agentHostService.fireProgress({ sessionId, type: 'tool_complete', toolCallId: 'tc-gen', success: true, pastTenseMessage: 'Used "custom_tool"' });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-gen', success: true, pastTenseMessage: 'Used "custom_tool"' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);
@@ -689,15 +696,15 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
 				agentHostService.fireProgress({
-					sessionId, type: 'tool_start', toolCallId: 'tc-noargs', toolName: 'bash',
+					session, type: 'tool_start', toolCallId: 'tc-noargs', toolName: 'bash',
 					displayName: 'Bash', invocationMessage: 'Running Bash command',
 					toolKind: 'terminal',
 				});
-				agentHostService.fireProgress({ sessionId, type: 'tool_complete', toolCallId: 'tc-noargs', success: true, pastTenseMessage: 'Ran Bash command' });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-noargs', success: true, pastTenseMessage: 'Ran Bash command' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);
@@ -720,15 +727,15 @@ suite('AgentHostChatContribution', () => {
 			const agent = chatAgentService.registeredAgents.get('agent-host')!;
 			const collected: IChatProgress[][] = [];
 
-			agentHostService.sendMessage = async (sessionId: string) => {
-				agentHostService.sendMessageCalls.push({ sessionId, prompt: '' });
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
 				agentHostService.fireProgress({
-					sessionId, type: 'tool_start', toolCallId: 'tc-view', toolName: 'view',
+					session, type: 'tool_start', toolCallId: 'tc-view', toolName: 'view',
 					displayName: 'View File', invocationMessage: 'Reading /tmp/test.txt',
 					toolArguments: JSON.stringify({ file_path: '/tmp/test.txt' }),
 				});
-				agentHostService.fireProgress({ sessionId, type: 'tool_complete', toolCallId: 'tc-view', success: true, pastTenseMessage: 'Read /tmp/test.txt' });
-				agentHostService.fireProgress({ sessionId, type: 'idle' });
+				agentHostService.fireProgress({ session, type: 'tool_complete', toolCallId: 'tc-view', success: true, pastTenseMessage: 'Read /tmp/test.txt' });
+				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
 			await agent.impl.invoke(makeRequest(), (parts) => collected.push(parts), [], CancellationToken.None);

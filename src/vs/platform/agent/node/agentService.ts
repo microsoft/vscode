@@ -5,8 +5,9 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentService, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent } from '../common/agentService.js';
+import { AgentProvider, IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentService, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession } from '../common/agentService.js';
 
 /**
  * The agent service implementation that runs inside the agent-host utility
@@ -21,7 +22,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
-	/** Maps each active session ID to its owning provider. */
+	/** Maps each active session URI (toString) to its owning provider. */
 	private readonly _sessionToProvider = new Map<string, AgentProvider>();
 	/** Subscriptions to provider progress events; cleared when providers change. */
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
@@ -77,36 +78,36 @@ export class AgentService extends Disposable implements IAgentService {
 		return results.flat();
 	}
 
-	async createSession(config?: IAgentCreateSessionConfig): Promise<string> {
+	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const providerId = config?.provider ?? this._defaultProvider;
 		const provider = providerId ? this._providers.get(providerId) : undefined;
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
 		this._logService.info(`Creating session via provider=${provider.id} ${config?.model ? `model=${config.model}` : ''}`);
-		const sessionId = await provider.createSession(config);
-		this._sessionToProvider.set(sessionId, provider.id);
-		return sessionId;
+		const session = await provider.createSession(config);
+		this._sessionToProvider.set(session.toString(), provider.id);
+		return session;
 	}
 
-	async sendMessage(sessionId: string, prompt: string): Promise<void> {
-		const provider = this._getProviderForSession(sessionId);
-		await provider.sendMessage(sessionId, prompt);
+	async sendMessage(session: URI, prompt: string): Promise<void> {
+		const provider = this._getProviderForSession(session);
+		await provider.sendMessage(session, prompt);
 	}
 
-	async getSessionMessages(sessionId: string): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
-		const provider = this._findProviderForSession(sessionId);
+	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+		const provider = this._findProviderForSession(session);
 		if (!provider) {
 			return [];
 		}
-		return provider.getSessionMessages(sessionId);
+		return provider.getSessionMessages(session);
 	}
 
-	async disposeSession(sessionId: string): Promise<void> {
-		const provider = this._findProviderForSession(sessionId);
+	async disposeSession(session: URI): Promise<void> {
+		const provider = this._findProviderForSession(session);
 		if (provider) {
-			await provider.disposeSession(sessionId);
-			this._sessionToProvider.delete(sessionId);
+			await provider.disposeSession(session);
+			this._sessionToProvider.delete(session.toString());
 		}
 	}
 
@@ -122,18 +123,23 @@ export class AgentService extends Disposable implements IAgentService {
 
 	// ---- helpers ------------------------------------------------------------
 
-	private _getProviderForSession(sessionId: string): IAgent {
-		const provider = this._findProviderForSession(sessionId);
+	private _getProviderForSession(session: URI): IAgent {
+		const provider = this._findProviderForSession(session);
 		if (!provider) {
-			throw new Error(`No provider found for session: ${sessionId}`);
+			throw new Error(`No provider found for session: ${session.toString()}`);
 		}
 		return provider;
 	}
 
-	private _findProviderForSession(sessionId: string): IAgent | undefined {
-		const providerId = this._sessionToProvider.get(sessionId);
+	private _findProviderForSession(session: URI): IAgent | undefined {
+		const providerId = this._sessionToProvider.get(session.toString());
 		if (providerId) {
 			return this._providers.get(providerId);
+		}
+		// Try to infer from URI scheme
+		const schemeProvider = AgentSession.provider(session);
+		if (schemeProvider) {
+			return this._providers.get(schemeProvider);
 		}
 		// Fallback: try the default provider (handles resumed sessions not yet tracked)
 		if (this._defaultProvider) {

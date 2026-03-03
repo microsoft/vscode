@@ -6,8 +6,9 @@
 import { CopilotClient, CopilotSession, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent } from '../../common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession } from '../../common/agentService.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool } from './copilotToolDisplay.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 
@@ -87,7 +88,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const client = await this._ensureClient();
 		const sessions = await client.listSessions();
 		const result = sessions.map(s => ({
-			sessionId: s.sessionId,
+			session: AgentSession.uri(this.id, s.sessionId),
 			startTime: s.startTime.getTime(),
 			modifiedTime: s.modifiedTime.getTime(),
 			summary: s.summary,
@@ -115,21 +116,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
-	async createSession(config?: IAgentCreateSessionConfig): Promise<string> {
+	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		this._logService.info(`[Copilot] Creating session... ${config?.model ? `model=${config.model}` : ''}`);
 		const client = await this._ensureClient();
 		const raw = await client.createSession({
 			model: config?.model,
-			sessionId: config?.sessionId,
+			sessionId: config?.session ? AgentSession.id(config.session) : undefined,
 			streaming: true,
 		});
 
 		const wrapper = this._trackSession(raw);
-		this._logService.info(`[Copilot] Session created: ${wrapper.sessionId}`);
-		return wrapper.sessionId;
+		const session = AgentSession.uri(this.id, wrapper.sessionId);
+		this._logService.info(`[Copilot] Session created: ${session.toString()}`);
+		return session;
 	}
 
-	async sendMessage(sessionId: string, prompt: string): Promise<void> {
+	async sendMessage(session: URI, prompt: string): Promise<void> {
+		const sessionId = AgentSession.id(session);
 		this._logService.info(`[Copilot:${sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}"`);
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId);
 		this._logService.info(`[Copilot:${sessionId}] Found session wrapper, calling session.send()...`);
@@ -137,17 +140,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot:${sessionId}] session.send() returned`);
 	}
 
-	async getSessionMessages(sessionId: string): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+		const sessionId = AgentSession.id(session);
 		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(() => undefined);
 		if (!entry) {
 			return [];
 		}
 
 		const events = await entry.session.getMessages();
-		return this._mapSessionEvents(sessionId, events);
+		return this._mapSessionEvents(session, events);
 	}
 
-	async disposeSession(sessionId: string): Promise<void> {
+	async disposeSession(session: URI): Promise<void> {
+		const sessionId = AgentSession.id(session);
 		this._sessions.deleteAndDispose(sessionId);
 		this._clearToolCallsForSession(sessionId);
 	}
@@ -163,8 +168,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * Returns true if this provider owns the given session ID.
 	 */
-	hasSession(sessionId: string): boolean {
-		return this._sessions.has(sessionId);
+	hasSession(session: URI): boolean {
+		return this._sessions.has(AgentSession.id(session));
 	}
 
 	// ---- helpers ------------------------------------------------------------
@@ -180,12 +185,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _trackSession(raw: CopilotSession, sessionIdOverride?: string): CopilotSessionWrapper {
 		const wrapper = new CopilotSessionWrapper(raw);
-		const sessionId = sessionIdOverride ?? wrapper.sessionId;
+		const rawId = sessionIdOverride ?? wrapper.sessionId;
+		const session = AgentSession.uri(this.id, rawId);
 
 		wrapper.onMessageDelta(e => {
-			this._logService.trace(`[Copilot:${sessionId}] delta: ${e.data.deltaContent}`);
+			this._logService.trace(`[Copilot:${rawId}] delta: ${e.data.deltaContent}`);
 			this._onDidSessionProgress.fire({
-				sessionId,
+				session,
 				type: 'delta',
 				messageId: e.data.messageId,
 				content: e.data.deltaContent,
@@ -195,9 +201,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 
 		wrapper.onMessage(e => {
-			this._logService.info(`[Copilot:${sessionId}] Full message received: ${e.data.content.length} chars`);
+			this._logService.info(`[Copilot:${rawId}] Full message received: ${e.data.content.length} chars`);
 			this._onDidSessionProgress.fire({
-				sessionId,
+				session,
 				type: 'message',
 				role: 'assistant',
 				messageId: e.data.messageId,
@@ -217,21 +223,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		wrapper.onToolStart(e => {
 			if (isHiddenTool(e.data.toolName)) {
-				this._logService.trace(`[Copilot:${sessionId}] Tool started (hidden): ${e.data.toolName}`);
+				this._logService.trace(`[Copilot:${rawId}] Tool started (hidden): ${e.data.toolName}`);
 				return;
 			}
-			this._logService.info(`[Copilot:${sessionId}] Tool started: ${e.data.toolName}`);
+			this._logService.info(`[Copilot:${rawId}] Tool started: ${e.data.toolName}`);
 			const toolArgs = e.data.arguments !== undefined ? tryStringify(e.data.arguments) : undefined;
 			let parameters: Record<string, unknown> | undefined;
 			if (toolArgs) {
 				try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
-			const trackingKey = `${sessionId}:${e.data.toolCallId}`;
+			const trackingKey = `${rawId}:${e.data.toolCallId}`;
 			this._activeToolCalls.set(trackingKey, { toolName: e.data.toolName, displayName, parameters });
 			const toolKind = getToolKind(e.data.toolName);
 			this._onDidSessionProgress.fire({
-				sessionId,
+				session,
 				type: 'tool_start',
 				toolCallId: e.data.toolCallId,
 				toolName: e.data.toolName,
@@ -248,17 +254,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 
 		wrapper.onToolComplete(e => {
-			const trackingKey = `${sessionId}:${e.data.toolCallId}`;
+			const trackingKey = `${rawId}:${e.data.toolCallId}`;
 			const tracked = this._activeToolCalls.get(trackingKey);
 			if (!tracked) {
 				return;
 			}
-			this._logService.info(`[Copilot:${sessionId}] Tool completed: ${e.data.toolCallId}`);
+			this._logService.info(`[Copilot:${rawId}] Tool completed: ${e.data.toolCallId}`);
 			this._activeToolCalls.delete(trackingKey);
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
 			this._onDidSessionProgress.fire({
-				sessionId,
+				session,
 				type: 'tool_complete',
 				toolCallId: e.data.toolCallId,
 				success: e.data.success,
@@ -273,13 +279,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 
 		wrapper.onIdle(() => {
-			this._logService.info(`[Copilot:${sessionId}] Session idle`);
-			this._onDidSessionProgress.fire({ sessionId, type: 'idle' });
+			this._logService.info(`[Copilot:${rawId}] Session idle`);
+			this._onDidSessionProgress.fire({ session, type: 'idle' });
 		});
 
-		this._subscribeForLogging(wrapper, sessionId);
+		this._subscribeForLogging(wrapper, rawId);
 
-		this._sessions.set(sessionId, wrapper);
+		this._sessions.set(rawId, wrapper);
 		return wrapper;
 	}
 
@@ -420,7 +426,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._trackSession(raw, sessionId);
 	}
 
-	private _mapSessionEvents(sessionId: string, events: readonly SessionEvent[]): (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] {
+	private _mapSessionEvents(session: URI, events: readonly SessionEvent[]): (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] {
 		const result: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
 		const toolInfoByCallId = new Map<string, { toolName: string; parameters: Record<string, unknown> | undefined }>();
 
@@ -428,7 +434,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (e.type === 'assistant.message' || e.type === 'user.message') {
 				const d = (e as SessionEventPayload<'assistant.message'>).data;
 				result.push({
-					sessionId,
+					session,
 					type: 'message',
 					role: e.type === 'user.message' ? 'user' : 'assistant',
 					messageId: d?.messageId ?? '',
@@ -458,7 +464,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const displayName = getToolDisplayName(d.toolName);
 				const toolKind = getToolKind(d.toolName);
 				result.push({
-					sessionId,
+					session,
 					type: 'tool_start',
 					toolCallId: d.toolCallId,
 					toolName: d.toolName,
@@ -481,7 +487,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				toolInfoByCallId.delete(d.toolCallId);
 				const displayName = getToolDisplayName(info.toolName);
 				result.push({
-					sessionId,
+					session,
 					type: 'tool_complete',
 					toolCallId: d.toolCallId,
 					success: d.success,

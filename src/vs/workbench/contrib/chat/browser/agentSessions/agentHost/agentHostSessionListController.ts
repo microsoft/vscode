@@ -8,7 +8,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { IAgentHostService } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentHostService, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController } from '../../../common/chatSessionsService.js';
 import { AGENT_HOST_SESSION_TYPE } from './agentHostConstants.js';
 import { getAgentHostIcon } from '../agentSessions.js';
@@ -34,9 +34,10 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	async refresh(_token: CancellationToken): Promise<void> {
 		try {
 			const sessions = await this._agentHostService.listSessions();
+			const rawId = (s: typeof sessions[0]) => AgentSession.id(s.session);
 			this._items = sessions.map(s => ({
-				resource: URI.from({ scheme: AGENT_HOST_SESSION_TYPE, path: `/${s.sessionId}` }),
-				label: s.summary ?? `Session ${s.sessionId.substring(0, 8)}`,
+				resource: URI.from({ scheme: AGENT_HOST_SESSION_TYPE, path: `/${rawId(s)}` }),
+				label: s.summary ?? `Session ${rawId(s).substring(0, 8)}`,
 				iconPath: getAgentHostIcon(this._productService),
 				status: ChatSessionStatus.Completed,
 				timing: {

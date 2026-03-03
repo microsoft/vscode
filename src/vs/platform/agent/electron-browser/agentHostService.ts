@@ -6,6 +6,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { URI } from '../../../base/common/uri.js';
 import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
 import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js';
@@ -56,7 +57,10 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		const client = store.add(new MessagePortClient(port, `agentHost:window`));
 		this._clientEventually.complete(client);
 
-		store.add(this._proxy.onDidSessionProgress(e => this._onDidSessionProgress.fire(e)));
+		store.add(this._proxy.onDidSessionProgress(e => {
+			// Events from ProxyChannel don't auto-revive nested URIs -- revive the session URI
+			this._onDidSessionProgress.fire({ ...e, session: URI.revive(e.session) });
+		}));
 		this._logService.info('[AgentHost:renderer] Direct MessagePort connection established');
 		this._onAgentHostStart.fire();
 	}
@@ -72,17 +76,17 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	listSessions(): Promise<IAgentSessionMetadata[]> {
 		return this._proxy.listSessions();
 	}
-	createSession(config?: IAgentCreateSessionConfig): Promise<string> {
+	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		return this._proxy.createSession(config);
 	}
-	sendMessage(sessionId: string, prompt: string): Promise<void> {
-		return this._proxy.sendMessage(sessionId, prompt);
+	sendMessage(session: URI, prompt: string): Promise<void> {
+		return this._proxy.sendMessage(session, prompt);
 	}
-	getSessionMessages(sessionId: string): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
-		return this._proxy.getSessionMessages(sessionId);
+	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+		return this._proxy.getSessionMessages(session);
 	}
-	disposeSession(sessionId: string): Promise<void> {
-		return this._proxy.disposeSession(sessionId);
+	disposeSession(session: URI): Promise<void> {
+		return this._proxy.disposeSession(session);
 	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();

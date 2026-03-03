@@ -7,6 +7,7 @@ import type { Options, Query, SDKAssistantMessage, SDKMessage, SDKResultMessage,
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import {
 	IAgentDeltaEvent,
@@ -15,6 +16,7 @@ import {
 	IAgentProgressEvent,
 	IAgentToolCompleteEvent,
 	IAgentToolStartEvent,
+	AgentSession,
 } from '../../common/agentService.js';
 import {
 	getClaudeInvocationMessage,
@@ -59,6 +61,8 @@ export class ClaudeSession extends Disposable {
 	private readonly _onProgress = this._register(new Emitter<IAgentProgressEvent>());
 	readonly onProgress = this._onProgress.event;
 
+	private readonly _session: URI;
+
 	constructor(
 		readonly sessionId: string,
 		private readonly _model: string | undefined,
@@ -66,6 +70,8 @@ export class ClaudeSession extends Disposable {
 		private readonly _logService: ILogService,
 	) {
 		super();
+
+		this._session = AgentSession.uri('claude', this.sessionId);
 
 		this._disposables.add(toDisposable(() => {
 			this._abortController.abort();
@@ -217,7 +223,7 @@ export class ClaudeSession extends Disposable {
 			const fullText = textParts.join('');
 			// Emit as a message event
 			this._onProgress.fire({
-				sessionId: this.sessionId,
+				session: this._session,
 				type: 'message',
 				role: 'assistant',
 				messageId: message.uuid,
@@ -226,7 +232,7 @@ export class ClaudeSession extends Disposable {
 
 			// Also emit as a delta for streaming display
 			this._onProgress.fire({
-				sessionId: this.sessionId,
+				session: this._session,
 				type: 'delta',
 				messageId: message.uuid,
 				content: fullText,
@@ -251,7 +257,7 @@ export class ClaudeSession extends Disposable {
 		const toolKind = getClaudeToolKind(toolName);
 
 		this._onProgress.fire({
-			sessionId: this.sessionId,
+			session: this._session,
 			type: 'tool_start',
 			toolCallId,
 			toolName,
@@ -270,7 +276,7 @@ export class ClaudeSession extends Disposable {
 		// Complete any pending tool calls
 		for (const [toolCallId, tracked] of this._activeToolCalls) {
 			this._onProgress.fire({
-				sessionId: this.sessionId,
+				session: this._session,
 				type: 'tool_complete',
 				toolCallId,
 				success: true,
@@ -281,7 +287,7 @@ export class ClaudeSession extends Disposable {
 
 		// Emit idle event
 		this._onProgress.fire({
-			sessionId: this.sessionId,
+			session: this._session,
 			type: 'idle',
 		} satisfies IAgentIdleEvent);
 
