@@ -556,7 +556,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		if (targetElement.title !== '') {
 			console.warn('HTML element already has a title attribute, which will conflict with the custom hover. Please remove the title attribute.');
-			console.trace('Stack trace:', targetElement.title);
+			// console.trace('Stack trace:', targetElement.title);
 			targetElement.title = '';
 		}
 

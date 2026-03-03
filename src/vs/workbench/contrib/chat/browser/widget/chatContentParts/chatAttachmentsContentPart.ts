@@ -14,6 +14,7 @@ import { ResourceLabels } from '../../../../../browser/labels.js';
 import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isTerminalVariableEntry, isWorkspaceVariableEntry, OmittedState } from '../../../common/attachments/chatVariableEntries.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../../common/chatService/chatService.js';
 import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, SCMHistoryItemChangeRangeAttachmentWidget, TerminalCommandAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../../attachments/chatAttachmentWidgets.js';
+import { IChatAttachmentWidgetRegistry } from '../../attachments/chatAttachmentWidgetRegistry.js';
 
 export interface IChatAttachmentsContentPartOptions {
 	readonly variables: readonly IChatRequestVariableEntry[];
@@ -39,6 +40,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	constructor(
 		options: IChatAttachmentsContentPartOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatAttachmentWidgetRegistry private readonly chatAttachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
 	) {
 		super();
 		this._variables = options.variables;
@@ -167,7 +169,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 			// skip workspace attachments
 			return;
 		} else {
-			widget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container)
+				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
 		}
 
 		let ariaLabel: string | null = null;
@@ -180,7 +183,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 			ariaLabel = `${ariaLabel}${description ? ` ${description}` : ''}`;
 			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
 				// eslint-disable-next-line no-restricted-syntax
-				const element = widget.label.element.querySelector(selector);
+				const element = widget.label?.element.querySelector(selector);
 				if (element) {
 					element.classList.add('warning');
 				}

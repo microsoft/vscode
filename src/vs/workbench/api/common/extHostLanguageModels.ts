@@ -258,7 +258,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return modelMetadataAndIdentifier;
 	}
 
-	async $startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
+	async $startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier | undefined, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<void> {
 		const knownModel = this._localModels.get(modelId);
 		if (!knownModel) {
 			throw new Error('Model not found');
@@ -319,7 +319,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			value = data.provider.provideLanguageModelChatResponse(
 				knownModel.info,
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-				{ ...options, modelOptions: options.modelOptions ?? {}, requestInitiator: ExtensionIdentifier.toKey(from), toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto },
+				// todo@connor4312: move `core` -> `undefined` after 1.111 Insiders is out
+				{ ...options, modelOptions: options.modelOptions ?? {}, requestInitiator: from ? ExtensionIdentifier.toKey(from) : 'core', toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto },
 				progress,
 				token
 			);
@@ -363,7 +364,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		for (const [modelIdentifier, modelData] of this._localModels) {
-			if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat]) {
+			if (modelData.metadata.isDefaultForLocation[ChatAgentLocation.Chat] && !modelData.metadata.targetChatSessionType) {
 				defaultModelId = modelIdentifier;
 				break;
 			}

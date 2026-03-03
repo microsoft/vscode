@@ -7,8 +7,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
+import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
 import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
@@ -106,6 +106,8 @@ class RefItem implements QuickPickItem {
 				return `refs/remotes/${this.ref.name}`;
 			case RefType.Tag:
 				return `refs/tags/${this.ref.name}`;
+			default:
+				throw new Error('Unknown ref type');
 		}
 	}
 	get refName(): string | undefined { return this.ref.name; }
@@ -1028,8 +1030,8 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string, options?: { ref?: string }): Promise<void> {
-		await this.cloneManager.clone(url, { parentPath, ...options });
+	async clone(url?: string, parentPath?: string, options?: { ref?: string; postCloneAction?: 'none' }): Promise<string | undefined> {
+		return this.cloneManager.clone(url, { parentPath, ...options });
 	}
 
 	@command('git.cloneRecursive')
@@ -2940,48 +2942,6 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private async generateRandomBranchName(repository: Repository, separator: string): Promise<string> {
-		const config = workspace.getConfiguration('git');
-		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary')!;
-
-		const dictionaries: string[][] = [];
-		for (const dictionary of branchRandomNameDictionary) {
-			if (dictionary.toLowerCase() === 'adjectives') {
-				dictionaries.push(adjectives);
-			}
-			if (dictionary.toLowerCase() === 'animals') {
-				dictionaries.push(animals);
-			}
-			if (dictionary.toLowerCase() === 'colors') {
-				dictionaries.push(colors);
-			}
-			if (dictionary.toLowerCase() === 'numbers') {
-				dictionaries.push(NumberDictionary.generate({ length: 3 }));
-			}
-		}
-
-		if (dictionaries.length === 0) {
-			return '';
-		}
-
-		// 5 attempts to generate a random branch name
-		for (let index = 0; index < 5; index++) {
-			const randomName = uniqueNamesGenerator({
-				dictionaries,
-				length: dictionaries.length,
-				separator
-			});
-
-			// Check for local ref conflict
-			const refs = await repository.getRefs({ pattern: `refs/heads/${randomName}` });
-			if (refs.length === 0) {
-				return randomName;
-			}
-		}
-
-		return '';
-	}
-
 	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
@@ -2995,8 +2955,7 @@ export class CommandCenter {
 		}
 
 		const getBranchName = async (): Promise<string> => {
-			const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
-			return `${branchPrefix}${branchName}`;
+			return await repository.generateRandomBranchName() ?? branchPrefix;
 		};
 
 		const getValueSelection = (value: string): [number, number] | undefined => {
@@ -5413,6 +5372,97 @@ export class CommandCenter {
 		}
 
 		await repository.deleteWorktree(artifact.id);
+	}
+
+	@command('git.repositories.worktreeCopyBranchName', { repository: true })
+	async artifactWorktreeCopyBranchName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const worktrees = await repository.getWorktreeDetails();
+		const worktree = worktrees.find(w => w.path === artifact.id);
+		if (!worktree || worktree.detached) {
+			return;
+		}
+
+		env.clipboard.writeText(worktree.ref.substring(11));
+	}
+
+	@command('git.repositories.worktreeCopyCommitHash', { repository: true })
+	async artifactWorktreeCopyCommitHash(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const worktrees = await repository.getWorktreeDetails();
+		const worktree = worktrees.find(w => w.path === artifact.id);
+		if (!worktree?.commitDetails) {
+			return;
+		}
+
+		env.clipboard.writeText(worktree.commitDetails.hash);
+	}
+
+	@command('git.repositories.worktreeCopyPath', { repository: true })
+	async artifactWorktreeCopyPath(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.id);
+	}
+
+	@command('git.repositories.copyCommitHash', { repository: true })
+	async artifactCopyCommitHash(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		const commit = await repository.getCommit(artifact.id);
+		env.clipboard.writeText(commit.hash);
+	}
+
+	@command('git.repositories.copyBranchName', { repository: true })
+	async artifactCopyBranchName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
+	@command('git.repositories.copyTagName', { repository: true })
+	async artifactCopyTagName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
+	@command('git.repositories.copyStashName', { repository: true })
+	async artifactCopyStashName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		env.clipboard.writeText(artifact.name);
+	}
+
+	@command('git.repositories.stashCopyBranchName', { repository: true })
+	async artifactStashCopyBranchName(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact?.description) {
+			return;
+		}
+
+		const stashes = await repository.getStashes();
+		const stash = stashes.find(s => artifact.id === `stash@{${s.index}}`);
+		if (!stash?.branchName) {
+			return;
+		}
+
+		env.clipboard.writeText(stash.branchName);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

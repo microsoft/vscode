@@ -61,16 +61,16 @@ export class PluginMcpDiscovery extends Disposable implements IMcpDiscovery {
 		const collectionId = `plugin.${plugin.uri}`;
 		return this._mcpRegistry.registerCollection({
 			id: collectionId,
-			label: `${basename(plugin.uri)}/.mcp.json`,
+			label: `${basename(plugin.uri)} (Agent Plugin)`,
 			remoteAuthority: plugin.uri.scheme === Schemas.vscodeRemote ? plugin.uri.authority : null,
 			configTarget: ConfigurationTarget.USER,
 			scope: StorageScope.PROFILE,
-			trustBehavior: McpServerTrust.Kind.TrustedOnNonce,
+			trustBehavior: McpServerTrust.Kind.Trusted,
 			serverDefinitions: plugin.mcpServerDefinitions.map(defs =>
 				defs.map(d => this._toServerDefinition(collectionId, d)).filter(isDefined)),
 			presentation: {
 				origin: plugin.uri,
-				order: McpCollectionSortOrder.Filesystem + 1,
+				order: McpCollectionSortOrder.Plugin,
 			},
 		});
 	}

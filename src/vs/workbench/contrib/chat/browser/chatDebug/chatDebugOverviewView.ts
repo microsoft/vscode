@@ -141,9 +141,12 @@ export class ChatDebugOverviewView extends Disposable {
 		// Session details section
 		this.renderSessionDetails(this.currentSessionResource);
 
-		// Derived overview metrics
+		// Derived overview metrics — show shimmer only on the very first load
+		// AND when there are no events yet. If events were already streamed
+		// (e.g. while viewing logs), render them immediately so the shimmer
+		// doesn't get stuck forever waiting for an event that already fired.
 		const events = this.chatDebugService.getEvents(this.currentSessionResource);
-		this.renderDerivedOverview(events, this.isFirstLoad);
+		this.renderDerivedOverview(events, this.isFirstLoad && events.length === 0);
 		this.isFirstLoad = false;
 	}
 

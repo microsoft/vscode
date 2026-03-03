@@ -10,6 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugGenericEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../common/chatDebugServiceImpl.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { PromptsDebugContribution } from '../../browser/promptsDebugContribution.js';
 import { IPromptDiscoveryLogEntry, IPromptDiscoveryInfo, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -38,7 +39,7 @@ suite('PromptsDebugContribution', () => {
 		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
 
 		promptsOnDidLogDiscovery.fire({
-			sessionId: 'session-1',
+			sessionResource: LocalChatSessionUri.forSession('session-1'),
 			name: 'Load Instructions',
 			details: 'Resolved 3 instructions in 12.5ms',
 			category: 'discovery',
@@ -76,7 +77,7 @@ suite('PromptsDebugContribution', () => {
 		};
 
 		promptsOnDidLogDiscovery.fire({
-			sessionId: 'session-1',
+			sessionResource: LocalChatSessionUri.forSession('session-1'),
 			name: 'Discovery End',
 			details: '1 loaded, 0 skipped',
 			category: 'discovery',
@@ -114,7 +115,7 @@ suite('PromptsDebugContribution', () => {
 		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
 
 		promptsOnDidLogDiscovery.fire({
-			sessionId: 'session-1',
+			sessionResource: LocalChatSessionUri.forSession('session-1'),
 			name: 'Discovery Start',
 			category: 'discovery',
 		});
@@ -149,7 +150,7 @@ suite('PromptsDebugContribution', () => {
 		};
 
 		promptsOnDidLogDiscovery.fire({
-			sessionId: 'session-1',
+			sessionResource: LocalChatSessionUri.forSession('session-1'),
 			name: 'Discovery End',
 			discoveryInfo,
 		});
@@ -172,7 +173,7 @@ suite('PromptsDebugContribution', () => {
 		disposables.add(chatDebugService.onDidAddEvent(e => firedEvents.push(e)));
 
 		promptsOnDidLogDiscovery.fire({
-			sessionId: 'session-1',
+			sessionResource: LocalChatSessionUri.forSession('session-1'),
 			name: 'Test',
 		});
 

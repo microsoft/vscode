@@ -15,12 +15,23 @@ import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { getWordAtText } from '../../../../editor/common/core/wordHelper.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { inputPlaceholderForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { localize } from '../../../../nls.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../workbench/contrib/chat/common/widget/chatColors.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+
+/**
+ * Static command ID used by completion items to trigger immediate slash command execution,
+ * mirroring the pattern of core's `ChatSubmitAction` for `executeImmediately` commands.
+ */
+export const SESSIONS_EXECUTE_SLASH_COMMAND_ID = 'sessions.chat.executeSlashCommand';
+
+CommandsRegistry.registerCommand(SESSIONS_EXECUTE_SLASH_COMMAND_ID, (_, handler: SlashCommandHandler, slashCommandStr: string) => {
+	handler.tryExecuteSlashCommand(slashCommandStr);
+	handler.clearInput();
+});
 
 /**
  * Minimal slash command descriptor for the sessions new-chat widget.
@@ -58,6 +69,10 @@ export class SlashCommandHandler extends Disposable {
 		this._registerSlashCommands();
 		this._registerCompletions();
 		this._registerDecorations();
+	}
+
+	clearInput(): void {
+		this._editor.getModel()?.setValue('');
 	}
 
 	/**
@@ -118,20 +133,6 @@ export class SlashCommandHandler extends Disposable {
 			sortText: 'z3_hooks',
 			executeImmediately: true,
 			execute: openSection(AICustomizationManagementSection.Hooks),
-		});
-		this._slashCommands.push({
-			command: 'mcp',
-			detail: localize('slashCommand.mcp', "View and manage MCP servers"),
-			sortText: 'z3_mcp',
-			executeImmediately: true,
-			execute: openSection(AICustomizationManagementSection.McpServers),
-		});
-		this._slashCommands.push({
-			command: 'models',
-			detail: localize('slashCommand.models', "View and manage models"),
-			sortText: 'z3_models',
-			executeImmediately: true,
-			execute: openSection(AICustomizationManagementSection.Models),
 		});
 	}
 
@@ -226,11 +227,12 @@ export class SlashCommandHandler extends Disposable {
 						const withSlash = `/${c.command}`;
 						return {
 							label: withSlash,
-							insertText: `${withSlash} `,
+							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
 							range,
 							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text,
+							command: c.executeImmediately ? { id: SESSIONS_EXECUTE_SLASH_COMMAND_ID, title: withSlash, arguments: [this, withSlash] } : undefined,
 						};
 					})
 				};

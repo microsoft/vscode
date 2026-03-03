@@ -48,12 +48,12 @@ import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { LocalChatSessionUri } from '../model/chatUri.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
+import { ChatRequestHooks } from '../promptSyntax/hookSchema.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -141,10 +141,6 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	waitForModelDisposals(): Promise<void> {
 		return this._sessionModels.waitForModelDisposals();
-	}
-
-	public get edits2Enabled(): boolean {
-		return this.configurationService.getValue(ChatConfiguration.Edits2Enabled);
 	}
 
 	private get isEmptyWindow(): boolean {
@@ -951,10 +947,10 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedCommand: IChatAgentCommand | undefined;
 
 			// Collect hooks from hook .json files
-			let collectedHooks: IChatRequestHooks | undefined;
+			let collectedHooks: ChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
 			try {
-				const hooksInfo = await this.promptsService.getHooks(token, model.sessionId);
+				const hooksInfo = await this.promptsService.getHooks(token, model.sessionResource);
 				if (hooksInfo) {
 					collectedHooks = hooksInfo.hooks;
 					hasDisabledClaudeHooks = hooksInfo.hasDisabledClaudeHooks;
@@ -1434,18 +1430,21 @@ export class ChatService extends Disposable implements IChatService {
 		request.response?.complete();
 	}
 
-	cancelCurrentRequestForSession(sessionResource: URI): void {
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void {
 		this.trace('cancelCurrentRequestForSession', `session: ${sessionResource}`);
 		const pendingRequest = this._pendingRequests.get(sessionResource);
 		if (!pendingRequest) {
 			const model = this._sessionModels.get(sessionResource);
 			const requestInProgress = model?.requestInProgress.get();
 			const pendingRequestsCount = model?.getPendingRequests().length ?? 0;
+			const lastRequest = model?.lastRequest;
 			this.telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
-				source: 'chatService',
+				source: source ?? 'chatService',
 				reason: 'noPendingRequest',
 				requestInProgress: requestInProgress === undefined ? 'unknown' : requestInProgress ? 'true' : 'false',
 				pendingRequests: pendingRequestsCount,
+				sessionScheme: sessionResource.scheme,
+				lastRequestId: lastRequest?.id,
 			});
 			this.info('cancelCurrentRequestForSession', `No pending request was found for session ${sessionResource}. requestInProgress=${requestInProgress ?? 'unknown'}, pendingRequests=${pendingRequestsCount}`);
 			return;
@@ -1453,7 +1452,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		pendingRequest.cancel();
 		this._pendingRequests.deleteAndDispose(sessionResource);
-		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: 'cancelRequest' });
+		this.telemetryService.publicLog2<ChatPendingRequestChangeEvent, ChatPendingRequestChangeClassification>(ChatPendingRequestChangeEventName, { action: 'remove', source: source ?? 'cancelRequest' });
 	}
 
 	setYieldRequested(sessionResource: URI): void {

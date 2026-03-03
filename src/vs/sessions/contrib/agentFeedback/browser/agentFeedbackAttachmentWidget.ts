@@ -73,6 +73,6 @@ export class AgentFeedbackAttachmentWidget extends Disposable {
 		this.element.ariaLabel = localize('chat.agentFeedback', "Attached agent feedback, {0}", this._attachment.name);
 
 		// Custom interactive hover
-		this._store.add(this._instantiationService.createInstance(AgentFeedbackHover, this.element, this._attachment));
+		this._store.add(this._instantiationService.createInstance(AgentFeedbackHover, this.element, this._attachment, options.supportsDeletion));
 	}
 }

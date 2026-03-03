@@ -7,7 +7,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatDebugResolvedEventContent, IChatDebugService } from '../common/chatDebugService.js';
-import { LocalChatSessionUri } from '../common/model/chatUri.js';
 import { IPromptDiscoveryInfo, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 
 /**
@@ -53,7 +52,7 @@ export class PromptsDebugContribution extends Disposable implements IWorkbenchCo
 			}
 
 			chatDebugService.log(
-				LocalChatSessionUri.forSession(entry.sessionId),
+				entry.sessionResource,
 				entry.name,
 				entry.details,
 				undefined,

@@ -295,6 +295,7 @@
 	pointer-events: none;
 	z-index: 10;
 	position: absolute;
+	box-shadow: var(--vscode-shadow-sm);
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-list {

@@ -28,7 +28,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 
 		const askQuestionsTool = this._register(instantiationService.createInstance(AskQuestionsTool));
 		this._register(toolsService.registerTool(AskQuestionsToolData, askQuestionsTool));
-		this._register(toolsService.agentToolSet.addTool(AskQuestionsToolData));
+		this._register(toolsService.vscodeToolSet.addTool(AskQuestionsToolData));
 
 		const todoToolData = createManageTodoListToolData();
 		const manageTodoListTool = this._register(instantiationService.createInstance(ManageTodoListTool));
