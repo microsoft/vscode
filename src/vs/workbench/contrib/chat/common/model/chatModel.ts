@@ -1446,7 +1446,17 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	confirmation?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	modelId?: string;
-	modeInfo?: IChatRequestModeInfo;
+	modeInfo?: ISerializableModeInfo;
+}
+
+/**
+ * Reduced shape of {@link IChatRequestModeInfo} for serialization.
+ * Only persists fields needed for UI decisions, avoiding large modeInstructions content.
+ */
+export interface ISerializableModeInfo {
+	modeId: IChatRequestModeInfo['modeId'];
+	kind: ChatModeKind | undefined;
+	isBuiltin: boolean;
 }
 
 export interface ISerializableMarkdownInfo {
@@ -2298,7 +2308,13 @@ export class ChatModel extends Disposable implements IChatModel {
 			confirmation: raw.confirmation,
 			editedFileEvents: raw.editedFileEvents,
 			modelId: raw.modelId,
-			modeInfo: raw.modeInfo,
+			modeInfo: raw.modeInfo ? {
+				modeId: raw.modeInfo.modeId,
+				kind: raw.modeInfo.kind,
+				isBuiltin: raw.modeInfo.isBuiltin,
+				modeInstructions: undefined,
+				applyCodeBlockSuggestionId: undefined,
+			} : undefined,
 		});
 		request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
@@ -2641,7 +2657,11 @@ export class ChatModel extends Disposable implements IChatModel {
 					confirmation: r.confirmation,
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
-					modeInfo: r.modeInfo,
+					modeInfo: r.modeInfo ? {
+						modeId: r.modeInfo.modeId,
+						kind: r.modeInfo.kind,
+						isBuiltin: r.modeInfo.isBuiltin,
+					} : undefined,
 					...r.response?.toJSON(),
 				};
 			}),
