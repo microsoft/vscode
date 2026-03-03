@@ -207,7 +207,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		return this.getBuiltinModes().find(mode => mode.name.get() === name) ?? this.getCustomModes().find(mode => mode.name.get() === name);
+		return this.getBuiltinModes().find(mode => mode.name.get() === name) ?? Array.from(this._customModeInstances.values()).find(mode => mode.name.get() === name);
 	}
 
 	private getBuiltinModes(): IChatMode[] {
