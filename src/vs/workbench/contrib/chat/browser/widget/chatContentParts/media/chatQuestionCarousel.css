@@ -31,6 +31,9 @@
 .interactive-session .interactive-input-part > .chat-question-carousel-widget-container {
 	width: 100%;
 	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
 }
 
 /* container and header */

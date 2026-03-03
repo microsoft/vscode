@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffsetImpl.js';
-import { Target } from './service/promptsService.js';
+import { Target } from './promptTypes.js';
 
 export class PromptFileParser {
 	constructor() {
@@ -335,7 +335,7 @@ export class PromptHeader {
 	/**
 	 * Gets the raw 'hooks' attribute value from the header.
 	 * Returns the YAML map value if present, or undefined. The caller is
-	 * responsible for converting this to `IChatRequestHooks` via
+	 * responsible for converting this to `ChatRequestHooks` via
 	 * {@link parseSubagentHooksFromYaml}.
 	 */
 	public get hooksRaw(): IMapValue | undefined {

@@ -4,24 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { HookType, IChatRequestHooks, IHookCommand, toHookType, resolveHookCommand } from './hookSchema.js';
+import { toHookType, resolveHookCommand, IHookCommand, ChatRequestHooks } from './hookSchema.js';
+import { HOOKS_BY_TARGET, HookType } from './hookTypes.js';
+import { Target } from './promptTypes.js';
 import { IMapValue, IValue } from './promptFileParser.js';
-
-/**
- * Maps Claude hook type names to our abstract HookType.
- * Claude uses PascalCase and slightly different names.
- * @see https://docs.anthropic.com/en/docs/claude-code/hooks
- */
-export const CLAUDE_HOOK_TYPE_MAP: Record<string, HookType> = {
-	'SessionStart': HookType.SessionStart,
-	'UserPromptSubmit': HookType.UserPromptSubmit,
-	'PreToolUse': HookType.PreToolUse,
-	'PostToolUse': HookType.PostToolUse,
-	'PreCompact': HookType.PreCompact,
-	'SubagentStart': HookType.SubagentStart,
-	'SubagentStop': HookType.SubagentStop,
-	'Stop': HookType.Stop,
-};
 
 /**
  * Cached inverse mapping from HookType to Claude hook type name.
@@ -32,7 +18,7 @@ let _hookTypeToClaudeName: Map<HookType, string> | undefined;
 function getHookTypeToClaudeNameMap(): Map<HookType, string> {
 	if (!_hookTypeToClaudeName) {
 		_hookTypeToClaudeName = new Map();
-		for (const [claudeName, hookType] of Object.entries(CLAUDE_HOOK_TYPE_MAP)) {
+		for (const [claudeName, hookType] of Object.entries(HOOKS_BY_TARGET[Target.Claude])) {
 			_hookTypeToClaudeName.set(hookType, claudeName);
 		}
 	}
@@ -43,7 +29,7 @@ function getHookTypeToClaudeNameMap(): Map<HookType, string> {
  * Resolves a Claude hook type name to our abstract HookType.
  */
 export function resolveClaudeHookType(name: string): HookType | undefined {
-	return CLAUDE_HOOK_TYPE_MAP[name];
+	return HOOKS_BY_TARGET[Target.Claude][name];
 }
 
 /**
@@ -251,13 +237,13 @@ function yamlValueToPlain(value: IValue): unknown {
  * @param hooksMap The raw YAML map value from the `hooks` frontmatter attribute.
  * @param workspaceRootUri Workspace root for resolving relative `cwd` paths.
  * @param userHome User home directory path for tilde expansion.
- * @returns Resolved hooks organized by hook type, ready for use in {@link IChatRequestHooks}.
+ * @returns Resolved hooks organized by hook type, ready for use in {@link ChatRequestHooks}.
  */
 export function parseSubagentHooksFromYaml(
 	hooksMap: IMapValue,
 	workspaceRootUri: URI | undefined,
 	userHome: string,
-): IChatRequestHooks {
+): ChatRequestHooks {
 	const result: Record<string, IHookCommand[]> = {};
 
 	for (const prop of hooksMap.properties) {
@@ -293,5 +279,5 @@ export function parseSubagentHooksFromYaml(
 		}
 	}
 
-	return result as IChatRequestHooks;
+	return result as ChatRequestHooks;
 }
