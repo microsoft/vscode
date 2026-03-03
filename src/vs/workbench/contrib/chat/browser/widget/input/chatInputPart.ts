@@ -1917,7 +1917,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.refreshChatSessionPickers();
 			this.tryUpdateWidgetController();
 			this.updateContextUsageWidget();
-			if (this._questionCarouselSessionResources.size > 0 && (!e.currentSessionResource || ![...this._questionCarouselSessionResources.values()].some(r => isEqual(r, e.currentSessionResource)))) {
+			let hasMatchingResource = false;
+			if (e.currentSessionResource) {
+				for (const r of this._questionCarouselSessionResources.values()) {
+					if (isEqual(r, e.currentSessionResource)) {
+						hasMatchingResource = true;
+						break;
+					}
+				}
+			}
+			if (this._questionCarouselSessionResources.size > 0 && (!e.currentSessionResource || !hasMatchingResource)) {
 				this.clearQuestionCarousel();
 			}
 
