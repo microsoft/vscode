@@ -904,6 +904,13 @@ export class McpServer extends Disposable implements IMcpServer {
 			tool.name = tool.name.replace(toolInvalidCharRe, '_');
 		}
 
+		// Per MCP spec, properties is optional. But JSON Schema Draft 7 requires
+		// it for object types. Normalize the schema to include an empty properties
+		// object if not present. https://github.com/microsoft/vscode/issues/251723
+		if (tool.inputSchema && !tool.inputSchema.properties) {
+			tool.inputSchema = { ...tool.inputSchema, properties: {} };
+		}
+
 		type JsonDiagnostic = { message: string; range: { line: number; character: number }[] };
 
 		let diagnostics: JsonDiagnostic[] = [];
