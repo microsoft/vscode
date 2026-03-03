@@ -68,7 +68,7 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "test-lm-vendor",
+        "vendor": "copilot",
         "displayName": "Test LM Vendor"
       }
     ],
