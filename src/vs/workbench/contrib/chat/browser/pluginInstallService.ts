@@ -5,6 +5,7 @@
 
 import { CancelablePromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -153,7 +154,7 @@ export class PluginInstallService implements IPluginInstallService {
 			return;
 		}
 
-		const success = await this._runTerminalCommand(
+		const { success, terminal } = await this._runTerminalCommand(
 			command,
 			localize('installingNpmPlugin', "Installing npm plugin '{0}'...", plugin.name),
 		);
@@ -171,6 +172,7 @@ export class PluginInstallService implements IPluginInstallService {
 			return;
 		}
 
+		terminal?.dispose();
 		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
 	}
 
@@ -190,7 +192,7 @@ export class PluginInstallService implements IPluginInstallService {
 			return;
 		}
 
-		const success = await this._runTerminalCommand(
+		const { success, terminal } = await this._runTerminalCommand(
 			command,
 			localize('installingPipPlugin', "Installing pip plugin '{0}'...", plugin.name),
 		);
@@ -208,6 +210,7 @@ export class PluginInstallService implements IPluginInstallService {
 			return;
 		}
 
+		terminal?.dispose();
 		this._pluginMarketplaceService.addInstalledPlugin(pluginDir, plugin);
 	}
 
@@ -223,7 +226,8 @@ export class PluginInstallService implements IPluginInstallService {
 		return confirmed;
 	}
 
-	private async _runTerminalCommand(command: string, progressTitle: string): Promise<boolean> {
+	private async _runTerminalCommand(command: string, progressTitle: string) {
+		let terminal: ITerminalInstance | undefined;
 		try {
 			await this._progressService.withProgress(
 				{
@@ -232,9 +236,17 @@ export class PluginInstallService implements IPluginInstallService {
 					cancellable: false,
 				},
 				async () => {
-					const terminal = await this._terminalService.createTerminal({
-						config: { name: localize('pluginInstallTerminal', "Plugin Install") },
+					terminal = await this._terminalService.createTerminal({
+						config: {
+							name: localize('pluginInstallTerminal', "Plugin Install"),
+							forceShellIntegration: true,
+							isTransient: true,
+							isFeatureTerminal: true,
+						},
 					});
+
+					await terminal.processReady;
+					this._terminalService.setActiveInstance(terminal);
 
 					const commandResultPromise = this._waitForTerminalCommandCompletion(terminal);
 					await terminal.runCommand(command, true);
@@ -244,14 +256,14 @@ export class PluginInstallService implements IPluginInstallService {
 					}
 				}
 			);
-			return true;
+			return { success: true, terminal };
 		} catch (err) {
 			this._logService.error('[PluginInstallService] Terminal command failed:', err);
 			this._notificationService.notify({
 				severity: Severity.Error,
 				message: localize('terminalCommandFailed', "Plugin installation command failed: {0}", err?.message ?? String(err)),
 			});
-			return false;
+			return { success: false, terminal };
 		}
 	}
 
@@ -296,10 +308,16 @@ export class PluginInstallService implements IPluginInstallService {
 	}
 
 	private _formatShellCommand(args: readonly string[]): string {
-		return args.map(arg => this._shellEscapeArg(arg)).join(' ');
+		const [command, ...rest] = args;
+		return [command, ...rest.map(arg => this._shellEscapeArg(arg))].join(' ');
 	}
 
 	private _shellEscapeArg(value: string): string {
+		if (isWindows) {
+			// PowerShell: use double quotes, escape backticks, dollar signs, and double quotes
+			return `"${value.replace(/[`$"]/g, '`$&')}"`;
+		}
+		// POSIX shells: use single quotes, escape by ending quote, adding escaped quote, reopening
 		return `'${value.replace(/'/g, `'\\''`)}'`;
 	}
 }

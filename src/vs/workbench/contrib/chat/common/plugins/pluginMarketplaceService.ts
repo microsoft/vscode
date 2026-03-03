@@ -437,7 +437,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		const current = this.installedPlugins.get();
 		if (current.some(e => isEqual(e.pluginUri, pluginUri))) {
 			// Still update to trigger watchers to re-check, something might have happened that we want to know about
-			this._installedPluginsStore.set([...current ], undefined);
+			this._installedPluginsStore.set([...current], undefined);
 		} else {
 			this._installedPluginsStore.set([...current, { pluginUri, plugin, enabled: true }], undefined);
 		}
