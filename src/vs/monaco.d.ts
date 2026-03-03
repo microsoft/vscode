@@ -6297,14 +6297,6 @@ declare namespace monaco.editor {
 		 */
 		getDecorationsInRange(range: Range): IModelDecoration[] | null;
 		/**
-		 * Get the font size at a given position
-		 * @param position the position for which to fetch the font size
-		 */
-		getFontAtPosition(position: IPosition): {
-			fontFamily: string | undefined;
-			fontSize: number | undefined;
-		} | null;
-		/**
 		 * All decorations added through this call will get the ownerId of this editor.
 		 * @deprecated Use `createDecorationsCollection`
 		 * @see createDecorationsCollection

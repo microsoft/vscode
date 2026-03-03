@@ -24,7 +24,7 @@ import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, 
 import { InjectedText } from '../common/modelLineProjectionData.js';
 import { TextModelEditSource } from '../common/textModelEditSource.js';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from '../common/textModelEvents.js';
-import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
+import { IEditorWhitespace, IFont, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { IEditorConstructionOptions } from './config/editorConfiguration.js';
 import { IClipboardCopyEvent, IClipboardPasteEvent } from './controller/editContext/clipboardUtils.js';
@@ -1063,10 +1063,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getDecorationsInRange(range: Range): IModelDecoration[] | null;
 
 	/**
+	 * @internal
 	 * Get the font size at a given position
 	 * @param position the position for which to fetch the font size
 	 */
-	getFontAtPosition(position: IPosition): { fontFamily: string | undefined; fontSize: number | undefined } | null;
+	getFontAtPosition(position: IPosition): IFont | null;
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
