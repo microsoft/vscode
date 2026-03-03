@@ -192,17 +192,14 @@ export class DocumentSymbolGroupRenderer implements ITreeRenderer<OutlineGroup, 
 export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, FuzzyScore, DocumentSymbolTemplate> {
 
 	readonly templateId: string = DocumentSymbolTemplate.id;
-	readonly languageId: string | null;
 
 	constructor(
 		private _renderMarker: boolean,
 		target: OutlineTarget,
-		languageId: string | null,
+		private readonly _getLanugageId: () => string | null,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
-	) {
-		this.languageId = languageId;
-	}
+	) { }
 
 	renderTemplate(container: HTMLElement): DocumentSymbolTemplate {
 		container.classList.add('outline-element');
@@ -236,7 +233,8 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 			let iconId = `${kindIcon.id}-${levelMap[level - 1]}`;
 
 			// patch: markdown (avoids modifications to the language server)
-			if (this.languageId === 'markdown' && element.symbol.kind === SymbolKind.String) {
+
+			if (this._getLanugageId() === 'markdown' && element.symbol.kind === SymbolKind.String) {
 				iconId = `symbol-header-${levelMap[level - 1]}`;
 			}
 
