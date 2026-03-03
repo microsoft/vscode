@@ -5,6 +5,7 @@
 
 .agent-sessions-viewer {
 
+	position: relative;
 	flex: 1 1 auto;
 	height: 100%;
 	min-height: 0;
@@ -347,6 +348,10 @@
 	}
 
 	.agent-sessions-empty-filter-message {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
 		padding: 8px 12px;
 		font-size: 12px;
 		color: var(--vscode-descriptionForeground);
