@@ -118,6 +118,10 @@ export async function getShellIntegrationInjection(
 			if (!newArgs) {
 				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
+			newArgs = [...newArgs];
+			if (options.isScreenReaderOptimized) {
+				newArgs.unshift('-nologo');
+			}
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { type, newArgs, envMixin };

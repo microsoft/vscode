@@ -176,13 +176,24 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 }
 
 if ($Global:__VSCodeState.IsA11yMode -eq "1") {
-	if (-not (Get-Module -Name PSReadLine)) {
-		$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-		$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
+	# PS 7.5+ may leave a degraded PSReadLine loaded after detecting a screen reader, remove it
+	# first so we can import a version with EnableScreenReaderMode support
+	if (Get-Module -Name PSReadLine) {
+		Remove-Module PSReadLine -Force
+	}
+	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+	$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
+	if (Test-Path $specialPsrlPath) {
 		Import-Module $specialPsrlPath
-		if (Get-Module -Name PSReadLine) {
-			Set-PSReadLineOption -EnableScreenReaderMode
+	}
+	if (-not (Get-Module -Name PSReadLine)) {
+		if (Get-Module -Name PSReadLine -ListAvailable) {
+			Import-Module PSReadLine
 		}
+	}
+	$psrl = Get-Module -Name PSReadLine
+	if ($psrl -and $psrl.ExportedCommands.ContainsKey('Set-PSReadLineOption') -and (Get-Command Set-PSReadLineOption).Parameters.ContainsKey('EnableScreenReaderMode')) {
+		Set-PSReadLineOption -EnableScreenReaderMode
 	}
 }
 
