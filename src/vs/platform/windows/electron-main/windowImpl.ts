@@ -707,7 +707,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none'
 			};
-
 			if ((process as INodeProcess).isEmbeddedApp) {
 				webPreferences.backgroundThrottling = false; // disable for sub-app
 			}
