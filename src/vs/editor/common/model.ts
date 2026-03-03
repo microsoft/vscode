@@ -231,9 +231,9 @@ export interface IModelDecorationOptions {
 	 */
 	fontFamily?: string | null;
 	/**
-	 * Font size
+	 * Font size. This value is a multiplier to the default font size.
 	 */
-	fontSize?: string | null;
+	fontSize?: number | null;
 	/**
 	 * Font weight
 	 */
@@ -307,12 +307,6 @@ export interface IModelDecorationOptions {
 	 * @internal
 	 */
 	affectsFont?: boolean | null;
-
-	/**
-	 * Font size multiplier relative to the editor font size.
-	 * @internal
-	 */
-	fontSizeMultiplier?: number | null;
 
 	/**
 	 * The text direction of the decoration.

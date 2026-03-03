@@ -20,9 +20,7 @@ export class InlineDecoration {
 	constructor(
 		public readonly range: Range,
 		public readonly inlineClassName: string,
-		public readonly type: InlineDecorationType,
-		public readonly fontFamily?: string,
-		public readonly fontSizeMultiplier?: number
+		public readonly type: InlineDecorationType
 	) { }
 }
 
@@ -105,13 +103,7 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
 			if (decorationOptions.inlineClassName) {
-				const inlineDecoration = new InlineDecoration(
-					viewRange,
-					decorationOptions.inlineClassName,
-					decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular,
-					decorationOptions.affectsFont ? (decorationOptions.fontFamily ?? undefined) : undefined,
-					decorationOptions.affectsFont ? (decorationOptions.fontSizeMultiplier ?? undefined) : undefined
-				);
+				const inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
 				const intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {

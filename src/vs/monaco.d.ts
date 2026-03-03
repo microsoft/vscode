@@ -1755,9 +1755,9 @@ declare namespace monaco.editor {
 		 */
 		fontFamily?: string | null;
 		/**
-		 * Font size
+		 * Font size. This value is a multiplier to the default font size.
 		 */
-		fontSize?: string | null;
+		fontSize?: number | null;
 		/**
 		 * Font weight
 		 */
@@ -6300,7 +6300,10 @@ declare namespace monaco.editor {
 		 * Get the font size at a given position
 		 * @param position the position for which to fetch the font size
 		 */
-		getFontSizeAtPosition(position: IPosition): string | null;
+		getFontAtPosition(position: IPosition): {
+			fontFamily: string | undefined;
+			fontSize: number | undefined;
+		} | null;
 		/**
 		 * All decorations added through this call will get the ownerId of this editor.
 		 * @deprecated Use `createDecorationsCollection`

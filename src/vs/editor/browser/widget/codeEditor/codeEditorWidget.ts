@@ -1355,11 +1355,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), filterFontDecorations(options));
 	}
 
-	public getFontSizeAtPosition(position: IPosition): string | null {
+	public getFontAtPosition(position: IPosition): { fontFamily: string | undefined; fontSize: number | undefined } | null {
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.viewModel.getFontSizeAtPosition(position);
+		return this._modelData.viewModel.getFontAtPosition(position);
 	}
 
 	/**

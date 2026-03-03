@@ -15,9 +15,9 @@ import { IEditorConfiguration } from '../../../common/config/editorConfiguration
 import * as strings from '../../../../base/common/strings.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
 import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
-import { InlineDecoration } from '../../../common/viewModel/inlineDecorations.js';
 
 /**
  * The whitespace overlay will visual certain whitespace depending on the
@@ -158,22 +158,20 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 
 		// Pre-compute font metrics for lines with variable fonts
 		let maxAscentMinusDescent = 0;
-		let fontDecorations: InlineDecoration[] | undefined;
-		if (lineData.hasVariableFonts && USE_SVG) {
+		let hasFontDecorations = false;
+		const modelFontDecorations = this._context.viewModel.getFontDecorationsInRange(new Range(lineNumber, 1, lineNumber, len + 1));
+		if (modelFontDecorations.length > 0) {
+			hasFontDecorations = true;
 			const baseFontFamily = this._options.fontFamily;
 			const baseFontSize = this._options.fontSize;
 			const baseMetrics = this._fontMetricsCache.getMetrics(baseFontFamily, baseFontSize);
 			maxAscentMinusDescent = baseMetrics.ascent - baseMetrics.descent;
 
-			fontDecorations = [];
-			for (const dec of lineData.inlineDecorations) {
-				if (dec.fontSizeMultiplier !== undefined || dec.fontFamily !== undefined) {
-					fontDecorations.push(dec);
-					const fontFamily = dec.fontFamily ?? baseFontFamily;
-					const fontSize = dec.fontSizeMultiplier ? baseFontSize * dec.fontSizeMultiplier : baseFontSize;
-					const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
-					maxAscentMinusDescent = Math.max(maxAscentMinusDescent, metrics.ascent - metrics.descent);
-				}
+			for (const dec of modelFontDecorations) {
+				const fontFamily = dec.options.fontFamily ?? baseFontFamily;
+				const fontSize = dec.options.fontSize ?? baseFontSize;
+				const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
+				maxAscentMinusDescent = Math.max(maxAscentMinusDescent, metrics.ascent - metrics.descent);
 			}
 		}
 
@@ -237,10 +235,12 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			}
 
 			let cy: number;
-			if (fontDecorations) {
+			if (hasFontDecorations) {
 				// Variable fonts: cy_f = (H - (A_f - D_f) + max_i(A_i - D_i)) / 2
-				const font = getFontAtColumn(charIndex + 1, fontDecorations, this._options.fontFamily, this._options.fontSize);
-				const metrics = this._fontMetricsCache.getMetrics(font.fontFamily, font.fontSize);
+				const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
+				const fontFamily = fontInfo?.fontFamily ?? this._options.fontFamily;
+				const fontSize = fontInfo?.fontSize ? this._options.fontSize * fontInfo.fontSize : this._options.fontSize;
+				const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
 				cy = (lineHeight - (metrics.ascent - metrics.descent) + maxAscentMinusDescent) / 2;
 			} else {
 				cy = lineHeight / 2;
@@ -274,10 +274,10 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		return result;
 	}
 
-	private _renderArrow(lineHeight: number, spaceWidth: number, left: number, centerY?: number): string {
+	private _renderArrow(lineHeight: number, spaceWidth: number, left: number): string {
 		const strokeWidth = spaceWidth / 7;
 		const width = spaceWidth;
-		const dy = centerY ?? lineHeight / 2;
+		const dy = lineHeight / 2;
 		const dx = left;
 
 		const p1 = { x: 0, y: strokeWidth / 2 };
@@ -368,6 +368,7 @@ interface FontMetrics {
 }
 
 class FontMetricsCache {
+
 	private readonly _cache = new Map<string, FontMetrics>();
 
 	getMetrics(fontFamily: string, fontSize: number): FontMetrics {
@@ -390,30 +391,4 @@ class FontMetricsCache {
 	clear(): void {
 		this._cache.clear();
 	}
-}
-
-/**
- * Returns the font info (fontFamily, fontSize) for a given column on a line,
- * based on the inline decorations that affect font.
- */
-function getFontAtColumn(
-	column: number,
-	inlineDecorations: InlineDecoration[],
-	baseFontFamily: string,
-	baseFontSize: number
-): { fontFamily: string; fontSize: number } {
-	for (const dec of inlineDecorations) {
-		if (dec.fontSizeMultiplier === undefined && dec.fontFamily === undefined) {
-			continue;
-		}
-		const startCol = dec.range.startColumn;
-		const endCol = dec.range.endColumn;
-		if (column >= startCol && column < endCol) {
-			return {
-				fontFamily: dec.fontFamily ?? baseFontFamily,
-				fontSize: dec.fontSizeMultiplier ? baseFontSize * dec.fontSizeMultiplier : baseFontSize
-			};
-		}
-	}
-	return { fontFamily: baseFontFamily, fontSize: baseFontSize };
 }

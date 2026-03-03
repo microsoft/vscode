@@ -14,7 +14,7 @@ import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData,
 import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, TextDirection } from './model.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecoration, IModelDecorationOptions, ITextModel, TextDirection } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
 import { InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from './textModelEvents.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
@@ -51,7 +51,8 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 
-	getFontSizeAtPosition(position: IPosition): string | null;
+	getFontDecorationsInRange(range: Range): IModelDecoration[];
+	getFontAtPosition(position: IPosition): { fontFamily: string | undefined; fontSize: number | undefined } | null;
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getTextDirection(lineNumber: number): TextDirection;
