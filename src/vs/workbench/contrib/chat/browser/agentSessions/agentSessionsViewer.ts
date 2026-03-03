@@ -691,16 +691,31 @@ export interface IAgentSessionsFilter {
 	 * Get the current filter excludes for display in the UI.
 	 */
 	getExcludes(): IAgentSessionsFilterExcludes;
+
+	/**
+	 * Whether the filter is at its default state (no custom filters applied).
+	 */
+	isDefault(): boolean;
+
+	/**
+	 * Reset the filter to its default state.
+	 */
+	reset(): void;
 }
 
-export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
+export class AgentSessionsDataSource extends Disposable implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
 	private static readonly CAPPED_SESSIONS_LIMIT = 3;
+
+	private readonly _onDidGetChildren = this._register(new Emitter<number>());
+	readonly onDidGetChildren: Event<number> = this._onDidGetChildren.event;
 
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
-	) { }
+	) {
+		super();
+	}
 
 	hasChildren(element: IAgentSessionsModel | AgentSessionListItem): boolean {
 
@@ -741,6 +756,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 
 			// Callback results count
 			this.filter?.notifyResults?.(filteredSessions.length);
+			this._onDidGetChildren.fire(filteredSessions.length);
 
 			// Group sessions into sections if enabled
 			if (this.filter?.groupResults?.()) {

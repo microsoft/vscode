@@ -345,4 +345,27 @@
 	.monaco-list:not(:focus) .monaco-list-row.selected .agent-session-section-label {
 		color: var(--vscode-list-inactiveSelectionForeground);
 	}
+
+	.agent-sessions-empty-filter-message {
+		padding: 8px 12px;
+		font-size: 12px;
+		color: var(--vscode-descriptionForeground);
+
+		.reset-filter-link {
+			margin-left: 4px;
+			color: var(--vscode-textLink-foreground);
+			cursor: pointer;
+			text-decoration: none;
+
+			&:hover {
+				text-decoration: underline;
+			}
+
+			&:focus-visible {
+				text-decoration: underline;
+				outline: 1px solid var(--vscode-focusBorder);
+				outline-offset: 1px;
+			}
+		}
+	}
 }
