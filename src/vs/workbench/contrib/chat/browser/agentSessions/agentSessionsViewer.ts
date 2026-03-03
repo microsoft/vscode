@@ -88,6 +88,7 @@ interface IAgentSessionItemTemplate {
 
 export interface IAgentSessionRendererOptions {
 	readonly useSimpleHover?: boolean;
+	readonly showIsolationIcon?: boolean;
 	getHoverPosition(): HoverPosition;
 }
 
@@ -382,8 +383,17 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		};
 
 		// Provider icon (only shown for non-local sessions)
+		// When showIsolationIcon is enabled for background sessions, show worktree/folder icon instead
 		const isLocal = session.element.providerType === AgentSessionProviders.Local;
-		template.statusProviderIcon.className = isLocal ? '' : `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+		if (isLocal) {
+			template.statusProviderIcon.className = '';
+		} else if (this.options.showIsolationIcon && session.element.providerType === AgentSessionProviders.Background) {
+			const hasWorktree = typeof session.element.metadata?.worktreePath === 'string';
+			const isolationIcon = hasWorktree ? Codicon.worktree : Codicon.folder;
+			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(isolationIcon)}`;
+		} else {
+			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+		}
 
 		// Time label
 		template.statusTime.textContent = getTimeLabel(session.element);
