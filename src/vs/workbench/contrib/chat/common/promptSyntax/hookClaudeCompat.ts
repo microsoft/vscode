@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { HookType, IHookCommand, toHookType, resolveHookCommand } from './hookSchema.js';
+import { HookType, IChatRequestHooks, IHookCommand, toHookType, resolveHookCommand } from './hookSchema.js';
+import { IMapValue, IValue } from './promptFileParser.js';
 
 /**
  * Maps Claude hook type names to our abstract HookType.
@@ -202,4 +203,95 @@ function normalizeForResolve(raw: Record<string, unknown>): Record<string, unkno
 		return { ...raw, type: 'command' };
 	}
 	return raw;
+}
+
+/**
+ * Converts an {@link IValue} YAML AST node into a plain JavaScript value
+ * (string, array, or object) suitable for passing to hook parsing helpers.
+ */
+function yamlValueToPlain(value: IValue): unknown {
+	switch (value.type) {
+		case 'scalar':
+			return value.value;
+		case 'sequence':
+			return value.items.map(yamlValueToPlain);
+		case 'map': {
+			const obj: Record<string, unknown> = {};
+			for (const prop of value.properties) {
+				obj[prop.key.value] = yamlValueToPlain(prop.value);
+			}
+			return obj;
+		}
+	}
+}
+
+/**
+ * Parses hooks from a subagent's YAML frontmatter `hooks` attribute.
+ *
+ * Supports two formats for hook entries:
+ *
+ * 1. **Direct command** (our format, without matcher):
+ * ```yaml
+ * hooks:
+ *   PreToolUse:
+ *     - type: command
+ *       command: "./scripts/validate.sh"
+ * ```
+ *
+ * 2. **Nested with matcher** (Claude Code format):
+ * ```yaml
+ * hooks:
+ *   PreToolUse:
+ *     - matcher: "Bash"
+ *       hooks:
+ *         - type: command
+ *           command: "./scripts/validate.sh"
+ * ```
+ *
+ * @param hooksMap The raw YAML map value from the `hooks` frontmatter attribute.
+ * @param workspaceRootUri Workspace root for resolving relative `cwd` paths.
+ * @param userHome User home directory path for tilde expansion.
+ * @returns Resolved hooks organized by hook type, ready for use in {@link IChatRequestHooks}.
+ */
+export function parseSubagentHooksFromYaml(
+	hooksMap: IMapValue,
+	workspaceRootUri: URI | undefined,
+	userHome: string,
+): IChatRequestHooks {
+	const result: Record<string, IHookCommand[]> = {};
+
+	for (const prop of hooksMap.properties) {
+		const hookTypeName = prop.key.value;
+
+		// Resolve hook type name (supports both PascalCase and Claude names)
+		const hookType = resolveClaudeHookType(hookTypeName) ?? toHookType(hookTypeName);
+		if (!hookType) {
+			continue;
+		}
+
+		// The value must be a sequence (array of hook entries)
+		if (prop.value.type !== 'sequence') {
+			continue;
+		}
+
+		const commands: IHookCommand[] = [];
+
+		for (const item of prop.value.items) {
+			// Convert the YAML AST node to a plain object so the existing
+			// extractHookCommandsFromItem helper can handle both direct
+			// commands and nested matcher structures.
+			const plainItem = yamlValueToPlain(item);
+			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome);
+			commands.push(...extracted);
+		}
+
+		if (commands.length > 0) {
+			if (!result[hookType]) {
+				result[hookType] = [];
+			}
+			result[hookType].push(...commands);
+		}
+	}
+
+	return result as IChatRequestHooks;
 }

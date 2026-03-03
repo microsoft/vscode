@@ -759,7 +759,7 @@ function isTrueOrFalse(value: IValue): boolean {
 const allAttributeNames: Record<PromptsType, string[]> = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer, PromptHeaderAttributes.agents, PromptHeaderAttributes.hooks, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation, GithubPromptHeaderAttributes.github],
 	[PromptsType.skill]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.license, PromptHeaderAttributes.compatibility, PromptHeaderAttributes.metadata, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.userInvocable, PromptHeaderAttributes.userInvokable, PromptHeaderAttributes.disableModelInvocation],
 	[PromptsType.hook]: [], // hooks are JSON files, not markdown with YAML frontmatter
 };
@@ -844,6 +844,8 @@ export function getAttributeDescription(attributeName: string, promptType: Promp
 					return localize('promptHeader.agent.infer', 'Controls visibility of the agent.');
 				case PromptHeaderAttributes.agents:
 					return localize('promptHeader.agent.agents', 'One or more agents that this agent can use as subagents. Use \'*\' to specify all available agents.');
+				case PromptHeaderAttributes.hooks:
+					return localize('promptHeader.agent.hooks', 'Lifecycle hooks scoped to this agent. Define hooks that run only while this agent is active.');
 				case PromptHeaderAttributes.userInvocable:
 					return localize('promptHeader.agent.userInvocable', 'Whether the agent can be selected and invoked by users in the UI.');
 				case PromptHeaderAttributes.disableModelInvocation:

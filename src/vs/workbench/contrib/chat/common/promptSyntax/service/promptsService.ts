@@ -233,6 +233,11 @@ export interface ICustomAgent {
 	readonly agents?: readonly string[];
 
 	/**
+	 * Lifecycle hooks scoped to this subagent.
+	 */
+	readonly hooks?: IChatRequestHooks;
+
+	/**
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;

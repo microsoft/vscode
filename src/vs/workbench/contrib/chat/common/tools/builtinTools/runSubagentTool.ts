@@ -23,7 +23,7 @@ import { ILanguageModelsService } from '../../languageModels.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
-import { IChatRequestHooks } from '../../promptSyntax/hookSchema.js';
+import { IChatRequestHooks, mergeHooks } from '../../promptSyntax/hookSchema.js';
 import { ICustomAgent, IPromptsService } from '../../promptSyntax/service/promptsService.js';
 import { isBuiltinAgent } from '../../promptSyntax/utils/promptsServiceUtils.js';
 import {
@@ -258,6 +258,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				collectedHooks = info?.hooks;
 			} catch (error) {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);
+			}
+
+			// Merge subagent-level hooks (from the agent's frontmatter) with global hooks
+			if (subagent?.hooks) {
+				collectedHooks = mergeHooks(collectedHooks, subagent.hooks);
 			}
 
 			// Build the agent request

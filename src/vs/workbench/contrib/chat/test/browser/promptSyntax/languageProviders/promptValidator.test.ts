@@ -551,7 +551,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, model, name, target, tools, user-invocable.` },
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: agents, argument-hint, description, disable-model-invocation, github, handoffs, hooks, model, name, target, tools, user-invocable.` },
 				]
 			);
 		});

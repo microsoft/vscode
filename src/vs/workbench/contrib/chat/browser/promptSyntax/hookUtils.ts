@@ -114,6 +114,52 @@ export function findHookCommandSelection(content: string, hookType: string, inde
 }
 
 /**
+ * Finds the selection range for a hook command string in a YAML/Markdown file
+ * (e.g., an agent `.md` file with YAML frontmatter).
+ *
+ * Searches for the command text within `command:` lines and selects the value.
+ *
+ * @param content The full file content
+ * @param commandText The command string to locate
+ * @returns The selection range, or undefined if not found
+ */
+export function findHookCommandInYaml(content: string, commandText: string): ITextEditorSelection | undefined {
+	// Search for: command: "commandText" or command: 'commandText' or command: commandText
+	const lines = content.split('\n');
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		const idx = line.indexOf(commandText);
+		if (idx !== -1) {
+			// Check this is a command: line (or at least contains the command value)
+			const trimmed = line.trimStart();
+			if (trimmed.startsWith('command:') || trimmed.startsWith('- command:')) {
+				return {
+					startLineNumber: i + 1,
+					startColumn: idx + 1,
+					endLineNumber: i + 1,
+					endColumn: idx + 1 + commandText.length
+				};
+			}
+		}
+	}
+
+	// Fallback: just find the command text anywhere in the file
+	for (let i = 0; i < lines.length; i++) {
+		const idx = lines[i].indexOf(commandText);
+		if (idx !== -1) {
+			return {
+				startLineNumber: i + 1,
+				startColumn: idx + 1,
+				endLineNumber: i + 1,
+				endColumn: idx + 1 + commandText.length
+			};
+		}
+	}
+
+	return undefined;
+}
+
+/**
  * Parsed hook information.
  */
 export interface IParsedHook {
@@ -128,11 +174,15 @@ export interface IParsedHook {
 	originalHookTypeId: string;
 	/** If true, this hook is disabled via `disableAllHooks: true` in its file */
 	disabled?: boolean;
+	/** If set, this hook came from a custom agent's frontmatter */
+	agentName?: string;
 }
 
 export interface IParseAllHookFilesOptions {
 	/** Additional file URIs to parse (e.g., files skipped due to disableAllHooks) */
 	additionalDisabledFileUris?: readonly URI[];
+	/** If true, also collect hooks from custom agent frontmatter */
+	includeAgentHooks?: boolean;
 }
 
 /**
@@ -222,6 +272,41 @@ export async function parseAllHookFiles(
 				}
 			} catch (error) {
 				console.error('Failed to read or parse disabled hook file', uri.toString(), error);
+			}
+		}
+	}
+
+	// Collect hooks from custom agents' frontmatter
+	if (options?.includeAgentHooks) {
+		const agents = await promptsService.getCustomAgents(token);
+		for (const agent of agents) {
+			if (!agent.hooks) {
+				continue;
+			}
+			for (const hookTypeValue of Object.values(HookType)) {
+				const commands = agent.hooks[hookTypeValue];
+				if (!commands || commands.length === 0) {
+					continue;
+				}
+				const hookTypeMeta = HOOK_TYPES.find(h => h.id === hookTypeValue);
+				if (!hookTypeMeta) {
+					continue;
+				}
+				for (let i = 0; i < commands.length; i++) {
+					const command = commands[i];
+					const commandLabel = formatHookCommandLabel(command, os) || nls.localize('commands.hook.emptyCommand', '(empty command)');
+					parsedHooks.push({
+						hookType: hookTypeValue,
+						hookTypeLabel: hookTypeMeta.label,
+						command,
+						commandLabel,
+						fileUri: agent.uri,
+						filePath: labelService.getUriLabel(agent.uri, { relative: true }),
+						index: i,
+						originalHookTypeId: hookTypeValue,
+						agentName: agent.name,
+					});
+				}
 			}
 		}
 	}

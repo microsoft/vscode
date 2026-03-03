@@ -128,6 +128,26 @@ export interface IChatRequestHooks {
 }
 
 /**
+ * Merges two sets of hooks by concatenating the command arrays for each hook type.
+ * Additional hooks are appended after the base hooks.
+ */
+export function mergeHooks(base: IChatRequestHooks | undefined, additional: IChatRequestHooks): IChatRequestHooks {
+	if (!base) {
+		return additional;
+	}
+
+	const result: Record<string, readonly IHookCommand[]> = { ...base };
+	for (const hookType of Object.values(HookType)) {
+		const baseArr = base[hookType];
+		const additionalArr = additional[hookType];
+		if (additionalArr && additionalArr.length > 0) {
+			result[hookType] = baseArr ? [...baseArr, ...additionalArr] : additionalArr;
+		}
+	}
+	return result as IChatRequestHooks;
+}
+
+/**
  * JSON Schema for GitHub Copilot hook configuration files.
  * Hooks enable executing custom shell commands at strategic points in an agent's workflow.
  */
