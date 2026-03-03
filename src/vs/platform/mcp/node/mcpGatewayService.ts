@@ -325,7 +325,7 @@ class McpGatewayRoute extends Disposable {
 			return;
 		}
 
-		this._logger.debug(`[McpGateway][route ${this.gatewayId}] POST body: ${body}`);
+		this._logger.debug(`[McpGateway][route ${this.gatewayId}] Handling POST`);
 
 		let message: JsonRpcMessage | JsonRpcMessage[];
 		try {
