@@ -23,24 +23,6 @@
 
 /* Quick Input (Command Palette) */
 
-.monaco-workbench .quick-input-widget .quick-input-header,
-.monaco-workbench .quick-input-widget .quick-input-list,
-.monaco-workbench .quick-input-widget .quick-input-titlebar,
-.monaco-workbench .quick-input-widget .quick-input-title,
-.monaco-workbench .quick-input-widget .quick-input-description,
-.monaco-workbench .quick-input-widget .quick-input-filter,
-.monaco-workbench .quick-input-widget .quick-input-action,
-.monaco-workbench .quick-input-widget .quick-input-message,
-.monaco-workbench .quick-input-widget .monaco-list,
-.monaco-workbench .quick-input-widget .monaco-list-row:not(:has(.quick-input-list-separator-border)) {
-	border-color: transparent !important;
-	outline: none !important;
-}
-
-.monaco-workbench .quick-input-widget .quick-input-list .monaco-list-rows {
-	background: transparent !important;
-}
-
 .monaco-workbench .quick-input-list .quick-input-list-entry .quick-input-list-separator {
 	height: 16px;
 	margin-top: 2px;
@@ -62,40 +44,6 @@
 	color: inherit !important;
 	border: none !important;
 	padding: 0;
-}
-
-.monaco-workbench .quick-input-widget .monaco-list-rows {
-	background: transparent !important;
-}
-
-.monaco-workbench .quick-input-widget .monaco-inputbox {
-	background: transparent !important;
-}
-
-.monaco-workbench .quick-input-widget .quick-input-filter .monaco-inputbox {
-	background: color-mix(in srgb, var(--vscode-input-background) 60%, transparent) !important;
-}
-
-/* Chat Widget */
-
-.monaco-workbench .part.panel .interactive-session,
-.monaco-workbench .part.auxiliarybar .interactive-session {
-	position: relative;
-}
-
-.monaco-workbench .interactive-session .chat-editing-session .chat-editing-session-container {
-	background-color: transparent !important;
-}
-
-/* Notifications */
-
-.monaco-workbench .notifications-list-container .monaco-list-rows {
-	background: transparent !important;
-}
-
-/* Context Menus */
-.monaco-workbench .action-widget .action-widget-action-bar {
-	background: transparent;
 }
 
 /* Suggest Widget */
