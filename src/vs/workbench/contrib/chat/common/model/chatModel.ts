@@ -2000,7 +2000,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	 */
 	dequeueAllSteeringRequests(): IChatPendingRequest[] {
 		const steeringRequests: IChatPendingRequest[] = [];
-		while (this._pendingRequests.length > 0 && this._pendingRequests[0].kind === ChatRequestQueueKind.Steering) {
+		while (this._pendingRequests.at(0)?.kind === ChatRequestQueueKind.Steering) {
 			steeringRequests.push(this._pendingRequests.shift()!);
 		}
 		if (steeringRequests.length > 0) {

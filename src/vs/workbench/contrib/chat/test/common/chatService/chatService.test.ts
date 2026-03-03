@@ -40,7 +40,7 @@ import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../common/editing/chatEditingService.js';
 import { ChatModel, IChatModel, ISerializableChatData } from '../../../common/model/chatModel.js';
-import { ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, IChatFollowup, IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
@@ -514,18 +514,18 @@ suite('ChatService', () => {
 		const steering1 = await testService.sendRequest(model.sessionResource, 'steering1', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
 		const steering2 = await testService.sendRequest(model.sessionResource, 'steering2', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
 		const steering3 = await testService.sendRequest(model.sessionResource, 'steering3', { agentId: 'slowAgent', queue: ChatRequestQueueKind.Steering });
-		assert.strictEqual(steering1.kind, 'queued');
-		assert.strictEqual(steering2.kind, 'queued');
-		assert.strictEqual(steering3.kind, 'queued');
+		assert.ok(ChatSendResult.isQueued(steering1));
+		assert.ok(ChatSendResult.isQueued(steering2));
+		assert.ok(ChatSendResult.isQueued(steering3));
 
 		// Complete the first request - should trigger processing of combined steering requests
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
 
 		// Wait for all deferred promises to resolve
-		await (steering1 as ChatSendResultQueued).deferred;
-		await (steering2 as ChatSendResultQueued).deferred;
-		await (steering3 as ChatSendResultQueued).deferred;
+		await steering1.deferred;
+		await steering2.deferred;
+		await steering3.deferred;
 
 		// Should have only invoked 2 requests: the initial and the combined steering
 		assert.strictEqual(invokedRequests.length, 2, 'Should have only 2 invocations (initial + combined steering)');

@@ -1286,11 +1286,26 @@ export class ChatService extends Disposable implements IChatService {
 
 		// For multiple steering requests, combine texts and re-parse; otherwise use as-is
 		let parsedRequest: IParsedChatRequest;
-		if (allRequests.length > 1) {
-			const combinedText = allRequests.map(req => req.request.message.text).join('\n\n');
-			parsedRequest = this.parseChatRequest(model.sessionResource, combinedText, location, sendOptions);
-		} else {
-			parsedRequest = firstRequest.request.message;
+		try {
+			if (allRequests.length > 1) {
+				const combinedText = allRequests.map(req => req.request.message.text).join('\n\n');
+				// message.text already includes agent/slash-command prefixes from the
+				// original parse, so clear them to avoid double-prefixing.
+				parsedRequest = this.parseChatRequest(model.sessionResource, combinedText, location, {
+					...sendOptions,
+					agentId: undefined,
+					slashCommand: undefined,
+				});
+			} else {
+				parsedRequest = firstRequest.request.message;
+			}
+		} catch (err) {
+			this.logService.error('processNextPendingRequest: failed to parse combined chat request', err);
+			const reason = toErrorMessage(err);
+			for (const deferred of deferreds) {
+				deferred.complete({ kind: 'rejected', reason });
+			}
+			return;
 		}
 
 		const silentAgent = sendOptions.agentIdSilent ? this.chatAgentService.getAgent(sendOptions.agentIdSilent) : undefined;
