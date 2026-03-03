@@ -1121,6 +1121,12 @@ export class ChatService extends Disposable implements IChatService {
 					if (commandPart.slashCommand.silent !== true) {
 						request = model.addRequest(parsedRequest, { variables: [] }, attempt, options?.modeInfo);
 						completeResponseCreated();
+					} else {
+						// Silent slash commands (e.g. /hooks, /skills) may open UI like
+						// quick picks that await user interaction. Remove the pending
+						// request entry so that the chat input is not blocked while
+						// the command's UI is open.
+						this._pendingRequests.deleteAndDispose(sessionResource);
 					}
 					// contributed slash commands
 					// TODO: spell this out in the UI
