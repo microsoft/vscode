@@ -602,7 +602,7 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 	}
 
 	hasDynamicHeight(element: AgentSessionListItem): boolean {
-		return isAgentSession(element);
+		return !!this._approvalModel && isAgentSession(element);
 	}
 
 	getTemplateId(element: AgentSessionListItem): string {
