@@ -14,8 +14,8 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { showToolsPicker } from '../actions/chatToolPicker.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { IPromptsService, Target } from '../../common/promptSyntax/service/promptsService.js';
+import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { registerEditorFeature } from '../../../../../editor/common/editorFeatures.js';
 import { PromptFileRewriter } from './promptFileRewriter.js';
 import { Range } from '../../../../../editor/common/core/range.js';

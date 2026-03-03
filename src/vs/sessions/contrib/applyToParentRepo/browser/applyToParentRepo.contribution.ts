@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { toAction } from '../../../../base/common/actions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize, localize2 } from '../../../../nls.js';
@@ -11,7 +13,9 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -83,6 +87,8 @@ class ApplyToParentRepoAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const notificationService = accessor.get(INotificationService);
 		const logService = accessor.get(ILogService);
+		const openerService = accessor.get(IOpenerService);
+		const productService = accessor.get(IProductService);
 
 		const activeSession = sessionManagementService.getActiveSession();
 		if (!activeSession?.worktree || !activeSession?.repository) {
@@ -139,19 +145,46 @@ class ApplyToParentRepoAction extends Action2 {
 			}
 		}
 
+		const openFolderAction = toAction({
+			id: 'applyToParentRepo.openFolder',
+			label: localize('openInVSCode', "Open in VS Code"),
+			run: () => {
+				const scheme = productService.quality === 'stable'
+					? 'vscode'
+					: productService.quality === 'exploration'
+						? 'vscode-exploration'
+						: 'vscode-insiders';
+
+				const params = new URLSearchParams();
+				params.set('windowId', '_blank');
+				params.set('session', activeSession.resource.toString());
+
+				openerService.open(URI.from({
+					scheme,
+					authority: Schemas.file,
+					path: repoRoot.path,
+					query: params.toString(),
+				}), { openExternal: true });
+			}
+		});
+
 		const totalApplied = copiedCount + deletedCount;
 		if (errorCount > 0) {
-			notificationService.warn(
-				totalApplied === 1
+			notificationService.notify({
+				severity: Severity.Warning,
+				message: totalApplied === 1
 					? localize('applyToParentRepoPartial1', "Applied 1 file to parent repo with {0} error(s).", errorCount)
-					: localize('applyToParentRepoPartialN', "Applied {0} files to parent repo with {1} error(s).", totalApplied, errorCount)
-			);
+					: localize('applyToParentRepoPartialN', "Applied {0} files to parent repo with {1} error(s).", totalApplied, errorCount),
+				actions: { primary: [openFolderAction] }
+			});
 		} else if (totalApplied > 0) {
-			notificationService.info(
-				totalApplied === 1
+			notificationService.notify({
+				severity: Severity.Info,
+				message: totalApplied === 1
 					? localize('applyToParentRepoSuccess1', "Applied 1 file to parent repo.")
-					: localize('applyToParentRepoSuccessN', "Applied {0} files to parent repo.", totalApplied)
-			);
+					: localize('applyToParentRepoSuccessN', "Applied {0} files to parent repo.", totalApplied),
+				actions: { primary: [openFolderAction] }
+			});
 		}
 	}
 }

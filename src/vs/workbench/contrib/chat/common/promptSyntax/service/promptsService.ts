@@ -11,11 +11,11 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
-import { PromptsType } from '../promptTypes.js';
+import { PromptsType, Target } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { IChatRequestHooks } from '../hookSchema.js';
 import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
+import { ChatRequestHooks } from '../hookSchema.js';
 
 /**
  * Entry emitted by the prompts service when discovery logging occurs.
@@ -166,13 +166,6 @@ export function isCustomAgentVisibility(obj: unknown): obj is ICustomAgentVisibi
 	}
 	const v = obj as { userInvocable?: unknown; agentInvocable?: unknown };
 	return typeof v.userInvocable === 'boolean' && typeof v.agentInvocable === 'boolean';
-}
-
-export enum Target {
-	VSCode = 'vscode',
-	GitHubCopilot = 'github-copilot',
-	Claude = 'claude',
-	Undefined = 'undefined',
 }
 
 export interface ICustomAgent {
@@ -354,7 +347,7 @@ export interface IPromptDiscoveryInfo {
 }
 
 export interface IConfiguredHooksInfo {
-	readonly hooks: IChatRequestHooks;
+	readonly hooks: ChatRequestHooks;
 	readonly hasDisabledClaudeHooks: boolean;
 }
 

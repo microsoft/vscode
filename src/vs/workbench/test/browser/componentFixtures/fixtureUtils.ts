@@ -474,6 +474,24 @@ export function createTextModel(
 // Fixture Adapters
 // ============================================================================
 
+export interface ThemedFixtureGroupLabels {
+	readonly kind?: 'screenshot' | 'animated';
+	readonly blocksCi?: true;
+}
+
+function resolveLabels(labels: ThemedFixtureGroupLabels | undefined): string[] {
+	const result: string[] = [];
+	if (labels?.kind === 'screenshot') {
+		result.push('.screenshot');
+	} else if (labels?.kind === 'animated') {
+		result.push('animated');
+	}
+	if (labels?.blocksCi) {
+		result.push('blocks-ci');
+	}
+	return result;
+}
+
 export interface ComponentFixtureContext {
 	container: HTMLElement;
 	disposableStore: DisposableStore;
@@ -482,6 +500,7 @@ export interface ComponentFixtureContext {
 
 export interface ComponentFixtureOptions {
 	render: (context: ComponentFixtureContext) => void | Promise<void>;
+	labels?: ThemedFixtureGroupLabels;
 }
 
 type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
@@ -509,18 +528,33 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		},
 	});
 
-	return defineFixtureVariants({
+	const labels = resolveLabels(options.labels);
+	return defineFixtureVariants(labels.length > 0 ? { labels } : {}, {
 		Dark: createFixture(darkTheme),
 		Light: createFixture(lightTheme),
 	});
 }
 
-type ThemedFixtureGroupInput = Record<string, ThemedFixtures>;
+interface ThemedFixtureGroupOptions {
+	readonly path?: string;
+	readonly labels?: ThemedFixtureGroupLabels;
+}
+
+type ThemedFixtureGroupFixtures = Record<string, ThemedFixtures>;
 
 /**
  * Creates a nested fixture group from themed fixtures.
  * E.g., { MergeEditor: { Dark: ..., Light: ... } } becomes a nested group: MergeEditor > Dark/Light
  */
-export function defineThemedFixtureGroup(group: ThemedFixtureGroupInput): ReturnType<typeof defineFixtureGroup> {
-	return defineFixtureGroup(group);
+export function defineThemedFixtureGroup(options: ThemedFixtureGroupOptions, fixtures: ThemedFixtureGroupFixtures): ReturnType<typeof defineFixtureGroup>;
+export function defineThemedFixtureGroup(fixtures: ThemedFixtureGroupFixtures): ReturnType<typeof defineFixtureGroup>;
+export function defineThemedFixtureGroup(optionsOrFixtures: ThemedFixtureGroupOptions | ThemedFixtureGroupFixtures, fixtures?: ThemedFixtureGroupFixtures): ReturnType<typeof defineFixtureGroup> {
+	if (fixtures) {
+		const options = optionsOrFixtures as ThemedFixtureGroupOptions;
+		return defineFixtureGroup({
+			labels: resolveLabels(options.labels),
+			path: options.path,
+		}, fixtures as ThemedFixtureGroupFixtures);
+	}
+	return defineFixtureGroup(optionsOrFixtures as ThemedFixtureGroupFixtures);
 }

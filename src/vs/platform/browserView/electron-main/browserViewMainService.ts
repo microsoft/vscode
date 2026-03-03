@@ -169,8 +169,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 		// Request the workbench to open the editor
 		this.windowsMainService.sendToFocused('vscode:runAction', {
-			id: 'vscode.open',
-			args: [BrowserViewUri.forUrl(url, targetId)]
+			id: '_workbench.open',
+			args: [BrowserViewUri.forUrl(url, targetId), [undefined, { preserveFocus: true }], undefined]
 		});
 
 		return view;
@@ -278,6 +278,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidClose;
 	}
 
+	async getState(id: string): Promise<IBrowserViewState> {
+		return this._getBrowserView(id).getState();
+	}
+
 	async destroyBrowserView(id: string): Promise<void> {
 		return this.browserViews.deleteAndDispose(id);
 	}
@@ -306,8 +310,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).goForward();
 	}
 
-	async reload(id: string): Promise<void> {
-		return this._getBrowserView(id).reload();
+	async reload(id: string, hard?: boolean): Promise<void> {
+		return this._getBrowserView(id).reload(hard);
 	}
 
 	async toggleDevTools(id: string): Promise<void> {
@@ -328,10 +332,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async dispatchKeyEvent(id: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
 		return this._getBrowserView(id).dispatchKeyEvent(keyEvent);
-	}
-
-	async setZoomFactor(id: string, zoomFactor: number): Promise<void> {
-		return this._getBrowserView(id).setZoomFactor(zoomFactor);
 	}
 
 	async focus(id: string): Promise<void> {

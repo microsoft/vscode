@@ -1639,9 +1639,9 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	}
 }
 
-export class TestSingletonFileEditorInput extends TestFileEditorInput {
+export class TestForceRevealFileEditorInput extends TestFileEditorInput {
 
-	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Singleton; }
+	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.ForceReveal; }
 }
 
 export class TestEditorPart extends MainEditorPart implements IEditorGroupsService {

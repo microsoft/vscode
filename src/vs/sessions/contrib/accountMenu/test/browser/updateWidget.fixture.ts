@@ -56,48 +56,59 @@ function renderUpdateWidget(ctx: ComponentFixtureContext, state: State): void {
 	widget.render(ctx.container);
 }
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	Ready: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (ctx) => renderUpdateWidget(ctx, State.Ready(mockUpdate, true, false)),
 	}),
 
 	CheckingForUpdates: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.CheckingForUpdates(true)),
 	}),
 
 	AvailableForDownload: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.AvailableForDownload(mockUpdate)),
 	}),
 
 	Downloading0Percent: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.Downloading(mockUpdate, true, false, 0, 100_000_000)),
 	}),
 
 	Downloading30Percent: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.Downloading(mockUpdate, true, false, 30_000_000, 100_000_000)),
 	}),
 
 	Downloading65Percent: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.Downloading(mockUpdate, true, false, 65_000_000, 100_000_000)),
 	}),
 
 	Downloading100Percent: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.Downloading(mockUpdate, true, false, 100_000_000, 100_000_000)),
 	}),
 
 	DownloadingIndeterminate: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.Downloading(mockUpdate, true, false)),
 	}),
 
 	Downloaded: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.Downloaded(mockUpdate, true, false)),
 	}),
 
 	Updating: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.Updating(mockUpdate)),
 	}),
 
 	Overwriting: defineComponentFixture({
+		labels: { kind: 'animated' },
 		render: (ctx) => renderUpdateWidget(ctx, State.Overwriting(mockUpdate, true)),
 	}),
 });
