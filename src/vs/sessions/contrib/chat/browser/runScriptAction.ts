@@ -285,7 +285,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 }
 
 // Register the Run split button submenu on the workbench title bar (background sessions only)
-MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
+MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
 	title: localize2('run', "Run"),
@@ -305,7 +305,7 @@ class RunScriptNotAvailableAction extends Action2 {
 			icon: Codicon.play,
 			precondition: ContextKeyExpr.false(),
 			menu: [{
-				id: Menus.TitleBarRight,
+				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 8,
 				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext.toNegated())

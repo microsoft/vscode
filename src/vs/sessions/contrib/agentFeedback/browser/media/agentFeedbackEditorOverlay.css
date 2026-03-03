@@ -14,7 +14,7 @@
 	justify-content: center;
 	gap: 4px;
 	z-index: 10;
-	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	box-shadow: var(--vscode-shadow-lg);
 	overflow: hidden;
 }
 
