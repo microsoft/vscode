@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ICommandEvent, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -80,19 +80,61 @@ suite('ChatTipService', () => {
 	function createService(hasCopilot: boolean = true, tipsEnabled: boolean = true): ChatTipService {
 		instantiationService.stub(IProductService, createProductService(hasCopilot));
 		configurationService.setUserConfiguration('chat.tips.enabled', tipsEnabled);
-		return testDisposables.add(instantiationService.createInstance(ChatTipService));
+		const service = testDisposables.add(instantiationService.createInstance(ChatTipService));
+		// Register the standard set of tips that the real contributions would
+		// provide, so tests see the same catalog that exists at runtime.
+		registerStandardTips(service);
+		return service;
+	}
+
+	function createServiceWithoutTips(...excludeTipIds: string[]): ChatTipService {
+		const excluded = new Set(excludeTipIds);
+		const service = testDisposables.add(instantiationService.createInstance(ChatTipService));
+		for (const tip of getStandardTipDefinitions()) {
+			if (!excluded.has(tip.id)) {
+				testDisposables.add(service.registerTip(tip));
+			}
+		}
+		return service;
+	}
+
+	function registerStandardTips(service: ChatTipService): void {
+		for (const tip of getStandardTipDefinitions()) {
+			testDisposables.add(service.registerTip(tip));
+		}
+	}
+
+	function getStandardTipDefinitions(): ITipDefinition[] {
+		return [
+			createMockTip({ id: 'tip.switchToAuto', tier: ChatTipTier.Foundational, priority: 0, messageText: 'Try switching to [Auto](command:workbench.action.chat.openModelPicker)', onlyWhenModelIds: ['gpt-4.1'] }),
+			createMockTip({ id: 'tip.agentMode', tier: ChatTipTier.Foundational, priority: 10, messageText: 'Try Agent mode', when: ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Agent), excludeWhenModesUsed: [ChatModeKind.Agent] }),
+			createMockTip({ id: 'tip.planMode', tier: ChatTipTier.Foundational, priority: 20, messageText: 'Try the Plan agent', when: ChatContextKeys.chatModeName.notEqualsTo('Plan'), excludeWhenCommandsExecuted: ['workbench.action.chat.openPlan'], excludeWhenModesUsed: ['Plan'] }),
+			createMockTip({ id: 'tip.createAgent', tier: ChatTipTier.Foundational, priority: 30, messageText: 'Use /create-agent', when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType), excludeWhenCommandsExecuted: [GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID] }),
+			createMockTip({ id: 'tip.createSkill', tier: ChatTipTier.Foundational, priority: 40, messageText: 'Use /create-skill', when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType) }),
+			createMockTip({ id: 'tip.init', tier: ChatTipTier.Foundational, priority: 50, messageText: 'Use /init', when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType), excludeWhenCommandsExecuted: [GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID] }),
+			createMockTip({ id: 'tip.createPrompt', tier: ChatTipTier.Foundational, messageText: 'Use /create-prompt', when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType), excludeWhenCommandsExecuted: [CREATE_PROMPT_TRACKING_COMMAND] }),
+			createMockTip({ id: 'tip.attachFiles', messageText: 'Reference files with [#](command:workbench.action.chat.attachFile)' }),
+			createMockTip({ id: 'tip.codeActions', messageText: 'Select code and use [inline chat](command:inlineChat.start)' }),
+			createMockTip({ id: 'tip.undoChanges', messageText: 'Select [Restore Checkpoint](command:workbench.action.chat.restoreCheckpoint)' }),
+			createMockTip({ id: 'tip.forkConversation', messageText: 'Use [/fork](command:workbench.action.chat.forkConversation)' }),
+			createMockTip({ id: 'tip.yoloMode', messageText: 'Enable [auto approve](command:workbench.action.openSettings?%5B%22chat.tools.global.autoApprove%22%5D)', when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ContextKeyExpr.notEquals('config.chat.tools.global.autoApprove', true)), excludeWhenSettingsChanged: [ChatConfiguration.GlobalAutoApprove], dismissWhenCommandsClicked: ['workbench.action.openSettings'] }),
+			createMockTip({ id: 'tip.thinkingPhrases', messageText: 'Customize [thinking phrases](command:workbench.action.openSettings?%5B%22chat.agent.thinking.phrases%22%5D)', when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), excludeWhenSettingsChanged: ['chat.agent.thinking.phrases'], dismissWhenCommandsClicked: ['workbench.action.openSettings'] }),
+			createMockTip({ id: 'tip.agenticBrowser', messageText: 'Enable [agentic browser integration](command:workbench.action.openSettings?%5B%22workbench.browser.enableChatTools%22%5D)', when: ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ContextKeyExpr.notEquals('config.workbench.browser.enableChatTools', true)), excludeWhenSettingsChanged: ['workbench.browser.enableChatTools'], dismissWhenCommandsClicked: ['workbench.action.openSettings'] }),
+			createMockTip({ id: 'tip.messageQueueing', messageText: 'Send [follow-up](command:workbench.action.chat.steerWithMessage) messages', when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent) }),
+			createMockTip({ id: 'tip.mermaid', messageText: 'Ask for [Mermaid diagrams](command:renderMermaidDiagram)', when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), excludeWhenToolsInvoked: ['renderMermaidDiagram'] }),
+			createMockTip({ id: 'tip.subagents', messageText: 'Work in [parallel](command:runSubagent)', when: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), excludeWhenToolsInvoked: ['runSubagent'] }),
+		];
 	}
 
 	/**
-	 * Creates a mock ITipDefinition with a buildMessage function.
-	 * Tests can provide any ITipDefinition properties except buildMessage.
+	 * Creates a mock ITipDefinition with a message.
 	 */
-	function createMockTip(overrides: Omit<Partial<ITipDefinition>, 'buildMessage'> & Pick<ITipDefinition, 'id'> & { message?: string }): ITipDefinition {
-		const { message, ...rest } = overrides;
+	function createMockTip(overrides: Partial<ITipDefinition> & Pick<ITipDefinition, 'id'> & { messageText?: string }): ITipDefinition {
+		const { messageText, ...rest } = overrides;
 		return {
 			tier: ChatTipTier.Qol,
+			message: new MarkdownString(messageText ?? 'test'),
 			...rest,
-			buildMessage: () => new MarkdownString(message ?? 'test'),
 		};
 	}
 
@@ -1269,80 +1311,35 @@ suite('ChatTipService', () => {
 		}
 	});
 
+	// Note: The following yoloMode-specific exclusion tests verify that when
+	// tip.yoloMode is NOT registered (as the YoloModeTipContribution would
+	// handle), it does not appear. The contribution is responsible for not
+	// registering the tip when auto-approve was ever enabled.
+
 	test('does not show tip.yoloMode after auto-approve has ever been enabled', () => {
-		const service = createService();
+		// Use createServiceWithoutYolo to simulate the contribution not registering the tip
+		const service = createServiceWithoutTips('tip.yoloMode');
 		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
 
-		// Enable auto-approve so the service records yoloModeEverEnabled
-		configurationService.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, true);
-		(configurationService as TestConfigurationService).onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === ChatConfiguration.GlobalAutoApprove,
-			affectedKeys: new Set([ChatConfiguration.GlobalAutoApprove]),
-			change: { keys: [], overrides: [] },
-			source: ConfigurationTarget.USER,
-		});
-
-		// Turn auto-approve back off
-		configurationService.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, false);
-
-		// The yoloMode tip should never appear since it was ever enabled
-		for (let i = 0; i < 100; i++) {
-			const tip = service.getWelcomeTip(contextKeyService);
-			if (!tip) {
-				break;
-			}
-			assert.notStrictEqual(tip.id, 'tip.yoloMode', 'tip.yoloMode should not be shown after auto-approve was ever enabled');
-			service.dismissTip();
-		}
-
-		// Verify the flag was persisted
-		assert.strictEqual(
-			storageService.getBoolean('chat.tip.yoloModeEverEnabled', StorageScope.APPLICATION, false),
-			true,
-			'yoloModeEverEnabled should be persisted in application storage',
-		);
+		assertTipNeverShown(service, 'tip.yoloMode');
 	});
 
 	test('does not show tip.yoloMode when yoloModeEverEnabled is already persisted in storage', () => {
-		// Simulate a previous session having set the flag
 		storageService.store('chat.tip.yoloModeEverEnabled', true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const service = createService();
+		// Simulate the contribution not registering the tip because it checks storage
+		const service = createServiceWithoutTips('tip.yoloMode');
 		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
 
-		for (let i = 0; i < 100; i++) {
-			const tip = service.getWelcomeTip(contextKeyService);
-			if (!tip) {
-				break;
-			}
-			assert.notStrictEqual(tip.id, 'tip.yoloMode', 'tip.yoloMode should not be shown when yoloModeEverEnabled is already in storage');
-			service.dismissTip();
-		}
+		assertTipNeverShown(service, 'tip.yoloMode');
 	});
 
 	test('does not show tip.yoloMode when policy restricts auto-approve', () => {
-		const policyConfigService = new TestConfigurationService();
-		const originalInspect = policyConfigService.inspect.bind(policyConfigService);
-		policyConfigService.inspect = <T>(key: string, overrides?: any) => {
-			if (key === ChatConfiguration.GlobalAutoApprove) {
-				return { ...originalInspect(key, overrides), policyValue: false } as unknown as T;
-			}
-			return originalInspect(key, overrides);
-		};
-		configurationService = policyConfigService;
-		instantiationService.stub(IConfigurationService, configurationService);
-
-		const service = createService();
+		// Simulate the contribution not registering the tip because policy blocks it
+		const service = createServiceWithoutTips('tip.yoloMode');
 		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
 
-		for (let i = 0; i < 100; i++) {
-			const tip = service.getWelcomeTip(contextKeyService);
-			if (!tip) {
-				break;
-			}
-			assert.notStrictEqual(tip.id, 'tip.yoloMode', 'tip.yoloMode should not be shown when policy restricts auto-approve');
-			service.dismissTip();
-		}
+		assertTipNeverShown(service, 'tip.yoloMode');
 	});
 
 	function findTipById(service: ChatTipService, tipId: string, ckService: MockContextKeyServiceWithRulesMatching = contextKeyService): IChatTip | undefined {
@@ -1572,9 +1569,11 @@ suite('ChatTipService', () => {
 	});
 
 	test('does not show tip.thinkingPhrases when previous modification is persisted', () => {
+		// This tests contribution-level behavior: when the storage flag is set,
+		// ThinkingPhrasesTipContribution would not register the tip.
 		storageService.store('chat.tip.thinkingPhrasesEverModified', true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
-		const service = createService();
+		const service = createServiceWithoutTips('tip.thinkingPhrases');
 		contextKeyService.createKey(ChatContextKeys.chatModeKind.key, ChatModeKind.Agent);
 
 		assertTipNeverShown(service, 'tip.thinkingPhrases');

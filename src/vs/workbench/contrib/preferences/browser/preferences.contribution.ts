@@ -65,7 +65,7 @@ const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
 const SETTINGS_EDITOR_COMMAND_FILTER_ONLINE = 'settings.filterByOnline';
 const SETTINGS_EDITOR_COMMAND_FILTER_UNTRUSTED = 'settings.filterUntrusted';
 
-const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
+export const SETTINGS_COMMAND_OPEN_SETTINGS = 'workbench.action.openSettings';
 const SETTINGS_COMMAND_FILTER_TELEMETRY = 'settings.filterByTelemetry';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(

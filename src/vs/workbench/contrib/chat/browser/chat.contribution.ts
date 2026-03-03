@@ -166,6 +166,9 @@ import { ChatWindowNotifier } from './chatWindowNotifier.js';
 import { ChatRepoInfoContribution } from './chatRepoInfo.js';
 import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
+import { ChatTipsContribution } from './chatTipContributions.js';
+import { YoloModeTipContribution } from './chatYoloModeTip.js';
+import { ThinkingPhrasesTipContribution } from './chatThinkingPhrasesTip.js';
 import { ChatQueuePickerRendering } from './widget/input/chatQueuePickerActionItem.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { PlanAgentDefaultModel } from './planAgentDefaultModel.js';
@@ -1743,6 +1746,9 @@ registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguage
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AgentPluginsViewsContribution.ID, AgentPluginsViewsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(YoloModeTipContribution.ID, YoloModeTipContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ThinkingPhrasesTipContribution.ID, ThinkingPhrasesTipContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ChatTipsContribution.ID, ChatTipsContribution, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatAccessibilityActions();
