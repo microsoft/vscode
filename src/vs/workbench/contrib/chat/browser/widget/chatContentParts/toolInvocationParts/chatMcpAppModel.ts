@@ -707,15 +707,12 @@ export class ChatMcpAppModel extends Disposable {
 					const resource = content.resource;
 					const parsed = URI.parse(resource.uri);
 
-					let data: Uint8Array;
-					if (hasKey(resource, { text: true })) {
-						data = new TextEncoder().encode(resource.text);
-					} else {
-						data = decodeBase64(resource.blob).buffer;
-					}
+					const data: Uint8Array | { base64: string } = hasKey(resource, { text: true })
+						? new TextEncoder().encode(resource.text)
+						: { base64: resource.blob };
 
 					const uri = this._chatResponseResourceFsProvider.associate(this.renderData.sessionResource, data, basename(parsed));
-					newParts.push({ kind: 'data', mimeType: resource.mimeType, value: data, uri });
+					newParts.push({ kind: 'data', mimeType: resource.mimeType, uri });
 				} else if (content.type === 'resource_link') {
 					// ResourceLink — create a part with an MCP resource URI, resolved lazily on save
 					const mcpUri = McpResourceURI.fromServer(

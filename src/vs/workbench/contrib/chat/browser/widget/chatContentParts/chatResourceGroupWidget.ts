@@ -157,7 +157,7 @@ class SaveResourcesAction extends Action2 {
 	constructor() {
 		super({
 			id: SaveResourcesAction.ID,
-			title: localize2('chat.saveResources', "Download..."),
+			title: localize2('chat.saveResources', "Save..."),
 			icon: Codicon.cloudDownload,
 			menu: [{
 				id: MenuId.ChatToolOutputResourceToolbar,
