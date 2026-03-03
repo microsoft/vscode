@@ -264,6 +264,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return this.args['export-policy-data'];
 	}
 
+	get generateDefaultKeybindings(): string | undefined {
+		return this.args['generate-default-keybindings'];
+	}
+
 	get continueOn(): string | undefined {
 		return this.args['continueOn'];
 	}
