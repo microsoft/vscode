@@ -18,7 +18,7 @@ TypeScript-based extensions have the following output structure:
 - `dist`: Output directory for production builds.
 
 
-## Browser enabling an extension
+## Enabling an Extension in the Browser
 
 By default extensions will only target desktop. To enable an extension in browsers as well:
 
