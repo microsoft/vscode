@@ -273,7 +273,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			focusSearch: true
 		};
-		const group = this.getEditorGroupFromOptions(false, options);
+		const group = this.getEditorGroupFromOptions(options);
 		return this.editorService.openEditor(input, validateSettingsEditorOptions(options), group);
 	}
 
@@ -354,11 +354,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					this.editorService.openEditor({ resource: editableKeybindings, options }, sideEditorGroup.id)
 				]);
 			} else {
-				await this.editorService.openEditor({ resource: editableKeybindings, options }, options.groupId);
+				await this.editorService.openEditor({ resource: editableKeybindings, options }, this.getEditorGroupFromOptions(options));
 			}
 
 		} else {
-			const group = this.getEditorGroupFromOptions(false, options);
+			const group = this.getEditorGroupFromOptions(options);
 			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options }, group)) as IKeybindingsEditorPane;
 			if (options.query) {
 				editor.search(options.query);
@@ -371,8 +371,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.editorService.openEditor({ resource: this.defaultKeybindingsResource, label: nls.localize('defaultKeybindings', "Default Keybindings") });
 	}
 
-	private getEditorGroupFromOptions(isTextual: boolean, options: { groupId?: number; openToSide?: boolean }): PreferredGroup {
-		if (!isTextual && this.configurationService.getValue<string>('workbench.editor.useModal') !== 'off') {
+	private getEditorGroupFromOptions(options: { groupId?: number; openToSide?: boolean }): PreferredGroup {
+		if (this.configurationService.getValue<string>('workbench.editor.useModal') !== 'off') {
 			return MODAL_GROUP;
 		}
 		if (options.openToSide) {
@@ -385,7 +385,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	private async openSettingsJson(resource: URI, options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
-		const group = this.getEditorGroupFromOptions(true, options);
+		const group = this.getEditorGroupFromOptions(options);
 		const editor = await this.doOpenSettingsJson(resource, options, group);
 		if (editor && options?.revealSetting) {
 			await this.revealSetting(options.revealSetting.key, !!options.revealSetting.edit, editor, resource);
