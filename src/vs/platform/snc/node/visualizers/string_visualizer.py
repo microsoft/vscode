@@ -2481,8 +2481,8 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_widt
     """
     selection_regex = model.get('search')
     has_search = selection_regex is not None and selection_regex != ''
-    replace_visible = model.get('replace_visible', False)
-    replace_text = model.get('replace_text')
+    replace_visible = bool(model.get('replace_visible', False))
+    replace_text = bool(model.get('replace_text'))
     has_replace = replace_visible and replace_text
 
     # Compute match count for the Count button label
@@ -2525,7 +2525,7 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_widt
         style = btn_with_copy + ('' if enabled else disabled_style) + extra_style
         event = repr(ActionButtonClick(action=action, copy=False))
         title_attr = f' title="{html.escape(title)}"' if title else ''
-        return f'<span snc-mouse-down="{html.escape(event)}" style="{style}"{title_attr}>{label}</span>'
+        return f'<span snc-mouse-down="{html.escape(event)}" style="margin-left: 3px;{style}"{title_attr}>{label}</span>'
 
     def copy_btn(action: str, enabled: bool = True) -> str:
         style = copy_base + ('' if enabled else disabled_style)
@@ -2533,7 +2533,7 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_widt
         return f'<span snc-mouse-down="{html.escape(event)}" style="{style}" title="Copy to clipboard">\u29C9</span>'
 
     def btn_group(label: str, action: str, enabled: bool = True, title: str = '', extra_btn_style: str = '') -> str:
-        return action_btn(label, action, enabled, title, extra_btn_style) + copy_btn(action, enabled)
+        return f'<span>{action_btn(label, action, enabled, title, extra_btn_style)}{copy_btn(action, enabled)}</span>'
 
     # Build button groups
     parts = []
@@ -2557,7 +2557,7 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_widt
     # Build ? button with dropdown
     toggle_event = repr(DropdownToggle('action-predicate'))
     q_style = btn_base + ('background: #264f78; color: #dcdcaa;' if predicate_dropdown_open else '')
-    q_btn = f'<span snc-mouse-down="{html.escape(toggle_event)}" style="{q_style}" title="Boolean queries">\u2026</span>'
+    q_btn = f'<span snc-mouse-down="{html.escape(toggle_event)}" style="margin-left: 3px;{q_style}" title="Boolean queries">? \u25be</span>'
 
     if predicate_dropdown_open:
         # Build dropdown options
@@ -2610,9 +2610,7 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_widt
     parts.append(btn_group(count_label, 'count', has_search, 'Count of matches'))
 
     return (
-        f'<div style="margin-top: 4px; white-space: normal; display: flex; flex-wrap: wrap; gap: 3px; align-items: center;'
-        f' max-width: {str(max_width) + "px" if max_width is not None else "none"};'
-        f'">'
+        f'<div style="margin-top: 4px; white-space: normal;max-width: {str(max_width) + "px" if max_width is not None else "none"};">'
         f'{"".join(parts)}'
         f'</div>'
     )
