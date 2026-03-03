@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IGatewayCallToolResult } from '../../../../../platform/mcp/common/mcpGateway.js';
 import { MCP } from '../../common/modelContextProtocol.js';
@@ -160,28 +161,92 @@ suite('McpGatewayToolBrokerChannel', () => {
 		channel.dispose();
 	});
 
-	test('returns empty tools and does not re-wait if server does not start within grace period', async () => {
-		const mcpService = new TestMcpService();
-		// Use a very short grace period so the test does not take 5 s.
-		const channel = new McpGatewayToolBrokerChannel(mcpService, 10);
+	test('returns empty tools and does not re-wait if server does not start within grace period', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const mcpService = new TestMcpService();
+			const channel = new McpGatewayToolBrokerChannel(mcpService, 100);
 
-		const server = createNeverStartingServer(
-			'collectionA',
-			'serverA',
-			[createTool('echo', async () => ({ content: [{ type: 'text', text: 'A' }] }))],
-		);
+			const server = createNeverStartingServer(
+				'collectionA',
+				'serverA',
+				[createTool('echo', async () => ({ content: [{ type: 'text', text: 'A' }] }))],
+			);
 
-		mcpService.servers.set([server], undefined);
+			mcpService.servers.set([server], undefined);
 
-		// First call: waits up to 10 ms, server never starts → empty result.
-		const tools = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
-		assert.deepStrictEqual(tools, []);
+			// First call: waits up to the grace period, server never starts → empty result.
+			const tools = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+			assert.deepStrictEqual(tools, []);
 
-		// Second call: grace-period promise already resolved; returns immediately without re-waiting.
-		const tools2 = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
-		assert.deepStrictEqual(tools2, []);
+			// Second call: grace-period promise already resolved; returns immediately without re-waiting.
+			const tools2 = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+			assert.deepStrictEqual(tools2, []);
 
-		channel.dispose();
+			channel.dispose();
+		});
+	});
+
+	test('invalidates stale grace entry when cacheState regresses to Unknown after timeout', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const mcpService = new TestMcpService();
+			const channel = new McpGatewayToolBrokerChannel(mcpService, 100);
+
+			const server = createNeverStartingServer(
+				'collectionA',
+				'serverA',
+				[createTool('echo', async () => ({ content: [{ type: 'text', text: 'A' }] }))],
+			);
+
+			mcpService.servers.set([server], undefined);
+
+			// First call: grace period elapses, server never starts → empty.
+			const tools1 = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+			assert.deepStrictEqual(tools1, []);
+			assert.strictEqual(server.startCalls, 1);
+
+			// Simulate a cache reset: server goes back to Unknown.
+			server.cacheStateValue.set(McpServerCacheState.Unknown, undefined);
+
+			// Make the server succeed this time.
+			server.startBehavior = 'succeed';
+
+			// Second call: stale grace entry should be discarded, a new grace race starts,
+			// and the server successfully starts → tools returned.
+			const tools2 = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+			assert.deepStrictEqual(tools2.map(t => t.name), ['echo']);
+			assert.strictEqual(server.startCalls, 2);
+
+			channel.dispose();
+		});
+	});
+
+	test('does not invalidate grace entry when cacheState is not Unknown/Outdated', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const mcpService = new TestMcpService();
+			const channel = new McpGatewayToolBrokerChannel(mcpService, 100);
+
+			const server = createServer(
+				'collectionA',
+				'serverA',
+				[createTool('echo', async () => ({ content: [{ type: 'text', text: 'A' }] }))],
+				McpServerCacheState.Unknown,
+			);
+
+			mcpService.servers.set([server], undefined);
+
+			// First call: server starts successfully during grace period.
+			const tools1 = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+			assert.deepStrictEqual(tools1.map(t => t.name), ['echo']);
+			assert.strictEqual(server.startCalls, 1);
+
+			// Second call: cacheState is now Live (server started), grace entry should NOT
+			// be invalidated, so no additional start call is made.
+			const tools2 = await channel.call<readonly MCP.Tool[]>(undefined, 'listTools');
+			assert.deepStrictEqual(tools2.map(t => t.name), ['echo']);
+			assert.strictEqual(server.startCalls, 1);
+
+			channel.dispose();
+		});
 	});
 });
 
@@ -227,14 +292,15 @@ function createNeverStartingServer(
 	collectionId: string,
 	definitionId: string,
 	initialTools: readonly IMcpTool[],
-): IMcpServer & { startCalls: number } {
+): IMcpServer & { startCalls: number; startBehavior: 'hang' | 'succeed'; cacheStateValue: ReturnType<typeof observableValue<McpServerCacheState>> } {
 	const owner = {};
 	const tools = observableValue<readonly IMcpTool[]>(owner, initialTools);
 	const connectionState = observableValue<McpConnectionState>(owner, { state: McpConnectionState.Kind.Running });
 	const cacheState = observableValue<McpServerCacheState>(owner, McpServerCacheState.Unknown);
 	let startCalls = 0;
+	let startBehavior: 'hang' | 'succeed' = 'hang';
 
-	return {
+	const result: IMcpServer & { startCalls: number; startBehavior: 'hang' | 'succeed'; cacheStateValue: ReturnType<typeof observableValue<McpServerCacheState>> } = {
 		collection: { id: collectionId, label: collectionId },
 		definition: { id: definitionId, label: definitionId },
 		connection: observableValue(owner, undefined),
@@ -244,6 +310,10 @@ function createNeverStartingServer(
 		showOutput: async () => { },
 		start: async () => {
 			startCalls++;
+			if (result.startBehavior === 'succeed') {
+				cacheState.set(McpServerCacheState.Live, undefined);
+				return { state: McpConnectionState.Kind.Running };
+			}
 			// Never resolves — simulates a server that hangs on startup.
 			return new Promise<McpConnectionState>(() => { });
 		},
@@ -256,7 +326,11 @@ function createNeverStartingServer(
 		resourceTemplates: async () => [],
 		dispose: () => { },
 		get startCalls() { return startCalls; },
+		get startBehavior() { return startBehavior; },
+		set startBehavior(v) { startBehavior = v; },
+		cacheStateValue: cacheState,
 	};
+	return result;
 }
 
 function createTool(name: string, call: (params: Record<string, unknown>) => Promise<MCP.CallToolResult>, visibility: McpToolVisibility = McpToolVisibility.Model): IMcpTool {
