@@ -5,12 +5,12 @@
 
 import { deepStrictEqual } from 'assert';
 import { tmpdir } from 'os';
-import * as path from 'path';
+import * as path from '../../../../base/common/path.js';
 import * as fs from 'fs';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { ITerminalProcessOptions } from '../../common/terminal.js';
+import { ITerminalProcessOptions, ITerminalLaunchError } from '../../common/terminal.js';
 import { TerminalProcess } from '../../node/terminalProcess.js';
 import { isWindows } from '../../../../base/common/platform.js';
 
@@ -69,12 +69,23 @@ function buildMultilineCommand(lineCount: number, outputFile: string): { command
 		));
 
 		const result = await terminalProcess.start();
-		if (result && 'message' in result) {
-			throw new Error(`Failed to start terminal: ${result.message}`);
+		const error = result as ITerminalLaunchError | undefined;
+		if (error?.message) {
+			throw new Error(`Failed to start terminal: ${error.message}`);
 		}
 
-		// Wait for shell to be ready
-		await new Promise(resolve => setTimeout(resolve, 500));
+		// Wait for shell to produce output (prompt), indicating it's ready for input
+		await new Promise<void>(resolve => {
+			const timeout = setTimeout(() => {
+				listener.dispose();
+				resolve();
+			}, 10000);
+			const listener = terminalProcess.onProcessData(() => {
+				clearTimeout(timeout);
+				listener.dispose();
+				resolve();
+			});
+		});
 
 		// Send the multiline command — newlines are converted to \r for PTY
 		const ptyData = command.replace(/\n/g, '\r');
@@ -92,7 +103,15 @@ function buildMultilineCommand(lineCount: number, outputFile: string): { command
 			}
 		}
 
+		// Shut down and wait for the process to exit
+		const exitPromise = new Promise<void>(resolve => {
+			const listener = terminalProcess.onProcessExit(() => {
+				listener.dispose();
+				resolve();
+			});
+		});
 		terminalProcess.shutdown(true);
+		await exitPromise;
 
 		if (!fs.existsSync(outputFile)) {
 			throw new Error(`Output file was not created — terminal likely got stuck (command was ${command.length} bytes)`);
