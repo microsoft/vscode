@@ -14,6 +14,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.viewSessions.enabled': false,
 		'chat.implicitContext.suggestedContext': false,
 		'chat.implicitContext.enabled': { 'panel': 'never' },
+		'chat.tools.terminal.enableAutoApprove': true,
 
 		'breadcrumbs.enabled': false,
 

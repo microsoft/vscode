@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.111.0",
-  "distro": "447d8d5a69fba52fcf6ea15dd29e92dd5dbbd2cd",
+  "distro": "e802965a9da346fb619bb708f64e54e927167133",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -31,6 +31,7 @@
     "watch-client": "npm run gulp watch-client",
     "watch-clientd": "deemon npm run watch-client",
     "kill-watch-clientd": "deemon --kill npm run watch-client",
+    "transpile-client": "node build/next/index.ts transpile",
     "watch-client-transpile": "node build/next/index.ts transpile --watch",
     "watch-client-transpiled": "deemon npm run watch-client-transpile",
     "kill-watch-client-transpiled": "deemon --kill npm run watch-client-transpile",
@@ -153,8 +154,8 @@
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
     "@typescript/native-preview": "^7.0.0-dev.20260130",
-    "@vscode/component-explorer": "^0.1.1-16",
-    "@vscode/component-explorer-cli": "^0.1.1-12",
+    "@vscode/component-explorer": "^0.1.1-19",
+    "@vscode/component-explorer-cli": "^0.1.1-15",
     "@vscode/gulp-electron": "1.40.1",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.2",

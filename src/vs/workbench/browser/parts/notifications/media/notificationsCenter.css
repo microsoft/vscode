@@ -12,6 +12,7 @@
 	overflow: hidden;
 	border: 1px solid var(--vscode-editorWidget-border);
 	border-radius: var(--vscode-cornerRadius-small);
+	box-shadow: var(--vscode-shadow-lg);
 }
 
 .monaco-workbench.nostatusbar > .notifications-center {

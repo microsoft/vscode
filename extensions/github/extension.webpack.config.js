@@ -2,18 +2,22 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as path from 'node:path';
-import { run } from '../esbuild-extension-common.mts';
+// @ts-check
+import withDefaults from '../shared.webpack.config.mjs';
 
-const srcDir = path.join(import.meta.dirname, 'src');
-const outDir = path.join(import.meta.dirname, 'dist');
-
-run({
-	platform: 'node',
-	format: 'esm',
-	entryPoints: {
-		'extension': path.join(srcDir, 'extension.ts'),
+export default withDefaults({
+	context: import.meta.dirname,
+	entry: {
+		extension: './src/extension.ts'
 	},
-	srcDir,
-	outdir: outDir,
-}, process.argv);
+	output: {
+		libraryTarget: 'module',
+		chunkFormat: 'module',
+	},
+	externals: {
+		'vscode': 'module vscode',
+	},
+	experiments: {
+		outputModule: true
+	}
+});

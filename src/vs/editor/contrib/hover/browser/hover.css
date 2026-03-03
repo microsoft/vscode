@@ -23,6 +23,7 @@
 	border-radius: var(--vscode-cornerRadius-large);
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);
+	box-shadow: var(--vscode-shadow-hover);
 }
 
 .monaco-editor .monaco-hover a {

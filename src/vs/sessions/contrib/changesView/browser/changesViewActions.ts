@@ -35,7 +35,8 @@ const openChangesViewActionOptions: IAction2Options = {
 	icon: Codicon.diffMultiple,
 	f1: false,
 	menu: {
-		id: Menus.SessionTitleActions,
+		id: Menus.TitleBarSessionMenu,
+		group: 'navigation',
 		order: 1,
 		when: ContextKeyExpr.equals(activeSessionHasChangesContextKey.key, true),
 	},
@@ -158,7 +159,7 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 	) {
 		super();
 
-		this._register(actionViewItemService.register(Menus.SessionTitleActions, OpenChangesViewAction.ID, (action, options) => {
+		this._register(actionViewItemService.register(Menus.TitleBarSessionMenu, OpenChangesViewAction.ID, (action, options) => {
 			return instantiationService.createInstance(ChangesActionViewItem, action, options);
 		}));
 
