@@ -157,10 +157,10 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		hide(this.emptyFilterMessage);
 
 		const span = append(this.emptyFilterMessage, $('span'));
-		span.textContent = localize('agentSessions.noFilterResults', "No matching sessions.");
+		span.textContent = `${localize('agentSessions.noFilterResults', "No matching sessions")} - `;
 
 		const link = append(this.emptyFilterMessage, $('span.reset-filter-link'));
-		link.textContent = localize('agentSessions.clearFilters', "Clear Filter");
+		link.textContent = localize('agentSessions.resetFilter', "Reset Filter");
 		link.tabIndex = 0;
 		link.setAttribute('role', 'button');
 		this._register(addDisposableListener(link, EventType.CLICK, () => this.options.filter.reset()));
@@ -235,7 +235,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}));
 
 		this._register(sessionFilter.onDidGetChildren(count => {
-			this.updateEmptyFilterMessage(count);
+			this.updateEmpty(count === 0);
 		}));
 
 		const model = this.agentSessionsService.model;
@@ -287,18 +287,18 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}));
 	}
 
-	private updateEmptyFilterMessage(visibleChildren: number): void {
+	private updateEmpty(isEmpty: boolean): void {
 		if (!this.emptyFilterMessage || !this.sessionsList) {
 			return;
 		}
 
 		const model = this.agentSessionsService.model;
 		const hasSessionsInModel = model.sessions.length > 0;
-		const hasVisibleChildren = visibleChildren > 0;
 		const isFilterActive = !this.options.filter.isDefault();
 
-		const showMessage = hasSessionsInModel && !hasVisibleChildren && isFilterActive;
-		setVisibility(showMessage, this.emptyFilterMessage);
+		const showEmpty = hasSessionsInModel && isEmpty && isFilterActive;
+		setVisibility(showEmpty, this.emptyFilterMessage);
+		setVisibility(!showEmpty, this.sessionsList.getHTMLElement());
 	}
 
 	private hasTodaySessions(): boolean {
