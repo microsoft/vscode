@@ -27,6 +27,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAgentSessionProvider, getAgentSessionProviderIcon } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
+import { getAgentChangesSummary, hasValidDiff } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { basename } from '../../../../base/common/resources.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
@@ -117,9 +118,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
+			const changesSummary = this._getChangesSummary();
 
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${changesSummary?.insertions ?? ''}|${changesSummary?.deletions ?? ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -162,6 +164,25 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				const repoEl = $('span.agent-sessions-titlebar-repo');
 				repoEl.textContent = repoLabel;
 				centerGroup.appendChild(repoEl);
+			}
+
+			// Changes summary shown next to the repo
+			if (changesSummary) {
+				const separator2 = $('span.agent-sessions-titlebar-separator');
+				separator2.textContent = '\u00B7';
+				centerGroup.appendChild(separator2);
+
+				const changesEl = $('span.agent-sessions-titlebar-changes');
+
+				const addedEl = $('span.agent-sessions-titlebar-changes-added');
+				addedEl.textContent = `+${changesSummary.insertions}`;
+				changesEl.appendChild(addedEl);
+
+				const removedEl = $('span.agent-sessions-titlebar-changes-removed');
+				removedEl.textContent = `-${changesSummary.deletions}`;
+				changesEl.appendChild(removedEl);
+
+				centerGroup.appendChild(changesEl);
 			}
 
 			sessionPill.appendChild(centerGroup);
@@ -282,6 +303,24 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		}
 
 		return basename(uri);
+	}
+
+	/**
+	 * Get the changes summary for the active session.
+	 */
+	private _getChangesSummary(): { insertions: number; deletions: number } | undefined {
+		const activeSession = this.activeSessionService.getActiveSession();
+		if (!activeSession) {
+			return undefined;
+		}
+
+		const agentSession = this.agentSessionsService.getSession(activeSession.resource);
+		const changes = agentSession?.changes;
+		if (!changes || !hasValidDiff(changes)) {
+			return undefined;
+		}
+
+		return getAgentChangesSummary(changes);
 	}
 
 	private _showSessionsPicker(): void {
