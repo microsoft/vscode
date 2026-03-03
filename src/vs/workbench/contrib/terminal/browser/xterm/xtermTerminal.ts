@@ -141,6 +141,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
 	get isGpuAccelerated(): boolean { return !!this._webglAddon; }
+	get isImageAddonLoaded(): boolean { return !!this._imageAddon; }
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
