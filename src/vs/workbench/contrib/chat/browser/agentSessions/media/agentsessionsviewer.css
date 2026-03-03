@@ -360,6 +360,12 @@
 			&:hover {
 				text-decoration: underline;
 			}
+
+			&:focus-visible {
+				text-decoration: underline;
+				outline: 1px solid var(--vscode-focusBorder);
+				outline-offset: 1px;
+			}
 		}
 	}
 }
