@@ -618,7 +618,6 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			vertical: ScrollbarVisibility.Visible,
 			horizontal: ScrollbarVisibility.Hidden,
 			consumeMouseWheelIfScrollbarIsNeeded: true,
-			alwaysConsumeMouseWheel: true,
 		}));
 		this._inputScrollable = inputScrollable;
 		const inputScrollableNode = inputScrollable.getDomNode();
