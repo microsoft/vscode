@@ -136,6 +136,11 @@ ${importMapJson}
 				nameLong: 'Sessions (Web)',
 				enableTelemetry: false,
 			},
+			workspaceProvider: {
+				workspace: undefined,
+				open: async () => false,
+				payload: [['isSessionsWindow', 'true']],
+			},
 		});
 	</script>
 </body>
