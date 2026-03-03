@@ -57,6 +57,7 @@ from string_visualizer import (
     find_available_variable_name,
     _count_matches,
     DC1, DC2, DC3, DC4,  # Sentinel characters
+    _render_transform_preview,
 )
 
 
@@ -4819,11 +4820,13 @@ class TestFirstMatchBackspaceCodeGen(unittest.TestCase):
 class TestFirstMatchToggleRendering(unittest.TestCase):
     """Test that the '1st' toggle button renders in the search box."""
 
+    first_button_html = '1<span style="font-size: 8px; vertical-align: 3px; display: inline-block; margin-top: -1em;">st</span>'
+
     def test_toggle_button_present(self):
         """The '1st' toggle button should be present in the search box HTML."""
         model = init_model("hello world")
         output = visualize("hello world", model, None, None)
-        self.assertIn('1st', output)
+        self.assertIn(self.first_button_html, output)
 
     def test_toggle_button_inactive_by_default(self):
         """The toggle should appear inactive (not highlighted) by default."""
@@ -4836,13 +4839,13 @@ class TestFirstMatchToggleRendering(unittest.TestCase):
         model = init_model("hello world")
         model['search'] = '/hello/1'
         output = visualize("hello world", model, None, None)
-        self.assertIn('1st', output)
+        self.assertIn(self.first_button_html, output)
 
     def test_toggle_hidden_when_small(self):
         """The toggle should be hidden when small=True (no search box)."""
         model = init_model("hello world")
         output = visualize("hello world", model, None, None, small=True)
-        self.assertNotIn('1st', output)
+        self.assertNotIn(self.first_button_html, output)
 
 
 class TestSearchBoxValueWithPostfix(unittest.TestCase):
@@ -6800,31 +6803,33 @@ class TestActionButtonSplit(unittest.TestCase):
 class TestCountMatches(unittest.TestCase):
     """Test _count_matches() helper for button label display."""
 
+    eis = staticmethod(lambda _c: eval(_c))
+
     def test_count_regex_matches(self):
         """Count regex matches in a string."""
-        self.assertEqual(_count_matches('/l/', "hello world"), 3)
+        self.assertEqual(_count_matches('/l/', "hello world", self.eis), 3)
 
     def test_count_string_matches(self):
         """Count string literal matches."""
-        self.assertEqual(_count_matches("'l'", "hello world"), 3)
+        self.assertEqual(_count_matches("'l'", "hello world", self.eis), 3)
 
     def test_count_first_match_mode(self):
         """First match mode returns 0 or 1."""
-        self.assertEqual(_count_matches('/l/1', "hello world"), 1)
-        self.assertEqual(_count_matches('/z/1', "hello world"), 0)
+        self.assertEqual(_count_matches('/l/1', "hello world", self.eis), 1)
+        self.assertEqual(_count_matches('/z/1', "hello world", self.eis), 0)
 
     def test_count_no_search(self):
         """No search returns 0."""
-        self.assertEqual(_count_matches(None, "hello world"), 0)
+        self.assertEqual(_count_matches(None, "hello world", self.eis), 0)
 
     def test_count_no_matches(self):
         """Pattern that doesn't match returns 0."""
-        self.assertEqual(_count_matches('/xyz/', "hello world"), 0)
+        self.assertEqual(_count_matches('/xyz/', "hello world", self.eis), 0)
 
     def test_count_case_insensitive(self):
         """Case insensitive flag affects count."""
-        self.assertEqual(_count_matches('/HELLO/i', "hello world"), 1)
-        self.assertEqual(_count_matches('/HELLO/', "hello world"), 0)
+        self.assertEqual(_count_matches('/HELLO/i', "hello world", self.eis), 1)
+        self.assertEqual(_count_matches('/HELLO/', "hello world", self.eis), 0)
 
 
 # =============================================================================
@@ -6951,6 +6956,139 @@ class TestActionButtonRendering(unittest.TestCase):
         html_output = visualize(self.value, model, None, None, max_width=400)
         self.assertNotIn('All (True)', html_output)
         self.assertNotIn('All (False)', html_output)
+
+
+# =============================================================================
+# Transform Preview Tests
+# =============================================================================
+
+class TestTransformPreview(unittest.TestCase):
+    """Test the live preview below the Transform or Replace input."""
+
+    def setUp(self):
+        self.value = "hello world hello"
+        self.model = init_model(self.value)
+        self.model['replace_visible'] = True
+        self.model['search'] = '/hello/'
+
+    def test_no_preview_when_replace_hidden(self):
+        """No preview labels when replace_visible is False."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertNotIn('^[0]', html_output)
+        self.assertNotIn('^.start()', html_output)
+
+    def test_no_preview_when_no_search(self):
+        """No preview when there is no search pattern."""
+        self.model['search'] = None
+        html_output = visualize(self.value, self.model, None, None, max_width=400)
+        self.assertNotIn('^[0]', html_output)
+
+    def test_no_preview_when_no_matches(self):
+        """No preview when search matches nothing."""
+        self.model['search'] = '/zzzzz/'
+        html_output = visualize(self.value, self.model, None, None, max_width=400)
+        self.assertNotIn('^[0]', html_output)
+
+    def test_row1_shows_match_labels(self):
+        """Row 1 displays ^[0], ^.start(), ^.end() labels."""
+        html_output = visualize(self.value, self.model, None, None, max_width=400)
+        self.assertIn('^[0]', html_output)
+        self.assertIn('^.start()', html_output)
+        self.assertIn('^.end()', html_output)
+
+    def test_row1_shows_first_match_values(self):
+        """Row 1 shows repr values from the first match of /hello/ in 'hello world hello'."""
+        html_output = visualize(self.value, self.model, None, None, max_width=400)
+        # repr('hello') = "'hello'" -> HTML-escaped: &#x27;hello&#x27;
+        import html as html_mod
+        self.assertIn(html_mod.escape(repr('hello')), html_output)
+
+    def test_no_row2_without_replace_text(self):
+        """No transform result row when replace_text is empty."""
+        html_output = visualize(self.value, self.model, None, None, max_width=400)
+        self.assertIn('^[0]', html_output)
+        self.assertNotIn('Transform:', html_output)
+
+    def test_row2_shows_transform_result(self):
+        """Row 2 shows STR => RESULT for a valid transform expression."""
+        self.model['replace_text'] = "^[0].upper()"
+        html_output = visualize(self.value, self.model, None, None, max_width=400)
+        self.assertIn('Transform:', html_output)
+        import html as html_mod
+        self.assertIn(html_mod.escape(repr('HELLO')), html_output)
+
+    def test_row2_shows_runtime_error(self):
+        """Row 2 shows the error message when the transform expression raises."""
+        self.model['replace_text'] = "1/0"
+        html_output = visualize(self.value, self.model, None, None, max_width=400)
+        self.assertIn('Transform:', html_output)
+        self.assertIn('division by zero', html_output)
+
+    def test_row2_shows_syntax_error(self):
+        """Row 2 shows error for an unparseable transform expression."""
+        self.model['replace_text'] = "^[0] +"
+        html_output = visualize(self.value, self.model, None, None, max_width=400)
+        self.assertIn('Transform:', html_output)
+
+    def test_truncates_long_repr(self):
+        """repr values longer than 30 chars are truncated with ellipsis."""
+        long_value = "abcdefghijklmnopqrstuvwxyz_extra"
+        model = init_model(long_value)
+        model['replace_visible'] = True
+        model['search'] = '/abcdefghijklmnopqrstuvwxyz_extra/'
+        html_output = visualize(long_value, model, None, None, max_width=400)
+        import html as html_mod
+        full_repr = html_mod.escape(repr(long_value))
+        self.assertNotIn(full_repr, html_output)
+        self.assertIn('\u2026', html_output)
+
+    def test_no_preview_in_small_mode(self):
+        """Preview is not rendered in small mode."""
+        html_output = visualize(self.value, self.model, None, None, max_width=400, small=True)
+        self.assertNotIn('^[0]', html_output)
+
+    def test_helper_returns_empty_when_no_conditions(self):
+        """_render_transform_preview returns '' when replace not visible."""
+        model = init_model(self.value)
+        eis = lambda _c: eval(_c)
+        result = _render_transform_preview(model, self.value, eis)
+        self.assertEqual(result, '')
+
+    def test_helper_returns_empty_no_search(self):
+        """_render_transform_preview returns '' when no search pattern."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        eis = lambda _c: eval(_c)
+        result = _render_transform_preview(model, self.value, eis)
+        self.assertEqual(result, '')
+
+    def test_helper_returns_empty_no_matches(self):
+        """_render_transform_preview returns '' when search has no matches."""
+        model = init_model(self.value)
+        model['replace_visible'] = True
+        model['search'] = '/zzzzz/'
+        eis = lambda _c: eval(_c)
+        result = _render_transform_preview(model, self.value, eis)
+        self.assertEqual(result, '')
+
+    def test_helper_returns_html_with_matches(self):
+        """_render_transform_preview returns non-empty HTML when there are matches."""
+        eis = lambda _c: eval(_c)
+        result = _render_transform_preview(self.model, self.value, eis)
+        self.assertIn('^[0]', result)
+        self.assertIn('^.start()', result)
+        self.assertIn('^.end()', result)
+
+    def test_row2_resolves_user_scope_variables(self):
+        """Transform preview can reference variables from the user's scope."""
+        user_locals = {'x': 'REPLACED'}
+        eis = lambda _c, _locals=user_locals: eval(_c, {**_locals, '__builtins__': __builtins__})
+        self.model['replace_text'] = '`x`'
+        html_output = visualize(self.value, self.model, None, eis, max_width=400)
+        import html as html_mod
+        self.assertIn(html_mod.escape(repr('REPLACED')), html_output)
 
 
 if __name__ == '__main__':

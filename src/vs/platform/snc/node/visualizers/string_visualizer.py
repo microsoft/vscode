@@ -1917,17 +1917,17 @@ def _string_search_highlights(search: str, string_value: str) -> list:
         re.I if is_case_insensitive(search) else 0)
 
 
-def _expression_search_highlights(search: str, string_value: str, eval_in_scope=None) -> list:
+def _expression_search_highlights(search: str, string_value: str, eval_in_scope) -> list:
     """Produce highlight tuples for a backtick or bare expression search.
 
-    Uses eval_in_scope (if provided) to evaluate in the user's code scope,
-    falling back to bare eval. Returns no highlights if eval fails.
+    Uses eval_in_scope to evaluate in the user's code scope.
+    Returns no highlights if eval fails.
     """
     expr_text = get_eval_expression(search)
     if not expr_text:
         return []
     try:
-        result = eval_in_scope(expr_text) if eval_in_scope else eval(expr_text)
+        result = eval_in_scope(expr_text)
     except Exception:
         return []
     if not isinstance(result, str):
@@ -1940,17 +1940,12 @@ def _expression_search_highlights(search: str, string_value: str, eval_in_scope=
         re.I if is_case_insensitive(search) else 0)
 
 
-def parse_regex_for_highlighting(selection_regex: str | None, string_value: str, eval_in_scope=None) -> List[Tuple[int, int, str, str, Tuple[int, int | float]]]:
+def parse_regex_for_highlighting(selection_regex: str | None, string_value: str, eval_in_scope=lambda _c: eval(_c)) -> List[Tuple[int, int, str, str, Tuple[int, int | float]]]:
     """
     Parse the search and run it against the ORIGINAL string to get highlight ranges.
 
     Supports regex (/pattern/), string literals ('string'), backtick
     expressions (`expr`), and bare expressions.
-
-    Args:
-        selection_regex: Search string in any supported format
-        string_value: The string being visualized
-        eval_in_scope: Optional callable to eval expressions in the user's code scope
 
     Returns:
         List of (internal_start, internal_end, type, pattern_display, repetition, segment_index) tuples.
@@ -2472,7 +2467,7 @@ def build_preview_regex(model, string_value: str) -> str | None:
         else:
             return append_segment_to_regex(current_regex, 'literal', selected_text)
 
-def _render_action_buttons(model: dict, value: str, eval_in_scope=None, max_width=None) -> str:
+def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=None) -> str:
     """Render the action button bar below the search/replace boxes.
 
     Returns HTML string with buttons for all available actions.
@@ -2629,6 +2624,8 @@ def visualize(value, model, get_visualizer, eval_in_scope, max_width=None, max_h
     return ''.join(visualize_els(value, model, get_visualizer, eval_in_scope, max_width, max_height, small))
 
 def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, max_height=None, small=False) -> List[str]:
+    if eval_in_scope is None:
+        eval_in_scope = lambda _c: eval(_c)
 
     # Build highlight_by_index from highlights (uses preview regex to include in-progress selection)
     preview_regex = build_preview_regex(model, value)
@@ -2755,6 +2752,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
         )
 
         replace_box_html = ''
+        preview_html = ''
         if replace_visible:
             replace_text_value = model.get('replace_text') or ''
             replace_input_event = "lambda e: ReplaceBoxInput(value=e.get('value', ''))"
@@ -2780,6 +2778,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
                 f' />'
                 f'</div>'
             )
+            preview_html = _render_transform_preview(model, value, eval_in_scope)
 
         search_box_html = (
             f'<div style="margin-top: 4px; white-space: normal; display: flex; align-items: start; gap: 2px;'
@@ -2810,6 +2809,7 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
             f'{toggles_html}'
             f'</div>'
             f'{replace_box_html}'
+            f'{preview_html}'
             f'</div>'
             f'</div>'
         )
@@ -2835,18 +2835,10 @@ def visualize_els(value, model, get_visualizer, eval_in_scope, max_width=None, m
     ]
 
 
-def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope=None) -> int:
+def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope) -> int:
     """Count the number of matches for the current search pattern.
 
     Used by the Count button to display the match count in its label.
-
-    Args:
-        selection_regex: The search pattern (with delimiters and flags)
-        string_value: The string to search in
-        eval_in_scope: Optional callable for expression evaluation
-
-    Returns:
-        The number of matches found
     """
     if not selection_regex or not string_value:
         return 0
@@ -2873,7 +2865,7 @@ def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope
         if not expr_text:
             return 0
         try:
-            result = eval_in_scope(expr_text) if eval_in_scope else eval(expr_text)
+            result = eval_in_scope(expr_text)
         except Exception:
             return 0
         if not isinstance(result, str):
@@ -2901,7 +2893,7 @@ def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope
         return 0
 
 
-def _find_matches(selection_regex: str, string_value: str, eval_in_scope=None) -> list:
+def _find_matches(selection_regex: str, string_value: str, eval_in_scope) -> list:
     """Return match objects for the current search pattern."""
     if not selection_regex or not string_value:
         return []
@@ -2927,7 +2919,7 @@ def _find_matches(selection_regex: str, string_value: str, eval_in_scope=None) -
         if not expr_text:
             return []
         try:
-            result = eval_in_scope(expr_text) if eval_in_scope else eval(expr_text)
+            result = eval_in_scope(expr_text)
         except Exception:
             return []
         if not isinstance(result, str):
@@ -2979,10 +2971,73 @@ def _compute_predicate_previews(selection_regex, value, replace_visible, replace
     replace_expr = replace_caret_in_py_exp(replace_expr_raw, '_mtch')
 
     try:
-        results = [eval(replace_expr, {'_mtch': m, '__builtins__': __builtins__}) for m in matches]
+        transform_fn = eval_in_scope(f"(lambda _mtch: {replace_expr})")
+        results = [transform_fn(m) for m in matches]
         return (any(results), all(results))
     except Exception:
         return (None, None)
+
+
+def _trunc_repr(val, max_len=30) -> str:
+    begin_end_size = max_len // 2
+    r = repr(val)
+    if len(r) > max_len:
+        return r[:begin_end_size] + '\u2026' + r[-begin_end_size + 1:]
+    return r
+
+
+def _render_transform_preview(model: dict, value: str, eval_in_scope) -> str:
+    """Render a live preview of match metadata and transform result using the first match.
+
+    Returns HTML string, or '' if preconditions are not met (replace not visible,
+    no search, or no matches).
+    """
+    if not model.get('replace_visible', False):
+        return ''
+    selection_regex = model.get('search')
+    if not selection_regex:
+        return ''
+
+    matches = _find_matches(selection_regex, value, eval_in_scope)
+    if not matches:
+        return ''
+
+    m = matches[0]
+    m0 = html.escape(_trunc_repr(m[0]))
+    mstart = html.escape(_trunc_repr(m.start()))
+    mend = html.escape(_trunc_repr(m.end()))
+
+    lbl = 'color: #dcdcaa;'
+    row1 = (
+        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^[0]</span> ⇒ {m0}</span>'
+        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^.start()</span> ⇒ {mstart}</span>'
+        f'<span style="display: inline-block; margin-right: 2em;"><span style="{lbl}">^.end()</span> ⇒ {mend}</span>'
+    )
+
+    result_str = ''
+    replace_text = model.get('replace_text')
+    if replace_text:
+        replace_expr_raw = replace_text
+        if replace_expr_raw.startswith('`') and len(replace_expr_raw) >= 2:
+            end = replace_expr_raw.find('`', 1)
+            if end > 0:
+                replace_expr_raw = replace_expr_raw[1:end]
+        replace_expr = replace_caret_in_py_exp(replace_expr_raw, '_mtch')
+
+        try:
+            transform_fn = eval_in_scope(f"(lambda _mtch: {replace_expr})")
+            result = transform_fn(m)
+            result_str = html.escape(_trunc_repr(result))
+        except Exception as e:
+            result_str = html.escape(str(e))
+    row2 = f'<div style="font-size: 11px;">Transform: {m0} ⇒ {result_str}</div>' if result_str else ''
+
+    return (
+        f'<div style="margin-top: 2px; color: #8C8C8C; white-space: normal;">'
+        f'<div style="font-size: 7px; filter: saturate(0.75); opacity: 0.75;">First match: {row1}</div>'
+        f'{row2}'
+        f'</div>'
+    )
 
 
 def init_model(value, get_visualizer=None):
