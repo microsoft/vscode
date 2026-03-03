@@ -31,6 +31,7 @@ interface IBranchItem {
 export class BranchPicker extends Disposable {
 
 	private _selectedBranch: string | undefined;
+	private _preferredBranch: string | undefined;
 	private _newSession: INewSession | undefined;
 	private _branches: string[] = [];
 
@@ -46,6 +47,13 @@ export class BranchPicker extends Disposable {
 
 	get selectedBranch(): string | undefined {
 		return this._selectedBranch;
+	}
+
+	/**
+	 * Sets a preferred branch to select when branches are loaded.
+	 */
+	setPreferredBranch(branch: string | undefined): void {
+		this._preferredBranch = branch;
 	}
 
 	constructor(
@@ -85,8 +93,11 @@ export class BranchPicker extends Disposable {
 				.filter((name): name is string => !!name)
 				.filter(name => !name.includes(COPILOT_WORKTREE_PATTERN));
 
-			// Select active branch, main, master, or the first branch by default
-			const defaultBranch = this._branches.find(b => b === repository.state.get().HEAD?.name)
+			// Select preferred branch (from draft), active branch, main, master, or the first branch
+			const preferred = this._preferredBranch;
+			this._preferredBranch = undefined;
+			const defaultBranch = (preferred ? this._branches.find(b => b === preferred) : undefined)
+				?? this._branches.find(b => b === repository.state.get().HEAD?.name)
 				?? this._branches.find(b => b === 'main')
 				?? this._branches.find(b => b === 'master')
 				?? this._branches[0];
