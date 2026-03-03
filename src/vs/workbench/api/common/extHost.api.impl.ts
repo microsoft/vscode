@@ -1678,11 +1678,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostChatDebug.registerChatDebugLogProvider(provider);
 			},
 			get customAgents() {
-				checkProposedApiEnabled(extension, 'chatCustomAgents');
-				return extHostChatAgents2.customAgents;
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.customAgents as readonly vscode.ChatResource[];
 			},
 			onDidChangeCustomAgents: (listener, thisArgs?, disposables?) => {
-				checkProposedApiEnabled(extension, 'chatCustomAgents');
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeCustomAgents(listener, thisArgs, disposables);
 			},
 		};

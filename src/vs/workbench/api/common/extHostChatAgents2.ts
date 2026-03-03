@@ -490,7 +490,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
 	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
 
-	private _customAgents: ICustomAgentDto[] = [];
+	private _customAgents: vscode.ChatResource[] = [];
 
 	private _activeChatPanelSessionResource: URI | undefined;
 
@@ -501,20 +501,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._activeChatPanelSessionResource;
 	}
 
-	get customAgents(): readonly ICustomAgentDto[] {
+	get customAgents(): readonly vscode.ChatResource[] {
 		return this._customAgents;
 	}
 
 	$acceptCustomAgents(agents: ICustomAgentDto[]): void {
-		this._customAgents = agents.map(a => Object.freeze({
-			name: a.name,
-			label: a.label,
-			description: a.description,
-			prompt: a.prompt,
-			tools: a.tools ? Object.freeze([...a.tools]) : undefined,
-			target: a.target,
-			model: a.model,
-		}));
+		this._customAgents = agents.map(a => Object.freeze({ uri: URI.revive(a.uri) }));
 		this._onDidChangeCustomAgents.fire();
 	}
 

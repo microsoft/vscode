@@ -43,10 +43,6 @@ const _allApiProposals = {
 	chatContextProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatContextProvider.d.ts',
 	},
-	chatCustomAgents: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatCustomAgents.d.ts',
-		version: 1
-	},
 	chatDebug: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatDebug.d.ts',
 		version: 2

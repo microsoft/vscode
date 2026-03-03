@@ -1618,13 +1618,7 @@ export interface ExtHostChatAgentsShape2 {
 }
 
 export interface ICustomAgentDto {
-	name: string;
-	label: string;
-	description: string;
-	prompt: string;
-	tools: readonly string[] | undefined;
-	target: string | undefined;
-	model: string | undefined;
+	uri: UriComponents;
 }
 export interface IChatParticipantMetadata {
 	participant: string;

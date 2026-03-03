@@ -27,7 +27,7 @@ import { IChatWidget, IChatWidgetService } from '../../contrib/chat/browser/chat
 import { AgentSessionProviders, getAgentSessionProvider } from '../../contrib/chat/browser/agentSessions/agentSessions.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/attachments/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/participants/chatAgents.js';
-import { IPromptFileContext, IPromptsService, Target } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptFileContext, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { isValidPromptType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/requestParser/chatParserTypes.js';
@@ -35,7 +35,6 @@ import { ChatRequestParser } from '../../contrib/chat/common/requestParser/chatR
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
-import { IChatModeService } from '../../contrib/chat/common/chatModes.js';
 import { ILanguageModelToolsService } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
@@ -121,7 +120,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
-		@IChatModeService private readonly _chatModeService: IChatModeService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -156,9 +154,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._acceptActiveChatSession(this._chatWidgetService.lastFocusedWidget);
 
 		// Push custom agents to ext host
-		this._pushCustomAgents();
-		this._register(this._chatModeService.onDidChangeChatModes(() => {
-			this._pushCustomAgents();
+		void this._pushCustomAgents();
+		this._register(this._promptsService.onDidChangeCustomAgents(() => {
+			void this._pushCustomAgents();
 		}));
 	}
 
@@ -168,23 +166,15 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._proxy.$acceptActiveChatSession(isLocal ? sessionResource : undefined);
 	}
 
-	private _pushCustomAgents(): void {
-		const { custom } = this._chatModeService.getModes();
-		const dtos: ICustomAgentDto[] = custom
-			.filter(mode => {
-				const visibility = mode.visibility?.get();
-				return !visibility || visibility.userInvocable;
-			})
-			.map(mode => ({
-				name: mode.name.get(),
-				label: mode.label.get(),
-				description: mode.description?.get() ?? '',
-				prompt: mode.modeInstructions?.get()?.content ?? '',
-				tools: mode.customTools?.get() ? [...mode.customTools.get()!] : undefined,
-				target: mode.target.get() === Target.Undefined ? undefined : mode.target.get(),
-				model: mode.model?.get()?.[0] ?? undefined,
-			}));
-		this._proxy.$acceptCustomAgents(dtos);
+	private async _pushCustomAgents(): Promise<void> {
+		try {
+			const customAgents = await this._promptsService.getCustomAgents(CancellationToken.None);
+			const dtos: ICustomAgentDto[] = customAgents
+				.map(agent => ({ uri: agent.uri }));
+			this._proxy.$acceptCustomAgents(dtos);
+		} catch (error) {
+			this._logService.error('[chat] Failed to push custom agents to extension host', error);
+		}
 	}
 
 	$unregisterAgent(handle: number): void {

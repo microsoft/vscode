@@ -104,6 +104,17 @@ declare module 'vscode' {
 
 	export namespace chat {
 		/**
+		 * An event that fires when the list of {@link customAgents custom agents} changes.
+		 */
+		export const onDidChangeCustomAgents: Event<void>;
+
+		/**
+		 * The list of currently available custom agents. These are `.agent.md` files
+		 * from all sources (workspace, user, and extension-provided).
+		 */
+		export const customAgents: readonly ChatResource[];
+
+		/**
 		 * Register a provider for custom agents.
 		 * @param provider The custom agent provider.
 		 * @returns A disposable that unregisters the provider when disposed.
