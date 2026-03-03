@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
@@ -14,7 +13,7 @@ import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
@@ -184,64 +183,67 @@ class OpenPluginReadmeAction extends Action {
 	}
 }
 
-/**
- * Dropdown action that shows a gear icon and opens the manage menu for installed plugins.
- */
+function getInstalledPluginContextMenuActionGroups(plugin: IAgentPlugin, instantiationService: IInstantiationService): IAction[][] {
+	const groups: IAction[][] = [];
+	if (plugin.enabled.get()) {
+		groups.push([instantiationService.createInstance(DisablePluginAction, plugin)]);
+	} else {
+		groups.push([instantiationService.createInstance(EnablePluginAction, plugin)]);
+	}
+	groups.push([
+		instantiationService.createInstance(OpenPluginFolderAction, plugin),
+		instantiationService.createInstance(OpenPluginReadmeAction, joinPath(plugin.uri, 'README.md')),
+	]);
+	groups.push([instantiationService.createInstance(UninstallPluginAction, plugin)]);
+	return groups;
+}
+
 class ManagePluginAction extends Action {
 	static readonly ID = 'agentPlugin.manage';
 	static readonly CLASS = `extension-action icon manage ${ThemeIcon.asClassName(manageExtensionIcon)}`;
 
-	private readonly actionGroups: () => IAction[][];
+	private _actionViewItem: DropDownActionViewItem | null = null;
 
 	constructor(
-		getActionGroups: () => IAction[][],
+		private readonly getActionGroups: () => IAction[][],
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super(ManagePluginAction.ID, '', ManagePluginAction.CLASS, true);
 		this.tooltip = localize('manage', "Manage");
-		this.actionGroups = getActionGroups;
 	}
 
-	getActions(): IAction[][] {
-		return this.actionGroups();
+	createActionViewItem(options: IActionViewItemOptions): DropDownActionViewItem {
+		this._actionViewItem = this.instantiationService.createInstance(DropDownActionViewItem, this, options);
+		return this._actionViewItem;
+	}
+
+	override async run(): Promise<void> {
+		this._actionViewItem?.showMenu(this.getActionGroups());
 	}
 }
 
-/**
- * ActionViewItem for ManagePluginAction that shows a context menu when clicked.
- */
-class ManagePluginActionViewItem extends ActionViewItem {
+class DropDownActionViewItem extends ActionViewItem {
 	constructor(
-		action: ManagePluginAction,
+		action: IAction,
 		options: IActionViewItemOptions,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) {
 		super(null, action, { ...options, icon: true, label: false });
 	}
 
-	override onClick(event: dom.EventLike): void {
-		event.preventDefault();
-		event.stopPropagation();
-		this.showMenu();
-	}
-
-	private showMenu(): void {
+	showMenu(actionGroups: IAction[][]): void {
 		if (!this.element) {
 			return;
 		}
-		const action = this.action as ManagePluginAction;
-		const groups = action.getActions();
-		const actions: IAction[] = [];
-		for (const group of groups) {
-			actions.push(...group, new Separator());
-		}
+		const actions = actionGroups.flatMap(group => [...group, new Separator()]);
 		if (actions.length > 0) {
-			actions.pop(); // Remove trailing separator
+			actions.pop();
 		}
-
-		const { left, top, height } = getDomNodePagePosition(this.element);
+		const { left, top, height } = dom.getDomNodePagePosition(this.element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => ({ x: left, y: top + height + 10 }),
 			getActions: () => actions,
+			onHide: () => disposeIfDisposable(actions),
 		});
 	}
 }
@@ -283,7 +285,7 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 			focusOnlyEnabledItems: true,
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action instanceof ManagePluginAction) {
-					return this.instantiationService.createInstance(ManagePluginActionViewItem, action, options);
+					return action.createActionViewItem(options);
 				}
 				return undefined;
 			}
@@ -318,37 +320,11 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 			data.actionbar.push([installAction], { icon: true, label: true });
 		} else {
 			data.detail.textContent = element.marketplace ?? '';
-			// Add gear icon for installed plugins
-			const manageAction = new ManagePluginAction(() => {
-				return this.getContextMenuActionGroups(element);
-			});
+			const manageAction = this.instantiationService.createInstance(ManagePluginAction,
+				() => getInstalledPluginContextMenuActionGroups(element.plugin, this.instantiationService));
 			data.elementDisposables.push(manageAction);
 			data.actionbar.push([manageAction], { icon: true, label: false });
 		}
-	}
-
-	private getContextMenuActionGroups(item: IInstalledPluginItem): IAction[][] {
-		const groups: IAction[][] = [];
-
-		// Enable/Disable group
-		const enableDisableGroup: IAction[] = [];
-		if (item.plugin.enabled.get()) {
-			enableDisableGroup.push(this.instantiationService.createInstance(DisablePluginAction, item.plugin));
-		} else {
-			enableDisableGroup.push(this.instantiationService.createInstance(EnablePluginAction, item.plugin));
-		}
-		groups.push(enableDisableGroup);
-
-		// Open actions group
-		const openGroup: IAction[] = [];
-		openGroup.push(this.instantiationService.createInstance(OpenPluginFolderAction, item.plugin));
-		openGroup.push(this.instantiationService.createInstance(OpenPluginReadmeAction, joinPath(item.plugin.uri, 'README.md')));
-		groups.push(openGroup);
-
-		// Uninstall group
-		groups.push([this.instantiationService.createInstance(UninstallPluginAction, item.plugin)]);
-
-		return groups;
 	}
 
 	disposeElement(_element: IAgentPluginItem | undefined, _index: number, data: IAgentPluginTemplateData): void {
@@ -487,20 +463,15 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 	}
 
 	private getContextMenuActions(item: IAgentPluginItem): IAction[] {
-		const actions: IAction[] = [];
+		let actions: IAction[];
 		if (item.kind === AgentPluginItemKind.Installed) {
-			if (item.plugin.enabled.get()) {
-				actions.push(this.instantiationService.createInstance(DisablePluginAction, item.plugin));
-			} else {
-				actions.push(this.instantiationService.createInstance(EnablePluginAction, item.plugin));
+			const groups = getInstalledPluginContextMenuActionGroups(item.plugin, this.instantiationService);
+			actions = groups.flatMap(group => [...group, new Separator()]);
+			if (actions.length > 0) {
+				actions.pop();
 			}
-
-			actions.push(new Separator());
-			actions.push(this.instantiationService.createInstance(OpenPluginFolderAction, item.plugin));
-			actions.push(this.instantiationService.createInstance(OpenPluginReadmeAction, joinPath(item.plugin.uri, 'README.md')));
-			actions.push(new Separator());
-			actions.push(this.instantiationService.createInstance(UninstallPluginAction, item.plugin));
 		} else {
+			actions = [];
 			if (item.readmeUri) {
 				actions.push(this.instantiationService.createInstance(OpenPluginReadmeAction, item.readmeUri));
 			}
