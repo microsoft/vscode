@@ -222,13 +222,13 @@ Two categories of corruption:
 
 2. **`--source-map-base-url` option** - Rewrites `sourceMappingURL` comments to point to CDN URLs.
 
-3. **NLS plugin inline source maps** (`nls-plugin.ts`) - The `onLoad` handler now generates an inline source map (`//# sourceMappingURL=data:...`) mapping from NLS-transformed source back to original. esbuild composes this with its own bundle source map. `SourceMapGenerator.setSourceContent` embeds the original source so `sourcesContent` in the final `.map` has the real TypeScript. Tests in `test/nls-sourcemap.test.ts`.
+3. **NLS plugin inline source maps** (`nls-plugin.ts`) - The `onLoad` handler generates an inline source map (`//# sourceMappingURL=data:...`) mapping from NLS-transformed source back to original. esbuild composes this with its own bundle source map. `SourceMapGenerator.setSourceContent` embeds the original source so `sourcesContent` in the final `.map` has the real TypeScript. `generateNLSSourceMap` adds per-column identity mappings after each edit on a line so that esbuild's source-map composition preserves fine-grained column accuracy (source maps don't interpolate columns — they use binary search, so a single boundary mapping would collapse all subsequent columns to the edit-end position). Tests in `test/nls-sourcemap.test.ts`.
 
 4. **`convertPrivateFields` source map adjustment** (`private-to-property.ts`) - `convertPrivateFields` returns its sorted edits as `TextEdit[]`. `adjustSourceMap()` uses `SourceMapConsumer` to walk every mapping, adjusts generated columns based on cumulative edit shifts per line, and rebuilds with `SourceMapGenerator`. The post-processing loop in `index.ts` saves pre-mangle content + edits per JS file, then applies `adjustSourceMap` to the corresponding `.map`. Tests in `test/private-to-property.test.ts`.
 
-### Not Yet Fixed
+5. **`postProcessNLS` source map adjustment** (`nls-plugin.ts`, `index.ts`) — `postProcessNLS` now returns `{ code, edits }` where `edits` is a `TextEdit[]` tracking each replacement's byte offset. The bundle loop in `index.ts` chains `adjustSourceMap` calls: first for mangle edits, then for NLS edits, so both transforms are accurately reflected in the final `.map` file. Tests in `test/nls-sourcemap.test.ts`.
 
-**`postProcessNLS` column drift** - Replaces NLS placeholders with short indices in bundled output without updating `.map` files. Shifts columns but never lines, so line-level debugging and crash reporting work correctly. Fixing would require tracking replacement offsets through regex matches and adjusting the source map, similar to `adjustSourceMap`.
+6. **`adjustSourceMap` unmapped segment preservation** (`private-to-property.ts`) — Previously, `adjustSourceMap()` silently dropped mappings where `source === null`. These unmapped segments create essential "gaps" that prevent `originalPositionFor()` from wrongly interpolating between distant valid mappings on the same minified line. Now emits them as generated-only mappings. Also preserves `sourceRoot` from the input map.
 
 ### Key Technical Details
 
@@ -240,6 +240,71 @@ Two categories of corruption:
 3. Edit is after the column: stop (edits are sorted)
 
 **Plugin interaction:** Both the NLS plugin and `fileContentMapperPlugin` register `onLoad({ filter: /\.ts$/ })`. In esbuild, the first `onLoad` to return non-`undefined` wins. The NLS plugin is `unshift`ed (runs first), so files with NLS calls skip `fileContentMapperPlugin`. This is safe in practice since `product.ts` (which has `BUILD->INSERT_PRODUCT_CONFIGURATION`) has no localize calls.
+
+### Still Broken — Full Production Build (`npm run gulp vscode-min`)
+
+**Symptom:** Source maps are totally broken in the minified production build. E.g. a breakpoint at `src/vs/editor/browser/editorExtensions.ts` line 308 resolves to `src/vs/editor/common/cursor/cursorMoveCommands.ts` line 732 — a completely different file. This is **cross-file** mapping corruption, not just column drift.
+
+**Status of unit tests:** The fixes above pass in isolated unit tests (small 1–2 file bundles via `esbuild.build` with `minify: true`). The tests verify column drift ≤ 20 and correct line mapping for single-file bundles with NLS. **183 tests pass, 0 failing.** But the full production build bundles hundreds of files into huge minified outputs (e.g. `workbench.desktop.main.js` at ~15 MB) and the source maps break at that scale.
+
+**Suspected root causes (need investigation):**
+
+1. **`generateNLSSourceMap` per-column identity mappings may overwhelm esbuild's source-map composition.** The fix added one mapping per column from edit-end to end-of-line (or next edit). For a long TypeScript line with a `localize()` call near the beginning, this generates hundreds of identity mappings per line. Across hundreds of files, the inline source maps embedded in `onLoad` responses may be extremely large. esbuild must compose these with its own source maps during bundling — it may hit limits, silently drop mappings, or produce incorrect composed maps at this scale. **Mitigation to try:** Instead of per-column mappings, use sparser "checkpoint" mappings (e.g., every N characters) or rely only on boundary mappings and accept some column drift within the NLS-transformed region. The old boundary-only approach was wrong (collapsed all downstream columns), but per-column may be the other extreme.
+
+2. **`adjustSourceMap` may corrupt source indices in large minified bundles.** In a minified bundle, the entire output is on one or very few lines. `adjustSourceMap()` walks every mapping via `SourceMapConsumer.eachMapping()` and adjusts `generatedColumn` using `adjustColumn()`. But when thousands of mappings all share `generatedLine: 1` and there are hundreds of NLS edits on that same line, there may be sorting/ordering bugs: `eachMapping()` returns mappings in generated order by default, but `adjustColumn()` binary-searches through edits sorted by column. If edits cover regions that interleave with mappings from different source files, the cumulative shift calculation might produce wrong columns that then resolve to wrong source files.
+
+3. **Chained `adjustSourceMap` calls (mangle → NLS) may compound errors.** After the first `adjustSourceMap` for mangle edits, the source map's generated columns are updated. The second call for NLS edits uses `nlsEdits` which were computed against `preNLSCode` — but `preNLSCode` is the post-mangle JS, which is what the first `adjustSourceMap` maps from. This chaining _should_ be correct, but needs verification at scale with a real minified bundle.
+
+4. **The `source-map` v0.6.1 library may have precision issues with very large VLQ-encoded maps.** The bundled outputs have source maps with hundreds of thousands of mappings. The library is old (2017) and there may be numerical precision or sorting issues with very large maps. Consider testing with `source-map` v0.7+ or the Rust-based `@aspect-build/source-map`.
+
+5. **Alternative approach: skip per-column NLS plugin mappings, fix only `postProcessNLS`.** The NLS plugin `onLoad` replaces `"key"` with `"%%NLS:longPlaceholder%%"` — a length change that only affects columns on affected lines. The subsequent `postProcessNLS` then replaces the long placeholder with a short index. If the `adjustSourceMap` for `postProcessNLS` is correct, it should compensate for both expansions (plugin expansion + post-process contraction). We might not need per-column mappings in `generateNLSSourceMap` at all — just the boundary mapping. The column will drift in the intermediate representation but `adjustSourceMap` for NLS should fix it. **This hypothesis needs testing.**
+
+6. **Alternative approach: do NLS replacement purely in post-processing.** Skip the `onLoad` two-phase approach (placeholder insertion + post-processing replacement) entirely. Instead, run `postProcessNLS` as a single post-processing step that directly replaces `localize("key", "message")` → `localize(0, null)` in the bundled JS output, with proper source-map adjustment via `adjustSourceMap`. This avoids both the inline source map composition complexity and the two-step replacement. The downside is that post-processing must parse/regex-match real `localize()` calls (not easy placeholders), which is more fragile.
+
+**Summary of fixes applied vs status:**
+
+| Bug | Fix | Unit test | Production |
+|-----|-----|-----------|------------|
+| `generateNLSSourceMap` only had boundary mappings → columns collapsed | Added per-column identity mappings after each edit | Pass (drift: 0) | **Broken** — may overwhelm esbuild composition at scale |
+| `postProcessNLS` didn't track edits for source map adjustment | Returns `{ code, edits }`, chained in `index.ts` | Pass | **Broken** — `adjustSourceMap` may corrupt source indices on huge single-line minified output |
+| `adjustSourceMap` dropped unmapped segments | Preserves generated-only mappings + `sourceRoot` | Pass (no regressions) | **Broken** — same cross-file mapping issue |
+
+**Files involved:**
+- `build/next/nls-plugin.ts` — `generateNLSSourceMap()` (per-column mappings), `postProcessNLS()` (returns edits), `replaceInOutput()` (regex replacement)
+- `build/next/private-to-property.ts` — `adjustSourceMap()` (column adjustment)
+- `build/next/index.ts` — bundle post-processing loop (lines ~899–975), chains adjustSourceMap calls
+- `build/next/test/nls-sourcemap.test.ts` — unit tests (pass but don't cover production-scale bundles)
+
+**How to reproduce:**
+```bash
+npm run gulp vscode-min
+# Open out-vscode-min/ in a debugger, set breakpoints in editor files
+# Observe breakpoints resolve to wrong files
+```
+
+**How to debug further:**
+```bash
+# 1. Build with just --nls (no mangle) to isolate NLS from mangle issues
+npx tsx build/next/index.ts bundle --nls --minify --target desktop --out out-debug
+
+# 2. Build with just --mangle-privates (no NLS) to isolate mangle issues
+npx tsx build/next/index.ts bundle --mangle-privates --minify --target desktop --out out-debug
+
+# 3. Build with neither (baseline — does esbuild's own map work?)
+npx tsx build/next/index.ts bundle --minify --target desktop --out out-debug
+
+# 4. Compare .map files across the three builds to find where mappings diverge
+
+# 5. Validate a specific mapping in the large bundle:
+node -e "
+const {SourceMapConsumer} = require('source-map');
+const fs = require('fs');
+const map = JSON.parse(fs.readFileSync('./out-debug/vs/workbench/workbench.desktop.main.js.map','utf8'));
+const c = new SourceMapConsumer(map);
+// Look up a known position and see which source file it resolves to
+console.log(c.originalPositionFor({line: 1, column: XXXX}));
+"
+```
 
 ---
 
