@@ -240,6 +240,9 @@ def _build_new_code_edits(source_code: str, line: int, suggest_var_name: Optiona
             elif stripped and not stripped.startswith('#'):
                 break
         edits.append({"type": "insert", "afterLine": insert_after, "text": import_stmt})
+        next_line_idx = insert_after  # 0-indexed line after the import block
+        if next_line_idx < len(lines) and lines[next_line_idx].strip() != '':
+            edits.append({"type": "insert", "afterLine": insert_after, "text": ""})
 
     return edits
 
