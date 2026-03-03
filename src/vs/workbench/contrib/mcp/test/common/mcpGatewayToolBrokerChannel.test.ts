@@ -245,7 +245,7 @@ function createNeverStartingServer(
 		start: async () => {
 			startCalls++;
 			// Never resolves — simulates a server that hangs on startup.
-			return new Promise<{ state: McpConnectionState.Kind }>(() => { });
+			return new Promise<McpConnectionState>(() => { });
 		},
 		stop: async () => { },
 		cacheState,
