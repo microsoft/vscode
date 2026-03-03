@@ -176,10 +176,14 @@ export class AICustomizationOverviewView extends ViewPane {
 			}
 		}));
 
-		// Update MCP server count from the MCP service
+		// Update MCP server count reactively
 		const mcpSection = this.sections.find(s => s.id === AICustomizationManagementSection.McpServers);
 		if (mcpSection) {
-			mcpSection.count = this.mcpService.servers.get().length;
+			this._register(autorun(reader => {
+				const servers = this.mcpService.servers.read(reader);
+				mcpSection.count = servers.length;
+				this.updateCountElements();
+			}));
 		}
 
 		this.updateCountElements();

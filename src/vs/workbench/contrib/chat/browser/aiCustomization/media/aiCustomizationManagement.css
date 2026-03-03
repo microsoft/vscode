@@ -702,6 +702,11 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.mcp-server-item.builtin {
+	cursor: default;
+	opacity: 0.85;
+}
+
 .mcp-server-item .mcp-server-icon {
 	flex-shrink: 0;
 	width: 24px;

@@ -1123,7 +1123,10 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Re-layout once after footer renders if we used a zero fallback
 		if (sectionFooterHeight === 0) {
-			requestAnimationFrame(() => {
+			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
+				if (this._store.isDisposed) {
+					return;
+				}
 				const actualFooterHeight = this.sectionHeader.offsetHeight;
 				if (actualFooterHeight > 0) {
 					const correctedHeight = height - actualFooterHeight - searchBarHeight;

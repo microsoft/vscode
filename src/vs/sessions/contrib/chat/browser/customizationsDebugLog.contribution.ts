@@ -53,13 +53,19 @@ class CustomizationsDebugLogContribution extends Disposable implements IWorkbenc
 	}
 
 	private _pendingSnapshot: Promise<void> | undefined;
+	private _snapshotDirty = false;
 
 	private _logSnapshot(): void {
 		if (this._pendingSnapshot) {
+			this._snapshotDirty = true;
 			return;
 		}
 		this._pendingSnapshot = this._doLogSnapshot().finally(() => {
 			this._pendingSnapshot = undefined;
+			if (this._snapshotDirty) {
+				this._snapshotDirty = false;
+				this._logSnapshot();
+			}
 		});
 	}
 
