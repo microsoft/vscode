@@ -55,7 +55,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 			return e.hasChanged(EditorOption.layoutInfo);
 		}
 		this._options = newOptions;
-		this._fontMetricsCache.clear();
 		return true;
 	}
 	public override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
@@ -156,25 +155,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 
 		let result: string = '';
 
-		// Pre-compute font metrics for lines with variable fonts
-		let maxAscentMinusDescent = 0;
-		let hasFontDecorations = false;
-		const modelFontDecorations = this._context.viewModel.getFontDecorationsInRange(new Range(lineNumber, 1, lineNumber, len + 1));
-		if (modelFontDecorations.length > 0) {
-			hasFontDecorations = true;
-			const baseFontFamily = this._options.fontFamily;
-			const baseFontSize = this._options.fontSize;
-			const baseMetrics = this._fontMetricsCache.getMetrics(baseFontFamily, baseFontSize);
-			maxAscentMinusDescent = baseMetrics.ascent - baseMetrics.descent;
-
-			for (const dec of modelFontDecorations) {
-				const fontFamily = dec.options.fontFamily ?? baseFontFamily;
-				const fontSize = dec.options.fontSize ? dec.options.fontSize * baseFontSize : baseFontSize;
-				const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
-				maxAscentMinusDescent = Math.max(maxAscentMinusDescent, metrics.ascent - metrics.descent);
-			}
-		}
-
 		let lineIsEmptyOrWhitespace = false;
 		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineContent);
 		let lastNonWhitespaceIndex: number;
@@ -189,6 +169,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		let currentSelectionIndex = 0;
 		let currentSelection = selections && selections[currentSelectionIndex];
 		let maxLeft = 0;
+		const maximumAscentMinusDescent = this._getMaxAscentMinusDescent(lineNumber, len + 1);
 
 		for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
 			const chCode = lineContent.charCodeAt(charIndex);
@@ -234,17 +215,12 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				continue;
 			}
 
-			let cy: number;
-			if (hasFontDecorations) {
-				// Variable fonts: cy_f = (H - (A_f - D_f) + max_i(A_i - D_i)) / 2
-				const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
-				const fontFamily = fontInfo?.fontFamily ?? this._options.fontFamily;
-				const fontSize = fontInfo?.fontSize ?? this._options.fontSize;
-				const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
-				cy = (lineHeight - (metrics.ascent - metrics.descent) + maxAscentMinusDescent) / 2;
-			} else {
-				cy = lineHeight / 2;
-			}
+			// Variable fonts: cy_f = (H - (A_f - D_f) + max_i(A_i - D_i)) / 2
+			const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
+			const fontFamily = fontInfo?.fontFamily ?? this._options.fontFamily;
+			const fontSize = fontInfo?.fontSize ?? this._options.fontSize;
+			const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
+			const cy = (lineHeight - (metrics.ascent - metrics.descent) + maximumAscentMinusDescent) / 2;
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);
@@ -272,6 +248,22 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		}
 
 		return result;
+	}
+
+	private _getMaxAscentMinusDescent(lineNumber: number, maxColumn: number): number {
+		const modelFontDecorations = this._context.viewModel.getFontDecorationsInRange(new Range(lineNumber, 1, lineNumber, maxColumn));
+		const baseFontFamily = this._options.fontFamily;
+		const baseFontSize = this._options.fontSize;
+		const baseMetrics = this._fontMetricsCache.getMetrics(baseFontFamily, baseFontSize);
+		let maxAscentMinusDescent = baseMetrics.ascent - baseMetrics.descent;
+
+		for (const dec of modelFontDecorations) {
+			const fontFamily = dec.options.fontFamily ?? baseFontFamily;
+			const fontSize = dec.options.fontSize ? dec.options.fontSize * baseFontSize : baseFontSize;
+			const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
+			maxAscentMinusDescent = Math.max(maxAscentMinusDescent, metrics.ascent - metrics.descent);
+		}
+		return maxAscentMinusDescent;
 	}
 
 	private _renderArrow(lineHeight: number, spaceWidth: number, left: number): string {
@@ -386,9 +378,5 @@ class FontMetricsCache {
 			this._cache.set(key, metrics);
 		}
 		return metrics;
-	}
-
-	clear(): void {
-		this._cache.clear();
 	}
 }
