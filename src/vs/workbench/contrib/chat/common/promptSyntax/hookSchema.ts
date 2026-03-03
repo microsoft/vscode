@@ -55,7 +55,7 @@ export function mergeHooks(base: ChatRequestHooks | undefined, additional: ChatR
 		return additional;
 	}
 
-	const result: Record<string, readonly IHookCommand[]> = { ...base };
+	const result: Partial<Record<HookType, readonly IHookCommand[]>> = { ...base };
 	for (const hookType of Object.values(HookType)) {
 		const baseArr = base[hookType];
 		const additionalArr = additional[hookType];

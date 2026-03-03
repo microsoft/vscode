@@ -737,7 +737,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				if (hooksRaw) {
 					const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? defaultFolder;
 					const workspaceRootUri = hookWorkspaceFolder?.uri;
-					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome);
+					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
 				}
 
 				return { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source };

@@ -143,6 +143,7 @@ suite('PromptHeaderAutocompletion', () => {
 				{ label: 'disable-model-invocation', result: 'disable-model-invocation: ${0:true}' },
 				{ label: 'github', result: 'github: $0' },
 				{ label: 'handoffs', result: 'handoffs: $0' },
+				{ label: 'hooks', result: 'hooks:\n  ${1|SessionStart,SessionEnd,UserPromptSubmit,PreToolUse,PostToolUse,PreCompact,SubagentStart,SubagentStop,Stop,ErrorOccurred|}:\n    - type: command\n      command: "$2"' },
 				{ label: 'model', result: 'model: ${0:MAE 4 (olama)}' },
 				{ label: 'name', result: 'name: $0' },
 				{ label: 'target', result: 'target: ${0:vscode}' },

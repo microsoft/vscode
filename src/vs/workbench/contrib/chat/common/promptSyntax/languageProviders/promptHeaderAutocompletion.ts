@@ -15,7 +15,7 @@ import { IChatModeService } from '../../chatModes.js';
 import { getPromptsTypeForLanguageId, PromptsType, Target } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { ClaudeHeaderAttributes, ISequenceValue, IValue, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
+import { ClaudeHeaderAttributes, IMapValue, ISequenceValue, IValue, parseCommaSeparatedList, PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
 import { getAttributeDescription, getTarget, getValidAttributeNames, claudeAgentAttributes, claudeRulesAttributes, knownClaudeTools, knownGithubCopilotTools, IValueEntry } from './promptValidator.js';
 import { localize } from '../../../../../../nls.js';
 import { formatArrayValue, getQuotePreference } from '../utils/promptEditHelper.js';
@@ -119,7 +119,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				return key;
 			}
 			// For map-valued attributes, insert a snippet with the nested structure
-			if (key === PromptHeaderAttributes.hooks && promptType === PromptsType.agent) {
+			if (key === PromptHeaderAttributes.hooks && promptType === PromptsType.agent && target !== Target.Claude) {
 				const hookNames = Object.keys(HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined]);
 				return `${key}:\n  \${1|${hookNames.join(',')}|}:\n    - type: command\n      command: "$2"`;
 			}
@@ -268,7 +268,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 	private provideHookEventCompletions(
 		model: ITextModel,
 		position: Position,
-		hooksMap: import('../promptFileParser.js').IMapValue,
+		hooksMap: IMapValue,
 		target: Target,
 	): CompletionList | undefined {
 		const suggestions: CompletionItem[] = [];

@@ -125,15 +125,22 @@ export function findHookCommandSelection(content: string, hookType: string, inde
  * @returns The selection range, or undefined if not found
  */
 export function findHookCommandInYaml(content: string, commandText: string): ITextEditorSelection | undefined {
-	// Search for: command: "commandText" or command: 'commandText' or command: commandText
+	// Search for command: lines where the value matches the full command text.
+	// Handles: command: "commandText", command: 'commandText', command: commandText
 	const lines = content.split('\n');
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
+		const trimmed = line.trimStart();
+		if (!trimmed.startsWith('command:') && !trimmed.startsWith('- command:')) {
+			continue;
+		}
 		const idx = line.indexOf(commandText);
 		if (idx !== -1) {
-			// Check this is a command: line (or at least contains the command value)
-			const trimmed = line.trimStart();
-			if (trimmed.startsWith('command:') || trimmed.startsWith('- command:')) {
+			// Verify this is a full match (not a substring of a longer command)
+			const afterIdx = idx + commandText.length;
+			const charAfter = afterIdx < line.length ? line.charCodeAt(afterIdx) : -1;
+			// Accept if what follows is end of line, a quote, or whitespace
+			if (charAfter === -1 || charAfter === 34 /* " */ || charAfter === 39 /* ' */ || charAfter === 32 /* space */ || charAfter === 9 /* tab */) {
 				return {
 					startLineNumber: i + 1,
 					startColumn: idx + 1,
@@ -141,19 +148,6 @@ export function findHookCommandInYaml(content: string, commandText: string): ITe
 					endColumn: idx + 1 + commandText.length
 				};
 			}
-		}
-	}
-
-	// Fallback: just find the command text anywhere in the file
-	for (let i = 0; i < lines.length; i++) {
-		const idx = lines[i].indexOf(commandText);
-		if (idx !== -1) {
-			return {
-				startLineNumber: i + 1,
-				startColumn: idx + 1,
-				endLineNumber: i + 1,
-				endColumn: idx + 1 + commandText.length
-			};
 		}
 	}
 

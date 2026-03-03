@@ -237,20 +237,23 @@ function yamlValueToPlain(value: IValue): unknown {
  * @param hooksMap The raw YAML map value from the `hooks` frontmatter attribute.
  * @param workspaceRootUri Workspace root for resolving relative `cwd` paths.
  * @param userHome User home directory path for tilde expansion.
+ * @param target The agent's target, used to resolve hook type names correctly.
  * @returns Resolved hooks organized by hook type, ready for use in {@link ChatRequestHooks}.
  */
 export function parseSubagentHooksFromYaml(
 	hooksMap: IMapValue,
 	workspaceRootUri: URI | undefined,
 	userHome: string,
+	target: Target = Target.Undefined,
 ): ChatRequestHooks {
 	const result: Record<string, IHookCommand[]> = {};
+	const targetHookMap = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
 
 	for (const prop of hooksMap.properties) {
 		const hookTypeName = prop.key.value;
 
-		// Resolve hook type name (supports both PascalCase and Claude names)
-		const hookType = resolveClaudeHookType(hookTypeName) ?? toHookType(hookTypeName);
+		// Resolve hook type name using the target's own map first, then fall back to canonical names
+		const hookType = targetHookMap[hookTypeName] ?? toHookType(hookTypeName);
 		if (!hookType) {
 			continue;
 		}
