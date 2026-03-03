@@ -141,6 +141,7 @@ export type IsolationMode = 'worktree' | 'workspace';
 export class IsolationModePicker extends Disposable {
 
 	private _isolationMode: IsolationMode = 'worktree';
+	private _preferredIsolationMode: IsolationMode | undefined;
 	private _newSession: INewSession | undefined;
 	private _repository: IGitRepository | undefined;
 
@@ -175,7 +176,9 @@ export class IsolationModePicker extends Disposable {
 	setRepository(repository: IGitRepository | undefined): void {
 		this._repository = repository;
 		if (repository) {
-			this._setMode('worktree');
+			const preferred = this._preferredIsolationMode;
+			this._preferredIsolationMode = undefined;
+			this._setMode(preferred ?? 'worktree');
 		} else if (this._isolationMode === 'worktree') {
 			this._setMode('workspace');
 		}
@@ -209,6 +212,20 @@ export class IsolationModePicker extends Disposable {
 				this._showPicker();
 			}
 		}));
+	}
+
+	/**
+	 * Sets a preferred isolation mode to apply when a repository is set.
+	 */
+	setPreferredIsolationMode(mode: IsolationMode): void {
+		this._preferredIsolationMode = mode;
+	}
+
+	/**
+	 * Programmatically set the isolation mode.
+	 */
+	setIsolationMode(mode: IsolationMode): void {
+		this._setMode(mode);
 	}
 
 	/**

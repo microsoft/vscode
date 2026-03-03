@@ -30,7 +30,6 @@ import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatModel, IChatModelInputState, IExportableChatData, ISerializableChatData } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
@@ -79,7 +78,6 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -228,14 +226,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
 					isContributedChatSession = true;
 				} else {
-					// Fall back: if a dynamic agent is registered with this session type ID, lock to it
-					const agent = this.chatAgentService.getAgent(chatSessionType);
-					if (agent) {
-						this.widget.lockToCodingAgent(agent.name, agent.fullName ?? agent.name, agent.id);
-						isContributedChatSession = true;
-					} else {
-						this.widget.unlockFromCodingAgent();
-					}
+					this.widget.unlockFromCodingAgent();
 				}
 			} catch (error) {
 				this.hideLoadingInChatWidget();

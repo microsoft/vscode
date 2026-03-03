@@ -19,6 +19,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	constructor(
 		private readonly _agentHostService: IAgentHostService,
 		private readonly _logService: ILogService,
+		private readonly _sessionType: string,
 	) {
 		super();
 	}
@@ -46,6 +47,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						isDefaultForLocation: {},
 						isUserSelectable: true,
 						modelPickerCategory: undefined,
+						targetChatSessionType: this._sessionType,
 						capabilities: {
 							vision: m.supportsVision,
 							toolCalling: true,

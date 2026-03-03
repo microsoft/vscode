@@ -161,20 +161,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const agentSessionItems: ISessionTypeItem[] = [localSessionItem];
 
-		// Add built-in agent host session types (not contributed via extension point)
-		agentSessionItems.push({
-			type: AgentSessionProviders.AgentHost,
-			label: getAgentSessionProviderName(AgentSessionProviders.AgentHost),
-			hoverDescription: getAgentSessionProviderDescription(AgentSessionProviders.AgentHost),
-			commandId: `workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.AgentHost}`,
-		});
-		agentSessionItems.push({
-			type: AgentSessionProviders.AgentHostClaude,
-			label: getAgentSessionProviderName(AgentSessionProviders.AgentHostClaude),
-			hoverDescription: getAgentSessionProviderDescription(AgentSessionProviders.AgentHostClaude),
-			commandId: `workbench.action.chat.openNewChatSessionInPlace.${AgentSessionProviders.AgentHostClaude}`,
-		});
-
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
 		for (const contribution of contributions) {
 			const agentSessionType = getAgentSessionProvider(contribution.type);
@@ -201,10 +187,6 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 	protected _isSessionTypeEnabled(type: AgentSessionProviders): boolean {
 		if (type === AgentSessionProviders.Local) {
 			return true; // Local is always available
-		}
-		// Agent host types are registered directly, not via extension points
-		if (type === AgentSessionProviders.AgentHost || type === AgentSessionProviders.AgentHostClaude) {
-			return true;
 		}
 		// Disable non-local session types when their provider is not registered yet
 		return !!this.chatSessionsService.getChatSessionContribution(type);

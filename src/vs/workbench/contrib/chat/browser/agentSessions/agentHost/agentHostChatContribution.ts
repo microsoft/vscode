@@ -41,6 +41,15 @@ export class CopilotAgentHostContribution extends Disposable implements IWorkben
 			return;
 		}
 
+		// Register as a chat session contribution
+		this._register(chatSessionsService.registerChatSessionContribution({
+			type: AGENT_HOST_SESSION_TYPE,
+			name: AGENT_HOST_AGENT_ID,
+			displayName: 'Agent Host - Copilot',
+			description: 'Copilot SDK agent running in a dedicated process',
+			canDelegate: true,
+		}));
+
 		// Session list controller
 		const listController = this._register(this._instantiationService.createInstance(AgentHostSessionListController));
 		this._register(chatSessionsService.registerChatSessionItemController(AGENT_HOST_SESSION_TYPE, listController));
@@ -59,7 +68,7 @@ export class CopilotAgentHostContribution extends Disposable implements IWorkben
 		const vendorDescriptor = { vendor: AGENT_HOST_MODEL_VENDOR, displayName: 'Agent Host - Copilot', configuration: undefined, managementCommand: undefined, when: undefined };
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		this._register(toDisposable(() => languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = this._register(new AgentHostLanguageModelProvider(this._agentHostService, logService));
+		const modelProvider = this._register(new AgentHostLanguageModelProvider(this._agentHostService, logService, AGENT_HOST_SESSION_TYPE));
 		this._register(languageModelsService.registerLanguageModelProvider(AGENT_HOST_MODEL_VENDOR, modelProvider));
 
 		// Auth -- refresh models after token is pushed so the SDK can authenticate
@@ -106,6 +115,15 @@ export class ClaudeAgentHostContribution extends Disposable implements IWorkbenc
 			return;
 		}
 
+		// Register as a chat session contribution
+		this._register(chatSessionsService.registerChatSessionContribution({
+			type: AGENT_HOST_CLAUDE_SESSION_TYPE,
+			name: AGENT_HOST_CLAUDE_AGENT_ID,
+			displayName: 'Agent Host - Claude',
+			description: 'Claude SDK agent running in a dedicated process',
+			canDelegate: true,
+		}));
+
 		// Session list controller
 		const listController = this._register(this._instantiationService.createInstance(AgentHostSessionListController));
 		this._register(chatSessionsService.registerChatSessionItemController(AGENT_HOST_CLAUDE_SESSION_TYPE, listController));
@@ -124,7 +142,7 @@ export class ClaudeAgentHostContribution extends Disposable implements IWorkbenc
 		const vendorDescriptor = { vendor: AGENT_HOST_CLAUDE_MODEL_VENDOR, displayName: 'Agent Host - Claude', configuration: undefined, managementCommand: undefined, when: undefined };
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		this._register(toDisposable(() => languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = this._register(new AgentHostLanguageModelProvider(agentHostService, logService));
+		const modelProvider = this._register(new AgentHostLanguageModelProvider(agentHostService, logService, AGENT_HOST_CLAUDE_SESSION_TYPE));
 		this._register(languageModelsService.registerLanguageModelProvider(AGENT_HOST_CLAUDE_MODEL_VENDOR, modelProvider));
 	}
 }
