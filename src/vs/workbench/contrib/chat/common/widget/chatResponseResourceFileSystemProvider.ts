@@ -8,17 +8,36 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { newWriteableStream, ReadableStreamEvents } from '../../../../../base/common/stream.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileService, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ChatResponseResource } from '../model/chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from '../chatService/chatService.js';
 import { isToolResultInputOutputDetails } from '../tools/languageModelToolsService.js';
 
+export const IChatResponseResourceFileSystemProvider = createDecorator<IChatResponseResourceFileSystemProvider>('chatResponseResourceFileSystemProvider');
+
+export interface IChatResponseResourceFileSystemProvider {
+	readonly _serviceBrand: undefined;
+
+	/**
+	 * Associates arbitrary data with a URI in the chat response resource filesystem.
+	 * The data is scoped to the given session and automatically cleaned up when
+	 * the session is disposed.
+	 * Returns a URI that can later be read via the file service.
+	 */
+	associate(sessionResource: URI, data: Uint8Array, name?: string): URI;
+}
+
 export class ChatResponseResourceFileSystemProvider extends Disposable implements
 	IWorkbenchContribution,
+	IChatResponseResourceFileSystemProvider,
 	IFileSystemProviderWithFileReadWriteCapability,
 	IFileSystemProviderWithFileAtomicReadCapability,
 	IFileSystemProviderWithFileReadStreamCapability {
+
+	declare readonly _serviceBrand: undefined;
 
 	public static readonly ID = 'workbench.contrib.chatResponseResourceFileSystemProvider';
 
@@ -32,12 +51,50 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		| FileSystemProviderCapabilities.FileAtomicRead
 		| FileSystemProviderCapabilities.FileReadWrite;
 
+	/** In-memory store for data associated via {@link associate}, keyed by URI string. */
+	private readonly _associated = new Map<string, Uint8Array>();
+
+	/** Tracks which associated URIs belong to which session, for cleanup on dispose. */
+	private readonly _sessionAssociations = new Map<string, Set<string>>();
+
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
 		this._register(this._fileService.registerProvider(ChatResponseResource.scheme, this));
+		this._register(this.chatService.onDidDisposeSession(e => {
+			for (const sessionResource of e.sessionResource) {
+				const key = sessionResource.toString();
+				const uris = this._sessionAssociations.get(key);
+				if (uris) {
+					for (const uri of uris) {
+						this._associated.delete(uri);
+					}
+					this._sessionAssociations.delete(key);
+				}
+			}
+		}));
+	}
+
+	associate(sessionResource: URI, data: Uint8Array, name?: string): URI {
+		const id = generateUuid();
+		const uri = URI.from({
+			scheme: ChatResponseResource.scheme,
+			path: `/assoc/${id}` + (name ? `/${name}` : ''),
+		});
+		const uriKey = uri.toString();
+		this._associated.set(uriKey, data);
+
+		const sessionKey = sessionResource.toString();
+		let set = this._sessionAssociations.get(sessionKey);
+		if (!set) {
+			set = new Set();
+			this._sessionAssociations.set(sessionKey, set);
+		}
+		set.add(uriKey);
+
+		return uri;
 	}
 
 	readFile(resource: URI): Promise<Uint8Array> {
@@ -108,6 +165,11 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 	}
 
 	private lookupURI(uri: URI): Uint8Array | Promise<Uint8Array> {
+		const associated = this._associated.get(uri.toString());
+		if (associated) {
+			return associated;
+		}
+
 		const { result, index } = this.findMatchingInvocation(uri);
 		const details = IChatToolInvocation.resultDetails(result);
 		if (!isToolResultInputOutputDetails(details)) {
