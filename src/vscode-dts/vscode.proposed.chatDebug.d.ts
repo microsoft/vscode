@@ -118,6 +118,13 @@ declare module 'vscode' {
 		parentEventId?: string;
 
 		/**
+		 * The name of the request that triggered this model turn
+		 * (e.g., "panel/editAgent"). Displayed alongside the label
+		 * in the debug view to identify the request.
+		 */
+		requestName?: string;
+
+		/**
 		 * The identifier of the model used (e.g., "gpt-4o").
 		 */
 		model?: string;
