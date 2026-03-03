@@ -25,6 +25,9 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	private _recommendations: ExtensionRecommendation[] = [];
 	get recommendations(): ReadonlyArray<ExtensionRecommendation> { return this._recommendations; }
 
+	private _stronglyRecommended: Array<string | URI> = [];
+	get stronglyRecommended(): ReadonlyArray<string | URI> { return this._stronglyRecommended; }
+
 	private _onDidChangeRecommendations = this._register(new Emitter<void>());
 	readonly onDidChangeRecommendations = this._onDidChangeRecommendations.event;
 
@@ -32,6 +35,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 	get ignoredRecommendations(): ReadonlyArray<string> { return this._ignoredRecommendations; }
 
 	private workspaceExtensions: URI[] = [];
+	private workspaceExtensionIds = new Map<string, URI>();
 	private readonly onDidChangeWorkspaceExtensionsScheduler: RunOnceScheduler;
 
 	constructor(
@@ -90,8 +94,12 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 				// ignore
 			}
 		}
+		this.workspaceExtensionIds.clear();
 		if (workspaceExtensions.length) {
 			const resourceExtensions = await this.workbenchExtensionManagementService.getExtensions(workspaceExtensions);
+			for (const ext of resourceExtensions) {
+				this.workspaceExtensionIds.set(ext.identifier.id.toLowerCase(), ext.location);
+			}
 			return resourceExtensions.map(extension => extension.location);
 		}
 		return [];
@@ -110,6 +118,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		}
 
 		this._recommendations = [];
+		this._stronglyRecommended = [];
 		this._ignoredRecommendations = [];
 
 		for (const extensionsConfig of extensionsConfigs) {
@@ -133,6 +142,24 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 					}
 				}
 			}
+			if (extensionsConfig.stronglyRecommended) {
+				for (const extensionId of extensionsConfig.stronglyRecommended) {
+					if (invalidRecommendations.indexOf(extensionId) === -1) {
+						const workspaceExtUri = this.workspaceExtensionIds.get(extensionId.toLowerCase());
+						const extension = workspaceExtUri ?? extensionId;
+						const reason = {
+							reasonId: ExtensionRecommendationReason.Workspace,
+							reasonText: localize('stronglyRecommendedExtension', "This extension is strongly recommended by users of the current workspace.")
+						};
+						this._stronglyRecommended.push(extension);
+						if (workspaceExtUri) {
+							this._recommendations.push({ extension: workspaceExtUri, reason });
+						} else {
+							this._recommendations.push({ extension: extensionId, reason });
+						}
+					}
+				}
+			}
 		}
 
 		for (const extension of this.workspaceExtensions) {
@@ -152,7 +179,7 @@ export class WorkspaceRecommendations extends ExtensionRecommendations {
 		const invalidExtensions: string[] = [];
 		let message = '';
 
-		const allRecommendations = distinct(contents.flatMap(({ recommendations }) => recommendations || []));
+		const allRecommendations = distinct(contents.flatMap(({ recommendations, stronglyRecommended }) => [...(recommendations || []), ...(stronglyRecommended || [])]));
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 		for (const extensionId of allRecommendations) {
 			if (regEx.test(extensionId)) {
