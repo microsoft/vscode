@@ -660,6 +660,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		this.layoutInputScrollable(inputScrollable);
+		questionRenderStore.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
+			inputContainer.scrollTop = 0;
+			inputContainer.scrollLeft = 0;
+			inputScrollable.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+			inputScrollable.scanDomNode();
+		}));
 		this._onDidChangeHeight.fire();
 	}
 
