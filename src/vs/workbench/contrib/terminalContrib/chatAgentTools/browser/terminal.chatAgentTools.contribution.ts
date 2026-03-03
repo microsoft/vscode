@@ -31,6 +31,7 @@ import { RunInTerminalTool, createRunInTerminalToolData } from './tools/runInTer
 import { CreateAndRunTaskTool, CreateAndRunTaskToolData } from './tools/task/createAndRunTaskTool.js';
 import { GetTaskOutputTool, GetTaskOutputToolData } from './tools/task/getTaskOutputTool.js';
 import { RunTaskTool, RunTaskToolData } from './tools/task/runTaskTool.js';
+import { DisplayImageInTerminalTool, DisplayImageInTerminalToolData } from './tools/displayImageInTerminalTool.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ITerminalSandboxService, TerminalSandboxService } from '../common/terminalSandboxService.js';
 
@@ -115,6 +116,10 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 
 		this._register(toolsService.readToolSet.addTool(GetTerminalSelectionToolData));
 		this._register(toolsService.readToolSet.addTool(GetTerminalLastCommandToolData));
+
+		const displayImageInTerminalTool = instantiationService.createInstance(DisplayImageInTerminalTool);
+		this._register(toolsService.registerTool(DisplayImageInTerminalToolData, displayImageInTerminalTool));
+		this._register(toolsService.executeToolSet.addTool(DisplayImageInTerminalToolData));
 
 		// #endregion
 

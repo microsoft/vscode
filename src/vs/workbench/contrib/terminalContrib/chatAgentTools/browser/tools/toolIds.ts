@@ -14,4 +14,5 @@ export const enum TerminalToolId {
 	CreateAndRunTask = 'create_and_run_task',
 	GetTaskOutput = 'get_task_output',
 	RunTask = 'run_task',
+	DisplayImageInTerminal = 'display_image_in_terminal',
 }
