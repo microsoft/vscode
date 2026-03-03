@@ -10,15 +10,18 @@ import { dirname, posix, win32 } from '../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, ConfigurationTargetToString } from '../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IMcpResourceScannerService, McpResourceTarget } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { IMcpSandboxConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
+import { IMcpSandboxConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpPotentialSandboxBlock, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
+import { Mutable } from '../../../../base/common/types.js';
 
 export const IMcpSandboxService = createDecorator<IMcpSandboxService>('mcpSandboxService');
 
@@ -26,7 +29,19 @@ export interface IMcpSandboxService {
 	readonly _serviceBrand: undefined;
 	launchInSandboxIfEnabled(serverDef: McpServerDefinition, launch: McpServerLaunch, remoteAuthority: string | undefined, configTarget: ConfigurationTarget): Promise<McpServerLaunch>;
 	isEnabled(serverDef: McpServerDefinition, serverLabel?: string): Promise<boolean>;
+	getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestionResult | undefined;
+	applySandboxConfigSuggestion(serverDef: McpServerDefinition, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean>;
 }
+
+type SandboxConfigSuggestions = {
+	allowWrite: readonly string[];
+	allowedDomains: readonly string[];
+};
+
+type SandboxConfigSuggestionResult = {
+	message: string;
+	sandboxConfig: IMcpSandboxConfiguration;
+};
 
 type SandboxLaunchDetails = {
 	execPath: string | undefined;
@@ -40,13 +55,14 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 
 	private _sandboxSettingsId: string | undefined;
 	private _remoteEnvDetailsPromise: Promise<IRemoteAgentEnvironment | null>;
-	private readonly _defaultAllowedDomains: readonly string[] = ['*.npmjs.org'];
+	private readonly _defaultAllowedDomains: readonly string[] = ['registry.npmjs.org']; // Default allowed domains that are commonly needed for MCP servers, even if the user doesn't specify them in their sandbox config
 	private _sandboxConfigPerConfigurationTarget: Map<string, string> = new Map();
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
+		@IMcpResourceScannerService private readonly _mcpResourceScannerService: IMcpResourceScannerService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super();
@@ -69,7 +85,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		}
 		if (await this.isEnabled(serverDef, remoteAuthority)) {
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
-			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, serverDef.sandbox);
+			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, serverDef.sandbox, launch.cwd);
 			const sandboxArgs = this._getSandboxCommandArgs(launch.command, launch.args, launchDetails.sandboxConfigPath);
 			const sandboxEnv = this._getSandboxEnvVariables(launchDetails.tempDir, remoteAuthority);
 			if (launchDetails.srtPath) {
@@ -100,7 +116,158 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return launch;
 	}
 
-	private async _resolveSandboxLaunchDetails(configTarget: ConfigurationTarget, remoteAuthority?: string, sandboxConfig?: IMcpSandboxConfiguration): Promise<SandboxLaunchDetails> {
+	public getSandboxConfigSuggestionMessage(serverLabel: string, potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestionResult | undefined {
+		const suggestions = this._getSandboxConfigSuggestions(potentialBlocks, existingSandboxConfig);
+		if (!suggestions) {
+			return undefined;
+		}
+
+		const allowWriteList = suggestions.allowWrite;
+		const allowedDomainsList = suggestions.allowedDomains;
+		const suggestionLines: string[] = [];
+
+		if (allowedDomainsList.length) {
+			const shown = allowedDomainsList.map(domain => `"${domain}"`).join(', ');
+			suggestionLines.push(localize('mcpSandboxSuggestion.allowedDomains', "Add to `sandbox.network.allowedDomains`: {0}", shown));
+		}
+
+		if (allowWriteList.length) {
+			const shown = allowWriteList.map(path => `"${path}"`).join(', ');
+			suggestionLines.push(localize('mcpSandboxSuggestion.allowWrite', "Add to `sandbox.filesystem.allowWrite`: {0}", shown));
+		}
+
+		const sandboxConfig: IMcpSandboxConfiguration = {};
+		if (allowedDomainsList.length) {
+			sandboxConfig.network = { allowedDomains: [...allowedDomainsList] };
+		}
+		if (allowWriteList.length) {
+			sandboxConfig.filesystem = { allowWrite: [...allowWriteList] };
+		}
+
+		return {
+			message: localize(
+				'mcpSandboxSuggestion.message',
+				"The MCP server {0} reported potential sandbox blocks. VS Code found possible sandbox configuration updates:\n{1}",
+				serverLabel,
+				suggestionLines.join('\n')
+			),
+			sandboxConfig,
+		};
+	}
+
+	public async applySandboxConfigSuggestion(serverDef: McpServerDefinition, mcpResource: URI, configTarget: ConfigurationTarget, potentialBlocks: readonly IMcpPotentialSandboxBlock[], suggestedSandboxConfig?: IMcpSandboxConfiguration): Promise<boolean> {
+		const scanTarget = this._toMcpResourceTarget(configTarget);
+		let didChange = false;
+
+		await this._mcpResourceScannerService.updateSandboxConfig(data => {
+			const existingSandbox = data.sandbox ?? serverDef.sandbox;
+			const suggestedAllowedDomains = suggestedSandboxConfig?.network?.allowedDomains ?? [];
+			const suggestedAllowWrite = suggestedSandboxConfig?.filesystem?.allowWrite ?? [];
+
+			const currentAllowedDomains = new Set(existingSandbox?.network?.allowedDomains ?? []);
+			for (const domain of suggestedAllowedDomains) {
+				if (domain && !currentAllowedDomains.has(domain)) {
+					currentAllowedDomains.add(domain);
+				}
+			}
+
+			const currentAllowWrite = new Set(existingSandbox?.filesystem?.allowWrite ?? []);
+			for (const path of suggestedAllowWrite) {
+				if (path && !currentAllowWrite.has(path)) {
+					currentAllowWrite.add(path);
+				}
+			}
+
+			didChange = currentAllowedDomains.size !== (existingSandbox?.network?.allowedDomains?.length ?? 0)
+				|| currentAllowWrite.size !== (existingSandbox?.filesystem?.allowWrite?.length ?? 0);
+
+			if (!didChange) {
+				return data;
+			}
+
+			const nextSandboxConfig: IMcpSandboxConfiguration = {
+				...existingSandbox,
+			};
+
+			if (currentAllowedDomains.size > 0 || existingSandbox?.network?.deniedDomains?.length) {
+				nextSandboxConfig.network = {
+					...existingSandbox?.network,
+					allowedDomains: [...currentAllowedDomains],
+				};
+			}
+
+			if (currentAllowWrite.size > 0 || existingSandbox?.filesystem?.denyRead?.length || existingSandbox?.filesystem?.denyWrite?.length) {
+				nextSandboxConfig.filesystem = {
+					...existingSandbox?.filesystem,
+					allowWrite: [...currentAllowWrite],
+				};
+			}
+
+			//always remove sandbox at server level when writing back, it should only exist at the top level. This is to sanitize any old or malformed configs that may have sandbox defined at the server level.
+			if (data.servers) {
+				for (const serverName in data.servers) {
+					const serverConfig = data.servers[serverName];
+					if (serverConfig.type === McpServerType.LOCAL) {
+						delete (serverConfig as Mutable<IMcpStdioServerConfiguration>).sandbox;
+					}
+				}
+			}
+
+			return {
+				...data,
+				sandbox: nextSandboxConfig,
+			};
+		}, mcpResource, scanTarget);
+
+		return didChange;
+	}
+
+	private _getSandboxConfigSuggestions(potentialBlocks: readonly IMcpPotentialSandboxBlock[], existingSandboxConfig?: IMcpSandboxConfiguration): SandboxConfigSuggestions | undefined {
+		if (!potentialBlocks.length) {
+			return undefined;
+		}
+
+		const allowWrite = new Set<string>();
+		const allowedDomains = new Set<string>();
+		const existingAllowWrite = new Set(existingSandboxConfig?.filesystem?.allowWrite ?? []);
+		const existingAllowedDomains = new Set(existingSandboxConfig?.network?.allowedDomains ?? []);
+
+		for (const block of potentialBlocks) {
+			if (block.kind === 'network' && block.host && !existingAllowedDomains.has(block.host)) {
+				allowedDomains.add(block.host);
+			}
+
+			if (block.kind === 'filesystem' && block.path && !existingAllowWrite.has(block.path)) {
+				allowWrite.add(block.path);
+			}
+		}
+
+		if (!allowWrite.size && !allowedDomains.size) {
+			return undefined;
+		}
+
+		return {
+			allowWrite: [...allowWrite],
+			allowedDomains: [...allowedDomains],
+		};
+	}
+
+	private _toMcpResourceTarget(configTarget: ConfigurationTarget): McpResourceTarget {
+		switch (configTarget) {
+			case ConfigurationTarget.USER:
+			case ConfigurationTarget.USER_LOCAL:
+			case ConfigurationTarget.USER_REMOTE:
+				return ConfigurationTarget.USER;
+			case ConfigurationTarget.WORKSPACE:
+				return ConfigurationTarget.WORKSPACE;
+			case ConfigurationTarget.WORKSPACE_FOLDER:
+				return ConfigurationTarget.WORKSPACE_FOLDER;
+			default:
+				return ConfigurationTarget.USER;
+		}
+	}
+
+	private async _resolveSandboxLaunchDetails(configTarget: ConfigurationTarget, remoteAuthority?: string, sandboxConfig?: IMcpSandboxConfiguration, launchCwd?: string): Promise<SandboxLaunchDetails> {
 		const os = await this._getOperatingSystem(remoteAuthority);
 		if (os === OperatingSystem.Windows) {
 			return { execPath: undefined, srtPath: undefined, sandboxConfigPath: undefined, tempDir: undefined };
@@ -110,7 +277,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		const execPath = await this._getExecPath(os, appRoot, remoteAuthority);
 		const tempDir = await this._getTempDir(remoteAuthority);
 		const srtPath = this._pathJoin(os, appRoot, 'node_modules', '@anthropic-ai', 'sandbox-runtime', 'dist', 'cli.js');
-		const sandboxConfigPath = tempDir ? await this._updateSandboxConfig(tempDir, configTarget, sandboxConfig) : undefined;
+		const sandboxConfigPath = tempDir ? await this._updateSandboxConfig(tempDir, configTarget, sandboxConfig, launchCwd) : undefined;
 		this._logService.debug(`McpSandboxService: Updated sandbox config path: ${sandboxConfigPath}`);
 		return { execPath, srtPath, sandboxConfigPath, tempDir };
 	}
@@ -181,8 +348,8 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		return tempDir;
 	}
 
-	private async _updateSandboxConfig(tempDir: URI, configTarget: ConfigurationTarget, sandboxConfig?: IMcpSandboxConfiguration): Promise<string> {
-		const normalizedSandboxConfig = this._withDefaultSandboxConfig(sandboxConfig);
+	private async _updateSandboxConfig(tempDir: URI, configTarget: ConfigurationTarget, sandboxConfig?: IMcpSandboxConfiguration, launchCwd?: string): Promise<string> {
+		const normalizedSandboxConfig = this._withDefaultSandboxConfig(sandboxConfig, launchCwd);
 		let configFileUri: URI;
 		const configTargetKey = ConfigurationTargetToString(configTarget);
 		if (this._sandboxConfigPerConfigurationTarget.has(configTargetKey)) {
@@ -197,9 +364,9 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 
 	// this method merges the default allowWrite paths and allowedDomains with the ones provided in the sandbox config, to ensure that the default necessary paths and domains are always included in the sandbox config used for launching,
 	//  even if they are not explicitly specified in the config provided by the user or the MCP server config.
-	private _withDefaultSandboxConfig(sandboxConfig?: IMcpSandboxConfiguration): IMcpSandboxConfiguration {
+	private _withDefaultSandboxConfig(sandboxConfig?: IMcpSandboxConfiguration, launchCwd?: string): IMcpSandboxConfiguration {
 		const mergedAllowWrite = new Set(sandboxConfig?.filesystem?.allowWrite ?? []);
-		for (const defaultAllowWrite of this._getDefaultAllowWrite()) {
+		for (const defaultAllowWrite of this._getDefaultAllowWrite(launchCwd ? [launchCwd] : undefined)) {
 			if (defaultAllowWrite) {
 				mergedAllowWrite.add(defaultAllowWrite);
 			}
@@ -226,10 +393,15 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		};
 	}
 
-	private _getDefaultAllowWrite(): readonly string[] {
-		return [
-			'~/.npm'
-		];
+	private _getDefaultAllowWrite(directories?: string[]): readonly string[] {
+		const defaultAllowWrite: string[] = ['~/.npm'];
+		for (const launchCwd of directories ?? []) {
+			const trimmed = launchCwd.trim();
+			if (trimmed) {
+				defaultAllowWrite.push(trimmed);
+			}
+		}
+		return defaultAllowWrite;
 	}
 
 	private _pathJoin = (os: OperatingSystem, ...segments: string[]) => {

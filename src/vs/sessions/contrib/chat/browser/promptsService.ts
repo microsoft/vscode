@@ -19,7 +19,7 @@ import { IWorkbenchEnvironmentService } from '../../../../workbench/services/env
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { ISearchService } from '../../../../workbench/services/search/common/search.js';
 import { IUserDataProfileService } from '../../../../workbench/services/userDataProfile/common/userDataProfile.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 export class AgenticPromptsService extends PromptsService {
 	private _copilotRoot: URI | undefined;
@@ -67,7 +67,7 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 		@IUserDataProfileService userDataService: IUserDataProfileService,
 		@ILogService logService: ILogService,
 		@IPathService pathService: IPathService,
-		@ISessionsManagementService private readonly activeSessionService: ISessionsManagementService,
+		@IAICustomizationWorkspaceService private readonly customizationWorkspaceService: IAICustomizationWorkspaceService,
 	) {
 		super(
 			fileService,
@@ -95,7 +95,7 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 	}
 
 	protected override onDidChangeWorkspaceFolders(): Event<void> {
-		return Event.fromObservableLight(this.activeSessionService.activeSession);
+		return Event.fromObservableLight(this.customizationWorkspaceService.activeProjectRoot);
 	}
 
 	public override async getHookSourceFolders(): Promise<readonly URI[]> {
@@ -108,8 +108,7 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 	}
 
 	private getActiveWorkspaceFolder(): IWorkspaceFolder | undefined {
-		const session = this.activeSessionService.getActiveSession();
-		const root = session?.worktree ?? session?.repository;
+		const root = this.customizationWorkspaceService.getActiveProjectRoot();
 		if (!root) {
 			return undefined;
 		}

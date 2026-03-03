@@ -15,7 +15,6 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, getConfigValueInTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../chat/common/constants.js';
@@ -80,8 +79,7 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 		}
 
 		const model = await this._modelSequencer.queue(() => this._getMatchingModel(opts));
-		// todo@connor4312: nullExtensionDescription.identifier -> undefined with API update
-		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), messages, {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, undefined, messages, {}, token);
 
 		let responseText = '';
 

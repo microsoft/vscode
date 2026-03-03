@@ -30,10 +30,11 @@ export interface ITaskEntry {
 	readonly script?: string;
 	readonly type?: string;
 	readonly command?: string;
+	readonly args?: CommandString[];
 	readonly inSessions?: boolean;
-	readonly windows?: { command?: string };
-	readonly osx?: { command?: string };
-	readonly linux?: { command?: string };
+	readonly windows?: { command?: string; args?: CommandString[] };
+	readonly osx?: { command?: string; args?: CommandString[] };
+	readonly linux?: { command?: string; args?: CommandString[] };
 	readonly [key: string]: unknown;
 }
 
@@ -293,21 +294,42 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			if (!task.script) {
 				return undefined;
 			}
-			if (task.path) {
-				return `npm --prefix ${task.path} run ${task.script}`;
-			}
-			return `npm run ${task.script}`;
+			const base = task.path
+				? `npm --prefix ${task.path} run ${task.script}`
+				: `npm run ${task.script}`;
+			return this._appendArgs(base, task.args);
 		}
+
+		let command: string | undefined;
+		let platformArgs: CommandString[] | undefined;
+
 		if (isWindows && task.windows?.command) {
-			return task.windows.command;
+			command = task.windows.command;
+			platformArgs = task.windows.args;
+		} else if (isMacintosh && task.osx?.command) {
+			command = task.osx.command;
+			platformArgs = task.osx.args;
+		} else if (!isWindows && !isMacintosh && task.linux?.command) {
+			command = task.linux.command;
+			platformArgs = task.linux.args;
+		} else {
+			command = task.command;
 		}
-		if (isMacintosh && task.osx?.command) {
-			return task.osx.command;
+
+		// Platform-specific args override task-level args
+		const args = platformArgs ?? task.args;
+		return this._appendArgs(command, args);
+	}
+
+	private _appendArgs(command: string | undefined, args: CommandString[] | undefined): string | undefined {
+		if (!command) {
+			return undefined;
 		}
-		if (!isWindows && !isMacintosh && task.linux?.command) {
-			return task.linux.command;
+		if (!args || args.length === 0) {
+			return command;
 		}
-		return task.command;
+		const resolvedArgs = args.map(a => CommandString.value(a)).join(' ');
+		return `${command} ${resolvedArgs}`;
 	}
 
 	private _ensureFileWatch(folder: URI): void {

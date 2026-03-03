@@ -1453,8 +1453,6 @@ export interface IChatService {
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
-	readonly edits2Enabled: boolean;
-
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	/**

@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -397,7 +398,7 @@ function createUnavailableModelItem(
 	let description: string | MarkdownString | undefined;
 
 	if (reason === 'upgrade') {
-		description = new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade your plan](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true });
+		description = new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true });
 	} else if (reason === 'update') {
 		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
 	} else {
@@ -409,7 +410,7 @@ function createUnavailableModelItem(
 	let hoverContent: MarkdownString;
 	if (reason === 'upgrade') {
 		hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade your plan](command:workbench.action.chat.upgradePlan \" \") to use this model."));
+		hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") with a free 30-day trial to use the best models."));
 	} else if (reason === 'update') {
 		hoverContent = getUpdateHoverContent(updateStateType);
 	} else {
@@ -459,6 +460,7 @@ export class ModelPickerWidget extends Disposable {
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
+	private _hideChevrons: IObservable<boolean> | undefined;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -484,6 +486,17 @@ export class ModelPickerWidget extends Disposable {
 		super();
 	}
 
+	setHideChevrons(hideChevrons: IObservable<boolean>): void {
+		this._hideChevrons = hideChevrons;
+		this._register(autorun(reader => {
+			const hide = hideChevrons.read(reader);
+			if (this._domNode) {
+				this._domNode.classList.toggle('hide-chevrons', hide);
+			}
+			this._renderLabel();
+		}));
+	}
+
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
 		this._selectedModel = model;
 		this._renderLabel();
@@ -500,6 +513,11 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.setAttribute('role', 'button');
 		this._domNode.setAttribute('aria-haspopup', 'true');
 		this._domNode.setAttribute('aria-expanded', 'false');
+
+		// Apply initial collapsed state now that _domNode exists
+		if (this._hideChevrons?.get()) {
+			this._domNode.classList.toggle('hide-chevrons', true);
+		}
 
 		this._badgeIcon = dom.append(this._domNode, dom.$('span.model-picker-badge'));
 		this._updateBadge();
@@ -596,6 +614,11 @@ export class ModelPickerWidget extends Disposable {
 			getModelPickerAccessibilityProvider(),
 			listOptions
 		);
+
+		const activeElement = dom.getActiveElement();
+		if (dom.isHTMLInputElement(activeElement) && activeElement.classList.contains('action-list-filter-input')) {
+			activeElement.classList.add('chat-model-picker-filter-input');
+		}
 	}
 
 	private _updateBadge(): void {
@@ -632,7 +655,9 @@ export class ModelPickerWidget extends Disposable {
 			domChildren.push(this._badgeIcon);
 		}
 
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		if (!this._hideChevrons?.get()) {
+			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
 
 		dom.reset(this._domNode, ...domChildren);
 

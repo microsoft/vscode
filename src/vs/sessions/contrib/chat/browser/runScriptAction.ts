@@ -9,13 +9,13 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derivedOpts, IObservable } from '../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { IActiveSessionItem, IsActiveSessionBackgroundProviderContext, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsConfigurationService, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 
@@ -284,13 +284,36 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
-// Register the Run split button submenu on the workbench title bar
-MenuRegistry.appendMenuItem(Menus.TitleBarRight, {
+// Register the Run split button submenu on the workbench title bar (background sessions only)
+MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	submenu: RunScriptDropdownMenuId,
 	isSplitButton: true,
 	title: localize2('run', "Run"),
 	icon: Codicon.play,
 	group: 'navigation',
 	order: 8,
-	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+	when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext)
 });
+
+// Disabled placeholder shown in the titlebar when the active session does not support running scripts
+class RunScriptNotAvailableAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.agentSessions.runScript.notAvailable',
+			title: localize2('run', "Run"),
+			tooltip: localize('runScriptNotAvailableTooltip', "Run Script is not available for this session type"),
+			icon: Codicon.play,
+			precondition: ContextKeyExpr.false(),
+			menu: [{
+				id: Menus.TitleBarSessionMenu,
+				group: 'navigation',
+				order: 8,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext.toNegated())
+			}]
+		});
+	}
+
+	override run(): void { }
+}
+
+registerAction2(RunScriptNotAvailableAction);

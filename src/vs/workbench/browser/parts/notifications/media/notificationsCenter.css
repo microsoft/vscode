@@ -10,7 +10,8 @@
 	bottom: 29px; /* 22px status bar height + 7px (attempt to position at same location as a toast) */
 	display: none;
 	overflow: hidden;
-	border-radius: 4px;
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .monaco-workbench.nostatusbar > .notifications-center {
@@ -59,7 +60,7 @@
 }
 
 .monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
-	border-radius: 0px 0px 4px 4px; /* adopt the border radius at the end of the notifications center */
+	border-radius: 0px 0px var(--vscode-cornerRadius-small) var(--vscode-cornerRadius-small); /* adopt the border radius at the end of the notifications center */
 }
 
 /* Icons */

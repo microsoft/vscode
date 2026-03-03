@@ -183,6 +183,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsSymbolAttachments: true,
 	supportsTerminalAttachments: true,
 	supportsPromptAttachments: true,
+	supportsHandOffs: true,
 };
 
 const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
@@ -1012,15 +1013,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const tipContainer = this.inputPart.gettingStartedTipContainerElement;
 
-		// Already showing a tip
-		if (this._gettingStartedTipPart.value) {
-			dom.setVisibility(true, tipContainer);
+		const tip = this.chatTipService.getWelcomeTip(this.contextKeyService);
+		if (!tip) {
+			if (this._gettingStartedTipPart.value) {
+				this._gettingStartedTipPartRef = undefined;
+				this._gettingStartedTipPart.clear();
+				dom.clearNode(tipContainer);
+			}
+			dom.setVisibility(false, tipContainer);
 			return;
 		}
 
-		const tip = this.chatTipService.getWelcomeTip(this.contextKeyService);
-		if (!tip) {
-			dom.setVisibility(false, tipContainer);
+		// Already showing an eligible tip
+		if (this._gettingStartedTipPart.value) {
+			dom.setVisibility(true, tipContainer);
 			return;
 		}
 
@@ -1154,8 +1160,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		// Skip rendering in coding agent sessions
-		if (this.isLockedToCodingAgent) {
+		// Skip rendering in coding agent sessions unless the agent supports hand-offs
+		if (this.isLockedToCodingAgent && !this._attachmentCapabilities.supportsHandOffs) {
 			this.chatSuggestNextWidget.hide();
 			return;
 		}
@@ -1715,6 +1721,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
+			inputEditorMinLines: this.viewOptions.inputEditorMinLines,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
@@ -1817,6 +1824,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.refreshParsedInput();
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
+		}));
+		const foregroundSessionCountContextKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
+		this._register(this.contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(foregroundSessionCountContextKeys) && this.isEmpty()) {
+				this.renderGettingStartedTipIfNeeded();
+			}
 		}));
 		let previousModelIdentifier: string | undefined;
 		this._register(autorun(reader => {
@@ -2243,7 +2256,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		await this._applyPromptFileIfSet(requestInputs);
 		await this._autoAttachInstructions(requestInputs);
 
-		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit && !this.chatService.edits2Enabled) {
+		if (this.viewOptions.enableWorkingSet !== undefined && this.input.currentModeKind === ChatModeKind.Edit) {
 			const uniqueWorkingSetEntries = new ResourceSet(); // NOTE: this is used for bookkeeping so the UI can avoid rendering references in the UI that are already shown in the working set
 			const editingSessionAttachedContext: ChatRequestVariableSet = requestInputs.attachedContext;
 

@@ -13,6 +13,7 @@ import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { EditorsVisibleContext } from '../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -31,7 +32,7 @@ import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browse
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { ISessionsManagementService } from './sessionsManagementService.js';
+import { ISessionsManagementService, IsNewChatSessionContext } from './sessionsManagementService.js';
 import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
@@ -320,6 +321,16 @@ KeybindingsRegistry.registerKeybindingRule({
 	id: ACTION_ID_NEW_CHAT,
 	weight: KeybindingWeight.WorkbenchContrib + 1,
 	primary: KeyMod.CtrlCmd | KeyCode.KeyN,
+});
+
+// Register Cmd+W / Ctrl+W to open new session when the current session is non-empty,
+// mirroring how Cmd+W closes the active editor in the normal workbench.
+KeybindingsRegistry.registerKeybindingRule({
+	id: ACTION_ID_NEW_CHAT,
+	weight: KeybindingWeight.WorkbenchContrib + 1,
+	when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), EditorsVisibleContext.negate()),
+	primary: KeyMod.CtrlCmd | KeyCode.KeyW,
+	win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
