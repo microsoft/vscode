@@ -159,7 +159,7 @@ export class RemoteTerminalChannelClient implements IPtyHostController {
 			 * If the extension host was spawned via a launch configuration,
 			 * include the environment provided by that launch configuration.
 			 */
-			...this._environmentService.debugExtensionHost.env, ...resolverResult.options?.extensionHostEnv
+			...(this._environmentService.debugExtensionHost.env ?? {}), ...resolverResult.options?.extensionHostEnv
 		};
 
 		const workspace = this._workspaceContextService.getWorkspace();
