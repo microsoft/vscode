@@ -306,8 +306,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			getActions: () => Separator.join(...menu.getActions({ arg: section, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
 			getActionsContext: () => section,
-			onHide: () => menu.dispose()
 		});
+
+		menu.dispose();
 	}
 
 	private async showAgentSessionContextMenu(session: IAgentSession, anchor: HTMLElement | IMouseEvent): Promise<void> {
@@ -331,8 +332,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			getActions: () => Separator.join(...menu.getActions({ arg: marshalledContext, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
 			getActionsContext: () => marshalledContext,
-			onHide: () => menu.dispose()
 		});
+
+		menu.dispose();
 	}
 
 	openFind(): void {
