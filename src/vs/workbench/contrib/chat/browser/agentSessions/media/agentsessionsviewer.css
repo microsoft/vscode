@@ -250,6 +250,11 @@
 					display: none;
 				}
 			}
+
+			.agent-session-status-isolation-icon {
+				font-size: 11px;
+				margin-right: 4px;
+			}
 		}
 	}
 

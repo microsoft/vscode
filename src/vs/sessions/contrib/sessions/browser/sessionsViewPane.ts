@@ -144,6 +144,7 @@ export class AgenticSessionsViewPane extends ViewPane {
 			filter: sessionsFilter,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			disableHover: true,
+			showIsolationIcon: true,
 			getHoverPosition: () => this.getSessionHoverPosition(),
 			trackActiveEditorSession: () => true,
 			collapseOlderSections: () => true,
