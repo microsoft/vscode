@@ -92,11 +92,6 @@
 
 /* Notifications */
 
-.monaco-workbench .notifications-toasts,
-.monaco-workbench > .notifications-toasts .notification-toast-container {
-	overflow: visible;
-}
-
 .monaco-workbench .notifications-list-container .monaco-list-rows {
 	background: transparent !important;
 }
@@ -146,7 +141,8 @@
 	border-bottom: 1px solid var(--vscode-editorWidget-border);
 }
 
-/* Input Boxes */\n.monaco-inputbox .monaco-action-bar .action-item .codicon,
+/* Input Boxes */
+.monaco-inputbox .monaco-action-bar .action-item .codicon,
 .monaco-workbench .search-container .input-box,
 .monaco-custom-toggle {
 	color: var(--vscode-icon-foreground) !important;
