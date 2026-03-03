@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
@@ -13,6 +15,7 @@ import { CancellationTokenSource } from '../../../../base/common/cancellation.js
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
@@ -38,6 +41,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
 import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
+import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
 import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
 import { DefaultViewsContext, extensionsFilterSubMenu, IExtensionsWorkbenchService, SearchAgentPluginsContext } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
@@ -180,6 +184,68 @@ class OpenPluginReadmeAction extends Action {
 	}
 }
 
+/**
+ * Dropdown action that shows a gear icon and opens the manage menu for installed plugins.
+ */
+class ManagePluginAction extends Action {
+	static readonly ID = 'agentPlugin.manage';
+	static readonly CLASS = `extension-action icon manage ${ThemeIcon.asClassName(manageExtensionIcon)}`;
+
+	private readonly actionGroups: () => IAction[][];
+
+	constructor(
+		getActionGroups: () => IAction[][],
+	) {
+		super(ManagePluginAction.ID, '', ManagePluginAction.CLASS, true);
+		this.tooltip = localize('manage', "Manage");
+		this.actionGroups = getActionGroups;
+	}
+
+	getActions(): IAction[][] {
+		return this.actionGroups();
+	}
+}
+
+/**
+ * ActionViewItem for ManagePluginAction that shows a context menu when clicked.
+ */
+class ManagePluginActionViewItem extends ActionViewItem {
+	constructor(
+		action: ManagePluginAction,
+		options: IActionViewItemOptions,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+	) {
+		super(null, action, { ...options, icon: true, label: false });
+	}
+
+	override onClick(event: dom.EventLike): void {
+		event.preventDefault();
+		event.stopPropagation();
+		this.showMenu();
+	}
+
+	private showMenu(): void {
+		if (!this.element) {
+			return;
+		}
+		const action = this.action as ManagePluginAction;
+		const groups = action.getActions();
+		const actions: IAction[] = [];
+		for (const group of groups) {
+			actions.push(...group, new Separator());
+		}
+		if (actions.length > 0) {
+			actions.pop(); // Remove trailing separator
+		}
+
+		const { left, top, height } = getDomNodePagePosition(this.element);
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => ({ x: left, y: top + height + 10 }),
+			getActions: () => actions,
+		});
+	}
+}
+
 //#endregion
 
 //#region Renderer
@@ -213,7 +279,15 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 		const footer = dom.append(details, dom.$('.footer'));
 		const detailContainer = dom.append(footer, dom.$('.publisher-container'));
 		const detail = dom.append(detailContainer, dom.$('span.publisher-name'));
-		const actionbar = new ActionBar(footer, { focusOnlyEnabledItems: true });
+		const actionbar = new ActionBar(footer, {
+			focusOnlyEnabledItems: true,
+			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
+				if (action instanceof ManagePluginAction) {
+					return this.instantiationService.createInstance(ManagePluginActionViewItem, action, options);
+				}
+				return undefined;
+			}
+		});
 		actionbar.setFocusable(false);
 		return { root, name, description, detail, actionbar, disposables: [actionbar], elementDisposables: [] };
 	}
@@ -244,7 +318,37 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 			data.actionbar.push([installAction], { icon: true, label: true });
 		} else {
 			data.detail.textContent = element.marketplace ?? '';
+			// Add gear icon for installed plugins
+			const manageAction = new ManagePluginAction(() => {
+				return this.getContextMenuActionGroups(element);
+			});
+			data.elementDisposables.push(manageAction);
+			data.actionbar.push([manageAction], { icon: true, label: false });
 		}
+	}
+
+	private getContextMenuActionGroups(item: IInstalledPluginItem): IAction[][] {
+		const groups: IAction[][] = [];
+
+		// Enable/Disable group
+		const enableDisableGroup: IAction[] = [];
+		if (item.plugin.enabled.get()) {
+			enableDisableGroup.push(this.instantiationService.createInstance(DisablePluginAction, item.plugin));
+		} else {
+			enableDisableGroup.push(this.instantiationService.createInstance(EnablePluginAction, item.plugin));
+		}
+		groups.push(enableDisableGroup);
+
+		// Open actions group
+		const openGroup: IAction[] = [];
+		openGroup.push(this.instantiationService.createInstance(OpenPluginFolderAction, item.plugin));
+		openGroup.push(this.instantiationService.createInstance(OpenPluginReadmeAction, joinPath(item.plugin.uri, 'README.md')));
+		groups.push(openGroup);
+
+		// Uninstall group
+		groups.push([this.instantiationService.createInstance(UninstallPluginAction, item.plugin)]);
+
+		return groups;
 	}
 
 	disposeElement(_element: IAgentPluginItem | undefined, _index: number, data: IAgentPluginTemplateData): void {
