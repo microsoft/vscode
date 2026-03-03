@@ -149,7 +149,7 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	crossOriginIsolated?: boolean;
 	exportPolicyData?: string;
-	generateDefaultKeybindings?: string;
+	exportDefaultKeybindings?: string;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

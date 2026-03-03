@@ -107,7 +107,7 @@ export interface NativeParsedArgs {
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'export-policy-data'?: string;
-	'generate-default-keybindings'?: string;
+	'export-default-keybindings'?: string;
 	'install-source'?: string;
 	'add-mcp'?: string[];
 	'disable-updates'?: boolean;

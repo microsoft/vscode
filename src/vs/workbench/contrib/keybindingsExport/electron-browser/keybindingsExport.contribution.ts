@@ -31,14 +31,14 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const outputPath = this.nativeEnvironmentService.generateDefaultKeybindings;
+		const outputPath = this.nativeEnvironmentService.exportDefaultKeybindings;
 		if (outputPath !== undefined) {
 			const defaultPath = join(this.nativeEnvironmentService.appRoot, 'doc');
-			void this.dumpDefaultKeybindingsAndQuit(outputPath || defaultPath);
+			void this.exportDefaultKeybindingsAndQuit(outputPath || defaultPath);
 		}
 	}
 
-	private async dumpDefaultKeybindingsAndQuit(outputPath: string): Promise<void> {
+	private async exportDefaultKeybindingsAndQuit(outputPath: string): Promise<void> {
 		try {
 			const platforms: { os: OperatingSystem; filename: string }[] = [
 				{ os: OperatingSystem.Windows, filename: 'doc.keybindings.win.json' },
@@ -55,7 +55,7 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 
 			await this.nativeHostService.exit(0);
 		} catch (error) {
-			this.logService.error(`[${KeybindingsExportContribution.ID}] Failed to dump default keybindings`, error);
+			this.logService.error(`[${KeybindingsExportContribution.ID}] Failed to generate default keybindings`, error);
 			await this.nativeHostService.exit(1);
 		}
 	}

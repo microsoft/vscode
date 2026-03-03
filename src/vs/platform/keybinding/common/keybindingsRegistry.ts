@@ -97,15 +97,12 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		this._cachedMergedKeybindings = null;
 	}
 
-	/**
-	 * Take current platform into account and reduce to primary & secondary.
-	 */
-	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[] } {
-		if (OS === OperatingSystem.Windows) {
+	private static bindToPlatform(kb: IKeybindings, os: OperatingSystem): { primary?: number; secondary?: number[] } {
+		if (os === OperatingSystem.Windows) {
 			if (kb && kb.win) {
 				return kb.win;
 			}
-		} else if (OS === OperatingSystem.Macintosh) {
+		} else if (os === OperatingSystem.Macintosh) {
 			if (kb && kb.mac) {
 				return kb.mac;
 			}
@@ -114,8 +111,14 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 				return kb.linux;
 			}
 		}
-
 		return kb;
+	}
+
+	/**
+	 * Take current platform into account and reduce to primary & secondary.
+	 */
+	private static bindToCurrentPlatform(kb: IKeybindings): { primary?: number; secondary?: number[] } {
+		return KeybindingsRegistryImpl.bindToPlatform(kb, OS);
 	}
 
 	public registerKeybindingRule(rule: IKeybindingRule): IDisposable {
@@ -199,23 +202,6 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			this._cachedMergedKeybindings.sort(sorter);
 		}
 		return this._cachedMergedKeybindings.slice(0);
-	}
-
-	private static bindToPlatform(kb: IKeybindings, os: OperatingSystem): { primary?: number; secondary?: number[] } {
-		if (os === OperatingSystem.Windows) {
-			if (kb && kb.win) {
-				return kb.win;
-			}
-		} else if (os === OperatingSystem.Macintosh) {
-			if (kb && kb.mac) {
-				return kb.mac;
-			}
-		} else {
-			if (kb && kb.linux) {
-				return kb.linux;
-			}
-		}
-		return kb;
 	}
 
 	public getDefaultKeybindingsForOS(os: OperatingSystem): IKeybindingItem[] {
