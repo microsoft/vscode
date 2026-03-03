@@ -322,6 +322,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 					case 'inspect-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
 						break;
+					case 'extensionEnvironment':
+						extensionHostDebugEnvironment.params.env = JSON.parse(value);
+						break;
 					case 'enableProposedApi':
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];
 						break;
