@@ -58,7 +58,6 @@ interface IAgentSessionItemTemplate {
 	readonly title: IconLabel;
 	readonly statusContainer: HTMLElement;
 	readonly statusProviderIcon: HTMLElement;
-	readonly statusIsolationIcon: HTMLElement;
 	readonly statusTime: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 
@@ -128,7 +127,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 							h('span.agent-session-separator@separator'),
 							h('div.agent-session-status@statusContainer', [
 								h('span.agent-session-status-provider-icon@statusProviderIcon'),
-								h('span.agent-session-status-isolation-icon@statusIsolationIcon'),
 								h('span.agent-session-status-time@statusTime')
 							]),
 						]),
@@ -158,7 +156,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			description: elements.description,
 			statusContainer: elements.statusContainer,
 			statusProviderIcon: elements.statusProviderIcon,
-			statusIsolationIcon: elements.statusIsolationIcon,
 			statusTime: elements.statusTime,
 			contextKeyService,
 			elementDisposable,
@@ -357,16 +354,16 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		};
 
 		// Provider icon (only shown for non-local sessions)
+		// When showIsolationIcon is enabled for background sessions, show worktree/folder icon instead
 		const isLocal = session.element.providerType === AgentSessionProviders.Local;
-		template.statusProviderIcon.className = isLocal ? '' : `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
-
-		// Isolation icon (worktree vs folder, only shown when enabled and for background sessions)
-		if (this.options.showIsolationIcon && session.element.providerType === AgentSessionProviders.Background) {
+		if (isLocal) {
+			template.statusProviderIcon.className = '';
+		} else if (this.options.showIsolationIcon && session.element.providerType === AgentSessionProviders.Background) {
 			const hasWorktree = typeof session.element.metadata?.worktreePath === 'string';
 			const isolationIcon = hasWorktree ? Codicon.worktree : Codicon.folder;
-			template.statusIsolationIcon.className = `agent-session-status-isolation-icon ${ThemeIcon.asClassName(isolationIcon)}`;
+			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(isolationIcon)}`;
 		} else {
-			template.statusIsolationIcon.className = '';
+			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
 		}
 
 		// Time label
