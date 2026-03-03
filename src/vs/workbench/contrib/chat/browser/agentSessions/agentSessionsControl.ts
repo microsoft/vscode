@@ -167,7 +167,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		this._register(addDisposableListener(link, EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
-				event.preventDefault();
+				EventHelper.stop(e, true);
 				this.options.filter.reset();
 			}
 		}));
