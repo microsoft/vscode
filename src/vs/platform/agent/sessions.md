@@ -24,7 +24,6 @@ On the VS Code side:
   - `Cloud` = `'copilot-cloud-agent'`
   - `Claude` = `'claude-code'`
   - `AgentHostCopilot` = `'agent-host-copilot'`
-  - `AgentHostClaude` = `'agent-host-claude'`
 
 ### Layer 3: Extension Side Registration
 
@@ -36,7 +35,7 @@ Each session type registers three things via the proposed API:
 
 ### Agent Host: Internal (Non-Extension) Registration
 
-The agent-host session types (`agent-host-copilot`, `agent-host-claude`) bypass the extension point entirely. A single `AgentHostContribution` discovers available agents from the agent host process via `listAgents()` and dynamically registers each one:
+The agent-host session types (`agent-host-copilot`) bypass the extension point entirely. A single `AgentHostContribution` discovers available agents from the agent host process via `listAgents()` and dynamically registers each one:
 
 **For each `IAgentDescriptor` returned by `listAgents()`:**
 1. Chat session contribution via `IChatSessionsService.registerChatSessionContribution()`
