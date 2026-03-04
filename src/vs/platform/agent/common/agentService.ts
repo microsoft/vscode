@@ -249,6 +249,9 @@ export interface IAgent {
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
 
+	/** Abort the current turn, stopping any in-flight processing. */
+	abortSession(session: URI): Promise<void>;
+
 	/** Return the descriptor for this agent. */
 	getDescriptor(): IAgentDescriptor;
 
@@ -305,6 +308,9 @@ export interface IAgentService {
 
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
+
+	/** Abort the current turn in a session. */
+	abortSession(session: URI): Promise<void>;
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;

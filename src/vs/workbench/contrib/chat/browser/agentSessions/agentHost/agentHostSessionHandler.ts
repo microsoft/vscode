@@ -344,6 +344,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 
 		const cancelListener = cancellationToken.onCancellationRequested(() => {
+			this._logService.info(`[AgentHost] Cancellation requested for ${sessionStr}, aborting...`);
+			this._agentHostService.abortSession(session).catch(err => {
+				this._logService.error(`[AgentHost] abortSession failed`, err);
+			});
 			finish();
 			cancelListener.dispose();
 		});

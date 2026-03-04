@@ -202,6 +202,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._clearToolCallsForSession(sessionId);
 	}
 
+	async abortSession(session: URI): Promise<void> {
+		const sessionId = AgentSession.id(session);
+		const entry = this._sessions.get(sessionId);
+		if (entry) {
+			this._logService.info(`[Copilot:${sessionId}] Aborting session...`);
+			await entry.session.abort();
+		}
+	}
+
 	async shutdown(): Promise<void> {
 		this._logService.info('[Copilot] Shutting down...');
 		this._sessions.clearAndDisposeAll();

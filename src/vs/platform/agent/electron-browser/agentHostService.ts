@@ -95,6 +95,9 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
+	abortSession(session: URI): Promise<void> {
+		return this._proxy.abortSession(session);
+	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}

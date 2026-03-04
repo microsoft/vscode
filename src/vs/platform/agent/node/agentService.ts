@@ -130,6 +130,14 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 	}
 
+	async abortSession(session: URI): Promise<void> {
+		this._logService.trace(`[AgentService] abortSession: ${session.toString()}`);
+		const provider = this._findProviderForSession(session);
+		if (provider) {
+			await provider.abortSession(session);
+		}
+	}
+
 	async shutdown(): Promise<void> {
 		this._logService.info('AgentService: shutting down all providers...');
 		const promises: Promise<void>[] = [];

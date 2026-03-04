@@ -87,6 +87,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._sessions.deleteAndDispose(AgentSession.id(session));
 	}
 
+	async abortSession(_session: URI): Promise<void> {
+		// Claude sessions use AbortController; disposal handles abort.
+	}
+
 	async shutdown(): Promise<void> {
 		this._logService.info('[Claude] Shutting down...');
 		this._sessions.clearAndDisposeAll();

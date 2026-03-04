@@ -74,6 +74,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	override async disposeSession(_session: URI): Promise<void> { }
+	override async abortSession(_session: URI): Promise<void> { }
 	override async shutdown(): Promise<void> { }
 	override async restartAgentHost(): Promise<void> { }
 
