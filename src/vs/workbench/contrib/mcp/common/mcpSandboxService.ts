@@ -19,9 +19,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IMcpResourceScannerService, McpResourceTarget } from '../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { IRemoteAgentEnvironment } from '../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
-import { IMcpSandboxConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpSandboxConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IMcpPotentialSandboxBlock, McpServerDefinition, McpServerLaunch, McpServerTransportType } from './mcpTypes.js';
-import { Mutable } from '../../../../base/common/types.js';
 
 export const IMcpSandboxService = createDecorator<IMcpSandboxService>('mcpSandboxService');
 
@@ -85,7 +84,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		}
 		if (await this.isEnabled(serverDef, remoteAuthority)) {
 			this._logService.trace(`McpSandboxService: Launching with config target ${configTarget}`);
-			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, serverDef.sandbox, launch.cwd);
+			const launchDetails = await this._resolveSandboxLaunchDetails(configTarget, remoteAuthority, launch.sandbox, launch.cwd);
 			const sandboxArgs = this._getSandboxCommandArgs(launch.command, launch.args, launchDetails.sandboxConfigPath);
 			const sandboxEnv = this._getSandboxEnvVariables(launchDetails.tempDir, remoteAuthority);
 			if (launchDetails.srtPath) {
@@ -160,7 +159,7 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 		let didChange = false;
 
 		await this._mcpResourceScannerService.updateSandboxConfig(data => {
-			const existingSandbox = data.sandbox ?? serverDef.sandbox;
+			const existingSandbox = data.sandbox;
 			const suggestedAllowedDomains = suggestedSandboxConfig?.network?.allowedDomains ?? [];
 			const suggestedAllowWrite = suggestedSandboxConfig?.filesystem?.allowWrite ?? [];
 
@@ -178,41 +177,24 @@ export class McpSandboxService extends Disposable implements IMcpSandboxService 
 				}
 			}
 
-			didChange = currentAllowedDomains.size !== (existingSandbox?.network?.allowedDomains?.length ?? 0)
-				|| currentAllowWrite.size !== (existingSandbox?.filesystem?.allowWrite?.length ?? 0);
-
-			if (!didChange) {
+			if (suggestedAllowedDomains.length === 0 && suggestedAllowWrite.length === 0) {
 				return data;
 			}
 
-			const nextSandboxConfig: IMcpSandboxConfiguration = {
-				...existingSandbox,
-			};
-
-			if (currentAllowedDomains.size > 0 || existingSandbox?.network?.deniedDomains?.length) {
+			didChange = true;
+			const nextSandboxConfig: IMcpSandboxConfiguration = {};
+			if (currentAllowedDomains.size > 0) {
 				nextSandboxConfig.network = {
 					...existingSandbox?.network,
-					allowedDomains: [...currentAllowedDomains],
+					allowedDomains: [...currentAllowedDomains]
 				};
 			}
-
-			if (currentAllowWrite.size > 0 || existingSandbox?.filesystem?.denyRead?.length || existingSandbox?.filesystem?.denyWrite?.length) {
+			if (currentAllowWrite.size > 0) {
 				nextSandboxConfig.filesystem = {
 					...existingSandbox?.filesystem,
 					allowWrite: [...currentAllowWrite],
 				};
 			}
-
-			//always remove sandbox at server level when writing back, it should only exist at the top level. This is to sanitize any old or malformed configs that may have sandbox defined at the server level.
-			if (data.servers) {
-				for (const serverName in data.servers) {
-					const serverConfig = data.servers[serverName];
-					if (serverConfig.type === McpServerType.LOCAL) {
-						delete (serverConfig as Mutable<IMcpStdioServerConfiguration>).sandbox;
-					}
-				}
-			}
-
 			return {
 				...data,
 				sandbox: nextSandboxConfig,

@@ -19,7 +19,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'breadcrumbs.enabled': false,
 
-		'diffEditor.renderSideBySide': false,
 		'diffEditor.hideUnchangedRegions.enabled': true,
 
 		'extensions.ignoreRecommendations': true,
