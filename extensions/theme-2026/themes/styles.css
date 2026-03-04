@@ -46,6 +46,7 @@
 	padding: 0;
 }
 
+
 /* Settings */
 .monaco-workbench .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
 	border-radius: var(--radius-sm);
