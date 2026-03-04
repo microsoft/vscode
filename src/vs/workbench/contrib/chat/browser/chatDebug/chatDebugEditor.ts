@@ -341,7 +341,7 @@ export class ChatDebugEditor extends EditorPane {
 	}
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {
-		const { sessionResource, viewHint } = options;
+		const { sessionResource, viewHint, filter } = options;
 		if (viewHint === 'logs' && sessionResource) {
 			this.navigateToSession(sessionResource, 'logs');
 		} else if (viewHint === 'flowchart' && sessionResource) {
@@ -355,6 +355,12 @@ export class ChatDebugEditor extends EditorPane {
 			this.navigateToSession(sessionResource, 'overview');
 		} else if (this.viewState === ViewState.Home) {
 			this.showView(ViewState.Home);
+		}
+
+		// Apply filter text if provided (e.g. from debug events snapshot)
+		if (filter !== undefined && this.filterState) {
+			this.filterState.setTextFilter(filter);
+			this.logsView?.setFilterText(filter);
 		}
 	}
 

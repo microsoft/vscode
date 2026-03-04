@@ -43,6 +43,24 @@
 	background-color: var(--vscode-sideBar-background);
 }
 
+/* ---- Chat Layout ---- */
+
+/* Remove max-width from the session container so the scrollbar extends full width */
+.agent-sessions-workbench .interactive-session {
+	max-width: none;
+}
+
+/* Constrain content items to the same max-width, centered */
+.agent-sessions-workbench .interactive-session .interactive-item-container {
+	max-width: 950px;
+	margin: 0 auto;
+}
+
+.agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
+	max-width: 950px;
+	margin: 0 auto;
+}
+
 /* ---- Chat Input ---- */
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
@@ -50,7 +68,8 @@
 }
 
 .agent-sessions-workbench .interactive-session .interactive-input-part {
-	margin: 0 8px !important;
+	max-width: 950px;
+	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with changes view */
 	padding: 4px 0 6px 0 !important;

@@ -89,6 +89,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } 
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
+import { filterModelsForSession, findDefaultModel, hasModelsTargetingSession, isModelValidForSession, mergeModelsWithCache, resolveModelFromSyncState, shouldResetModelToDefault, shouldResetOnModelListChange, shouldRestoreLateArrivingModel, shouldRestorePersistedModel } from './chatModelSelectionLogic.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -248,15 +249,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly selectedToolsModel: ChatSelectedTools;
 
-	public getAttachedContext(sessionResource: URI) {
+	public getAttachedContext() {
 		const contextArr = new ChatRequestVariableSet();
 		contextArr.add(...this.attachmentModel.attachments, ...this.chatContextService.getWorkspaceContextItems());
 		return contextArr;
 	}
 
-	public getAttachedAndImplicitContext(sessionResource: URI): ChatRequestVariableSet {
+	public getAttachedAndImplicitContext(): ChatRequestVariableSet {
 
-		const contextArr = this.getAttachedContext(sessionResource);
+		const contextArr = this.getAttachedContext();
 
 		if (this.implicitContext) {
 			const implicitChatVariables = this.implicitContext.enabledBaseEntries(this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext'));
@@ -625,8 +626,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.initSelectedModel();
 
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => {
-			const selectedModel = this._currentLanguageModel ? this.getModels().find(m => m.identifier === this._currentLanguageModel.get()?.identifier) : undefined;
-			if (!this.currentLanguageModel || !selectedModel) {
+			if (shouldResetOnModelListChange(this._currentLanguageModel.get()?.identifier, this.getModels())) {
 				this.setCurrentLanguageModelToDefault();
 			}
 		}));
@@ -664,10 +664,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (sessionResource) {
 				const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
 				if (ctx) {
-					this.chatSessionsService.notifySessionOptionsChange(
-						ctx.chatSessionResource,
-						[{ optionId: agentOptionId, value: mode.isBuiltin ? '' : modeName }]
-					).catch(err => this.logService.error('Failed to notify extension of agent change:', err));
+					let needsUpdate = true;
+					const agentOption = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, agentOptionId);
+					if (typeof agentOption !== 'undefined') {
+						const agentId = (typeof agentOption === 'string' ? agentOption : agentOption.id) || ChatMode.Agent.id;
+						const isDefaultAgent = agentId === ChatMode.Agent.id;
+						needsUpdate = isDefaultAgent
+							? mode.id !== ChatMode.Agent.id
+							: mode.label.read(undefined) !== agentId; // Extensions use Label (name) as identifier for custom agents.
+					}
+					if (needsUpdate) {
+						this.chatSessionsService.notifySessionOptionsChange(
+							ctx.chatSessionResource,
+							[{ optionId: agentOptionId, value: mode.isBuiltin ? '' : modeName }]
+						).catch(err => this.logService.error('Failed to notify extension of agent change:', err));
+					}
 				}
 			}
 		}));
@@ -708,25 +719,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const persistedAsDefault = this.storageService.getBoolean(this.getSelectedModelIsDefaultStorageKey(), StorageScope.APPLICATION, true);
 
 		if (persistedSelection) {
-			const model = this.getModels().find(m => m.identifier === persistedSelection);
-			if (model) {
-				// Only restore the model if it wasn't the default at the time of storing or it is now the default
-				if (!persistedAsDefault || model.metadata.isDefaultForLocation[this.location]) {
-					this.setCurrentLanguageModel(model);
-					this.checkModelSupported();
-				}
-			} else {
+			const result = shouldRestorePersistedModel(persistedSelection, persistedAsDefault, this.getModels(), this.location);
+			if (result.shouldRestore && result.model) {
+				this.setCurrentLanguageModel(result.model);
+				this.checkModelSupported();
+			} else if (!result.model) {
 				this._waitForPersistedLanguageModel.value = this.languageModelsService.onDidChangeLanguageModels(e => {
 					const persistedModel = this.languageModelsService.lookupLanguageModel(persistedSelection);
 					if (persistedModel) {
 						this._waitForPersistedLanguageModel.clear();
 
-						// Only restore the model if it wasn't the default at the time of storing or it is now the default
-						if (!persistedAsDefault || persistedModel.isDefaultForLocation[this.location]) {
-							if (persistedModel.isUserSelectable) {
-								this.setCurrentLanguageModel({ metadata: persistedModel, identifier: persistedSelection });
-								this.checkModelSupported();
-							}
+						const lateModel = { metadata: persistedModel, identifier: persistedSelection };
+						if (shouldRestoreLateArrivingModel(persistedSelection, persistedAsDefault, lateModel, this.location)) {
+							this.setCurrentLanguageModel(lateModel);
+							this.checkModelSupported();
 						}
 					} else {
 						this.setCurrentLanguageModelToDefault();
@@ -935,14 +941,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
-				const lm = this._currentLanguageModel.get();
-				if (!lm || lm.identifier !== state.selectedModel.identifier) {
-					if (this.isModelValidForCurrentSession(state.selectedModel)) {
-						this.setCurrentLanguageModel(state.selectedModel);
-					} else {
-						// Model from state doesn't belong to this session's pool - use default
-						this.setCurrentLanguageModelToDefault();
-					}
+				const allModels = this.getAllMergedModels();
+				const sessionType = this.getCurrentSessionType();
+				const syncResult = resolveModelFromSyncState(state.selectedModel, this._currentLanguageModel.get(), allModels, sessionType, {
+					location: this.location,
+					currentModeKind: this.currentModeKind,
+					isInlineChatV2Enabled: !!this.configurationService.getValue(InlineChatConfigKeys.EnableV2),
+					sessionType,
+				});
+				if (syncResult.action === 'apply') {
+					this.setCurrentLanguageModel(state.selectedModel);
+				} else if (syncResult.action === 'default') {
+					this.setCurrentLanguageModelToDefault();
 				}
 			}
 
@@ -1008,7 +1018,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private checkModelSupported(): void {
 		const lm = this._currentLanguageModel.get();
-		if (lm && (!this.modelSupportedForDefaultAgent(lm) || !this.modelSupportedForInlineChat(lm) || !this.isModelValidForCurrentSession(lm))) {
+		const allModels = this.getAllMergedModels();
+		if (shouldResetModelToDefault(lm, this.getModels(), {
+			location: this.location,
+			currentModeKind: this.currentModeKind,
+			isInlineChatV2Enabled: !!this.configurationService.getValue(InlineChatConfigKeys.EnableV2),
+			sessionType: this.getCurrentSessionType(),
+		}, allModels)) {
 			this.setCurrentLanguageModelToDefault();
 		}
 	}
@@ -1040,56 +1056,29 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._syncInputStateToModel();
 	}
 
-	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
-		if (this.currentModeKind === ChatModeKind.Agent) {
-			return ILanguageModelChatMetadata.suitableForAgentMode(model.metadata);
-		}
-
-		return true;
-	}
-
-	private modelSupportedForInlineChat(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-		if (this.location !== ChatAgentLocation.EditorInline || !this.configurationService.getValue(InlineChatConfigKeys.EnableV2)) {
-			return true;
-		}
-		return !!model.metadata.capabilities?.toolCalling;
-	}
-
-	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
+	/**
+	 * Get all models merged from live and cache, without session/mode filtering.
+	 * This is the canonical source for the full model pool, including cached models
+	 * that bridge startup races when live models haven't loaded yet.
+	 */
+	private getAllMergedModels(): ILanguageModelChatMetadataAndIdentifier[] {
 		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []);
 		const liveModels = this.languageModelsService.getLanguageModelIds()
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
 
-		// Merge live models with cached models per-vendor. For vendors whose
-		// models have resolved, use the live data. For vendors that are still
-		// contributed but haven't resolved yet (startup race), keep their
-		// cached models. Vendors that are no longer contributed at all (e.g.
-		// extension uninstalled) are evicted from the cache.
-		let models: ILanguageModelChatMetadataAndIdentifier[];
+		const contributedVendors = new Set(this.languageModelsService.getVendors().map(v => v.vendor));
+		const models = mergeModelsWithCache(liveModels, cachedModels, contributedVendors);
 		if (liveModels.length > 0) {
-			const liveVendors = new Set(liveModels.map(m => m.metadata.vendor));
-			const contributedVendors = new Set(this.languageModelsService.getVendors().map(v => v.vendor));
-			models = [
-				...liveModels,
-				...cachedModels.filter(m => !liveVendors.has(m.metadata.vendor) && contributedVendors.has(m.metadata.vendor)),
-			];
 			this.storageService.store(CachedLanguageModelsKey, models, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		} else {
-			models = cachedModels;
 		}
+		return models;
+	}
+
+	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
+		const models = this.getAllMergedModels();
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
-		const sessionType = this.getCurrentSessionType();
-		if (sessionType && sessionType !== AgentSessionProviders.Local) {
-			// Session has a specific chat session type - show only models that target
-			// this session type, if any such models exist.
-			return models.filter(entry => entry.metadata?.targetChatSessionType === sessionType && entry.metadata?.isUserSelectable);
-		}
-
-		// No session type or no targeted models - show general models (those without
-		// a targetChatSessionType) filtered by the standard criteria.
-		return models.filter(entry => !entry.metadata?.targetChatSessionType && entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry) && this.modelSupportedForInlineChat(entry));
+		return filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location, !!this.configurationService.getValue(InlineChatConfigKeys.EnableV2));
 	}
 
 	/**
@@ -1111,28 +1100,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * This is used to set the context key that controls model picker visibility.
 	 */
 	private hasModelsTargetingSessionType(): boolean {
-		const sessionType = this.getCurrentSessionType();
-		if (!sessionType) {
-			return false;
-		}
-		return this.languageModelsService.getLanguageModelIds().some(modelId => {
-			const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-			return metadata?.targetChatSessionType === sessionType;
-		});
+		return hasModelsTargetingSession(this.getAllMergedModels(), this.getCurrentSessionType());
 	}
 
-	/**
-	 * Check if a model is valid for the current session's model pool.
-	 * If the session has targeted models, the model must target this session type.
-	 * If no models target this session, the model must not have a targetChatSessionType.
-	 */
 	private isModelValidForCurrentSession(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-		if (this.hasModelsTargetingSessionType()) {
-			// Session has targeted models - model must match
-			return model.metadata.targetChatSessionType === this.getCurrentSessionType();
-		}
-		// No targeted models - model must not be session-specific
-		return !model.metadata.targetChatSessionType;
+		return isModelValidForSession(model, this.getAllMergedModels(), this.getCurrentSessionType());
 	}
 
 	/**
@@ -1207,7 +1179,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private setCurrentLanguageModelToDefault() {
 		const allModels = this.getModels();
-		const defaultModel = allModels.find(m => m.metadata.isDefaultForLocation[this.location]) || allModels[0];
+		const defaultModel = findDefaultModel(allModels, this.location);
 		if (defaultModel) {
 			this.setCurrentLanguageModel(defaultModel);
 		}
@@ -1934,7 +1906,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// when the session type changes (different session types may have
 			// different model pools via targetChatSessionType).
 			const newSessionType = this.getCurrentSessionType();
-			if (newSessionType !== this._currentSessionType) {
+			if (e.currentSessionResource && newSessionType !== this._currentSessionType) {
 				this._currentSessionType = newSessionType;
 				this.initSelectedModel();
 			}

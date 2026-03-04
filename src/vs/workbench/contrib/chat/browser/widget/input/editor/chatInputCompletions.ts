@@ -55,12 +55,16 @@ import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../.
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
-import { Target } from '../../../../common/promptSyntax/promptTypes.js';
+import {
+	PromptsType,
+	Target
+} from '../../../../common/promptSyntax/promptTypes.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
+import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 
 /**
  * Regex matching a slash command word (e.g. `/foo`). Uses `\p{L}` for Unicode
@@ -144,7 +148,7 @@ class SlashCommandCompletions extends Disposable {
 						.map((c, i): CompletionItem => {
 							const withSlash = `/${c.command}`;
 							return {
-								label: withSlash,
+								label: { label: withSlash, description: c.detail },
 								insertText: c.executeImmediately ? '' : `${withSlash} `,
 								documentation: c.detail,
 								range,
@@ -188,7 +192,7 @@ class SlashCommandCompletions extends Disposable {
 					suggestions: slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `${chatSubcommandLeader}${c.command}`;
 						return {
-							label: withSlash,
+							label: { label: withSlash, description: c.detail },
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							documentation: c.detail,
 							range,
@@ -239,9 +243,20 @@ class SlashCommandCompletions extends Disposable {
 				// Filter out commands that are not user-invocable (hidden from / menu)
 				const userInvocableCommands = promptCommands
 					.filter(c => {
-						// Exclude extension-provided prompt files for locked agents.
-						if (widget.lockedAgentId && c.promptPath.extension) {
-							return false;
+						if (widget.lockedAgentId) {
+							// Exclude extension-provided prompt files for locked agents.
+							if (c.promptPath.extension) {
+								return false;
+							}
+							// Exclude hooks as those don't work in locked agent scenarios.
+							try {
+								const promptType = getPromptFileType(c.promptPath.uri);
+								if (promptType && promptType === PromptsType.hook) {
+									return false;
+								}
+							} catch {
+
+							}
 						}
 						return true;
 					})

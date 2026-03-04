@@ -579,7 +579,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
-		await this.chatSessionService.canResolveChatSession(sessionResource);
+		await this.chatSessionService.canResolveChatSession(sessionResource.scheme);
 
 		// Check if session already exists
 		{
@@ -1135,7 +1135,7 @@ export class ChatService extends Disposable implements IChatService {
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
 						progressCallback([p]);
-					}), history, location, model.sessionResource, token);
+					}), history, location, model.sessionResource, token, options);
 					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
 					rawResult = {};
 
@@ -1146,6 +1146,9 @@ export class ChatService extends Disposable implements IChatService {
 				if ((token.isCancellationRequested && !rawResult)) {
 					return;
 				} else if (!request) {
+					// Silent slash command completed successfully — allow queued
+					// requests to proceed.
+					shouldProcessPending = !token.isCancellationRequested;
 					return;
 				} else {
 					if (!rawResult) {

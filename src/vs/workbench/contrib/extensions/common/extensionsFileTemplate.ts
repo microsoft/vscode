@@ -25,6 +25,15 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
 			},
 		},
+		stronglyRecommended: {
+			type: 'array',
+			description: localize('app.extensions.json.stronglyRecommended', "List of extensions that are strongly recommended for users of this workspace. Users will be prompted with a dialog to install these extensions. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
+			items: {
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN,
+				errorMessage: localize('app.extension.identifier.errorMessage', "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'.")
+			},
+		},
 		unwantedRecommendations: {
 			type: 'array',
 			description: localize('app.extensions.json.unwantedRecommendations', "List of extensions recommended by VS Code that should not be recommended for users of this workspace. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),

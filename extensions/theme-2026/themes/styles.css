@@ -22,27 +22,6 @@
 }
 
 /* Quick Input (Command Palette) */
-.monaco-workbench.vs-dark .quick-input-widget {
-	border: 1px solid var(--vscode-menu-border) !important;
-}
-
-.monaco-workbench .quick-input-widget .quick-input-header,
-.monaco-workbench .quick-input-widget .quick-input-list,
-.monaco-workbench .quick-input-widget .quick-input-titlebar,
-.monaco-workbench .quick-input-widget .quick-input-title,
-.monaco-workbench .quick-input-widget .quick-input-description,
-.monaco-workbench .quick-input-widget .quick-input-filter,
-.monaco-workbench .quick-input-widget .quick-input-action,
-.monaco-workbench .quick-input-widget .quick-input-message,
-.monaco-workbench .quick-input-widget .monaco-list,
-.monaco-workbench .quick-input-widget .monaco-list-row:not(:has(.quick-input-list-separator-border)) {
-	border-color: transparent !important;
-	outline: none !important;
-}
-
-.monaco-workbench .quick-input-widget .quick-input-list .monaco-list-rows {
-	background: transparent !important;
-}
 
 .monaco-workbench .quick-input-list .quick-input-list-entry .quick-input-list-separator {
 	height: 16px;
@@ -67,78 +46,12 @@
 	padding: 0;
 }
 
-.monaco-workbench .quick-input-widget .monaco-list-rows {
-	background: transparent !important;
-}
-
-.monaco-workbench .quick-input-widget .monaco-inputbox {
-	background: transparent !important;
-}
-
-.monaco-workbench .quick-input-widget .quick-input-filter .monaco-inputbox {
-	background: color-mix(in srgb, var(--vscode-input-background) 60%, transparent) !important;
-}
-
-/* Chat Widget */
-
-.monaco-workbench .part.panel .interactive-session,
-.monaco-workbench .part.auxiliarybar .interactive-session {
-	position: relative;
-}
-
-.monaco-workbench .interactive-session .chat-editing-session .chat-editing-session-container {
-	background-color: transparent !important;
-}
-
-/* Notifications */
-
-.monaco-workbench .notifications-list-container .monaco-list-rows {
-	background: transparent !important;
-}
-
-/* Context Menus */
-.monaco-workbench .action-widget .action-widget-action-bar {
-	background: transparent;
-}
-
-/* Suggest Widget */
-.monaco-workbench.vs-dark .monaco-editor .suggest-widget {
-	border: 1px solid var(--vscode-editorWidget-border);
-}
-
-/* Dialog */
-.monaco-workbench .monaco-dialog-box {
-	border: 1px solid var(--vscode-dialog-border);
-}
-
-/* Peek View */
-.monaco-workbench .monaco-editor .peekview-widget .head,
-.monaco-workbench .monaco-editor .peekview-widget .body {
-	background: transparent !important;
-}
-
-.monaco-workbench .defineKeybindingWidget {
-	border: 1px solid var(--vscode-editorWidget-border);
-}
-
-/* Chat Editor Overlay */
-.monaco-workbench.vs-dark .chat-editor-overlay-widget,
-.monaco-workbench.vs-dark .chat-diff-change-content-widget {
-	border: 1px solid var(--vscode-editorWidget-border);
-}
-
 /* Settings */
 .monaco-workbench .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
 	border-radius: var(--radius-sm);
 	background: transparent !important;
 	color: var(--vscode-descriptionForeground) !important;
 	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent) !important;
-}
-
-/* Breadcrumbs */
-
-.monaco-workbench.vs .breadcrumbs-control {
-	border-bottom: 1px solid var(--vscode-editorWidget-border);
 }
 
 /* Input Boxes */

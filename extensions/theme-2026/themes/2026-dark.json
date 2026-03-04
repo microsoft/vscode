@@ -10,6 +10,7 @@
 		"descriptionForeground": "#8C8C8C",
 		"icon.foreground": "#8C8C8C",
 		"focusBorder": "#3994BCB3",
+		"contrastBorder": "#333536",
 		"textBlockQuote.background": "#242526",
 		"textBlockQuote.border": "#2A2B2CFF",
 		"textCodeBlock.background": "#242526",
