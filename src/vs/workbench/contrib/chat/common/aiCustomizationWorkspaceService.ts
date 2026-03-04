@@ -23,6 +23,7 @@ export const AICustomizationManagementSection = {
 	Prompts: 'prompts',
 	Hooks: 'hooks',
 	McpServers: 'mcpServers',
+	Plugins: 'plugins',
 	Models: 'models',
 } as const;
 
