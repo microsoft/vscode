@@ -283,6 +283,7 @@
 .chat-debug-editor-header .viewpane-filter-container {
 	flex: 1;
 	max-width: 500px;
+	margin-right: auto;
 }
 .chat-debug-editor-header .viewpane-filter-container .monaco-inputbox {
 	border-color: var(--vscode-panelInput-border, transparent) !important;
@@ -292,6 +293,12 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
+}
+.chat-debug-troubleshoot-button.monaco-button {
+	width: auto;
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
 }
 .chat-debug-view-mode-labels {
 	display: grid;
