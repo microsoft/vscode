@@ -101,7 +101,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	private static readonly _APPROVAL_ROW_OVERHEAD = 14; // 4px margin-top + 4px padding-top + 4px padding-bottom + 2px border
 
 	static getApprovalRowHeight(label: string): number {
-		const lineCount = Math.min(label.split('\n').length, AgentSessionRenderer.APPROVAL_ROW_MAX_LINES);
+		const lineCount = Math.min(label.split(/\r?\n/).length, AgentSessionRenderer.APPROVAL_ROW_MAX_LINES);
 		return lineCount * AgentSessionRenderer._APPROVAL_ROW_LINE_HEIGHT + AgentSessionRenderer._APPROVAL_ROW_OVERHEAD;
 	}
 
