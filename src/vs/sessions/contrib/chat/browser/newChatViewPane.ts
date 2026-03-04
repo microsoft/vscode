@@ -49,6 +49,7 @@ import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/cha
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { ContextMenuController } from '../../../../editor/contrib/contextmenu/browser/contextmenu.js';
 import { getSimpleEditorOptions } from '../../../../workbench/contrib/codeEditor/browser/simpleEditorOptions.js';
@@ -188,6 +189,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IGitService private readonly gitService: IGitService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this._history = this._register(this.instantiationService.createInstance(ChatHistoryNavigator, ChatAgentLocation.Chat));
@@ -965,6 +967,20 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				this._openRepoOrFolderPicker(session.target);
 			}
 			return;
+		}
+
+		// For local targets, request workspace trust for the selected folder
+		if (session.target === AgentSessionProviders.Background) {
+			const folderUri = this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+			if (folderUri) {
+				const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
+					uri: folderUri,
+					message: localize('trustFolderMessage', "Do you trust the authors of the files in this folder? Copilot will be able to read files, run commands, and make changes in this folder."),
+				});
+				if (!trusted) {
+					return;
+				}
+			}
 		}
 
 		// Check for slash commands first
