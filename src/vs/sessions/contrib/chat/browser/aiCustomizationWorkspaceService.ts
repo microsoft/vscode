@@ -6,8 +6,9 @@
 import { derived, IObservable, observableValue, ISettableObservable } from '../../../../base/common/observable.js';
 import { joinPath, relativePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IAICustomizationWorkspaceService, AICustomizationManagementSection, IStorageSourceFilter, applyStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { IChatPromptSlashCommand, IPromptsService, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CustomizationCreatorService } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationCreatorService.js';
@@ -54,6 +55,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	constructor(
 		@ISessionsManagementService private readonly sessionsService: ISessionsManagementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 		@IPathService pathService: IPathService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILogService private readonly logService: ILogService,
@@ -282,5 +284,13 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	async generateCustomization(type: PromptsType): Promise<void> {
 		const creator = this.instantiationService.createInstance(CustomizationCreatorService);
 		await creator.createWithAI(type);
+	}
+
+	async getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]> {
+		const allCommands = await this.promptsService.getPromptSlashCommands(token);
+		return allCommands.filter(cmd => {
+			const filter = this.getStorageSourceFilter(cmd.promptPath.type);
+			return applyStorageSourceFilter([cmd.promptPath], filter).length > 0;
+		});
 	}
 }
