@@ -248,7 +248,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 		// 1. Delete from main repository if it exists there, then commit
 		try {
 			if (await this.fileService.exists(repoFileUri)) {
-				await this.fileService.del(repoFileUri, { useTrash: true });
+				await this.fileService.del(repoFileUri, { useTrash: true, recursive: true });
 			}
 			await this.commandService.executeCommand(
 				'github.copilot.cli.sessions.commitToRepository',

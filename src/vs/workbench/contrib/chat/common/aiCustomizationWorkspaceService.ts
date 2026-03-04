@@ -100,7 +100,10 @@ export interface IAICustomizationWorkspaceService {
 	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
 
 	/**
-	 * Commits the deletion of files that have already been removed from disk.
+	 * Commits the deletion of resources that have already been removed from disk.
+	 * The URIs may point to individual files or to directories (for example, when
+	 * deleting a skill, the entire customization folder is removed). Implementations
+	 * should ensure that directory deletions are handled recursively as needed.
 	 * In sessions this stages and commits the removal in the relevant repositories.
 	 */
 	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
