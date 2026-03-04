@@ -5,13 +5,14 @@
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
+import { match as matchGlobPattern } from '../../../../../base/common/glob.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { dirname, posix, win32 } from '../../../../../base/common/path.js';
 import { OperatingSystem, OS } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -30,8 +31,14 @@ export interface ITerminalSandboxService {
 	wrapCommand(command: string): string;
 	getSandboxConfigPath(forceRefresh?: boolean): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
+	getDomainListStatus(domain: string): { inAllowedDomains: boolean; inDeniedDomains: boolean };
+	addDomainToAllowedDomains(domain: string): Promise<boolean>;
+	getFileSystemPathStatus(path: string): { inDenyRead: boolean; inAllowWrite: boolean; inDenyWrite: boolean };
+	addPathToAllowedWrite(path: string): Promise<boolean>;
 	setNeedsForceUpdateConfigFile(): void;
 }
+
+type ITerminalSandboxFileSystemSettings = { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] };
 
 export class TerminalSandboxService extends Disposable implements ITerminalSandboxService {
 	readonly _serviceBrand: undefined;
@@ -115,6 +122,73 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 
 	public getTempDir(): URI | undefined {
 		return this._tempDir;
+	}
+
+	public getDomainListStatus(domain: string): { inAllowedDomains: boolean; inDeniedDomains: boolean } {
+		const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+		const allowedDomains = networkSetting.allowTrustedDomains
+			? this._addTrustedDomainsToAllowedDomains(networkSetting.allowedDomains ?? [])
+			: (networkSetting.allowedDomains ?? []);
+
+		return {
+			inAllowedDomains: this._isDomainInList(domain, allowedDomains),
+			inDeniedDomains: this._isDomainInList(domain, networkSetting.deniedDomains ?? []),
+		};
+	}
+
+	public async addDomainToAllowedDomains(domain: string): Promise<boolean> {
+		const normalizedDomain = this._normalizeDomain(domain);
+		if (!normalizedDomain) {
+			return false;
+		}
+
+		const networkSetting = this._configurationService.getValue<ITerminalSandboxNetworkSettings>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork) ?? {};
+		const configuredAllowedDomains = networkSetting.allowedDomains ?? [];
+		if (this._isDomainInList(normalizedDomain, configuredAllowedDomains)) {
+			return false;
+		}
+
+		await this._configurationService.updateValue(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
+			...networkSetting,
+			allowedDomains: [...configuredAllowedDomains, normalizedDomain],
+		}, ConfigurationTarget.USER);
+
+		return true;
+	}
+
+	public getFileSystemPathStatus(path: string): { inDenyRead: boolean; inAllowWrite: boolean; inDenyWrite: boolean } {
+		const fileSystemSetting = this._getCurrentFileSystemSettings();
+
+		return {
+			inDenyRead: this._isPathInList(path, fileSystemSetting.denyRead ?? []),
+			inAllowWrite: this._isPathInList(path, fileSystemSetting.allowWrite ?? []),
+			inDenyWrite: this._isPathInList(path, fileSystemSetting.denyWrite ?? []),
+		};
+	}
+
+	public async addPathToAllowedWrite(path: string): Promise<boolean> {
+		const normalizedPath = this._normalizeSandboxPath(path);
+		if (!normalizedPath) {
+			return false;
+		}
+
+		const fileSystemSettingId = this._getCurrentFileSystemSettingId();
+		if (!fileSystemSettingId) {
+			return false;
+		}
+
+		const fileSystemSetting = this._getCurrentFileSystemSettings();
+		const configuredAllowWrite = fileSystemSetting.allowWrite ?? [];
+		if (this._isPathInList(normalizedPath, configuredAllowWrite)) {
+			return false;
+		}
+
+		await this._configurationService.updateValue(fileSystemSettingId, {
+			...fileSystemSetting,
+			allowWrite: [...configuredAllowWrite, normalizedPath],
+		}, ConfigurationTarget.USER);
+
+		return true;
 	}
 
 	public setNeedsForceUpdateConfigFile(): void {
@@ -223,4 +297,106 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		}
 		return Array.from(allowedDomainsSet);
 	}
+
+	private _isDomainInList(domain: string, configuredDomains: readonly string[]): boolean {
+		const normalizedDomain = this._normalizeDomain(domain);
+		if (!normalizedDomain) {
+			return false;
+		}
+		return configuredDomains.some(candidate => this._matchesConfiguredDomain(normalizedDomain, candidate));
+	}
+
+	private _matchesConfiguredDomain(domain: string, candidate: string): boolean {
+		const normalizedCandidate = this._normalizeDomain(candidate);
+		if (!normalizedCandidate) {
+			return false;
+		}
+
+		if (normalizedCandidate.startsWith('*.')) {
+			const suffix = normalizedCandidate.slice(2);
+			return domain.endsWith(`.${suffix}`);
+		}
+
+		return domain === normalizedCandidate;
+	}
+
+	private _normalizeDomain(domain: string | undefined): string | undefined {
+		if (!domain) {
+			return undefined;
+		}
+		// Normalize domain by trimming, converting to lowercase, removing leading/trailing dots and ports.
+		return domain.trim().toLowerCase().replace(/^\.+/, '').replace(/\.+$/, '').replace(/:\d+$/, '') || undefined;
+	}
+
+	private _getCurrentFileSystemSettingId(): TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem | TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem | undefined {
+		if (this._os === OperatingSystem.Linux) {
+			return TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem;
+		}
+
+		if (this._os === OperatingSystem.Macintosh) {
+			return TerminalChatAgentToolsSettingId.TerminalSandboxMacFileSystem;
+		}
+
+		return undefined;
+	}
+
+	private _getCurrentFileSystemSettings(): ITerminalSandboxFileSystemSettings {
+		const fileSystemSettingId = this._getCurrentFileSystemSettingId();
+		if (!fileSystemSettingId) {
+			return {};
+		}
+
+		return this._configurationService.getValue<ITerminalSandboxFileSystemSettings>(fileSystemSettingId) ?? {};
+	}
+
+	private _isPathInList(path: string, configuredPaths: readonly string[]): boolean {
+		const normalizedPath = this._normalizeSandboxPath(path);
+		if (!normalizedPath) {
+			return false;
+		}
+
+		return configuredPaths.some(candidate => this._matchesConfiguredPath(normalizedPath, candidate));
+	}
+
+	private _matchesConfiguredPath(path: string, candidate: string): boolean {
+		const normalizedCandidate = this._normalizeSandboxPath(candidate);
+		if (!normalizedCandidate) {
+			return false;
+		}
+
+		if (this._os === OperatingSystem.Macintosh && this._hasGlobPattern(normalizedCandidate) && matchGlobPattern(normalizedCandidate, path)) {
+			return true;
+		}
+
+		if (path === normalizedCandidate) {
+			return true;
+		}
+
+		const candidateWithSeparator = normalizedCandidate.endsWith('/') ? normalizedCandidate : `${normalizedCandidate}/`;
+		return path.startsWith(candidateWithSeparator);
+	}
+
+	private _hasGlobPattern(path: string): boolean {
+		return /[*?{\[]/.test(path);
+	}
+
+	private _normalizeSandboxPath(path: string | undefined): string | undefined {
+		if (!path) {
+			return undefined;
+		}
+
+		const trimmedPath = path.trim().replace(/^['"`]+|['"`]+$/g, '');
+		if (!trimmedPath) {
+			return undefined;
+		}
+
+		const normalizedPath = posix.normalize(trimmedPath.replace(/\\/g, '/'));
+		if (normalizedPath === '/') {
+			return normalizedPath;
+		}
+
+		return normalizedPath.replace(/\/+$/, '') || undefined;
+	}
+
+
 }

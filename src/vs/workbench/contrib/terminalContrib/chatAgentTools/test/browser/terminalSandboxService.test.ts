@@ -255,6 +255,130 @@ suite('TerminalSandboxService - allowTrustedDomains', () => {
 		strictEqual(config.network.allowedDomains.length, 0, 'Should have no domains (* filtered out)');
 	});
 
+	test('should report exact matches in allowed and denied domain lists', () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
+			allowedDomains: ['example.com'],
+			deniedDomains: ['denied.example.com'],
+			allowTrustedDomains: false
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		strictEqual(sandboxService.getDomainListStatus('example.com').inAllowedDomains, true, 'Should detect exact allowed domain');
+		strictEqual(sandboxService.getDomainListStatus('example.com').inDeniedDomains, false, 'Allowed domain should not appear denied');
+		strictEqual(sandboxService.getDomainListStatus('denied.example.com').inAllowedDomains, false, 'Denied domain should not appear allowed');
+		strictEqual(sandboxService.getDomainListStatus('denied.example.com').inDeniedDomains, true, 'Should detect exact denied domain');
+	});
+
+	test('should match wildcard allowed domains', () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
+			allowedDomains: ['*.github.com'],
+			deniedDomains: [],
+			allowTrustedDomains: false
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const status = sandboxService.getDomainListStatus('api.github.com');
+		strictEqual(status.inAllowedDomains, true, 'Wildcard entry should match subdomains');
+		strictEqual(status.inDeniedDomains, false, 'Wildcard allow entry should not imply denial');
+	});
+
+	test('should include trusted domains when checking allowed domains', () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
+			allowedDomains: [],
+			deniedDomains: [],
+			allowTrustedDomains: true
+		});
+		trustedDomainService.trustedDomains = ['https://trusted.example.com'];
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const status = sandboxService.getDomainListStatus('trusted.example.com');
+		strictEqual(status.inAllowedDomains, true, 'Trusted domains should count as allowed when enabled');
+		strictEqual(status.inDeniedDomains, false, 'Trusted domains should not imply denial');
+	});
+
+	test('should add a normalized domain to allowedDomains', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
+			allowedDomains: ['example.com'],
+			deniedDomains: [],
+			allowTrustedDomains: false
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const didAdd = await sandboxService.addDomainToAllowedDomains(' API.GitHub.COM:443 ');
+
+		strictEqual(didAdd, true, 'Expected domain to be added');
+		const networkSetting = configurationService.getValue<{ allowedDomains?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork);
+		ok(networkSetting?.allowedDomains?.includes('api.github.com'), 'Expected normalized domain to be persisted');
+	});
+
+	test('should not add a domain already covered by configured allowedDomains', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork, {
+			allowedDomains: ['*.github.com'],
+			deniedDomains: [],
+			allowTrustedDomains: true
+		});
+		trustedDomainService.trustedDomains = ['https://trusted.example.com'];
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const didAdd = await sandboxService.addDomainToAllowedDomains('api.github.com');
+
+		strictEqual(didAdd, false, 'Expected no-op when configured allowlist already covers the domain');
+		const networkSetting = configurationService.getValue<{ allowedDomains?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxNetwork);
+		strictEqual(networkSetting?.allowedDomains?.length, 1, 'Expected allowedDomains to remain unchanged');
+	});
+
+	test('should report filesystem path membership across sandbox lists', () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem, {
+			denyRead: ['/etc/ssh'],
+			allowWrite: ['/workspace/tmp'],
+			denyWrite: ['/workspace/tmp/private'],
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const allowStatus = sandboxService.getFileSystemPathStatus('/workspace/tmp/out.txt');
+		strictEqual(allowStatus.inAllowWrite, true, 'Parent allowWrite entry should cover child paths');
+		strictEqual(allowStatus.inDenyRead, false, 'Unrelated path should not appear in denyRead');
+		strictEqual(allowStatus.inDenyWrite, false, 'Unrelated path should not appear in denyWrite');
+
+		const denyStatus = sandboxService.getFileSystemPathStatus('/workspace/tmp/private/secret.txt');
+		strictEqual(denyStatus.inAllowWrite, true, 'Nested path should still be within allowWrite');
+		strictEqual(denyStatus.inDenyWrite, true, 'Nested path should match denyWrite');
+		strictEqual(denyStatus.inDenyRead, false, 'Nested path should not match denyRead unless configured');
+
+		const readStatus = sandboxService.getFileSystemPathStatus('/etc/ssh/sshd_config');
+		strictEqual(readStatus.inDenyRead, true, 'Nested path should match denyRead');
+	});
+
+	test('should add a normalized path to allowWrite', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem, {
+			denyRead: [],
+			allowWrite: ['.'],
+			denyWrite: [],
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const didAdd = await sandboxService.addPathToAllowedWrite(' /tmp/output/ ');
+
+		strictEqual(didAdd, true, 'Expected path to be added');
+		const fileSystemSetting = configurationService.getValue<{ allowWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem);
+		ok(fileSystemSetting?.allowWrite?.includes('/tmp/output'), 'Expected normalized path to be persisted');
+	});
+
+	test('should not add a path already covered by allowWrite', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem, {
+			denyRead: [],
+			allowWrite: ['/tmp'],
+			denyWrite: [],
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const didAdd = await sandboxService.addPathToAllowedWrite('/tmp/output');
+
+		strictEqual(didAdd, false, 'Expected no-op when allowWrite already covers the path');
+		const fileSystemSetting = configurationService.getValue<{ allowWrite?: string[] }>(TerminalChatAgentToolsSettingId.TerminalSandboxLinuxFileSystem);
+		strictEqual(fileSystemSetting?.allowWrite?.length, 1, 'Expected allowWrite to remain unchanged');
+	});
+
 	test('should add ripgrep bin directory to PATH when wrapping command', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
