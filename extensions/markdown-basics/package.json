@@ -29,6 +29,7 @@
           ".mdtxt",
           ".mdtext",
           ".ron",
+          ".ronn",
           ".workbook"
         ],
         "filenamePatterns": [
