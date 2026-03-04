@@ -655,9 +655,7 @@ export class ModelPickerWidget extends Disposable {
 			domChildren.push(this._badgeIcon);
 		}
 
-		if (!this._hideChevrons?.get()) {
-			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
-		}
+		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(this._domNode, ...domChildren);
 
