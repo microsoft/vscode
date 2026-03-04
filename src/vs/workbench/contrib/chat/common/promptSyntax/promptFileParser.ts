@@ -10,7 +10,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffsetImpl.js';
-import { Target } from './promptTypes.js';
 
 export class PromptFileParser {
 	constructor() {
@@ -85,19 +84,6 @@ export namespace PromptHeaderAttributes {
 	export const userInvokable = 'user-invokable';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
-}
-
-export namespace GithubPromptHeaderAttributes {
-	export const mcpServers = 'mcp-servers';
-	export const github = 'github';
-}
-
-export namespace ClaudeHeaderAttributes {
-	export const disallowedTools = 'disallowedTools';
-}
-
-export function isTarget(value: unknown): value is Target {
-	return value === Target.VSCode || value === Target.GitHubCopilot || value === Target.Claude || value === Target.Undefined;
 }
 
 export class PromptHeader {

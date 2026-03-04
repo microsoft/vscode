@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import type { IAgentPlugin } from '../../common/plugins/agentPluginService.js';
-import type { IMarketplaceReference, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
+import type { IMarketplaceReference, IPluginSourceDescriptor, MarketplaceType } from '../../common/plugins/pluginMarketplaceService.js';
 
 export const enum AgentPluginItemKind {
 	Installed = 'installed',
@@ -25,6 +25,7 @@ export interface IMarketplacePluginItem {
 	readonly name: string;
 	readonly description: string;
 	readonly source: string;
+	readonly sourceDescriptor: IPluginSourceDescriptor;
 	readonly marketplace: string;
 	readonly marketplaceReference: IMarketplaceReference;
 	readonly marketplaceType: MarketplaceType;

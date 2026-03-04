@@ -3,6 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	width: 100%;
+	min-width: 0;
+}
+
+.account-widget {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	width: 100%;
+	min-width: 0;
+}
+
 /* Account Button */
 .monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account {
 	overflow: hidden;
@@ -10,9 +26,121 @@
 	flex: 1;
 }
 
-/* Update Button */
-.monaco-workbench .part.sidebar > .sidebar-footer .update-widget-action {
+.account-widget-account {
 	overflow: hidden;
 	min-width: 0;
 	flex: 1;
+}
+
+/* Update Button */
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update {
+	flex: 0 0 auto;
+	width: fit-content;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.account-widget-update {
+	flex: 0 0 auto;
+	width: fit-content;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button {
+	width: auto;
+	max-width: none;
+}
+
+.account-widget-update .account-widget-update-button {
+	width: auto;
+	max-width: none;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready {
+	background-color: var(--vscode-button-background) !important;
+	color: var(--vscode-button-foreground) !important;
+}
+
+.account-widget-update .account-widget-update-button.account-widget-update-button-ready {
+	background-color: var(--vscode-button-background) !important;
+	color: var(--vscode-button-foreground) !important;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready:hover {
+	background-color: var(--vscode-button-background) !important;
+}
+
+.account-widget-update .account-widget-update-button.account-widget-update-button-ready:hover {
+	background-color: var(--vscode-button-background) !important;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.account-widget-update-button-ready:focus {
+	background-color: var(--vscode-button-background) !important;
+}
+
+.account-widget-update .account-widget-update-button.account-widget-update-button-ready:focus {
+	background-color: var(--vscode-button-background) !important;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-update .account-widget-update-button.hidden {
+	display: none;
+}
+
+.account-widget-update .account-widget-update-button.hidden {
+	display: none;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account .account-widget-account-button {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.account-widget-account .account-widget-account-button {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account .account-widget-account-button > .codicon {
+	flex: 0 0 auto;
+}
+
+.account-widget-account .account-widget-account-button > .codicon {
+	flex: 0 0 auto;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account .account-widget-account-button > span:last-child {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.account-widget-account .account-widget-account-button > span:last-child {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .part.sidebar > .sidebar-footer .account-widget-account .account-widget-account-button > .monaco-button-label {
+	display: block;
+	width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.account-widget-account .account-widget-account-button > .monaco-button-label {
+	display: block;
+	width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
 }

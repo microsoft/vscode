@@ -11,8 +11,9 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { Workspace, WorkspaceFolder, IWorkspace, IWorkspaceContextService, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
 import { getWorkspaceIdentifier } from '../../../../workbench/services/workspaces/browser/workspaces.js';
-import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
+import { IWorkspaceEditingService } from '../../../../workbench/services/workspaces/common/workspaceEditing.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class SessionsWorkspaceContextService extends Disposable implements IWorkspaceContextService, IWorkspaceEditingService {
 
@@ -20,7 +21,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 
 	readonly onDidChangeWorkbenchState = Event.None;
 	readonly onDidChangeWorkspaceName = Event.None;
-	readonly onDidEnterWorkspace = Event.None as Event<IDidEnterWorkspaceEvent>;
+	readonly onDidEnterWorkspace = Event.None;
 
 	private readonly _onWillChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersWillChangeEvent>();
 	readonly onWillChangeWorkspaceFolders = this._onWillChangeWorkspaceFolders.event;
@@ -32,11 +33,11 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 	private readonly _updateFoldersQueue = this._register(new Queue<void>());
 
 	constructor(
-		sessionsWorkspaceUri: URI,
-		private readonly uriIdentityService: IUriIdentityService
+		workspaceIdentifier: IWorkspaceIdentifier,
+		private readonly uriIdentityService: IUriIdentityService,
+		private readonly configurationService: IConfigurationService,
 	) {
 		super();
-		const workspaceIdentifier = getWorkspaceIdentifier(sessionsWorkspaceUri);
 		this.workspace = new Workspace(workspaceIdentifier.id, [], false, workspaceIdentifier.configPath, uri => uriIdentityService.extUri.ignorePathCasing(uri));
 	}
 
@@ -53,7 +54,7 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 	}
 
 	hasWorkspaceData(): boolean {
-		return false;
+		return this.configurationService.getValue('sessions.workspace.sendWorkspaceDataToExtHost') === true;
 	}
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null {
