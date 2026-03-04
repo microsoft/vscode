@@ -501,8 +501,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			scrollHeight: contentHeight
 		});
 
-		// Re-evaluate hover feedback as content grows past the max height
-		this.updateDropdownClickability();
+		// Re-evaluate hover feedback as content grows past the max height,
+		// reusing the already-measured contentHeight to avoid an extra layout read.
+		this.updateDropdownClickability(contentHeight);
 	}
 
 	private scrollToBottom(): void {
@@ -654,12 +655,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		return !(!strippedContent || strippedContent === titleToCompare);
 	}
 
-	private updateDropdownClickability(): void {
+	private updateDropdownClickability(knownContentHeight?: number): void {
 		let allowExpansion = this.shouldAllowExpansion();
 
 		// don't allow feedback on fixed scrolling before reaching max height.
 		if (allowExpansion && this.fixedScrollingMode && !this.streamingCompleted && !this.element.isComplete && this.wrapper) {
-			const contentHeight = this.wrapper.scrollHeight;
+			const contentHeight = knownContentHeight ?? this.wrapper.scrollHeight;
 			if (contentHeight <= THINKING_SCROLL_MAX_HEIGHT) {
 				allowExpansion = false;
 			}
