@@ -32,6 +32,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from '../../../platform/backup/common/backup.js';
 import { getActiveElement, getActiveWindow, isHTMLElement } from '../../../base/browser/dom.js';
@@ -458,6 +459,24 @@ class BlurAction extends Action2 {
 	}
 }
 
+class TestNotificationAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.testNotification',
+			title: localize2('testNotification', 'Test Notification'),
+			category: Categories.Developer,
+			f1: true,
+			when: IsDevelopmentContext,
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const notificationService = accessor.get(INotificationService);
+		notificationService.info('This is a test notification');
+	}
+}
+
 // --- Actions Registration
 
 registerAction2(NewWindowAction);
@@ -467,6 +486,7 @@ registerAction2(OpenRecentAction);
 registerAction2(ReloadWindowAction);
 registerAction2(ShowAboutDialogAction);
 registerAction2(BlurAction);
+registerAction2(TestNotificationAction);
 
 // --- Commands/Keybindings Registration
 
