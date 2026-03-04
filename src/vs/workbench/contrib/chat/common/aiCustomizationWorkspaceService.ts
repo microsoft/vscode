@@ -100,6 +100,12 @@ export interface IAICustomizationWorkspaceService {
 	commitFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
 
 	/**
+	 * Commits the deletion of files that have already been removed from disk.
+	 * In sessions this stages and commits the removal in the relevant repositories.
+	 */
+	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
+
+	/**
 	 * Launches the AI-guided creation flow for the given customization type.
 	 */
 	generateCustomization(type: PromptsType): Promise<void>;
