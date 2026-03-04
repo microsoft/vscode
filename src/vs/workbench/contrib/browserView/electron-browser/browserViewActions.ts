@@ -507,6 +507,7 @@ const resetZoomKeybindingRule = {
 	id: 'workbench.action.browser.resetZoom',
 	when: CONTEXT_BROWSER_FOCUSED,
 	weight: KeybindingWeight.WorkbenchContrib + 75,
+	// We use Numpad0 and not Digit0 here to match the workbench zoom reset keybinding, and to avoid conflicts with keybinding to focus sidebar.
 	primary: KeyMod.CtrlCmd | KeyCode.Numpad0,
 };
 
