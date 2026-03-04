@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { basename, dirname, joinPath } from '../../../../../base/common/resources.js';
+import { dirname, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
@@ -202,6 +202,7 @@ export class AgentPluginEditor extends EditorPane {
 					description: item.description,
 					version: '',
 					source: item.source,
+					sourceDescriptor: item.sourceDescriptor,
 					marketplace: item.marketplace,
 					marketplaceReference: item.marketplaceReference,
 					marketplaceType: item.marketplaceType,
@@ -222,6 +223,7 @@ export class AgentPluginEditor extends EditorPane {
 							name: item.name,
 							description: mp.description,
 							source: mp.source,
+							sourceDescriptor: mp.sourceDescriptor,
 							marketplace: mp.marketplace,
 							marketplaceReference: mp.marketplaceReference,
 							marketplaceType: mp.marketplaceType,
@@ -267,7 +269,7 @@ export class AgentPluginEditor extends EditorPane {
 	}
 
 	private installedPluginToItem(plugin: IAgentPlugin): IInstalledPluginItem {
-		const name = basename(plugin.uri);
+		const name = plugin.label;
 		const description = plugin.fromMarketplace?.description ?? this.labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 		const marketplace = plugin.fromMarketplace?.marketplace;
 		return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
@@ -517,6 +519,7 @@ class InstallPluginEditorAction extends Action {
 			description: this.item.description,
 			version: '',
 			source: this.item.source,
+			sourceDescriptor: this.item.sourceDescriptor,
 			marketplace: this.item.marketplace,
 			marketplaceReference: this.item.marketplaceReference,
 			marketplaceType: this.item.marketplaceType,

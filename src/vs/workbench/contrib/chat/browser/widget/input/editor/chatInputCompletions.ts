@@ -148,7 +148,7 @@ class SlashCommandCompletions extends Disposable {
 						.map((c, i): CompletionItem => {
 							const withSlash = `/${c.command}`;
 							return {
-								label: withSlash,
+								label: { label: withSlash, description: c.detail },
 								insertText: c.executeImmediately ? '' : `${withSlash} `,
 								documentation: c.detail,
 								range,
@@ -192,7 +192,7 @@ class SlashCommandCompletions extends Disposable {
 					suggestions: slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `${chatSubcommandLeader}${c.command}`;
 						return {
-							label: withSlash,
+							label: { label: withSlash, description: c.detail },
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							documentation: c.detail,
 							range,

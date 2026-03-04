@@ -44,7 +44,7 @@ export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOption
 	readonly overrideStyles: IStyleOverride<IListStyles>;
 	readonly filter: IAgentSessionsFilter;
 	readonly source: string;
-	readonly useSimpleHover?: boolean;
+	readonly disableHover?: boolean;
 	readonly showIsolationIcon?: boolean;
 	readonly enableApprovalRow?: boolean;
 

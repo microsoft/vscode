@@ -34,7 +34,7 @@ import { getSourceCounts, getSourceCountsTotal } from './customizationCounts.js'
 import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
-interface ICustomizationItemConfig {
+export interface ICustomizationItemConfig {
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
@@ -43,7 +43,7 @@ interface ICustomizationItemConfig {
 	readonly isMcp?: boolean;
 }
 
-const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
+export const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
 	{
 		id: 'sessions.customization.agents',
 		label: localize('agents', "Agents"),
@@ -92,7 +92,7 @@ const CUSTOMIZATION_ITEMS: ICustomizationItemConfig[] = [
  * Custom ActionViewItem for each customization link in the toolbar.
  * Renders icon + label + source count badges, matching the sidebar footer style.
  */
-class CustomizationLinkViewItem extends ActionViewItem {
+export class CustomizationLinkViewItem extends ActionViewItem {
 
 	private readonly _viewItemDisposables: DisposableStore;
 	private _button: Button | undefined;
@@ -199,7 +199,7 @@ class CustomizationLinkViewItem extends ActionViewItem {
 
 // --- Register actions and view items --- //
 
-class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
+export class CustomizationsToolbarContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsCustomizationsToolbar';
 

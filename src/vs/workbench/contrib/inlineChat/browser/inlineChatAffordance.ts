@@ -9,7 +9,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../editor/browser/observableCodeEditor.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { InlineChatConfigKeys } from '../common/inlineChat.js';
+import { InlineChatConfigKeys, CTX_INLINE_CHAT_AFFORDANCE_VISIBLE } from '../common/inlineChat.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
@@ -24,6 +24,7 @@ import { CodeActionController } from '../../../../editor/contrib/codeAction/brow
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { Event } from '../../../../base/common/event.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 
 type InlineChatAffordanceEvent = {
 	mode: string;
@@ -45,6 +46,7 @@ export class InlineChatAffordance extends Disposable {
 	readonly #inputWidget: InlineChatInputWidget;
 	readonly #instantiationService: IInstantiationService;
 	readonly #menuData = observableValue<{ rect: DOMRect; above: boolean; lineNumber: number; placeholder: string } | undefined>(this, undefined);
+	readonly #selectionData = observableValue<Selection | undefined>(this, undefined);
 
 	constructor(
 		editor: ICodeEditor,
@@ -54,6 +56,7 @@ export class InlineChatAffordance extends Disposable {
 		@IChatEntitlementService chatEntiteldService: IChatEntitlementService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.#editor = editor;
@@ -64,7 +67,10 @@ export class InlineChatAffordance extends Disposable {
 		const affordance = observableConfigValue<'off' | 'gutter' | 'editor'>(InlineChatConfigKeys.Affordance, 'off', configurationService);
 		const debouncedSelection = debouncedObservable(editorObs.cursorSelection, 500);
 
-		const selectionData = observableValue<Selection | undefined>(this, undefined);
+		const selectionData = this.#selectionData;
+
+		const ctxAffordanceVisible = CTX_INLINE_CHAT_AFFORDANCE_VISIBLE.bindTo(contextKeyService);
+		this._store.add({ dispose: () => ctxAffordanceVisible.reset() });
 
 		let explicitSelection = false;
 		let affordanceId: string | undefined;
@@ -112,6 +118,12 @@ export class InlineChatAffordance extends Disposable {
 		// Hide when the editor context menu shows
 		this._store.add(this.#editor.onContextMenu(() => {
 			selectionData.set(undefined, undefined);
+		}));
+
+		this._store.add(autorun(r => {
+			const sel = selectionData.read(r);
+			const mode = affordance.read(r);
+			ctxAffordanceVisible.set(sel !== undefined && (mode === 'editor' || mode === 'gutter'));
 		}));
 
 		const gutterAffordance = this._store.add(this.#instantiationService.createInstance(
@@ -165,6 +177,10 @@ export class InlineChatAffordance extends Disposable {
 				this.#menuData.set(undefined, undefined);
 			}
 		}));
+	}
+
+	dismiss(): void {
+		this.#selectionData.set(undefined, undefined);
 	}
 
 	async showMenuAtSelection(placeholder: string): Promise<void> {

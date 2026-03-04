@@ -15,7 +15,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { AgentPluginRepositoryService } from '../../../browser/agentPluginRepositoryService.js';
-import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
+import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('AgentPluginRepositoryService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -32,6 +32,7 @@ suite('AgentPluginRepositoryService', () => {
 			description: '',
 			version: '',
 			source,
+			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: source },
 			marketplace: marketplaceReference.displayLabel,
 			marketplaceReference,
 			marketplaceType: MarketplaceType.Copilot,
@@ -40,7 +41,7 @@ suite('AgentPluginRepositoryService', () => {
 
 	function createService(
 		onExists?: (resource: URI) => Promise<boolean>,
-		onExecuteCommand?: (id: string) => void,
+		onExecuteCommand?: (id: string, ...args: unknown[]) => void,
 	): AgentPluginRepositoryService {
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -53,8 +54,8 @@ suite('AgentPluginRepositoryService', () => {
 		} as unknown as IProgressService;
 
 		instantiationService.stub(ICommandService, {
-			executeCommand: async (id: string) => {
-				onExecuteCommand?.(id);
+			executeCommand: async (id: string, ...args: unknown[]) => {
+				onExecuteCommand?.(id, ...args);
 				return undefined;
 			},
 		} as unknown as ICommandService);
@@ -169,5 +170,44 @@ suite('AgentPluginRepositoryService', () => {
 
 		assert.strictEqual(uri.path, '/tmp/marketplace-repo');
 		assert.strictEqual(commandInvocationCount, 0);
+	});
+
+	test('builds revision-aware install URI for github plugin sources', () => {
+		const service = createService();
+		const uri = service.getPluginSourceInstallUri({
+			kind: PluginSourceKind.GitHub,
+			repo: 'owner/repo',
+			ref: 'release/v1',
+		});
+
+		assert.strictEqual(uri.path, '/cache/agentPlugins/github.com/owner/repo/ref_release_v1');
+	});
+
+	test('updates git plugin source by pulling and checking out requested revision', async () => {
+		const commands: string[] = [];
+		const service = createService(async () => true, (id: string) => {
+			commands.push(id);
+		});
+
+		await service.updatePluginSource({
+			name: 'my-plugin',
+			description: '',
+			version: '',
+			source: '',
+			sourceDescriptor: {
+				kind: PluginSourceKind.GitHub,
+				repo: 'owner/repo',
+				sha: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0',
+			},
+			marketplace: 'owner/repo',
+			marketplaceReference: parseMarketplaceReference('owner/repo')!,
+			marketplaceType: MarketplaceType.Copilot,
+		}, {
+			pluginName: 'my-plugin',
+			failureLabel: 'my-plugin',
+			marketplaceType: MarketplaceType.Copilot,
+		});
+
+		assert.deepStrictEqual(commands, ['git.openRepository', 'git.fetch', '_git.checkout']);
 	});
 });

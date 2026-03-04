@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IMarketplacePlugin, IMarketplaceReference, MarketplaceType } from './pluginMarketplaceService.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceType } from './pluginMarketplaceService.js';
 
 export const IAgentPluginRepositoryService = createDecorator<IAgentPluginRepositoryService>('agentPluginRepositoryService');
 
@@ -61,4 +61,26 @@ export interface IAgentPluginRepositoryService {
 	 * Pulls latest changes for a cloned marketplace repository.
 	 */
 	pullRepository(marketplace: IMarketplaceReference, options?: IPullRepositoryOptions): Promise<void>;
+
+	/**
+	 * Returns the local install URI for a plugin based on its
+	 * {@link IPluginSourceDescriptor}. For non-relative-path sources
+	 * (github, url, npm, pip), this computes a cache location independent
+	 * of the marketplace repository.
+	 */
+	getPluginSourceInstallUri(sourceDescriptor: IPluginSourceDescriptor): URI;
+
+	/**
+	 * Ensures the plugin source is available locally. For github/url sources
+	 * this clones the repository into the cache. For npm/pip sources this is
+	 * a no-op (installation via terminal is handled by the install service).
+	 */
+	ensurePluginSource(plugin: IMarketplacePlugin, options?: IEnsureRepositoryOptions): Promise<URI>;
+
+	/**
+	 * Updates a plugin source that is stored outside the marketplace repository.
+	 * For github/url sources this pulls latest changes and reapplies pinned
+	 * ref/sha checkout. For npm/pip sources this is a no-op.
+	 */
+	updatePluginSource(plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<void>;
 }
