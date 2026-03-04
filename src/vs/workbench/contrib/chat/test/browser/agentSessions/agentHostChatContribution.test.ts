@@ -12,7 +12,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentAttachment, IAgentHostService, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -40,7 +40,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	private readonly _sessionMessages = new Map<string, (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>();
-	public sendMessageCalls: { session: URI; prompt: string }[] = [];
+	public sendMessageCalls: { session: URI; prompt: string; attachments?: IAgentAttachment[] }[] = [];
 	public models: IAgentModelInfo[] = [];
 	public agents = [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
 
@@ -65,8 +65,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return session;
 	}
 
-	override async sendMessage(session: URI, prompt: string): Promise<void> {
-		this.sendMessageCalls.push({ session, prompt });
+	override async sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[]): Promise<void> {
+		this.sendMessageCalls.push({ session, prompt, attachments });
 	}
 
 	override async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
@@ -155,13 +155,13 @@ function createContribution(disposables: DisposableStore) {
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService };
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables'] }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: 'req-1',
 		agentId: 'agent-host-copilot',
 		message: overrides.message ?? 'Hello',
-		variables: { variables: [] },
+		variables: overrides.variables ?? { variables: [] },
 		location: ChatAgentLocation.Chat,
 	});
 }
@@ -977,6 +977,200 @@ suite('AgentHostChatContribution', () => {
 			const provider = disposables.add(instantiationService.createInstance(AgentHostLanguageModelProvider, 'agent-host-copilot', 'agent-host-copilot', 'copilot'));
 
 			await assert.rejects(() => provider.sendChatRequest(), /do not support direct chat requests/);
+		});
+	});
+
+	// ---- Attachment context conversion --------------------------------------
+
+	suite('attachment context', () => {
+
+		test('file variable with file:// URI becomes file attachment', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
+				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest({
+					message: 'check this file',
+					variables: {
+						variables: [
+							upcastPartial({ kind: 'file', id: 'v-file', name: 'test.ts', value: URI.file('/workspace/test.ts') }),
+						],
+					},
+				}),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
+			const call = agentHostService.sendMessageCalls[0];
+			assert.deepStrictEqual(call.attachments, [
+				{ type: 'file', path: '/workspace/test.ts', displayName: 'test.ts' },
+			]);
+		});
+
+		test('directory variable with file:// URI becomes directory attachment', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
+				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest({
+					message: 'check this dir',
+					variables: {
+						variables: [
+							upcastPartial({ kind: 'directory', id: 'v-dir', name: 'src', value: URI.file('/workspace/src') }),
+						],
+					},
+				}),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
+			assert.deepStrictEqual(agentHostService.sendMessageCalls[0].attachments, [
+				{ type: 'directory', path: '/workspace/src', displayName: 'src' },
+			]);
+		});
+
+		test('implicit selection variable becomes selection attachment', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
+				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest({
+					message: 'explain this',
+					variables: {
+						variables: [
+							upcastPartial({ kind: 'implicit', id: 'v-implicit', name: 'selection', isFile: true as const, isSelection: true, uri: URI.file('/workspace/foo.ts'), enabled: true, value: undefined }),
+						],
+					},
+				}),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
+			assert.deepStrictEqual(agentHostService.sendMessageCalls[0].attachments, [
+				{ type: 'selection', path: '/workspace/foo.ts', displayName: 'selection' },
+			]);
+		});
+
+		test('non-file URIs are skipped', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
+				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest({
+					message: 'check this',
+					variables: {
+						variables: [
+							upcastPartial({ kind: 'file', id: 'v-file', name: 'untitled', value: URI.from({ scheme: 'untitled', path: '/foo' }) }),
+						],
+					},
+				}),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
+			// No attachments because it's not a file:// URI
+			assert.strictEqual(agentHostService.sendMessageCalls[0].attachments, undefined);
+		});
+
+		test('tool variables are skipped', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
+				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest({
+					message: 'use tools',
+					variables: {
+						variables: [
+							upcastPartial({ kind: 'tool', id: 'v-tool', name: 'myTool', value: { id: 'tool-1' } }),
+						],
+					},
+				}),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
+			assert.strictEqual(agentHostService.sendMessageCalls[0].attachments, undefined);
+		});
+
+		test('mixed variables extracts only supported types', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
+				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest({
+					message: 'mixed',
+					variables: {
+						variables: [
+							upcastPartial({ kind: 'file', id: 'v-file', name: 'a.ts', value: URI.file('/workspace/a.ts') }),
+							upcastPartial({ kind: 'tool', id: 'v-tool', name: 'myTool', value: { id: 'tool-1' } }),
+							upcastPartial({ kind: 'directory', id: 'v-dir', name: 'lib', value: URI.file('/workspace/lib') }),
+							upcastPartial({ kind: 'file', id: 'v-file', name: 'remote.ts', value: URI.from({ scheme: 'vscode-remote', path: '/remote/file.ts' }) }),
+						],
+					},
+				}),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
+			assert.deepStrictEqual(agentHostService.sendMessageCalls[0].attachments, [
+				{ type: 'file', path: '/workspace/a.ts', displayName: 'a.ts' },
+				{ type: 'directory', path: '/workspace/lib', displayName: 'lib' },
+			]);
+		});
+
+		test('no variables results in no attachments argument', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI, prompt: string, attachments?: IAgentAttachment[]) => {
+				agentHostService.sendMessageCalls.push({ session, prompt, attachments });
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest({ message: 'Hello' }),
+				() => { }, [], CancellationToken.None,
+			);
+
+			assert.strictEqual(agentHostService.sendMessageCalls.length, 1);
+			assert.strictEqual(agentHostService.sendMessageCalls[0].attachments, undefined);
 		});
 	});
 
