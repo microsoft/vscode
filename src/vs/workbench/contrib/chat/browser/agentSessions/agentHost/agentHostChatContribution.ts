@@ -105,7 +105,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const timestamp = new Date().toISOString();
 		let payload: string;
 		try {
-			payload = data !== undefined ? JSON.stringify(data, null, 2) : '';
+			payload = data !== undefined ? JSON.stringify(data, (_key, value) => {
+				if (value && typeof value === 'object' && (value as { $mid?: unknown }).$mid !== undefined && (value as { scheme?: unknown }).scheme !== undefined) {
+					return URI.revive(value).toString();
+				}
+				return value;
+			}, 2) : '';
 		} catch {
 			payload = String(data);
 		}
