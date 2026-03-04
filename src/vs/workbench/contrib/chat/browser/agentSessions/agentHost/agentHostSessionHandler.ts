@@ -324,6 +324,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					finish();
 					break;
 
+				case 'error':
+					this._logService.error(`[AgentHost:${sessionStr}] error: (${e.errorType}) ${e.message}`);
+					progress([{ kind: 'markdownContent', content: new MarkdownString(`\n\nError: (${e.errorType}) ${e.message}`) }]);
+					break;
+
+				case 'usage':
+					this._logService.trace(`[AgentHost:${sessionStr}] usage: model=${e.model}, in=${e.inputTokens ?? '?'}, out=${e.outputTokens ?? '?'}`);
+					break;
+
+				case 'title_changed':
+					this._logService.trace(`[AgentHost:${sessionStr}] title changed: ${e.title}`);
+					break;
+
 				default:
 					this._logService.trace(`[AgentHost:${sessionStr}] unhandled event type: ${(e as IAgentProgressEvent).type}`);
 					break;

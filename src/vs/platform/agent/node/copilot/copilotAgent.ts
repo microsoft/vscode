@@ -328,6 +328,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._onDidSessionProgress.fire({ session, type: 'idle' });
 		});
 
+		wrapper.onSessionError(e => {
+			this._logService.error(`[Copilot:${rawId}] Session error: ${e.data.errorType} - ${e.data.message}`);
+			this._onDidSessionProgress.fire({
+				session,
+				type: 'error',
+				errorType: e.data.errorType,
+				message: e.data.message,
+				stack: e.data.stack,
+			});
+		});
+
+		wrapper.onUsage(e => {
+			this._logService.trace(`[Copilot:${rawId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}`);
+			this._onDidSessionProgress.fire({
+				session,
+				type: 'usage',
+				inputTokens: e.data.inputTokens,
+				outputTokens: e.data.outputTokens,
+				model: e.data.model,
+				cacheReadTokens: e.data.cacheReadTokens,
+			});
+		});
+
 		this._subscribeForLogging(wrapper, rawId);
 
 		this._sessions.set(rawId, wrapper);
@@ -341,10 +364,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		wrapper.onSessionResume(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Session resumed: eventCount=${e.data.eventCount}`);
-		});
-
-		wrapper.onSessionError(e => {
-			this._logService.error(`[Copilot:${sessionId}] Session error: ${e.data.errorType} - ${e.data.message}`);
 		});
 
 		wrapper.onSessionInfo(e => {
@@ -409,10 +428,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		wrapper.onTurnEnd(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Turn ended: ${e.data.turnId}`);
-		});
-
-		wrapper.onUsage(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Usage: model=${e.data.model}, in=${e.data.inputTokens ?? '?'}, out=${e.data.outputTokens ?? '?'}, cacheRead=${e.data.cacheReadTokens ?? '?'}`);
 		});
 
 		wrapper.onAbort(e => {

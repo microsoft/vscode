@@ -159,12 +159,38 @@ export interface IAgentToolCompleteEvent extends IAgentProgressEventBase {
 	readonly parentToolCallId?: string;
 }
 
+/** The session title has been updated. */
+export interface IAgentTitleChangedEvent extends IAgentProgressEventBase {
+	readonly type: 'title_changed';
+	readonly title: string;
+}
+
+/** An error occurred during session processing. */
+export interface IAgentErrorEvent extends IAgentProgressEventBase {
+	readonly type: 'error';
+	readonly errorType: string;
+	readonly message: string;
+	readonly stack?: string;
+}
+
+/** Token usage information for a request. */
+export interface IAgentUsageEvent extends IAgentProgressEventBase {
+	readonly type: 'usage';
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly model?: string;
+	readonly cacheReadTokens?: number;
+}
+
 export type IAgentProgressEvent =
 	| IAgentDeltaEvent
 	| IAgentMessageEvent
 	| IAgentIdleEvent
 	| IAgentToolStartEvent
-	| IAgentToolCompleteEvent;
+	| IAgentToolCompleteEvent
+	| IAgentTitleChangedEvent
+	| IAgentErrorEvent
+	| IAgentUsageEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
