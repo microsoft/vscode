@@ -33,10 +33,10 @@ import {
 	AutoApproveStorageKeys,
 	globalAutoApproveDescription,
 } from './tools/languageModelToolsService.js';
+import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
-import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { Target } from '../common/promptSyntax/service/promptsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IChatWidgetService } from './chat.js';
@@ -66,15 +66,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 
 		const troubleshootSessions = new Set<string>();
 		const hasTroubleshootDataKey = ChatContextKeys.chatSessionHasTroubleshootData.bindTo(this.contextKeyService);
-		const updateTroubleshootDataKey = () => {
+		this._store.add(chatWidgetService.onDidChangeFocusedSession(() => {
 			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
 			hasTroubleshootDataKey.set(!!sessionResource && troubleshootSessions.has(sessionResource.toString()));
-		};
-		this._store.add(chatWidgetService.onDidChangeFocusedWidget(widget => {
-			updateTroubleshootDataKey();
-			if (widget) {
-				this._store.add(widget.onDidChangeViewModel(() => updateTroubleshootDataKey()));
-			}
+			languageModelToolsService.flushToolUpdates();
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
