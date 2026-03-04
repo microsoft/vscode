@@ -81,35 +81,35 @@ export interface IHookTypeMeta {
 export const HOOK_METADATA: { [key in HookType]: IHookTypeMeta } = {
 	[HookType.SessionStart]: {
 		label: nls.localize('hookType.sessionStart.label', "Session Start"),
-		description: nls.localize('hookType.sessionStart.description', "Executed when a new agent session begins. Use to initialize environments, log session starts, validate project state, or set up temporary resources.")
+		description: nls.localize('hookType.sessionStart.description', "Executed when a new agent session begins.")
 	},
 	[HookType.UserPromptSubmit]: {
 		label: nls.localize('hookType.userPromptSubmit.label', "User Prompt Submit"),
-		description: nls.localize('hookType.userPromptSubmit.description', "Executed when the user submits a prompt to the agent. Use to log user requests for auditing and usage analysis.")
+		description: nls.localize('hookType.userPromptSubmit.description', "Executed when the user submits a prompt to the agent.")
 	},
 	[HookType.PreToolUse]: {
 		label: nls.localize('hookType.preToolUse.label', "Pre-Tool Use"),
-		description: nls.localize('hookType.preToolUse.description', "Executed before the agent uses any tool. This is the most powerful hook as it can approve or deny tool executions. Use to block dangerous commands, enforce security policies, require approval for sensitive operations, or log tool usage.")
+		description: nls.localize('hookType.preToolUse.description', "Executed before the agent uses any tool.")
 	},
 	[HookType.PostToolUse]: {
 		label: nls.localize('hookType.postToolUse.label', "Post-Tool Use"),
-		description: nls.localize('hookType.postToolUse.description', "Executed after a tool completes execution successfully. Use to log execution results, track usage statistics, generate audit trails, or monitor performance.")
+		description: nls.localize('hookType.postToolUse.description', "Executed after a tool completes execution successfully.")
 	},
 	[HookType.PreCompact]: {
 		label: nls.localize('hookType.preCompact.label', "Pre-Compact"),
-		description: nls.localize('hookType.preCompact.description', "Executed before the agent compacts the conversation context. Use to save conversation state, export important information, or prepare for context reduction.")
+		description: nls.localize('hookType.preCompact.description', "Executed before the agent compacts the conversation context.")
 	},
 	[HookType.SubagentStart]: {
 		label: nls.localize('hookType.subagentStart.label', "Subagent Start"),
-		description: nls.localize('hookType.subagentStart.description', "Executed when a subagent is started. Use to log subagent spawning, track nested agent usage, or initialize subagent-specific resources.")
+		description: nls.localize('hookType.subagentStart.description', "Executed when a subagent is started.")
 	},
 	[HookType.SubagentStop]: {
 		label: nls.localize('hookType.subagentStop.label', "Subagent Stop"),
-		description: nls.localize('hookType.subagentStop.description', "Executed when a subagent stops. Use to log subagent completion, cleanup subagent resources, or aggregate subagent results.")
+		description: nls.localize('hookType.subagentStop.description', "Executed when a subagent stops.")
 	},
 	[HookType.Stop]: {
 		label: nls.localize('hookType.stop.label', "Stop"),
-		description: nls.localize('hookType.stop.description', "Executed when the agent session stops. Use to cleanup resources, generate final reports, or send completion notifications.")
+		description: nls.localize('hookType.stop.description', "Executed when the agent stops.")
 	},
 	[HookType.SessionEnd]: {
 		label: nls.localize('hookType.sessionEnd.label', "Session End"),

@@ -36,10 +36,9 @@ import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../p
 import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { ChatRequestHooks, IHookCommand } from '../hookSchema.js';
+import { ChatRequestHooks, IHookCommand, parseSubagentHooksFromYaml } from '../hookSchema.js';
 import { HookType } from '../hookTypes.js';
 import { HookSourceFormat, getHookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
-import { parseSubagentHooksFromYaml } from '../hookClaudeCompat.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
 import { getTarget, mapClaudeModels, mapClaudeTools } from '../languageProviders/promptValidator.js';

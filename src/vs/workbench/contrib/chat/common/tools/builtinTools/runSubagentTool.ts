@@ -24,6 +24,7 @@ import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.j
 import { IChatAgentRequest, IChatAgentService } from '../../participants/chatAgents.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
 import { ChatRequestHooks, mergeHooks } from '../../promptSyntax/hookSchema.js';
+import { HookType } from '../../promptSyntax/hookTypes.js';
 import { ICustomAgent, IPromptsService } from '../../promptSyntax/service/promptsService.js';
 import { isBuiltinAgent } from '../../promptSyntax/utils/promptsServiceUtils.js';
 import {
@@ -260,9 +261,18 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				this.logService.warn('[ChatService] Failed to collect hooks:', error);
 			}
 
-			// Merge subagent-level hooks (from the agent's frontmatter) with global hooks
+			// Merge subagent-level hooks (from the agent's frontmatter) with global hooks.
+			// Remap Stop hooks to SubagentStop since the agent is running as a subagent.
 			if (subagent?.hooks) {
-				collectedHooks = mergeHooks(collectedHooks, subagent.hooks);
+				const remapped: ChatRequestHooks = { ...subagent.hooks };
+				if (remapped[HookType.Stop]) {
+					const stopHooks = remapped[HookType.Stop];
+					(remapped as Record<string, unknown>)[HookType.SubagentStop] = remapped[HookType.SubagentStop]
+						? [...remapped[HookType.SubagentStop], ...stopHooks]
+						: stopHooks;
+					(remapped as Record<string, unknown>)[HookType.Stop] = undefined;
+				}
+				collectedHooks = mergeHooks(collectedHooks, remapped);
 			}
 
 			// Build the agent request

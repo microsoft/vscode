@@ -391,6 +391,86 @@ suite('PromptHeaderAutocompletion', () => {
 			const labels = actual.map(a => a.label);
 			assert.ok(!labels.includes('BG Agent Model (copilot)'), 'Models with targetChatSessionType should be excluded from agent model array completions');
 		});
+
+		test('complete hooks value with New Hook snippet', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual, [
+				{
+					label: 'New Hook',
+					result: 'hooks: \n  ${1|SessionStart,SessionEnd,UserPromptSubmit,PreToolUse,PostToolUse,PreCompact,SubagentStart,SubagentStop,Stop,ErrorOccurred|}:\n    - type: command\n      command: "$2"'
+				},
+			]);
+		});
+
+		test('complete hooks value with New Hook snippet for vscode target', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				'hooks: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			assert.deepStrictEqual(actual, [
+				{
+					label: 'New Hook',
+					result: 'hooks: \n  ${1|SessionStart,UserPromptSubmit,PreToolUse,PostToolUse,PreCompact,SubagentStart,SubagentStop,Stop|}:\n    - type: command\n      command: "$2"'
+				},
+			]);
+		});
+
+		test('complete hook event names inside hooks map', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks: |',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: "echo hi"',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label).sort();
+			// SessionStart should be excluded since it already exists
+			assert.ok(!labels.includes('SessionStart'), 'SessionStart should not be suggested when already present');
+			assert.ok(labels.includes('SessionEnd'), 'SessionEnd should be suggested');
+			assert.ok(labels.includes('PreToolUse'), 'PreToolUse should be suggested');
+			assert.ok(labels.includes('Stop'), 'Stop should be suggested');
+		});
+
+		test('complete hook event names for vscode target excludes existing hooks', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'target: vscode',
+				'hooks: |',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: "echo hi"',
+				'  PreToolUse:',
+				'    - type: command',
+				'      command: "lint"',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label).sort();
+			assert.ok(!labels.includes('SessionStart'), 'SessionStart should not be suggested when already present');
+			assert.ok(!labels.includes('PreToolUse'), 'PreToolUse should not be suggested when already present');
+			assert.ok(labels.includes('UserPromptSubmit'), 'UserPromptSubmit should be suggested');
+			assert.ok(labels.includes('PostToolUse'), 'PostToolUse should be suggested');
+			// SessionEnd is not available for vscode target
+			assert.ok(!labels.includes('SessionEnd'), 'SessionEnd should not be available for vscode target');
+		});
 	});
 
 	suite('claude agent header completions', () => {

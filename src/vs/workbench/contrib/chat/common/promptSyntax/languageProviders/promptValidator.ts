@@ -561,6 +561,80 @@ export class PromptValidator {
 			}
 			if (prop.value.type !== 'sequence') {
 				report(toMarker(localize('promptValidator.hookValueMustBeArray', "Hook event '{0}' must have an array of command objects as its value.", prop.key.value), prop.value.range, MarkerSeverity.Error));
+				continue;
+			}
+			for (const item of prop.value.items) {
+				this.validateHookCommand(item, target, report);
+			}
+		}
+	}
+
+	private validateHookCommand(item: IValue, target: Target, report: (markers: IMarkerData) => void): void {
+		if (item.type !== 'map') {
+			report(toMarker(localize('promptValidator.hookCommandMustBeObject', "Each hook command must be an object."), item.range, MarkerSeverity.Error));
+			return;
+		}
+
+		const isCopilotCli = target === Target.GitHubCopilot;
+
+		// Determine valid and command-providing properties based on target
+		const validCommandFields = isCopilotCli
+			? new Set(['bash', 'powershell'])
+			: new Set(['command', 'windows', 'linux', 'osx', 'bash', 'powershell']);
+
+		const validProperties = isCopilotCli
+			? new Set(['type', 'bash', 'powershell', 'cwd', 'env', 'timeoutSec'])
+			: new Set(['type', 'command', 'windows', 'linux', 'osx', 'bash', 'powershell', 'cwd', 'env', 'timeout']);
+
+		let hasType = false;
+		let hasCommandField = false;
+
+		for (const prop of item.properties) {
+			const key = prop.key.value;
+
+			if (!validProperties.has(key)) {
+				report(toMarker(localize('promptValidator.unknownHookProperty', "Unknown property '{0}' in hook command.", key), prop.key.range, MarkerSeverity.Warning));
+			}
+
+			if (key === 'type') {
+				hasType = true;
+				if (prop.value.type !== 'scalar' || prop.value.value !== 'command') {
+					report(toMarker(localize('promptValidator.hookTypeMustBeCommand', "The 'type' property in a hook command must be 'command'."), prop.value.range, MarkerSeverity.Error));
+				}
+			} else if (validCommandFields.has(key)) {
+				hasCommandField = true;
+				if (prop.value.type !== 'scalar' || prop.value.value.trim().length === 0) {
+					report(toMarker(localize('promptValidator.hookCommandFieldMustBeNonEmptyString', "The '{0}' property in a hook command must be a non-empty string.", key), prop.value.range, MarkerSeverity.Error));
+				}
+			} else if (key === 'cwd') {
+				if (prop.value.type !== 'scalar') {
+					report(toMarker(localize('promptValidator.hookCwdMustBeString', "The 'cwd' property in a hook command must be a string."), prop.value.range, MarkerSeverity.Error));
+				}
+			} else if (key === 'env') {
+				if (prop.value.type !== 'map') {
+					report(toMarker(localize('promptValidator.hookEnvMustBeMap', "The 'env' property in a hook command must be a map of string values."), prop.value.range, MarkerSeverity.Error));
+				} else {
+					for (const envProp of prop.value.properties) {
+						if (envProp.value.type !== 'scalar') {
+							report(toMarker(localize('promptValidator.hookEnvValueMustBeString', "Environment variable '{0}' must have a string value.", envProp.key.value), envProp.value.range, MarkerSeverity.Error));
+						}
+					}
+				}
+			} else if (key === 'timeout' || key === 'timeoutSec') {
+				if (prop.value.type !== 'scalar' || isNaN(Number(prop.value.value))) {
+					report(toMarker(localize('promptValidator.hookTimeoutMustBeNumber', "The '{0}' property in a hook command must be a number.", key), prop.value.range, MarkerSeverity.Error));
+				}
+			}
+		}
+
+		if (!hasType) {
+			report(toMarker(localize('promptValidator.hookMissingType', "Hook command is missing required property 'type'."), item.range, MarkerSeverity.Error));
+		}
+		if (!hasCommandField) {
+			if (isCopilotCli) {
+				report(toMarker(localize('promptValidator.hookMissingCopilotCommand', "Hook command must specify at least one of 'bash' or 'powershell'."), item.range, MarkerSeverity.Error));
+			} else {
+				report(toMarker(localize('promptValidator.hookMissingCommand', "Hook command must specify at least one of 'command', 'windows', 'linux', or 'osx'."), item.range, MarkerSeverity.Error));
 			}
 		}
 	}

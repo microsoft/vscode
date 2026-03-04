@@ -12,6 +12,8 @@ import { untildify } from '../../../../../base/common/labels.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { HookType, HOOKS_BY_TARGET, HOOK_METADATA } from './hookTypes.js';
 import { Target } from './promptTypes.js';
+import { extractHookCommandsFromItem } from './hookClaudeCompat.js';
+import { IValue, IMapValue } from './promptFileParser.js';
 
 /**
  * A single hook command configuration.
@@ -463,4 +465,98 @@ export function resolveHookCommand(raw: Record<string, unknown>, workspaceRootUr
 		...(normalized.env && { env: normalized.env }),
 		...(normalized.timeout !== undefined && { timeout: normalized.timeout }),
 	};
+}
+
+/**
+ * Converts an {@link IValue} YAML AST node into a plain JavaScript value
+ * (string, array, or object) suitable for passing to hook parsing helpers.
+ */
+function yamlValueToPlain(value: IValue): unknown {
+	switch (value.type) {
+		case 'scalar':
+			return value.value;
+		case 'sequence':
+			return value.items.map(yamlValueToPlain);
+		case 'map': {
+			const obj: Record<string, unknown> = {};
+			for (const prop of value.properties) {
+				obj[prop.key.value] = yamlValueToPlain(prop.value);
+			}
+			return obj;
+		}
+	}
+}
+
+/**
+ * Parses hooks from a subagent's YAML frontmatter `hooks` attribute.
+ *
+ * Supports two formats for hook entries:
+ *
+ * 1. **Direct command** (our format, without matcher):
+ * ```yaml
+ * hooks:
+ *   PreToolUse:
+ *     - type: command
+ *       command: "./scripts/validate.sh"
+ * ```
+ *
+ * 2. **Nested with matcher** (Claude Code format):
+ * ```yaml
+ * hooks:
+ *   PreToolUse:
+ *     - matcher: "Bash"
+ *       hooks:
+ *         - type: command
+ *           command: "./scripts/validate.sh"
+ * ```
+ *
+ * @param hooksMap The raw YAML map value from the `hooks` frontmatter attribute.
+ * @param workspaceRootUri Workspace root for resolving relative `cwd` paths.
+ * @param userHome User home directory path for tilde expansion.
+ * @param target The agent's target, used to resolve hook type names correctly.
+ * @returns Resolved hooks organized by hook type, ready for use in {@link ChatRequestHooks}.
+ */
+export function parseSubagentHooksFromYaml(
+	hooksMap: IMapValue,
+	workspaceRootUri: URI | undefined,
+	userHome: string,
+	target: Target = Target.Undefined,
+): ChatRequestHooks {
+	const result: Record<string, IHookCommand[]> = {};
+	const targetHookMap = HOOKS_BY_TARGET[target] ?? HOOKS_BY_TARGET[Target.Undefined];
+
+	for (const prop of hooksMap.properties) {
+		const hookTypeName = prop.key.value;
+
+		// Resolve hook type name using the target's own map first, then fall back to canonical names
+		const hookType = targetHookMap[hookTypeName] ?? toHookType(hookTypeName);
+		if (!hookType) {
+			continue;
+		}
+
+		// The value must be a sequence (array of hook entries)
+		if (prop.value.type !== 'sequence') {
+			continue;
+		}
+
+		const commands: IHookCommand[] = [];
+
+		for (const item of prop.value.items) {
+			// Convert the YAML AST node to a plain object so the existing
+			// extractHookCommandsFromItem helper can handle both direct
+			// commands and nested matcher structures.
+			const plainItem = yamlValueToPlain(item);
+			const extracted = extractHookCommandsFromItem(plainItem, workspaceRootUri, userHome);
+			commands.push(...extracted);
+		}
+
+		if (commands.length > 0) {
+			if (!result[hookType]) {
+				result[hookType] = [];
+			}
+			result[hookType].push(...commands);
+		}
+	}
+
+	return result as ChatRequestHooks;
 }
