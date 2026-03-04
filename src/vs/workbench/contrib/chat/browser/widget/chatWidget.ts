@@ -1923,7 +1923,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._codeBlockModelCollection.clear();
 
-		// Ensure this has the right model, as inputPart listens to ViewModel change events (which gets updated in next few lines).
+		// Set the input model on the inputPart before assigning this.viewModel. Assigning this.viewModel
+		// fires onDidChangeViewModel, which ChatInputPart listens to and expects the input model to be initialized.
 		// Pass input model reference to input part for state syncing
 		this.inputPart.setInputModel(model.inputModel, model.getRequests().length === 0);
 
