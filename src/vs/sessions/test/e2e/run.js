@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -280,8 +279,9 @@ async function main() {
 			} else {
 				console.error(`  ❌ ${label}`);
 				console.error(`     ${result.message}`);
-				// Take a screenshot on failure
-				runPlaywrightCli(`screenshot --filename=failure-${path.basename(scenario.filePath, '.scenario.md')}-step${i + 1}.png`);
+				// Take a screenshot on failure (into out/ which is already gitignored)
+				const screenshotName = `failure-${path.basename(scenario.filePath, '.scenario.md')}-step${i + 1}.png`;
+				runPlaywrightCli(`screenshot --filename=out/${screenshotName}`);
 				failed++;
 			}
 		}
