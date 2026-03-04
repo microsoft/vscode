@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -254,9 +255,17 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 
 	private onWorkspaceFoldersChanged(e: IWorkspaceFoldersChangeEvent): void {
 		// Remove configurations for removed folders
+		const previousData = this._configuration.toData();
+		const keys: string[] = [];
+		const overrides: [string, string[]][] = [];
 		for (const folder of e.removed) {
-			this._configuration.compareAndDeleteFolderConfiguration(folder.uri);
+			const change = this._configuration.compareAndDeleteFolderConfiguration(folder.uri);
+			keys.push(...change.keys);
+			overrides.push(...change.overrides);
 			this.cachedFolderConfigs.deleteAndDispose(folder.uri);
+		}
+		if (keys.length || overrides.length) {
+			this.triggerConfigurationChange({ keys, overrides }, previousData, ConfigurationTarget.WORKSPACE_FOLDER);
 		}
 	}
 
@@ -267,7 +276,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 				const previousData = this._configuration.toData();
 				const change = this._configuration.compareAndUpdateFolderConfiguration(folder.uri, configurationModel);
 				this.triggerConfigurationChange(change, previousData, ConfigurationTarget.WORKSPACE_FOLDER);
-			});
+			}, onUnexpectedError);
 		}
 	}
 
@@ -285,10 +294,12 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	}
 
 	private triggerConfigurationChange(change: IConfigurationChange, previousData: IConfigurationData, target: ConfigurationTarget): void {
-		const workspace = this.workspaceService.getWorkspace() as Workspace;
-		const event = new ConfigurationChangeEvent(change, { data: previousData, workspace }, this._configuration, workspace, this.logService);
-		event.source = target;
-		this._onDidChangeConfiguration.fire(event);
+		if (change.keys.length) {
+			const workspace = this.workspaceService.getWorkspace() as Workspace;
+			const event = new ConfigurationChangeEvent(change, { data: previousData, workspace }, this._configuration, workspace, this.logService);
+			event.source = target;
+			this._onDidChangeConfiguration.fire(event);
+		}
 	}
 
 	// #endregion

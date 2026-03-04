@@ -125,6 +125,20 @@ suite('Sessions ConfigurationService', () => {
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting', { resource: folder }), 'defaultValue');
 	}));
 
+	test('configuration change event is fired when folders with settings are removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = joinPath(ROOT, 'removedFolder2');
+		await fileService.createFolder(folder);
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "folderValue" }'));
+		await workspaceService.addFolders([{ uri: folder }]);
+		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting', { resource: folder }), 'folderValue');
+
+		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
+		await workspaceService.removeFolders([folder]);
+		const event = await promise;
+		assert.ok(event.affectsConfiguration('sessionsConfigurationService.testSetting'));
+		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting', { resource: folder }), 'defaultValue');
+	}));
+
 	test('configuration change event is fired on user settings change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "userValue" }'));
