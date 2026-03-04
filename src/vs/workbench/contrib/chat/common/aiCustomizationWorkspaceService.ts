@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqualOrParent } from '../../../../base/common/resources.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, PromptsStorage } from './promptSyntax/service/promptsService.js';
 
 export const IAICustomizationWorkspaceService = createDecorator<IAICustomizationWorkspaceService>('aiCustomizationWorkspaceService');
 
@@ -121,4 +122,11 @@ export interface IAICustomizationWorkspaceService {
 	 * session-derived (or workspace-derived) root.
 	 */
 	clearOverrideProjectRoot(): void;
+
+	/**
+	 * Returns prompt/skill slash commands filtered through the workspace
+	 * service's storage source policy, ensuring the results match the
+	 * customizations visible in the AI Customization views.
+	 */
+	getFilteredPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
 }
