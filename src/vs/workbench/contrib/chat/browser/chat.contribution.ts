@@ -1073,7 +1073,7 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_CUSTOM_AGENT_HOOKS]: {
 			type: 'boolean',
 			title: nls.localize('chat.useCustomAgentHooks.title', "Use Custom Agent Hooks",),
-			markdownDescription: nls.localize('chat.useCustomAgentHooks.description', "Controls whether hooks defined in custom agent frontmatter are parsed and executed. When disabled, only hooks from hook configuration files are used.",),
+			markdownDescription: nls.localize('chat.useCustomAgentHooks.description', "Controls whether hooks defined in custom agent frontmatter are parsed and executed. When disabled, hooks from agent files are ignored.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,

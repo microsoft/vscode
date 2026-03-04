@@ -961,9 +961,8 @@ export class ChatService extends Disposable implements IChatService {
 			}
 
 			// Merge hooks from the selected custom agent's frontmatter (if any)
-			const useCustomAgentHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS);
 			const agentName = options?.modeInfo?.modeInstructions?.name;
-			if (useCustomAgentHooks && agentName) {
+			if (agentName) {
 				try {
 					const agents = await this.promptsService.getCustomAgents(token, model.sessionResource);
 					const customAgent = agents.find(a => a.name === agentName);
