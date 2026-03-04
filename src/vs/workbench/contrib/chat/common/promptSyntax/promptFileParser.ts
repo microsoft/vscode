@@ -84,6 +84,7 @@ export namespace PromptHeaderAttributes {
 	export const userInvokable = 'user-invokable';
 	export const userInvocable = 'user-invocable';
 	export const disableModelInvocation = 'disable-model-invocation';
+	export const hooks = 'hooks';
 }
 
 export class PromptHeader {
@@ -315,6 +316,20 @@ export class PromptHeader {
 
 	public get disableModelInvocation(): boolean | undefined {
 		return this.getBooleanAttribute(PromptHeaderAttributes.disableModelInvocation);
+	}
+
+	/**
+	 * Gets the raw 'hooks' attribute value from the header.
+	 * Returns the YAML map value if present, or undefined. The caller is
+	 * responsible for converting this to `ChatRequestHooks` via
+	 * {@link parseSubagentHooksFromYaml}.
+	 */
+	public get hooksRaw(): IMapValue | undefined {
+		const attr = this._parsedHeader.attributes.find(a => a.key === PromptHeaderAttributes.hooks);
+		if (attr?.value.type === 'map') {
+			return attr.value;
+		}
+		return undefined;
 	}
 
 	private getBooleanAttribute(key: string): boolean | undefined {
