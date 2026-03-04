@@ -16,6 +16,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { INewSession } from './newSession.js';
 
@@ -66,6 +67,7 @@ export class FolderPicker extends Disposable {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 
@@ -162,10 +164,10 @@ export class FolderPicker extends Disposable {
 	}
 
 	/**
-	 * Programmatically set the selected folder.
+	 * Programmatically set the selected folder without trust check (e.g. restoring draft state).
 	 */
 	setSelectedFolder(folderUri: URI): void {
-		this._selectFolder(folderUri);
+		this._applyFolderSelection(folderUri);
 	}
 
 	/**
@@ -176,7 +178,16 @@ export class FolderPicker extends Disposable {
 		this._updateTriggerLabel(this._triggerElement);
 	}
 
-	private _selectFolder(folderUri: URI): void {
+	private async _selectFolder(folderUri: URI): Promise<void> {
+		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({ uri: folderUri });
+		if (!trusted) {
+			return;
+		}
+
+		this._applyFolderSelection(folderUri);
+	}
+
+	private _applyFolderSelection(folderUri: URI): void {
 		this._selectedFolderUri = folderUri;
 		this._addToRecentlyPickedFolders(folderUri);
 		this.storageService.store(STORAGE_KEY_LAST_FOLDER, folderUri.toString(), StorageScope.PROFILE, StorageTarget.MACHINE);
