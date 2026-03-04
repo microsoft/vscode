@@ -146,7 +146,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const skipAllTitle = localize('chat.questionCarousel.skipAllTitle', 'Skip all questions');
 			const skipAllButton = interactiveStore.add(new Button(this._closeButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 			skipAllButton.label = `$(${Codicon.close.id})`;
-			skipAllButton.element.classList.add('chat-question-nav-arrow', 'chat-question-close');
+			skipAllButton.element.classList.add('chat-question-close');
 			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
 			interactiveStore.add(this._hoverService.setupDelayedHover(skipAllButton.element, { content: skipAllTitle }));
 			this._skipAllButton = skipAllButton;
@@ -346,12 +346,15 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		const availableScrollableHeight = Math.floor(maxContainerHeight - contentVerticalPadding - nonScrollableContentHeight);
 		const constrainedScrollableHeight = Math.max(0, availableScrollableHeight);
+		const constrainedScrollableHeightPx = `${constrainedScrollableHeight}px`;
 
 		// Constrain the content element (DomScrollableElement._element) so that
 		// scanDomNode sees clientHeight < scrollHeight and enables scrolling.
 		// The wrapper inherits the same constraint via CSS flex.
-		scrollableContent.style.height = `${constrainedScrollableHeight}px`;
-		scrollableContent.style.maxHeight = `${constrainedScrollableHeight}px`;
+		if (scrollableContent.style.height !== constrainedScrollableHeightPx || scrollableContent.style.maxHeight !== constrainedScrollableHeightPx) {
+			scrollableContent.style.height = constrainedScrollableHeightPx;
+			scrollableContent.style.maxHeight = constrainedScrollableHeightPx;
+		}
 		inputScrollable.scanDomNode();
 	}
 
@@ -579,10 +582,24 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		inputScrollableNode.classList.add('chat-question-input-scrollable');
 		this._questionContainer.appendChild(inputScrollableNode);
 
-		const inputResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver(() => this.layoutInputScrollable(inputScrollable)));
+		let relayoutScheduled = false;
+		const relayoutScheduler = questionRenderStore.add(new MutableDisposable());
+		const scheduleLayoutInputScrollable = () => {
+			if (relayoutScheduled) {
+				return;
+			}
+
+			relayoutScheduled = true;
+			relayoutScheduler.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
+				relayoutScheduled = false;
+				this.layoutInputScrollable(inputScrollable);
+			});
+		};
+
+		const inputResizeObserver = questionRenderStore.add(new dom.DisposableResizeObserver(() => scheduleLayoutInputScrollable()));
 		questionRenderStore.add(inputResizeObserver.observe(inputScrollableNode));
 		questionRenderStore.add(inputResizeObserver.observe(inputContainer));
-		questionRenderStore.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => this.layoutInputScrollable(inputScrollable)));
+		scheduleLayoutInputScrollable();
 		this.layoutInputScrollable(inputScrollable);
 		questionRenderStore.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
 			inputContainer.scrollTop = 0;
@@ -591,10 +608,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			inputScrollable.scanDomNode();
 		}));
 
-		// Render footer for multi-question carousels or single-question multi-select
+		// Render footer for multi-question carousels or single-question carousels.
 		if (!isSingleQuestion) {
 			this.renderFooter();
-		} else if (question.type === 'multiSelect') {
+		} else {
 			this.renderSingleQuestionFooter();
 		}
 
@@ -623,7 +640,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._footerRow = dom.$('.chat-question-footer-row');
 
 			// Left side: nav arrows + step indicator
-			const leftControls = dom.$('.chat-question-footer-left');
+			const leftControls = dom.$('.chat-question-footer-left.chat-question-carousel-nav');
 			leftControls.setAttribute('role', 'navigation');
 			leftControls.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
 
@@ -631,7 +648,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			const previousLabel = this.getLabelWithKeybinding(localize('previous', 'Previous'), PREVIOUS_QUESTION_ACTION_ID);
 			const prevButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			prevButton.element.classList.add('chat-question-nav-arrow');
+			prevButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-prev');
 			prevButton.label = `$(${Codicon.chevronLeft.id})`;
 			prevButton.element.setAttribute('aria-label', previousLabel);
 			interactiveStore.add(this._hoverService.setupDelayedHover(prevButton.element, { content: previousLabel }));
@@ -640,7 +657,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			const nextLabel = this.getLabelWithKeybinding(localize('next', 'Next'), NEXT_QUESTION_ACTION_ID);
 			const nextButton = interactiveStore.add(new Button(arrowsContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-			nextButton.element.classList.add('chat-question-nav-arrow');
+			nextButton.element.classList.add('chat-question-nav-arrow', 'chat-question-nav-next');
 			nextButton.label = `$(${Codicon.chevronRight.id})`;
 			nextButton.element.setAttribute('aria-label', nextLabel);
 			interactiveStore.add(this._hoverService.setupDelayedHover(nextButton.element, { content: nextLabel }));
@@ -690,7 +707,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (this._stepIndicator) {
 			this._stepIndicator.textContent = localize(
 				'chat.questionCarousel.stepIndicator',
-				'{0} of {1}',
+				'{0}/{1}',
 				this._currentIndex + 1,
 				this.carousel.questions.length
 			);
@@ -717,7 +734,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			this._footerRow = dom.$('.chat-question-footer-row');
 
 			// Spacer to push controls to the right
-			this._footerRow.appendChild(dom.$('.chat-question-footer-left'));
+			const leftControls = dom.$('.chat-question-footer-left.chat-question-carousel-nav');
+			leftControls.setAttribute('role', 'navigation');
+			leftControls.setAttribute('aria-label', localize('chat.questionCarousel.navigation', 'Question navigation'));
+			this._footerRow.appendChild(leftControls);
 
 			const rightControls = dom.$('.chat-question-footer-right');
 
@@ -1323,7 +1343,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			if (answer !== undefined) {
 				const formattedAnswer = this.formatAnswerForSummary(question, answer);
-				const answerRow = dom.$('div.chat-question-summary-answer');
+				const answerRow = dom.$('div.chat-question-summary-answer-title');
 				answerRow.textContent = localize('chat.questionCarousel.summaryAnswer', 'A: {0}', formattedAnswer);
 				summaryItem.appendChild(answerRow);
 			} else {
