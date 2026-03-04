@@ -208,6 +208,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
 			this._logService.info(`[Copilot:${sessionId}] Aborting session...`);
+			this._denyPendingPermissions();
 			await entry.session.abort();
 		}
 	}
@@ -216,11 +217,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info('[Copilot] Shutting down...');
 		this._sessions.clearAndDisposeAll();
 		this._activeToolCalls.clear();
-		// Deny all pending permission requests
-		for (const [, deferred] of this._pendingPermissions) {
-			deferred.complete(false);
-		}
-		this._pendingPermissions.clear();
+		this._denyPendingPermissions();
 		await this._client?.stop();
 		this._client = undefined;
 	}
@@ -258,19 +255,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const deferred = new DeferredPromise<boolean>();
 		this._pendingPermissions.set(requestId, deferred);
 
+		const permissionKind = (['shell', 'write', 'mcp', 'read', 'url'] as const).includes(request.kind as 'shell')
+			? request.kind as 'shell' | 'write' | 'mcp' | 'read' | 'url'
+			: 'read'; // Treat unknown kinds as read (safest default)
+
 		// Fire the event so the renderer can handle it
 		this._onDidSessionProgress.fire({
 			session,
 			type: 'permission_request',
 			requestId,
-			permissionKind: request.kind as 'shell' | 'write' | 'mcp' | 'read' | 'url',
+			permissionKind,
 			toolCallId: request.toolCallId,
 			path: typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined),
 			fullCommandText: typeof request.fullCommandText === 'string' ? request.fullCommandText : undefined,
 			intention: typeof request.intention === 'string' ? request.intention : undefined,
 			serverName: typeof request.serverName === 'string' ? request.serverName : undefined,
 			toolName: typeof request.toolName === 'string' ? request.toolName : undefined,
-			rawRequest: JSON.stringify(request),
+			rawRequest: tryStringify(request) ?? '[unserializable permission request]',
 		});
 
 		const approved = await deferred.p;
@@ -625,7 +626,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	override dispose(): void {
+		this._denyPendingPermissions();
 		this._client?.stop().catch(() => { /* best-effort */ });
 		super.dispose();
+	}
+
+	private _denyPendingPermissions(): void {
+		for (const [, deferred] of this._pendingPermissions) {
+			deferred.complete(false);
+		}
+		this._pendingPermissions.clear();
 	}
 }

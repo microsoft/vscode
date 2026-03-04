@@ -196,6 +196,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	override dispose(): void {
+		this._pendingPermissions.clear();
 		for (const provider of this._providers.values()) {
 			provider.dispose();
 		}
