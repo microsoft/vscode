@@ -716,7 +716,17 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 			this._footerRow = dom.$('.chat-question-footer-row');
 
+			// Spacer to push controls to the right
+			this._footerRow.appendChild(dom.$('.chat-question-footer-left'));
+
 			const rightControls = dom.$('.chat-question-footer-right');
+
+			const hint = dom.$('span.chat-question-submit-hint');
+			hint.textContent = isMacintosh
+				? localize('chat.questionCarousel.submitHintMac', '\u2318\u23CE to submit')
+				: localize('chat.questionCarousel.submitHintOther', 'Ctrl+Enter to submit');
+			rightControls.appendChild(hint);
+			this._submitHint = hint;
 
 			const submitButton = interactiveStore.add(new Button(rightControls, { ...defaultButtonStyles }));
 			submitButton.element.classList.add('chat-question-submit-button');
