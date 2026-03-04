@@ -50,15 +50,14 @@ Each extension follows the standard VS Code extension structure with `package.js
 
 ## Validating TypeScript changes
 
-MANDATORY: Always check the `VS Code - Build` watch task output via #runTasks/getTaskOutput for compilation errors before running ANY script or declaring work complete, then fix all compilation errors before moving forward.
+MANDATORY: Always check for compilation errors before running ANY script or declaring work complete, then fix all compilation errors before moving forward.
 
 - NEVER run tests if there are compilation errors
-- NEVER use `npm run compile` to compile TypeScript files but call #runTasks/getTaskOutput instead
+- NEVER use `npm run compile` to compile TypeScript files
 
 ### TypeScript compilation steps
-- Monitor the `VS Code - Build` task outputs for real-time compilation errors as you make changes
-- This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions
-- Start the task if it's not already running in the background
+- If the `#runTasks/getTaskOutput` tool is available, check the `VS Code - Build` watch task output for compilation errors. This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions. Start the task if it's not already running in the background.
+- If the tool is not available (e.g. in CLI environments), run `npm run compile-check-ts-native` after making changes to check for compilation errors.
 - For TypeScript changes in the `build` folder, you can simply run `npm run typecheck` in the `build` folder.
 
 ### TypeScript validation steps
