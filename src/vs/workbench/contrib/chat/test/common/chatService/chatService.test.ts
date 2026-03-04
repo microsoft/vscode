@@ -47,8 +47,9 @@ import { IChatVariablesService } from '../../../common/attachments/chatVariables
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from '../mockChatVariables.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
+import { StorageScope } from '../../../../../../platform/storage/common/storage.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -534,6 +535,97 @@ suite('ChatService', () => {
 		assert.ok(invokedRequests[1].includes('steering2'), 'Combined message should include steering2');
 		assert.ok(invokedRequests[1].includes('steering3'), 'Combined message should include steering3');
 		assert.ok(invokedRequests[1].includes('\n\n'), 'Combined message should use \\n\\n as separator');
+	});
+
+	test('disabled Claude hooks hint is shown on resend (fix for #295079)', async () => {
+		// Set up a prompts service that reports disabled Claude hooks
+		const mockPromptsService = new class extends MockPromptsService {
+			override getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo> {
+				return Promise.resolve({ hooks: {}, hasDisabledClaudeHooks: true });
+			}
+		}();
+		instantiationService.stub(IPromptsService, mockPromptsService);
+
+		const storageService = instantiationService.get(IStorageService);
+		const disabledHintsKey = 'chat.disabledClaudeHooks.notification';
+
+		// Before any request, the storage key should not be set
+		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), undefined);
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		// Simulate the setup agent flow: send a request, then resend it.
+		// In the bug, the flag was set on the first sendRequest even when not shown,
+		// so the resend would skip the hint.
+		const response = await testService.sendRequest(model.sessionResource, 'test request');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		// The hint should have been shown, and the key set to true
+		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), true, 'Flag should be set after showing the hint');
+
+		// Verify the response contains the disabledClaudeHooks part
+		const requests = model.getRequests();
+		assert.strictEqual(requests.length, 1);
+		const responseParts = requests[0].response?.response.value ?? [];
+		const hasHookHint = responseParts.some(part => part.kind === 'disabledClaudeHooks');
+		assert.ok(hasHookHint, 'Response should contain the disabledClaudeHooks hint');
+
+		// Sending another request should NOT show the hint again (shown only once per workspace)
+		const response2 = await testService.sendRequest(model.sessionResource, 'second request');
+		ChatSendResult.assertSent(response2);
+		await response2.data.responseCompletePromise;
+
+		const requests2 = model.getRequests();
+		assert.strictEqual(requests2.length, 2);
+		const responseParts2 = requests2[1].response?.response.value ?? [];
+		const hasHookHint2 = responseParts2.some(part => part.kind === 'disabledClaudeHooks');
+		assert.ok(!hasHookHint2, 'Response should NOT contain the disabledClaudeHooks hint on second request');
+	});
+
+	test('disabled Claude hooks hint is not consumed when no disabled hooks (fix for #295079)', async () => {
+		// Set up a prompts service that simulates the setup agent first pass (no disabled hooks)
+		// followed by the real resent request (with disabled hooks).
+		const mockPromptsService = new class extends MockPromptsService {
+			private _callCount = 0;
+			override getHooks(_token: CancellationToken, _sessionResource?: URI): Promise<IConfiguredHooksInfo> {
+				this._callCount++;
+				// First call (setup agent): no disabled hooks
+				// Second call (real request after resend): disabled hooks present
+				return Promise.resolve({ hooks: {}, hasDisabledClaudeHooks: this._callCount > 1 });
+			}
+		}();
+		instantiationService.stub(IPromptsService, mockPromptsService);
+
+		const storageService = instantiationService.get(IStorageService);
+		const disabledHintsKey = 'chat.disabledClaudeHooks.notification';
+
+		// First request: no disabled hooks (simulates setup agent pass)
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const response = await testService.sendRequest(model.sessionResource, 'first request');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		// Flag should NOT be set because no hint was shown
+		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), undefined, 'Flag should not be set when no disabled hooks');
+
+		// Second request: now disabled hooks are present (simulates resend after setup)
+		const response2 = await testService.sendRequest(model.sessionResource, 'second request');
+		ChatSendResult.assertSent(response2);
+		await response2.data.responseCompletePromise;
+
+		// Now the flag should be set and the hint shown
+		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), true, 'Flag should be set after showing the hint');
+
+		const requests = model.getRequests();
+		const responseParts2 = requests[1].response?.response.value ?? [];
+		const hasHookHint2 = responseParts2.some(part => part.kind === 'disabledClaudeHooks');
+		assert.ok(hasHookHint2, 'Response should contain the disabledClaudeHooks hint on second request');
 	});
 });
 
