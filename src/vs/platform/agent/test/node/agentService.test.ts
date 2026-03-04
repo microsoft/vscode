@@ -79,14 +79,11 @@ suite('AgentService (node dispatcher)', () => {
 	const disposables = new DisposableStore();
 	let service: AgentService;
 	let copilotAgent: MockAgent;
-	let claudeAgent: MockAgent;
 
 	setup(() => {
 		service = disposables.add(new AgentService(new NullLogService()));
 		copilotAgent = new MockAgent('copilot');
-		claudeAgent = new MockAgent('claude');
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
-		disposables.add(toDisposable(() => claudeAgent.dispose()));
 	});
 
 	teardown(() => disposables.clear());
@@ -127,12 +124,10 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('returns descriptors from all registered providers', async () => {
 			service.registerProvider(copilotAgent);
-			service.registerProvider(claudeAgent);
 
 			const agents = await service.listAgents();
-			assert.strictEqual(agents.length, 2);
+			assert.strictEqual(agents.length, 1);
 			assert.ok(agents.some(a => a.provider === 'copilot'));
-			assert.ok(agents.some(a => a.provider === 'claude'));
 		});
 
 		test('returns empty array when no providers are registered', async () => {
@@ -147,10 +142,9 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('creates session via specified provider', async () => {
 			service.registerProvider(copilotAgent);
-			service.registerProvider(claudeAgent);
 
-			const session = await service.createSession({ provider: 'claude' });
-			assert.strictEqual(AgentSession.provider(session), 'claude');
+			const session = await service.createSession({ provider: 'copilot' });
+			assert.strictEqual(AgentSession.provider(session), 'copilot');
 		});
 
 		test('uses default provider when none specified', async () => {
@@ -158,12 +152,6 @@ suite('AgentService (node dispatcher)', () => {
 
 			const session = await service.createSession();
 			assert.strictEqual(AgentSession.provider(session), 'copilot');
-		});
-
-		test('throws when no provider is registered for the requested provider', async () => {
-			service.registerProvider(copilotAgent);
-
-			await assert.rejects(() => service.createSession({ provider: 'claude' }), /No agent provider/);
 		});
 
 		test('throws when no providers are registered at all', async () => {
@@ -177,14 +165,12 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('dispatches to the correct provider based on session tracking', async () => {
 			service.registerProvider(copilotAgent);
-			service.registerProvider(claudeAgent);
 
-			const session = await service.createSession({ provider: 'claude' });
+			const session = await service.createSession({ provider: 'copilot' });
 			await service.sendMessage(session, 'hello');
 
-			assert.strictEqual(claudeAgent.sendMessageCalls.length, 1);
-			assert.strictEqual(claudeAgent.sendMessageCalls[0].prompt, 'hello');
-			assert.strictEqual(copilotAgent.sendMessageCalls.length, 0);
+			assert.strictEqual(copilotAgent.sendMessageCalls.length, 1);
+			assert.strictEqual(copilotAgent.sendMessageCalls[0].prompt, 'hello');
 		});
 
 		test('infers provider from URI scheme for untracked sessions', async () => {
@@ -212,7 +198,6 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('dispatches to the correct provider and cleans up tracking', async () => {
 			service.registerProvider(copilotAgent);
-			service.registerProvider(claudeAgent);
 
 			const session = await service.createSession({ provider: 'copilot' });
 			await service.disposeSession(session);
@@ -235,13 +220,11 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('broadcasts token to all registered providers', async () => {
 			service.registerProvider(copilotAgent);
-			service.registerProvider(claudeAgent);
 
 			await service.setAuthToken('my-token');
 
 			assert.strictEqual(copilotAgent.setAuthTokenCalls.length, 1);
 			assert.strictEqual(copilotAgent.setAuthTokenCalls[0], 'my-token');
-			assert.strictEqual(claudeAgent.setAuthTokenCalls.length, 1);
 		});
 	});
 
@@ -251,23 +234,19 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('listSessions aggregates sessions from all providers', async () => {
 			service.registerProvider(copilotAgent);
-			service.registerProvider(claudeAgent);
 
 			await service.createSession({ provider: 'copilot' });
-			await service.createSession({ provider: 'claude' });
 
 			const sessions = await service.listSessions();
-			assert.strictEqual(sessions.length, 2);
+			assert.strictEqual(sessions.length, 1);
 		});
 
 		test('listModels aggregates models from all providers', async () => {
 			service.registerProvider(copilotAgent);
-			service.registerProvider(claudeAgent);
 
 			const models = await service.listModels();
-			assert.strictEqual(models.length, 2);
+			assert.strictEqual(models.length, 1);
 			assert.ok(models.some(m => m.provider === 'copilot'));
-			assert.ok(models.some(m => m.provider === 'claude'));
 		});
 	});
 
@@ -277,16 +256,12 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('shuts down all providers', async () => {
 			let copilotShutdown = false;
-			let claudeShutdown = false;
 			copilotAgent.shutdown = async () => { copilotShutdown = true; };
-			claudeAgent.shutdown = async () => { claudeShutdown = true; };
 
 			service.registerProvider(copilotAgent);
-			service.registerProvider(claudeAgent);
 
 			await service.shutdown();
 			assert.ok(copilotShutdown);
-			assert.ok(claudeShutdown);
 		});
 	});
 });

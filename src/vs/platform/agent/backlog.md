@@ -7,9 +7,9 @@ Remaining work to bring the agent-host to feature parity with VS Code's native c
 ## Completed
 
 - **Model selection** -- SDK models exposed in the picker via `AgentHostLanguageModelProvider`. Selected model passed to `createSession({ model })`.
-- **Session URIs** -- Sessions identified by URIs (`copilot:/<id>`, `claude:/<id>`) instead of raw string IDs. `AgentSession` namespace provides helpers.
-- **Multi-provider support** -- Separate `CopilotAgent` and `ClaudeAgent` implementations. Generic `AgentHostSessionHandler` configured via `IAgentHostSessionHandlerConfig`.
-- **Separate contributions** -- Replaced `CopilotAgentHostContribution` and `ClaudeAgentHostContribution` with single `AgentHostContribution` that discovers agents dynamically via `listAgents()`. No hardcoded constants.
+- **Session URIs** -- Sessions identified by URIs (`copilot:/<id>`) instead of raw string IDs. `AgentSession` namespace provides helpers.
+- **Single-provider support** -- `CopilotAgent` implementation. Generic `AgentHostSessionHandler` configured via `IAgentHostSessionHandlerConfig`.
+- **Separate contributions** -- Single `AgentHostContribution` that discovers agents dynamically via `listAgents()`. No hardcoded constants.
 - **Setting gate** -- `chat.agentHost.enabled` (default `false`) controls process spawn, renderer connection, and contribution registration.
 - **Build infrastructure** -- esbuild entry point, ASAR unpack, platform binary filtering, macOS universal app support.
 

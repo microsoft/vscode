@@ -199,9 +199,3 @@ zone.js/dist/**
 @github/copilot/clipboard/node_modules/@teddyzhu/clipboard-win32-x64-msvc/**
 @github/copilot/clipboard/node_modules/@teddyzhu/clipboard-win32-arm64-msvc/**
 
-# @img/sharp - native image library pulled in by Claude Agent SDK; not needed at runtime
-@img/sharp-*/**
-sharp/**
-
-# @anthropic-ai/claude-agent-sdk - strip bundled ripgrep (VS Code has its own)
-@anthropic-ai/claude-agent-sdk/vendor/ripgrep/**

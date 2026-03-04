@@ -6,7 +6,7 @@ For design decisions, see [design.md](design.md). For the task backlog, see [bac
 
 ## Overview
 
-The agent host is a dedicated Electron **utility process** that runs the [Copilot SDK](https://github.com/github/copilot-sdk) (`@github/copilot-sdk`) and the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk) (`@anthropic-ai/claude-agent-sdk`) in isolation. It follows the same pattern as the **pty host** (`src/vs/platform/terminal/`), communicating over **MessagePort** via the standard `ProxyChannel` IPC infrastructure.
+The agent host is a dedicated Electron **utility process** that runs the [Copilot SDK](https://github.com/github/copilot-sdk) (`@github/copilot-sdk`) in isolation. It follows the same pattern as the **pty host** (`src/vs/platform/terminal/`), communicating over **MessagePort** via the standard `ProxyChannel` IPC infrastructure.
 
 The renderer connects **directly** to the utility process via MessagePort (bypassing the main process for all agent service calls). A single workbench contribution (`AgentHostContribution`) discovers available agents from the agent host via `listAgents()` and dynamically registers each one as a chat session type with its own handler, list controller, and model provider.
 
@@ -30,8 +30,6 @@ The entire feature is gated behind the `chat.agentHost.enabled` setting (default
 |  AgentService (IAgentService)                                 |
 |    +-- CopilotAgent (id='copilot')                            |
 |    |     +-- CopilotClient (@github/copilot-sdk)              |
-|    +-- ClaudeAgent  (id='claude')                             |
-|          +-- ClaudeSession (@anthropic-ai/claude-agent-sdk)   |
 |                                                               |
 |  Exposed via ProxyChannel on AgentHostIpcChannels.AgentHost   |
 +---------------- UtilityProcess lifecycle ---------------------+
@@ -65,10 +63,6 @@ src/vs/platform/agent/
     |   +-- copilotAgent.ts       # CopilotAgent: IAgent backed by Copilot SDK
     |   +-- copilotSessionWrapper.ts
     |   +-- copilotToolDisplay.ts # Copilot-specific tool name -> display string mapping
-    +-- claude/
-        +-- claudeAgent.ts        # ClaudeAgent: IAgent backed by Claude Agent SDK
-        +-- claudeSession.ts      # Claude SDK session wrapper
-        +-- claudeToolDisplay.ts  # Claude-specific tool display mapping
 
 src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/
 +-- agentHostChatContribution.ts      # AgentHostContribution: discovers agents, registers dynamically
@@ -82,7 +76,7 @@ src/vs/workbench/contrib/chat/electron-browser/
 
 ## Session URIs
 
-Sessions are identified by URIs where the **scheme is the provider name** and the **path is the raw session ID**: `copilot:/<uuid>` or `claude:/<uuid>`. Helper functions in the `AgentSession` namespace:
+Sessions are identified by URIs where the **scheme is the provider name** and the **path is the raw session ID**: `copilot:/<uuid>`. Helper functions in the `AgentSession` namespace:
 
 | Helper | Purpose |
 |---|---|
@@ -90,7 +84,7 @@ Sessions are identified by URIs where the **scheme is the provider name** and th
 | `AgentSession.id(session)` | Extract raw session ID from URI |
 | `AgentSession.provider(session)` | Extract provider name from URI scheme |
 
-The renderer uses UI resource schemes (`agent-host-copilot`, `agent-host-claude`) for session resources. The `AgentHostSessionHandler` converts these to provider URIs before IPC calls.
+The renderer uses UI resource schemes (`agent-host-copilot`) for session resources. The `AgentHostSessionHandler` converts these to provider URIs before IPC calls.
 
 ## IPC Contract (`IAgentService`)
 
@@ -133,7 +127,7 @@ On startup (if the setting is enabled), `AgentHostContribution` calls `listAgent
 
 | Field | Purpose |
 |---|---|
-| `provider` | Agent provider ID (`'copilot'`, `'claude'`) |
+| `provider` | Agent provider ID (`'copilot'`) |
 | `displayName` | Human-readable name for UI |
 | `description` | Description string |
 | `requiresAuth` | Whether the renderer should push a GitHub auth token |

@@ -11,7 +11,6 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { AgentHostIpcChannels } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { ClaudeAgent } from './claude/claudeAgent.js';
 import { NativeEnvironmentService } from '../../environment/node/environmentService.js';
 import { parseArgs, OPTIONS } from '../../environment/node/argv.js';
 import { getLogLevel } from '../../log/common/log.js';
@@ -24,7 +23,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { localize } from '../../../nls.js';
 
 // Entry point for the agent host utility process.
-// Sets up IPC, logging, and registers agent providers (Copilot, Claude).
+// Sets up IPC, logging, and registers agent providers (Copilot).
 
 startAgentHost();
 
@@ -53,7 +52,6 @@ function startAgentHost(): void {
 	try {
 		agentService = new AgentService(logService);
 		agentService.registerProvider(new CopilotAgent(logService));
-		agentService.registerProvider(new ClaudeAgent(logService));
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		throw err;

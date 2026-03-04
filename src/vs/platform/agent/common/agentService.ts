@@ -30,7 +30,7 @@ export interface IAgentSessionMetadata {
 	readonly summary?: string;
 }
 
-export type AgentProvider = 'copilot' | 'claude';
+export type AgentProvider = 'copilot';
 
 /** Metadata describing an agent backend, discovered over IPC. */
 export interface IAgentDescriptor {
@@ -216,7 +216,7 @@ export namespace AgentSession {
 	 */
 	export function provider(session: URI): AgentProvider | undefined {
 		const scheme = session.scheme;
-		if (scheme === 'copilot' || scheme === 'claude') {
+		if (scheme === 'copilot') {
 			return scheme;
 		}
 		return undefined;
@@ -226,12 +226,12 @@ export namespace AgentSession {
 // ---- Agent provider interface -----------------------------------------------
 
 /**
- * Implemented by each agent backend (e.g. Copilot SDK, Claude Agent SDK).
+ * Implemented by each agent backend (e.g. Copilot SDK).
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
  */
 export interface IAgent {
-	/** Unique identifier for this provider (e.g. `'copilot'`, `'claude'`). */
+	/** Unique identifier for this provider (e.g. `'copilot'`). */
 	readonly id: AgentProvider;
 
 	/** Fires when the provider streams progress for a session. */

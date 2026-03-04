@@ -25,18 +25,13 @@ suite('AgentSession namespace', () => {
 
 	test('uri and id are inverse operations', () => {
 		const rawId = 'test-session-xyz';
-		const session = AgentSession.uri('claude', rawId);
+		const session = AgentSession.uri('copilot', rawId);
 		assert.strictEqual(AgentSession.id(session), rawId);
 	});
 
 	test('provider extracts copilot from a copilot-scheme URI', () => {
 		const session = AgentSession.uri('copilot', 'sess-1');
 		assert.strictEqual(AgentSession.provider(session), 'copilot');
-	});
-
-	test('provider extracts claude from a claude-scheme URI', () => {
-		const session = AgentSession.uri('claude', 'sess-1');
-		assert.strictEqual(AgentSession.provider(session), 'claude');
 	});
 
 	test('provider returns undefined for an unknown scheme', () => {

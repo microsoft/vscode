@@ -10,7 +10,7 @@ Design decisions and principles for the agent-host feature. For process architec
 
 The renderer-side code (contributions in `agentHost/` and the `AgentHostSessionHandler`) must never contain knowledge of specific agent tool names, parameter shapes, or SDK-specific behavior. It consumes display-ready fields from the protocol and renders them generically.
 
-All agent-specific logic -- translating tool names like `shell`/`view`/`grep` into display strings, extracting command lines from tool parameters, determining rendering hints like `toolKind: 'terminal'` -- lives exclusively in the agent-host process layer (`src/vs/platform/agent/node/`), specifically in `copilotToolDisplay.ts` (for Copilot) and `claudeToolDisplay.ts` (for Claude).
+All agent-specific logic -- translating tool names like `shell`/`view`/`grep` into display strings, extracting command lines from tool parameters, determining rendering hints like `toolKind: 'terminal'` -- lives exclusively in the agent-host process layer (`src/vs/platform/agent/node/`), specifically in `copilotToolDisplay.ts` (for Copilot).
 
 What this means concretely:
 
@@ -25,7 +25,7 @@ The renderer contributions (`AgentHostSessionHandler`, `AgentHostSessionListCont
 
 ```typescript
 interface IAgentHostSessionHandlerConfig {
-    readonly provider: AgentProvider;    // 'copilot' | 'claude'
+    readonly provider: AgentProvider;    // 'copilot'
     readonly agentId: string;            // e.g. 'agent-host'
     readonly sessionType: string;        // e.g. 'agent-host'
     readonly fullName: string;           // e.g. 'Agent Host - Copilot'
@@ -78,4 +78,4 @@ The entire feature is controlled by `chat.agentHost.enabled` (default `false`), 
 
 ## Separate contributions per provider
 
-Each agent provider (Copilot, Claude) has its own independent workbench contribution class (`CopilotAgentHostContribution`, `ClaudeAgentHostContribution`). This ensures providers can be added, removed, or modified independently without affecting each other.
+Each agent provider (Copilot) has its own independent workbench contribution class. Providers can be added, removed, or modified independently without affecting each other.

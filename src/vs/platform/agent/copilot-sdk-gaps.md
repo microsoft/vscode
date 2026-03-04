@@ -66,4 +66,4 @@ Stripped `VSCODE_*`, `ELECTRON_*` env vars. Set `useStdio: true` and `autoStart:
 
 ## ~~Cancellation / abort~~ (done)
 
-`abortSession(session)` IPC method added. Cancellation requests in the session handler call `abortSession` before finishing. CopilotAgent calls `session.abort()`, ClaudeAgent calls `AbortController.abort()`.
+`abortSession(session)` IPC method added. Cancellation requests in the session handler call `abortSession` before finishing. CopilotAgent calls `session.abort()`.
