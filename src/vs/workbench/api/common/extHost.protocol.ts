@@ -1368,7 +1368,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 export interface ExtHostLanguageModelsShape {
 	$provideLanguageModelChatInfo(vendor: string, options: ILanguageModelChatInfoOptions, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
-	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
+	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier | undefined, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
 	$acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void>;
 	$acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void>;
 	$provideTokenLength(modelId: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
@@ -1415,6 +1415,7 @@ export interface IChatDebugToolCallEventDto extends IChatDebugEventCommonDto {
 export interface IChatDebugModelTurnEventDto extends IChatDebugEventCommonDto {
 	readonly kind: 'modelTurn';
 	readonly model?: string;
+	readonly requestName?: string;
 	readonly inputTokens?: number;
 	readonly outputTokens?: number;
 	readonly totalTokens?: number;
@@ -1470,7 +1471,33 @@ export interface IChatDebugEventMessageContentDto {
 	readonly sections: readonly IChatDebugMessageSectionDto[];
 }
 
-export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | IChatDebugEventMessageContentDto;
+export interface IChatDebugEventToolCallContentDto {
+	readonly kind: 'toolCall';
+	readonly toolName: string;
+	readonly result?: 'success' | 'error';
+	readonly durationInMillis?: number;
+	readonly input?: string;
+	readonly output?: string;
+}
+
+export interface IChatDebugEventModelTurnContentDto {
+	readonly kind: 'modelTurn';
+	readonly requestName: string;
+	readonly model?: string;
+	readonly status?: string;
+	readonly durationInMillis?: number;
+	readonly timeToFirstTokenInMillis?: number;
+	readonly maxInputTokens?: number;
+	readonly maxOutputTokens?: number;
+	readonly inputTokens?: number;
+	readonly outputTokens?: number;
+	readonly cachedTokens?: number;
+	readonly totalTokens?: number;
+	readonly errorMessage?: string;
+	readonly sections?: readonly IChatDebugMessageSectionDto[];
+}
+
+export type IChatDebugResolvedEventContentDto = IChatDebugEventTextContentDto | IChatDebugEventMessageContentDto | IChatDebugEventToolCallContentDto | IChatDebugEventModelTurnContentDto;
 
 export interface ExtHostChatDebugShape {
 	$provideChatDebugLog(handle: number, sessionResource: UriComponents, token: CancellationToken): Promise<IChatDebugEventDto[] | undefined>;

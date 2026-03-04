@@ -22,6 +22,8 @@ import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugServic
 import { formatEventDetail } from './chatDebugEventDetailRenderer.js';
 import { renderCustomizationDiscoveryContent, fileListToPlainText } from './chatCustomizationDiscoveryRenderer.js';
 import { renderUserMessageContent, renderAgentResponseContent, messageEventToPlainText, renderResolvedMessageContent, resolvedMessageToPlainText } from './chatDebugMessageContentRenderer.js';
+import { renderToolCallContent, toolCallContentToPlainText } from './chatDebugToolCallContentRenderer.js';
+import { renderModelTurnContent, modelTurnContentToPlainText } from './chatDebugModelTurnContentRenderer.js';
 
 const $ = DOM.$;
 
@@ -40,6 +42,7 @@ export class ChatDebugDetailPanel extends Disposable {
 	private readonly detailDisposables = this._register(new DisposableStore());
 	private currentDetailText: string = '';
 	private currentDetailEventId: string | undefined;
+	private firstFocusableElement: HTMLElement | undefined;
 
 	constructor(
 		parent: HTMLElement,
@@ -95,6 +98,7 @@ export class ChatDebugDetailPanel extends Disposable {
 		const fullScreenButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.openInEditor', "Open in Editor"), title: localize('chatDebug.openInEditor', "Open in Editor") }));
 		fullScreenButton.element.classList.add('chat-debug-detail-button');
 		fullScreenButton.icon = Codicon.goToFile;
+		this.firstFocusableElement = fullScreenButton.element;
 		this.detailDisposables.add(fullScreenButton.onDidClick(() => {
 			this.editorService.openEditor({ contents: this.currentDetailText, resource: undefined } satisfies IUntitledTextResourceEditorInput);
 		}));
@@ -120,9 +124,25 @@ export class ChatDebugDetailPanel extends Disposable {
 			);
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'toolCall') {
+			this.currentDetailText = toolCallContentToPlainText(resolved);
+			const languageService = this.instantiationService.invokeFunction(accessor => accessor.get(ILanguageService));
+			const { element: contentEl, disposables: contentDisposables } = await renderToolCallContent(resolved, languageService);
+			if (this.currentDetailEventId !== event.id) {
+				// Another event was selected while we were rendering
+				contentDisposables.dispose();
+				return;
+			}
+			this.detailDisposables.add(contentDisposables);
+			this.contentContainer.appendChild(contentEl);
 		} else if (resolved && resolved.kind === 'message') {
 			this.currentDetailText = resolvedMessageToPlainText(resolved);
 			const { element: contentEl, disposables: contentDisposables } = renderResolvedMessageContent(resolved);
+			this.detailDisposables.add(contentDisposables);
+			this.contentContainer.appendChild(contentEl);
+		} else if (resolved && resolved.kind === 'modelTurn') {
+			this.currentDetailText = modelTurnContentToPlainText(resolved);
+			const { element: contentEl, disposables: contentDisposables } = renderModelTurnContent(resolved);
 			this.detailDisposables.add(contentDisposables);
 			this.contentContainer.appendChild(contentEl);
 		} else if (event.kind === 'userMessage') {
@@ -147,8 +167,17 @@ export class ChatDebugDetailPanel extends Disposable {
 		}
 	}
 
+	get isVisible(): boolean {
+		return this.element.style.display !== 'none';
+	}
+
+	focus(): void {
+		this.firstFocusableElement?.focus();
+	}
+
 	hide(): void {
 		this.currentDetailEventId = undefined;
+		this.firstFocusableElement = undefined;
 		DOM.hide(this.element);
 		DOM.clearNode(this.element);
 		DOM.clearNode(this.contentContainer);

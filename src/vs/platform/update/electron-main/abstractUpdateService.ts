@@ -30,9 +30,7 @@ export function createUpdateURL(baseUpdateUrl: string, platform: string, quality
 		url.searchParams.set('bg', 'true');
 	}
 
-	if (options?.internalOrg) {
-		url.searchParams.set('org', options.internalOrg);
-	}
+	url.searchParams.set('u', options?.internalOrg ?? 'none');
 
 	return url.toString();
 }

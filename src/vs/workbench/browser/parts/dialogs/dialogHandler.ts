@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import Severity from '../../../../base/common/severity.js';
+import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog, IDialogResult } from '../../../../base/browser/ui/dialog/dialog.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -47,7 +49,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getPromptButtons(prompt);
 
-		const { button, checkboxChecked } = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined);
+		const { button, checkboxChecked } = await this.doShow(prompt.type, prompt.message, buttons, prompt.detail, prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */, prompt.checkbox, undefined, typeof prompt?.custom === 'object' ? prompt.custom : undefined, prompt.token);
 
 		return this.getPromptResult(prompt, button, checkboxChecked);
 	}
@@ -57,7 +59,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getConfirmationButtons(confirmation);
 
-		const { button, checkboxChecked } = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined);
+		const { button, checkboxChecked } = await this.doShow(confirmation.type ?? 'question', confirmation.message, buttons, confirmation.detail, buttons.length - 1, confirmation.checkbox, undefined, typeof confirmation?.custom === 'object' ? confirmation.custom : undefined, confirmation.token);
 
 		return { confirmed: button === 0, checkboxChecked };
 	}
@@ -67,7 +69,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getInputButtons(input);
 
-		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs, typeof input.custom === 'object' ? input.custom : undefined);
+		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs, typeof input.custom === 'object' ? input.custom : undefined, input.token);
 
 		return { confirmed: button === 0, checkboxChecked, values };
 	}
@@ -90,7 +92,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		}
 	}
 
-	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions): Promise<IDialogResult> {
+	private async doShow(type: Severity | DialogType | undefined, message: string, buttons?: string[], detail?: string, cancelId?: number, checkbox?: ICheckbox, inputs?: IInputElement[], customOptions?: ICustomDialogOptions, token?: CancellationToken): Promise<IDialogResult> {
 		const dialogDisposables = new DisposableStore();
 
 		const renderBody = customOptions ? (parent: HTMLElement) => {
@@ -104,7 +106,13 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				parent.appendChild(result.element);
 				result.element.classList.add(...(markdownDetail.classes || []));
 			});
+			customOptions.renderBody?.(parent, dialogDisposables);
 		} : undefined;
+
+		const buttonOptions = customOptions?.buttonOptions?.map(opt => opt ? {
+			sublabel: opt.sublabel,
+			styleButton: opt.styleButton ? (button: IButton) => opt.styleButton!(button) : undefined
+		} : undefined) ?? customOptions?.buttonDetails?.map(detail => ({ sublabel: detail }));
 
 		const dialog = new Dialog(
 			this.layoutService.activeContainer,
@@ -117,7 +125,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				renderBody,
 				icon: customOptions?.icon,
 				disableCloseAction: customOptions?.disableCloseAction,
-				buttonOptions: customOptions?.buttonDetails?.map(detail => ({ sublabel: detail })),
+				buttonOptions,
 				checkboxLabel: checkbox?.label,
 				checkboxChecked: checkbox?.checked,
 				inputs
@@ -125,6 +133,10 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		);
 
 		dialogDisposables.add(dialog);
+
+		if (token) {
+			dialogDisposables.add(token.onCancellationRequested(() => dialogDisposables.dispose()));
+		}
 
 		const result = await dialog.show();
 		dialogDisposables.dispose();

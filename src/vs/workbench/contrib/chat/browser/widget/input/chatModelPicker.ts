@@ -12,6 +12,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
@@ -116,7 +117,7 @@ function createModelAction(
  * 2. Promoted section (selected + recently used + featured models from control manifest)
  *    - Available models sorted alphabetically, followed by unavailable models
  *    - Unavailable models show upgrade/update/admin status
- * 3. Other Models (collapsible toggle, sorted by vendor then name)
+ * 3. Other Models (collapsible toggle, available first, then sorted by vendor then name)
  *    - Last item is "Manage Models..." (always visible during filtering)
  */
 export function buildModelPickerItems(
@@ -265,10 +266,14 @@ export function buildModelPickerItems(
 			}
 		}
 
-		// Render promoted section: sorted alphabetically by name
-		let hasShownActionLink = false;
+		// Render promoted section: available first, then sorted alphabetically by name
 		if (promotedItems.length > 0) {
 			promotedItems.sort((a, b) => {
+				const aAvail = a.kind === 'available' ? 0 : 1;
+				const bAvail = b.kind === 'available' ? 0 : 1;
+				if (aAvail !== bAvail) {
+					return aAvail - bAvail;
+				}
 				const aName = a.kind === 'available' ? a.model.metadata.name : a.entry.label;
 				const bName = b.kind === 'available' ? b.model.metadata.name : b.entry.label;
 				return aName.localeCompare(bName);
@@ -278,11 +283,7 @@ export function buildModelPickerItems(
 				if (item.kind === 'available') {
 					items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect), item.model));
 				} else {
-					const showActionLink = item.reason === 'upgrade' ? !hasShownActionLink : true;
-					if (showActionLink && item.reason === 'upgrade') {
-						hasShownActionLink = true;
-					}
-					items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, showActionLink));
+					items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType));
 				}
 			}
 		}
@@ -291,6 +292,13 @@ export function buildModelPickerItems(
 		otherModels = models
 			.filter(m => !placed.has(m.identifier) && !placed.has(m.metadata.id))
 			.sort((a, b) => {
+				const aEntry = controlModels[a.metadata.id] ?? controlModels[a.identifier];
+				const bEntry = controlModels[b.metadata.id] ?? controlModels[b.identifier];
+				const aAvail = aEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, aEntry.minVSCodeVersion) ? 1 : 0;
+				const bAvail = bEntry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, bEntry.minVSCodeVersion) ? 1 : 0;
+				if (aAvail !== bAvail) {
+					return aAvail - bAvail;
+				}
 				const aCopilot = a.metadata.vendor === 'copilot' ? 0 : 1;
 				const bCopilot = b.metadata.vendor === 'copilot' ? 0 : 1;
 				if (aCopilot !== bCopilot) {
@@ -324,7 +332,7 @@ export function buildModelPickerItems(
 			for (const model of otherModels) {
 				const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
 				if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-					items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, true));
+					items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other));
 				} else {
 					items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, ModelPickerSection.Other), model));
 				}
@@ -363,6 +371,22 @@ export function buildModelPickerItems(
 	return items;
 }
 
+export function getModelPickerAccessibilityProvider() {
+	return {
+		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
+			return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
+		},
+		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
+			switch (element.kind) {
+				case ActionListItemKind.Action: return 'menuitemradio';
+				case ActionListItemKind.Separator: return 'separator';
+				default: return 'separator';
+			}
+		},
+		getWidgetRole: () => 'menu',
+	} as const;
+}
+
 function createUnavailableModelItem(
 	id: string,
 	entry: IModelControlEntry,
@@ -370,14 +394,11 @@ function createUnavailableModelItem(
 	manageSettingsUrl: string | undefined,
 	updateStateType: StateType,
 	section?: string,
-	showActionLink: boolean = true,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	let description: string | MarkdownString | undefined;
 
 	if (reason === 'upgrade') {
-		description = showActionLink
-			? new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade your plan](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true })
-			: undefined;
+		description = new MarkdownString(localize('chat.modelPicker.upgradeLink', "[Upgrade](command:workbench.action.chat.upgradePlan \" \")"), { isTrusted: true });
 	} else if (reason === 'update') {
 		description = localize('chat.modelPicker.updateDescription', "Update VS Code");
 	} else {
@@ -389,7 +410,7 @@ function createUnavailableModelItem(
 	let hoverContent: MarkdownString;
 	if (reason === 'upgrade') {
 		hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade your plan](command:workbench.action.chat.upgradePlan \" \") to use this model."));
+		hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") with a free 30-day trial to use the best models."));
 	} else if (reason === 'update') {
 		hoverContent = getUpdateHoverContent(updateStateType);
 	} else {
@@ -439,6 +460,7 @@ export class ModelPickerWidget extends Disposable {
 
 	private _selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	private _badge: ModelPickerBadge | undefined;
+	private _hideChevrons: IObservable<boolean> | undefined;
 
 	private _domNode: HTMLElement | undefined;
 	private _badgeIcon: HTMLElement | undefined;
@@ -464,6 +486,17 @@ export class ModelPickerWidget extends Disposable {
 		super();
 	}
 
+	setHideChevrons(hideChevrons: IObservable<boolean>): void {
+		this._hideChevrons = hideChevrons;
+		this._register(autorun(reader => {
+			const hide = hideChevrons.read(reader);
+			if (this._domNode) {
+				this._domNode.classList.toggle('hide-chevrons', hide);
+			}
+			this._renderLabel();
+		}));
+	}
+
 	setSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): void {
 		this._selectedModel = model;
 		this._renderLabel();
@@ -480,6 +513,11 @@ export class ModelPickerWidget extends Disposable {
 		this._domNode.setAttribute('role', 'button');
 		this._domNode.setAttribute('aria-haspopup', 'true');
 		this._domNode.setAttribute('aria-expanded', 'false');
+
+		// Apply initial collapsed state now that _domNode exists
+		if (this._hideChevrons?.get()) {
+			this._domNode.classList.toggle('hide-chevrons', true);
+		}
 
 		this._badgeIcon = dom.append(this._domNode, dom.$('span.model-picker-badge'));
 		this._updateBadge();
@@ -573,21 +611,14 @@ export class ModelPickerWidget extends Disposable {
 			anchorElement,
 			undefined,
 			[],
-			{
-				isChecked(element) {
-					return element.kind === 'action' && !!element?.item?.checked;
-				},
-				getRole: (e) => {
-					switch (e.kind) {
-						case 'action': return 'menuitemcheckbox';
-						case 'separator': return 'separator';
-						default: return 'separator';
-					}
-				},
-				getWidgetRole: () => 'menu',
-			},
+			getModelPickerAccessibilityProvider(),
 			listOptions
 		);
+
+		const activeElement = dom.getActiveElement();
+		if (dom.isHTMLInputElement(activeElement) && activeElement.classList.contains('action-list-filter-input')) {
+			activeElement.classList.add('chat-model-picker-filter-input');
+		}
 	}
 
 	private _updateBadge(): void {
@@ -624,7 +655,9 @@ export class ModelPickerWidget extends Disposable {
 			domChildren.push(this._badgeIcon);
 		}
 
-		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		if (!this._hideChevrons?.get()) {
+			domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+		}
 
 		dom.reset(this._domNode, ...domChildren);
 

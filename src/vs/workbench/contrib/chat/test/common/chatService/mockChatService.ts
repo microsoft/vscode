@@ -16,7 +16,6 @@ import { ChatAgentLocation } from '../../../common/constants.js';
 export class MockChatService implements IChatService {
 	chatModels: IObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	requestInProgressObs = observableValue('name', false);
-	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource: URI | undefined;
@@ -89,7 +88,7 @@ export class MockChatService implements IChatService {
 	removeRequest(sessionResource: URI, requestId: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	cancelCurrentRequestForSession(sessionResource: URI): void {
+	cancelCurrentRequestForSession(sessionResource: URI, source?: string): void {
 		throw new Error('Method not implemented.');
 	}
 	setYieldRequested(sessionResource: URI): void {

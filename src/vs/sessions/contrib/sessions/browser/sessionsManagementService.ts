@@ -5,9 +5,9 @@
 
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { equals } from '../../../../base/common/objects.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -23,8 +23,16 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { INewSession, LocalNewSession, RemoteNewSession } from '../../chat/browser/newSession.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
+
+/**
+ * True when the active session uses the Background provider type (copilotcli).
+ * Used to gate actions that require a local worktree (run script, open in VS Code, terminal).
+ */
+export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolean>('isActiveSessionBackgroundProvider', false, localize('isActiveSessionBackgroundProvider', "Whether the active session uses the background agent provider"));
 
 //#region Active Session Service
 
@@ -38,9 +46,11 @@ const repositoryOptionId = 'repository';
  */
 export interface IActiveSessionItem {
 	readonly resource: URI;
+	readonly isUntitled: boolean;
 	readonly label: string | undefined;
 	readonly repository: URI | undefined;
 	readonly worktree: URI | undefined;
+	readonly providerType: string;
 }
 
 export interface ISessionsManagementService {
@@ -97,11 +107,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _activeSession = observableValue<IActiveSessionItem | undefined>(this, undefined);
 	readonly activeSession: IObservable<IActiveSessionItem | undefined> = this._activeSession;
-	private readonly _activeSessionDisposables = this._register(new DisposableStore());
+	private readonly _newActiveSessionDisposables = this._register(new DisposableStore());
 
 	private readonly _newSession = this._register(new MutableDisposable<INewSession>());
 	private lastSelectedSession: URI | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
+	private readonly _isBackgroundProvider: IContextKey<boolean>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -114,12 +125,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
 
 		// Bind context key to active session state.
 		// isNewSession is false when there are any established sessions in the model.
 		this.isNewChatSessionContext = IsNewChatSessionContext.bindTo(contextKeyService);
+		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
 
 		// Load last selected session
 		this.lastSelectedSession = this.loadLastSelectedSession();
@@ -149,10 +162,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 		const agentSession = this.agentSessionsService.model.getSession(currentActive.resource);
 		if (!agentSession) {
-			// Only switch sessions if the active session was a known agent session
-			// that got deleted. New session resources that aren't yet in the model
-			// should not trigger a switch.
-			if (isAgentSession(currentActive)) {
+			if (currentActive.isUntitled) {
+				// The untitled session was committed by the extension via
+				// onDidCommitChatSessionItem, which replaces the untitled
+				// resource with a new committed resource. The commit handler
+				// already swapped the ChatViewPane widget to the new resource,
+				// so find it by checking the widget's current session resource.
+				const chatViewWidgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat);
+				const committedResource = chatViewWidgets[0]?.viewModel?.sessionResource;
+				const committedSession = committedResource ? this.agentSessionsService.model.getSession(committedResource) : undefined;
+				if (committedSession) {
+					this.setActiveSession(committedSession);
+				}
+			} else {
 				this.showNextSession();
 			}
 			return;
@@ -174,9 +196,26 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private getRepositoryFromMetadata(metadata: { readonly [key: string]: unknown } | undefined): [URI | undefined, URI | undefined] {
+	private getRepositoryFromMetadata(session: IAgentSession): [URI | undefined, URI | undefined] {
+		const metadata = session.metadata;
 		if (!metadata) {
 			return [undefined, undefined];
+		}
+
+		if (session.providerType === AgentSessionProviders.Cloud) {
+			//TODO: @osortega pass branch in metadata from extension
+			const branch = typeof metadata.branch === 'string' ? metadata.branch : 'HEAD';
+			const repositoryUri = URI.from({
+				scheme: GITHUB_REMOTE_FILE_SCHEME,
+				authority: 'github',
+				path: `/${metadata.owner}/${metadata.name}/${encodeURIComponent(branch)}`
+			});
+			return [repositoryUri, undefined];
+		}
+
+		const workingDirectoryPath = metadata?.workingDirectoryPath as string | undefined;
+		if (workingDirectoryPath) {
+			return [URI.file(workingDirectoryPath), undefined];
 		}
 
 		const repositoryPath = metadata?.repositoryPath as string | undefined;
@@ -229,7 +268,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 
 		let newSession: INewSession;
-		if (target === AgentSessionProviders.Background || target === AgentSessionProviders.Local) {
+		if (target === AgentSessionProviders.Background) {
 			newSession = this.instantiationService.createInstance(LocalNewSession, sessionResource, defaultRepoUri);
 		} else {
 			newSession = this.instantiationService.createInstance(RemoteNewSession, sessionResource, target);
@@ -309,11 +348,23 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			this.openNewSessionView();
 		}
 
-		// 2. Apply selected options (repository, branch, etc.) to the contributed session
-		if (selectedOptions && selectedOptions.size > 0) {
-			const modelRef = this.chatService.acquireExistingSession(session.resource);
-			if (modelRef) {
-				const model = modelRef.object;
+		// 2. Apply selected model and options to the session
+		const modelRef = this.chatService.acquireExistingSession(session.resource);
+		if (modelRef) {
+			const model = modelRef.object;
+
+			// Set the selected model on the input model so the model picker reflects it
+			if (session.modelId) {
+				const languageModel = this.languageModelsService.lookupLanguageModel(session.modelId);
+				if (languageModel) {
+					model.inputModel.setState({
+						selectedModel: { identifier: session.modelId, metadata: languageModel }
+					});
+				}
+			}
+
+			// Apply selected options (repository, branch, etc.) to the contributed session
+			if (selectedOptions && selectedOptions.size > 0) {
 				const contributedSession = model.contributedChatSession;
 				if (contributedSession) {
 					const initialSessionOptions = [...selectedOptions.entries()].map(
@@ -324,8 +375,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 						initialSessionOptions,
 					});
 				}
-				modelRef.dispose();
 			}
+			modelRef.dispose();
 		}
 
 		// 3. Send the request
@@ -371,53 +422,82 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (this.isNewChatSessionContext.get()) {
 			return;
 		}
+		this.setActiveSession(undefined);
 		this.isNewChatSessionContext.set(true);
-		this._activeSession.set(undefined, undefined);
 	}
 
 	private setActiveSession(session: IAgentSession | INewSession | undefined): void {
-		this._activeSessionDisposables.clear();
 		let activeSessionItem: IActiveSessionItem | undefined;
 		if (session) {
 			if (isAgentSession(session)) {
 				this.lastSelectedSession = session.resource;
-				const [repository, worktree] = this.getRepositoryFromMetadata(session.metadata);
+				const [repository, worktree] = this.getRepositoryFromMetadata(session);
 				activeSessionItem = {
+					isUntitled: this.chatService.getSession(session.resource)?.contributedChatSession?.isUntitled ?? true,
 					label: session.label,
 					resource: session.resource,
 					repository,
 					worktree,
+					providerType: session.providerType,
 				};
 			} else {
 				activeSessionItem = {
+					isUntitled: true,
 					label: undefined,
 					resource: session.resource,
 					repository: session.repoUri,
 					worktree: undefined,
+					providerType: session.target,
 				};
-				this._activeSessionDisposables.add(session.onDidChange(e => {
+				this._newActiveSessionDisposables.clear();
+				this._newActiveSessionDisposables.add(session.onDidChange(e => {
 					if (e === 'repoUri') {
-						this._activeSession.set({
+						this.doSetActiveSession({
+							isUntitled: true,
 							label: undefined,
 							resource: session.resource,
 							repository: session.repoUri,
 							worktree: undefined,
-						}, undefined);
+							providerType: session.target,
+						});
 					}
 				}));
 			}
 		}
 
-		if (equals(this._activeSession.get(), activeSessionItem)) {
+		this.doSetActiveSession(activeSessionItem);
+	}
+
+	private doSetActiveSession(activeSessionItem: IActiveSessionItem | undefined): void {
+		if (this.equalsSessionItem(this._activeSession.get(), activeSessionItem)) {
 			return;
 		}
 
 		if (activeSessionItem) {
-			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}, repository: ${activeSessionItem.repository?.toString() ?? 'none'}`);
+			this.logService.info(`[ActiveSessionService] Active session changed: ${activeSessionItem.resource.toString()}`);
+			this.logService.trace(`[ActiveSessionService] Active session details: ${JSON.stringify(activeSessionItem)}`);
 		} else {
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}
+
+		this._isBackgroundProvider.set(activeSessionItem?.providerType === AgentSessionProviders.Background);
 		this._activeSession.set(activeSessionItem, undefined);
+	}
+
+	private equalsSessionItem(a: IActiveSessionItem | undefined, b: IActiveSessionItem | undefined): boolean {
+		if (a === b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		return (
+			a.label === b.label &&
+			a.resource.toString() === b.resource.toString() &&
+			a.repository?.toString() === b.repository?.toString() &&
+			a.worktree?.toString() === b.worktree?.toString() &&
+			a.providerType === b.providerType
+		);
 	}
 
 	async commitWorktreeFiles(session: IActiveSessionItem, fileUris: URI[]): Promise<void> {

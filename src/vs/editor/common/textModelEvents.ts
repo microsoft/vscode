@@ -397,10 +397,15 @@ export class ModelRawLinesDeleted {
 	 * At what line the deletion stopped (inclusive).
 	 */
 	public readonly toLineNumber: number;
+	/**
+	 * The last unmodified line in the updated buffer after the deletion is made.
+	 */
+	public readonly lastUntouchedLinePostEdit: number;
 
-	constructor(fromLineNumber: number, toLineNumber: number) {
+	constructor(fromLineNumber: number, toLineNumber: number, lastUntouchedLinePostEdit: number) {
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
+		this.lastUntouchedLinePostEdit = lastUntouchedLinePostEdit;
 	}
 }
 

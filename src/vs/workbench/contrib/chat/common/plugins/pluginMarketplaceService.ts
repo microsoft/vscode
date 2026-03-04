@@ -7,14 +7,17 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
-import { joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IObservable } from '../../../../../base/common/observable.js';
+import { isEqual, isEqualOrParent, joinPath, normalizePath, relativePath } from '../../../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ObservableMemento, observableMemento } from '../../../../../platform/observable/common/observableMemento.js';
+import { asJson, IRequestService } from '../../../../../platform/request/common/request.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { ChatConfiguration } from '../constants.js';
@@ -69,12 +72,24 @@ interface IMarketplaceJson {
 	}[];
 }
 
+export interface IMarketplaceInstalledPlugin {
+	readonly pluginUri: URI;
+	readonly plugin: IMarketplacePlugin;
+	readonly enabled: boolean;
+}
+
 export const IPluginMarketplaceService = createDecorator<IPluginMarketplaceService>('pluginMarketplaceService');
 
 export interface IPluginMarketplaceService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeMarketplaces: Event<void>;
+	/** Installed marketplace plugins, backed by storage. */
+	readonly installedPlugins: IObservable<readonly IMarketplaceInstalledPlugin[]>;
 	fetchMarketplacePlugins(token: CancellationToken): Promise<IMarketplacePlugin[]>;
+	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined;
+	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void;
+	removeInstalledPlugin(pluginUri: URI): void;
+	setInstalledPluginEnabled(pluginUri: URI, enabled: boolean): void;
 }
 
 /**
@@ -97,11 +112,30 @@ interface IGitHubMarketplaceCacheEntry {
 
 type IStoredGitHubMarketplaceCache = Dto<Record<string, IGitHubMarketplaceCacheEntry>>;
 
-export class PluginMarketplaceService implements IPluginMarketplaceService {
+interface IStoredInstalledPlugin {
+	readonly pluginUri: UriComponents;
+	readonly plugin: IMarketplacePlugin;
+	readonly enabled: boolean;
+}
+
+const installedPluginsMemento = observableMemento<readonly IStoredInstalledPlugin[]>({
+	defaultValue: [],
+	key: 'chat.plugins.installed.v1',
+	toStorage: value => JSON.stringify(value),
+	fromStorage: value => {
+		const parsed = JSON.parse(value);
+		return Array.isArray(parsed) ? parsed : [];
+	},
+});
+
+export class PluginMarketplaceService extends Disposable implements IPluginMarketplaceService {
 	declare readonly _serviceBrand: undefined;
 	private readonly _gitHubMarketplaceCache = new Lazy<Map<string, IGitHubMarketplaceCacheEntry>>(() => this._loadPersistedGitHubMarketplaceCache());
+	private readonly _installedPluginsStore: ObservableMemento<readonly IStoredInstalledPlugin[]>;
 
 	readonly onDidChangeMarketplaces: Event<void>;
+
+	readonly installedPlugins: IObservable<readonly IMarketplaceInstalledPlugin[]>;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -111,6 +145,14 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
+		super();
+
+		this._installedPluginsStore = this._register(
+			installedPluginsMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, _storageService)
+		);
+
+		this.installedPlugins = this._installedPluginsStore.map(s => revive(s));
+
 		this.onDidChangeMarketplaces = Event.filter(
 			_configurationService.onDidChangeConfiguration,
 			e => e.affectsConfiguration(ChatConfiguration.PluginsEnabled) || e.affectsConfiguration(ChatConfiguration.PluginMarketplaces),
@@ -291,6 +333,32 @@ export class PluginMarketplaceService implements IPluginMarketplaceService {
 			JSON.stringify(serialized),
 			StorageScope.APPLICATION,
 			StorageTarget.MACHINE,
+		);
+	}
+
+	getMarketplacePluginMetadata(pluginUri: URI): IMarketplacePlugin | undefined {
+		const installed = this.installedPlugins.get();
+		return installed.find(e => isEqualOrParent(pluginUri, e.pluginUri))?.plugin;
+	}
+
+	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void {
+		const current = this.installedPlugins.get();
+		if (current.some(e => isEqual(e.pluginUri, pluginUri))) {
+			return;
+		}
+		this._installedPluginsStore.set([...current, { pluginUri, plugin, enabled: true }], undefined);
+	}
+
+	removeInstalledPlugin(pluginUri: URI): void {
+		const current = this.installedPlugins.get();
+		this._installedPluginsStore.set(current.filter(e => !isEqual(e.pluginUri, pluginUri)), undefined);
+	}
+
+	setInstalledPluginEnabled(pluginUri: URI, enabled: boolean): void {
+		const current = this.installedPlugins.get();
+		this._installedPluginsStore.set(
+			current.map(e => isEqual(e.pluginUri, pluginUri) ? { ...e, enabled } : e),
+			undefined,
 		);
 	}
 

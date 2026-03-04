@@ -70,7 +70,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	protected override async initialize(): Promise<void> {
 		if ((process as INodeProcess).isEmbeddedApp) {
 			this.setState(State.Disabled(DisablementReason.EmbeddedApp));
-			this.logService.info('update#ctor - updates are disabled for embedded app');
+			this.logService.info('update#ctor - updates are disabled from embedded app');
 			return;
 		}
 

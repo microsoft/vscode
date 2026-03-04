@@ -104,6 +104,7 @@
 
 .chat-confirmation-widget-title small {
 	font-size: 1em;
+	opacity: 0.7;
 
 	&::before {
 		content: ' \2013  ';
@@ -190,6 +191,23 @@
 			margin-bottom: 0 !important;
 		}
 	}
+}
+
+.mcp-app-downloads {
+	margin-top: 8px;
+
+	.chat-collapsible-io-resource-group {
+		animation: mcpDownloadFadeIn 300ms ease-in;
+	}
+}
+
+.mcp-app-downloads:empty {
+	display: none;
+}
+
+@keyframes mcpDownloadFadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
 }
 
 .chat-confirmation-widget2 {
