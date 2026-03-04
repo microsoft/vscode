@@ -39,6 +39,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IChatWidget } from '../chat.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IAsyncDataTreeViewState } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
 
 export interface IAgentSessionsControlOptions extends IAgentSessionsSorterOptions {
 	readonly overrideStyles: IStyleOverride<IListStyles>;
@@ -91,6 +93,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	private focusedAgentSessionTypeContextKey: IContextKey<string>;
 	private hasMultipleAgentSessionsSelectedContextKey: IContextKey<boolean>;
 
+	private readonly viewStateStorageKey: string;
+
 	constructor(
 		private readonly container: HTMLElement,
 		private readonly options: IAgentSessionsControlOptions,
@@ -103,8 +107,11 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		this.viewStateStorageKey = `agentSessions.viewState.${options.source}`;
 
 		this.focusedAgentSessionArchivedContextKey = ChatContextKeys.isArchivedAgentSession.bindTo(this.contextKeyService);
 		this.focusedAgentSessionReadContextKey = ChatContextKeys.isReadAgentSession.bindTo(this.contextKeyService);
@@ -118,6 +125,25 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 	private registerListeners(): void {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.revealAndFocusActiveEditorSession()));
+	}
+
+	private loadViewState(): IAsyncDataTreeViewState | undefined {
+		const raw = this.storageService.get(this.viewStateStorageKey, StorageScope.PROFILE);
+		if (!raw) {
+			return undefined;
+		}
+
+		try {
+			return JSON.parse(raw) as IAsyncDataTreeViewState;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private saveViewState(): void {
+		if (this.sessionsList) {
+			this.storageService.store(this.viewStateStorageKey, JSON.stringify(this.sessionsList.getViewState()), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
 	}
 
 	private revealAndFocusActiveEditorSession(): void {
@@ -174,6 +200,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 	}
 
 	private createList(container: HTMLElement): void {
+		const storedViewState = this.loadViewState();
+
 		const collapseByDefault = (element: unknown) => {
 			if (isAgentSessionSection(element)) {
 				if (element.section === AgentSessionSection.More && !this.options.filter.getExcludes().read) {
@@ -181,6 +209,9 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 				}
 				if (element.section === AgentSessionSection.Archived && this.options.filter.getExcludes().archived) {
 					return true; // Archived section is collapsed when archived are excluded
+				}
+				if (storedViewState) {
+					return true; // When restoring, collapse all sections by default - storedViewState.expanded controls which ones open
 				}
 				if (this.options.collapseOlderSections?.()) {
 					const olderSections = [AgentSessionSection.Week, AgentSessionSection.Older, AgentSessionSection.Archived];
@@ -253,7 +284,13 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			}
 		}));
 
-		list.setInput(model);
+		list.setInput(model, storedViewState).then(() => {
+			// Apply filter-driven collapse overrides (e.g. auto-collapse Archived when excluded)
+			// after the view state has been restored.
+			this.updateSectionCollapseStates();
+		}, () => {
+			// Ignore errors during initial tree population
+		});
 
 		this._register(list.onDidOpen(e => this.openAgentSession(e)));
 		this._register(list.onContextMenu(e => this.showContextMenu(e)));
@@ -285,6 +322,8 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 			this.updateSectionCollapseStates();
 		}));
+
+		this._register(this.storageService.onWillSaveState(() => this.saveViewState()));
 	}
 
 	private updateEmpty(isEmpty: boolean): void {
