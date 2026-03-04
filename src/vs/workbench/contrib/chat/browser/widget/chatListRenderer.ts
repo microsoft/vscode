@@ -64,7 +64,7 @@ import { IChatRequestVariableEntry } from '../../common/attachments/chatVariable
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM } from '../../common/model/chatViewModel.js';
 import { getNWords } from '../../common/model/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../common/constants.js';
 import { ClickAnimation } from '../../../../../base/browser/ui/animations/animations.js';
 import { MarkHelpfulActionId, MarkUnhelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
@@ -2335,7 +2335,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		void this._autoReply.shouldAutoReply().then(shouldAutoReply => {
-			if (!shouldAutoReply) {
+			// always autoreply in autopilot mode.
+			const isAutopilot = isResponseVM(context.element) && context.element.model.request?.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot;
+			if (!shouldAutoReply && !isAutopilot) {
 				// Roll back the in-progress mark if auto-reply is not enabled.
 				if (stableKey) {
 					this._autoRepliedQuestionCarousels.delete(stableKey);

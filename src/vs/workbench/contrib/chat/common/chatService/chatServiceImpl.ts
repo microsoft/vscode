@@ -1024,6 +1024,7 @@ export class ChatService extends Disposable implements IChatService {
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
+							permissionLevel: options?.modeInfo?.permissionLevel,
 							editedFileEvents: request.editedFileEvents,
 							hooks: collectedHooks,
 							hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr.length > 0),
@@ -1180,6 +1181,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					shouldProcessPending = !rawResult.errorDetails && !token.isCancellationRequested;
 					request.response?.complete();
+
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request!, followups);

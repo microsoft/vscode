@@ -3440,6 +3440,7 @@ export namespace ChatAgentRequest {
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
+			permissionLevel: request.permissionLevel,
 			subAgentInvocationId: request.subAgentInvocationId,
 			subAgentName: request.subAgentName,
 			parentRequestId: request.parentRequestId,

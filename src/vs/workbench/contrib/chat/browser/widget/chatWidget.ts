@@ -64,7 +64,7 @@ import { IChatTodoListService } from '../../common/tools/chatTodoListService.js'
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeAutomaticInstructions.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
@@ -1552,6 +1552,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				rowContainer.appendChild(this.inputContainer);
 				this.createInput(this.inputContainer);
 				this.input.setChatMode(this.inputPart.currentModeObs.get().id);
+				this.input.setPermissionLevel(this.inputPart.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
 				this.input.setEditing(true, isEditingSentRequest);
 				this._onDidChangeActiveInputEditor.fire();
 			} else {
@@ -1652,6 +1653,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!isInput) {
 			this.inputPart.setChatMode(this.input.currentModeObs.get().id);
+			this.inputPart.setPermissionLevel(this.input.currentModeInfo.permissionLevel ?? ChatPermissionLevel.Default);
 			const currentModel = this.input.selectedLanguageModel.get();
 			if (currentModel) {
 				this.inputPart.switchModel(currentModel.metadata);
@@ -1735,6 +1737,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			defaultMode: this.viewOptions.defaultMode,
 			sessionTypePickerDelegate: this.viewOptions.sessionTypePickerDelegate,
 			workspacePickerDelegate: this.viewOptions.workspacePickerDelegate,
+			isSessionsWindow: this.viewOptions.isSessionsWindow,
 		};
 
 		if (this.viewModel?.editing) {
@@ -2139,7 +2142,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const options: IChatSendRequestOptions = {
 			attempt: lastRequest.attempt + 1,
 			location: this.location,
-			userSelectedModelId: this.input.currentLanguageModel
+			userSelectedModelId: this.input.currentLanguageModel,
+			modeInfo: this.input.currentModeInfo,
 		};
 		return await this.chatService.resendRequest(lastRequest, options);
 	}
