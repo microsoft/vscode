@@ -6712,6 +6712,77 @@ class TestActionButtonCount(unittest.TestCase):
 
 
 # =============================================================================
+# Action Button: Filter Tests
+# =============================================================================
+
+class TestActionButtonFilter(unittest.TestCase):
+    """Test Filter action button."""
+
+    def setUp(self):
+        self.value = "hello world"
+        self.model = init_model(self.value)
+        self.model['search'] = '/\\w+/'
+        self.model['replace_visible'] = True
+        self.model['replace_text'] = "len(^[0]) > 4"
+        self.source_code = "x = 'hello world'"
+        self.source_line = 1
+
+    def test_filter_generates_list_comprehension_with_predicate(self):
+        """Filter produces [_mtch for _mtch in re.finditer(...) if EXPR]."""
+        _, commands = update(make_action_button_event('filter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, expr = commands[0]
+        self.assertEqual(suggest_name, "x_filtered")
+        self.assertEqual(expr, r"[_mtch for _mtch in re.finditer(r'\w+', x, flags=re.M) if len(_mtch[0]) > 4]")
+
+    def test_filter_not_in_replace_mode_returns_none(self):
+        """Filter without replace mode produces no command."""
+        self.model['replace_visible'] = False
+        self.model['replace_text'] = None
+        _, commands = update(make_action_button_event('filter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 0)
+
+    def test_copy_filter(self):
+        """copy=True produces CopyToClipboard."""
+        _, commands = update(make_action_button_event('filter', copy=True),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        self.assertIsInstance(commands[0], CopyToClipboard)
+        self.assertIn('for _mtch in', commands[0].text)
+
+    def test_filter_string_search(self):
+        """Filter with string search."""
+        self.model['search'] = "'hello'"
+        _, commands = update(make_action_button_event('filter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("re.escape('hello')", expr)
+        self.assertIn("if len(_mtch[0]) > 4", expr)
+
+    def test_filter_suggest_name_no_var(self):
+        """Filter without var name uses 'result_filtered'."""
+        self.source_code = "f('hello world')"
+        _, commands = update(make_action_button_event('filter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        suggest_name, _ = commands[0]
+        self.assertEqual(suggest_name, "result_filtered")
+
+    def test_filter_first_match(self):
+        """Filter with first-match uses next(..., None)."""
+        self.model['search'] = '/\\w+/1'
+        _, commands = update(make_action_button_event('filter'),
+                            self.source_code, self.source_line, self.model, self.value)
+        self.assertEqual(len(commands), 1)
+        _, expr = commands[0]
+        self.assertIn("next(", expr)
+        self.assertIn("if len(_mtch[0]) > 4", expr)
+
+
+# =============================================================================
 # Action Button: Split Tests
 # =============================================================================
 
@@ -6883,6 +6954,40 @@ class TestActionButtonRendering(unittest.TestCase):
         # Just check that the replace action reference exists but is styled as disabled
         self.assertIn("action=&#x27;replace&#x27;", html_output)
 
+    def test_filter_button_present(self):
+        """Filter button renders in the action bar."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        self.assertIn('Filter', html_output)
+        self.assertIn("action=&#x27;filter&#x27;", html_output)
+
+    def test_filter_button_grayed_when_no_replace(self):
+        """Filter button is grayed out when not in replace mode."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        import re as re_mod
+        filter_match = re_mod.search(r"action=&#x27;filter&#x27;[^>]*style=\"([^\"]*?)\"", html_output)
+        if not filter_match:
+            filter_match = re_mod.search(r"style=\"([^\"]*?)\"[^>]*>Filter", html_output)
+        self.assertIsNotNone(filter_match, "Filter button should be present")
+        style = filter_match.group(1)
+        self.assertIn('opacity: 0.35', style)
+
+    def test_filter_button_enabled_with_replace(self):
+        """Filter button is enabled when replace mode is active."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        model['replace_visible'] = True
+        model['replace_text'] = "len(^[0]) > 3"
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        import re as re_mod
+        filter_match = re_mod.search(r"style=\"([^\"]*?)\"[^>]*>Filter", html_output)
+        self.assertIsNotNone(filter_match, "Filter button should be present")
+        style = filter_match.group(1)
+        self.assertNotIn('opacity: 0.35', style)
+
     def test_count_shows_match_count(self):
         """Count button text shows the number of matches."""
         model = init_model(self.value)
@@ -6890,6 +6995,56 @@ class TestActionButtonRendering(unittest.TestCase):
         html_output = visualize(self.value, model, None, None, max_width=400)
         # 'hello world' has 3 'l' characters
         self.assertIn('Count (3)', html_output)
+
+    def test_count_uses_transform_result_when_predicate(self):
+        """Count shows truthy transform results when transform/replace is present."""
+        model = init_model("hello world hello")
+        model['search'] = '/\\w+/'
+        model['replace_visible'] = True
+        model['replace_text'] = "len(^[0]) > 4"
+        html_output = visualize("hello world hello", model, None, eval, max_width=400)
+        # 'hello' (len 5 > 4 = True), 'world' (len 5 > 4 = True), 'hello' (len 5 > 4 = True)
+        self.assertIn('Count (3)', html_output)
+
+    def test_count_uses_transform_result_filters_falsy(self):
+        """Count with predicate transform only counts truthy results."""
+        model = init_model("hi world hello")
+        model['search'] = '/\\w+/'
+        model['replace_visible'] = True
+        model['replace_text'] = "len(^[0]) > 3"
+        html_output = visualize("hi world hello", model, None, eval, max_width=400)
+        # 'hi' (len 2 > 3 = False), 'world' (len 5 > 3 = True), 'hello' (len 5 > 3 = True)
+        self.assertIn('Count (2)', html_output)
+
+    def test_count_without_transform_uses_match_count(self):
+        """Count without transform still shows total match count."""
+        model = init_model("hi world hello")
+        model['search'] = '/\\w+/'
+        html_output = visualize("hi world hello", model, None, eval, max_width=400)
+        # 3 word matches
+        self.assertIn('Count (3)', html_output)
+
+    def test_question_mark_dropdown_grayed_when_no_search(self):
+        """? dropdown button is grayed out when there is no search pattern."""
+        model = init_model(self.value)
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        import re as re_mod
+        q_span_match = re_mod.search(r'<span[^>]*style="([^"]*)"[^>]*title="Boolean queries"', html_output)
+        self.assertIsNotNone(q_span_match, "? button should be present")
+        style = q_span_match.group(1)
+        self.assertIn('opacity: 0.35', style)
+        self.assertIn('pointer-events: none', style)
+
+    def test_question_mark_dropdown_not_grayed_with_search(self):
+        """? dropdown button is NOT grayed out when search is present."""
+        model = init_model(self.value)
+        model['search'] = '/hello/'
+        html_output = visualize(self.value, model, None, None, max_width=400)
+        import re as re_mod
+        q_span_match = re_mod.search(r'<span[^>]*style="([^"]*)"[^>]*title="Boolean queries"', html_output)
+        self.assertIsNotNone(q_span_match, "? button should be present")
+        style = q_span_match.group(1)
+        self.assertNotIn('opacity: 0.35', style)
 
     def test_question_mark_dropdown_renders(self):
         """Predicate dropdown button is present in the action bar."""

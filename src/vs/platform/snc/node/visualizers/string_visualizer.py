@@ -143,7 +143,7 @@ class CaseSensitiveToggle:
 
 @dataclass(frozen=True, slots=True)
 class ActionButtonClick:
-    action: str  # 'get_transform', 'replace', 'delete', 'loop', 'any', 'all', 'if_any', 'if_all', 'count'
+    action: str  # 'get_transform', 'replace', 'delete', 'loop', 'any', 'all', 'if_any', 'if_all', 'count', 'filter', 'split'
     copy: bool   # True → CopyToClipboard, False → NewCode
 
 @dataclass(frozen=True, slots=True)
@@ -2597,8 +2597,13 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
     replace_text = bool(model.get('replace_text'))
     has_replace = replace_visible and replace_text
 
-    # Compute match count for the Count button label
-    match_count = _count_matches(selection_regex, value, eval_in_scope) if has_search else 0
+    # Compute match count for the Count button label.
+    # When a transform/replace is present, count truthy transform results
+    # (the transform could be a boolean predicate filtering which items to count).
+    if has_search and has_replace:
+        match_count = _count_truthy_transform_results(selection_regex, value, model.get('replace_text'), eval_in_scope)
+    else:
+        match_count = _count_matches(selection_regex, value, eval_in_scope) if has_search else 0
 
     # Common button styles
     btn_base = (
@@ -2668,7 +2673,8 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
 
     # Build ? button with dropdown
     toggle_event = repr(DropdownToggle('action-predicate'))
-    q_style = btn_base + ('background: #264f78; color: #ccc; border-color: #aaa;' if predicate_dropdown_open else '')
+    q_disabled = '' if has_search else disabled_style
+    q_style = btn_base + ('background: #264f78; color: #ccc; border-color: #aaa;' if predicate_dropdown_open else '') + q_disabled
     q_btn = f'<span class="snc-hoverable" snc-mouse-down="{html.escape(toggle_event)}" style="margin-left: 3px;{q_style}" title="Boolean queries">? \u25be</span>'
 
     if predicate_dropdown_open:
@@ -2726,7 +2732,10 @@ def _render_action_buttons(model: dict, value: str, eval_in_scope, max_width=Non
     # 6. Split + Copy
     parts.append(btn_group('Split', 'split', has_search, 'Split string at matches'))
 
-    # 7. Count (N) + Copy
+    # 8. Filter + Copy (requires replace/transform predicate)
+    parts.append(btn_group('Filter', 'filter', has_search and has_replace, 'Filter matches by predicate'))
+
+    # 8. Count (N) + Copy
     count_label = f'Count ({match_count})'
     parts.append(btn_group(count_label, 'count', has_search, 'Count of matches'))
 
@@ -3084,6 +3093,29 @@ def _count_matches(selection_regex: str | None, string_value: str, eval_in_scope
         return len(list(re.finditer(pattern, string_value, flags=flags)))
     except Exception:
         return 0
+
+
+def _count_truthy_transform_results(selection_regex: str, string_value: str, replace_text: str, eval_in_scope) -> int:
+    """Count matches whose transform result is truthy.
+
+    Falls back to _count_matches if the transform can't be evaluated.
+    """
+    if not selection_regex or not string_value or not replace_text:
+        return 0
+    matches = _find_matches(selection_regex, string_value, eval_in_scope)
+    if not matches:
+        return 0
+    replace_expr_raw = replace_text
+    if replace_expr_raw.startswith('`') and len(replace_expr_raw) >= 2:
+        end = replace_expr_raw.find('`', 1)
+        if end > 0:
+            replace_expr_raw = replace_expr_raw[1:end]
+    replace_expr = replace_caret_in_py_exp(replace_expr_raw, '_mtch')
+    try:
+        transform_fn = eval_in_scope(f"(lambda _mtch: {replace_expr})")
+        return sum(1 for m in matches if transform_fn(m))
+    except Exception:
+        return _count_matches(selection_regex, string_value, eval_in_scope)
 
 
 def _find_matches(selection_regex: str, string_value: str, eval_in_scope) -> list:
@@ -3698,6 +3730,20 @@ def _build_count_expr(ctx: dict) -> tuple | None:
         return (suggest_name, f"sum(1 for _ in {_finditer_expr(ctx)})")
 
 
+def _build_filter_expr(ctx: dict) -> tuple | None:
+    """Build Filter expression: matches filtered by replace predicate.
+
+    Returns (suggest_name, expr_str) or None if not in replace mode.
+    """
+    if not ctx['replace_visible'] or not ctx['replace_expr']:
+        return None
+    suggest_name = f"{ctx['suggest_base']}_filtered" if ctx['var_name'] else "result_filtered"
+    if ctx['is_first']:
+        return (suggest_name, f"next((_mtch for _mtch in {_finditer_expr(ctx)} if {ctx['replace_expr']}), None)")
+    else:
+        return (suggest_name, f"[_mtch for _mtch in {_finditer_expr(ctx)} if {ctx['replace_expr']}]")
+
+
 def _build_split_expr(ctx: dict) -> tuple | None:
     """Build Split expression: re.split or str.split.
 
@@ -4098,6 +4144,8 @@ def update(event, source_code: str, source_line: int, model: dict, value: str, g
                             result = _build_if_all_code(ctx)
                     case 'count':
                         result = _build_count_expr(ctx)
+                    case 'filter':
+                        result = _build_filter_expr(ctx)
                     case 'split':
                         result = _build_split_expr(ctx)
                 if result:
