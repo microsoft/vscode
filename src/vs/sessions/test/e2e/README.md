@@ -8,7 +8,7 @@ web server that serves Sessions in a browser.
 
 ```
 e2e/
-├── run.js                   # Test runner — single command to run all scenarios
+├── run.cjs                   # Test runner — single command to run all scenarios
 ├── scenarios/               # Plain-English test scenarios (*.scenario.md)
 │   ├── 01-repo-picker-on-submit.scenario.md
 │   └── 02-cloud-disables-add-run-action.scenario.md
@@ -26,11 +26,11 @@ scripts/
 
 ### How It Works
 
-1. `run.js` starts the Sessions web server (`scripts/code-sessions-web.js`) on a random
+1. `run.cjs` starts the Sessions web server (`scripts/code-sessions-web.js`) on a random
    port with `?skip-sessions-welcome` to bypass the sign-in overlay.
 2. It opens the page in `playwright-cli` (headed mode).
 3. It reads each `*.scenario.md` file from `scenarios/` and extracts the `## Steps` list.
-4. For each step, `run.js` translates the natural-language instruction into
+4. For each step, `run.cjs` translates the natural-language instruction into
    `playwright-cli` commands:
    - **Click**: takes a snapshot, finds the button ref by label, clicks the ref.
    - **Type / Press**: calls `playwright-cli type` or `playwright-cli press`.
@@ -55,7 +55,7 @@ scripts/
 From the repo root:
 
 ```bash
-node src/vs/sessions/test/e2e/run.js
+node src/vs/sessions/test/e2e/run.cjs
 ```
 
 Example output:
@@ -113,7 +113,7 @@ The `## Steps` section is required. Steps can use numbered lists (`1.`) or bulle
 
 To support a new kind of step:
 
-1. Open `run.js` and find the `stepToCommands()` function.
+1. Open `run.cjs` and find the `stepToCommands()` function.
 2. Add a new regex match case that returns a command object:
    ```js
    // Example: support "Wait <N> seconds"
@@ -142,7 +142,7 @@ picker produces:
 </div>
 ```
 
-**2 — `run.js` parses the step string** through `stepToCommands()`:
+**2 — `run.cjs` parses the step string** through `stepToCommands()`:
 
 ```
 "Click button \"Cloud\""  →  regex /^click button "(.+?)"$/i  →  { type: 'click-button', label: 'Cloud' }
@@ -175,7 +175,7 @@ contains both `button` and `"Cloud"`:
 "    - button "Cloud" [ref=e43]"            → has "button" AND "Cloud" → extract e43 ✓
 ```
 
-**5 — `run.js` shells out to `playwright-cli click e43`.** The CLI maps `e43` back to
+**5 — `run.cjs` shells out to `playwright-cli click e43`.** The CLI maps `e43` back to
 the DOM element (it kept the ref→element mapping from the snapshot), sends a click
 event via CDP, and Chromium dispatches the click. The Sessions UI switches to Cloud mode.
 
