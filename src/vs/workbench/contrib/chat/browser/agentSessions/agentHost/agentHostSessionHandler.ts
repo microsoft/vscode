@@ -16,9 +16,9 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IAgentHostService, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider, AgentSession, IAgentProgressEvent } from '../../../../../../platform/agent/common/agentService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 
@@ -337,11 +337,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._logService.trace(`[AgentHost:${sessionStr}] title changed: ${e.title}`);
 					break;
 
-				case 'permission_request':
+				case 'permission_request': {
 					this._logService.info(`[AgentHost:${sessionStr}] permission_request: kind=${e.permissionKind}, requestId=${e.requestId}, path=${e.path ?? '(none)'}`);
-					// TODO: Show confirmation UI for shell/write/mcp. For now, auto-approve.
-					this._agentHostService.respondToPermissionRequest(e.requestId, true);
+					const confirmInvocation = this._createPermissionConfirmation(e);
+					progress([confirmInvocation]);
+
+					IChatToolInvocation.awaitConfirmation(confirmInvocation, cancellationToken).then(reason => {
+						const approved = reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
+						this._logService.info(`[AgentHost:${sessionStr}] permission response: requestId=${e.requestId}, approved=${approved} (kind=${reason.type})`);
+						this._agentHostService.respondToPermissionRequest(e.requestId, approved);
+						if (approved) {
+							confirmInvocation.didExecuteTool(undefined);
+						} else {
+							confirmInvocation.didExecuteTool({ content: [], toolResultError: 'User denied' });
+						}
+					});
 					break;
+				}
 
 				default:
 					this._logService.trace(`[AgentHost:${sessionStr}] unhandled event type: ${(e as IAgentProgressEvent).type}`);
@@ -422,6 +434,62 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		return invocation;
+	}
+
+	private _createPermissionConfirmation(event: import('../../../../../../platform/agent/common/agentService.js').IAgentPermissionRequestEvent): ChatToolInvocation {
+		let title: string;
+		let message: string;
+		let toolSpecificData: IChatTerminalToolInvocationData | undefined;
+
+		switch (event.permissionKind) {
+			case 'shell': {
+				title = event.intention ?? 'Run command';
+				message = event.fullCommandText ?? event.rawRequest;
+				toolSpecificData = event.fullCommandText ? {
+					kind: 'terminal',
+					commandLine: { original: event.fullCommandText },
+					language: 'shellscript',
+				} : undefined;
+				break;
+			}
+			case 'write': {
+				title = 'Edit file';
+				message = event.path ?? event.rawRequest;
+				break;
+			}
+			case 'mcp': {
+				const toolTitle = event.toolName ?? 'MCP Tool';
+				title = event.serverName ? `${event.serverName}: ${toolTitle}` : toolTitle;
+				message = event.rawRequest;
+				break;
+			}
+			default: {
+				title = 'Permission request';
+				message = event.rawRequest;
+				break;
+			}
+		}
+
+		const confirmationMessages: IToolConfirmationMessages = {
+			title: new MarkdownString(title),
+			message: new MarkdownString(message),
+		};
+
+		const toolData: IToolData = {
+			id: `permission_${event.permissionKind}`,
+			source: ToolDataSource.Internal,
+			displayName: title,
+			modelDescription: '',
+		};
+
+		const preparedInvocation: IPreparedToolInvocation = {
+			invocationMessage: new MarkdownString(title),
+			confirmationMessages,
+			presentation: ToolInvocationPresentation.HiddenAfterComplete,
+			toolSpecificData,
+		};
+
+		return new ChatToolInvocation(preparedInvocation, toolData, event.requestId, undefined, undefined);
 	}
 
 	private _convertVariablesToAttachments(request: IChatAgentRequest): IAgentAttachment[] {

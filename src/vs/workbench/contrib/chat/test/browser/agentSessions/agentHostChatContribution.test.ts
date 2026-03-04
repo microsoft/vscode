@@ -18,7 +18,7 @@ import { IDefaultAccountService } from '../../../../../../platform/defaultAccoun
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
+import { IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -606,14 +606,15 @@ suite('AgentHostChatContribution', () => {
 
 	suite('permission requests', () => {
 
-		test('permission_request event is responded to via respondToPermissionRequest', async () => {
+		test('permission_request event shows confirmation and responds when confirmed', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
 			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
 				agentHostService.sendMessageCalls.push({ session, prompt: '' });
-				// Simulate a permission request followed by idle
+				// Simulate a permission request
 				agentHostService.fireProgress({
 					session,
 					type: 'permission_request',
@@ -622,18 +623,78 @@ suite('AgentHostChatContribution', () => {
 					fullCommandText: 'echo hello',
 					rawRequest: '{}',
 				});
-				agentHostService.fireProgress({ session, type: 'idle' });
 			};
 
-			await agent.impl.invoke(
+			// Start the invoke but don't await yet -- we need to confirm the permission
+			const invokePromise = agent.impl.invoke(
 				makeRequest(),
-				() => { }, [], CancellationToken.None,
+				(parts) => collected.push(parts),
+				[], CancellationToken.None,
 			);
 
-			// The session handler should have auto-approved the permission request
+			// Wait for the permission confirmation to appear
+			await timeout(10);
+
+			// The permission request should have produced a ChatToolInvocation in WaitingForConfirmation state
+			assert.ok(collected.length >= 1, 'Should have received permission confirmation progress');
+			const permInvocation = collected[0][0] as IChatToolInvocation;
+			assert.strictEqual(permInvocation.kind, 'toolInvocation');
+
+			// Confirm the permission
+			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
+
+			// Now fire idle to complete the request
+			await timeout(10);
+			const session = agentHostService.sendMessageCalls[0].session;
+			agentHostService.fireProgress({ session, type: 'idle' });
+
+			await invokePromise;
+
+			// The handler should have approved the permission request
 			assert.strictEqual(agentHostService.permissionResponses.length, 1);
 			assert.strictEqual(agentHostService.permissionResponses[0].requestId, 'perm-1');
 			assert.strictEqual(agentHostService.permissionResponses[0].approved, true);
+		});
+
+		test('permission_request denied when user skips', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const collected: IChatProgress[][] = [];
+
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({
+					session,
+					type: 'permission_request',
+					requestId: 'perm-2',
+					permissionKind: 'write',
+					path: '/tmp/test.txt',
+					rawRequest: '{}',
+				});
+			};
+
+			const invokePromise = agent.impl.invoke(
+				makeRequest(),
+				(parts) => collected.push(parts),
+				[], CancellationToken.None,
+			);
+
+			await timeout(10);
+
+			const permInvocation = collected[0][0] as IChatToolInvocation;
+			// Deny the permission
+			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.Denied });
+
+			await timeout(10);
+			const session = agentHostService.sendMessageCalls[0].session;
+			agentHostService.fireProgress({ session, type: 'idle' });
+
+			await invokePromise;
+
+			assert.strictEqual(agentHostService.permissionResponses.length, 1);
+			assert.strictEqual(agentHostService.permissionResponses[0].requestId, 'perm-2');
+			assert.strictEqual(agentHostService.permissionResponses[0].approved, false);
 		});
 	});
 
