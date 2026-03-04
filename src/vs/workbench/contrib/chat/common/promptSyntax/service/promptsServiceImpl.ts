@@ -193,7 +193,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const modelChangeEvent = this._register(new ModelChangeTracker(this.modelService)).onDidPromptChange;
 		this.cachedCustomAgents = this._register(new CachedPromise(
 			(token) => this.computeCustomAgents(token),
-			() => Event.any(this.getFileLocatorEvent(PromptsType.agent), Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent), this._onDidContributedWhenChange.event)
+			() => Event.any(
+				this.getFileLocatorEvent(PromptsType.agent),
+				Event.filter(modelChangeEvent, e => e.promptType === PromptsType.agent),
+				this._onDidContributedWhenChange.event,
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)),
+			)
 		));
 
 		this.cachedSlashCommands = this._register(new CachedPromise(

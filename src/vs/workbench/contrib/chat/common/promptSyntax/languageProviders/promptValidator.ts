@@ -220,11 +220,21 @@ export class PromptValidator {
 	}
 
 	private checkForInvalidArguments(attributes: IHeaderAttribute[], promptType: PromptsType, target: Target, report: (markers: IMarkerData) => void): void {
-		const validAttributeNames = getValidAttributeNames(promptType, true, target);
+		let validAttributeNames = getValidAttributeNames(promptType, true, target);
+		if (!this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS)) {
+			validAttributeNames = validAttributeNames.filter(name => name !== PromptHeaderAttributes.hooks);
+		}
+		const useCustomAgentHooks = this.configurationService.getValue<boolean>(PromptsConfig.USE_CUSTOM_AGENT_HOOKS);
 		const validGithubCopilotAttributeNames = new Lazy(() => new Set(getValidAttributeNames(promptType, false, Target.GitHubCopilot)));
 		for (const attribute of attributes) {
 			if (!validAttributeNames.includes(attribute.key)) {
-				const supportedNames = new Lazy(() => getValidAttributeNames(promptType, false, target).sort().join(', '));
+				const supportedNames = new Lazy(() => {
+					let names = getValidAttributeNames(promptType, false, target);
+					if (!useCustomAgentHooks) {
+						names = names.filter(name => name !== PromptHeaderAttributes.hooks);
+					}
+					return names.sort().join(', ');
+				});
 				switch (promptType) {
 					case PromptsType.prompt:
 						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, supportedNames.value), attribute.range, MarkerSeverity.Warning));
