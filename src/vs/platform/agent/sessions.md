@@ -23,7 +23,7 @@ On the VS Code side:
   - `Background` = `'copilotcli'`
   - `Cloud` = `'copilot-cloud-agent'`
   - `Claude` = `'claude-code'`
-  - `AgentHost` = `'agent-host'`
+  - `AgentHostCopilot` = `'agent-host-copilot'`
   - `AgentHostClaude` = `'agent-host-claude'`
 
 ### Layer 3: Extension Side Registration
@@ -36,24 +36,16 @@ Each session type registers three things via the proposed API:
 
 ### Agent Host: Internal (Non-Extension) Registration
 
-The agent-host session types (`agent-host`, `agent-host-claude`) bypass the extension point entirely. Two separate workbench contributions handle registration:
+The agent-host session types (`agent-host-copilot`, `agent-host-claude`) bypass the extension point entirely. A single `AgentHostContribution` discovers available agents from the agent host process via `listAgents()` and dynamically registers each one:
 
-**`CopilotAgentHostContribution`** (for `agent-host`):
-1. Dynamic chat agent via `IChatAgentService.registerDynamicAgent()`
+**For each `IAgentDescriptor` returned by `listAgents()`:**
+1. Chat session contribution via `IChatSessionsService.registerChatSessionContribution()`
 2. Session item controller via `IChatSessionsService.registerChatSessionItemController()`
 3. Session content provider via `IChatSessionsService.registerChatSessionContentProvider()`
 4. Language model provider via `ILanguageModelsService.registerLanguageModelProvider()`
-5. Auth token push (GitHub OAuth -> Copilot SDK)
+5. Auth token push (only if `descriptor.requiresAuth` is true)
 
-**`ClaudeAgentHostContribution`** (for `agent-host-claude`):
-1. Dynamic chat agent via `IChatAgentService.registerDynamicAgent()`
-2. Session item controller via `IChatSessionsService.registerChatSessionItemController()`
-3. Session content provider via `IChatSessionsService.registerChatSessionContentProvider()`
-4. Language model provider via `ILanguageModelsService.registerLanguageModelProvider()`
-
-Both use the same generic `AgentHostSessionHandler` class, configured via `IAgentHostSessionHandlerConfig` with provider-specific details (agent ID, session type, display name, description).
-
-Both contributions check `chat.agentHost.enabled` and bail out if the setting is `false`.
+All use the same generic `AgentHostSessionHandler` class, configured with the descriptor's metadata.
 
 ### All Entry Points
 
@@ -64,6 +56,6 @@ Both contributions check `chat.agentHost.enabled` and bail out if the setting is
 | 3 | **Service interface** | chatSessionsService.ts -- `IChatSessionsService` |
 | 4 | **Proposed API** | vscode.proposed.chatSessionsProvider.d.ts |
 | 5 | **Agent session provider enum** | agentSessions.ts -- `AgentSessionProviders` |
-| 6 | **Agent Host contributions** | agentHost/agentHostChatContribution.ts -- `CopilotAgentHostContribution` + `ClaudeAgentHostContribution` |
+| 6 | **Agent Host contribution** | agentHost/agentHostChatContribution.ts -- `AgentHostContribution` (discovers + registers dynamically) |
 | 7 | **Agent Host process** | src/vs/platform/agent/ -- utility process, SDK integration |
-| 8 | **Desktop registration** | electron-browser/chat.contribution.ts -- registers both contributions |
+| 8 | **Desktop registration** | electron-browser/chat.contribution.ts -- registers `AgentHostContribution` |

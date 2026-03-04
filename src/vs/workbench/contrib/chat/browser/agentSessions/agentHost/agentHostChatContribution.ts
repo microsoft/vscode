@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentHostService, AgentHostEnabledSettingId } from '../../../../../../platform/agent/common/agentService.js';
+import { IAgentHostService, AgentHostEnabledSettingId, IAgentDescriptor } from '../../../../../../platform/agent/common/agentService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -13,7 +13,6 @@ import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
-import { AGENT_HOST_AGENT_ID, AGENT_HOST_CLAUDE_AGENT_ID, AGENT_HOST_CLAUDE_MODEL_VENDOR, AGENT_HOST_CLAUDE_SESSION_TYPE, AGENT_HOST_MODEL_VENDOR, AGENT_HOST_SESSION_TYPE } from './agentHostConstants.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -21,17 +20,24 @@ import { AgentHostSessionListController } from './agentHostSessionListController
 export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
 
-export class CopilotAgentHostContribution extends Disposable implements IWorkbenchContribution {
+/**
+ * Discovers available agents from the agent host process and dynamically
+ * registers each one as a chat session type with its own session handler,
+ * list controller, and language model provider.
+ *
+ * Gated on the `chat.agentHost.enabled` setting.
+ */
+export class AgentHostContribution extends Disposable implements IWorkbenchContribution {
 
-	static readonly ID = 'workbench.contrib.copilotAgentHostContribution';
+	static readonly ID = 'workbench.contrib.agentHostContribution';
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
-		@IChatSessionsService chatSessionsService: IChatSessionsService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
-		@ILogService logService: ILogService,
-		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@ILogService private readonly _logService: ILogService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
@@ -41,43 +47,65 @@ export class CopilotAgentHostContribution extends Disposable implements IWorkben
 			return;
 		}
 
-		// Register as a chat session contribution
-		this._register(chatSessionsService.registerChatSessionContribution({
-			type: AGENT_HOST_SESSION_TYPE,
-			name: AGENT_HOST_AGENT_ID,
-			displayName: 'Agent Host - Copilot',
-			description: 'Copilot SDK agent running in a dedicated process',
+		this._discoverAndRegisterAgents();
+	}
+
+	private async _discoverAndRegisterAgents(): Promise<void> {
+		try {
+			const agents = await this._agentHostService.listAgents();
+			for (const agent of agents) {
+				this._registerAgent(agent);
+			}
+		} catch (err) {
+			this._logService.error('[AgentHost] Failed to discover agents', err);
+		}
+	}
+
+	private _registerAgent(agent: IAgentDescriptor): void {
+		const store = this._register(new DisposableStore());
+		const sessionType = `agent-host-${agent.provider}`;
+		const agentId = sessionType;
+		const vendor = sessionType;
+
+		// Chat session contribution
+		store.add(this._chatSessionsService.registerChatSessionContribution({
+			type: sessionType,
+			name: agentId,
+			displayName: agent.displayName,
+			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,
 		}));
 
 		// Session list controller
-		const listController = this._register(this._instantiationService.createInstance(AgentHostSessionListController));
-		this._register(chatSessionsService.registerChatSessionItemController(AGENT_HOST_SESSION_TYPE, listController));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType));
+		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
-		// Session handler + agent
-		const sessionHandler = this._register(this._instantiationService.createInstance(AgentHostSessionHandler, {
-			provider: 'copilot' as const,
-			agentId: AGENT_HOST_AGENT_ID,
-			sessionType: AGENT_HOST_SESSION_TYPE,
-			fullName: 'Agent Host - Copilot',
-			description: 'Copilot SDK agent running in a dedicated process',
+		// Session handler
+		const sessionHandler = store.add(this._instantiationService.createInstance(AgentHostSessionHandler, {
+			provider: agent.provider,
+			agentId,
+			sessionType,
+			fullName: agent.displayName,
+			description: agent.description,
 		}));
-		this._register(chatSessionsService.registerChatSessionContentProvider(AGENT_HOST_SESSION_TYPE, sessionHandler));
+		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
 		// Language model provider
-		const vendorDescriptor = { vendor: AGENT_HOST_MODEL_VENDOR, displayName: 'Agent Host - Copilot', configuration: undefined, managementCommand: undefined, when: undefined };
-		languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
-		this._register(toDisposable(() => languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = this._register(new AgentHostLanguageModelProvider(this._agentHostService, logService, AGENT_HOST_SESSION_TYPE));
-		this._register(languageModelsService.registerLanguageModelProvider(AGENT_HOST_MODEL_VENDOR, modelProvider));
+		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
+		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
+		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
+		const modelProvider = store.add(new AgentHostLanguageModelProvider(this._agentHostService, this._logService, sessionType, vendor));
+		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 
-		// Auth -- refresh models after token is pushed so the SDK can authenticate
-		this._pushAuthToken().then(() => modelProvider.refresh());
-		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() =>
-			this._pushAuthToken().then(() => modelProvider.refresh())));
-		this._register(this._authenticationService.onDidChangeSessions(() =>
-			this._pushAuthToken().then(() => modelProvider.refresh())));
+		// Auth (only for agents that need it)
+		if (agent.requiresAuth) {
+			this._pushAuthToken().then(() => modelProvider.refresh());
+			store.add(this._defaultAccountService.onDidChangeDefaultAccount(() =>
+				this._pushAuthToken().then(() => modelProvider.refresh())));
+			store.add(this._authenticationService.onDidChangeSessions(() =>
+				this._pushAuthToken().then(() => modelProvider.refresh())));
+		}
 	}
 
 	private async _pushAuthToken(): Promise<void> {
@@ -95,56 +123,5 @@ export class CopilotAgentHostContribution extends Disposable implements IWorkben
 		} catch {
 			// best-effort
 		}
-	}
-}
-
-export class ClaudeAgentHostContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.claudeAgentHostContribution';
-
-	constructor(
-		@IAgentHostService agentHostService: IAgentHostService,
-		@IChatSessionsService chatSessionsService: IChatSessionsService,
-		@ILogService logService: ILogService,
-		@ILanguageModelsService languageModelsService: ILanguageModelsService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-	) {
-		super();
-
-		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
-			return;
-		}
-
-		// Register as a chat session contribution
-		this._register(chatSessionsService.registerChatSessionContribution({
-			type: AGENT_HOST_CLAUDE_SESSION_TYPE,
-			name: AGENT_HOST_CLAUDE_AGENT_ID,
-			displayName: 'Agent Host - Claude',
-			description: 'Claude SDK agent running in a dedicated process',
-			canDelegate: true,
-			requiresCustomModels: true,
-		}));
-
-		// Session list controller
-		const listController = this._register(this._instantiationService.createInstance(AgentHostSessionListController));
-		this._register(chatSessionsService.registerChatSessionItemController(AGENT_HOST_CLAUDE_SESSION_TYPE, listController));
-
-		// Session handler + agent
-		const sessionHandler = this._register(this._instantiationService.createInstance(AgentHostSessionHandler, {
-			provider: 'claude' as const,
-			agentId: AGENT_HOST_CLAUDE_AGENT_ID,
-			sessionType: AGENT_HOST_CLAUDE_SESSION_TYPE,
-			fullName: 'Agent Host - Claude',
-			description: 'Claude SDK agent running in a dedicated process',
-		}));
-		this._register(chatSessionsService.registerChatSessionContentProvider(AGENT_HOST_CLAUDE_SESSION_TYPE, sessionHandler));
-
-		// Language model provider
-		const vendorDescriptor = { vendor: AGENT_HOST_CLAUDE_MODEL_VENDOR, displayName: 'Agent Host - Claude', configuration: undefined, managementCommand: undefined, when: undefined };
-		languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
-		this._register(toDisposable(() => languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = this._register(new AgentHostLanguageModelProvider(agentHostService, logService, AGENT_HOST_CLAUDE_SESSION_TYPE));
-		this._register(languageModelsService.registerLanguageModelProvider(AGENT_HOST_CLAUDE_MODEL_VENDOR, modelProvider));
 	}
 }

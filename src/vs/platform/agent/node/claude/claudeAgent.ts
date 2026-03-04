@@ -8,7 +8,7 @@ import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js'
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession } from '../../common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../../common/agentService.js';
 import { ClaudeSession } from './claudeSession.js';
 
 /**
@@ -29,6 +29,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	}
 
 	// ---- auth ---------------------------------------------------------------
+
+	getDescriptor(): IAgentDescriptor {
+		return {
+			provider: 'claude',
+			displayName: 'Agent Host - Claude',
+			description: 'Claude SDK agent running in a dedicated process',
+			requiresAuth: false,
+		};
+	}
 
 	async setAuthToken(_token: string): Promise<void> {
 		// Claude SDK uses its own API key; no-op for GitHub tokens.

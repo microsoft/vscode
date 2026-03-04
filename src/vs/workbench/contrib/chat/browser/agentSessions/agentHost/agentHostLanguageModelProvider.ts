@@ -10,8 +10,11 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IAgentHostService } from '../../../../../../platform/agent/common/agentService.js';
 import { ILanguageModelChatProvider, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
-import { AGENT_HOST_MODEL_VENDOR } from './agentHostConstants.js';
 
+/**
+ * Exposes models available from the agent host process as selectable
+ * language models in the chat model picker.
+ */
 export class AgentHostLanguageModelProvider extends Disposable implements ILanguageModelChatProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -20,6 +23,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		private readonly _agentHostService: IAgentHostService,
 		private readonly _logService: ILogService,
 		private readonly _sessionType: string,
+		private readonly _vendor: string,
 	) {
 		super();
 	}
@@ -34,12 +38,12 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			return models
 				.filter(m => m.policyState !== 'disabled')
 				.map(m => ({
-					identifier: `${AGENT_HOST_MODEL_VENDOR}:${m.id}`,
+					identifier: `${this._vendor}:${m.id}`,
 					metadata: {
 						extension: new ExtensionIdentifier('vscode.agent-host'),
 						name: m.name,
 						id: m.id,
-						vendor: AGENT_HOST_MODEL_VENDOR,
+						vendor: this._vendor,
 						version: '1.0',
 						family: m.id,
 						maxInputTokens: m.maxContextWindow,

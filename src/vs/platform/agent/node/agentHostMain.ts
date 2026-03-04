@@ -23,6 +23,9 @@ import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { localize } from '../../../nls.js';
 
+// Entry point for the agent host utility process.
+// Sets up IPC, logging, and registers agent providers (Copilot, Claude).
+
 startAgentHost();
 
 function startAgentHost(): void {

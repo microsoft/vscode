@@ -10,9 +10,12 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IAgentHostService, AgentSession } from '../../../../../../platform/agent/common/agentService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemController } from '../../../common/chatSessionsService.js';
-import { AGENT_HOST_SESSION_TYPE } from './agentHostConstants.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 
+/**
+ * Provides session list items for the chat sessions sidebar by querying
+ * active sessions from the agent host process.
+ */
 export class AgentHostSessionListController extends Disposable implements IChatSessionItemController {
 
 	private readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
@@ -21,6 +24,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	private _items: IChatSessionItem[] = [];
 
 	constructor(
+		private readonly _sessionType: string,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IProductService private readonly _productService: IProductService,
 	) {
@@ -36,7 +40,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			const sessions = await this._agentHostService.listSessions();
 			const rawId = (s: typeof sessions[0]) => AgentSession.id(s.session);
 			this._items = sessions.map(s => ({
-				resource: URI.from({ scheme: AGENT_HOST_SESSION_TYPE, path: `/${rawId(s)}` }),
+				resource: URI.from({ scheme: this._sessionType, path: `/${rawId(s)}` }),
 				label: s.summary ?? `Session ${rawId(s).substring(0, 8)}`,
 				iconPath: getAgentHostIcon(this._productService),
 				status: ChatSessionStatus.Completed,

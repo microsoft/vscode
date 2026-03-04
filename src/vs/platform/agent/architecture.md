@@ -8,7 +8,7 @@ For design decisions, see [design.md](design.md). For the task backlog, see [bac
 
 The agent host is a dedicated Electron **utility process** that runs the [Copilot SDK](https://github.com/github/copilot-sdk) (`@github/copilot-sdk`) and the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk) (`@anthropic-ai/claude-agent-sdk`) in isolation. It follows the same pattern as the **pty host** (`src/vs/platform/terminal/`), communicating over **MessagePort** via the standard `ProxyChannel` IPC infrastructure.
 
-The renderer connects **directly** to the utility process via MessagePort (bypassing the main process for all agent service calls). Each agent provider (Copilot, Claude) has its own independent workbench contribution that registers a dynamic chat agent, session item controller, session content provider, and language model provider.
+The renderer connects **directly** to the utility process via MessagePort (bypassing the main process for all agent service calls). A single workbench contribution (`AgentHostContribution`) discovers available agents from the agent host via `listAgents()` and dynamically registers each one as a chat session type with its own handler, list controller, and model provider.
 
 The entire feature is gated behind the `chat.agentHost.enabled` setting (default `false`). When disabled, the process is not spawned and no agents are registered.
 
@@ -18,10 +18,8 @@ The entire feature is gated behind the `chat.agentHost.enabled` setting (default
 +--------------------------------------------------------------+
 |  Renderer Window                                              |
 |                                                               |
-|  CopilotAgentHostContribution    ClaudeAgentHostContribution  |
-|    +-- AgentHostSessionHandler     +-- AgentHostSessionHandler |
-|    +-- AgentHostSessionListCtrl    +-- AgentHostSessionListCtrl|
-|    +-- AgentHostLMProvider         +-- AgentHostLMProvider     |
+|  AgentHostContribution (discovers agents via listAgents())    |
+|    +-- per agent: SessionHandler, ListCtrl, LMProvider        |
 |                                                               |
 |  AgentHostServiceClient (IAgentHostService singleton)         |
 |    +-- ProxyChannel over delayed MessagePort                  |
@@ -73,14 +71,13 @@ src/vs/platform/agent/
         +-- claudeToolDisplay.ts  # Claude-specific tool display mapping
 
 src/vs/workbench/contrib/chat/browser/agentSessions/agentHost/
-+-- agentHostChatContribution.ts      # CopilotAgentHostContribution + ClaudeAgentHostContribution
-+-- agentHostConstants.ts             # Session type, agent ID, model vendor constants
++-- agentHostChatContribution.ts      # AgentHostContribution: discovers agents, registers dynamically
 +-- agentHostLanguageModelProvider.ts # ILanguageModelChatProvider for SDK models
 +-- agentHostSessionHandler.ts        # AgentHostSessionHandler: generic, config-driven
 +-- agentHostSessionListController.ts # Lists persisted sessions from agent host
 
 src/vs/workbench/contrib/chat/electron-browser/
-+-- chat.contribution.ts      # Desktop-only: registers both contributions
++-- chat.contribution.ts      # Desktop-only: registers AgentHostContribution
 ```
 
 ## Session URIs
@@ -93,7 +90,7 @@ Sessions are identified by URIs where the **scheme is the provider name** and th
 | `AgentSession.id(session)` | Extract raw session ID from URI |
 | `AgentSession.provider(session)` | Extract provider name from URI scheme |
 
-The renderer uses UI resource schemes (`agent-host`, `agent-host-claude`) for session resources. The `AgentHostSessionHandler` converts these to provider URIs before IPC calls.
+The renderer uses UI resource schemes (`agent-host-copilot`, `agent-host-claude`) for session resources. The `AgentHostSessionHandler` converts these to provider URIs before IPC calls.
 
 ## IPC Contract (`IAgentService`)
 
@@ -101,6 +98,7 @@ Methods proxied across MessagePort via `ProxyChannel`. URI arguments are auto-ma
 
 | Method | Description |
 |---|---|
+| `listAgents()` | Discover available agent backends (returns `IAgentDescriptor[]`) |
 | `setAuthToken(token)` | Push GitHub OAuth token for Copilot SDK auth |
 | `listModels()` | List available models from all providers |
 | `listSessions()` | List all persisted sessions from all providers |
@@ -120,7 +118,7 @@ Events:
 The `chat.agentHost.enabled` setting (default `false`) controls the entire feature:
 - **Main process** (`app.ts`): skips creating `ElectronAgentHostStarter` + `AgentHostProcessManager`
 - **Renderer proxy** (`AgentHostServiceClient`): skips MessagePort connection
-- **Contributions** (`CopilotAgentHostContribution`, `ClaudeAgentHostContribution`): return early without registering
+- **Contribution** (`AgentHostContribution`): returns early without discovering or registering agents
 
 ### Startup (lazy)
 
@@ -129,20 +127,27 @@ The `chat.agentHost.enabled` setting (default `false`) controls the entire featu
 3. On start, the starter spawns the utility process with entry point `vs/platform/agent/node/agentHostMain`.
 4. Each renderer window gets its own MessagePort via `acquirePort('vscode:createAgentHostMessageChannel', ...)`.
 
-### Per-Provider Contributions
+### Dynamic Agent Discovery
 
-Each provider has its own independent contribution class:
+On startup (if the setting is enabled), `AgentHostContribution` calls `listAgents()` to discover available backends from the agent host process. Each returned `IAgentDescriptor` contains:
 
-| Contribution | Provider | Registers |
-|---|---|---|
-| `CopilotAgentHostContribution` | `copilot` | Session handler, list controller, model provider, auth token push |
-| `ClaudeAgentHostContribution` | `claude` | Session handler, list controller, model provider |
+| Field | Purpose |
+|---|---|
+| `provider` | Agent provider ID (`'copilot'`, `'claude'`) |
+| `displayName` | Human-readable name for UI |
+| `description` | Description string |
+| `requiresAuth` | Whether the renderer should push a GitHub auth token |
 
-The `AgentHostSessionHandler` is generic: it receives all provider-specific details via `IAgentHostSessionHandlerConfig` (`provider`, `agentId`, `sessionType`, `fullName`, `description`). No provider-specific branching in the handler.
+For each descriptor, the contribution dynamically registers:
+- Chat session contribution (type = `agent-host-{provider}`)
+- `AgentHostSessionHandler` configured with the descriptor's metadata
+- `AgentHostSessionListController` for the session sidebar
+- `AgentHostLanguageModelProvider` for the model picker
+- Auth token wiring (only if `requiresAuth` is true)
 
 ### Auth Token Flow
 
-Only `CopilotAgentHostContribution` handles auth (Claude uses its own API key):
+Only agents with `requiresAuth: true` (currently Copilot) get auth wiring:
 1. On startup and on account/session changes, retrieves the GitHub OAuth token
 2. Pushes it to the agent host via `IAgentHostService.setAuthToken(token)`
 3. `CopilotAgent` passes it to `CopilotClient({ githubToken })` on next client creation

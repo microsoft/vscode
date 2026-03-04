@@ -8,7 +8,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
-import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession } from '../../common/agentService.js';
+import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor } from '../../common/agentService.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool } from './copilotToolDisplay.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 
@@ -43,6 +43,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	// ---- auth ---------------------------------------------------------------
+
+	getDescriptor(): IAgentDescriptor {
+		return {
+			provider: 'copilot',
+			displayName: 'Agent Host - Copilot',
+			description: 'Copilot SDK agent running in a dedicated process',
+			requiresAuth: true,
+		};
+	}
 
 	async setAuthToken(token: string): Promise<void> {
 		const tokenChanged = this._githubToken !== token;

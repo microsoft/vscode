@@ -7,6 +7,10 @@ import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
+// IPC contract between the renderer and the agent host utility process.
+// Defines all serializable event types, the IAgent provider interface,
+// and the IAgentService / IAgentHostService service decorators.
+
 export const enum AgentHostIpcChannels {
 	/** Channel for the agent host service on the main-process side */
 	AgentHost = 'agentHost',
@@ -27,6 +31,15 @@ export interface IAgentSessionMetadata {
 }
 
 export type AgentProvider = 'copilot' | 'claude';
+
+/** Metadata describing an agent backend, discovered over IPC. */
+export interface IAgentDescriptor {
+	readonly provider: AgentProvider;
+	readonly displayName: string;
+	readonly description: string;
+	/** Whether the renderer should push a GitHub auth token for this agent. */
+	readonly requiresAuth: boolean;
+}
 
 export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
@@ -195,6 +208,9 @@ export interface IAgent {
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
 
+	/** Return the descriptor for this agent. */
+	getDescriptor(): IAgentDescriptor;
+
 	/** List available models from this provider. */
 	listModels(): Promise<IAgentModelInfo[]>;
 
@@ -224,6 +240,9 @@ export interface IAgentService {
 
 	/** Fires when the agent host streams progress for a session. */
 	readonly onDidSessionProgress: Event<IAgentProgressEvent>;
+
+	/** Discover available agent backends from the agent host. */
+	listAgents(): Promise<IAgentDescriptor[]>;
 
 	/** Set the GitHub auth token used by the Copilot SDK. */
 	setAuthToken(token: string): Promise<void>;

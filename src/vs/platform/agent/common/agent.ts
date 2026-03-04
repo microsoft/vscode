@@ -7,6 +7,9 @@ import { Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IChannelClient } from '../../../base/parts/ipc/common/ipc.js';
 
+// Agent host process starter and connection abstractions.
+// Used by the main process to spawn and connect to the agent host utility process.
+
 export interface IAgentHostConnection {
 	readonly client: IChannelClient;
 	readonly store: DisposableStore;

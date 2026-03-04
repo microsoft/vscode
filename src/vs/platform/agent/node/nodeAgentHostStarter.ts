@@ -10,6 +10,10 @@ import { IEnvironmentService, INativeEnvironmentService } from '../../environmen
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
 
+/**
+ * Spawns the agent host as a Node child process (fallback when
+ * Electron utility process is unavailable, e.g. dev/test).
+ */
 export class NodeAgentHostStarter extends Disposable implements IAgentHostStarter {
 	constructor(
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService

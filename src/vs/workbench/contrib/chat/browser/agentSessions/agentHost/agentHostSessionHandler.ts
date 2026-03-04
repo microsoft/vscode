@@ -21,10 +21,12 @@ import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chat
 import { IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
-import { AGENT_HOST_AGENT_ID } from './agentHostConstants.js';
 
 // =============================================================================
-// History reconstruction
+// AgentHostSessionHandler - renderer-side handler for a single agent host
+// chat session. Bridges the agent host IPC service with the chat UI:
+// creates sessions, streams responses, manages tool invocations, and
+// reconstructs history for session restore.
 // =============================================================================
 
 /**
@@ -34,6 +36,7 @@ import { AGENT_HOST_AGENT_ID } from './agentHostConstants.js';
 function buildHistory(
 	events: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[],
 	history: IChatSessionHistoryItem[],
+	participantId: string,
 ): void {
 	let currentResponseParts: IChatProgress[] | undefined;
 
@@ -41,10 +44,10 @@ function buildHistory(
 		if (e.type === 'message') {
 			if (e.role === 'user') {
 				if (currentResponseParts) {
-					history.push({ type: 'response', parts: currentResponseParts, participant: AGENT_HOST_AGENT_ID });
+					history.push({ type: 'response', parts: currentResponseParts, participant: participantId });
 					currentResponseParts = undefined;
 				}
-				history.push({ type: 'request', prompt: e.content, participant: AGENT_HOST_AGENT_ID });
+				history.push({ type: 'request', prompt: e.content, participant: participantId });
 			} else {
 				if (!currentResponseParts) {
 					currentResponseParts = [];
@@ -106,7 +109,7 @@ function buildHistory(
 				currentResponseParts[i] = { ...part, isComplete: true };
 			}
 		}
-		history.push({ type: 'response', parts: currentResponseParts, participant: AGENT_HOST_AGENT_ID });
+		history.push({ type: 'response', parts: currentResponseParts, participant: participantId });
 	}
 }
 
@@ -189,7 +192,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const history: IChatSessionHistoryItem[] = [];
 		if (!resourceKey.startsWith('untitled-')) {
 			const events = await this._agentHostService.getSessionMessages(resolvedSession);
-			buildHistory(events, history);
+			buildHistory(events, history, this._config.agentId);
 		}
 		const session = this._instantiationService.createInstance(
 			AgentHostChatSession,

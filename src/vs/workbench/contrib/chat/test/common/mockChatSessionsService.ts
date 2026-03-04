@@ -242,6 +242,18 @@ export class MockChatSessionsService implements IChatSessionsService {
 		};
 	}
 
+	registerChatSessionContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
+		this.contributions.push(contribution);
+		return {
+			dispose: () => {
+				const idx = this.contributions.indexOf(contribution);
+				if (idx >= 0) {
+					this.contributions.splice(idx, 1);
+				}
+			}
+		};
+	}
+
 	// Helper method for tests to trigger progress events
 	triggerProgressEvent(): void {
 		if (this.onChange) {
