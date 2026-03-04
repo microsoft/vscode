@@ -85,7 +85,7 @@ async function main() {
 
 	server.listen(PORT, HOST, () => {
 		console.log(`\n  Sessions Web running at: http://${HOST}:${PORT}/\n`);
-		if (!args['no-open']) {
+		if (!args['no-open'] && args.open !== false) {
 			open.default(`http://${HOST}:${PORT}/`);
 		}
 	});
