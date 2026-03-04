@@ -72,7 +72,7 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 	}
 
 	async $unregisterSocketFactory(socketFactoryId: number): Promise<void> {
-		this._registrations.get(socketFactoryId)?.dispose();
+		this._registrations.deleteAndDispose(socketFactoryId);
 	}
 
 	$onDidManagedSocketHaveData(socketId: number, data: VSBuffer): void {
