@@ -211,7 +211,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				continue;
 			}
 			const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
-			const cy = fontInfo ? lineHeight - fontInfo.fontHeight / 2 : lineHeight / 2;
+			const cy = lineHeight - fontInfo.fontHeight / 2;
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);

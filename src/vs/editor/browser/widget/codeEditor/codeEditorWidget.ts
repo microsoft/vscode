@@ -47,7 +47,7 @@ import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
 import { VerticalRevealType } from '../../../common/viewEvents.js';
-import { IEditorWhitespace, IFont, IViewModel } from '../../../common/viewModel.js';
+import { IEditorWhitespace, IViewModel } from '../../../common/viewModel.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
@@ -66,6 +66,7 @@ import { TextModelEditSource, EditSources } from '../../../common/textModelEditS
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
 import { isObject } from '../../../../base/common/types.js';
 import { IUserInteractionService } from '../../../../platform/userInteraction/browser/userInteractionService.js';
+import { FontInfo } from '../../../common/config/fontInfo.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -1356,7 +1357,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), filterFontDecorations(options));
 	}
 
-	public getFontAtPosition(position: IPosition): IFont | null {
+	public getFontAtPosition(position: IPosition): FontInfo | null {
 		if (!this._modelData) {
 			return null;
 		}

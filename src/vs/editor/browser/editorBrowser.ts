@@ -11,6 +11,7 @@ import { MenuId } from '../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IDiffEditorOptions, IEditorOptions, OverviewRulerPosition } from '../common/config/editorOptions.js';
+import { FontInfo } from '../common/config/fontInfo.js';
 import { IDimension } from '../common/core/2d/dimension.js';
 import { TextEdit } from '../common/core/edits/textEdit.js';
 import { IPosition, Position } from '../common/core/position.js';
@@ -24,7 +25,7 @@ import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, 
 import { InjectedText } from '../common/modelLineProjectionData.js';
 import { TextModelEditSource } from '../common/textModelEditSource.js';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from '../common/textModelEvents.js';
-import { IEditorWhitespace, IFont, IViewModel } from '../common/viewModel.js';
+import { IEditorWhitespace, IViewModel } from '../common/viewModel.js';
 import { OverviewRulerZone } from '../common/viewModel/overviewZoneManager.js';
 import { IEditorConstructionOptions } from './config/editorConfiguration.js';
 import { IClipboardCopyEvent, IClipboardPasteEvent } from './controller/editContext/clipboardUtils.js';
@@ -1067,7 +1068,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Get the font size at a given position
 	 * @param position the position for which to fetch the font size
 	 */
-	getFontAtPosition(position: IPosition): IFont | null;
+	getFontAtPosition(position: IPosition): FontInfo | null;
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.

@@ -578,13 +578,15 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly hiddenAreasModel = new HiddenAreasModel();
 	private previousHiddenAreas: readonly Range[] = [];
 
-	public getFontAtPosition(position: IPosition): FontInfo | null {
+	public getFontAtPosition(position: IPosition): FontInfo {
+		const options = this._configuration.options;
+		const fontInfo = this._configuration.options.get(EditorOption.fontInfo);
 		const allowVariableFonts = this._configuration.options.get(EditorOption.effectiveAllowVariableFonts);
 		if (!allowVariableFonts) {
-			return null;
+			return fontInfo;
 		}
+		const lineHeight = this.viewLayout.getLineHeightForLineNumber(position.lineNumber);
 		const fontDecorations = this.model.getFontDecorationsInRange(Range.fromPositions(position), this._editorId);
-		const fontInfo = this._configuration.options.get(EditorOption.fontInfo);
 		let candidateFontSize: number | undefined;
 		let candidateFontFamily: string | undefined;
 		for (const fontDecoration of fontDecorations) {
@@ -598,11 +600,12 @@ export class ViewModel extends Disposable implements IViewModel {
 				break;
 			}
 		}
+		if (!candidateFontSize && !candidateFontFamily && lineHeight === fontInfo.lineHeight) {
+			return fontInfo;
+		}
 		const defaultFontSize = this._configuration.options.get(EditorOption.fontSize);
 		const fontFamily = candidateFontFamily ?? fontInfo.fontFamily;
 		const fontSize = candidateFontSize ? candidateFontSize * defaultFontSize : defaultFontSize;
-		const lineHeight = this.viewLayout.getLineHeightForLineNumber(position.lineNumber);
-		const options = this._configuration.options;
 		const fontWeight = options.get(EditorOption.fontWeight);
 		const fontFeatureSettings = options.get(EditorOption.fontLigatures);
 		const fontVariationSettings = options.get(EditorOption.fontVariations);

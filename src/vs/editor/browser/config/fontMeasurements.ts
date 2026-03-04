@@ -7,7 +7,7 @@ import { getWindowId } from '../../../base/browser/dom.js';
 import { PixelRatio } from '../../../base/browser/pixelRatio.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { CharWidthRequest, CharWidthRequestType, readCharWidths } from './charWidthReader.js';
+import { CharWidthRequest, CharWidthRequestType, readCharWidths, readFontHeight } from './charWidthReader.js';
 import { EditorFontLigatures } from '../../common/config/editorOptions.js';
 import { BareFontInfo, FontInfo, SERIALIZED_FONT_INFO_VERSION } from '../../common/config/fontInfo.js';
 
@@ -226,11 +226,7 @@ export class FontMeasurementsImpl extends Disposable {
 			canUseHalfwidthRightwardsArrow = false;
 		}
 
-		const canvas = new OffscreenCanvas(1, 1);
-		const canvasCtx = canvas.getContext('2d')!;
-		canvasCtx.font = `${bareFontInfo.fontSize}px ${bareFontInfo.fontFamily}`;
-		const tm = canvasCtx.measureText('A');
-		const fontHeight = tm.fontBoundingBoxAscent + tm.fontBoundingBoxDescent;
+		const fontHeight = readFontHeight(bareFontInfo);
 
 		return new FontInfo({
 			pixelRatio: PixelRatio.getInstance(targetWindow).value,
