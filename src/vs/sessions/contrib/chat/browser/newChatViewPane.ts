@@ -226,17 +226,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._folderPicker.onDidSelectFolder(async (folderUri) => {
-			const previousFolderUri = this._newSession.value?.repoUri;
-			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
-				uri: folderUri,
-				message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
-			});
-			if (trusted) {
-				this._newSession.value?.setRepoUri(folderUri);
-			} else if (previousFolderUri) {
-				this._folderPicker.setSelectedFolder(previousFolderUri);
-			} else {
-				this._folderPicker.clearSelection();
+			const session = this._newSession.value;
+			if (session) {
+				await this._requestFolderTrust(folderUri, session);
 			}
 			this._updateDraftState();
 			this._focusEditor();
@@ -369,7 +361,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._repoPicker.setNewSession(undefined);
 			const folderUri = this._folderPicker.selectedFolderUri;
 			if (folderUri) {
-				session.setRepoUri(folderUri);
+				this._requestFolderTrust(folderUri, session);
 			}
 		} else {
 			this._isolationModePicker.setNewSession(undefined);
@@ -1046,6 +1038,21 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._folderPicker.showPicker();
 		} else {
 			this._repoPicker.showPicker();
+		}
+	}
+
+	private async _requestFolderTrust(folderUri: URI, session: INewSession): Promise<void> {
+		const previousFolderUri = session.repoUri;
+		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
+			uri: folderUri,
+			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
+		});
+		if (trusted) {
+			session.setRepoUri(folderUri);
+		} else if (previousFolderUri) {
+			this._folderPicker.setSelectedFolder(previousFolderUri);
+		} else {
+			this._folderPicker.clearSelection();
 		}
 	}
 
