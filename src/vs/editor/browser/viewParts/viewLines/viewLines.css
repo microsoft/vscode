@@ -29,6 +29,7 @@
 	padding: 4px;
 	cursor: pointer;
 }
+
 .mtkoverflow:hover {
 	background-color: var(--vscode-button-hoverBackground);
 }
@@ -39,6 +40,7 @@
 	user-select: none;
 	-webkit-user-select: none;
 }
+
 /* Use user-select: text for lookup feature on macOS */
 /* https://github.com/microsoft/vscode/issues/85632 */
 .monaco-editor.mac .lines-content:hover,
@@ -69,7 +71,15 @@
 	top: 0;
 	bottom: 0;
 	position: absolute;
+	display: flex;
+	align-items: flex-end;
 }
+
+.monaco-editor .lines-content > .view-lines > .view-line > span > span {
+	line-height: normal;
+	padding-bottom: 3px;
+}
+
 
 .monaco-editor .mtkw {
 	color: var(--vscode-editorWhitespace-foreground) !important;

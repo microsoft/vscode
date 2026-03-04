@@ -15,7 +15,6 @@ import { IEditorConfiguration } from '../../../common/config/editorConfiguration
 import * as strings from '../../../../base/common/strings.js';
 import { CharCode } from '../../../../base/common/charCode.js';
 import { Position } from '../../../common/core/position.js';
-import { Range } from '../../../common/core/range.js';
 import { editorWhitespaces } from '../../../common/core/editorColorRegistry.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 
@@ -169,7 +168,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		let currentSelectionIndex = 0;
 		let currentSelection = selections && selections[currentSelectionIndex];
 		let maxLeft = 0;
-		const maximumAscentMinusDescent = this._getMaxAscentMinusDescent(lineNumber, len + 1);
 
 		for (let charIndex = fauxIndentLength; charIndex < len; charIndex++) {
 			const chCode = lineContent.charCodeAt(charIndex);
@@ -215,12 +213,11 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 				continue;
 			}
 
-			// Variable fonts: cy_f = (H - (A_f - D_f) + max_i(A_i - D_i)) / 2
 			const fontInfo = this._context.viewModel.getFontAtPosition(new Position(lineNumber, charIndex + 1));
 			const fontFamily = fontInfo?.fontFamily ?? this._options.fontFamily;
 			const fontSize = fontInfo?.fontSize ?? this._options.fontSize;
-			const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
-			const cy = (lineHeight - (metrics.ascent - metrics.descent) + maximumAscentMinusDescent) / 2;
+			const fontHeight = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
+			const cy = lineHeight - fontHeight / 2;
 
 			if (USE_SVG) {
 				maxLeft = Math.max(maxLeft, visibleRange.left);
@@ -248,22 +245,6 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		}
 
 		return result;
-	}
-
-	private _getMaxAscentMinusDescent(lineNumber: number, maxColumn: number): number {
-		const modelFontDecorations = this._context.viewModel.getFontDecorationsInRange(new Range(lineNumber, 1, lineNumber, maxColumn));
-		const baseFontFamily = this._options.fontFamily;
-		const baseFontSize = this._options.fontSize;
-		const baseMetrics = this._fontMetricsCache.getMetrics(baseFontFamily, baseFontSize);
-		let maxAscentMinusDescent = baseMetrics.ascent - baseMetrics.descent;
-
-		for (const dec of modelFontDecorations) {
-			const fontFamily = dec.options.fontFamily ?? baseFontFamily;
-			const fontSize = dec.options.fontSize ? dec.options.fontSize * baseFontSize : baseFontSize;
-			const metrics = this._fontMetricsCache.getMetrics(fontFamily, fontSize);
-			maxAscentMinusDescent = Math.max(maxAscentMinusDescent, metrics.ascent - metrics.descent);
-		}
-		return maxAscentMinusDescent;
 	}
 
 	private _renderArrow(lineHeight: number, spaceWidth: number, left: number): string {
@@ -354,29 +335,21 @@ class WhitespaceOptions {
 	}
 }
 
-interface FontMetrics {
-	readonly ascent: number;
-	readonly descent: number;
-}
-
 class FontMetricsCache {
 
-	private readonly _cache = new Map<string, FontMetrics>();
+	private readonly _cache = new Map<string, number>();
 
-	getMetrics(fontFamily: string, fontSize: number): FontMetrics {
+	getMetrics(fontFamily: string, fontSize: number): number {
 		const key = `${fontFamily}|${fontSize}`;
-		let metrics = this._cache.get(key);
-		if (!metrics) {
+		let height = this._cache.get(key);
+		if (!height) {
 			const canvas = new OffscreenCanvas(1, 1);
 			const ctx = canvas.getContext('2d')!;
 			ctx.font = `${fontSize}px ${fontFamily}`;
 			const tm = ctx.measureText('A');
-			metrics = {
-				ascent: tm.fontBoundingBoxAscent,
-				descent: tm.fontBoundingBoxDescent
-			};
-			this._cache.set(key, metrics);
+			height = tm.fontBoundingBoxAscent + tm.fontBoundingBoxDescent;
+			this._cache.set(key, height);
 		}
-		return metrics;
+		return height;
 	}
 }
