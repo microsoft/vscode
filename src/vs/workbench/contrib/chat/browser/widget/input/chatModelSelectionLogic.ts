@@ -28,7 +28,7 @@ export function filterModelsForSession(
 	location: ChatAgentLocation,
 	isInlineChatV2Enabled: boolean,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	if (sessionType && sessionType !== 'local') {
+	if (sessionType && sessionType !== 'local' && hasModelsTargetingSession(models, sessionType)) {
 		return models.filter(entry =>
 			entry.metadata?.targetChatSessionType === sessionType &&
 			entry.metadata?.isUserSelectable &&

@@ -268,7 +268,7 @@ suite('ChatModelSelectionLogic', () => {
 			assert.deepStrictEqual(result.map(m => m.metadata.id), ['cloud-gpt']);
 		});
 
-		test('returns empty array when no models match session type', () => {
+		test('falls back to general models when no models target the session type', () => {
 			const result = filterModelsForSession(
 				[gpt4o, claude],
 				'cloud',
@@ -276,7 +276,7 @@ suite('ChatModelSelectionLogic', () => {
 				ChatAgentLocation.Chat,
 				false,
 			);
-			assert.deepStrictEqual(result, []);
+			assert.deepStrictEqual(result.map(m => m.metadata.id), ['gpt-4o', 'claude']);
 		});
 
 		test('filters inline chat incompatible models in EditorInline with V2', () => {
