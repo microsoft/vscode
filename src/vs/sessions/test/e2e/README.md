@@ -1,7 +1,7 @@
 # Agent Sessions — E2E Tests
 
 Automated dogfooding tests for the Agent Sessions window using
-[`playwright-cli`](https://github.com/anthropics/playwright-cli) and a lightweight
+[`playwright-cli`](https://github.com/microsoft/playwright-cli) and a lightweight
 web server that serves Sessions in a browser.
 
 ## Architecture
@@ -47,7 +47,7 @@ scripts/
   ```
 - `playwright-cli` installed globally:
   ```bash
-  npm install -g @anthropics/playwright-cli
+  npm install -g @playwright/cli@latest
   ```
 
 ## Running
