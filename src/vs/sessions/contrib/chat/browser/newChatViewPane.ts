@@ -367,10 +367,6 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._isolationModePicker.setNewSession(session);
 			this._branchPicker.setNewSession(session);
 			this._repoPicker.setNewSession(undefined);
-			const folderUri = this._folderPicker.selectedFolderUri;
-			if (folderUri) {
-				session.setRepoUri(folderUri);
-			}
 		} else {
 			this._isolationModePicker.setNewSession(undefined);
 			this._branchPicker.setNewSession(undefined);
