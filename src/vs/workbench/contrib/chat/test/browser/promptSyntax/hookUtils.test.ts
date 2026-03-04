@@ -877,5 +877,77 @@ suite('hookUtils', () => {
 			assert.ok(result);
 			assert.strictEqual(getSelectedText(content, result), 'echo hello');
 		});
+
+		test('finds short command that is a substring of the key name', () => {
+			const content = [
+				'hooks:',
+				'  Stop:',
+				'    - timeout: 10',
+				'      command: "a"',
+				'      type: command',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'a');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'a');
+			assert.strictEqual(result.startLineNumber, 4);
+		});
+
+		test('finds short command in bash field that is a substring of the key name', () => {
+			const content = [
+				'hooks:',
+				'  sessionStart:',
+				'    - bash: "a"',
+				'      type: command',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'a');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'a');
+			assert.strictEqual(result.startLineNumber, 3);
+		});
+
+		test('finds command in powershell field', () => {
+			const content = [
+				'hooks:',
+				'  sessionStart:',
+				'    - powershell: "echo hello"',
+				'      type: command',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'echo hello');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'echo hello');
+			assert.strictEqual(result.startLineNumber, 3);
+		});
+
+		test('finds command in windows field', () => {
+			const content = [
+				'hooks:',
+				'  sessionStart:',
+				'    - windows: "dir"',
+				'      type: command',
+			].join('\n');
+			const result = findHookCommandInYaml(content, 'dir');
+			assert.ok(result);
+			assert.strictEqual(getSelectedText(content, result), 'dir');
+			assert.strictEqual(result.startLineNumber, 3);
+		});
+
+		test('finds command in linux and osx fields', () => {
+			const content = [
+				'hooks:',
+				'  sessionStart:',
+				'    - linux: "ls"',
+				'      osx: "ls -G"',
+				'      type: command',
+			].join('\n');
+			const linuxResult = findHookCommandInYaml(content, 'ls');
+			assert.ok(linuxResult);
+			assert.strictEqual(getSelectedText(content, linuxResult), 'ls');
+			assert.strictEqual(linuxResult.startLineNumber, 3);
+
+			const osxResult = findHookCommandInYaml(content, 'ls -G');
+			assert.ok(osxResult);
+			assert.strictEqual(getSelectedText(content, osxResult), 'ls -G');
+			assert.strictEqual(osxResult.startLineNumber, 4);
+		});
 	});
 });

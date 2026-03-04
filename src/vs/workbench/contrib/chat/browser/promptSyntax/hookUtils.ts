@@ -118,23 +118,24 @@ export function findHookCommandSelection(content: string, hookType: string, inde
  * Finds the selection range for a hook command string in a YAML/Markdown file
  * (e.g., an agent `.md` file with YAML frontmatter).
  *
- * Searches for the command text within `command:` lines and selects the value.
+ * Searches for the command text within command field lines and selects the value.
+ * Supports all hook command field keys: command, windows, linux, osx, bash, powershell.
  *
  * @param content The full file content
  * @param commandText The command string to locate
  * @returns The selection range, or undefined if not found
  */
 export function findHookCommandInYaml(content: string, commandText: string): ITextEditorSelection | undefined {
-	// Search for command: lines where the value matches the full command text.
-	// Handles: command: "commandText", command: 'commandText', command: commandText
 	const lines = content.split('\n');
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
-		const trimmed = line.trimStart();
-		if (!trimmed.startsWith('command:') && !trimmed.startsWith('- command:')) {
+		const colonIdx = line.indexOf(':');
+		if (colonIdx === -1) {
 			continue;
 		}
-		const idx = line.indexOf(commandText);
+
+		// Search after the colon to avoid matching within the key name itself
+		const idx = line.indexOf(commandText, colonIdx + 1);
 		if (idx !== -1) {
 			// Verify this is a full match (not a substring of a longer command)
 			const afterIdx = idx + commandText.length;
