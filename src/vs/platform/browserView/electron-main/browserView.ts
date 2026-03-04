@@ -8,7 +8,7 @@ import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomPercentages, browserZoomDefaultIndex } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
@@ -398,8 +398,8 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	 * @param zoomIndex Index into browserZoomPercentages
 	 */
 	setBrowserZoomIndex(zoomIndex: number): void {
-		this._browserZoomIndex = Math.max(0, Math.min(zoomIndex, browserZoomPercentages.length - 1));
-		const browserZoomFactor = browserZoomPercentages[this._browserZoomIndex] / 100;
+		this._browserZoomIndex = Math.max(0, Math.min(zoomIndex, browserZoomFactors.length - 1));
+		const browserZoomFactor = browserZoomFactors[this._browserZoomIndex];
 		this._view.webContents.setZoomFactor(browserZoomFactor);
 	}
 

@@ -119,9 +119,12 @@ export enum BrowserViewStorageScope {
 
 export const ipcBrowserViewChannelName = 'browserView';
 
-/** Discrete zoom levels matching Edge/Chrome, expressed as percentages. */
-export const browserZoomPercentages = [25, 33, 50, 67, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300, 400, 500] as const;
-export const browserZoomDefaultIndex = browserZoomPercentages.indexOf(100);
+/**
+ * Discrete zoom levels matching Edge/Chrome.
+ * Note: When those browsers say "33%" and "67%" zoom, they really mean 33.33...% and 66.66...%
+ */
+export const browserZoomFactors = [0.25, 1 / 3, 0.5, 2 / 3, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5] as const;
+export const browserZoomDefaultIndex = browserZoomFactors.indexOf(1);
 
 /**
  * This should match the isolated world ID defined in `preload-browserView.ts`.

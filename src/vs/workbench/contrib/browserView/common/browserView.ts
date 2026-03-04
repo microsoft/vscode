@@ -29,7 +29,7 @@ import {
 	IBrowserViewFindInPageResult,
 	IBrowserViewVisibilityEvent,
 	browserZoomDefaultIndex,
-	browserZoomPercentages
+	browserZoomFactors
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -210,8 +210,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 	get sharedWithAgent(): boolean { return this._sharedWithAgent; }
-	get zoomFactor(): number { return browserZoomPercentages[this._browserZoomIndex] / 100; }
-	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomPercentages.length - 1; }
+	get zoomFactor(): number { return browserZoomFactors[this._browserZoomIndex]; }
+	get canZoomIn(): boolean { return this._browserZoomIndex < browserZoomFactors.length - 1; }
 	get canZoomOut(): boolean { return this._browserZoomIndex > 0; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
@@ -408,7 +408,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	private async setBrowserZoomIndex(zoomIndex: number): Promise<void> {
-		const clamped = Math.max(0, Math.min(zoomIndex, browserZoomPercentages.length - 1));
+		const clamped = Math.max(0, Math.min(zoomIndex, browserZoomFactors.length - 1));
 		if (clamped === this._browserZoomIndex) {
 			return;
 		}
@@ -418,7 +418,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async zoomIn(): Promise<void> {
-		if (this._browserZoomIndex < browserZoomPercentages.length - 1) {
+		if (this._browserZoomIndex < browserZoomFactors.length - 1) {
 			await this.setBrowserZoomIndex(this._browserZoomIndex + 1);
 		}
 	}
