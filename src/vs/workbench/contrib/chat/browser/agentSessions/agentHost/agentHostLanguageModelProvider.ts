@@ -20,11 +20,11 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
-		private readonly _agentHostService: IAgentHostService,
-		private readonly _logService: ILogService,
 		private readonly _sessionType: string,
 		private readonly _vendor: string,
 		private readonly _provider: string,
+		@IAgentHostService private readonly _agentHostService: IAgentHostService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}

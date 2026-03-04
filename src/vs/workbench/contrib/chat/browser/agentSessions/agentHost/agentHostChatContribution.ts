@@ -98,7 +98,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = store.add(new AgentHostLanguageModelProvider(this._agentHostService, this._logService, sessionType, vendor, agent.provider));
+		const modelProvider = store.add(this._instantiationService.createInstance(AgentHostLanguageModelProvider, sessionType, vendor, agent.provider));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 
 		// Auth (only for agents that need it)
