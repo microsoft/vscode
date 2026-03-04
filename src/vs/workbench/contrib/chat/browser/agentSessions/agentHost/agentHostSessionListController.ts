@@ -25,6 +25,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 	constructor(
 		private readonly _sessionType: string,
+		private readonly _provider: string,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IProductService private readonly _productService: IProductService,
 	) {
@@ -38,8 +39,9 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	async refresh(_token: CancellationToken): Promise<void> {
 		try {
 			const sessions = await this._agentHostService.listSessions();
-			const rawId = (s: typeof sessions[0]) => AgentSession.id(s.session);
-			this._items = sessions.map(s => ({
+			const filtered = sessions.filter(s => AgentSession.provider(s.session) === this._provider);
+			const rawId = (s: typeof filtered[0]) => AgentSession.id(s.session);
+			this._items = filtered.map(s => ({
 				resource: URI.from({ scheme: this._sessionType, path: `/${rawId(s)}` }),
 				label: s.summary ?? `Session ${rawId(s).substring(0, 8)}`,
 				iconPath: getAgentHostIcon(this._productService),

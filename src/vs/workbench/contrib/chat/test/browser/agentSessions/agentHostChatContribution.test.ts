@@ -23,7 +23,7 @@ import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { CopilotAgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -44,6 +44,14 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
 		return [...this._sessions.values()];
+	}
+
+	override async listAgents() {
+		return [{ provider: 'copilot' as const, displayName: 'Agent Host - Copilot', description: 'test', requiresAuth: true }];
+	}
+
+	override async listModels() {
+		return [];
 	}
 
 	override async createSession(): Promise<URI> {
@@ -113,6 +121,7 @@ function createTestServices(disposables: DisposableStore) {
 	instantiationService.stub(IChatSessionsService, {
 		registerChatSessionItemController: () => toDisposable(() => { }),
 		registerChatSessionContentProvider: () => toDisposable(() => { }),
+		registerChatSessionContribution: () => toDisposable(() => { }),
 	});
 	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
@@ -128,15 +137,15 @@ function createTestServices(disposables: DisposableStore) {
 function createContribution(disposables: DisposableStore) {
 	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
-	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController));
+	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 		provider: 'copilot' as const,
-		agentId: 'agent-host',
-		sessionType: 'agent-host',
+		agentId: 'agent-host-copilot',
+		sessionType: 'agent-host-copilot',
 		fullName: 'Agent Host - Copilot',
 		description: 'Copilot SDK agent running in a dedicated process',
 	}));
-	const contribution = disposables.add(instantiationService.createInstance(CopilotAgentHostContribution));
+	const contribution = disposables.add(instantiationService.createInstance(AgentHostContribution));
 
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService };
 }
@@ -145,7 +154,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI 
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: 'req-1',
-		agentId: 'agent-host',
+		agentId: 'agent-host-copilot',
 		message: overrides.message ?? 'Hello',
 		variables: { variables: [] },
 		location: ChatAgentLocation.Chat,
@@ -174,7 +183,7 @@ suite('AgentHostChatContribution', () => {
 		test('registers agent', () => {
 			const { chatAgentService } = createContribution(disposables);
 
-			assert.ok(chatAgentService.registeredAgents.has('agent-host'));
+			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
 		});
 	});
 
@@ -193,7 +202,7 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(listController.items.length, 2);
 			assert.strictEqual(listController.items[0].label, 'My session');
 			assert.strictEqual(listController.items[1].label, 'Session bbb');
-			assert.strictEqual(listController.items[0].resource.scheme, 'agent-host');
+			assert.strictEqual(listController.items[0].resource.scheme, 'agent-host-copilot');
 			assert.strictEqual(listController.items[0].resource.path, '/aaa');
 		});
 
@@ -227,7 +236,7 @@ suite('AgentHostChatContribution', () => {
 		test('creates new SDK session for untitled resource', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 
 			const origSend = agentHostService.sendMessage.bind(agentHostService);
 			agentHostService.sendMessage = async (session: URI, prompt: string) => {
@@ -248,7 +257,7 @@ suite('AgentHostChatContribution', () => {
 		test('reuses SDK session for same resource on second message', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const resource = URI.from({ scheme: 'untitled', path: '/chat-reuse' });
 
 			agentHostService.sendMessage = async (session: URI, prompt: string) => {
@@ -273,8 +282,8 @@ suite('AgentHostChatContribution', () => {
 		test('uses sessionId from agent-host scheme resource', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
-			const resource = URI.from({ scheme: 'agent-host', path: '/existing-session-42' });
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/existing-session-42' });
 
 			agentHostService.sendMessage = async (session: URI, prompt: string) => {
 				agentHostService.sendMessageCalls.push({ session, prompt });
@@ -292,8 +301,8 @@ suite('AgentHostChatContribution', () => {
 		test('agent-host scheme with untitled path creates new session via mapping', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
-			const resource = URI.from({ scheme: 'agent-host', path: '/untitled-abc123' });
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-abc123' });
 
 			agentHostService.sendMessage = async (session: URI, prompt: string) => {
 				agentHostService.sendMessageCalls.push({ session, prompt });
@@ -317,7 +326,7 @@ suite('AgentHostChatContribution', () => {
 		test('delta events become markdownContent progress', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -343,7 +352,7 @@ suite('AgentHostChatContribution', () => {
 		test('tool_start events become toolInvocation progress', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -365,7 +374,7 @@ suite('AgentHostChatContribution', () => {
 		test('tool_complete event transitions toolInvocation to completed', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -391,7 +400,7 @@ suite('AgentHostChatContribution', () => {
 		test('tool_complete with failure sets error state', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -416,7 +425,7 @@ suite('AgentHostChatContribution', () => {
 		test('malformed toolArguments does not throw', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -438,7 +447,7 @@ suite('AgentHostChatContribution', () => {
 		test('outstanding tool invocations are completed on idle', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -463,7 +472,7 @@ suite('AgentHostChatContribution', () => {
 		test('events from other sessions are ignored', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -491,7 +500,7 @@ suite('AgentHostChatContribution', () => {
 		test('cancellation resolves the agent invoke', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const cts = new CancellationTokenSource();
 			disposables.add(cts);
 
@@ -511,7 +520,7 @@ suite('AgentHostChatContribution', () => {
 		test('cancellation force-completes outstanding tool invocations', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const cts = new CancellationTokenSource();
 			disposables.add(cts);
 			const collected: IChatProgress[][] = [];
@@ -547,7 +556,7 @@ suite('AgentHostChatContribution', () => {
 				{ session: AgentSession.uri('copilot', 'sess-1'), type: 'message', messageId: 'msg-a1', content: '4', role: 'assistant' },
 			]);
 
-			const sessionResource = URI.from({ scheme: 'agent-host', path: '/sess-1' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/sess-1' });
 			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => session.dispose()));
 
@@ -569,7 +578,7 @@ suite('AgentHostChatContribution', () => {
 		test('untitled sessions have empty history', async () => {
 			const { sessionHandler } = createContribution(disposables);
 
-			const sessionResource = URI.from({ scheme: 'agent-host', path: '/untitled-xyz' });
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-xyz' });
 			const session = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 			disposables.add(toDisposable(() => session.dispose()));
 
@@ -584,7 +593,7 @@ suite('AgentHostChatContribution', () => {
 		test('bash tool renders as terminal command block with output', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -627,7 +636,7 @@ suite('AgentHostChatContribution', () => {
 		test('bash tool failure sets exit code 1 and error output', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -664,7 +673,7 @@ suite('AgentHostChatContribution', () => {
 		test('generic tool has invocation message and no toolSpecificData', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -695,7 +704,7 @@ suite('AgentHostChatContribution', () => {
 		test('bash tool without arguments has no terminal data', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {
@@ -726,7 +735,7 @@ suite('AgentHostChatContribution', () => {
 		test('view tool shows file path in messages', async () => {
 			const { chatAgentService, agentHostService } = createContribution(disposables);
 
-			const agent = chatAgentService.registeredAgents.get('agent-host')!;
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
 			const collected: IChatProgress[][] = [];
 
 			agentHostService.sendMessage = async (session: URI) => {

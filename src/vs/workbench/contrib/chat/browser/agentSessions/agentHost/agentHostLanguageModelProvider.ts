@@ -24,6 +24,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		private readonly _logService: ILogService,
 		private readonly _sessionType: string,
 		private readonly _vendor: string,
+		private readonly _provider: string,
 	) {
 		super();
 	}
@@ -36,7 +37,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		try {
 			const models = await this._agentHostService.listModels();
 			return models
-				.filter(m => m.policyState !== 'disabled')
+				.filter(m => m.provider === this._provider && m.policyState !== 'disabled')
 				.map(m => ({
 					identifier: `${this._vendor}:${m.id}`,
 					metadata: {

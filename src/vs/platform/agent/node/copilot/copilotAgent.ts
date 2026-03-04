@@ -111,6 +111,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const client = await this._ensureClient();
 		const models = await client.listModels();
 		const result = models.map(m => ({
+			provider: this.id,
 			id: m.id,
 			name: m.name,
 			maxContextWindow: m.capabilities.limits.max_context_window_tokens,

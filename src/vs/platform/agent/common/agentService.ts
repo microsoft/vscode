@@ -49,6 +49,7 @@ export interface IAgentCreateSessionConfig {
 
 /** Serializable model information from the agent host. */
 export interface IAgentModelInfo {
+	readonly provider: AgentProvider;
 	readonly id: string;
 	readonly name: string;
 	readonly maxContextWindow: number;

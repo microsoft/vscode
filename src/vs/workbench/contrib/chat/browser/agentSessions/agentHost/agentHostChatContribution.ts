@@ -53,6 +53,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private async _discoverAndRegisterAgents(): Promise<void> {
 		try {
 			const agents = await this._agentHostService.listAgents();
+			if (this._store.isDisposed) {
+				return;
+			}
 			for (const agent of agents) {
 				this._registerAgent(agent);
 			}
@@ -78,7 +81,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider));
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
 		// Session handler
@@ -95,7 +98,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
-		const modelProvider = store.add(new AgentHostLanguageModelProvider(this._agentHostService, this._logService, sessionType, vendor));
+		const modelProvider = store.add(new AgentHostLanguageModelProvider(this._agentHostService, this._logService, sessionType, vendor, agent.provider));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 
 		// Auth (only for agents that need it)
