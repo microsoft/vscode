@@ -126,15 +126,22 @@ export function findHookCommandSelection(content: string, hookType: string, inde
  * @returns The selection range, or undefined if not found
  */
 export function findHookCommandInYaml(content: string, commandText: string): ITextEditorSelection | undefined {
+	const commandFieldKeys = ['command', 'windows', 'linux', 'osx', 'bash', 'powershell'];
 	const lines = content.split('\n');
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
-		const colonIdx = line.indexOf(':');
-		if (colonIdx === -1) {
+		const trimmed = line.trimStart();
+
+		// Only match lines whose YAML key is a known command field
+		const matchedKey = commandFieldKeys.find(key =>
+			trimmed.startsWith(`${key}:`) || trimmed.startsWith(`- ${key}:`)
+		);
+		if (!matchedKey) {
 			continue;
 		}
 
 		// Search after the colon to avoid matching within the key name itself
+		const colonIdx = line.indexOf(':');
 		const idx = line.indexOf(commandText, colonIdx + 1);
 		if (idx !== -1) {
 			// Verify this is a full match (not a substring of a longer command)
