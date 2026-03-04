@@ -39,6 +39,7 @@ import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { Target } from '../common/promptSyntax/service/promptsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { IChatWidgetService } from './chat.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -59,8 +60,22 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
+		@IChatWidgetService chatWidgetService: IChatWidgetService,
 	) {
 		super();
+
+		const troubleshootSessions = new Set<string>();
+		const hasTroubleshootDataKey = ChatContextKeys.chatSessionHasTroubleshootData.bindTo(this.contextKeyService);
+		const updateTroubleshootDataKey = () => {
+			const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+			hasTroubleshootDataKey.set(!!sessionResource && troubleshootSessions.has(sessionResource.toString()));
+		};
+		this._store.add(chatWidgetService.onDidChangeFocusedWidget(widget => {
+			updateTroubleshootDataKey();
+			if (widget) {
+				this._store.add(widget.onDidChangeViewModel(() => updateTroubleshootDataKey()));
+			}
+		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
 			detail: nls.localize('clear', "Start a new chat and archive the current one"),
@@ -132,7 +147,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
 		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
-			ChatContextKeys.chatSessionHasTroubleshootData.bindTo(this.contextKeyService).set(true);
+			troubleshootSessions.add(sessionResource.toString());
+			hasTroubleshootDataKey.set(true);
 			languageModelToolsService.flushToolUpdates();
 			await chatDebugService.invokeProviders(sessionResource);
 			const events = chatDebugService.getEvents(sessionResource);
