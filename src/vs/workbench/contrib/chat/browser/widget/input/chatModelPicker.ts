@@ -584,7 +584,7 @@ export class ModelPickerWidget extends Disposable {
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
 			collapsedByDefault: new Set([ModelPickerSection.Other]),
-			minWidth: 300,
+			minWidth: 200,
 		};
 		const previouslyFocusedElement = dom.getActiveElement();
 
