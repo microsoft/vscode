@@ -114,13 +114,23 @@ function stepToCommands(step) {
 
 function getSnapshot() {
 	const result = runPlaywrightCli(['snapshot']);
-	if (!result.ok) { return ''; }
+	if (!result.ok) {
+		console.error(`     [snapshot] failed: ${result.stderr}`);
+		return '';
+	}
 	// stdout contains a markdown link to the snapshot file, e.g.:
 	//   - [Snapshot](.playwright-cli/page-2026-...yml)
 	const fileMatch = result.stdout.match(/\[Snapshot\]\((.+?\.yml)\)/);
 	if (fileMatch) {
 		const snapshotPath = path.join(APP_ROOT, fileMatch[1]);
-		try { return fs.readFileSync(snapshotPath, 'utf-8'); } catch { /* fall through */ }
+		console.log(`     [snapshot] ${fileMatch[1]}`);
+		try {
+			const content = fs.readFileSync(snapshotPath, 'utf-8');
+			if (!content.trim()) { console.error(`     [snapshot] file is empty`); }
+			return content;
+		} catch (e) {
+			console.error(`     [snapshot] failed to read: ${e.message}`);
+		}
 	}
 	return result.stdout;
 }
