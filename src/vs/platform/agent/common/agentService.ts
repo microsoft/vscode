@@ -45,6 +45,7 @@ export interface IAgentCreateSessionConfig {
 	readonly provider?: AgentProvider;
 	readonly model?: string;
 	readonly session?: URI;
+	readonly workingDirectory?: string;
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */

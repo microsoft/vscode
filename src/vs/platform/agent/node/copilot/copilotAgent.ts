@@ -157,6 +157,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			model: config?.model,
 			sessionId: config?.session ? AgentSession.id(config.session) : undefined,
 			streaming: true,
+			workingDirectory: config?.workingDirectory,
 			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
 		});
 

@@ -25,6 +25,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -140,6 +141,7 @@ function createTestServices(disposables: DisposableStore) {
 	});
 	instantiationService.stub(IConfigurationService, { getValue: () => true });
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
+	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ folders: [] }) });
 
 	return { instantiationService, agentHostService, chatAgentService };
 }

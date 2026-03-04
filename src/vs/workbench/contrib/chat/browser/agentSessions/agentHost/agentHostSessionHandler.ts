@@ -13,6 +13,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostService, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider, AgentSession, IAgentProgressEvent } from '../../../../../../platform/agent/common/agentService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -176,6 +177,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -405,7 +407,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		this._logService.trace(`[AgentHost] Creating new session for resource ${key}, model=${model ?? '(default)'}, provider=${this._config.provider}`);
-		const session = await this._agentHostService.createSession({ model, provider: this._config.provider });
+		const workspaceFolder = this._workspaceContextService.getWorkspace().folders[0];
+		const session = await this._agentHostService.createSession({
+			model,
+			provider: this._config.provider,
+			workingDirectory: workspaceFolder?.uri.fsPath,
+		});
 		this._logService.trace(`[AgentHost] Created new session: ${session.toString()}`);
 		this._resourceToSession.set(key, session);
 		return session;
