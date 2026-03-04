@@ -198,3 +198,7 @@ zone.js/dist/**
 @github/copilot/clipboard/node_modules/@teddyzhu/clipboard-linux-arm64-gnu/**
 @github/copilot/clipboard/node_modules/@teddyzhu/clipboard-win32-x64-msvc/**
 @github/copilot/clipboard/node_modules/@teddyzhu/clipboard-win32-arm64-msvc/**
+
+# @img/sharp - native image library pulled in by Claude Agent SDK; not needed at runtime
+@img/sharp-*/**
+sharp/**

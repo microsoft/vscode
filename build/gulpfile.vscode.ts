@@ -454,6 +454,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 						'!**/node_modules/@github/copilot-sdk/**',
 						'!**/node_modules/@github/copilot-*/**',
 						'!**/node_modules/@anthropic-ai/**',
+						'!**/node_modules/@img/sharp-*/**',
 					);
 				}
 
