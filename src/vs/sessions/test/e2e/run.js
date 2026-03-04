@@ -66,52 +66,68 @@ function discoverScenarios() {
 function stepToCommands(step) {
 	let m;
 
-	// Click button "<text>"
+	// Click button "<text>" — snapshot, find ref, click ref
 	if ((m = step.match(/^click button "(.+?)"$/i))) {
-		return [`click --role=button --name="${m[1]}"`];
-	}
-
-	// Click <element name> — for named elements, use snapshot + click by text
-	if ((m = step.match(/^click (.+)$/i))) {
-		return [`click --text="${m[1]}"`];
+		return [{ type: 'click-button', label: m[1] }];
 	}
 
 	// Type "<text>" in the chat input
 	if ((m = step.match(/^type "(.+?)" in the chat input$/i))) {
-		return [`type "${m[1]}"`];
+		return [{ type: 'cli', args: ['type', m[1]] }];
 	}
 
 	// Press Enter to submit
 	if (/^press Enter to submit$/i.test(step)) {
-		return [`press Enter`];
+		return [{ type: 'cli', args: ['press', 'Enter'] }];
 	}
 
 	// Press <key>
 	if ((m = step.match(/^press (.+)$/i))) {
-		return [`press ${m[1]}`];
-	}
-
-	// Verify <element> is visible
-	if ((m = step.match(/^verify (.+?) is visible$/i))) {
-		return [`snapshot`, `assert-visible "${m[1]}"`];
+		return [{ type: 'cli', args: ['press', m[1]] }];
 	}
 
 	// Verify the "<label>" button is disabled
 	if ((m = step.match(/^verify the? "(.+?)" button is disabled$/i))) {
-		return [`assert-button-disabled "${m[1]}"`];
+		return [{ type: 'assert-button-disabled', label: m[1] }];
 	}
 
 	// Verify the "<label>" button is enabled
 	if ((m = step.match(/^verify the? "(.+?)" button is enabled$/i))) {
-		return [`assert-button-enabled "${m[1]}"`];
+		return [{ type: 'assert-button-enabled', label: m[1] }];
 	}
 
 	// Verify the repository picker dropdown is visible
 	if (/^verify the repository picker dropdown is visible$/i.test(step)) {
-		return [`snapshot`, `assert-visible "Pick Repository"`];
+		return [{ type: 'assert-visible', text: 'Pick Repository' }];
 	}
 
-	return [`unknown: ${step}`];
+	// Verify <element> is visible
+	if ((m = step.match(/^verify (.+?) is visible$/i))) {
+		return [{ type: 'assert-visible', text: m[1] }];
+	}
+
+	return [{ type: 'unknown', step }];
+}
+
+// ---------------------------------------------------------------------------
+// Helpers for snapshot-based interaction
+// ---------------------------------------------------------------------------
+
+function getSnapshot() {
+	const result = runPlaywrightCli(['snapshot']);
+	return result.ok ? result.stdout : '';
+}
+
+function findRefByButtonName(snapshotText, label) {
+	// Look for: button "Label" [ref=eNN] or button "Label" [disabled] [ref=eNN]
+	const lines = snapshotText.split('\n');
+	for (const line of lines) {
+		if (line.includes(`"${label}"`) && line.includes('button')) {
+			const refMatch = line.match(/\[ref=(e\d+)\]/);
+			if (refMatch) { return refMatch[1]; }
+		}
+	}
+	return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -135,56 +151,66 @@ function executeStep(step) {
 	const commands = stepToCommands(step);
 
 	for (const cmd of commands) {
-		// Custom assertions — check the last snapshot output
-		if (cmd.startsWith('assert-visible ')) {
-			const text = cmd.match(/"(.+?)"/)?.[1];
-			const snap = runPlaywrightCli('snapshot');
-			if (!snap.ok) { return { ok: false, message: `snapshot failed: ${snap.stderr}` }; }
-			if (!snap.stdout.includes(text)) {
-				return { ok: false, message: `Expected "${text}" to be visible in snapshot but it was not found` };
+		switch (cmd.type) {
+			case 'cli': {
+				const result = runPlaywrightCli(cmd.args);
+				if (!result.ok) {
+					return { ok: false, message: `playwright-cli ${cmd.args.join(' ')} failed:\n${result.stderr || result.stdout}` };
+				}
+				break;
 			}
-			continue;
-		}
 
-		if (cmd.startsWith('assert-button-disabled ')) {
-			const label = cmd.match(/"(.+?)"/)?.[1];
-			const snap = runPlaywrightCli('snapshot');
-			if (!snap.ok) { return { ok: false, message: `snapshot failed: ${snap.stderr}` }; }
-			// Look for [disabled] on the button with the given label
-			const lines = snap.stdout.split('\n');
-			const buttonLine = lines.find(l => l.includes(`"${label}"`) && l.includes('button'));
-			if (!buttonLine) {
-				return { ok: false, message: `Button "${label}" not found in snapshot` };
+			case 'click-button': {
+				const snap = getSnapshot();
+				if (!snap) { return { ok: false, message: 'Failed to take snapshot' }; }
+				const ref = findRefByButtonName(snap, cmd.label);
+				if (!ref) { return { ok: false, message: `Button "${cmd.label}" not found in snapshot` }; }
+				const result = runPlaywrightCli(['click', ref]);
+				if (!result.ok) {
+					return { ok: false, message: `Click on "${cmd.label}" (${ref}) failed:\n${result.stderr || result.stdout}` };
+				}
+				break;
 			}
-			if (!buttonLine.includes('[disabled]')) {
-				return { ok: false, message: `Expected button "${label}" to be disabled but it is enabled` };
-			}
-			continue;
-		}
 
-		if (cmd.startsWith('assert-button-enabled ')) {
-			const label = cmd.match(/"(.+?)"/)?.[1];
-			const snap = runPlaywrightCli('snapshot');
-			if (!snap.ok) { return { ok: false, message: `snapshot failed: ${snap.stderr}` }; }
-			const lines = snap.stdout.split('\n');
-			const buttonLine = lines.find(l => l.includes(`"${label}"`) && l.includes('button'));
-			if (!buttonLine) {
-				return { ok: false, message: `Button "${label}" not found in snapshot` };
+			case 'assert-visible': {
+				const snap = getSnapshot();
+				if (!snap) { return { ok: false, message: 'Failed to take snapshot' }; }
+				if (!snap.includes(cmd.text)) {
+					return { ok: false, message: `Expected "${cmd.text}" to be visible in snapshot but it was not found` };
+				}
+				break;
 			}
-			if (buttonLine.includes('[disabled]')) {
-				return { ok: false, message: `Expected button "${label}" to be enabled but it is disabled` };
+
+			case 'assert-button-disabled': {
+				const snap = getSnapshot();
+				if (!snap) { return { ok: false, message: 'Failed to take snapshot' }; }
+				const lines = snap.split('\n');
+				const buttonLine = lines.find(l => l.includes(`"${cmd.label}"`) && l.includes('button'));
+				if (!buttonLine) {
+					return { ok: false, message: `Button "${cmd.label}" not found in snapshot` };
+				}
+				if (!buttonLine.includes('[disabled]')) {
+					return { ok: false, message: `Expected button "${cmd.label}" to be disabled but it is enabled` };
+				}
+				break;
 			}
-			continue;
-		}
 
-		if (cmd.startsWith('unknown: ')) {
-			return { ok: false, message: `No translation for step: ${cmd.slice(9)}` };
-		}
+			case 'assert-button-enabled': {
+				const snap = getSnapshot();
+				if (!snap) { return { ok: false, message: 'Failed to take snapshot' }; }
+				const lines = snap.split('\n');
+				const buttonLine = lines.find(l => l.includes(`"${cmd.label}"`) && l.includes('button'));
+				if (!buttonLine) {
+					return { ok: false, message: `Button "${cmd.label}" not found in snapshot` };
+				}
+				if (buttonLine.includes('[disabled]')) {
+					return { ok: false, message: `Expected button "${cmd.label}" to be enabled but it is disabled` };
+				}
+				break;
+			}
 
-		// Regular playwright-cli command
-		const result = runPlaywrightCli(cmd);
-		if (!result.ok) {
-			return { ok: false, message: `playwright-cli ${cmd} failed:\n${result.stderr || result.stdout}` };
+			case 'unknown':
+				return { ok: false, message: `No translation for step: "${cmd.step}"` };
 		}
 	}
 
