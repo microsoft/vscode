@@ -87,8 +87,8 @@ export class ChatDebugFilterState extends Disposable {
 	}
 
 	/**
-	 * Parse `before:HH:MM:SS`, `before:YYYY-MM-DD`, or `before:YYYY-MM-DDTHH:MM:SS`
-	 * (ISO 8601) from the filter text.
+	 * Parse `before:YYYY[-MM[-DD[THH[:MM[:SS]]]]]` from the filter text.
+	 * Each component after the year is optional.
 	 */
 	private _parseTimestampFilters(text: string): void {
 		this.beforeTimestamp = ChatDebugFilterState.parseTimeToken(text, 'before');
@@ -96,53 +96,54 @@ export class ChatDebugFilterState extends Disposable {
 	}
 
 	static parseTimeToken(text: string, prefix: string): number | undefined {
-		// For 'before:', round up to include the entire second (ms=999).
-		// For 'after:', use the start of the second (ms=0).
-		const ms = prefix === 'before' ? 999 : 0;
-
-		// Full ISO 8601: before:YYYY-MM-DDTHH:MM:SS or before:YYYY-MM-DDTHH:MM
-		const fullRegex = new RegExp(`${prefix}:(\\d{4})-(\\d{2})-(\\d{2})t(\\d{1,2}):(\\d{2})(?::(\\d{2}))?`);
-		const fullMatch = fullRegex.exec(text);
-		if (fullMatch) {
-			const d = new Date(
-				parseInt(fullMatch[1], 10), parseInt(fullMatch[2], 10) - 1, parseInt(fullMatch[3], 10),
-				parseInt(fullMatch[4], 10), parseInt(fullMatch[5], 10), fullMatch[6] ? parseInt(fullMatch[6], 10) : 0, ms
-			);
-			return d.getTime();
+		const regex = new RegExp(`${prefix}:(\\d{4})(?:-(\\d{2})(?:-(\\d{2})(?:t(\\d{1,2})(?::(\\d{2})(?::(\\d{2}))?)?)?)?)?(?!\\w)`);
+		const m = regex.exec(text);
+		if (!m) {
+			return undefined;
 		}
 
-		// Date-only ISO 8601: before:YYYY-MM-DD (end of that day for before, start for after)
-		const dateRegex = new RegExp(`${prefix}:(\\d{4})-(\\d{2})-(\\d{2})(?!\\d|t)`);
-		const dateMatch = dateRegex.exec(text);
-		if (dateMatch) {
-			const year = parseInt(dateMatch[1], 10);
-			const month = parseInt(dateMatch[2], 10) - 1;
-			const day = parseInt(dateMatch[3], 10);
-			if (prefix === 'before') {
-				return new Date(year, month, day, 23, 59, 59, 999).getTime();
+		const year = parseInt(m[1], 10);
+		const month = m[2] !== undefined ? parseInt(m[2], 10) - 1 : undefined;
+		const day = m[3] !== undefined ? parseInt(m[3], 10) : undefined;
+		const hour = m[4] !== undefined ? parseInt(m[4], 10) : undefined;
+		const minute = m[5] !== undefined ? parseInt(m[5], 10) : undefined;
+		const second = m[6] !== undefined ? parseInt(m[6], 10) : undefined;
+
+		// For 'before:', round up to the end of the most specific unit given.
+		// For 'after:', use the start of the most specific unit.
+		if (prefix === 'before') {
+			if (second !== undefined) {
+				return new Date(year, month!, day!, hour!, minute!, second, 999).getTime();
+			} else if (minute !== undefined) {
+				return new Date(year, month!, day!, hour!, minute, 59, 999).getTime();
+			} else if (hour !== undefined) {
+				return new Date(year, month!, day!, hour, 59, 59, 999).getTime();
+			} else if (day !== undefined) {
+				return new Date(year, month!, day, 23, 59, 59, 999).getTime();
+			} else if (month !== undefined) {
+				// End of the given month
+				return new Date(year, month + 1, 0, 23, 59, 59, 999).getTime();
+			} else {
+				// End of the given year
+				return new Date(year, 11, 31, 23, 59, 59, 999).getTime();
 			}
-			return new Date(year, month, day, 0, 0, 0, 0).getTime();
+		} else {
+			return new Date(
+				year,
+				month ?? 0,
+				day ?? 1,
+				hour ?? 0,
+				minute ?? 0,
+				second ?? 0,
+				0,
+			).getTime();
 		}
-
-		// Time-only: before:HH:MM:SS or before:HH:MM (relative to today)
-		const timeRegex = new RegExp(`${prefix}:(\\d{1,2}):(\\d{2})(?::(\\d{2}))?`);
-		const timeMatch = timeRegex.exec(text);
-		if (timeMatch) {
-			const now = new Date();
-			const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(),
-				parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), timeMatch[3] ? parseInt(timeMatch[3], 10) : 0, ms);
-			return d.getTime();
-		}
-
-		return undefined;
 	}
 
 	/** Returns the text filter with before:/after: tokens removed. */
 	get textFilterWithoutTimestamps(): string {
 		return this.textFilter
-			.replace(/\b(?:before|after):\d{4}-\d{2}-\d{2}t\d{1,2}:\d{2}(?::\d{2})?\b/g, '')
-			.replace(/\b(?:before|after):\d{4}-\d{2}-\d{2}\b/g, '')
-			.replace(/\b(?:before|after):\d{1,2}:\d{2}(?::\d{2})?\b/g, '')
+			.replace(/\b(?:before|after):\d{4}(?:-\d{2}(?:-\d{2}(?:t\d{1,2}(?::\d{2}(?::\d{2})?)?)?)?)?\b/g, '')
 			.trim();
 	}
 

@@ -644,7 +644,9 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		if (attachment.kind === 'debugEvents') {
 			this.element.style.cursor = 'pointer';
 			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, () => {
-				this.commandService.executeCommand('workbench.action.chat.openAgentDebugPanelForSession', attachment.sessionResource, attachment.snapshotTime);
+				const d = new Date(attachment.snapshotTime);
+				const filter = `before:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+				this.commandService.executeCommand('workbench.action.chat.openAgentDebugPanelForSession', attachment.sessionResource, filter);
 			}));
 		}
 

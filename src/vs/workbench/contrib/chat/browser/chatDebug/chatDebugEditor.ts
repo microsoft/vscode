@@ -341,7 +341,7 @@ export class ChatDebugEditor extends EditorPane {
 	}
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {
-		const { sessionResource, viewHint, filterBeforeTimestamp } = options;
+		const { sessionResource, viewHint, filter } = options;
 		if (viewHint === 'logs' && sessionResource) {
 			this.navigateToSession(sessionResource, 'logs');
 		} else if (viewHint === 'flowchart' && sessionResource) {
@@ -357,12 +357,10 @@ export class ChatDebugEditor extends EditorPane {
 			this.showView(ViewState.Home);
 		}
 
-		// Apply before-timestamp filter if provided (e.g. from debug events snapshot)
-		if (filterBeforeTimestamp !== undefined && this.filterState) {
-			const d = new Date(filterBeforeTimestamp);
-			const filterText = `before:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-			this.filterState.setTextFilter(filterText);
-			this.logsView?.setFilterText(filterText);
+		// Apply filter text if provided (e.g. from debug events snapshot)
+		if (filter !== undefined && this.filterState) {
+			this.filterState.setTextFilter(filter);
+			this.logsView?.setFilterText(filter);
 		}
 	}
 

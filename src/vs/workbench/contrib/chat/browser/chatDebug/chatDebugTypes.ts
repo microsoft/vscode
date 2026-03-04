@@ -19,8 +19,8 @@ const $ = DOM.$;
 export interface IChatDebugEditorOptions extends IEditorOptions {
 	readonly sessionResource?: URI;
 	readonly viewHint?: 'home' | 'overview' | 'logs' | 'flowchart';
-	/** When set, automatically filters logs to events before this timestamp (epoch ms). */
-	readonly filterBeforeTimestamp?: number;
+	/** When set, automatically applies this text as the log filter. */
+	readonly filter?: string;
 }
 
 export const enum ViewState {
