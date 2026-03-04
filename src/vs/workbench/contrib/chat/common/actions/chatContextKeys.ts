@@ -89,6 +89,7 @@ export namespace ChatContextKeys {
 	export const chatSessionIsEmpty = new RawContextKey<boolean>('chatSessionIsEmpty', true, { type: 'boolean', description: localize('chatSessionIsEmpty', "True when the current chat session has no requests.") });
 	export const hasPendingRequests = new RawContextKey<boolean>('chatHasPendingRequests', false, { type: 'boolean', description: localize('chatHasPendingRequests', "True when there are pending requests in the queue.") });
 	export const chatSessionHasDebugData = new RawContextKey<boolean>('chatSessionHasDebugData', false, { type: 'boolean', description: localize('chatSessionHasDebugData', "True when the current chat session has debug log data.") });
+	export const chatSessionHasTroubleshootData = new RawContextKey<boolean>('chatSessionHasTroubleshootData', false, { type: 'boolean', description: localize('chatSessionHasTroubleshootData', "True when the /troubleshoot slash command has been run in the current chat session.") });
 
 	export const remoteJobCreating = new RawContextKey<boolean>('chatRemoteJobCreating', false, { type: 'boolean', description: localize('chatRemoteJobCreating', "True when a remote coding agent job is being created.") });
 	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
@@ -112,6 +113,8 @@ export namespace ChatContextKeys {
 	export const Tools = {
 		toolsCount: new RawContextKey<number>('toolsCount', 0, { type: 'number', description: localize('toolsCount', "The count of tools available in the chat.") })
 	};
+
+	export const foregroundSessionCount = new RawContextKey<number>('chatForegroundSessionCount', 0, { type: 'number', description: localize('chatForegroundSessionCount', "The number of foreground chat sessions visible across chat surfaces.") });
 
 	export const Modes = {
 		hasCustomChatModes: new RawContextKey<boolean>('chatHasCustomAgents', false, { type: 'boolean', description: localize('chatHasAgents', "True when the chat has custom agents available.") }),

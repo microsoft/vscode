@@ -7,8 +7,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages, SourceControlArtifact, ProgressLocation } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
-import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
-import { ForcePushMode, GitErrorCodes, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
+import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
+import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
 import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
@@ -106,6 +106,8 @@ class RefItem implements QuickPickItem {
 				return `refs/remotes/${this.ref.name}`;
 			case RefType.Tag:
 				return `refs/tags/${this.ref.name}`;
+			default:
+				throw new Error('Unknown ref type');
 		}
 	}
 	get refName(): string | undefined { return this.ref.name; }
@@ -1056,6 +1058,22 @@ export class CommandCenter {
 		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
 		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
 		await repo.pull();
+	}
+
+	@command('_git.revParseAbbrevRef')
+	async revParseAbbrevRef(repositoryPath: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['rev-parse', '--abbrev-ref', 'HEAD']);
+		return result.stdout.trim();
+	}
+
+	@command('_git.mergeBranch')
+	async mergeBranch(repositoryPath: string, branch: string): Promise<string> {
+		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
+		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
+		const result = await repo.exec(['merge', branch, '--no-edit']);
+		return result.stdout.trim();
 	}
 
 	@command('git.init')
@@ -2940,48 +2958,6 @@ export class CommandCenter {
 		await this._branch(repository, undefined, true);
 	}
 
-	private async generateRandomBranchName(repository: Repository, separator: string): Promise<string> {
-		const config = workspace.getConfiguration('git');
-		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary')!;
-
-		const dictionaries: string[][] = [];
-		for (const dictionary of branchRandomNameDictionary) {
-			if (dictionary.toLowerCase() === 'adjectives') {
-				dictionaries.push(adjectives);
-			}
-			if (dictionary.toLowerCase() === 'animals') {
-				dictionaries.push(animals);
-			}
-			if (dictionary.toLowerCase() === 'colors') {
-				dictionaries.push(colors);
-			}
-			if (dictionary.toLowerCase() === 'numbers') {
-				dictionaries.push(NumberDictionary.generate({ length: 3 }));
-			}
-		}
-
-		if (dictionaries.length === 0) {
-			return '';
-		}
-
-		// 5 attempts to generate a random branch name
-		for (let index = 0; index < 5; index++) {
-			const randomName = uniqueNamesGenerator({
-				dictionaries,
-				length: dictionaries.length,
-				separator
-			});
-
-			// Check for local ref conflict
-			const refs = await repository.getRefs({ pattern: `refs/heads/${randomName}` });
-			if (refs.length === 0) {
-				return randomName;
-			}
-		}
-
-		return '';
-	}
-
 	private async promptForBranchName(repository: Repository, defaultName?: string, initialValue?: string): Promise<string> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
@@ -2995,8 +2971,7 @@ export class CommandCenter {
 		}
 
 		const getBranchName = async (): Promise<string> => {
-			const branchName = branchRandomNameEnabled ? await this.generateRandomBranchName(repository, branchWhitespaceChar) : '';
-			return `${branchPrefix}${branchName}`;
+			return await repository.generateRandomBranchName() ?? branchPrefix;
 		};
 
 		const getValueSelection = (value: string): [number, number] | undefined => {
@@ -5636,15 +5611,14 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hint = (err.stderr || err.message || String(err))
+						const hintLines = (err.stderr || err.stdout || err.message || String(err))
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter((line: string) => !!line)
-						[0];
+							.filter((line: string) => !!line);
 
-						message = hint
-							? l10n.t('Git: {0}', hint)
+						message = hintLines.length > 0
+							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
 							: l10n.t('Git error');
 
 						break;

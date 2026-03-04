@@ -18,7 +18,12 @@ import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 const queuingActionsPresent = ContextKeyExpr.and(
-	ContextKeyExpr.or(ChatContextKeys.requestInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.QueueOrSteer)),
+	ContextKeyExpr.or(
+		ChatContextKeys.requestInProgress,
+		ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.QueueOrSteer),
+		ChatContextKeys.Editing.hasQuestionCarousel,
+		ChatContextKeys.Editing.hasToolConfirmation,
+	),
 	ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Sent),
 );
 

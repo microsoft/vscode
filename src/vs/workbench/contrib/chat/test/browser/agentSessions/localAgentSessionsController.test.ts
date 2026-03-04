@@ -40,7 +40,6 @@ class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	readonly chatModels = this._chatModels;
 	requestInProgressObs = observableValue('name', false);
-	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;

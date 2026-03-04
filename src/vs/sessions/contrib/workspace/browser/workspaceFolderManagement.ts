@@ -14,6 +14,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { URI } from '../../../../base/common/uri.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceFolderCreationData } from '../../../../platform/workspaces/common/workspaces.js';
+import { getGitHubRemoteFileDisplayName } from '../../fileTreeView/browser/githubFileSystemProvider.js';
 
 export class WorkspaceFolderManagementContribution extends Disposable implements IWorkbenchContribution {
 
@@ -73,11 +74,12 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 			if (session.providerType === AgentSessionProviders.Background) {
 				return { uri: session.repository };
 			}
-			// if (session.providerType === AgentSessionProviders.Cloud) {
-			// 	return {
-			// 		uri: session.repository
-			// 	};
-			// }
+			if (session.providerType === AgentSessionProviders.Cloud) {
+				return {
+					uri: session.repository,
+					name: getGitHubRemoteFileDisplayName(session.repository),
+				};
+			}
 		}
 
 		return undefined;

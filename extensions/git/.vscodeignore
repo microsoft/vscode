@@ -3,5 +3,5 @@ test/**
 out/**
 tsconfig*.json
 build/**
-extension.webpack.config.js
+esbuild*.mts
 package-lock.json

@@ -175,6 +175,11 @@ class ReloadAction extends Action2 {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
 				order: 3,
+				alt: {
+					id: HardReloadAction.ID,
+					title: localize2('browser.hardReloadAction', 'Hard Reload'),
+					icon: Codicon.refresh,
+				}
 			},
 			keybinding: {
 				when: CONTEXT_BROWSER_FOCUSED,
@@ -189,6 +194,34 @@ class ReloadAction extends Action2 {
 	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
 		if (browserEditor instanceof BrowserEditor) {
 			await browserEditor.reload();
+		}
+	}
+}
+
+class HardReloadAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.hardReload';
+
+	constructor() {
+		super({
+			id: HardReloadAction.ID,
+			title: localize2('browser.hardReloadAction', 'Hard Reload'),
+			category: BrowserCategory,
+			icon: Codicon.refresh,
+			f1: true,
+			precondition: BROWSER_EDITOR_ACTIVE,
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75, // Priority over debug and reload workbench
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
+				secondary: [KeyMod.CtrlCmd | KeyCode.F5],
+				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR, secondary: [] }
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, browserEditor = accessor.get(IEditorService).activeEditorPane): Promise<void> {
+		if (browserEditor instanceof BrowserEditor) {
+			await browserEditor.reload(true);
 		}
 	}
 }
@@ -574,6 +607,7 @@ registerAction2(NewTabAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
+registerAction2(HardReloadAction);
 registerAction2(FocusUrlInputAction);
 registerAction2(AddElementToChatAction);
 registerAction2(AddConsoleLogsToChatAction);

@@ -50,7 +50,7 @@ import { IEditorGroupsService } from '../../../../services/editor/common/editorG
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { Target } from '../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -171,6 +171,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 						},
 						supportsPromptAttachments: {
 							description: localize('chatSessionsExtPoint.supportsPromptAttachments', 'Whether this chat session supports attaching prompts.'),
+							type: 'boolean'
+						},
+						supportsHandOffs: {
+							description: localize('chatSessionsExtPoint.supportsHandOffs', 'Whether this chat session supports hand-off prompts.'),
 							type: 'boolean'
 						}
 					}
@@ -777,20 +781,20 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!controller;
 	}
 
-	async canResolveChatSession(chatSessionResource: URI) {
+	async canResolveChatSession(sessionType: string) {
 		await this._extensionService.whenInstalledExtensionsRegistered();
-		const resolvedType = this._resolveToPrimaryType(chatSessionResource.scheme) || chatSessionResource.scheme;
+		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
 		const contribution = this._contributions.get(resolvedType)?.contribution;
 		if (contribution && !this._isContributionAvailable(contribution)) {
 			return false;
 		}
 
-		if (this._contentProviders.has(chatSessionResource.scheme)) {
+		if (this._contentProviders.has(sessionType)) {
 			return true;
 		}
 
-		await this._extensionService.activateByEvent(`onChatSession:${chatSessionResource.scheme}`);
-		return this._contentProviders.has(chatSessionResource.scheme);
+		await this._extensionService.activateByEvent(`onChatSession:${sessionType}`);
+		return this._contentProviders.has(sessionType);
 	}
 
 	private async tryActivateControllers(providersToResolve: readonly string[] | undefined): Promise<void> {
@@ -1020,7 +1024,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource), token))) {
+		if (!(await raceCancellationError(this.canResolveChatSession(sessionResource.scheme), token))) {
 			throw Error(`Can not find provider for ${sessionResource}`);
 		}
 

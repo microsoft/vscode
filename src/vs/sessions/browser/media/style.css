@@ -46,7 +46,7 @@
 /* ---- Chat Input ---- */
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
-	border-radius: 8px !important;
+	border-radius: var(--vscode-cornerRadius-large) !important;
 }
 
 .agent-sessions-workbench .interactive-session .interactive-input-part {

@@ -9,8 +9,7 @@ import { localize } from '../../../../../../nls.js';
 import { SpecedToolAliases } from '../../tools/languageModelToolsService.js';
 import { CLAUDE_AGENTS_SOURCE_FOLDER, isInClaudeRulesFolder } from '../config/promptFileLocations.js';
 import { PromptHeader, PromptHeaderAttributes } from '../promptFileParser.js';
-import { PromptsType } from '../promptTypes.js';
-import { Target } from '../service/promptsService.js';
+import { PromptsType, Target } from '../promptTypes.js';
 
 export namespace GithubPromptHeaderAttributes {
 	export const mcpServers = 'mcp-servers';

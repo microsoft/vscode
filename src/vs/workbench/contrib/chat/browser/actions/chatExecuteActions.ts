@@ -185,15 +185,8 @@ const requestInProgressOrPendingToolCall = ContextKeyExpr.or(
 	ChatContextKeys.Editing.hasToolConfirmation,
 	ChatContextKeys.Editing.hasQuestionCarousel,
 );
-const requestInProgressWithoutInput = ContextKeyExpr.and(
-	ChatContextKeys.requestInProgress,
-	ChatContextKeys.inputHasText.negate(),
-);
-const pendingToolCall = ContextKeyExpr.or(
-	ChatContextKeys.Editing.hasToolConfirmation,
-	ChatContextKeys.Editing.hasQuestionCarousel,
-);
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
+const whenNoRequestOrPendingToolCall = requestInProgressOrPendingToolCall!.negate();
 
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
@@ -202,7 +195,7 @@ export class ChatSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
-			whenNotInProgress,
+			whenNoRequestOrPendingToolCall,
 			ChatContextKeys.chatSessionOptionsValid,
 		);
 
@@ -231,7 +224,7 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecute,
 					order: 4,
 					when: ContextKeyExpr.and(
-						whenNotInProgress,
+						whenNoRequestOrPendingToolCall,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
 					),
@@ -247,7 +240,7 @@ export class ChatSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						ContextKeyExpr.or(ctxHasEditorModification.negate(), ChatContextKeys.inputHasText),
-						whenNotInProgress,
+						whenNoRequestOrPendingToolCall,
 						ChatContextKeys.requestInProgress.negate(),
 						menuCondition
 					),
@@ -306,7 +299,6 @@ class ToggleChatModeAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const commandService = accessor.get(ICommandService);
-		const configurationService = accessor.get(IConfigurationService);
 		const instaService = accessor.get(IInstantiationService);
 		const modeService = accessor.get(IChatModeService);
 		const telemetryService = accessor.get(ITelemetryService);
@@ -326,7 +318,7 @@ class ToggleChatModeAction extends Action2 {
 
 		const chatSession = widget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, configurationService, modeService);
+		const switchToMode = (arg && (modeService.findModeById(arg.modeId) || modeService.findModeByName(arg.modeId))) ?? this.getNextMode(widget, requestCount, modeService);
 
 		const currentMode = widget.input.currentModeObs.get();
 		if (switchToMode.id === currentMode.id) {
@@ -365,11 +357,11 @@ class ToggleChatModeAction extends Action2 {
 		}
 	}
 
-	private getNextMode(chatWidget: IChatWidget, requestCount: number, configurationService: IConfigurationService, modeService: IChatModeService): IChatMode {
+	private getNextMode(chatWidget: IChatWidget, requestCount: number, modeService: IChatModeService): IChatMode {
 		const modes = modeService.getModes();
 		const flat = [
 			...modes.builtin.filter(mode => {
-				return mode.kind !== ChatModeKind.Edit || configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0;
+				return mode.kind !== ChatModeKind.Edit || requestCount === 0;
 			}),
 			...(modes.custom ?? []),
 		];
@@ -665,7 +657,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 	constructor() {
 		const notInProgressOrEditing = ContextKeyExpr.and(
-			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
+			ContextKeyExpr.or(whenNoRequestOrPendingToolCall, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.QueueOrSteer)
 		);
 
@@ -847,7 +839,8 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(requestInProgressWithoutInput, pendingToolCall),
+					requestInProgressOrPendingToolCall,
+					ChatContextKeys.inputHasText.negate(),
 					ChatContextKeys.remoteJobCreating.negate(),
 					ChatContextKeys.currentlyEditing.negate(),
 				),

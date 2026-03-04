@@ -30,13 +30,14 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import { IVariableReference } from '../../chatModes.js';
 import { PromptsConfig } from '../config/config.js';
 import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAUDE_MD_FILENAME, getCleanPromptName, IResolvedPromptFile, IResolvedPromptSourceFolder, PromptFileSource } from '../config/promptFileLocations.js';
-import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
+import { PROMPT_LANGUAGE_ID, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, Target, IPromptDiscoveryLogEntry } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IUserPromptPath, PromptsStorage, ExtensionAgentSourceType, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IResolvedAgentFile, AgentFileType, Logger, IPromptDiscoveryLogEntry } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { IChatRequestHooks, IHookCommand, HookType } from '../hookSchema.js';
+import { ChatRequestHooks, IHookCommand } from '../hookSchema.js';
+import { HookType } from '../hookTypes.js';
 import { HookSourceFormat, getHookSourceFormat, parseHooksFromFile } from '../hookCompatibility.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
@@ -1222,16 +1223,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
 
 		let hasDisabledClaudeHooks = false;
-		const collectedHooks: Record<HookType, IHookCommand[]> = {
-			[HookType.SessionStart]: [],
-			[HookType.UserPromptSubmit]: [],
-			[HookType.PreToolUse]: [],
-			[HookType.PostToolUse]: [],
-			[HookType.PreCompact]: [],
-			[HookType.SubagentStart]: [],
-			[HookType.SubagentStop]: [],
-			[HookType.Stop]: [],
-		};
+		const collectedHooks = new Map<HookType, IHookCommand[]>();
 
 		const defaultFolder = this.workspaceService.getWorkspace().folders[0];
 
@@ -1266,7 +1258,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 				for (const [hookType, { hooks: commands }] of hooks) {
 					for (const command of commands) {
-						collectedHooks[hookType].push(command);
+						let bucket = collectedHooks.get(hookType);
+						if (!bucket) {
+							bucket = [];
+							collectedHooks.set(hookType, bucket);
+						}
+						bucket.push(command);
 						this.logger.trace(`[PromptsService] Collected ${hookType} hook from ${hookFile.uri} (format: ${format})`);
 					}
 				}
@@ -1279,21 +1276,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const plugins = this.agentPluginService.plugins.get();
 		for (const plugin of plugins) {
 			for (const hook of plugin.hooks.get()) {
-				collectedHooks[hook.type].push(...hook.hooks);
+				let bucket = collectedHooks.get(hook.type);
+				if (!bucket) {
+					bucket = [];
+					collectedHooks.set(hook.type, bucket);
+				}
+				bucket.push(...hook.hooks);
 			}
 		}
 
 		// Check if any hooks were collected
-		const hasHooks = Object.values(collectedHooks).some(arr => arr.length > 0);
-		if (!hasHooks) {
+		if (collectedHooks.size === 0) {
 			this.logger.trace('[PromptsService] No valid hooks collected.');
 			return undefined;
 		}
 
-		// Build the result, only including hook types that have entries
-		const result: IChatRequestHooks = Object.fromEntries(
-			Object.entries(collectedHooks).filter(([_, commands]) => commands.length > 0)
-		) as IChatRequestHooks;
+		// Build the result
+		const result: ChatRequestHooks = Object.fromEntries(collectedHooks) as ChatRequestHooks;
 
 		this.logger.trace(`[PromptsService] Collected hooks: ${JSON.stringify(Object.keys(result))}`);
 		return { hooks: result, hasDisabledClaudeHooks };
