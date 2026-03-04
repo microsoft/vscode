@@ -135,15 +135,20 @@ function getSnapshot() {
 	return result.stdout;
 }
 
+// Strip codicon/icon characters (Private Use Area U+E000–U+F8FF) and trim whitespace.
+function normalizeLabel(text) {
+	return text.replace(/[\uE000-\uF8FF]/g, '').trim().toLowerCase();
+}
+
 function findRefByButtonName(snapshotText, label) {
 	// Look for: button "Label" [ref=eNN] or button "Label" [disabled] [ref=eNN]
-	// Matching is case-insensitive and ignores leading/trailing whitespace and icon characters in the label.
-	const needle = label.trim().toLowerCase();
+	// Matching is case-insensitive and strips icon characters from the snapshot label.
+	const needle = normalizeLabel(label);
 	const lines = snapshotText.split('\n');
 	for (const line of lines) {
 		if (!line.includes('button')) { continue; }
 		const labelMatch = line.match(/"([^"]+)"/);
-		if (labelMatch && labelMatch[1].trim().toLowerCase() === needle) {
+		if (labelMatch && normalizeLabel(labelMatch[1]) === needle) {
 			const refMatch = line.match(/\[ref=(e\d+)\]/);
 			if (refMatch) { return refMatch[1]; }
 		}
@@ -152,12 +157,12 @@ function findRefByButtonName(snapshotText, label) {
 }
 
 function findButtonLine(snapshotText, label) {
-	const needle = label.trim().toLowerCase();
+	const needle = normalizeLabel(label);
 	const lines = snapshotText.split('\n');
 	for (const line of lines) {
 		if (!line.includes('button')) { continue; }
 		const labelMatch = line.match(/"([^"]+)"/);
-		if (labelMatch && labelMatch[1].trim().toLowerCase() === needle) {
+		if (labelMatch && normalizeLabel(labelMatch[1]) === needle) {
 			return line;
 		}
 	}
