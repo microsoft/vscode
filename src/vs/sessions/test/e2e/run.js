@@ -216,10 +216,11 @@ async function main() {
 	await waitForServer(`http://localhost:${PORT}/`, 30_000);
 	console.log(`Server ready.\n`);
 
-	// Open browser via playwright-cli
-	const openResult = runPlaywrightCli(['open', BASE_URL]);
-	if (!openResult.ok) {
-		console.error('Failed to open browser:', openResult.stderr);
+	// Open browser, then navigate to the sessions URL
+	runPlaywrightCli(['open']);
+	const gotoResult = runPlaywrightCli(['goto', BASE_URL]);
+	if (!gotoResult.ok) {
+		console.error('Failed to navigate:', gotoResult.stderr);
 		server.kill();
 		process.exit(1);
 	}
