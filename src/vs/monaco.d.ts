@@ -7716,6 +7716,11 @@ declare namespace monaco.languages {
 		 */
 		yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 		excludesGroupIds?: InlineCompletionProviderGroupId[];
+		/**
+		 * Whether this provider uses network requests to provide completions.
+		 * When `true`, the provider is disabled when the network connection is metered.
+		 */
+		usesNetworkRequests?: boolean;
 		displayName?: string;
 		debounceDelayMs?: number;
 		modelInfo?: IInlineCompletionModelInfo;

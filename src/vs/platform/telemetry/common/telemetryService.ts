@@ -149,7 +149,7 @@ export class TelemetryService implements ITelemetryService {
 
 		// Send all buffered events now that experiment properties are available
 		for (const event of this._pendingEvents) {
-			this._doLog(event.eventName, event.eventLevel, event.data);
+			this._log(event.eventName, event.eventLevel, event.data);
 		}
 		this._pendingEvents = [];
 	}

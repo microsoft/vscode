@@ -16,6 +16,7 @@ import { resolveWorkbenchCommonProperties } from '../common/workbenchCommonPrope
 import { TelemetryService as BaseTelemetryService, ITelemetryServiceConfig } from '../../../../platform/telemetry/common/telemetryService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ClassifiedEvent, StrictPropertyCheck, OmitMetadata, IGDPRProperty } from '../../../../platform/telemetry/common/gdprTypings.js';
+import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
 import { process } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { experimentsEnabled } from '../common/workbenchTelemetryUtils.js';
 
@@ -38,7 +39,8 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		@IProductService productService: IProductService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IMeteredConnectionService meteredConnectionService: IMeteredConnectionService
 	) {
 		super();
 
@@ -62,6 +64,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 				piiPaths: getPiiPathsFromEnvironment(environmentService),
 				sendErrorTelemetry: true,
 				waitForExperimentProperties: experimentsEnabled(configurationService, productService, environmentService),
+				meteredConnectionService,
 			};
 
 			this.impl = this._register(new BaseTelemetryService(config, configurationService, productService));
