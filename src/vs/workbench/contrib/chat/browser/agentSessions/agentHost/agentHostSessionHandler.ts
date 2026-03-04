@@ -346,6 +346,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 				case 'permission_request': {
 					this._logService.info(`[AgentHost:${sessionStr}] permission_request: kind=${e.permissionKind}, requestId=${e.requestId}, path=${e.path ?? '(none)'}`);
+
+					// Auto-approve reads inside the workspace or working directory
+					if (e.permissionKind === 'read' && e.path) {
+						const readUri = URI.file(e.path);
+						if (this._workspaceContextService.getWorkspaceFolder(readUri)) {
+							this._logService.trace(`[AgentHost:${sessionStr}] auto-approving read inside workspace: ${e.path}`);
+							this._agentHostService.respondToPermissionRequest(e.requestId, true);
+							break;
+						}
+					}
+
 					const confirmInvocation = this._createPermissionConfirmation(e);
 					progress([confirmInvocation]);
 

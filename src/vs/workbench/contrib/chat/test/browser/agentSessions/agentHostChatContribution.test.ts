@@ -141,7 +141,7 @@ function createTestServices(disposables: DisposableStore) {
 	});
 	instantiationService.stub(IConfigurationService, { getValue: () => true });
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
-	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ folders: [] }) });
+	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ folders: [] }), getWorkspaceFolder: () => undefined });
 
 	return { instantiationService, agentHostService, chatAgentService };
 }
