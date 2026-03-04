@@ -119,7 +119,8 @@ function stepToCommands(step) {
 // ---------------------------------------------------------------------------
 
 function runPlaywrightCli(args) {
-	const result = cp.spawnSync('playwright-cli', args.split(/\s+/), {
+	const argList = Array.isArray(args) ? args : args.match(/"[^"]*"|\S+/g)?.map(s => s.replace(/^"|"$/g, '')) ?? [];
+	const result = cp.spawnSync('playwright-cli', argList, {
 		cwd: APP_ROOT,
 		stdio: ['ignore', 'pipe', 'pipe'],
 		timeout: 30_000,
@@ -212,11 +213,11 @@ async function main() {
 	server.stderr.on('data', d => { /* silent */ });
 
 	// Wait for server to be ready
-	await waitForServer(BASE_URL, 30_000);
+	await waitForServer(`http://localhost:${PORT}/`, 30_000);
 	console.log(`Server ready.\n`);
 
 	// Open browser via playwright-cli
-	const openResult = runPlaywrightCli(`open ${BASE_URL}`);
+	const openResult = runPlaywrightCli(['open', BASE_URL]);
 	if (!openResult.ok) {
 		console.error('Failed to open browser:', openResult.stderr);
 		server.kill();
