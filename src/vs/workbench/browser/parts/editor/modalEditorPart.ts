@@ -315,35 +315,20 @@ export class ModalEditorPart {
 		}));
 
 		// Use 2x deltas because the modal is centered (grows/shrinks equally on both sides)
-		disposables.add(eastSash.onDidChange(e => {
+		const applyResize = (widthDelta: number, heightDelta: number) => {
 			const containerDimension = this.layoutService.mainContainerDimension;
-			customWidth = Math.max(MIN_MODAL_WIDTH, Math.min(dragStartWidth + (e.currentX - e.startX) * 2, containerDimension.width));
-			customHeight = customHeight ?? currentHeight;
-			layoutModal();
-		}));
-
-		disposables.add(westSash.onDidChange(e => {
-			const containerDimension = this.layoutService.mainContainerDimension;
-			customWidth = Math.max(MIN_MODAL_WIDTH, Math.min(dragStartWidth - (e.currentX - e.startX) * 2, containerDimension.width));
-			customHeight = customHeight ?? currentHeight;
-			layoutModal();
-		}));
-
-		disposables.add(southSash.onDidChange(e => {
 			const titleBarOffset = this.layoutService.mainContainerOffset.top;
-			const availableHeight = Math.max(this.layoutService.mainContainerDimension.height - titleBarOffset, 0);
-			customHeight = Math.max(MIN_MODAL_HEIGHT, Math.min(dragStartHeight + (e.currentY - e.startY) * 2, availableHeight));
-			customWidth = customWidth ?? currentWidth;
-			layoutModal();
-		}));
+			const maxHeight = Math.max(containerDimension.height - titleBarOffset, 0);
 
-		disposables.add(northSash.onDidChange(e => {
-			const titleBarOffset = this.layoutService.mainContainerOffset.top;
-			const availableHeight = Math.max(this.layoutService.mainContainerDimension.height - titleBarOffset, 0);
-			customHeight = Math.max(MIN_MODAL_HEIGHT, Math.min(dragStartHeight - (e.currentY - e.startY) * 2, availableHeight));
-			customWidth = customWidth ?? currentWidth;
+			customWidth = Math.max(MIN_MODAL_WIDTH, Math.min(dragStartWidth + widthDelta * 2, containerDimension.width));
+			customHeight = Math.max(MIN_MODAL_HEIGHT, Math.min(dragStartHeight + heightDelta * 2, maxHeight));
 			layoutModal();
-		}));
+		};
+
+		disposables.add(eastSash.onDidChange(e => applyResize(e.currentX - e.startX, 0)));
+		disposables.add(westSash.onDidChange(e => applyResize(-(e.currentX - e.startX), 0)));
+		disposables.add(southSash.onDidChange(e => applyResize(0, e.currentY - e.startY)));
+		disposables.add(northSash.onDidChange(e => applyResize(0, -(e.currentY - e.startY))));
 
 		// Persist custom size on drag end
 		disposables.add(Event.any(northSash.onDidEnd, eastSash.onDidEnd, southSash.onDidEnd, westSash.onDidEnd)(() => {
