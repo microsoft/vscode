@@ -826,7 +826,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}));
 		} catch (error) {
 			console.error('Failed to load model for embedded editor:', error);
-			this.goBackToList();
+			if (isEqual(this.currentEditingUri, uri)) {
+				this.goBackToList();
+			}
 		}
 	}
 
