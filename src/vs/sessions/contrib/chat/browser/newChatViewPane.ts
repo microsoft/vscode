@@ -245,7 +245,10 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		// Update input state when attachments or model change
-		this._register(this._contextAttachments.onDidChangeContext(() => this._updateDraftState()));
+		this._register(this._contextAttachments.onDidChangeContext(() => {
+			this._updateDraftState();
+			this._focusEditor();
+		}));
 		this._register(autorun(reader => {
 			this._currentLanguageModel.read(reader);
 			this._updateDraftState();
