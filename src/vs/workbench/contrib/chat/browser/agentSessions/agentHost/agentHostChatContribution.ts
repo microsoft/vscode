@@ -79,7 +79,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			registry.registerChannel({
 				id: AgentHostContribution._outputChannelId,
 				label: 'Agent Host IPC',
-				log: false,
+				log: true,
 			});
 			this._isChannelRegistered = true;
 			this._outputChannel = undefined; // force re-fetch
@@ -111,7 +111,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 
 		const arrow = direction === 'call' ? '>>' : direction === 'result' ? '<<' : '**';
-		this._outputChannel.append(`[${timestamp}] ${arrow} ${method}${payload ? `\n${payload}` : ''}\n`);
+		this._outputChannel.append(`[${timestamp}] [trace] ${arrow} ${method}${payload ? `\n${payload}` : ''}\n`);
 	}
 
 	private async _discoverAndRegisterAgents(): Promise<void> {
