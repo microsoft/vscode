@@ -30,3 +30,5 @@ test/componentFixtures/.screenshots/*
 !test/componentFixtures/.screenshots/baseline/
 dist
 .playwright-cli
+failure-*.png
+sessions-*.png
