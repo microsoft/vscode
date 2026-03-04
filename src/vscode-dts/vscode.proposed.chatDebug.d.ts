@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 1
+// version: 2
 
 declare module 'vscode' {
 	/**
@@ -141,6 +141,37 @@ declare module 'vscode' {
 		 * How long the model turn took to complete, in milliseconds.
 		 */
 		durationInMillis?: number;
+
+		/**
+		 * The number of cached input tokens reused from a previous request.
+		 */
+		cachedTokens?: number;
+
+		/**
+		 * The time in milliseconds from sending the request to receiving the
+		 * first response token.
+		 */
+		timeToFirstTokenInMillis?: number;
+
+		/**
+		 * The maximum number of prompt/input tokens allowed for this request.
+		 */
+		maxInputTokens?: number;
+
+		/**
+		 * The maximum number of response/output tokens allowed for this request.
+		 */
+		maxOutputTokens?: number;
+
+		/**
+		 * The short name or label identifying this request (e.g., "panel/editAgent").
+		 */
+		requestName?: string;
+
+		/**
+		 * The outcome status of the model turn (e.g., "success", "failure", "canceled").
+		 */
+		status?: string;
 
 		/**
 		 * Create a new ChatDebugModelTurnEvent.
@@ -448,12 +479,129 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Structured tool call content for a resolved chat debug event,
+	 * containing the tool name, status, arguments, and output for rich rendering.
+	 */
+	export class ChatDebugEventToolCallContent {
+		/**
+		 * The name of the tool that was called.
+		 */
+		toolName: string;
+
+		/**
+		 * The outcome of the tool call (e.g., "success" or "error").
+		 */
+		result?: ChatDebugToolCallResult;
+
+		/**
+		 * How long the tool call took to complete, in milliseconds.
+		 */
+		durationInMillis?: number;
+
+		/**
+		 * The serialized input (arguments) passed to the tool.
+		 */
+		input?: string;
+
+		/**
+		 * The serialized output (result) returned by the tool.
+		 */
+		output?: string;
+
+		/**
+		 * Create a new ChatDebugEventToolCallContent.
+		 * @param toolName The name of the tool that was called.
+		 */
+		constructor(toolName: string);
+	}
+
+	/**
+	 * Structured model turn content for a resolved chat debug event,
+	 * containing request metadata, token usage, and timing for rich rendering.
+	 */
+	export class ChatDebugEventModelTurnContent {
+		/**
+		 * The short name or label identifying this request (e.g., "panel/editAgent").
+		 */
+		requestName: string;
+
+		/**
+		 * The identifier of the model used (e.g., "claude-sonnet-4.5").
+		 */
+		model?: string;
+
+		/**
+		 * The outcome status of the model turn (e.g., "success", "failure", "canceled").
+		 */
+		status?: string;
+
+		/**
+		 * How long the model turn took to complete, in milliseconds.
+		 */
+		durationInMillis?: number;
+
+		/**
+		 * The time in milliseconds from sending the request to receiving the
+		 * first response token.
+		 */
+		timeToFirstTokenInMillis?: number;
+
+		/**
+		 * The maximum number of prompt/input tokens allowed for this request.
+		 */
+		maxInputTokens?: number;
+
+		/**
+		 * The maximum number of response/output tokens allowed for this request.
+		 */
+		maxOutputTokens?: number;
+
+		/**
+		 * The number of tokens in the input/prompt.
+		 */
+		inputTokens?: number;
+
+		/**
+		 * The number of tokens in the model's output/completion.
+		 */
+		outputTokens?: number;
+
+		/**
+		 * The number of cached input tokens reused from a previous request.
+		 */
+		cachedTokens?: number;
+
+		/**
+		 * The total number of tokens consumed (input + output).
+		 */
+		totalTokens?: number;
+
+		/**
+		 * An error message, if the model turn failed.
+		 */
+		errorMessage?: string;
+
+		/**
+		 * Optional structured sections containing the full request/response details
+		 * (e.g., system prompt, user prompt, tools, response).
+		 * Rendered as collapsible sections in the detail view alongside the metadata.
+		 */
+		sections?: ChatDebugMessageSection[];
+
+		/**
+		 * Create a new ChatDebugEventModelTurnContent.
+		 * @param requestName The short name identifying this request.
+		 */
+		constructor(requestName: string);
+	}
+
+	/**
 	 * Union of all resolved event content types.
 	 * Extensions may also return {@link ChatDebugUserMessageEvent} or
 	 * {@link ChatDebugAgentResponseEvent} from resolve, which will be
 	 * automatically converted to structured message content.
 	 */
-	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
+	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugEventToolCallContent | ChatDebugEventModelTurnContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
 
 	/**
 	 * Union of all chat debug event types. Each type is a class,

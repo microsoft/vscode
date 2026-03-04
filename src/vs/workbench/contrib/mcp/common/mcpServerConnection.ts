@@ -5,6 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
@@ -13,15 +14,17 @@ import { ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpTaskManager } from './mcpTaskManager.js';
-import { IMcpClientMethods, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { IMcpClientMethods, IMcpPotentialSandboxBlock, IMcpServerConnection, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
 
 export class McpServerConnection extends Disposable implements IMcpServerConnection {
 	private readonly _launch = this._register(new MutableDisposable<IReference<IMcpMessageTransport>>());
 	private readonly _state = observableValue<McpConnectionState>('mcpServerState', { state: McpConnectionState.Kind.Stopped });
 	private readonly _requestHandler = observableValue<McpServerRequestHandler | undefined>('mcpServerRequestHandler', undefined);
+	private readonly _onPotentialSandboxBlock = this._register(new Emitter<IMcpPotentialSandboxBlock>());
 
 	public readonly state: IObservable<McpConnectionState> = this._state;
 	public readonly handler: IObservable<McpServerRequestHandler | undefined> = this._requestHandler;
+	public readonly onPotentialSandboxBlock = this._onPotentialSandboxBlock.event;
 
 	constructor(
 		private readonly _collection: McpCollectionDefinition,
@@ -69,6 +72,10 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 		store.add(launch);
 		store.add(launch.onDidLog(({ level, message }) => {
 			log(this._logger, level, message);
+			const potentialBlock = this._toPotentialSandboxBlock(message);
+			if (potentialBlock) {
+				this._onPotentialSandboxBlock.fire(potentialBlock);
+			}
 		}));
 
 		let didStart = false;
@@ -140,5 +147,66 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 				}
 			});
 		});
+	}
+
+	private _toPotentialSandboxBlock(message: string): IMcpPotentialSandboxBlock | undefined {
+		if (!this.definition.sandboxEnabled) {
+			return undefined;
+		}
+
+		if (/No matching config rule, denying:/i.test(message)) {
+			return {
+				kind: 'network',
+				message,
+				host: this._extractSandboxHost(message),
+			};
+		}
+
+		if (/\b(?:EAI_AGAIN|ENOTFOUND)\b/i.test(message)) {
+			return {
+				kind: 'network',
+				message,
+				host: this._extractSandboxHost(message),
+			};
+		}
+
+		if (/(?:\b(?:EACCES|EPERM|ENOENT|fail(?:ed|ure)?)\b|not accessible)/i.test(message)) {
+			return {
+				kind: 'filesystem',
+				message,
+				path: this._extractSandboxPath(message),
+			};
+		}
+
+		return undefined;
+	}
+
+	private _extractSandboxPath(line: string): string | undefined {
+		const bracketedPath = line.match(/\[(\/[^\]\r\n]+)\]/);
+		if (bracketedPath?.[1]) {
+			return bracketedPath[1].trim();
+		}
+
+		const quotedPath = line.match(/["'](\/[^"']+)["']/);
+		if (quotedPath?.[1]) {
+			return quotedPath[1];
+		}
+
+		const trailingPath = line.match(/(\/[\w.\-~/ ]+)$/);
+		return trailingPath?.[1]?.trim();
+	}
+
+	private _extractSandboxHost(value: string): string | undefined {
+		const deniedMatch = value.match(/No matching config rule, denying:\s+(.+)$/i);
+		const matchTarget = deniedMatch?.[1] ?? value;
+		const trimmed = matchTarget.trim().replace(/^["'`]+|["'`,.;]+$/g, '');
+		if (!trimmed) {
+			return undefined;
+		}
+
+		const withoutProtocol = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
+		const firstToken = withoutProtocol.split(/[\s/]/, 1)[0] ?? '';
+		const host = firstToken.replace(/:\d+$/, '');
+		return host || undefined;
 	}
 }

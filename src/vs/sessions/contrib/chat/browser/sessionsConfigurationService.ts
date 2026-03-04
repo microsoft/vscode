@@ -30,10 +30,11 @@ export interface ITaskEntry {
 	readonly script?: string;
 	readonly type?: string;
 	readonly command?: string;
+	readonly args?: CommandString[];
 	readonly inSessions?: boolean;
-	readonly windows?: { command?: string };
-	readonly osx?: { command?: string };
-	readonly linux?: { command?: string };
+	readonly windows?: { command?: string; args?: CommandString[] };
+	readonly osx?: { command?: string; args?: CommandString[] };
+	readonly linux?: { command?: string; args?: CommandString[] };
 	readonly [key: string]: unknown;
 }
 
@@ -67,7 +68,7 @@ export interface ISessionsConfigurationService {
 	 * Creates a new shell task with `inSessions: true` and writes it to
 	 * the appropriate tasks.json (user or workspace).
 	 */
-	createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void>;
+	createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<ITaskEntry | undefined>;
 
 	/**
 	 * Runs a task entry in a terminal, resolving the correct platform
@@ -88,6 +89,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly _LAST_RUN_TASK_LABELS_KEY = 'agentSessions.lastRunTaskLabels';
+	private static readonly _SUPPORTED_TASK_TYPES = new Set(['shell', 'npm']);
 
 	private readonly _sessionTasks = observableValue<readonly ITaskEntry[]>(this, []);
 	private readonly _fileWatcher = this._register(new MutableDisposable());
@@ -151,10 +153,10 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 	}
 
-	async createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<void> {
+	async createAndAddTask(command: string, session: IActiveSessionItem, target: TaskStorageTarget): Promise<ITaskEntry | undefined> {
 		const tasksJsonUri = this._getTasksJsonUri(session, target);
 		if (!tasksJsonUri) {
-			return;
+			return undefined;
 		}
 
 		const tasksJson = await this._readTasksJson(tasksJsonUri);
@@ -174,6 +176,8 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (target === 'workspace') {
 			await this._commitTasksFile(session);
 		}
+
+		return newTask;
 	}
 
 	async runTask(task: ITaskEntry, session: IActiveSessionItem): Promise<void> {
@@ -265,7 +269,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (workspaceUri) {
 			const workspaceJson = await this._readTasksJson(workspaceUri);
 			if (workspaceJson.tasks) {
-				result.push(...workspaceJson.tasks);
+				result.push(...workspaceJson.tasks.filter(t => this._isSupportedTask(t)));
 			}
 		}
 
@@ -274,24 +278,58 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (userUri) {
 			const userJson = await this._readTasksJson(userUri);
 			if (userJson.tasks) {
-				result.push(...userJson.tasks);
+				result.push(...userJson.tasks.filter(t => this._isSupportedTask(t)));
 			}
 		}
 
 		return result;
 	}
 
+	private _isSupportedTask(task: ITaskEntry): boolean {
+		return !!task.type && SessionsConfigurationService._SUPPORTED_TASK_TYPES.has(task.type);
+	}
+
 	private _resolveCommand(task: ITaskEntry): string | undefined {
+		if (task.type === 'npm') {
+			if (!task.script) {
+				return undefined;
+			}
+			const base = task.path
+				? `npm --prefix ${task.path} run ${task.script}`
+				: `npm run ${task.script}`;
+			return this._appendArgs(base, task.args);
+		}
+
+		let command: string | undefined;
+		let platformArgs: CommandString[] | undefined;
+
 		if (isWindows && task.windows?.command) {
-			return task.windows.command;
+			command = task.windows.command;
+			platformArgs = task.windows.args;
+		} else if (isMacintosh && task.osx?.command) {
+			command = task.osx.command;
+			platformArgs = task.osx.args;
+		} else if (!isWindows && !isMacintosh && task.linux?.command) {
+			command = task.linux.command;
+			platformArgs = task.linux.args;
+		} else {
+			command = task.command;
 		}
-		if (isMacintosh && task.osx?.command) {
-			return task.osx.command;
+
+		// Platform-specific args override task-level args
+		const args = platformArgs ?? task.args;
+		return this._appendArgs(command, args);
+	}
+
+	private _appendArgs(command: string | undefined, args: CommandString[] | undefined): string | undefined {
+		if (!command) {
+			return undefined;
 		}
-		if (!isWindows && !isMacintosh && task.linux?.command) {
-			return task.linux.command;
+		if (!args || args.length === 0) {
+			return command;
 		}
-		return task.command;
+		const resolvedArgs = args.map(a => CommandString.value(a)).join(' ');
+		return `${command} ${resolvedArgs}`;
 	}
 
 	private _ensureFileWatch(folder: URI): void {
@@ -321,12 +359,12 @@ export class SessionsConfigurationService extends Disposable implements ISession
 
 		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
 		const tasksJson = await this._readTasksJson(tasksUri);
-		const sessionTasks = (tasksJson.tasks ?? []).filter(t => t.inSessions);
+		const sessionTasks = (tasksJson.tasks ?? []).filter(t => t.inSessions && this._isSupportedTask(t));
 
 		// Also include user-level session tasks
 		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
 		const userJson = await this._readTasksJson(userUri);
-		const userSessionTasks = (userJson.tasks ?? []).filter(t => t.inSessions);
+		const userSessionTasks = (userJson.tasks ?? []).filter(t => t.inSessions && this._isSupportedTask(t));
 
 		transaction(tx => this._sessionTasks.set([...sessionTasks, ...userSessionTasks], tx));
 	}

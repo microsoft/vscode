@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
-import { AccountPolicyService } from '../../common/accountPolicyService.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
-import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
+import { Event } from '../../../../../base/common/event.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
+import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
+import { AccountPolicyService } from '../../common/accountPolicyService.js';
+import { MultiplexPolicyService } from '../../common/multiplexPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -39,6 +39,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 
 	readonly onDidChangeDefaultAccount = Event.None;
 	readonly onDidChangePolicyData = Event.None;
+	readonly copilotTokenInfo = null;
+	readonly onDidChangeCopilotTokenInfo = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,

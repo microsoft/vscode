@@ -69,7 +69,7 @@ export class PlaywrightTab {
 
 	async replyToDialog(accept?: boolean, promptText?: string) {
 		if (!this._dialog) {
-			throw new Error('No active dialog to respond to');
+			throw new Error('No active modal dialog to respond to');
 		}
 		const dialog = this._dialog;
 		this._dialog = undefined;
@@ -89,7 +89,7 @@ export class PlaywrightTab {
 
 	async replyToFileChooser(files: string[]) {
 		if (!this._fileChooser) {
-			throw new Error('No active file chooser to respond to');
+			throw new Error('No active file chooser dialog to respond to');
 		}
 		const chooser = this._fileChooser;
 		this._fileChooser = undefined;

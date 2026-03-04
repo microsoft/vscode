@@ -40,7 +40,6 @@ class MockChatService implements IChatService {
 	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
 	readonly chatModels = this._chatModels;
 	requestInProgressObs = observableValue('name', false);
-	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
 	editingSessions = [];
 	transferredSessionResource = undefined;
@@ -150,7 +149,7 @@ class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	cancelCurrentRequestForSession(_sessionResource: URI): void { }
+	cancelCurrentRequestForSession(_sessionResource: URI, _source?: string): void { }
 
 	setYieldRequested(_sessionResource: URI): void { }
 

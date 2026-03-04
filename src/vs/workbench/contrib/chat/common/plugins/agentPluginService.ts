@@ -10,7 +10,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor0 } from '../../../../../platform/instantiation/common/descriptors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { HookType, IHookCommand } from '../promptSyntax/hookSchema.js';
+import { IHookCommand } from '../promptSyntax/hookSchema.js';
+import { HookType } from '../promptSyntax/hookTypes.js';
 import { IMarketplacePlugin } from './pluginMarketplaceService.js';
 
 export const IAgentPluginService = createDecorator<IAgentPluginService>('agentPluginService');
@@ -31,6 +32,11 @@ export interface IAgentPluginSkill {
 	readonly name: string;
 }
 
+export interface IAgentPluginAgent {
+	readonly uri: URI;
+	readonly name: string;
+}
+
 export interface IAgentPluginMcpServerDefinition {
 	readonly name: string;
 	readonly configuration: IMcpServerConfiguration;
@@ -38,11 +44,16 @@ export interface IAgentPluginMcpServerDefinition {
 
 export interface IAgentPlugin {
 	readonly uri: URI;
+	/** Human-readable display name for the plugin. */
+	readonly label: string;
 	readonly enabled: IObservable<boolean>;
 	setEnabled(enabled: boolean): void;
+	/** Removes this plugin from its discovery source (config or installed storage). */
+	remove(): void;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
 	readonly skills: IObservable<readonly IAgentPluginSkill[]>;
+	readonly agents: IObservable<readonly IAgentPluginAgent[]>;
 	readonly mcpServerDefinitions: IObservable<readonly IAgentPluginMcpServerDefinition[]>;
 	/** Set when the plugin was installed from a marketplace repository. */
 	readonly fromMarketplace?: IMarketplacePlugin;

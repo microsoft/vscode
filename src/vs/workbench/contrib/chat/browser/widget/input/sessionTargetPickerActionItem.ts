@@ -200,6 +200,11 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		return undefined;
 	}
 
+	override render(container: HTMLElement): void {
+		super.render(container);
+		container.classList.add('chat-session-target-picker-item');
+	}
+
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		this.setAriaLabelAttributes(element);
 		const currentType = this._getSelectedSessionType();
@@ -208,11 +213,12 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		const icon = getAgentSessionProviderIcon(currentType ?? AgentSessionProviders.Local);
 
 		const labelElements = [];
+		const collapsed = this.pickerOptions.hideChevrons.get();
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (!this.pickerOptions.onlyShowIconsForDefaultActions.get()) {
+		if (!collapsed) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+			labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 		}
-		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);
 

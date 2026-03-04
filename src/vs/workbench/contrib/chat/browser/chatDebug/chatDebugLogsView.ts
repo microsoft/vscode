@@ -21,13 +21,14 @@ import { ServiceCollection } from '../../../../../platform/instantiation/common/
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { defaultBreadcrumbsWidgetStyles, defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { FilterWidget } from '../../../../browser/parts/views/viewFilter.js';
-import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
+import { IChatDebugEvent, IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatDebugEventRenderer, ChatDebugEventDelegate, ChatDebugEventTreeRenderer } from './chatDebugEventList.js';
 import { setupBreadcrumbKeyboardNavigation, TextBreadcrumbItem, LogsViewMode } from './chatDebugTypes.js';
 import { ChatDebugFilterState, bindFilterContextKeys } from './chatDebugFilters.js';
 import { ChatDebugDetailPanel } from './chatDebugDetailPanel.js';
+import { IChatWidgetService } from '../chat.js';
 
 const $ = DOM.$;
 
@@ -70,6 +71,7 @@ export class ChatDebugLogsView extends Disposable {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this.container = DOM.append(parent, $('.chat-debug-logs'));
@@ -104,13 +106,13 @@ export class ChatDebugLogsView extends Disposable {
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])
 		));
 		this.filterWidget = this._register(childInstantiationService.createInstance(FilterWidget, {
-			placeholder: localize('chatDebug.search', "Filter (e.g. text, !exclude)"),
+			placeholder: localize('chatDebug.search', "Filter (e.g. text, !exclude, before:YYYY-MM-DDTHH:MM:SS)"),
 			ariaLabel: localize('chatDebug.filterAriaLabel', "Filter debug events"),
 		}));
 
 		// View mode toggle
 		this.viewModeToggle = this._register(new Button(this.headerContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.toggleViewMode', "Toggle between list and tree view") }));
-		this.viewModeToggle.element.classList.add('chat-debug-view-mode-toggle');
+		this.viewModeToggle.element.classList.add('chat-debug-view-mode-toggle', 'monaco-text-button');
 		this.updateViewModeToggle();
 		this._register(this.viewModeToggle.onDidClick(() => {
 			this.toggleViewMode();
@@ -118,6 +120,23 @@ export class ChatDebugLogsView extends Disposable {
 
 		const filterContainer = DOM.append(this.headerContainer, $('.viewpane-filter-container'));
 		filterContainer.appendChild(this.filterWidget.element);
+
+		// Troubleshoot button
+		const troubleshootButton = this._register(new Button(this.headerContainer, { ...defaultButtonStyles, secondary: true, title: localize('chatDebug.troubleshoot', "Add snapshot to Chat") }));
+		troubleshootButton.element.classList.add('chat-debug-troubleshoot-button', 'monaco-text-button');
+		DOM.append(troubleshootButton.element, $(`span${ThemeIcon.asCSSSelector(Codicon.chatSparkle)}`));
+		this._register(troubleshootButton.onDidClick(async () => {
+			if (!this.currentSessionResource) {
+				return;
+			}
+			const widget = await this.chatWidgetService.openSession(this.currentSessionResource);
+			if (widget) {
+				const value = '/troubleshoot ';
+				widget.inputEditor.setValue(value);
+				widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+				widget.focusInput();
+			}
+		}));
 
 		this._register(this.filterWidget.onDidChangeFilterText(text => {
 			this.filterState.setTextFilter(text);
@@ -241,6 +260,10 @@ export class ChatDebugLogsView extends Disposable {
 		this.currentSessionResource = sessionResource;
 	}
 
+	setFilterText(text: string): void {
+		this.filterWidget.setFilterText(text);
+	}
+
 	show(): void {
 		DOM.show(this.container);
 		this.loadEvents();
@@ -290,27 +313,18 @@ export class ChatDebugLogsView extends Disposable {
 	refreshList(): void {
 		let filtered = this.events;
 
-		// Filter by kind toggles
-		filtered = filtered.filter(e => this.filterState.isKindVisible(e.kind));
-
-		// Filter by level toggles
+		// Filter by kind toggles (pass category for generic events so only
+		// discovery-category events are affected by the Prompt Discovery toggle)
 		filtered = filtered.filter(e => {
-			if (e.kind === 'generic') {
-				switch (e.level) {
-					case ChatDebugLogLevel.Trace: return this.filterState.filterLevelTrace;
-					case ChatDebugLogLevel.Info: return this.filterState.filterLevelInfo;
-					case ChatDebugLogLevel.Warning: return this.filterState.filterLevelWarning;
-					case ChatDebugLogLevel.Error: return this.filterState.filterLevelError;
-				}
-			}
-			if (e.kind === 'toolCall' && e.result === 'error') {
-				return this.filterState.filterLevelError;
-			}
-			return true;
+			const category = e.kind === 'generic' ? e.category : undefined;
+			return this.filterState.isKindVisible(e.kind, category);
 		});
 
-		// Filter by text search
-		const filterText = this.filterState.textFilter;
+		// Filter by timestamp (before:/after: syntax)
+		filtered = filtered.filter(e => this.filterState.isTimestampVisible(e.created));
+
+		// Filter by text search (excluding before:/after: tokens)
+		const filterText = this.filterState.textFilterWithoutTimestamps;
 		if (filterText) {
 			const terms = filterText.split(/\s*,\s*/).filter(t => t.length > 0);
 			const includeTerms = terms.filter(t => !t.startsWith('!')).map(t => t.trim());

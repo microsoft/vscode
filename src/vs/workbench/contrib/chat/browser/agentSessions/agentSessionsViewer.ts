@@ -37,12 +37,18 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionProviders, getAgentSessionTime } from './agentSessions.js';
 import { AgentSessionsGrouping } from './agentSessionsFilter.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
+
 
 export type AgentSessionListItem = IAgentSession | IAgentSessionSection;
 
@@ -70,6 +76,11 @@ interface IAgentSessionItemTemplate {
 	readonly separator: HTMLElement;
 	readonly description: HTMLElement;
 
+	// Approval row
+	readonly approvalRow: HTMLElement;
+	readonly approvalLabel: HTMLElement;
+	readonly approvalButtonContainer: HTMLElement;
+
 	readonly contextKeyService: IContextKeyService;
 	readonly elementDisposable: DisposableStore;
 	readonly disposables: IDisposable;
@@ -77,6 +88,7 @@ interface IAgentSessionItemTemplate {
 
 export interface IAgentSessionRendererOptions {
 	readonly disableHover?: boolean;
+	readonly showIsolationIcon?: boolean;
 	getHoverPosition(): HoverPosition;
 }
 
@@ -84,12 +96,25 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 	static readonly TEMPLATE_ID = 'agent-session';
 
+	static readonly APPROVAL_ROW_MAX_LINES = 3;
+	private static readonly _APPROVAL_ROW_LINE_HEIGHT = 18;
+	private static readonly _APPROVAL_ROW_OVERHEAD = 14; // 4px margin-top + 4px padding-top + 4px padding-bottom + 2px border
+
+	static getApprovalRowHeight(label: string): number {
+		const lineCount = Math.min(label.split(/\r?\n/).length, AgentSessionRenderer.APPROVAL_ROW_MAX_LINES);
+		return lineCount * AgentSessionRenderer._APPROVAL_ROW_LINE_HEIGHT + AgentSessionRenderer._APPROVAL_ROW_OVERHEAD;
+	}
+
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	private readonly sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
 
+	private readonly _onDidChangeItemHeight = this._register(new Emitter<IAgentSession>());
+	readonly onDidChangeItemHeight: Event<IAgentSession> = this._onDidChangeItemHeight.event;
+
 	constructor(
 		private readonly options: IAgentSessionRendererOptions,
+		private readonly _approvalModel: AgentSessionApprovalModel | undefined,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IProductService private readonly productService: IProductService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -129,6 +154,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 								h('span.agent-session-status-time@statusTime')
 							]),
 						]),
+					]),
+					h('div.agent-session-approval-row@approvalRow', [
+						h('span.agent-session-approval-label@approvalLabel'),
+						h('div.agent-session-approval-button@approvalButtonContainer'),
 					])
 				])
 			]
@@ -156,6 +185,9 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 			statusContainer: elements.statusContainer,
 			statusProviderIcon: elements.statusProviderIcon,
 			statusTime: elements.statusTime,
+			approvalRow: elements.approvalRow,
+			approvalLabel: elements.approvalLabel,
+			approvalButtonContainer: elements.approvalButtonContainer,
 			contextKeyService,
 			elementDisposable,
 			disposables
@@ -229,6 +261,11 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Hover
 		this.renderHover(session, template);
+
+		// Approval row
+		if (this._approvalModel) {
+			this.renderApprovalRow(session, template);
+		}
 	}
 
 	private renderBadge(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): boolean {
@@ -353,8 +390,17 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		};
 
 		// Provider icon (only shown for non-local sessions)
+		// When showIsolationIcon is enabled for background sessions, show worktree/folder icon instead
 		const isLocal = session.element.providerType === AgentSessionProviders.Local;
-		template.statusProviderIcon.className = isLocal ? '' : `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+		if (isLocal) {
+			template.statusProviderIcon.className = '';
+		} else if (this.options.showIsolationIcon && session.element.providerType === AgentSessionProviders.Background) {
+			const hasWorktree = typeof session.element.metadata?.worktreePath === 'string';
+			const isolationIcon = hasWorktree ? Codicon.worktree : Codicon.folder;
+			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(isolationIcon)}`;
+		} else {
+			template.statusProviderIcon.className = `agent-session-status-provider-icon ${ThemeIcon.asClassName(session.element.icon)}`;
+		}
 
 		// Time label
 		template.statusTime.textContent = getTimeLabel(session.element);
@@ -394,6 +440,66 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 				hoverPosition: this.options.getHoverPosition()
 			}
 		};
+	}
+
+	private renderApprovalRow(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		if (this._approvalModel === undefined) {
+			throw new BugIndicatingError('Approval model is required to render approval row');
+		}
+
+		const approvalModel = this._approvalModel;
+		// Initialize from current model state to avoid unnecessary height changes on first render
+		const initialInfo = approvalModel.getApproval(session.element.resource).get();
+		let wasVisible = !!initialInfo;
+		template.approvalRow.classList.toggle('visible', wasVisible);
+
+		const buttonStore = template.elementDisposable.add(new DisposableStore());
+
+		template.elementDisposable.add(autorun(reader => {
+			buttonStore.clear();
+
+			const info = approvalModel.getApproval(session.element.resource).read(reader);
+			const visible = !!info;
+
+			template.approvalRow.classList.toggle('visible', visible);
+
+			if (info) {
+				// Render up to 3 lines, each as a separate code block so CSS can truncate per-line
+				const lines = info.label.split('\n');
+				const maxLines = AgentSessionRenderer.APPROVAL_ROW_MAX_LINES;
+				const visibleLines = lines.slice(0, maxLines);
+				if (lines.length > maxLines) {
+					visibleLines[maxLines - 1] = `${visibleLines[maxLines - 1]} \u2026`;
+				}
+				const langId = info.languageId ?? 'json';
+				const labelContent = new MarkdownString();
+				for (const line of visibleLines) {
+					labelContent.appendCodeblock(langId, line);
+				}
+				this.renderMarkdownOrText(labelContent, template.approvalLabel, buttonStore);
+
+				// Hover with full content as a code block
+				const fullContent = new MarkdownString().appendCodeblock(info.languageId ?? 'json', info.label);
+				buttonStore.add(this.hoverService.setupDelayedHover(template.approvalLabel, {
+					content: fullContent,
+					style: HoverStyle.Pointer,
+					position: { hoverPosition: HoverPosition.BELOW },
+				}));
+
+				template.approvalButtonContainer.textContent = '';
+				const button = buttonStore.add(new Button(template.approvalButtonContainer, {
+					title: localize('allowActionOnce', "Allow once"),
+					...defaultButtonStyles
+				}));
+				button.label = localize('allowAction', "Allow");
+				buttonStore.add(button.onDidClick(() => info.confirm()));
+			}
+
+			if (wasVisible !== visible) {
+				wasVisible = visible;
+				this._onDidChangeItemHeight.fire(session.element);
+			}
+		}));
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSession>, FuzzyScore>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
@@ -509,12 +615,23 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 	static readonly ITEM_HEIGHT = 54;
 	static readonly SECTION_HEIGHT = 26;
 
+	constructor(private readonly _approvalModel?: AgentSessionApprovalModel) { }
+
 	getHeight(element: AgentSessionListItem): number {
 		if (isAgentSessionSection(element)) {
 			return AgentSessionsListDelegate.SECTION_HEIGHT;
 		}
 
-		return AgentSessionsListDelegate.ITEM_HEIGHT;
+		let height = AgentSessionsListDelegate.ITEM_HEIGHT;
+		const approval = this._approvalModel?.getApproval(element.resource).get();
+		if (approval) {
+			height += AgentSessionRenderer.getApprovalRowHeight(approval.label);
+		}
+		return height;
+	}
+
+	hasDynamicHeight(element: AgentSessionListItem): boolean {
+		return !!this._approvalModel && isAgentSession(element);
 	}
 
 	getTemplateId(element: AgentSessionListItem): string {
@@ -591,16 +708,31 @@ export interface IAgentSessionsFilter {
 	 * Get the current filter excludes for display in the UI.
 	 */
 	getExcludes(): IAgentSessionsFilterExcludes;
+
+	/**
+	 * Whether the filter is at its default state (no custom filters applied).
+	 */
+	isDefault(): boolean;
+
+	/**
+	 * Reset the filter to its default state.
+	 */
+	reset(): void;
 }
 
-export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
+export class AgentSessionsDataSource extends Disposable implements IAsyncDataSource<IAgentSessionsModel, AgentSessionListItem> {
 
 	private static readonly CAPPED_SESSIONS_LIMIT = 3;
+
+	private readonly _onDidGetChildren = this._register(new Emitter<number>());
+	readonly onDidGetChildren: Event<number> = this._onDidGetChildren.event;
 
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
 		private readonly sorter: ITreeSorter<IAgentSession>,
-	) { }
+	) {
+		super();
+	}
 
 	hasChildren(element: IAgentSessionsModel | AgentSessionListItem): boolean {
 
@@ -641,6 +773,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 
 			// Callback results count
 			this.filter?.notifyResults?.(filteredSessions.length);
+			this._onDidGetChildren.fire(filteredSessions.length);
 
 			// Group sessions into sections if enabled
 			if (this.filter?.groupResults?.()) {
@@ -839,17 +972,6 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (other) comes after b (needs input)
 		}
 
-		// In Progress
-		const aInProgress = sessionA.status === AgentSessionStatus.InProgress;
-		const bInProgress = sessionB.status === AgentSessionStatus.InProgress;
-
-		if (aInProgress && !bInProgress) {
-			return -1; // a (in-progress) comes before b (finished)
-		}
-		if (!aInProgress && bInProgress) {
-			return 1; // a (finished) comes after b (in-progress)
-		}
-
 		// Archived
 		const aArchived = sessionA.isArchived();
 		const bArchived = sessionB.isArchived();
@@ -867,7 +989,7 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return override;
 		}
 
-		//Sort by end or start time (most recent first)
+		// Sort by end or start time (most recent first)
 		const timeA = getAgentSessionTime(sessionA.timing);
 		const timeB = getAgentSessionTime(sessionB.timing);
 		return timeB - timeA;

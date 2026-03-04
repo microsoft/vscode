@@ -321,6 +321,7 @@ export interface IChatRequestModeInstructions {
 	readonly content: string;
 	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
 	readonly metadata?: Record<string, boolean | string | number>;
+	readonly isBuiltin?: boolean;
 }
 
 export interface IChatRequestModelParameters {
@@ -1991,6 +1992,21 @@ export class ChatModel extends Disposable implements IChatModel {
 			this._onDidChangePendingRequests.fire();
 		}
 		return request;
+	}
+
+	/**
+	 * @internal Used by ChatService to dequeue all consecutive steering requests at the front of the queue.
+	 * Returns an empty array if the first pending request is not a steering request.
+	 */
+	dequeueAllSteeringRequests(): IChatPendingRequest[] {
+		const steeringRequests: IChatPendingRequest[] = [];
+		while (this._pendingRequests.at(0)?.kind === ChatRequestQueueKind.Steering) {
+			steeringRequests.push(this._pendingRequests.shift()!);
+		}
+		if (steeringRequests.length > 0) {
+			this._onDidChangePendingRequests.fire();
+		}
+		return steeringRequests;
 	}
 
 	/**
