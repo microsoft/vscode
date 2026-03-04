@@ -58,9 +58,7 @@ suite('ChatQuestionCarouselPart', () => {
 			createWidget(carousel);
 
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-container'));
-			assert.ok(widget.domNode.querySelector('.chat-question-header-row'));
 			assert.ok(widget.domNode.querySelector('.chat-question-carousel-content'));
-			assert.ok(widget.domNode.querySelector('.chat-question-carousel-nav'));
 		});
 
 		test('renders question title', () => {
@@ -125,7 +123,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(messageEl?.querySelector('.rendered-markdown'), null, 'plain string message should not use markdown renderer');
 		});
 
-		test('renders progress indicator correctly', () => {
+		test('renders tab bar for multi-question carousel', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1', message: 'Question 1' },
 				{ id: 'q2', type: 'text', title: 'Question 2', message: 'Question 2' },
@@ -133,11 +131,11 @@ suite('ChatQuestionCarouselPart', () => {
 			]);
 			createWidget(carousel);
 
-			// Progress is shown in the step indicator in the footer as "1/3"
-			const stepIndicator = widget.domNode.querySelector('.chat-question-step-indicator');
-			assert.ok(stepIndicator);
-			assert.ok(stepIndicator?.textContent?.includes('1'));
-			assert.ok(stepIndicator?.textContent?.includes('3'));
+			const tabBar = widget.domNode.querySelector('.chat-question-tab-bar');
+			assert.ok(tabBar, 'Tab bar should exist for multi-question carousel');
+			const tabs = widget.domNode.querySelectorAll('.chat-question-tab');
+			// 3 question tabs + 1 review tab
+			assert.strictEqual(tabs.length, 4, 'Should have 3 question tabs + 1 review tab');
 		});
 	});
 
@@ -271,42 +269,16 @@ suite('ChatQuestionCarouselPart', () => {
 	});
 
 	suite('Navigation', () => {
-		test('previous button is disabled on first question', () => {
-			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Question 1' },
-				{ id: 'q2', type: 'text', title: 'Question 2' }
-			]);
-			createWidget(carousel);
-
-			// Use dedicated class selectors for stability
-			const prevButton = widget.domNode.querySelector('.chat-question-nav-prev') as HTMLButtonElement;
-			assert.ok(prevButton, 'Previous button should exist');
-			assert.ok(prevButton.classList.contains('disabled') || prevButton.disabled, 'Previous button should be disabled on first question');
-		});
-
-		test('next button stays as arrow and is disabled on last question', () => {
+		test('single question has no tab bar or submit button', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Only Question' }
 			]);
 			createWidget(carousel);
 
-			// Use dedicated class selector for stability
-			const nextButton = widget.domNode.querySelector('.chat-question-nav-next') as HTMLButtonElement;
-			assert.ok(nextButton, 'Next button should exist');
-			assert.strictEqual(nextButton.getAttribute('aria-label'), 'Next', 'Next button should preserve Next aria-label on last question');
-			assert.ok(nextButton.classList.contains('disabled') || nextButton.disabled, 'Next button should be disabled on last question');
-		});
-
-		test('submit button is shown on last question', () => {
-			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Only Question' }
-			]);
-			createWidget(carousel);
-
-			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
-			assert.ok(submitButton, 'Submit button should exist');
-			assert.strictEqual(submitButton.getAttribute('aria-label'), 'Submit');
-			assert.notStrictEqual(submitButton.style.display, 'none', 'Submit button should be visible on last question');
+			const tabBar = widget.domNode.querySelector('.chat-question-tab-bar');
+			assert.strictEqual(tabBar, null, 'Tab bar should not exist for single question');
+			const submitButton = widget.domNode.querySelector('.chat-question-submit-button');
+			assert.strictEqual(submitButton, null, 'Submit button is only in review panel for multi-question');
 		});
 	});
 
@@ -401,13 +373,14 @@ suite('ChatQuestionCarouselPart', () => {
 	suite('Accessibility', () => {
 		test('navigation area has proper role and aria-label', () => {
 			const carousel = createMockCarousel([
-				{ id: 'q1', type: 'text', title: 'Question 1' }
+				{ id: 'q1', type: 'text', title: 'Question 1' },
+				{ id: 'q2', type: 'text', title: 'Question 2' }
 			]);
 			createWidget(carousel);
 
-			const nav = widget.domNode.querySelector('.chat-question-carousel-nav');
-			assert.strictEqual(nav?.getAttribute('role'), 'navigation');
-			assert.ok(nav?.getAttribute('aria-label'), 'Navigation should have aria-label');
+			const tabList = widget.domNode.querySelector('.chat-question-tabs');
+			assert.strictEqual(tabList?.getAttribute('role'), 'tablist');
+			assert.ok(tabList?.getAttribute('aria-label'), 'Tab list should have aria-label');
 		});
 
 		test('single select list has proper role and aria-label', () => {
@@ -586,19 +559,20 @@ suite('ChatQuestionCarouselPart', () => {
 			], true);
 
 			const firstWidget = createWidget(carousel);
-			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
-			assert.ok(nextButton, 'next button should exist');
-			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			// Click the second tab to navigate
+			const tabs = firstWidget.domNode.querySelectorAll('.chat-question-tab');
+			assert.ok(tabs.length >= 2, 'should have at least 2 tabs');
+			(tabs[1] as HTMLElement).click();
+
+			// Verify navigation happened
+			assert.strictEqual(tabs[1].getAttribute('aria-selected'), 'true', 'second tab should be selected after click');
 
 			firstWidget.dispose();
 			firstWidget.domNode.remove();
 
 			const recreatedWidget = createWidget(carousel);
-			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
-			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index after navigation');
-
-			const title = recreatedWidget.domNode.querySelector('.chat-question-title');
-			assert.ok(title?.textContent?.includes('Question 2'), 'should restore to the second question view');
+			const recreatedTabs = recreatedWidget.domNode.querySelectorAll('.chat-question-tab');
+			assert.strictEqual(recreatedTabs[1]?.getAttribute('aria-selected'), 'true', 'should restore to second tab after recreation');
 		});
 
 		test('retains draft answers and current question after widget recreation', () => {
@@ -613,9 +587,9 @@ suite('ChatQuestionCarouselPart', () => {
 			firstInput.value = 'first draft answer';
 			firstInput.dispatchEvent(new Event('input', { bubbles: true }));
 
-			const nextButton = firstWidget.domNode.querySelector('.chat-question-nav-next') as HTMLElement | null;
-			assert.ok(nextButton, 'next button should exist');
-			nextButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			// Click the second tab to navigate
+			const tabs = firstWidget.domNode.querySelectorAll('.chat-question-tab');
+			(tabs[1] as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 			const secondInput = firstWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
 			assert.ok(secondInput, 'second question input should exist');
@@ -626,16 +600,16 @@ suite('ChatQuestionCarouselPart', () => {
 			firstWidget.domNode.remove();
 
 			const recreatedWidget = createWidget(carousel);
-			const stepIndicator = recreatedWidget.domNode.querySelector('.chat-question-step-indicator');
-			assert.strictEqual(stepIndicator?.textContent, '2/2', 'should restore the current question index');
+			const recreatedTabs = recreatedWidget.domNode.querySelectorAll('.chat-question-tab');
+			assert.strictEqual(recreatedTabs[1]?.getAttribute('aria-selected'), 'true', 'should restore the current question index');
 
 			const recreatedSecondInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
 			assert.ok(recreatedSecondInput, 'recreated second question input should exist');
 			assert.strictEqual(recreatedSecondInput.value, 'second draft answer', 'should restore draft input for current question');
 
-			const prevButton = recreatedWidget.domNode.querySelector('.chat-question-nav-prev') as HTMLElement | null;
-			assert.ok(prevButton, 'previous button should exist');
-			prevButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+			// Click the first tab to go back
+			const recreatedTabsAgain = recreatedWidget.domNode.querySelectorAll('.chat-question-tab');
+			(recreatedTabsAgain[0] as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
 			const recreatedFirstInput = recreatedWidget.domNode.querySelector('.monaco-inputbox input') as HTMLInputElement | null;
 			assert.ok(recreatedFirstInput, 'recreated first question input should exist');
@@ -655,7 +629,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(summary, 'Should show summary container after skip');
 			const summaryItem = summary?.querySelector('.chat-question-summary-item');
 			assert.ok(summaryItem, 'Should have summary item for the question');
-			const summaryValue = summaryItem?.querySelector('.chat-question-summary-answer-title');
+			const summaryValue = summaryItem?.querySelector('.chat-question-summary-answer');
 			assert.ok(summaryValue?.textContent?.includes('default answer'), 'Summary should show the default answer');
 		});
 
@@ -689,7 +663,7 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(widget.domNode.classList.contains('chat-question-carousel-used'), 'Should have used class');
 			const summary = widget.domNode.querySelector('.chat-question-carousel-summary');
 			assert.ok(summary, 'Should show summary container when isUsed is true');
-			const summaryValue = summary?.querySelector('.chat-question-summary-answer-title');
+			const summaryValue = summary?.querySelector('.chat-question-summary-answer');
 			assert.ok(summaryValue?.textContent?.includes('saved answer'), 'Summary should show saved answer from data');
 		});
 

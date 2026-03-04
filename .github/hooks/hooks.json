@@ -4,7 +4,8 @@
 		"sessionStart": [
 			{
 				"type": "command",
-				"bash": "if [ -f ~/.vscode-worktree-setup ]; then nohup bash -c 'npm ci && npm run compile' > /tmp/worktree-setup-$(date +%Y-%m-%d_%H-%M-%S).log 2>&1 & fi"
+				"bash": "if [ -f ~/.vscode-worktree-setup ]; then nohup bash -c 'npm ci && npm run compile' > /tmp/worktree-setup-$(date +%Y-%m-%d_%H-%M-%S).log 2>&1 & fi",
+				"powershell": "if (Test-Path \"$env:USERPROFILE\\.vscode-worktree-setup\") { $log = \"$env:TEMP\\worktree-setup-$(Get-Date -Format 'yyyy-MM-dd_HH-mm-ss').log\"; $dir = $PWD.Path; Start-Job -ScriptBlock { param($d, $l) Set-Location $d; & { npm ci; if ($LASTEXITCODE -eq 0) { npm run compile } } *> $l } -ArgumentList $dir, $log | Out-Null }"
 			}
 		],
 		"sessionEnd": [
