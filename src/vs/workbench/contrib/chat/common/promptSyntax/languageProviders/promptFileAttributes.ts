@@ -167,6 +167,10 @@ export const customAgentAttributes: Record<string, IAttributeDefinition> = {
 		type: 'map',
 		description: localize('promptHeader.agent.github', 'GitHub-specific configuration for the agent, such as token permissions.'),
 	},
+	[PromptHeaderAttributes.hooks]: {
+		type: 'map',
+		description: localize('promptHeader.agent.hooks', 'Lifecycle hooks scoped to this agent. Define hooks that run only while this agent is active.'),
+	},
 };
 
 // Attribute metadata for skill files (`SKILL.md`).
