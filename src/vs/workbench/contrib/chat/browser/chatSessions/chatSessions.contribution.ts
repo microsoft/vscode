@@ -407,7 +407,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
+		this._logService.info(`[ChatSessionsService] registerContribution called for type='${contribution.type}', canDelegate=${contribution.canDelegate}, when='${contribution.when}', extension='${ext.identifier.value}'`);
 		if (this._contributions.has(contribution.type)) {
+			this._logService.info(`[ChatSessionsService] registerContribution: type='${contribution.type}' already registered, skipping`);
 			return { dispose: () => { } };
 		}
 
@@ -643,6 +645,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		for (const { contribution, extension } of this._contributions.values()) {
 			const isCurrentlyRegistered = this._contributionDisposables.has(contribution.type);
 			const shouldBeRegistered = this._isContributionAvailable(contribution);
+			this._logService.trace(`[ChatSessionsService] _evaluateAvailability: type='${contribution.type}', isCurrentlyRegistered=${isCurrentlyRegistered}, shouldBeRegistered=${shouldBeRegistered}, when='${contribution.when}'`);
 			if (isCurrentlyRegistered && !shouldBeRegistered) {
 				// Disable the contribution by disposing its disposable store
 				this._contributionDisposables.deleteAndDispose(contribution.type);
@@ -669,6 +672,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
+		this._logService.info(`[ChatSessionsService] _enableContribution: type='${contribution.type}', canDelegate=${contribution.canDelegate}`);
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
 		if (contribution.canDelegate) {
@@ -1052,12 +1056,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				options: newSessionOptions ?? {},
 				dispose: () => { }
 			};
-
-			for (const [optionId, value] of Object.entries(newSessionOptions ?? {})) {
-				this.setSessionOption(sessionResource, optionId, value);
-			}
 		} else {
 			session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		}
+
+		for (const [optionId, value] of Object.entries(session.options ?? {})) {
+			this.setSessionOption(sessionResource, optionId, value);
 		}
 
 		// Make sure another session wasn't created while we were awaiting the provider

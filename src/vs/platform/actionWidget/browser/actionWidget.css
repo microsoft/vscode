@@ -121,7 +121,7 @@
 
 .action-widget .monaco-list-row.action {
 	display: flex;
-	gap: 6px;
+	gap: 8px;
 	align-items: center;
 }
 

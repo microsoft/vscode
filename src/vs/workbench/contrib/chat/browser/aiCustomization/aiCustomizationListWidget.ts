@@ -725,7 +725,8 @@ export class AICustomizationListWidget extends Disposable {
 	 * Loads items for the current section.
 	 */
 	private async loadItems(): Promise<void> {
-		const promptType = sectionToPromptType(this.currentSection);
+		const section = this.currentSection;
+		const promptType = sectionToPromptType(section);
 		const items: IAICustomizationListItem[] = [];
 
 
@@ -918,6 +919,10 @@ export class AICustomizationListWidget extends Disposable {
 
 		// Sort items by name
 		items.sort((a, b) => a.name.localeCompare(b.name));
+
+		if (this.currentSection !== section) {
+			return; // section changed while loading
+		}
 
 		this.allItems = items;
 		this.filterItems();

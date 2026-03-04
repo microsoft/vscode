@@ -213,12 +213,9 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		const icon = getAgentSessionProviderIcon(currentType ?? AgentSessionProviders.Local);
 
 		const labelElements = [];
-		const collapsed = this.pickerOptions.hideChevrons.get();
 		labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
-		if (!collapsed) {
-			labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
-			labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
-		}
+		labelElements.push(dom.$('span.chat-input-picker-label', undefined, label));
+		labelElements.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...labelElements);
 
