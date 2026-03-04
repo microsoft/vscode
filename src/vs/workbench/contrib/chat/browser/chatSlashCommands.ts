@@ -7,7 +7,6 @@ import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../base/common/observable.js';
 import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -15,7 +14,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IChatAgentService, UserSelectedTools } from '../common/participants/chatAgents.js';
+import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { IChatDebugEvent, IChatDebugService } from '../common/chatDebugService.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { ChatRequestQueueKind, IChatService } from '../common/chatService/chatService.js';
@@ -35,6 +34,8 @@ import {
 	globalAutoApproveDescription,
 } from './tools/languageModelToolsService.js';
 import { ILanguageModelToolsService } from '../common/tools/languageModelToolsService.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
 import { Target } from '../common/promptSyntax/service/promptsService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
@@ -51,12 +52,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IAgentSessionsService agentSessionsService: IAgentSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatDebugService chatDebugService: IChatDebugService,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -129,7 +131,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeImmediately: false,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-		}, async (prompt, _progress, _history, _location, sessionResource) => {
+		}, async (prompt, _progress, _history, _location, sessionResource, _token, options) => {
+			ChatContextKeys.chatSessionHasTroubleshootData.bindTo(this.contextKeyService).set(true);
+			languageModelToolsService.flushToolUpdates();
 			await chatDebugService.invokeProviders(sessionResource);
 			const events = chatDebugService.getEvents(sessionResource);
 			const summary = events.length > 0
@@ -162,9 +166,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 			}];
 
 			chatService.sendRequest(sessionResource, prompt, {
-				attachedContext,
+				...options,
 				queue: ChatRequestQueueKind.Queued,
-				userSelectedTools: constObservable(snapshotUserSelectedTools(toolsService)),
+				attachedContext,
 			});
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -426,10 +430,3 @@ function formatDebugEventsForContext(events: readonly IChatDebugEvent[]): string
 	return lines.join('\n');
 }
 
-function snapshotUserSelectedTools(toolsService: ILanguageModelToolsService): UserSelectedTools {
-	const result: UserSelectedTools = {};
-	for (const tool of toolsService.getTools(undefined)) {
-		result[tool.id] = true;
-	}
-	return result;
-}
