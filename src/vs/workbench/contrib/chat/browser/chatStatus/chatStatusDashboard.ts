@@ -382,7 +382,7 @@ export class ChatStatusDashboard extends DomWidget {
 			return this.chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Chat if anonymous access is allowed
 		}
 
-		if ((this.chatEntitlementService.entitlement === ChatEntitlement.Free || (this.chatEntitlementService.entitlement === ChatEntitlement.Pro && this.configurationService.getValue<boolean>('chat.statusWidget.pro'))) && this.chatEntitlementService.quotas.chat?.percentRemaining === 0 && this.chatEntitlementService.quotas.completions?.percentRemaining === 0) {
+		if ((this.chatEntitlementService.entitlement === ChatEntitlement.Free || this.chatEntitlementService.entitlement === ChatEntitlement.Pro) && this.chatEntitlementService.quotas.chat?.percentRemaining === 0 && this.chatEntitlementService.quotas.completions?.percentRemaining === 0) {
 			return false; // free or pro user with no quota left
 		}
 

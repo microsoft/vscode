@@ -687,15 +687,7 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		['chat.statusWidget.pro']: {
-			type: 'boolean',
-			description: nls.localize('chat.statusWidget.pro.description', "Controls whether Pro users see the status widget in new chat sessions when quota is exceeded."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: {
-				mode: 'auto'
-			}
-		},
+
 		[mcpDiscoverySection]: {
 			type: 'object',
 			properties: Object.fromEntries(allDiscoverySources.map(k => [k, { type: 'boolean', description: discoverySourceSettingsLabel[k] }])),

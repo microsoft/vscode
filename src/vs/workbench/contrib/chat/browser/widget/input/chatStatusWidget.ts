@@ -56,7 +56,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 			this.createWidgetContent('anonymous');
 		} else if (entitlement === ChatEntitlement.Free) {
 			this.createWidgetContent('free');
-		} else if (entitlement === ChatEntitlement.Pro && this.configurationService.getValue<boolean>('chat.statusWidget.pro')) {
+		} else if (entitlement === ChatEntitlement.Pro) {
 			this.createWidgetContent('pro');
 		} else {
 			return;

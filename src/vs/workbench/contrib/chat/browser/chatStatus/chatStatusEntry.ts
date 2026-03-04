@@ -155,7 +155,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 
 			// Free or Pro Quota Exceeded
-			else if ((this.chatEntitlementService.entitlement === ChatEntitlement.Free || (this.chatEntitlementService.entitlement === ChatEntitlement.Pro && this.configurationService.getValue<boolean>('chat.statusWidget.pro'))) && (chatQuotaExceeded || completionsQuotaExceeded)) {
+			else if ((this.chatEntitlementService.entitlement === ChatEntitlement.Free || this.chatEntitlementService.entitlement === ChatEntitlement.Pro) && (chatQuotaExceeded || completionsQuotaExceeded)) {
 				let quotaWarning: string;
 				if (chatQuotaExceeded && !completionsQuotaExceeded) {
 					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");

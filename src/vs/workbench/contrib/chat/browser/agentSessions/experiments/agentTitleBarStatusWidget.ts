@@ -722,7 +722,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const signedOut = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 		const anonymous = this.chatEntitlementService.anonymous;
 		const free = this.chatEntitlementService.entitlement === ChatEntitlement.Free;
-		const pro = this.chatEntitlementService.entitlement === ChatEntitlement.Pro && this.configurationService.getValue<boolean>('chat.statusWidget.pro');
+		const pro = this.chatEntitlementService.entitlement === ChatEntitlement.Pro;
 
 		let primaryActionId = TOGGLE_CHAT_ACTION_ID;
 		let primaryActionTitle = localize('toggleChat', "Toggle Chat");
