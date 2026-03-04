@@ -1480,6 +1480,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 					}
 					return selectedLabel ?? String(selectedValue ?? '');
 				}
+				// Handle case where selectedValue was stripped during JSON serialization (undefined values are omitted by JSON.stringify)
+				if (typeof answer === 'object' && answer !== null && hasKey(answer, { freeformValue: true })) {
+					const { freeformValue } = answer as { freeformValue?: string };
+					if (freeformValue) {
+						return freeformValue;
+					}
+				}
 				const label = question.options?.find(opt => opt.value === answer)?.label;
 				return label ?? String(answer);
 			}
