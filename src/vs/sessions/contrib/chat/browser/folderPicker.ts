@@ -260,6 +260,20 @@ export class FolderPicker extends Disposable {
 		return items;
 	}
 
+	/**
+	 * Removes a folder from the recently picked list and storage.
+	 */
+	removeFromRecents(folderUri: URI): void {
+		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
+		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);
+		// If this was the last picked folder, clear it
+		if (this._selectedFolderUri && isEqual(this._selectedFolderUri, folderUri)) {
+			this._selectedFolderUri = undefined;
+			this.storageService.remove(STORAGE_KEY_LAST_FOLDER, StorageScope.PROFILE);
+			this._updateTriggerLabel(this._triggerElement);
+		}
+	}
+
 	private _removeFolder(folderUri: URI): void {
 		this._recentlyPickedFolders = this._recentlyPickedFolders.filter(f => !isEqual(f, folderUri));
 		this.storageService.store(STORAGE_KEY_RECENT_FOLDERS, JSON.stringify(this._recentlyPickedFolders.map(f => f.toString())), StorageScope.PROFILE, StorageTarget.MACHINE);

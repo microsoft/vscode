@@ -1055,6 +1055,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 		});
 		if (!trusted) {
+			this._folderPicker.removeFromRecents(folderUri);
 			const previousFolderUri = this._newSession.value?.repoUri;
 			if (previousFolderUri) {
 				this._folderPicker.setSelectedFolder(previousFolderUri);
