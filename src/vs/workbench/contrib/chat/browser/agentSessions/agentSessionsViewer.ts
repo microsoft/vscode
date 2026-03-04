@@ -87,7 +87,7 @@ interface IAgentSessionItemTemplate {
 }
 
 export interface IAgentSessionRendererOptions {
-	readonly useSimpleHover?: boolean;
+	readonly disableHover?: boolean;
 	readonly showIsolationIcon?: boolean;
 	getHoverPosition(): HoverPosition;
 }
@@ -402,9 +402,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	private renderHover(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-		if (this.options.useSimpleHover) {
-			const title = renderAsPlaintext(new MarkdownString(session.element.label));
-			template.elementDisposable.add(this.hoverService.setupDelayedHover(template.element, { content: title, position: { hoverPosition: this.options.getHoverPosition() } }, { groupId: 'agent.sessions' }));
+		if (this.options.disableHover) {
 			return;
 		}
 
