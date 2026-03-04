@@ -1157,7 +1157,6 @@ suite('McpResourceManagementService', () => {
 	test('fires update when root sandbox changes', async () => {
 		const initial = await service.getInstalled();
 		assert.strictEqual(initial.length, 1);
-		assert.strictEqual(initial[0].config.type === McpServerType.LOCAL ? initial[0].config.sandbox : undefined, undefined);
 		assert.deepStrictEqual(initial[0].rootSandbox, {
 			network: { allowedDomains: ['example.com'] }
 		});
@@ -1188,7 +1187,6 @@ suite('McpResourceManagementService', () => {
 		const updated = await service.getInstalled();
 
 		assert.strictEqual(updateCount, 1);
-		assert.strictEqual(updated[0].config.type === McpServerType.LOCAL ? updated[0].config.sandbox : undefined, undefined);
 		assert.deepStrictEqual(updated[0].rootSandbox, updatedSandbox);
 	});
 });
