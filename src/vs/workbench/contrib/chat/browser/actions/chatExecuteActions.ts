@@ -192,7 +192,11 @@ const requestInProgressWithoutInput = ContextKeyExpr.and(
 );
 const pendingToolCall = ContextKeyExpr.or(
 	ChatContextKeys.Editing.hasToolConfirmation,
-	ChatContextKeys.Editing.hasQuestionCarousel,
+	ContextKeyExpr.and(ChatContextKeys.Editing.hasQuestionCarousel, ChatContextKeys.inputHasText.negate()),
+);
+const noQuestionCarouselOrHasInput = ContextKeyExpr.or(
+	ChatContextKeys.Editing.hasQuestionCarousel.negate(),
+	ChatContextKeys.inputHasText,
 );
 const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
 
@@ -235,6 +239,7 @@ export class ChatSubmitAction extends SubmitAction {
 						whenNotInProgress,
 						menuCondition,
 						ChatContextKeys.withinEditSessionDiff.negate(),
+						noQuestionCarouselOrHasInput,
 					),
 					group: 'navigation',
 					alt: {
@@ -762,7 +767,8 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 					order: 4,
 					when: ContextKeyExpr.and(
 						notInProgressOrEditing,
-						menuCondition),
+						menuCondition,
+						noQuestionCarouselOrHasInput),
 					group: 'navigation',
 					alt: {
 						id: 'workbench.action.chat.sendToNewChat',
