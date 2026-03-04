@@ -127,11 +127,28 @@ function getSnapshot() {
 
 function findRefByButtonName(snapshotText, label) {
 	// Look for: button "Label" [ref=eNN] or button "Label" [disabled] [ref=eNN]
+	// Matching is case-insensitive and ignores leading/trailing whitespace and icon characters in the label.
+	const needle = label.trim().toLowerCase();
 	const lines = snapshotText.split('\n');
 	for (const line of lines) {
-		if (line.includes(`"${label}"`) && line.includes('button')) {
+		if (!line.includes('button')) { continue; }
+		const labelMatch = line.match(/"([^"]+)"/);
+		if (labelMatch && labelMatch[1].trim().toLowerCase() === needle) {
 			const refMatch = line.match(/\[ref=(e\d+)\]/);
 			if (refMatch) { return refMatch[1]; }
+		}
+	}
+	return null;
+}
+
+function findButtonLine(snapshotText, label) {
+	const needle = label.trim().toLowerCase();
+	const lines = snapshotText.split('\n');
+	for (const line of lines) {
+		if (!line.includes('button')) { continue; }
+		const labelMatch = line.match(/"([^"]+)"/);
+		if (labelMatch && labelMatch[1].trim().toLowerCase() === needle) {
+			return line;
 		}
 	}
 	return null;
@@ -191,8 +208,7 @@ function executeStep(step) {
 			case 'assert-button-disabled': {
 				const snap = getSnapshot();
 				if (!snap) { return { ok: false, message: 'Failed to take snapshot' }; }
-				const lines = snap.split('\n');
-				const buttonLine = lines.find(l => l.includes(`"${cmd.label}"`) && l.includes('button'));
+				const buttonLine = findButtonLine(snap, cmd.label);
 				if (!buttonLine) {
 					return { ok: false, message: `Button "${cmd.label}" not found in snapshot` };
 				}
@@ -205,8 +221,7 @@ function executeStep(step) {
 			case 'assert-button-enabled': {
 				const snap = getSnapshot();
 				if (!snap) { return { ok: false, message: 'Failed to take snapshot' }; }
-				const lines = snap.split('\n');
-				const buttonLine = lines.find(l => l.includes(`"${cmd.label}"`) && l.includes('button'));
+				const buttonLine = findButtonLine(snap, cmd.label);
 				if (!buttonLine) {
 					return { ok: false, message: `Button "${cmd.label}" not found in snapshot` };
 				}
