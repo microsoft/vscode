@@ -698,6 +698,78 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.permissionResponses[0].requestId, 'perm-2');
 			assert.strictEqual(agentHostService.permissionResponses[0].approved, false);
 		});
+
+		test('shell permission shows terminal-style confirmation data', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const collected: IChatProgress[][] = [];
+
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({
+					session,
+					type: 'permission_request',
+					requestId: 'perm-shell',
+					permissionKind: 'shell',
+					fullCommandText: 'echo hello',
+					intention: 'Print greeting',
+					rawRequest: '{}',
+				});
+			};
+
+			const invokePromise = agent.impl.invoke(
+				makeRequest(),
+				(parts) => collected.push(parts),
+				[], CancellationToken.None,
+			);
+
+			await timeout(10);
+			const permInvocation = collected[0][0] as IChatToolInvocation;
+			assert.strictEqual(permInvocation.toolSpecificData?.kind, 'terminal');
+			const termData = permInvocation.toolSpecificData as IChatTerminalToolInvocationData;
+			assert.strictEqual(termData.commandLine.original, 'echo hello');
+
+			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
+			await timeout(10);
+			agentHostService.fireProgress({ session: agentHostService.sendMessageCalls[0].session, type: 'idle' });
+			await invokePromise;
+		});
+
+		test('read permission shows input-style confirmation data', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const collected: IChatProgress[][] = [];
+
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				agentHostService.fireProgress({
+					session,
+					type: 'permission_request',
+					requestId: 'perm-read',
+					permissionKind: 'read',
+					path: '/workspace/file.ts',
+					intention: 'Read file contents',
+					rawRequest: '{"kind":"read","path":"/workspace/file.ts"}',
+				});
+			};
+
+			const invokePromise = agent.impl.invoke(
+				makeRequest(),
+				(parts) => collected.push(parts),
+				[], CancellationToken.None,
+			);
+
+			await timeout(10);
+			const permInvocation = collected[0][0] as IChatToolInvocation;
+			assert.strictEqual(permInvocation.toolSpecificData?.kind, 'input');
+
+			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
+			await timeout(10);
+			agentHostService.fireProgress({ session: agentHostService.sendMessageCalls[0].session, type: 'idle' });
+			await invokePromise;
+		});
 	});
 
 	// ---- History loading ---------------------------------------------------
@@ -1046,9 +1118,9 @@ suite('AgentHostChatContribution', () => {
 		test('filters sessions to only the matching provider', async () => {
 			const { listController, agentHostService } = createContribution(disposables);
 
-			// Add sessions from both providers
+			// Add sessions from both providers (use a non-copilot scheme to test filtering)
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'cp-1'), startTime: 1000, modifiedTime: 2000 });
-			agentHostService.addSession({ session: AgentSession.uri('claude', 'cl-1'), startTime: 1000, modifiedTime: 2000 });
+			agentHostService.addSession({ session: URI.from({ scheme: 'other-provider', path: '/cl-1' }), startTime: 1000, modifiedTime: 2000 });
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'cp-2'), startTime: 3000, modifiedTime: 4000 });
 
 			await listController.refresh(CancellationToken.None);
@@ -1086,14 +1158,14 @@ suite('AgentHostChatContribution', () => {
 
 			agentHostService.models = [
 				{ provider: 'copilot', id: 'gpt-4o', name: 'GPT-4o', maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false },
-				{ provider: 'claude', id: 'claude-4', name: 'Claude 4', maxContextWindow: 200000, supportsVision: false, supportsReasoningEffort: false },
+				{ provider: 'copilot', id: 'other-model', name: 'Other Model', maxContextWindow: 200000, supportsVision: false, supportsReasoningEffort: false },
 			];
 
-			const provider = disposables.add(instantiationService.createInstance(AgentHostLanguageModelProvider, 'agent-host-copilot', 'agent-host-copilot', 'copilot'));
+			// Create a provider that filters to a different vendor, simulating cross-provider filtering
+			const provider = disposables.add(instantiationService.createInstance(AgentHostLanguageModelProvider, 'agent-host-copilot', 'agent-host-copilot', 'not-copilot'));
 			const models = await provider.provideLanguageModelChatInfo({}, CancellationToken.None);
 
-			assert.strictEqual(models.length, 1);
-			assert.strictEqual(models[0].metadata.name, 'GPT-4o');
+			assert.strictEqual(models.length, 0);
 		});
 
 		test('filters out disabled models', async () => {

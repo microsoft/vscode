@@ -17,7 +17,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IAgentHostService, IAgentAttachment, IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, AgentProvider, AgentSession, IAgentProgressEvent } from '../../../../../../platform/agent/common/agentService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
@@ -450,13 +450,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _createPermissionConfirmation(event: import('../../../../../../platform/agent/common/agentService.js').IAgentPermissionRequestEvent): ChatToolInvocation {
 		let title: string;
-		let message: string;
-		let toolSpecificData: IChatTerminalToolInvocationData | undefined;
+		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | undefined;
 
 		switch (event.permissionKind) {
 			case 'shell': {
 				title = event.intention ?? 'Run command';
-				message = event.fullCommandText ?? event.rawRequest;
 				toolSpecificData = event.fullCommandText ? {
 					kind: 'terminal',
 					commandLine: { original: event.fullCommandText },
@@ -465,26 +463,39 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				break;
 			}
 			case 'write': {
-				title = 'Edit file';
-				message = event.path ?? event.rawRequest;
+				title = event.path ? `Edit ${event.path}` : 'Edit file';
+				let rawInput: unknown;
+				try { rawInput = JSON.parse(event.rawRequest); } catch { rawInput = { path: event.path }; }
+				toolSpecificData = { kind: 'input', rawInput };
 				break;
 			}
 			case 'mcp': {
 				const toolTitle = event.toolName ?? 'MCP Tool';
 				title = event.serverName ? `${event.serverName}: ${toolTitle}` : toolTitle;
-				message = event.rawRequest;
+				let rawInput: unknown;
+				try { rawInput = JSON.parse(event.rawRequest); } catch { rawInput = { serverName: event.serverName, toolName: event.toolName }; }
+				toolSpecificData = { kind: 'input', rawInput };
+				break;
+			}
+			case 'read': {
+				title = event.intention ?? 'Read file';
+				let rawInput: unknown;
+				try { rawInput = JSON.parse(event.rawRequest); } catch { rawInput = { path: event.path, intention: event.intention }; }
+				toolSpecificData = { kind: 'input', rawInput };
 				break;
 			}
 			default: {
 				title = 'Permission request';
-				message = event.rawRequest;
+				let rawInput: unknown;
+				try { rawInput = JSON.parse(event.rawRequest); } catch { rawInput = {}; }
+				toolSpecificData = { kind: 'input', rawInput };
 				break;
 			}
 		}
 
 		const confirmationMessages: IToolConfirmationMessages = {
 			title: new MarkdownString(title),
-			message: new MarkdownString(message),
+			message: new MarkdownString(''),
 		};
 
 		const toolData: IToolData = {

@@ -37,8 +37,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotSessionWrapper>());
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. Keyed by `sessionId:toolCallId`. */
 	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined }>();
-	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
+	/** Pending permission requests awaiting a renderer-side decision. Keyed by requestId. */
+	private readonly _pendingPermissions = new Map<string, { sessionId: string; deferred: DeferredPromise<boolean> }>();
 	/** Working directory per session, used when resuming. */
 	private readonly _sessionWorkingDirs = new Map<string, string>();
 
@@ -208,6 +208,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._sessions.deleteAndDispose(sessionId);
 		this._clearToolCallsForSession(sessionId);
 		this._sessionWorkingDirs.delete(sessionId);
+		this._denyPendingPermissionsForSession(sessionId);
 	}
 
 	async abortSession(session: URI): Promise<void> {
@@ -215,7 +216,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const entry = this._sessions.get(sessionId);
 		if (entry) {
 			this._logService.info(`[Copilot:${sessionId}] Aborting session...`);
-			this._denyPendingPermissions();
+			this._denyPendingPermissionsForSession(sessionId);
 			await entry.session.abort();
 		}
 	}
@@ -231,10 +232,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	respondToPermissionRequest(requestId: string, approved: boolean): void {
-		const deferred = this._pendingPermissions.get(requestId);
-		if (deferred) {
+		const entry = this._pendingPermissions.get(requestId);
+		if (entry) {
 			this._pendingPermissions.delete(requestId);
-			deferred.complete(approved);
+			entry.deferred.complete(approved);
 		}
 	}
 
@@ -261,7 +262,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot:${invocation.sessionId}] Permission request: kind=${request.kind}, requestId=${requestId}`);
 
 		const deferred = new DeferredPromise<boolean>();
-		this._pendingPermissions.set(requestId, deferred);
+		this._pendingPermissions.set(requestId, { sessionId: invocation.sessionId, deferred });
 
 		const permissionKind = (['shell', 'write', 'mcp', 'read', 'url'] as const).includes(request.kind as 'shell')
 			? request.kind as 'shell' | 'write' | 'mcp' | 'read' | 'url'
@@ -646,9 +647,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _denyPendingPermissions(): void {
-		for (const [, deferred] of this._pendingPermissions) {
-			deferred.complete(false);
+		for (const [, entry] of this._pendingPermissions) {
+			entry.deferred.complete(false);
 		}
 		this._pendingPermissions.clear();
+	}
+
+	private _denyPendingPermissionsForSession(sessionId: string): void {
+		for (const [requestId, entry] of this._pendingPermissions) {
+			if (entry.sessionId === sessionId) {
+				entry.deferred.complete(false);
+				this._pendingPermissions.delete(requestId);
+			}
+		}
 	}
 }
