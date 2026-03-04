@@ -22,6 +22,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { getModeNameForTelemetry, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
@@ -469,6 +470,7 @@ export class OpenPermissionPickerAction extends Action2 {
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask),
 						ChatContextKeys.inQuickChat.negate(),
+						IsSessionsWindowContext.negate(),
 					)
 			}
 		});
@@ -545,12 +547,24 @@ export class OpenSessionTargetPickerAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(ChatContextKeys.chatSessionIsEmpty, ChatContextKeys.inAgentSessionsWelcome), ChatContextKeys.currentlyEditingInput.negate(), ChatContextKeys.currentlyEditing.negate()),
 			menu: [
 				{
+					id: MenuId.ChatInput,
+					order: 0,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.chatSessionIsEmpty,
+						IsSessionsWindowContext),
+					group: 'navigation',
+				},
+				{
 					id: MenuId.ChatInputSecondary,
 					order: 0,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
+						IsSessionsWindowContext.negate(),
 						ChatContextKeys.chatSessionIsEmpty),
 					group: 'navigation',
 				},
@@ -580,7 +594,7 @@ export class OpenDelegationPickerAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty.negate(), ChatContextKeys.currentlyEditingInput.negate(), ChatContextKeys.currentlyEditing.negate()),
 			menu: [
 				{
-					id: MenuId.ChatInputSecondary,
+					id: MenuId.ChatInput,
 					order: 0.5,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
@@ -615,11 +629,22 @@ export class OpenWorkspacePickerAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAgentSessionsWelcome),
 			menu: [
 				{
+					id: MenuId.ChatInput,
+					order: 0.6,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.inAgentSessionsWelcome,
+						ChatContextKeys.chatSessionType.isEqualTo('local'),
+						IsSessionsWindowContext
+					),
+					group: 'navigation',
+				},
+				{
 					id: MenuId.ChatInputSecondary,
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo('local')
+						ChatContextKeys.chatSessionType.isEqualTo('local'),
+						IsSessionsWindowContext.negate()
 					),
 					group: 'navigation',
 				},

@@ -170,6 +170,11 @@ export interface IChatInputPartOptions {
 	 * for their chat request. This is useful for empty window contexts.
 	 */
 	workspacePickerDelegate?: IWorkspacePickerDelegate;
+	/**
+	 * Whether we are running in the sessions window.
+	 * When true, the secondary toolbar (permissions picker) is hidden.
+	 */
+	isSessionsWindow?: boolean;
 }
 
 export interface IWorkingSetEntry {
@@ -374,7 +379,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
 	private delegationWidget: DelegationSessionPickerActionItem | undefined;
 	private chatSessionPickerWidgets: Map<string, ChatSessionPickerActionItem | SearchableOptionPickerActionItem> = new Map();
-	private chatSessionPickerContainer!: HTMLElement;
+	private chatSessionPickerContainer: HTMLElement | undefined;
 	private _lastSessionPickerAction: MenuItemAction | undefined;
 	private readonly _waitForPersistedLanguageModel: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private readonly _chatSessionOptionEmitters: Map<string, Emitter<IChatSessionProviderOptionItem>> = new Map();
@@ -1988,7 +1993,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-secondary-toolbar@secondaryToolbar', [
 						dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 					]),
-					dom.h('.chat-sessionPicker-container@chatSessionPickerContainer'),
 					dom.h('.chat-attachments-container@attachmentsContainer', [
 						dom.h('.chat-attached-context@attachedContextContainer'),
 					]),
@@ -2015,7 +2019,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				dom.h('.chat-secondary-toolbar@secondaryToolbar', [
 					dom.h('.chat-context-usage-container@contextUsageWidgetContainer'),
 				]),
-				dom.h('.chat-sessionPicker-container@chatSessionPickerContainer'),
 			]);
 		}
 		this.container = elements.root;
@@ -2037,7 +2040,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.attachedContextContainer = elements.attachedContextContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
-		this.chatSessionPickerContainer = elements.chatSessionPickerContainer;
+		if (this.options.isSessionsWindow) {
+			this.secondaryToolbarContainer.style.display = 'none';
+		}
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatGettingStartedTipContainer = elements.chatGettingStartedTipContainer;
@@ -2286,6 +2291,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
+			// Update container reference for the pickers
+			const toolbarElement = this.inputActionsToolbar.getElement();
+			// eslint-disable-next-line no-restricted-syntax
+			const container = toolbarElement.querySelector('.chat-sessionPicker-container');
+			this.chatSessionPickerContainer = container as HTMLElement | undefined;
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
 			}
@@ -2318,7 +2328,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			toolbarSide.context = { widget } satisfies IChatExecuteActionContext;
 		}
 
-		// Secondary toolbar (session type + permissions) — below the input box
+		// Secondary toolbar (permissions) — below the input box
 		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.secondaryToolbarContainer, MenuId.ChatInputSecondary, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: { shouldForwardArgs: true },
