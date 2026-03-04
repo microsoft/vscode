@@ -489,7 +489,6 @@ suite('HookSchema', () => {
 	});
 
 	suite('parseSubagentHooksFromYaml', () => {
-		ensureNoDisposablesAreLeakedInTestSuite();
 
 		const workspaceRoot = URI.file('/workspace');
 		const userHome = '/home/user';

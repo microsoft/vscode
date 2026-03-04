@@ -68,6 +68,23 @@ export function mergeHooks(base: ChatRequestHooks | undefined, additional: ChatR
 }
 
 /**
+ * Descriptions for hook command fields, used by both the JSON schema and the hover provider.
+ */
+export const HOOK_COMMAND_FIELD_DESCRIPTIONS: Record<string, string> = {
+	type: nls.localize('hook.type', 'Must be "command".'),
+	command: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.'),
+	windows: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.'),
+	linux: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.'),
+	osx: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.'),
+	bash: nls.localize('hook.bash', 'Bash command for Linux and macOS.'),
+	powershell: nls.localize('hook.powershell', 'PowerShell command for Windows.'),
+	cwd: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).'),
+	env: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.'),
+	timeout: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).'),
+	timeoutSec: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 10).'),
+};
+
+/**
  * JSON Schema for GitHub Copilot hook configuration files.
  * Hooks enable executing custom shell commands at strategic points in an agent's workflow.
  */
@@ -88,37 +105,37 @@ const vscodeHookCommandSchema: IJSONSchema = {
 		type: {
 			type: 'string',
 			enum: ['command'],
-			description: nls.localize('hook.type', 'Must be "command".')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.type
 		},
 		command: {
 			type: 'string',
-			description: nls.localize('hook.command', 'The command to execute. This is the default cross-platform command.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.command
 		},
 		windows: {
 			type: 'string',
-			description: nls.localize('hook.windows', 'Windows-specific command. If specified and running on Windows, this overrides the "command" field.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.windows
 		},
 		linux: {
 			type: 'string',
-			description: nls.localize('hook.linux', 'Linux-specific command. If specified and running on Linux, this overrides the "command" field.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.linux
 		},
 		osx: {
 			type: 'string',
-			description: nls.localize('hook.osx', 'macOS-specific command. If specified and running on macOS, this overrides the "command" field.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.osx
 		},
 		cwd: {
 			type: 'string',
-			description: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.cwd
 		},
 		env: {
 			type: 'object',
 			additionalProperties: { type: 'string' },
-			description: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.env
 		},
 		timeout: {
 			type: 'number',
 			default: 30,
-			description: nls.localize('hook.timeout', 'Maximum execution time in seconds (default: 30).')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.timeout
 		}
 	}
 };
@@ -163,29 +180,29 @@ const copilotCliHookCommandSchema: IJSONSchema = {
 		type: {
 			type: 'string',
 			enum: ['command'],
-			description: nls.localize('hook.type', 'Must be "command".')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.type
 		},
 		bash: {
 			type: 'string',
-			description: nls.localize('hook.bash', 'Bash command for Linux and macOS.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.bash
 		},
 		powershell: {
 			type: 'string',
-			description: nls.localize('hook.powershell', 'PowerShell command for Windows.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.powershell
 		},
 		cwd: {
 			type: 'string',
-			description: nls.localize('hook.cwd', 'Working directory for the script (relative to repository root).')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.cwd
 		},
 		env: {
 			type: 'object',
 			additionalProperties: { type: 'string' },
-			description: nls.localize('hook.env', 'Additional environment variables that are merged with the existing environment.')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.env
 		},
 		timeoutSec: {
 			type: 'number',
 			default: 10,
-			description: nls.localize('hook.timeoutSec', 'Maximum execution time in seconds (default: 10).')
+			description: HOOK_COMMAND_FIELD_DESCRIPTIONS.timeoutSec
 		}
 	}
 };

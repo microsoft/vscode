@@ -473,6 +473,167 @@ suite('PromptHeaderAutocompletion', () => {
 			// SessionEnd is not available for vscode target
 			assert.ok(!labels.includes('SessionEnd'), 'SessionEnd should not be available for vscode target');
 		});
+
+		test('complete hook event names on empty line before existing hooks', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  |',
+				'  SessionStart:',
+				'    - type: command',
+				'      command: "echo hi"',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label).sort();
+			assert.ok(!labels.includes('SessionStart'), 'SessionStart should not be suggested when already present');
+			assert.ok(labels.includes('SessionEnd'), 'SessionEnd should be suggested');
+			assert.ok(labels.includes('PreToolUse'), 'PreToolUse should be suggested');
+		});
+
+		test('complete hook event names while editing existing key name', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  S|:',
+				'    - type: command',
+				'      command: "echo hi"',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label).sort();
+			assert.ok(labels.includes('SessionStart'), 'SessionStart should be suggested');
+			assert.ok(labels.includes('SubagentStart'), 'SubagentStart should be suggested');
+			assert.ok(labels.includes('Stop'), 'Stop should be suggested');
+			// Verify insertText only replaces the key (no full snippet)
+			const sessionStartItem = actual.find(a => a.label === 'SessionStart');
+			assert.ok(sessionStartItem);
+			assert.strictEqual(sessionStartItem.result, '  SessionStart:');
+		});
+
+		test('hooks: cursor right after colon triggers New Hook snippet', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('New Hook'), 'New Hook snippet should be suggested');
+		});
+
+		test('hooks: typing event name on next line triggers hook events', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  S|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('SessionStart'), 'SessionStart should be suggested');
+			assert.ok(labels.includes('SessionEnd'), 'SessionEnd should be suggested');
+			assert.ok(labels.includes('Stop'), 'Stop should be suggested');
+		});
+
+		test('typing field name in first command entry triggers command fields', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd:',
+				'    - t|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('type'), 'type should be suggested');
+			assert.ok(labels.includes('command'), 'command should be suggested');
+			assert.ok(labels.includes('timeout'), 'timeout should be suggested');
+		});
+
+		test('typing field name after existing field triggers remaining command fields', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd:',
+				'    - type: command',
+				'      c|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('command'), 'command should be suggested');
+			assert.ok(labels.includes('cwd'), 'cwd should be suggested');
+			assert.ok(!labels.includes('type'), 'type should not be suggested when already present');
+		});
+
+		test('typing event name after existing hook triggers hook events', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd:',
+				'    - type: command',
+				'      command: echo "Session ended."',
+				'  U|',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('UserPromptSubmit'), 'UserPromptSubmit should be suggested');
+			assert.ok(!labels.includes('SessionEnd'), 'SessionEnd should not be suggested when already present');
+		});
+
+		test('typing event name between existing hooks triggers hook events', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd:',
+				'    - type: command',
+				'      command: echo "Session ended."',
+				'  S|',
+				'  UserPromptSubmit:',
+				'    - type: command',
+				'      command: echo "User submitted."',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('SessionStart'), 'SessionStart should be suggested');
+			assert.ok(labels.includes('Stop'), 'Stop should be suggested');
+			assert.ok(!labels.includes('SessionEnd'), 'SessionEnd should not be suggested when already present');
+			assert.ok(!labels.includes('UserPromptSubmit'), 'UserPromptSubmit should not be suggested when already present');
+		});
+
+		test('cursor after hook event colon triggers New Command snippet', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  SessionEnd: |',
+				'---',
+			].join('\n');
+
+			const actual = await getCompletions(content, PromptsType.agent);
+			const labels = actual.map(a => a.label);
+			assert.ok(labels.includes('New Command'), 'New Command snippet should be suggested');
+			assert.strictEqual(actual.length, 1, 'Only one suggestion should be returned');
+		});
 	});
 
 	suite('claude agent header completions', () => {
