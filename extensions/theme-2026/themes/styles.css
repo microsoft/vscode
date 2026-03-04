@@ -3,15 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Tab border bottom - make transparent */
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-and-actions-container {
-	--tabs-border-bottom-color: transparent !important;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab {
-	--tab-border-bottom-color: transparent !important;
-}
-
 /* Quick Input (Command Palette) */
 
 .monaco-workbench .quick-input-list .quick-input-list-entry .quick-input-list-separator {
