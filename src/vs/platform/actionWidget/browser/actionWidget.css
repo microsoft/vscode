@@ -14,7 +14,7 @@
 	border-radius: var(--vscode-cornerRadius-large);
 	background-color: var(--vscode-menu-background);
 	color: var(--vscode-menu-foreground);
-	padding: 4px 0;
+	padding: 4px;
 	box-shadow: var(--vscode-shadow-lg);
 }
 
@@ -59,8 +59,7 @@
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
-	width: calc(100% - 8px);
-	margin-left: 4px;
+	width: 100%;
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
@@ -85,9 +84,8 @@
 	border-top: 1px solid var(--vscode-editorHoverWidget-border);
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
-	margin: 4px 0;
+	margin: 4px 0px;
 	width: 100%;
-	margin-left: 0;
 	cursor: default;
 	-webkit-user-select: none;
 	user-select: none;
@@ -187,7 +185,7 @@
 }
 
 .action-widget .action-widget-action-bar .actions-container {
-	padding: 2px 12px 0px 30px;
+	padding: 2px 8px 0px 26px;
 	width: auto;
 }
 
@@ -242,7 +240,7 @@
 
 /* Filter input */
 .action-widget .action-list-filter {
-	padding: 0px 4px 4px 4px;
+	padding: 2px 2px 4px 2px
 }
 
 .action-widget .action-list-filter:first-child {
