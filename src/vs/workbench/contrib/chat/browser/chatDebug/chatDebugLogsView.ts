@@ -57,7 +57,6 @@ export class ChatDebugLogsView extends Disposable {
 
 	private currentSessionResource: URI | undefined;
 	private logsViewMode: LogsViewMode = LogsViewMode.List;
-	private events: IChatDebugEvent[] = [];
 	private currentDimension: Dimension | undefined;
 	private readonly eventListener = this._register(new MutableDisposable());
 	private readonly sessionStateDisposable = this._register(new MutableDisposable());
@@ -288,7 +287,7 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	refreshList(): void {
-		let filtered = this.events;
+		let filtered = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
 
 		// Filter by kind toggles (pass category for generic events so only
 		// discovery-category events are affected by the Prompt Discovery toggle)
@@ -357,15 +356,12 @@ export class ChatDebugLogsView extends Disposable {
 	}
 
 	addEvent(event: IChatDebugEvent): void {
-		this.events.push(event);
 		this.refreshList();
 	}
 
 	private loadEvents(): void {
-		this.events = [...this.chatDebugService.getEvents(this.currentSessionResource || undefined)];
 		this.eventListener.value = this.chatDebugService.onDidAddEvent(e => {
 			if (!this.currentSessionResource || e.sessionResource.toString() === this.currentSessionResource.toString()) {
-				this.events.push(e);
 				this.refreshList();
 			}
 		});

@@ -62,6 +62,19 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	addProviderEvent(event: IChatDebugEvent): void {
+		// Deduplicate by id: skip if an event with the same id already
+		// exists for the same session. This guards against in-flight RPC
+		// events from cancelled provider pipelines being re-added after
+		// _clearProviderEvents removed them.
+		if (event.id) {
+			const key = event.sessionResource.toString();
+			for (let i = 0; i < this._size; i++) {
+				const existing = this._buffer[(this._head + i) % ChatDebugServiceImpl.MAX_EVENTS];
+				if (existing?.id === event.id && existing.sessionResource.toString() === key) {
+					return;
+				}
+			}
+		}
 		this._providerEvents.add(event);
 		this.addEvent(event);
 	}

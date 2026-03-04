@@ -151,6 +151,8 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 	const idToChildren = new Map<string, IChatDebugEvent[]>();
 	const roots: IChatDebugEvent[] = [];
 
+	// Build id→event map. Later occurrences overwrite earlier ones so that
+	// updated events (e.g. completed tool calls) take precedence.
 	for (const event of filtered) {
 		if (event.id) {
 			idToEvent.set(event.id, event);
@@ -158,6 +160,10 @@ export function buildFlowGraph(events: readonly IChatDebugEvent[]): FlowNode[] {
 	}
 
 	for (const event of filtered) {
+		// Skip duplicate ids — only the last (canonical) occurrence is kept.
+		if (event.id && idToEvent.get(event.id) !== event) {
+			continue;
+		}
 		if (event.parentEventId && idToEvent.has(event.parentEventId)) {
 			let children = idToChildren.get(event.parentEventId);
 			if (!children) {
@@ -528,9 +534,11 @@ function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['
 		case 'modelTurn':
 			return event.kind === 'modelTurn' ? (event.model ?? localize('modelTurnLabel', "Model Turn")) : localize('modelTurnLabel', "Model Turn");
 		case 'toolCall':
-			return event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : '';
+			return (event.kind === 'toolCall' ? event.toolName : event.kind === 'generic' ? event.name : '')
+				|| localize('toolCallLabel', "Tool Call");
 		case 'subagentInvocation':
-			return event.kind === 'subagentInvocation' ? event.agentName : '';
+			return (event.kind === 'subagentInvocation' ? event.agentName : '')
+				|| localize('subagentLabel', "Subagent");
 		case 'agentResponse': {
 			if (event.kind === 'agentResponse') {
 				return event.message || localize('responseLabel', "Response");
@@ -546,7 +554,8 @@ function getEventLabel(event: IChatDebugEvent, effectiveKind?: IChatDebugEvent['
 			return localize('responseLabel', "Response");
 		}
 		case 'generic':
-			return event.kind === 'generic' ? event.name : '';
+			return (event.kind === 'generic' ? event.name : '')
+				|| localize('genericEventLabel', "Event");
 	}
 }
 
