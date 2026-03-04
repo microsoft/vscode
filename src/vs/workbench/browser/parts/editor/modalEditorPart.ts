@@ -17,7 +17,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { Orientation, OrthogonalEdge, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart } from './editorPart.js';
@@ -50,6 +51,10 @@ const defaultModalEditorAllowableCommands = new Set([
 	NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID,
 ]);
 
+const MODAL_EDITOR_CUSTOM_SIZE_KEY = 'modalEditorPart.customSize';
+const MIN_MODAL_WIDTH = 400;
+const MIN_MODAL_HEIGHT = 300;
+
 export interface ICreateModalEditorPartResult {
 	readonly part: ModalEditorPartImpl;
 	readonly instantiationService: IInstantiationService;
@@ -66,6 +71,7 @@ export class ModalEditorPart {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IHostService private readonly hostService: IHostService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 	}
 
@@ -229,6 +235,23 @@ export class ModalEditorPart {
 		}));
 
 		// Layout the modal editor part
+		let currentWidth = 0;
+		let currentHeight = 0;
+
+		// Restore custom size from storage
+		let customWidth: number | undefined;
+		let customHeight: number | undefined;
+		const savedSize = this.storageService.get(MODAL_EDITOR_CUSTOM_SIZE_KEY, StorageScope.PROFILE);
+		if (savedSize) {
+			try {
+				const parsed = JSON.parse(savedSize);
+				if (typeof parsed.width === 'number' && typeof parsed.height === 'number') {
+					customWidth = parsed.width;
+					customHeight = parsed.height;
+				}
+			} catch { /* ignore invalid data */ }
+		}
+
 		const layoutModal = () => {
 			const containerDimension = this.layoutService.mainContainerDimension;
 			const titleBarOffset = this.layoutService.mainContainerOffset.top;
@@ -242,6 +265,9 @@ export class ModalEditorPart {
 				const verticalPadding = Math.max(titleBarOffset /* keep away from title bar to prevent clipping issues with WCO */, 16);
 				width = Math.max(containerDimension.width - horizontalPadding, 0);
 				height = Math.max(availableHeight - verticalPadding, 0);
+			} else if (customWidth !== undefined && customHeight !== undefined) {
+				width = Math.max(MIN_MODAL_WIDTH, Math.min(customWidth, containerDimension.width));
+				height = Math.max(MIN_MODAL_HEIGHT, Math.min(customHeight, availableHeight));
 			} else {
 				const maxWidth = 1400;
 				const maxHeight = 900;
@@ -253,15 +279,104 @@ export class ModalEditorPart {
 
 			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
 
-			editorPartContainer.style.width = `${width}px`;
-			editorPartContainer.style.height = `${height}px`;
+			currentWidth = width;
+			currentHeight = height;
+
+			shadowElement.style.width = `${width}px`;
+			shadowElement.style.height = `${height}px`;
 
 			const borderSize = 2; // Account for 1px border on all sides and modal header height
 			const headerHeight = 32 + 1 /* border bottom */;
 			editorPart.layout(width - borderSize, height - borderSize - headerHeight, 0, 0);
+
+			northSash.layout();
+			eastSash.layout();
+			southSash.layout();
+			westSash.layout();
 		};
+
+		// Resize sashes
+		const eastSash = disposables.add(new Sash(shadowElement, { getVerticalSashLeft: () => currentWidth }, { orientation: Orientation.VERTICAL }));
+		const westSash = disposables.add(new Sash(shadowElement, { getVerticalSashLeft: () => 0 }, { orientation: Orientation.VERTICAL }));
+		const northSash = disposables.add(new Sash(shadowElement, { getHorizontalSashTop: () => 0 }, { orientation: Orientation.HORIZONTAL, orthogonalEdge: OrthogonalEdge.North }));
+		const southSash = disposables.add(new Sash(shadowElement, { getHorizontalSashTop: () => currentHeight }, { orientation: Orientation.HORIZONTAL, orthogonalEdge: OrthogonalEdge.South }));
+
+		northSash.orthogonalStartSash = westSash;
+		northSash.orthogonalEndSash = eastSash;
+		southSash.orthogonalStartSash = westSash;
+		southSash.orthogonalEndSash = eastSash;
+
+		let dragStartWidth = 0;
+		let dragStartHeight = 0;
+
+		disposables.add(Event.any(northSash.onDidStart, eastSash.onDidStart, southSash.onDidStart, westSash.onDidStart)(() => {
+			dragStartWidth = currentWidth;
+			dragStartHeight = currentHeight;
+		}));
+
+		// Use 2x deltas because the modal is centered (grows/shrinks equally on both sides)
+		disposables.add(eastSash.onDidChange(e => {
+			const containerDimension = this.layoutService.mainContainerDimension;
+			customWidth = Math.max(MIN_MODAL_WIDTH, Math.min(dragStartWidth + (e.currentX - e.startX) * 2, containerDimension.width));
+			customHeight = customHeight ?? currentHeight;
+			layoutModal();
+		}));
+
+		disposables.add(westSash.onDidChange(e => {
+			const containerDimension = this.layoutService.mainContainerDimension;
+			customWidth = Math.max(MIN_MODAL_WIDTH, Math.min(dragStartWidth - (e.currentX - e.startX) * 2, containerDimension.width));
+			customHeight = customHeight ?? currentHeight;
+			layoutModal();
+		}));
+
+		disposables.add(southSash.onDidChange(e => {
+			const titleBarOffset = this.layoutService.mainContainerOffset.top;
+			const availableHeight = Math.max(this.layoutService.mainContainerDimension.height - titleBarOffset, 0);
+			customHeight = Math.max(MIN_MODAL_HEIGHT, Math.min(dragStartHeight + (e.currentY - e.startY) * 2, availableHeight));
+			customWidth = customWidth ?? currentWidth;
+			layoutModal();
+		}));
+
+		disposables.add(northSash.onDidChange(e => {
+			const titleBarOffset = this.layoutService.mainContainerOffset.top;
+			const availableHeight = Math.max(this.layoutService.mainContainerDimension.height - titleBarOffset, 0);
+			customHeight = Math.max(MIN_MODAL_HEIGHT, Math.min(dragStartHeight - (e.currentY - e.startY) * 2, availableHeight));
+			customWidth = customWidth ?? currentWidth;
+			layoutModal();
+		}));
+
+		// Persist custom size on drag end
+		disposables.add(Event.any(northSash.onDidEnd, eastSash.onDidEnd, southSash.onDidEnd, westSash.onDidEnd)(() => {
+			if (customWidth !== undefined && customHeight !== undefined) {
+				this.storageService.store(MODAL_EDITOR_CUSTOM_SIZE_KEY,
+					JSON.stringify({ width: customWidth, height: customHeight }),
+					StorageScope.PROFILE, StorageTarget.MACHINE);
+			}
+		}));
+
+		// Reset to default size on double-click
+		disposables.add(Event.any(northSash.onDidReset, eastSash.onDidReset, southSash.onDidReset, westSash.onDidReset)(() => {
+			customWidth = undefined;
+			customHeight = undefined;
+			this.storageService.remove(MODAL_EDITOR_CUSTOM_SIZE_KEY, StorageScope.PROFILE);
+			layoutModal();
+		}));
+
+		// Disable sashes when maximized
+		const updateSashState = (maximized: boolean) => {
+			const state = maximized ? SashState.Disabled : SashState.Enabled;
+			northSash.state = state;
+			eastSash.state = state;
+			southSash.state = state;
+			westSash.state = state;
+		};
+		updateSashState(editorPart.maximized);
+
 		disposables.add(Event.runAndSubscribe(this.layoutService.onDidLayoutMainContainer, layoutModal));
-		disposables.add(editorPart.onDidChangeMaximized(() => layoutModal()));
+		disposables.add(editorPart.onDidChangeMaximized(maximized => {
+			updateSashState(maximized);
+			layoutModal();
+		}));
 
 		// Dim window controls to match the modal overlay
 		this.hostService.setWindowDimmed(mainWindow, true);
