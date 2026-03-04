@@ -89,10 +89,6 @@ parameters:
     displayName: "🎯 Web"
     type: boolean
     default: true
-  - name: VSCODE_PUBLISH
-    displayName: "Publish to builds.code.visualstudio.com"
-    type: boolean
-    default: true
   - name: VSCODE_RELEASE
     displayName: "Release build if successful"
     type: boolean
@@ -124,7 +120,7 @@ variables:
   - name: VSCODE_CIBUILD
     value: ${{ or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), eq(parameters.VSCODE_BUILD_TYPE, 'CI')) }}
   - name: VSCODE_PUBLISH
-    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), or(eq(variables['Build.SourceBranch'], 'refs/heads/main'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
   - name: VSCODE_STEP_ON_IT
@@ -710,7 +706,7 @@ extends:
                   baseImage: ubuntu:24.04
                   arch: arm64
 
-        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
+        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false), eq(variables['VSCODE_PUBLISH'], 'true')) }}:
           - stage: ApproveRelease
             dependsOn: [] # run in parallel to compile stage
             pool:

@@ -34,7 +34,8 @@ jobs:
         versionSource: fromFile
         versionFilePath: .nvmrc
 
-    - template: ../cli/cli-apply-patches.yml@self
+    - ${{ if eq(variables['VSCODE_PUBLISH'], 'true') }}:
+      - template: ../cli/cli-apply-patches.yml@self
 
     - script: |
         set -e

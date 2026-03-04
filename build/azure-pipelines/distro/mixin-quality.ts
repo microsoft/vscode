@@ -38,6 +38,17 @@ function main() {
 
 	const basePath = `.build/distro/mixin/${quality}`;
 
+	// Check if distro was downloaded
+	if (!fs.existsSync('.build/distro')) {
+		log(`Distro not available - skipping quality mixin (building from non-main/release branch)`);
+		return;
+	}
+
+	if (!fs.existsSync(basePath)) {
+		log(`Distro quality path not found: ${basePath} - skipping quality mixin`);
+		return;
+	}
+
 	for (const name of fs.readdirSync(basePath)) {
 		const distroPath = path.join(basePath, name);
 		const ossPath = path.relative(basePath, distroPath);

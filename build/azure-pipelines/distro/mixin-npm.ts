@@ -33,6 +33,12 @@ function mixin(mixinPath: string) {
 function main() {
 	log(`Mixing in distro npm dependencies...`);
 
+	// Check if distro was downloaded
+	if (!fs.existsSync('.build/distro')) {
+		log(`Distro not available - skipping npm mixin (building from non-main/release branch)`);
+		return;
+	}
+
 	const mixinPaths = dirs.filter(d => /^.build\/distro\/npm/.test(d));
 
 	for (const mixinPath of mixinPaths) {

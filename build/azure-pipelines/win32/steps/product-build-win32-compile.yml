@@ -28,7 +28,8 @@ steps:
       versionSpec: "3.x"
       addToPath: true
 
-  - template: ../../distro/download-distro.yml@self
+  - ${{ if eq(variables['VSCODE_PUBLISH'], 'true') }}:
+    - template: ../../distro/download-distro.yml@self
 
   - task: AzureKeyVault@2
     displayName: "Azure Key Vault: Get Secrets"
