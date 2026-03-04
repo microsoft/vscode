@@ -30,7 +30,7 @@ src/vs/workbench/test/browser/componentFixtures/
 ```typescript
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from './fixtureUtils.js';
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'myFeature/' }, {
     Default: defineComponentFixture({ render: renderMyComponent }),
     AnotherVariant: defineComponentFixture({ render: renderMyComponent }),
 });

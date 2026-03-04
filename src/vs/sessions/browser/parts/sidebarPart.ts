@@ -120,7 +120,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.Sidebar,
 			Extensions.Viewlets,
 			Menus.SidebarTitle,
-			Menus.TitleBarLeft,
+			Menus.TitleBarLeftLayout,
 			notificationService,
 			storageService,
 			contextMenuService,

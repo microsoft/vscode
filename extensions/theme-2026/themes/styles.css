@@ -6,99 +6,10 @@
 :root {
 	--radius-sm: 4px;
 	--radius-lg: 8px;
-
-	--shadow-sm: 0 0 4px rgba(0, 0, 0, 0.08);
-	--shadow-md: 0 0 6px rgba(0, 0, 0, 0.08);
-	--shadow-lg: 0 0 12px rgba(0, 0, 0, 0.14);
-	--shadow-xl: 0 0 20px rgba(0, 0, 0, 0.15);
-	--shadow-hover: 0 0 8px rgba(0, 0, 0, 0.12);
-	--shadow-sm-strong: 0 0 4px rgba(0, 0, 0, 0.18);
-	--shadow-active-tab: 0 8px 12px rgba(0, 0, 0, 0.02);
-
-	/* Panel depth shadows cast onto the editor surface */
-	--shadow-depth-x: 5px 0 10px -4px rgba(0, 0, 0, 0.05);
-	--shadow-depth-y: 0 5px 10px -4px rgba(0, 0, 0, 0.04);
-}
-
-/* Dark theme: add brightness reduction for contrast-safe luminosity blending over bright backgrounds */
-.monaco-workbench.vs-dark {
-	--shadow-depth-x: 5px 0 12px -4px rgba(0, 0, 0, 0.14);
-	--shadow-depth-y: 0 5px 12px -4px rgba(0, 0, 0, 0.10);
-}
-
-/* Stealth Shadows - panels appear to float above the editor.
- * Instead of z-index on panels (which breaks webviews, iframes, sashes),
- * the editor draws its own "received shadow" via a ::after pseudo-element.
- * The surrounding panels stay at default stacking — no z-index needed. */
-
-/* Activity Bar - only needs shadow when sidebar is hidden */
-.monaco-workbench.nosidebar .part.activitybar {
-	box-shadow: var(--shadow-md);
-}
-
-.monaco-workbench.activitybar-right .part.activitybar {
-	box-shadow: var(--shadow-md);
 }
 
 .monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header {
 	border-top: 1px solid var(--vscode-sideBarSectionHeader-border) !important;
-}
-
-/* Editor - the ::after pseudo-element draws inset shadows on each edge,
- * creating the illusion that sidebar, panel, and auxiliarybar float above it. */
-.monaco-workbench.vs .part.editor {
-	position: relative;
-}
-
-.monaco-workbench.vs .part.editor::after {
-	content: '';
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	z-index: 10;
-	box-shadow:
-		inset var(--shadow-depth-x),
-		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.04),
-		inset 0 calc(-1 * 5px) 10px -4px rgba(0, 0, 0, 0.05);
-}
-
-/* When sidebar is on the right, flip the stronger shadow to the right edge */
-.monaco-workbench.sidebar-right.vs .part.editor::after {
-	box-shadow:
-		inset 5px 0 10px -4px rgba(0, 0, 0, 0.04),
-		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.05),
-		inset 0 calc(-1 * 5px) 10px -4px rgba(0, 0, 0, 0.05);
-}
-
-/* Panel positions: strengthen the shadow on whichever edge faces the panel */
-.monaco-workbench.panel-position-left.vs .part.editor::after {
-	box-shadow:
-		inset var(--shadow-depth-x),
-		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.04);
-}
-
-.monaco-workbench.panel-position-right.vs .part.editor::after {
-	box-shadow:
-		inset 5px 0 10px -4px rgba(0, 0, 0, 0.04),
-		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.05);
-}
-
-.monaco-workbench.panel-position-top.vs .part.editor::after {
-	box-shadow:
-		inset var(--shadow-depth-x),
-		inset calc(-1 * 5px) 0 10px -4px rgba(0, 0, 0, 0.04),
-		inset 0 var(--shadow-depth-y);
-}
-.monaco-workbench.vs .part.editor > .content .editor-group-container > .title {
-	box-shadow: none;
-}
-
-.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
-	box-shadow: inset var(--shadow-active-tab);
-}
-
-.monaco-workbench.vs .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover:not(.active) {
-	box-shadow: var(--shadow-sm);
 }
 
 /* Tab border bottom - make transparent */
@@ -110,16 +21,7 @@
 	--tab-border-bottom-color: transparent !important;
 }
 
-/* Title Bar */
-.monaco-workbench.vs .part.titlebar {
-	box-shadow: var(--shadow-md);
-}
-
 /* Quick Input (Command Palette) */
-.monaco-workbench .quick-input-widget {
-	box-shadow: var(--shadow-xl) !important;
-}
-
 .monaco-workbench.vs-dark .quick-input-widget {
 	border: 1px solid var(--vscode-menu-border) !important;
 }
@@ -170,7 +72,6 @@
 }
 
 .monaco-workbench .quick-input-widget .monaco-inputbox {
-	box-shadow: none !important;
 	background: transparent !important;
 }
 
@@ -180,10 +81,22 @@
 
 /* Chat Widget */
 
+.monaco-workbench .interactive-session .chat-question-carousel-container {
+	border-radius: var(--radius-lg);
+}
+
+.monaco-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
+.monaco-workbench .interactive-session .chat-editing-session .chat-editing-session-container {
+	border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.monaco-workbench .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container {
+	border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
 .monaco-workbench.vs .interactive-session .chat-input-container {
 	box-shadow: inset var(--shadow-sm);
 }
-
 .monaco-workbench .part.panel .interactive-session,
 .monaco-workbench .part.auxiliarybar .interactive-session {
 	position: relative;
@@ -195,123 +108,47 @@
 
 /* Notifications */
 
-.monaco-workbench .notifications-toasts,
-.monaco-workbench > .notifications-toasts .notification-toast-container {
-	overflow: visible;
-}
-
 .monaco-workbench .notifications-list-container .monaco-list-rows {
 	background: transparent !important;
 }
 
 /* Context Menus */
-
-.monaco-workbench .context-view .monaco-menu {
-	box-shadow: var(--shadow-lg);
-	border: none;
-}
-
-.monaco-workbench .monaco-select-box-dropdown-container {
-	box-shadow: var(--shadow-lg);
-}
-
-.monaco-workbench .monaco-menu-container > .monaco-scrollable-element {
-	box-shadow: var(--shadow-lg) !important;
-}
-
 .monaco-workbench .action-widget .action-widget-action-bar {
 	background: transparent;
 }
 
 /* Suggest Widget */
-.monaco-workbench .monaco-editor .suggest-widget {
-	box-shadow: var(--shadow-lg);
-}
-
 .monaco-workbench.vs-dark .monaco-editor .suggest-widget {
 	border: 1px solid var(--vscode-editorWidget-border);
-}
-
-/* Find Widget */
-.monaco-workbench .monaco-editor .find-widget {
-	box-shadow: var(--shadow-lg);
-}
-
-.monaco-workbench .inline-chat-gutter-menu {
-	box-shadow: var(--shadow-lg);
 }
 
 /* Dialog */
 .monaco-workbench .monaco-dialog-box {
 	border: 1px solid var(--vscode-dialog-border);
-	box-shadow: var(--shadow-xl);
 }
 
 /* Peek View */
-.monaco-workbench .monaco-editor .peekview-widget {
-	box-shadow: var(--shadow-hover);
-}
-
 .monaco-workbench .monaco-editor .peekview-widget .head,
 .monaco-workbench .monaco-editor .peekview-widget .body {
 	background: transparent !important;
 }
 
-.monaco-editor .monaco-hover {
-	box-shadow: var(--shadow-sm-strong);
-}
-
-.monaco-workbench .monaco-hover.workbench-hover,
-.monaco-hover.workbench-hover {
-	box-shadow: var(--shadow-sm-strong);
-}
-
 .monaco-workbench .defineKeybindingWidget {
 	border: 1px solid var(--vscode-editorWidget-border);
-	box-shadow: var(--shadow-lg) !important;
 }
 
-.monaco-workbench .chat-editor-overlay-widget,
-.monaco-workbench .chat-diff-change-content-widget {
-	box-shadow: var(--shadow-md);
-}
-
+/* Chat Editor Overlay */
 .monaco-workbench.vs-dark .chat-editor-overlay-widget,
 .monaco-workbench.vs-dark .chat-diff-change-content-widget {
 	border: 1px solid var(--vscode-editorWidget-border);
 }
 
 /* Settings */
-.monaco-workbench .settings-editor .settings-toc-container {
-	box-shadow: var(--shadow-sm);
-}
-
 .monaco-workbench .settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
 	border-radius: var(--radius-sm);
 	background: transparent !important;
 	color: var(--vscode-descriptionForeground) !important;
 	border: 1px solid color-mix(in srgb, var(--vscode-descriptionForeground) 50%, transparent) !important;
-}
-
-/* Welcome Tiles */
-.monaco-workbench .part.editor .welcomePageContainer .tile {
-	box-shadow: var(--shadow-md);
-	border: none;
-	border-radius: var(--radius-lg);
-}
-
-.monaco-workbench .part.editor .welcomePageContainer .tile:hover {
-	box-shadow: var(--shadow-hover);
-}
-
-/* Extensions */
-.monaco-workbench .extensions-list .extension-list-item {
-	box-shadow: var(--shadow-sm);
-	border: none;
-}
-
-.monaco-workbench .extensions-list .extension-list-item:hover {
-	box-shadow: var(--shadow-md);
 }
 
 /* Breadcrumbs */
@@ -321,8 +158,6 @@
 }
 
 /* Input Boxes */
-
-
 .monaco-inputbox .monaco-action-bar .action-item .codicon,
 .monaco-workbench .search-container .input-box,
 .monaco-custom-toggle {
@@ -358,38 +193,12 @@
 	box-shadow: none;
 }
 
-/* Dropdowns */
-.monaco-workbench .monaco-dropdown .dropdown-menu {
-	box-shadow: var(--shadow-lg);
-}
-
-/* SCM */
-.monaco-workbench .scm-view .scm-provider {
-	box-shadow: var(--shadow-sm);
-}
-
-/* Debug Toolbar */
-.monaco-workbench .debug-toolbar {
-	box-shadow: var(--shadow-lg);
-}
-
 .monaco-workbench .debug-hover-widget {
-	box-shadow: var(--shadow-lg);
 	color: var(--vscode-editor-foreground) !important;
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-list-rows .monaco-list-row:hover:not(.highlighted):not(.selected):not(.focused) {
 	background-color: var(--vscode-list-hoverBackground);
-}
-
-/* Action Widget */
-.monaco-workbench .action-widget {
-	box-shadow: var(--shadow-lg) !important;
-}
-
-/* Parameter Hints */
-.monaco-workbench .monaco-editor .parameter-hints-widget {
-	box-shadow: var(--shadow-lg);
 }
 
 /* Minimap */
@@ -400,7 +209,6 @@
 
 .monaco-workbench.vs-dark .monaco-editor .minimap,
 .monaco-workbench .monaco-editor .minimap-shadow-visible {
-	box-shadow: var(--shadow-md);
 	opacity: 0.85;
 	background-color: var(--vscode-editor-background);
 	left: 0;
@@ -417,7 +225,6 @@
 
 /* Sticky Scroll */
 .monaco-workbench .monaco-editor .sticky-widget {
-	box-shadow: var(--shadow-md) !important;
 	border-bottom: var(--vscode-editorWidget-border) !important;
 	background: transparent !important;
 }
@@ -447,32 +254,21 @@
 }
 
 .monaco-editor .rename-box.preview {
-	box-shadow: var(--shadow-hover) !important;
 	border: 1px solid var(--vscode-editorWidget-border);
 }
 
 /* Notebook */
 
-.monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {
-	box-shadow: inset var(--shadow-sm);
-}
-
 .notebookOverlay .monaco-list-row .cell-title-toolbar {
 	background-color: var(--vscode-editorWidget-background) !important;
-	box-shadow: var(--shadow-sm);
 }
 
 /* Inline Chat */
 .monaco-workbench .monaco-editor .inline-chat {
-	box-shadow: var(--shadow-lg);
 	border: none;
 }
 
 /* Command Center */
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center {
-	box-shadow: inset var(--shadow-sm) !important;
-}
-
 .monaco-workbench .part.titlebar .command-center .agent-status-pill {
 	border-color: var(--vscode-input-border);
 }

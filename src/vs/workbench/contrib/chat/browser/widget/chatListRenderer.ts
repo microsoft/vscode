@@ -78,7 +78,7 @@ import { ChatCodeCitationContentPart } from './chatContentParts/chatCodeCitation
 import { ChatCommandButtonContentPart } from './chatContentParts/chatCommandContentPart.js';
 import { ChatConfirmationContentPart } from './chatContentParts/chatConfirmationContentPart.js';
 import { DiffEditorPool, EditorPool } from './chatContentParts/chatContentCodePools.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts/chatContentParts.js';
+import { IChatContentPart, IChatContentPartRenderContext, InlineTextModelCollection } from './chatContentParts/chatContentParts.js';
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 import { ChatErrorConfirmationContentPart } from './chatContentParts/chatErrorConfirmationPart.js';
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
@@ -107,7 +107,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
-import { HookType } from '../../common/promptSyntax/hookSchema.js';
+import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { ChatQuestionCarouselAutoReply } from './chatQuestionCarouselAutoReply.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -243,6 +243,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * TODO@roblourens shouldn't use the CodeBlockModelCollection at all
 	 */
 	private readonly _toolInvocationCodeBlockCollection: CodeBlockModelCollection;
+	private readonly _inlineTextModels: InlineTextModelCollection;
 
 	/**
 	 * Prevents re-announcement of already rendered chat progress
@@ -282,6 +283,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined, undefined));
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
+		this._inlineTextModels = this._register(this.instantiationService.createInstance(InlineTextModelCollection));
 		this._toolInvocationCodeBlockCollection = this._register(this.instantiationService.createInstance(CodeBlockModelCollection, 'tools'));
 		this._autoReply = this._register(this.instantiationService.createInstance(ChatQuestionCarouselAutoReply));
 
@@ -1139,6 +1141,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				codeBlockModelCollection: this.codeBlockModelCollection,
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
+				inlineTextModels: this._inlineTextModels,
 				get codeBlockStartIndex() {
 					return parts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
 				},
@@ -1285,6 +1288,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				codeBlockModelCollection: this.codeBlockModelCollection,
 				currentWidth: this._currentLayoutWidth,
 				onDidChangeVisibility: this._onDidChangeVisibility.event,
+				inlineTextModels: this._inlineTextModels,
 				get codeBlockStartIndex() {
 					return preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
 				},
@@ -1773,7 +1777,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'markdownContent') {
 				return this.renderMarkdown(content, templateData, context);
 			} else if (content.kind === 'references') {
-				if (isResponseVM(context.element) && context.element.model.request?.modeInfo?.modeId === ChatModeKind.Agent) {
+				// Only show references for chat participants, not agents
+				if (isResponseVM(context.element) && context.element.agent?.isDefault && !context.element.agent.modes.includes(ChatModeKind.Ask)) {
 					return this.renderNoContent(other => other.kind === content.kind);
 				}
 				return this.renderContentReferencesListData(content, undefined, context, templateData);
@@ -2174,8 +2179,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// Remove from pending carousels
 			this.removeCarouselFromTracking(context, part);
 
-			// Clear from input part (always clear on submit, no response check needed)
-			widget?.input.clearQuestionCarousel();
+			// Clear from input part (clear only the submitted carousel by its key)
+			const carouselKey = carousel.resolveId ?? `${responseId}_${context.contentIndex}`;
+			widget?.input.clearQuestionCarousel(undefined, carouselKey);
 		};
 
 		// If carousel is already used or response is complete/canceled, render summary inline in the list

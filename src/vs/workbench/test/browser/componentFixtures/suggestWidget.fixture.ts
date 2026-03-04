@@ -144,8 +144,9 @@ const mixedKindCompletions: CompletionList = {
 	],
 };
 
-export default defineThemedFixtureGroup({
+export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	MethodCompletions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderSuggestWidget({
 			...context,
 			code: `const element = document.getElementById('app');
@@ -159,6 +160,7 @@ if (element) {
 	}),
 
 	MixedKinds: defineComponentFixture({
+		labels: { kind: 'screenshot' },
 		render: (context) => renderSuggestWidget({
 			...context,
 			code: '',

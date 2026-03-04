@@ -32,7 +32,8 @@ import {
 	globalAutoApproveDescription
 } from './tools/languageModelToolsService.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './widget/chatContentParts/chatMarkdownDecorationsRenderer.js';
-import { Target } from '../common/promptSyntax/service/promptsService.js';
+import { Target } from '../common/promptSyntax/promptTypes.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
 
@@ -49,6 +50,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		@IDialogService dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
@@ -67,7 +69,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_hooks',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await instantiationService.invokeFunction(showConfigureHooksQuickPick);
 		}));
@@ -77,7 +80,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_models',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(OpenModelPickerAction.ID);
 		}));
@@ -98,27 +102,31 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_plugins',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(ManagePluginsAction.ID);
 		}));
-		this._store.add(slashCommandService.registerSlashCommand({
-			command: 'debug',
-			detail: nls.localize('debug', "Show Chat Debug View"),
-			sortText: 'z3_debug',
-			executeImmediately: true,
-			silent: true,
-			locations: [ChatAgentLocation.Chat],
-		}, async () => {
-			await commandService.executeCommand('github.copilot.debug.showChatLogView');
-		}));
+		if (!this.environmentService.isSessionsWindow) {
+			this._store.add(slashCommandService.registerSlashCommand({
+				command: 'debug',
+				detail: nls.localize('debug', "Show Chat Debug View"),
+				sortText: 'z3_debug',
+				executeImmediately: true,
+				silent: true,
+				locations: [ChatAgentLocation.Chat],
+			}, async () => {
+				await commandService.executeCommand('github.copilot.debug.showChatLogView');
+			}));
+		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'agents',
 			detail: nls.localize('agents', "Configure custom agents"),
 			sortText: 'z3_agents',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(OpenModePickerAction.ID);
 		}));
@@ -128,7 +136,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_skills',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_SKILLS_ACTION_ID);
 		}));
@@ -138,7 +147,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_instructions',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_INSTRUCTIONS_ACTION_ID);
 		}));
@@ -148,7 +158,8 @@ export class ChatSlashCommandsContribution extends Disposable {
 			sortText: 'z3_prompts',
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Chat]
+			locations: [ChatAgentLocation.Chat],
+			target: Target.VSCode
 		}, async () => {
 			await commandService.executeCommand(CONFIGURE_PROMPTS_ACTION_ID);
 		}));
