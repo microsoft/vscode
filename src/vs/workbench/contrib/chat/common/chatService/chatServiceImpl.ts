@@ -579,7 +579,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private async loadRemoteSession(sessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModelReference | undefined> {
-		await this.chatSessionService.canResolveChatSession(sessionResource);
+		await this.chatSessionService.canResolveChatSession(sessionResource.scheme);
 
 		// Check if session already exists
 		{

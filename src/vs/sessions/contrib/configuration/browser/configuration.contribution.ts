@@ -41,7 +41,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'terminal.integrated.initialHint': false,
 
 		'workbench.editor.restoreEditors': false,
-		'workbench.editor.showTabs': 'single',
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
