@@ -226,9 +226,9 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}));
 
 		this._register(this._folderPicker.onDidSelectFolder(async (folderUri) => {
-			const session = this._newSession.value;
-			if (session) {
-				await this._requestFolderTrust(folderUri, session);
+			const trusted = await this._requestFolderTrust(folderUri);
+			if (trusted) {
+				this._newSession.value?.setRepoUri(folderUri);
 			}
 			this._updateDraftState();
 			this._focusEditor();
@@ -336,6 +336,15 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	private async _createNewSession(): Promise<void> {
 		const target = this._targetPicker.selectedTarget;
 		const defaultRepoUri = this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+
+		// For local targets, request workspace trust before creating the session
+		if (target === AgentSessionProviders.Background && defaultRepoUri) {
+			const trusted = await this._requestFolderTrust(defaultRepoUri);
+			if (!trusted) {
+				return;
+			}
+		}
+
 		const resource = getResourceForNewChatSession({
 			type: target,
 			position: this._options.sessionPosition ?? ChatSessionPosition.Sidebar,
@@ -344,13 +353,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 		try {
 			const session = await this.sessionsManagementService.createNewSessionForTarget(target, resource, defaultRepoUri);
-			await this._setNewSession(session);
+			this._setNewSession(session);
 		} catch (e) {
 			this.logService.error('Failed to create new session:', e);
 		}
 	}
 
-	private async _setNewSession(session: INewSession): Promise<void> {
+	private _setNewSession(session: INewSession): void {
 		this._newSession.value = session;
 
 		// Wire pickers to the new session and disconnect inactive ones
@@ -361,7 +370,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._repoPicker.setNewSession(undefined);
 			const folderUri = this._folderPicker.selectedFolderUri;
 			if (folderUri) {
-				await this._requestFolderTrust(folderUri, session);
+				session.setRepoUri(folderUri);
 			}
 		} else {
 			this._isolationModePicker.setNewSession(undefined);
@@ -1041,19 +1050,20 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}
 	}
 
-	private async _requestFolderTrust(folderUri: URI, session: INewSession): Promise<void> {
-		const previousFolderUri = session.repoUri;
+	private async _requestFolderTrust(folderUri: URI): Promise<boolean> {
 		const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 			uri: folderUri,
 			message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 		});
-		if (trusted) {
-			session.setRepoUri(folderUri);
-		} else if (previousFolderUri) {
-			this._folderPicker.setSelectedFolder(previousFolderUri);
-		} else {
-			this._folderPicker.clearSelection();
+		if (!trusted) {
+			const previousFolderUri = this._newSession.value?.repoUri;
+			if (previousFolderUri) {
+				this._folderPicker.setSelectedFolder(previousFolderUri);
+			} else {
+				this._folderPicker.clearSelection();
+			}
 		}
+		return !!trusted;
 	}
 
 
