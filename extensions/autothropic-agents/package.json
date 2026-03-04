@@ -1,8 +1,8 @@
 {
   "name": "autothropic-agents",
   "displayName": "Autothropic Agent Manager",
-  "description": "Multi-agent Claude Code orchestration, HITL approval, and session management",
-  "version": "1.0.0",
+  "description": "Multi-agent Claude Code orchestration with edge-based routing, HITL approval, and topology presets",
+  "version": "2.0.0",
   "publisher": "autothropic",
   "license": "MIT",
   "engines": {
@@ -58,6 +58,11 @@
         "icon": "$(broadcast)"
       },
       {
+        "command": "autothropic.agents.tutorial",
+        "title": "Autothropic: Tutorial",
+        "icon": "$(question)"
+      },
+      {
         "command": "autothropic.agents.rename",
         "title": "Rename Agent"
       },
@@ -82,11 +87,6 @@
         "command": "autothropic.agents.delete",
         "title": "Delete Agent",
         "icon": "$(trash)"
-      },
-      {
-        "command": "autothropic.goal.start",
-        "title": "Autothropic: Start Goal",
-        "icon": "$(rocket)"
       }
     ],
     "menus": {
@@ -104,7 +104,7 @@
           "command": "autothropic.agents.broadcast"
         },
         {
-          "command": "autothropic.goal.start"
+          "command": "autothropic.agents.tutorial"
         }
       ],
       "view/title": [
@@ -147,11 +147,6 @@
         "command": "autothropic.agents.spawn",
         "key": "ctrl+shift+n",
         "mac": "cmd+shift+n"
-      },
-      {
-        "command": "autothropic.goal.start",
-        "key": "ctrl+shift+g",
-        "mac": "cmd+shift+g"
       }
     ],
     "configuration": {
@@ -165,27 +160,7 @@
         "autothropic.agents.autoOrchestrate": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically orchestrate agent task distribution"
-        },
-        "autothropic.agents.sourceCooldownMs": {
-          "type": "number",
-          "default": 5000,
-          "description": "Per-source cooldown in milliseconds between forwards"
-        },
-        "autothropic.agents.targetCooldownMs": {
-          "type": "number",
-          "default": 10000,
-          "description": "Per-target cooldown in milliseconds between receiving forwards"
-        },
-        "autothropic.agents.maxForwardsPerMinute": {
-          "type": "number",
-          "default": 10,
-          "description": "Maximum number of forwards in a 60-second window"
-        },
-        "autothropic.agents.autoSpawn": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically spawn a Claude agent when a workspace is opened"
+          "description": "Automatically forward output between connected agents"
         }
       }
     }
