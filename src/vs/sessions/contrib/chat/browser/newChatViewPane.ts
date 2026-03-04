@@ -229,7 +229,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			const previousFolderUri = this._newSession.value?.repoUri;
 			const trusted = await this.workspaceTrustRequestService.requestResourcesTrust({
 				uri: folderUri,
-				message: localize('trustFolderMessage', "Do you trust the authors of the files in this folder? An agent session will be able to read files, run commands, and make changes in this folder."),
+				message: localize('trustFolderMessage', "An agent session will be able to read files, run commands, and make changes in this folder."),
 			});
 			if (trusted) {
 				this._newSession.value?.setRepoUri(folderUri);
