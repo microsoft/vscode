@@ -7,7 +7,7 @@ import { localize2 } from '../../../../nls.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight, KeybindingsRegistry } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -486,31 +486,6 @@ class OpenBrowserSettingsAction extends Action2 {
 
 // Zoom actions
 
-// Zoom keybindings registered separately from the Action2 precondition so they
-// always fire when the browser is focused, preventing VS Code's own zoom from
-// triggering even when the browser is at its min/max zoom level.
-const zoomInKeybindingRule = {
-	id: 'workbench.action.browser.zoomIn',
-	when: CONTEXT_BROWSER_FOCUSED,
-	weight: KeybindingWeight.WorkbenchContrib + 75,
-	primary: KeyMod.CtrlCmd | KeyCode.Equal,
-	secondary: [KeyMod.CtrlCmd | KeyCode.NumpadAdd],
-};
-const zoomOutKeybindingRule = {
-	id: 'workbench.action.browser.zoomOut',
-	when: CONTEXT_BROWSER_FOCUSED,
-	weight: KeybindingWeight.WorkbenchContrib + 75,
-	primary: KeyMod.CtrlCmd | KeyCode.Minus,
-	secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
-};
-const resetZoomKeybindingRule = {
-	id: 'workbench.action.browser.resetZoom',
-	when: CONTEXT_BROWSER_FOCUSED,
-	weight: KeybindingWeight.WorkbenchContrib + 75,
-	// We use Numpad0 and not Digit0 here to match the workbench zoom reset keybinding, and to avoid conflicts with keybinding to focus sidebar.
-	primary: KeyMod.CtrlCmd | KeyCode.Numpad0,
-};
-
 class ZoomInAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.zoomIn';
 
@@ -521,11 +496,18 @@ class ZoomInAction extends Action2 {
 			category: BrowserCategory,
 			icon: Codicon.zoomIn,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), CONTEXT_BROWSER_CAN_ZOOM_IN),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: ActionGroupZoom,
 				order: 1,
+				when: CONTEXT_BROWSER_CAN_ZOOM_IN,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				primary: KeyMod.CtrlCmd | KeyCode.Equal,
+				secondary: [KeyMod.CtrlCmd | KeyCode.NumpadAdd],
 			},
 		});
 	}
@@ -547,11 +529,18 @@ class ZoomOutAction extends Action2 {
 			category: BrowserCategory,
 			icon: Codicon.zoomOut,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), CONTEXT_BROWSER_CAN_ZOOM_OUT),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate()),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: ActionGroupZoom,
 				order: 2,
+				when: CONTEXT_BROWSER_CAN_ZOOM_OUT,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				primary: KeyMod.CtrlCmd | KeyCode.Minus,
+				secondary: [KeyMod.CtrlCmd | KeyCode.NumpadSubtract],
 			},
 		});
 	}
@@ -578,6 +567,12 @@ class ResetZoomAction extends Action2 {
 				id: MenuId.BrowserActionsToolbar,
 				group: ActionGroupZoom,
 				order: 3,
+			},
+			keybinding: {
+				when: CONTEXT_BROWSER_FOCUSED,
+				weight: KeybindingWeight.WorkbenchContrib + 75,
+				// We use Numpad0 and not Digit0 here to match the workbench zoom reset keybinding, and to avoid conflicts with keybinding to focus sidebar.
+				primary: KeyMod.CtrlCmd | KeyCode.Numpad0,
 			},
 		});
 	}
@@ -726,9 +721,6 @@ registerAction2(OpenBrowserSettingsAction);
 registerAction2(ZoomInAction);
 registerAction2(ZoomOutAction);
 registerAction2(ResetZoomAction);
-KeybindingsRegistry.registerKeybindingRule(zoomInKeybindingRule);
-KeybindingsRegistry.registerKeybindingRule(zoomOutKeybindingRule);
-KeybindingsRegistry.registerKeybindingRule(resetZoomKeybindingRule);
 registerAction2(ShowBrowserFindAction);
 registerAction2(HideBrowserFindAction);
 registerAction2(BrowserFindNextAction);
