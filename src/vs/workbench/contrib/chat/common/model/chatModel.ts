@@ -317,6 +317,7 @@ export interface IChatRequestModeInfo {
 }
 
 export interface IChatRequestModeInstructions {
+	readonly id?: string;
 	readonly name: string;
 	readonly content: string;
 	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
