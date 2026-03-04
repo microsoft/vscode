@@ -113,6 +113,8 @@ suite('PluginInstallService', () => {
 			createTerminal: async () => {
 				let finishedCallback: ((cmd: { id: string; exitCode: number }) => void) | undefined;
 				return {
+					processReady: Promise.resolve(),
+					dispose: () => { },
 					runCommand: (command: string, _addNewLine?: boolean) => {
 						state.terminalCommands.push(command);
 						// Simulate command completing after runCommand is called
@@ -131,6 +133,7 @@ suite('PluginInstallService', () => {
 					},
 				};
 			},
+			setActiveInstance: () => { },
 		} as unknown as ITerminalService);
 
 		// IProgressService
