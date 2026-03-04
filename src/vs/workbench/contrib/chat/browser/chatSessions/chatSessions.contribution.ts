@@ -1058,6 +1058,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		} else {
 			session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+			for (const [optionId, value] of Object.entries(session.options ?? {})) {
+				this.setSessionOption(sessionResource, optionId, value);
+			}
 		}
 
 		// Make sure another session wasn't created while we were awaiting the provider
