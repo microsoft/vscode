@@ -2,24 +2,11 @@
 
 > Comparison of the agent-host Copilot SDK integration with the extension-side implementation in [PR #3973](https://github.com/microsoft/vscode-copilot-chat/pull/3973).
 
-## Permission handling
+## ~~Permission handling~~ (done)
 
-**Extension**: Uses `permissionHelpers2.ts` with a `requestPermission()` function that maps SDK `PermissionRequest.kind` to VS Code tool invocations:
-- `shell` → `CoreTerminalConfirmationTool` (shows command for user approval)
-- `write` → `CoreConfirmationTool` with diff preview via `createEditConfirmation` + `formatDiffAsUnified`
-- `mcp` → `CoreConfirmationTool` showing server name + JSON args
-- `read` with intention → `CoreConfirmationTool`
-- Fallback → generic confirmation dialog
+Permission IPC round-trip implemented. The agent host fires `permission_request` events and awaits renderer response via `respondToPermissionRequest`. The renderer shows ChatToolInvocation confirmation UI with WaitingForConfirmation state. Shell commands show terminal-style confirmation, write/mcp show generic confirmation dialogs.
 
-Auto-approves:
-- Reads inside workspace or working directory
-- Writes in isolated worktrees or workspace files that don't need confirmation
-
-Uses `toolInvocationToken` from the per-request context to invoke confirmation tools. Permission handler is registered once via `registerPermissionHandler` on the SDK session, with mutable per-request context fields.
-
-**Agent host**: Hardcodes `{ kind: 'approved' }` for all permission requests. No safety confirmation UI.
-
-**Fix**: Add a new IPC method so the agent host can request permission from the renderer. The renderer implements it by invoking the appropriate confirmation tools. For now, a reasonable intermediate step is to auto-approve reads and shell commands inside the working directory, and deny writes until the full round-trip is implemented.
+Remaining: auto-approve reads inside workspace, diff previews for writes.
 
 ## Prompt resolution and attachments
 
@@ -32,9 +19,9 @@ Uses `toolInvocationToken` from the per-request context to invoke confirmation t
 
 **Fix**: Mode instructions can be forwarded over IPC. Full prompt resolution needs more research on what the SDK accepts.
 
-## ~~Session events not forwarded~~ (partially done)
+## ~~Session events not forwarded~~ (done)
 
-`session.error` and `assistant.usage` are now forwarded over IPC. Error events also terminate the in-flight request. `title_changed` is in the IPC contract but the Copilot SDK does not emit it. Reasoning events still need work.
+`session.error`, `assistant.usage`, and `assistant.reasoning_delta` are forwarded. Error events terminate the request. Reasoning events render as thinking blocks. `title_changed` is in the IPC contract but the Copilot SDK does not emit it.
 
 ## User input handling
 

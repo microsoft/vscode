@@ -39,6 +39,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined }>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
+	/** Working directory per session, used when resuming. */
+	private readonly _sessionWorkingDirs = new Map<string, string>();
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -163,6 +165,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const wrapper = this._trackSession(raw);
 		const session = AgentSession.uri(this.id, wrapper.sessionId);
+		if (config?.workingDirectory) {
+			this._sessionWorkingDirs.set(wrapper.sessionId, config.workingDirectory);
+		}
 		this._logService.info(`[Copilot] Session created: ${session.toString()}`);
 		return session;
 	}
@@ -202,6 +207,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessionId = AgentSession.id(session);
 		this._sessions.deleteAndDispose(sessionId);
 		this._clearToolCallsForSession(sessionId);
+		this._sessionWorkingDirs.delete(sessionId);
 	}
 
 	async abortSession(session: URI): Promise<void> {
@@ -218,6 +224,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info('[Copilot] Shutting down...');
 		this._sessions.clearAndDisposeAll();
 		this._activeToolCalls.clear();
+		this._sessionWorkingDirs.clear();
 		this._denyPendingPermissions();
 		await this._client?.stop();
 		this._client = undefined;
@@ -550,6 +557,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const client = await this._ensureClient();
 		const raw = await client.resumeSession(sessionId, {
 			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
+			workingDirectory: this._sessionWorkingDirs.get(sessionId),
 		});
 		return this._trackSession(raw, sessionId);
 	}
