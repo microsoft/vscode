@@ -941,8 +941,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// Sync selected model - validate it belongs to the current session's model pool
 			if (state?.selectedModel) {
-				const allModels = this.languageModelsService.getLanguageModelIds()
-					.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
+				const allModels = this.getAllMergedModels();
 				const sessionType = this.getCurrentSessionType();
 				const syncResult = resolveModelFromSyncState(state.selectedModel, this._currentLanguageModel.get(), allModels, sessionType, {
 					location: this.location,
@@ -1019,8 +1018,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private checkModelSupported(): void {
 		const lm = this._currentLanguageModel.get();
-		const allModels = this.languageModelsService.getLanguageModelIds()
-			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
+		const allModels = this.getAllMergedModels();
 		if (shouldResetModelToDefault(lm, this.getModels(), {
 			location: this.location,
 			currentModeKind: this.currentModeKind,
@@ -1058,7 +1056,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._syncInputStateToModel();
 	}
 
-	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
+	/**
+	 * Get all models merged from live and cache, without session/mode filtering.
+	 * This is the canonical source for the full model pool, including cached models
+	 * that bridge startup races when live models haven't loaded yet.
+	 */
+	private getAllMergedModels(): ILanguageModelChatMetadataAndIdentifier[] {
 		const cachedModels = this.storageService.getObject<ILanguageModelChatMetadataAndIdentifier[]>(CachedLanguageModelsKey, StorageScope.APPLICATION, []);
 		const liveModels = this.languageModelsService.getLanguageModelIds()
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
@@ -1068,6 +1071,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (liveModels.length > 0) {
 			this.storageService.store(CachedLanguageModelsKey, models, StorageScope.APPLICATION, StorageTarget.MACHINE);
 		}
+		return models;
+	}
+
+	private getModels(): ILanguageModelChatMetadataAndIdentifier[] {
+		const models = this.getAllMergedModels();
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
 
 		return filterModelsForSession(models, this.getCurrentSessionType(), this.currentModeKind, this.location, !!this.configurationService.getValue(InlineChatConfigKeys.EnableV2));
@@ -1092,15 +1100,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * This is used to set the context key that controls model picker visibility.
 	 */
 	private hasModelsTargetingSessionType(): boolean {
-		const allModels = this.languageModelsService.getLanguageModelIds()
-			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
-		return hasModelsTargetingSession(allModels, this.getCurrentSessionType());
+		return hasModelsTargetingSession(this.getAllMergedModels(), this.getCurrentSessionType());
 	}
 
 	private isModelValidForCurrentSession(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-		const allModels = this.languageModelsService.getLanguageModelIds()
-			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }));
-		return isModelValidForSession(model, allModels, this.getCurrentSessionType());
+		return isModelValidForSession(model, this.getAllMergedModels(), this.getCurrentSessionType());
 	}
 
 	/**
