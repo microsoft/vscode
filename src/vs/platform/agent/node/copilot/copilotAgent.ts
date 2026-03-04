@@ -77,9 +77,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		this._clientStarting = (async () => {
 			this._logService.info(`[Copilot] Starting CopilotClient... ${this._githubToken ? '(with token)' : '(using logged-in user)'}`);
+
+			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
+			// that can interfere with the Node.js process the SDK spawns.
+			const env: Record<string, string | undefined> = Object.assign({}, process.env, { ELECTRON_RUN_AS_NODE: '1' });
+			delete env['NODE_OPTIONS'];
+			delete env['VSCODE_INSPECTOR_OPTIONS'];
+			delete env['VSCODE_ESM_ENTRYPOINT'];
+			delete env['VSCODE_HANDLES_UNCAUGHT_ERRORS'];
+			for (const key of Object.keys(env)) {
+				if (key === 'ELECTRON_RUN_AS_NODE') {
+					continue;
+				}
+				if (key.startsWith('VSCODE_') || key.startsWith('ELECTRON_')) {
+					delete env[key];
+				}
+			}
+
 			const client = new CopilotClient({
 				githubToken: this._githubToken,
 				useLoggedInUser: !this._githubToken,
+				useStdio: true,
+				autoStart: true,
+				env,
 			});
 			await client.start();
 			this._logService.info('[Copilot] CopilotClient started successfully');
