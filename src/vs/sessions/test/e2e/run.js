@@ -217,7 +217,7 @@ async function main() {
 	console.log(`Server ready.\n`);
 
 	// Open browser, then navigate to the sessions URL
-	runPlaywrightCli(['open']);
+	runPlaywrightCli(['open', '--headed']);
 	const gotoResult = runPlaywrightCli(['goto', BASE_URL]);
 	if (!gotoResult.ok) {
 		console.error('Failed to navigate:', gotoResult.stderr);
