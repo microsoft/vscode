@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
-import { toHookType, resolveHookCommand, IHookCommand, ChatRequestHooks } from './hookSchema.js';
+import { toHookType, resolveHookCommand, IHookCommand } from './hookSchema.js';
 import { HOOKS_BY_TARGET, HookType } from './hookTypes.js';
 import { Target } from './promptTypes.js';
-import { IMapValue, IValue } from './promptFileParser.js';
 
 /**
  * Cached inverse mapping from HookType to Claude hook type name.
