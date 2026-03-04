@@ -101,7 +101,6 @@ export class RepoPicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
-		trigger.dataset['testid'] = 'sessions-repo-picker';
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel();
