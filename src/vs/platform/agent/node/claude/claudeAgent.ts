@@ -96,6 +96,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		}
 	}
 
+	respondToPermissionRequest(_requestId: string, _approved: boolean): void {
+		// Claude uses bypassPermissions; no permission requests to respond to.
+	}
+
 	async shutdown(): Promise<void> {
 		this._logService.info('[Claude] Shutting down...');
 		this._sessions.clearAndDisposeAll();

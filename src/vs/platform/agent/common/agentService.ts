@@ -182,6 +182,29 @@ export interface IAgentUsageEvent extends IAgentProgressEventBase {
 	readonly cacheReadTokens?: number;
 }
 
+/** A tool permission request from the SDK requiring a renderer-side decision. */
+export interface IAgentPermissionRequestEvent extends IAgentProgressEventBase {
+	readonly type: 'permission_request';
+	/** Unique ID for correlating the response. */
+	readonly requestId: string;
+	/** The kind of permission being requested. */
+	readonly permissionKind: 'shell' | 'write' | 'mcp' | 'read' | 'url';
+	/** The tool call ID that triggered this permission request. */
+	readonly toolCallId?: string;
+	/** File path involved (for read/write). */
+	readonly path?: string;
+	/** For shell: the full command text. */
+	readonly fullCommandText?: string;
+	/** For shell: the intention description. */
+	readonly intention?: string;
+	/** For MCP: the server name. */
+	readonly serverName?: string;
+	/** For MCP: the tool name. */
+	readonly toolName?: string;
+	/** Serialized JSON of the full permission request for fallback display. */
+	readonly rawRequest: string;
+}
+
 export type IAgentProgressEvent =
 	| IAgentDeltaEvent
 	| IAgentMessageEvent
@@ -190,7 +213,8 @@ export type IAgentProgressEvent =
 	| IAgentToolCompleteEvent
 	| IAgentTitleChangedEvent
 	| IAgentErrorEvent
-	| IAgentUsageEvent;
+	| IAgentUsageEvent
+	| IAgentPermissionRequestEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
@@ -252,6 +276,9 @@ export interface IAgent {
 	/** Abort the current turn, stopping any in-flight processing. */
 	abortSession(session: URI): Promise<void>;
 
+	/** Respond to a pending permission request from the SDK. */
+	respondToPermissionRequest(requestId: string, approved: boolean): void;
+
 	/** Return the descriptor for this agent. */
 	getDescriptor(): IAgentDescriptor;
 
@@ -311,6 +338,9 @@ export interface IAgentService {
 
 	/** Abort the current turn in a session. */
 	abortSession(session: URI): Promise<void>;
+
+	/** Respond to a pending permission request. */
+	respondToPermissionRequest(requestId: string, approved: boolean): void;
 
 	/** Gracefully shut down all sessions and the underlying client. */
 	shutdown(): Promise<void>;

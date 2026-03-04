@@ -63,7 +63,9 @@ Only the plain text message is sent. File attachments, editor selections, direct
 
 ### Interrupt / abort
 
-Stubbed -- the interrupt callback returns `true` but doesn't actually stop anything. Add an `abortSession(sessionId)` IPC method wired to `session.abort()`.
+Done -- `abortSession(session)` IPC method added. Cancellation calls `session.abort()` on the Copilot SDK and signals the `AbortController` for Claude.
+
+**Future refactor**: Replace `abortSession` + the renderer-side done-promise/event-listener pattern with a blocking `sendMessage` that takes a `CancellationToken`. Make `sendMessage` not resolve until the turn completes (idle/error), so the token naturally lives for the duration of the turn. ProxyChannel marshals CancellationTokens across IPC, but currently the token's lifetime is tied to the method call's Promise -- since `sendMessage` resolves immediately after queueing, the server-side token is cleaned up before the turn even starts. The blocking approach eliminates both `abortSession` and the renderer-side promise/listener plumbing.
 
 ---
 

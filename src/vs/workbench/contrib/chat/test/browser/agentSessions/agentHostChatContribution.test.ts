@@ -77,6 +77,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async disposeSession(_session: URI): Promise<void> { }
 	public abortSessionCalls: URI[] = [];
 	override async abortSession(session: URI): Promise<void> { this.abortSessionCalls.push(session); }
+	public permissionResponses: { requestId: string; approved: boolean }[] = [];
+	override respondToPermissionRequest(requestId: string, approved: boolean): void { this.permissionResponses.push({ requestId, approved }); }
 	override async shutdown(): Promise<void> { }
 	override async restartAgentHost(): Promise<void> { }
 
@@ -597,6 +599,41 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual(collected[0][0].kind, 'markdownContent');
 			assert.ok((collected[0][0] as IChatMarkdownContent).content.value.includes('Something went wrong'));
+		});
+	});
+
+	// ---- Permission requests -----------------------------------------------
+
+	suite('permission requests', () => {
+
+		test('permission_request event is responded to via respondToPermissionRequest', async () => {
+			const { chatAgentService, agentHostService } = createContribution(disposables);
+
+			const agent = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
+			agentHostService.sendMessage = async (session: URI) => {
+				agentHostService.sendMessageCalls.push({ session, prompt: '' });
+				// Simulate a permission request followed by idle
+				agentHostService.fireProgress({
+					session,
+					type: 'permission_request',
+					requestId: 'perm-1',
+					permissionKind: 'shell',
+					fullCommandText: 'echo hello',
+					rawRequest: '{}',
+				});
+				agentHostService.fireProgress({ session, type: 'idle' });
+			};
+
+			await agent.impl.invoke(
+				makeRequest(),
+				() => { }, [], CancellationToken.None,
+			);
+
+			// The session handler should have auto-approved the permission request
+			assert.strictEqual(agentHostService.permissionResponses.length, 1);
+			assert.strictEqual(agentHostService.permissionResponses[0].requestId, 'perm-1');
+			assert.strictEqual(agentHostService.permissionResponses[0].approved, true);
 		});
 	});
 

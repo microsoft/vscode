@@ -59,6 +59,8 @@ class MockAgent implements IAgent {
 
 	async abortSession(_session: URI): Promise<void> { }
 
+	respondToPermissionRequest(_requestId: string, _approved: boolean): void { }
+
 	async setAuthToken(token: string): Promise<void> {
 		this.setAuthTokenCalls.push(token);
 	}

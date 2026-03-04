@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CopilotClient, CopilotSession, type SessionEvent, type SessionEventPayload } from '@github/copilot-sdk';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentCreateSessionConfig, IAgentModelInfo, IAgentProgressEvent, IAgentMessageEvent, IAgent, IAgentSessionMetadata, IAgentToolStartEvent, IAgentToolCompleteEvent, AgentSession, IAgentDescriptor, IAgentAttachment } from '../../common/agentService.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isHiddenTool } from './copilotToolDisplay.js';
@@ -35,6 +37,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotSessionWrapper>());
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. Keyed by `sessionId:toolCallId`. */
 	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined }>();
+	/** Pending permission requests awaiting a renderer-side decision. */
+	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -153,10 +157,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			model: config?.model,
 			sessionId: config?.session ? AgentSession.id(config.session) : undefined,
 			streaming: true,
-			onPermissionRequest: (request) => {
-				this._logService.trace(`[Copilot] Permission request: kind=${request.kind}, auto-approving`);
-				return { kind: 'approved' };
-			},
+			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
 		});
 
 		const wrapper = this._trackSession(raw);
@@ -215,8 +216,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info('[Copilot] Shutting down...');
 		this._sessions.clearAndDisposeAll();
 		this._activeToolCalls.clear();
+		// Deny all pending permission requests
+		for (const [, deferred] of this._pendingPermissions) {
+			deferred.complete(false);
+		}
+		this._pendingPermissions.clear();
 		await this._client?.stop();
 		this._client = undefined;
+	}
+
+	respondToPermissionRequest(requestId: string, approved: boolean): void {
+		const deferred = this._pendingPermissions.get(requestId);
+		if (deferred) {
+			this._pendingPermissions.delete(requestId);
+			deferred.complete(approved);
+		}
 	}
 
 	/**
@@ -227,6 +241,42 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	// ---- helpers ------------------------------------------------------------
+
+	/**
+	 * Handles a permission request from the SDK by firing a progress event
+	 * and waiting for the renderer to respond via respondToPermissionRequest.
+	 */
+	private async _handlePermissionRequest(
+		request: { kind: string; toolCallId?: string;[key: string]: unknown },
+		invocation: { sessionId: string },
+	): Promise<{ kind: 'approved' | 'denied-interactively-by-user' }> {
+		const session = AgentSession.uri(this.id, invocation.sessionId);
+		const requestId = generateUuid();
+
+		this._logService.info(`[Copilot:${invocation.sessionId}] Permission request: kind=${request.kind}, requestId=${requestId}`);
+
+		const deferred = new DeferredPromise<boolean>();
+		this._pendingPermissions.set(requestId, deferred);
+
+		// Fire the event so the renderer can handle it
+		this._onDidSessionProgress.fire({
+			session,
+			type: 'permission_request',
+			requestId,
+			permissionKind: request.kind as 'shell' | 'write' | 'mcp' | 'read' | 'url',
+			toolCallId: request.toolCallId,
+			path: typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined),
+			fullCommandText: typeof request.fullCommandText === 'string' ? request.fullCommandText : undefined,
+			intention: typeof request.intention === 'string' ? request.intention : undefined,
+			serverName: typeof request.serverName === 'string' ? request.serverName : undefined,
+			toolName: typeof request.toolName === 'string' ? request.toolName : undefined,
+			rawRequest: JSON.stringify(request),
+		});
+
+		const approved = await deferred.p;
+		this._logService.info(`[Copilot:${invocation.sessionId}] Permission response: requestId=${requestId}, approved=${approved}`);
+		return { kind: approved ? 'approved' : 'denied-interactively-by-user' };
+	}
 
 	private _clearToolCallsForSession(sessionId: string): void {
 		const prefix = `${sessionId}:`;
@@ -492,10 +542,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot:${sessionId}] Session not in memory, resuming...`);
 		const client = await this._ensureClient();
 		const raw = await client.resumeSession(sessionId, {
-			onPermissionRequest: (request) => {
-				this._logService.trace(`[Copilot:${sessionId}] Permission request: kind=${request.kind}, auto-approving`);
-				return { kind: 'approved' };
-			},
+			onPermissionRequest: (request, invocation) => this._handlePermissionRequest(request, invocation),
 		});
 		return this._trackSession(raw, sessionId);
 	}

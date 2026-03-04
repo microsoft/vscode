@@ -337,6 +337,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._logService.trace(`[AgentHost:${sessionStr}] title changed: ${e.title}`);
 					break;
 
+				case 'permission_request':
+					this._logService.info(`[AgentHost:${sessionStr}] permission_request: kind=${e.permissionKind}, requestId=${e.requestId}, path=${e.path ?? '(none)'}`);
+					// TODO: Show confirmation UI for shell/write/mcp. For now, auto-approve.
+					this._agentHostService.respondToPermissionRequest(e.requestId, true);
+					break;
+
 				default:
 					this._logService.trace(`[AgentHost:${sessionStr}] unhandled event type: ${(e as IAgentProgressEvent).type}`);
 					break;

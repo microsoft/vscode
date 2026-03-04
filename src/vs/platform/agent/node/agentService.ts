@@ -28,6 +28,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _providerSubscriptions = this._register(new DisposableStore());
 	/** Default provider used when no explicit provider is specified. */
 	private _defaultProvider: AgentProvider | undefined;
+	/** Maps pending permission request IDs to the provider that issued them. */
+	private readonly _pendingPermissions = new Map<string, AgentProvider>();
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -45,7 +47,13 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`Registering agent provider: ${provider.id}`);
 		this._providers.set(provider.id, provider);
 		this._providerSubscriptions.add(
-			provider.onDidSessionProgress(e => this._onDidSessionProgress.fire(e))
+			provider.onDidSessionProgress(e => {
+				// Track permission requests so respondToPermissionRequest can route
+				if (e.type === 'permission_request') {
+					this._pendingPermissions.set(e.requestId, provider.id);
+				}
+				this._onDidSessionProgress.fire(e);
+			})
 		);
 		if (!this._defaultProvider) {
 			this._defaultProvider = provider.id;
@@ -136,6 +144,18 @@ export class AgentService extends Disposable implements IAgentService {
 		if (provider) {
 			await provider.abortSession(session);
 		}
+	}
+
+	respondToPermissionRequest(requestId: string, approved: boolean): void {
+		this._logService.trace(`[AgentService] respondToPermissionRequest: ${requestId} approved=${approved}`);
+		const providerId = this._pendingPermissions.get(requestId);
+		if (!providerId) {
+			this._logService.warn(`[AgentService] No pending permission request for: ${requestId}`);
+			return;
+		}
+		this._pendingPermissions.delete(requestId);
+		const provider = this._providers.get(providerId);
+		provider?.respondToPermissionRequest(requestId, approved);
 	}
 
 	async shutdown(): Promise<void> {
