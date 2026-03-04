@@ -814,10 +814,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: var(--vscode-cornerRadius-large);
-	padding: 0 0px 6px 6px;
+	padding: 0 6px 6px 6px;
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
+	/* Prevent contents from covering border corner */
+	overflow: hidden;
 }
 
 /* Context usage widget container - positioned in the bottom toolbar */
@@ -1445,7 +1447,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 /* Hide the tools button when the toolbar is in collapsed state */
-.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-tools) {
+.interactive-session .chat-input-toolbar:has(.hide-chevrons) .action-item:has(.codicon-settings) {
 	display: none;
 }
 

@@ -40,7 +40,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { ChatModelStore, IStartSessionProps } from '../model/chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
-import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
+import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatUserActionEvent, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
@@ -53,7 +53,7 @@ import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../langua
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
 import { ChatSessionOperationLog } from '../model/chatSessionOperationLog.js';
 import { IPromptsService } from '../promptSyntax/service/promptsService.js';
-import { IChatRequestHooks } from '../promptSyntax/hookSchema.js';
+import { ChatRequestHooks } from '../promptSyntax/hookSchema.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -947,7 +947,7 @@ export class ChatService extends Disposable implements IChatService {
 			let detectedCommand: IChatAgentCommand | undefined;
 
 			// Collect hooks from hook .json files
-			let collectedHooks: IChatRequestHooks | undefined;
+			let collectedHooks: ChatRequestHooks | undefined;
 			let hasDisabledClaudeHooks = false;
 			try {
 				const hooksInfo = await this.promptsService.getHooks(token, model.sessionResource);
@@ -1241,49 +1241,90 @@ export class ChatService extends Disposable implements IChatService {
 	/**
 	 * Process the next pending request from the model's queue, if any.
 	 * Called after a request completes to continue processing queued requests.
+	 * Multiple consecutive steering requests are combined into a single request.
 	 */
 	private processNextPendingRequest(model: ChatModel): void {
-		const pendingRequest = model.dequeuePendingRequest();
-		if (!pendingRequest) {
+		// Dequeue all consecutive steering requests and combine them into one
+		const steeringRequests = model.dequeueAllSteeringRequests();
+
+		// Then dequeue a single non-steering request if no steering was found
+		const nextQueued = steeringRequests.length === 0 ? model.dequeuePendingRequest() : undefined;
+
+		const allRequests = steeringRequests.length > 0 ? steeringRequests : (nextQueued ? [nextQueued] : []);
+		if (allRequests.length === 0) {
 			return;
 		}
 
-		this.trace('processNextPendingRequest', `Processing queued request for session ${model.sessionResource}`);
+		this.trace('processNextPendingRequest', `Processing ${allRequests.length} queued request(s) for session ${model.sessionResource}`);
 
-		const deferred = this._queuedRequestDeferreds.get(pendingRequest.request.id);
-		this._queuedRequestDeferreds.delete(pendingRequest.request.id);
+		// Collect and remove all deferreds
+		const deferreds: DeferredPromise<ChatSendResult>[] = [];
+		for (const req of allRequests) {
+			const deferred = this._queuedRequestDeferreds.get(req.request.id);
+			this._queuedRequestDeferreds.delete(req.request.id);
+			if (deferred) {
+				deferreds.push(deferred);
+			}
+		}
 
+		// Build send options from the first request, combining attachments from all
+		const firstRequest = allRequests[0];
 		const sendOptions: IChatSendRequestOptions = {
-			...pendingRequest.sendOptions,
-			// Ensure attachedContext is preserved after deserialization, where sendOptions
-			// loses attachedContext but the request model retains it in variableData.
-			attachedContext: pendingRequest.request.variableData.variables.slice(),
+			...firstRequest.sendOptions,
+			attachedContext: allRequests.flatMap(req => req.request.variableData.variables.slice()),
 		};
+
 		const location = sendOptions.location ?? sendOptions.locationData?.type ?? model.initialLocation;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location, sendOptions.modeInfo?.kind);
 		if (!defaultAgent) {
 			this.logService.warn('processNextPendingRequest', `No default agent for location ${location}`);
-			deferred?.complete({ kind: 'rejected', reason: 'No default agent available' });
+			for (const deferred of deferreds) {
+				deferred.complete({ kind: 'rejected', reason: 'No default agent available' });
+			}
 			return;
 		}
 
-		const parsedRequest = pendingRequest.request.message;
+		// For multiple steering requests, combine texts and re-parse; otherwise use as-is
+		let parsedRequest: IParsedChatRequest;
+		try {
+			if (allRequests.length > 1) {
+				const combinedText = allRequests.map(req => req.request.message.text).join('\n\n');
+				// message.text already includes agent/slash-command prefixes from the
+				// original parse, so clear them to avoid double-prefixing.
+				parsedRequest = this.parseChatRequest(model.sessionResource, combinedText, location, {
+					...sendOptions,
+					agentId: undefined,
+					slashCommand: undefined,
+				});
+			} else {
+				parsedRequest = firstRequest.request.message;
+			}
+		} catch (err) {
+			this.logService.error('processNextPendingRequest: failed to parse combined chat request', err);
+			const reason = toErrorMessage(err);
+			for (const deferred of deferreds) {
+				deferred.complete({ kind: 'rejected', reason });
+			}
+			return;
+		}
+
 		const silentAgent = sendOptions.agentIdSilent ? this.chatAgentService.getAgent(sendOptions.agentIdSilent) : undefined;
 		const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
-		// Send the queued request - this will add it to _pendingRequests and handle it normally
-		const responseState = this._sendRequestAsync(model, model.sessionResource, parsedRequest, pendingRequest.request.attempt, !sendOptions.noCommandDetection, silentAgent ?? defaultAgent, location, sendOptions);
+		const responseState = this._sendRequestAsync(model, model.sessionResource, parsedRequest, firstRequest.request.attempt, !sendOptions.noCommandDetection, silentAgent ?? defaultAgent, location, sendOptions);
 
-		// Resolve the deferred with the sent result
-		deferred?.complete({
+		const result: ChatSendResultSent = {
 			kind: 'sent',
 			data: {
 				...responseState,
 				agent,
 				slashCommand: agentSlashCommandPart?.command,
 			},
-		});
+		};
+		for (const deferred of deferreds) {
+			deferred.complete(result);
+		}
 	}
 
 	private generateInitialChatTitleIfNeeded(model: ChatModel, request: IChatAgentRequest, defaultAgent: IChatAgentData, token: CancellationToken): void {

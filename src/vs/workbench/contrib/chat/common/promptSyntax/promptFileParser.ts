@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffsetImpl.js';
-import { Target } from './service/promptsService.js';
+import { Target } from './promptTypes.js';
 
 export class PromptFileParser {
 	constructor() {

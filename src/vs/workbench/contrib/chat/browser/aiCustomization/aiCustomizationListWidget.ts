@@ -42,7 +42,8 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { generateCustomizationDebugReport } from './aiCustomizationDebugPanel.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
-import { HOOK_TYPES, formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
+import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
+import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
 import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
@@ -793,7 +794,7 @@ export class AICustomizationListWidget extends Disposable {
 					if (hooks.size > 0) {
 						parsedHooks = true;
 						for (const [hookType, entry] of hooks) {
-							const hookMeta = HOOK_TYPES.find(h => h.id === hookType);
+							const hookMeta = HOOK_METADATA[hookType];
 							for (let i = 0; i < entry.hooks.length; i++) {
 								const hook = entry.hooks[i];
 								const cmdLabel = formatHookCommandLabel(hook, OS);

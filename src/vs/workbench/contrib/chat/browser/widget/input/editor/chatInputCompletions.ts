@@ -54,7 +54,8 @@ import { IDynamicVariable } from '../../../../common/attachments/chatVariables.j
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
-import { IPromptsService, Target } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
