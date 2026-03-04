@@ -335,7 +335,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private async _createNewSession(): Promise<void> {
 		const target = this._targetPicker.selectedTarget;
-		const defaultRepoUri = this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+		const defaultRepoUri = this._folderPicker.selectedFolderUri;
 
 		// For local targets, request workspace trust before creating the session
 		if (target === AgentSessionProviders.Background && defaultRepoUri) {
@@ -604,7 +604,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const target = this._targetPicker.selectedTarget;
 
 		if (target === AgentSessionProviders.Background) {
-			return this._folderPicker.selectedFolderUri ?? this.workspaceContextService.getWorkspace().folders[0]?.uri;
+			return this._folderPicker.selectedFolderUri;
 		}
 
 		// For cloud targets, use the repo picker's selection
