@@ -1520,11 +1520,11 @@ function registerModalEditorCommands(): void {
 				keybinding: [{
 					primary: KeyCode.Escape,
 					weight: KeybindingWeight.WorkbenchContrib + 10, // higher when no text editor is focused...
-					when: ContextKeyExpr.and(EditorPartModalContext, EditorContextKeys.focus.toNegated())
+					when: EditorContextKeys.focus.toNegated()
 				}, {
 					primary: KeyCode.Escape,
 					weight: KeybindingWeight.EditorContrib - 1, // ...lower to prevent accidental close when text editor is focused
-					when: ContextKeyExpr.and(EditorPartModalContext, EditorContextKeys.focus)
+					when: EditorContextKeys.focus
 				}],
 				menu: {
 					id: MenuId.ModalEditorTitle,
