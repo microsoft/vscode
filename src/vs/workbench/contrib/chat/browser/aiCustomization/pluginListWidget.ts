@@ -266,7 +266,7 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		templateData.elementDisposables.clear();
 
 		templateData.name.textContent = element.item.name;
-		templateData.publisher.textContent = element.item.marketplace ? `by ${element.item.marketplace}` : '';
+		templateData.publisher.textContent = element.item.marketplace ? localize('byPublisher', "by {0}", element.item.marketplace) : '';
 		templateData.description.textContent = element.item.description || '';
 
 		templateData.installButton.label = localize('install', "Install");
@@ -382,7 +382,7 @@ class UninstallPluginAction extends Action {
 //#region Helpers
 
 function installedPluginToItem(plugin: IAgentPlugin, labelService: ILabelService): IInstalledPluginItem {
-	const name = basename(plugin.uri);
+	const name = plugin.label ?? basename(plugin.uri);
 	const description = plugin.fromMarketplace?.description ?? labelService.getUriLabel(dirname(plugin.uri), { relative: true });
 	const marketplace = plugin.fromMarketplace?.marketplace;
 	return { kind: AgentPluginItemKind.Installed, name, description, marketplace, plugin };
