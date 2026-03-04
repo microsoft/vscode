@@ -109,6 +109,29 @@ export class SlashCommandHandler extends Disposable {
 		return true;
 	}
 
+	/**
+	 * If the query starts with a prompt/skill slash command (e.g. `/my-prompt args`),
+	 * expands it into a CLI-friendly markdown reference so the agent can locate the
+	 * file. Returns `undefined` when the query is not a prompt slash command.
+	 */
+	tryExpandPromptSlashCommand(query: string): string | undefined {
+		const match = query.match(/^\/([\w\p{L}\d_\-\.:]+)\s*(.*)/su);
+		if (!match) {
+			return undefined;
+		}
+
+		const commandName = match[1];
+		const promptCommand = this._cachedPromptCommands.find(c => c.name === commandName);
+		if (!promptCommand) {
+			return undefined;
+		}
+
+		const args = match[2]?.trim() ?? '';
+		const uri = promptCommand.promptPath.uri;
+		const expanded = `Use the prompt file located at [${promptCommand.name}](${uri.toString()}).`;
+		return args ? `${expanded} ${args}` : expanded;
+	}
+
 	private _registerSlashCommands(): void {
 		const openSection = (section: AICustomizationManagementSection) =>
 			() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, section);
