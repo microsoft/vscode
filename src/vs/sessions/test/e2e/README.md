@@ -124,6 +124,71 @@ To support a new kind of step:
 3. If the command type is new (not `cli`, `click-button`, `assert-visible`, etc.),
    add a corresponding `case` in the `executeStep()` function's switch statement.
 
+### How a Step Executes (Worked Example)
+
+To understand the internals, let's trace the step `Click button "Cloud"` end to end.
+
+**1 — The Sessions UI renders in the browser.** Among many DOM nodes, the target
+picker produces:
+
+```html
+<div class="session-target-picker" data-testid="sessions-target-picker">
+  <div class="monaco-button" role="button" tabindex="0" aria-pressed="true">
+    <span>Local</span>
+  </div>
+  <div class="monaco-button" role="button" tabindex="0" aria-pressed="false">
+    <span>Cloud</span>
+  </div>
+</div>
+```
+
+**2 — `run.js` parses the step string** through `stepToCommands()`:
+
+```
+"Click button \"Cloud\""  →  regex /^click button "(.+?)"$/i  →  { type: 'click-button', label: 'Cloud' }
+```
+
+**3 — `executeStep()` handles the `click-button` command.** It first shells out to
+`playwright-cli snapshot`. This asks Chromium for the page's **accessibility tree**
+(the same tree screen readers use) and writes it to a YAML file:
+
+```yaml
+# .playwright-cli/page-2026-03-04T02-41-24-576Z.yml
+- banner
+  - heading "Sessions" [level=1] [ref=e12]
+- main
+  - group "Session target"
+    - button "Local" [pressed] [ref=e42]
+    - button "Cloud" [ref=e43]
+  - textbox "Ask anything, @ to mention" [ref=e67]
+  - button "Send" [ref=e68]
+```
+
+Note: no CSS classes, no DOM structure — just what a screen reader would see. Each
+interactive element gets a unique `ref` assigned by `playwright-cli`.
+
+**4 — `findRefByButtonName()` scans the YAML** line by line looking for a line that
+contains both `button` and `"Cloud"`:
+
+```
+"    - button "Local" [pressed] [ref=e42]"  → has "button", has "Local" not "Cloud" → skip
+"    - button "Cloud" [ref=e43]"            → has "button" AND "Cloud" → extract e43 ✓
+```
+
+**5 — `run.js` shells out to `playwright-cli click e43`.** The CLI maps `e43` back to
+the DOM element (it kept the ref→element mapping from the snapshot), sends a click
+event via CDP, and Chromium dispatches the click. The Sessions UI switches to Cloud mode.
+
+**6 — The step passes** (exit code 0):
+
+```
+  ✅   step 1: Click button "Cloud"
+```
+
+The full chain: **DOM → Chromium accessibility tree → YAML file → regex search →
+ref ID → CDP click → DOM event**. Our code only touches the middle part (reading
+YAML and finding the ref). Everything else is Chromium and `playwright-cli`.
+
 ### Tips for Writing Good Scenarios
 
 - **Use exact button labels** as they appear in the UI (e.g., `"Cloud"`, `"Local"`).
