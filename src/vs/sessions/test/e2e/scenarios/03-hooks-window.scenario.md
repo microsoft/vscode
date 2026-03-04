@@ -1,5 +1,4 @@
-# Scenario: Repository picker opens when submitting without a repo
+# Scenario: Instructions
 
 ## Steps
 1. Click button "Instructions"
-
