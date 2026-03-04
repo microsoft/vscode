@@ -130,6 +130,7 @@ export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('i
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 export const CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT = new RawContextKey<boolean>('inlineChatFileBelongsToChat', false, localize('inlineChatFileBelongsToChat', "Whether the current file belongs to a chat editing session"));
 export const CTX_INLINE_CHAT_PENDING_CONFIRMATION = new RawContextKey<boolean>('inlineChatPendingConfirmation', false, localize('inlineChatPendingConfirmation', "Whether an inline chat request is pending user confirmation"));
+export const CTX_INLINE_CHAT_AFFORDANCE_VISIBLE = new RawContextKey<boolean>('inlineChatAffordanceVisible', false, localize('inlineChatAffordanceVisible', "Whether an inline chat affordance widget is visible"));
 
 export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.or(
 	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)

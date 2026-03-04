@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { URI } from '../../../base/common/uri.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IExtensionRecommendationNotificationService, IExtensionRecommendations, RecommendationsNotificationResult } from './extensionRecommendations.js';
 
@@ -23,7 +24,15 @@ export class ExtensionRecommendationNotificationServiceChannelClient implements 
 		throw new Error('not supported');
 	}
 
+	promptStronglyRecommendedExtensions(recommendations: Array<string | URI>): Promise<void> {
+		throw new Error('not supported');
+	}
+
 	hasToIgnoreRecommendationNotifications(): boolean {
+		throw new Error('not supported');
+	}
+
+	resetStronglyRecommendedIgnoreState(): void {
 		throw new Error('not supported');
 	}
 
