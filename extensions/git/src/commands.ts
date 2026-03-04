@@ -1061,20 +1061,6 @@ export class CommandCenter {
 		await repo.pull();
 	}
 
-	@command('_git.applyPatch')
-	async applyPatch(repositoryPath: string, patchContent: string): Promise<void> {
-		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
-		const repo = new GitRepository(this.git, repositoryPath, undefined, dotGit, this.logger);
-		const patchPath = path.join(os.tmpdir(), `vscode-patch-${Date.now()}.patch`);
-		const { promises: fsp } = await import('fs');
-		try {
-			await fsp.writeFile(patchPath, patchContent, 'utf8');
-			await repo.apply(patchPath, { threeWay: true });
-		} finally {
-			await fsp.unlink(patchPath).catch(() => { });
-		}
-	}
-
 	@command('_git.revParseAbbrevRef')
 	async revParseAbbrevRef(repositoryPath: string): Promise<string> {
 		const dotGit = await this.git.getRepositoryDotGit(repositoryPath);
