@@ -70,7 +70,7 @@
 			align-items: center;
 			gap: 8px;
 			min-width: 0;
-			padding: 8px 36px 8px 16px;
+			padding: 8px 8px 8px 16px;
 			border-bottom: 1px solid var(--vscode-chat-requestBorder);
 		}
 
@@ -118,6 +118,11 @@
 			}
 		}
 	}
+}
+
+/* Extra right padding when close button is absolutely positioned (multi-question) */
+.interactive-session .chat-question-carousel-container:has(> .chat-question-close-container) .chat-question-title-row {
+	padding-right: 36px;
 }
 
 /* questions list and freeform area */

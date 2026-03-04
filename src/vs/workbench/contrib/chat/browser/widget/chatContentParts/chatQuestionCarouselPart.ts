@@ -556,6 +556,13 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		}
 
 		headerRow.appendChild(titleRow);
+
+		// For single-question carousels, add close button inside the title row
+		const isSingleQuestion = this.carousel.questions.length === 1;
+		if (isSingleQuestion && this._closeButtonContainer) {
+			titleRow.appendChild(this._closeButtonContainer);
+		}
+
 		this._questionContainer.appendChild(headerRow);
 
 		// Render input based on question type
