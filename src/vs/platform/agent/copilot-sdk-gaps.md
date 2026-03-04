@@ -42,3 +42,8 @@
 Remaining work on the permission system:
 - Diff previews for write permissions (extension uses `createEditConfirmation` + `formatDiffAsUnified`)
 - Auto-approve writes in isolated worktrees or workspace files that don't need confirmation
+
+## Tool invocation rendering
+
+- **Read file tool**: Does not show which file is being read. The `tool_start` event has a generic invocation message but the file path is not surfaced in the UI.
+- **Task/subagent tool**: Does not use VS Code's subagent detail rendering. The SDK fires subagent events (`subagent.started`, `subagent.completed`) but these are only logged, not rendered with the proper subagent UI treatment.
