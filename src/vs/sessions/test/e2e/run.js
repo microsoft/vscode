@@ -115,7 +115,15 @@ function stepToCommands(step) {
 
 function getSnapshot() {
 	const result = runPlaywrightCli(['snapshot']);
-	return result.ok ? result.stdout : '';
+	if (!result.ok) { return ''; }
+	// stdout contains a markdown link to the snapshot file, e.g.:
+	//   - [Snapshot](.playwright-cli/page-2026-...yml)
+	const fileMatch = result.stdout.match(/\[Snapshot\]\((.+?\.yml)\)/);
+	if (fileMatch) {
+		const snapshotPath = path.join(APP_ROOT, fileMatch[1]);
+		try { return fs.readFileSync(snapshotPath, 'utf-8'); } catch { /* fall through */ }
+	}
+	return result.stdout;
 }
 
 function findRefByButtonName(snapshotText, label) {
