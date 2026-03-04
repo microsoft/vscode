@@ -27,7 +27,9 @@ import {
 	IBrowserViewCaptureScreenshotOptions,
 	IBrowserViewFindInPageOptions,
 	IBrowserViewFindInPageResult,
-	IBrowserViewVisibilityEvent
+	IBrowserViewVisibilityEvent,
+	browserZoomDefaultIndex,
+	browserZoomPercentages
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -116,8 +118,10 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly storageScope: BrowserViewStorageScope;
 	readonly sharedWithAgent: boolean;
 	readonly zoomFactor: number;
+	readonly zoomIndex: number;
 
 	readonly onDidChangeSharedWithAgent: Event<boolean>;
+	readonly onDidChangeZoomIndex: Event<number>;
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent>;
@@ -148,6 +152,9 @@ export interface IBrowserViewModel extends IDisposable {
 	getSelectedText(): Promise<string>;
 	clearStorage(): Promise<void>;
 	setSharedWithAgent(shared: boolean): Promise<void>;
+	zoomIn(): Promise<void>;
+	zoomOut(): Promise<void>;
+	resetZoom(): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -164,10 +171,13 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _error: IBrowserViewLoadError | undefined = undefined;
 	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
 	private _sharedWithAgent: boolean = false;
-	private _zoomFactor: number = 1;
+	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
 	private readonly _onDidChangeSharedWithAgent = this._register(new Emitter<boolean>());
 	readonly onDidChangeSharedWithAgent: Event<boolean> = this._onDidChangeSharedWithAgent.event;
+
+	private readonly _onDidChangeZoomIndex = this._register(new Emitter<number>());
+	readonly onDidChangeZoomIndex: Event<number> = this._onDidChangeZoomIndex.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
@@ -199,7 +209,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 	get sharedWithAgent(): boolean { return this._sharedWithAgent; }
-	get zoomFactor(): number { return this._zoomFactor; }
+	get zoomFactor(): number { return browserZoomPercentages[this._browserZoomIndex] / 100; }
+	get zoomIndex(): number { return this._browserZoomIndex; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -282,7 +293,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._error = state.lastError;
 		this._storageScope = state.storageScope;
 		this._sharedWithAgent = await this.playwrightService.isPageTracked(this.id);
-		this._zoomFactor = state.zoomFactor;
+		this._browserZoomIndex = state.browserZoomIndex;
 
 		// Set up state synchronization
 
@@ -329,7 +340,6 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
-		this._zoomFactor = bounds.zoomFactor;
 		return this.browserViewService.layout(this.id, bounds);
 	}
 
@@ -393,6 +403,32 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async clearStorage(): Promise<void> {
 		return this.browserViewService.clearStorage(this.id);
+	}
+
+	private async setBrowserZoomIndex(zoomIndex: number): Promise<void> {
+		const clamped = Math.max(0, Math.min(zoomIndex, browserZoomPercentages.length - 1));
+		if (clamped === this._browserZoomIndex) {
+			return;
+		}
+		this._browserZoomIndex = clamped;
+		await this.browserViewService.setBrowserZoomIndex(this.id, this._browserZoomIndex);
+		this._onDidChangeZoomIndex.fire(this._browserZoomIndex);
+	}
+
+	async zoomIn(): Promise<void> {
+		if (this._browserZoomIndex < browserZoomPercentages.length - 1) {
+			await this.setBrowserZoomIndex(this._browserZoomIndex + 1);
+		}
+	}
+
+	async zoomOut(): Promise<void> {
+		if (this._browserZoomIndex > 0) {
+			await this.setBrowserZoomIndex(this._browserZoomIndex - 1);
+		}
+	}
+
+	async resetZoom(): Promise<void> {
+		await this.setBrowserZoomIndex(browserZoomDefaultIndex);
 	}
 
 	private static readonly SHARE_DONT_ASK_KEY = 'browserView.shareWithAgent.dontAskAgain';

@@ -8,7 +8,7 @@ import { FileAccess } from '../../../base/common/network.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomPercentages, browserZoomDefaultIndex } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, KeyMod, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IBaseWindow, ICodeWindow } from '../../window/electron-main/window.js';
@@ -45,6 +45,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
 	private _lastUserGestureTimestamp: number = -Infinity;
+	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
 	private _debugger: BrowserViewDebugger;
 	private _window: IBaseWindow | undefined;
@@ -360,7 +361,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			lastFavicon: this._lastFavicon,
 			lastError: this._lastError,
 			storageScope: this.session.storageScope,
-			zoomFactor: webContents.getZoomFactor()
+			browserZoomIndex: this._browserZoomIndex
 		};
 	}
 
@@ -384,13 +385,22 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			}
 		}
 
-		this._view.webContents.setZoomFactor(bounds.zoomFactor);
 		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
 			y: Math.round(bounds.y * bounds.zoomFactor),
 			width: Math.round(bounds.width * bounds.zoomFactor),
 			height: Math.round(bounds.height * bounds.zoomFactor)
 		});
+	}
+
+	/**
+	 * Set the browser zoom index as an index into the discrete zoom levels array.
+	 * @param zoomIndex Index into browserZoomPercentages
+	 */
+	setBrowserZoomIndex(zoomIndex: number): void {
+		this._browserZoomIndex = Math.max(0, Math.min(zoomIndex, browserZoomPercentages.length - 1));
+		const browserZoomFactor = browserZoomPercentages[this._browserZoomIndex] / 100;
+		this._view.webContents.setZoomFactor(browserZoomFactor);
 	}
 
 	/**
