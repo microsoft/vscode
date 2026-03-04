@@ -411,6 +411,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 			});
 		});
 
+		wrapper.onReasoningDelta(e => {
+			this._logService.trace(`[Copilot:${rawId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
+			this._onDidSessionProgress.fire({
+				session,
+				type: 'reasoning',
+				content: e.data.deltaContent,
+			});
+		});
+
 		this._subscribeForLogging(wrapper, rawId);
 
 		this._sessions.set(rawId, wrapper);
@@ -480,10 +489,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		wrapper.onReasoning(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Reasoning: ${e.data.content.length} chars`);
-		});
-
-		wrapper.onReasoningDelta(e => {
-			this._logService.trace(`[Copilot:${sessionId}] Reasoning delta: ${e.data.deltaContent.length} chars`);
 		});
 
 		wrapper.onTurnEnd(e => {

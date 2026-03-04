@@ -205,6 +205,12 @@ export interface IAgentPermissionRequestEvent extends IAgentProgressEventBase {
 	readonly rawRequest: string;
 }
 
+/** Streaming reasoning/thinking content from the assistant. */
+export interface IAgentReasoningEvent extends IAgentProgressEventBase {
+	readonly type: 'reasoning';
+	readonly content: string;
+}
+
 export type IAgentProgressEvent =
 	| IAgentDeltaEvent
 	| IAgentMessageEvent
@@ -214,7 +220,8 @@ export type IAgentProgressEvent =
 	| IAgentTitleChangedEvent
 	| IAgentErrorEvent
 	| IAgentUsageEvent
-	| IAgentPermissionRequestEvent;
+	| IAgentPermissionRequestEvent
+	| IAgentReasoningEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 

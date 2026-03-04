@@ -337,6 +337,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._logService.trace(`[AgentHost:${sessionStr}] title changed: ${e.title}`);
 					break;
 
+				case 'reasoning':
+					this._logService.trace(`[AgentHost:${sessionStr}] reasoning: ${e.content.length} chars`);
+					progress([{ kind: 'thinking', value: e.content }]);
+					break;
+
 				case 'permission_request': {
 					this._logService.info(`[AgentHost:${sessionStr}] permission_request: kind=${e.permissionKind}, requestId=${e.requestId}, path=${e.path ?? '(none)'}`);
 					const confirmInvocation = this._createPermissionConfirmation(e);
