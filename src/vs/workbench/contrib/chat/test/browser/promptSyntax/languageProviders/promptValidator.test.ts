@@ -1714,6 +1714,60 @@ suite('PromptValidator', () => {
 				]
 			);
 		});
+
+		test('hooks - nested matcher format is valid', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  UserPromptSubmit:',
+				'    - hooks:',
+				'        - type: command',
+				'          command: "echo foo"',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(markers, []);
+		});
+
+		test('hooks - nested matcher validates inner commands', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  PreToolUse:',
+				'    - matcher: Bash',
+				'      hooks:',
+				'        - type: script',
+				'          command: "echo foo"',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'type' property in a hook command must be 'command'.` },
+				]
+			);
+		});
+
+		test('hooks - nested hooks must be array', async () => {
+			const content = [
+				'---',
+				'description: "Test"',
+				'hooks:',
+				'  PreToolUse:',
+				'    - hooks: invalid',
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: `The 'hooks' property in a matcher must be an array of command objects.` },
+				]
+			);
+		});
 	});
 
 	suite('instructions', () => {

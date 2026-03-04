@@ -575,6 +575,25 @@ export class PromptValidator {
 			return;
 		}
 
+		// Detect nested matcher format: { matcher?: "...", hooks: [{ type: 'command', command: '...' }] }
+		const hooksProperty = item.properties.find(p => p.key.value === 'hooks');
+		if (hooksProperty) {
+			// Validate that only known matcher properties are present
+			for (const prop of item.properties) {
+				if (prop.key.value !== 'hooks' && prop.key.value !== 'matcher') {
+					report(toMarker(localize('promptValidator.unknownMatcherProperty', "Unknown property '{0}' in hook matcher.", prop.key.value), prop.key.range, MarkerSeverity.Warning));
+				}
+			}
+			if (hooksProperty.value.type !== 'sequence') {
+				report(toMarker(localize('promptValidator.nestedHooksMustBeArray', "The 'hooks' property in a matcher must be an array of command objects."), hooksProperty.value.range, MarkerSeverity.Error));
+				return;
+			}
+			for (const nestedItem of hooksProperty.value.items) {
+				this.validateHookCommand(nestedItem, target, report);
+			}
+			return;
+		}
+
 		const isCopilotCli = target === Target.GitHubCopilot;
 
 		// Determine valid and command-providing properties based on target
