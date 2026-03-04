@@ -9,6 +9,7 @@
     "authSession",
     "environmentPower",
     "chatParticipantPrivate",
+    "chatPromptFiles",
     "chatProvider",
     "contribStatusBarItems",
     "contribViewsRemote",
