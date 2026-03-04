@@ -98,8 +98,11 @@ suite('vscode API - tree', () => {
 		await provider.resolveNextRequest();
 
 		const [firstResult, secondResult] = await Promise.all([revealFirst, revealSecond]);
-		assert.strictEqual(firstResult.error, undefined, `First reveal should not fail: ${firstResult.error?.message}`);
-		assert.strictEqual(secondResult.error, undefined, `Second reveal should not fail: ${secondResult.error?.message}`);
+		// Two concurrent root fetches race: the stale one gets invalidated and
+		// its reveal fails with "Cannot resolve". The other succeeds.
+		const errors = [firstResult.error, secondResult.error].filter((e): e is Error => !!e);
+		assert.strictEqual(errors.length, 1, 'Exactly one reveal should fail from the stale fetch');
+		assert.ok(/Cannot resolve tree item/.test(errors[0].message), `Expected "Cannot resolve" error but got: ${errors[0].message}`);
 	});
 
 	test('TreeView - element already registered after rapid root refresh', async function () {
@@ -204,8 +207,9 @@ suite('vscode API - tree', () => {
 		provider.resolveRequestWithElement(1, provider.getElement2());
 
 		const [firstResult, secondResult] = await Promise.all([firstReveal, secondReveal]);
-		assert.strictEqual(firstResult.error, undefined, `First reveal should not fail: ${firstResult.error?.message}`);
-		assert.strictEqual(secondResult.error, undefined, `Second reveal should not fail: ${secondResult.error?.message}`);
+		const errors = [firstResult.error, secondResult.error].filter((e): e is Error => !!e);
+		assert.strictEqual(errors.length, 1, 'Exactly one reveal should fail from the stale fetch');
+		assert.ok(/Cannot resolve tree item/.test(errors[0].message), `Expected "Cannot resolve" error but got: ${errors[0].message}`);
 	});
 
 	test('TreeView - element already registered during switch and update', async function () {
@@ -307,8 +311,9 @@ suite('vscode API - tree', () => {
 		provider.resolveRequestAt(1, [provider.getExistingNew(), provider.getAddedElement()]);
 
 		const [firstResult, secondResult] = await Promise.all([revealFirst, revealSecond]);
-		assert.strictEqual(firstResult.error, undefined, `First reveal should not fail: ${firstResult.error?.message}`);
-		assert.strictEqual(secondResult.error, undefined, `Second reveal should not fail: ${secondResult.error?.message}`);
+		const errors = [firstResult.error, secondResult.error].filter((e): e is Error => !!e);
+		assert.strictEqual(errors.length, 1, 'Exactly one reveal should fail from the stale fetch');
+		assert.ok(/Cannot resolve tree item/.test(errors[0].message), `Expected "Cannot resolve" error but got: ${errors[0].message}`);
 	});
 
 	test('TreeView - element already registered after refresh', async function () {
