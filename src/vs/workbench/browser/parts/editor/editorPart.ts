@@ -34,7 +34,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext } from '../../../common/contextkeys.js';
+import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IEditorPartUIState {
@@ -1039,6 +1039,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	protected handleContextKeys(): void {
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(this.scopedContextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(this.scopedContextKeyService);
+		const editorTabsVisibleContext = EditorTabsVisibleContext.bindTo(this.scopedContextKeyService);
 
 		const updateContextKeys = () => {
 			const groupCount = this.count;
@@ -1055,11 +1056,17 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			}
 		};
 
+		const updateEditorTabsVisibleContext = () => {
+			editorTabsVisibleContext.set(this.partOptions.showTabs === 'multiple');
+		};
+
 		updateContextKeys();
+		updateEditorTabsVisibleContext();
 
 		this._register(this.onDidAddGroup(() => updateContextKeys()));
 		this._register(this.onDidRemoveGroup(() => updateContextKeys()));
 		this._register(this.onDidChangeGroupMaximized(() => updateContextKeys()));
+		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
 	}
 
 	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {
