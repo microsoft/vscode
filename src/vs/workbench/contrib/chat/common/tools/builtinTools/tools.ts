@@ -40,7 +40,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 		this._register(toolsService.registerTool(ConfirmationToolWithOptionsData, confirmationTool));
 
-		const resolveDebugEventDetailsTool = instantiationService.createInstance(ResolveDebugEventDetailsTool);
+		const resolveDebugEventDetailsTool = this._register(instantiationService.createInstance(ResolveDebugEventDetailsTool));
 		this._register(toolsService.registerTool(ResolveDebugEventDetailsToolData, resolveDebugEventDetailsTool));
 		this._register(toolsService.readToolSet.addTool(ResolveDebugEventDetailsToolData));
 

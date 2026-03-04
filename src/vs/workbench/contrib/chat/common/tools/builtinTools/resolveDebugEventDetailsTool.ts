@@ -5,8 +5,8 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../../nls.js';
-import { IChatDebugResolvedEventContent, IChatDebugService } from '../../chatDebugService.js';
-import { CountTokensCallback, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../languageModelToolsService.js';
+import { IChatDebugEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../chatDebugService.js';
+import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../languageModelToolsService.js';
 
 export const ResolveDebugEventDetailsToolId = 'vscode_resolveDebugEventDetails_internal';
 
@@ -94,6 +94,30 @@ function formatResolvedContent(content: IChatDebugResolvedEventContent): string 
 			}
 			return lines.join('\n');
 		}
+		default: {
+			const _: never = content;
+			return JSON.stringify(_);
+		}
+	}
+}
+
+function truncate(text: string, maxLength = 30): string {
+	if (text.length <= maxLength) {
+		return text;
+	}
+	const lastSpace = text.lastIndexOf(' ', maxLength);
+	const cutoff = lastSpace > maxLength / 2 ? lastSpace : maxLength;
+	return text.substring(0, cutoff) + '\u2026';
+}
+
+function getEventLabel(event: IChatDebugEvent): string {
+	switch (event.kind) {
+		case 'generic': return event.name;
+		case 'toolCall': return event.toolName;
+		case 'modelTurn': return event.requestName ?? localize('debugEvent.modelTurn', "Model Turn");
+		case 'userMessage': return localize('debugEvent.userMessage', "User Message: {0}", truncate(event.message));
+		case 'agentResponse': return localize('debugEvent.agentResponse', "Agent Response: {0}", truncate(event.message));
+		case 'subagentInvocation': return event.agentName;
 	}
 }
 
@@ -102,9 +126,32 @@ export class ResolveDebugEventDetailsTool implements IToolImpl {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 	) { }
 
+	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		const eventId = context.parameters?.eventId;
+		let eventLabel: string | undefined;
+		if (typeof eventId === 'string' && context.chatSessionResource) {
+			const events = this.chatDebugService.getEvents(context.chatSessionResource);
+			const event = events.find(e => e.id === eventId);
+			if (event) {
+				eventLabel = getEventLabel(event);
+			}
+		}
+
+		if (eventLabel) {
+			return {
+				invocationMessage: localize('resolveDebugEventDetails.invocationMessageNamed', 'Resolving details for "{0}"', eventLabel),
+				pastTenseMessage: localize('resolveDebugEventDetails.pastTenseMessageNamed', 'Resolved details for "{0}"', eventLabel),
+			};
+		}
+		return {
+			invocationMessage: localize('resolveDebugEventDetails.invocationMessage', 'Resolving debug event details'),
+			pastTenseMessage: localize('resolveDebugEventDetails.pastTenseMessage', 'Resolved debug event details'),
+		};
+	}
+
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
-		const eventId = invocation.parameters['eventId'] as string;
-		if (!eventId) {
+		const eventId = invocation.parameters['eventId'];
+		if (typeof eventId !== 'string' || !eventId) {
 			return {
 				content: [{ kind: 'text', value: 'Error: eventId parameter is required.' }],
 			};

@@ -124,7 +124,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 		}
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'troubleshoot',
-			detail: nls.localize('troubleshoot', "Troubleshoot the current conversation with debug events"),
+			detail: nls.localize('troubleshoot', "Troubleshoot with a snapshot of debug events from the conversation so far (run again to refresh)"),
 			sortText: 'z3_troubleshoot',
 			executeImmediately: false,
 			silent: true,
@@ -138,8 +138,10 @@ export class ChatSlashCommandsContribution extends Disposable {
 
 			const attachedContext: IChatRequestVariableEntry[] = [{
 				id: 'chatDebugEvents',
-				name: nls.localize('troubleshoot.contextName', "Debug Events"),
-				kind: 'generic',
+				name: nls.localize('troubleshoot.contextName', "Debug Events Snapshot"),
+				kind: 'debugEvents',
+				snapshotTime: Date.now(),
+				sessionResource,
 				value: summary,
 				modelDescription: 'These are the debug event logs from the current chat conversation. Analyze them to help answer the user\'s troubleshooting question.\n'
 					+ '\n'
@@ -412,6 +414,11 @@ function formatDebugEventsForContext(events: readonly IChatDebugEvent[]): string
 			case 'agentResponse':
 				lines.push(`[${ts}]${id} AGENT_RESPONSE: ${event.message.substring(0, 200)}${event.message.length > 200 ? '...' : ''} (${event.sections.length} sections)`);
 				break;
+			default: {
+				const _: never = event;
+				void _;
+				break;
+			}
 		}
 	}
 	return lines.join('\n');

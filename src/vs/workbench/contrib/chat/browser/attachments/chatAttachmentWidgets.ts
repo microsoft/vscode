@@ -640,6 +640,14 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			}));
 		}
 
+		// Handle click for debug events attachments
+		if (attachment.kind === 'debugEvents') {
+			this.element.style.cursor = 'pointer';
+			this._register(dom.addDisposableListener(this.element, dom.EventType.CLICK, () => {
+				this.commandService.executeCommand('workbench.action.chat.openAgentDebugPanelForSession', attachment.sessionResource);
+			}));
+		}
+
 		// Setup tooltip hover for string context attachments
 		if ((isStringVariableEntry(attachment) || attachment.kind === 'generic') && attachment.tooltip) {
 			this._setupTooltipHover(attachment.tooltip);
